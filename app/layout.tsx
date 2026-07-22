@@ -1,22 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow, Instrument_Serif } from "next/font/google";
 import Providers from "./providers";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const barlow = Barlow({
+  variable: "--font-barlow",
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument-serif",
   subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
 });
 
 export const metadata: Metadata = {
-  title: "Worldstreet",
+  title: "World Street",
   description:
-    "A unified Web3 financial SuperApp: fiat on/off-ramps, spot markets, RWAs, perps, prediction markets, and yield in one place.",
+    "The onchain superapp for global markets. Own stocks, gold, crypto and real-world assets from one self-custody account, funded in Naira.",
 };
 
 export default function RootLayout({
@@ -25,7 +28,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang="en" className={`${barlow.variable} ${instrumentSerif.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
       </body>
