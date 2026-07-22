@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WSWS Frontend — Worldstreet Web3 SuperApp
+
+The frontend for **Worldstreet**, a unified Web3 financial SuperApp. It brings fiat on/off-ramps, crypto spot markets, decentralized trading, Real-World Assets (RWAs), perps, prediction markets, and automated yield into a single, consumer-grade experience — abstracting blockchain complexity so everyday users can earn, save, invest, trade, and move value without depending on centralized gatekeepers.
+
+## Tech Stack
+
+- **Framework:** [Next.js 16](https://nextjs.org) (App Router, Turbopack) + React 19
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS v4
+- **Testing:** Vitest + React Testing Library
+- **Tooling:** ESLint (`eslint-config-next`), Prettier
+- **Package manager:** pnpm (pinned via `packageManager`)
+- **Deploy target:** Vercel
 
 ## Getting Started
 
-First, run the development server:
+Requires **Node.js 24+** and **pnpm 10+**.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to see the app. Edit `app/page.tsx` to start — the page hot-reloads on save.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command             | Description                                |
+| ------------------- | ------------------------------------------ |
+| `pnpm dev`          | Start the dev server (Turbopack)           |
+| `pnpm build`        | Production build                           |
+| `pnpm start`        | Serve the production build                 |
+| `pnpm lint`         | Run ESLint                                 |
+| `pnpm test`         | Run the Vitest suite once                  |
+| `pnpm test:watch`   | Run Vitest in watch mode                   |
+| `pnpm format`       | Format the codebase with Prettier          |
+| `pnpm format:check` | Check formatting without writing (CI gate) |
 
-## Learn More
+## Branching & Contribution Workflow
 
-To learn more about Next.js, take a look at the following resources:
+We use a **two-branch model**:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **`main`** — production / deploy branch. Protected.
+- **`dev`** — integration branch. All feature work merges here first. Protected.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Flow:**
 
-## Deploy on Vercel
+1. Branch off `dev`: `git switch dev && git pull && git switch -c feat/your-feature`
+2. Commit your work and push: `git push -u origin feat/your-feature`
+3. Open a PR **into `dev`**. CI (`quality`) must pass before merge.
+4. PRs are **squash-merged** — one clean commit per feature. The branch is auto-deleted after merge.
+5. When `dev` is release-ready, the lead opens a PR from `dev` → `main` for deployment.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**Rules enforced by branch protection:**
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- No direct pushes to `dev` or `main` — a PR is always required.
+- The `quality` CI check (format → lint → test → build) must pass.
+- Branches must be up to date with the base before merging.
+- Linear history (squash-only merges repo-wide).
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every PR (and push) to `dev` and `main`. The single `quality` job runs, in order:
+
+1. `pnpm format:check` — Prettier
+2. `pnpm lint` — ESLint
+3. `pnpm test` — Vitest
+4. `pnpm build` — Next.js production build
+
+All four must pass for the PR to be mergeable.
+
+## Project Structure
+
+```
+app/                 # Next.js App Router (routes, layouts, pages)
+public/              # Static assets
+__tests__/           # Vitest test suites
+.github/workflows/   # CI pipelines
+AGENTS.md            # Notes for AI coding agents (read before editing)
+```
+
+> **Note:** This repo runs a build of Next.js with breaking changes vs. common training data. See `AGENTS.md` and the guides in `node_modules/next/dist/docs/` before writing framework code.
