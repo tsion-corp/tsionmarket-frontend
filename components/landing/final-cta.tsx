@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Reveal } from "@/components/ui/reveal";
+import { AuroraHeroBackground } from "@/components/landing/aurora-hero-bg";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 
 export function FinalCta() {
@@ -8,17 +9,8 @@ export function FinalCta() {
       id="early"
       className="relative flex min-h-[80vh] items-center justify-center overflow-hidden"
     >
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="none"
-        className="absolute inset-0 z-0 h-full w-full object-cover"
-      >
-        <source src="/hero.mp4" type="video/mp4" />
-      </video>
-      <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.85)_0%,rgba(0,0,0,0.5)_45%,rgba(0,0,0,0.9)_100%)]" />
+      <AuroraHeroBackground />
+      <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.5)_45%,rgba(0,0,0,0.9)_100%)]" />
       <Reveal className="relative z-10 max-w-[760px] px-6 text-center">
         <h2 className="ws-serif mx-auto max-w-[18ch] text-[clamp(40px,6.5vw,88px)] leading-none tracking-[-0.03em]">
           Your money. Your world. Your call.
