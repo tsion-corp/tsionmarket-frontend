@@ -1,0 +1,48 @@
+"use client";
+
+import { CopyButton } from "@/components/ui/copy-button";
+import { QrCode } from "@/components/dashboard/funds/qr-code";
+import { truncateAddress } from "@/lib/format";
+
+interface AddressPanelProps {
+  address: string;
+  tokenSymbol: string;
+  chainName: string;
+  // Set for a direct deposit to the user's own wallet. The address then accepts
+  // any asset on the network, and native gas is worth keeping for later sends.
+  nativeSymbol?: string;
+}
+
+// Deposit address with a QR, a copyable address, and a warning about what is
+// safe to send. Shared by the cross-chain and direct deposit screens.
+export function AddressPanel({ address, tokenSymbol, chainName, nativeSymbol }: AddressPanelProps) {
+  return (
+    <div>
+      <div className="flex justify-center pt-1">
+        <QrCode value={address} />
+      </div>
+      <div className="ws-inset mt-4 flex items-center gap-3 p-3.5">
+        <span className="tnum min-w-0 flex-1 text-[13px] font-normal break-all text-white/85">
+          {truncateAddress(address)}
+        </span>
+        <CopyButton value={address} />
+      </div>
+      <div className="border-accent/25 bg-accent/10 mt-3 rounded-[14px] border px-4 py-3">
+        {nativeSymbol ? (
+          <p className="text-[12.5px] leading-[1.5] font-normal text-white/80">
+            Only send assets on the <span className="font-semibold text-white">{chainName}</span>{" "}
+            network. Sending from another network may lose them. Keep a little{" "}
+            <span className="font-semibold text-white">{nativeSymbol}</span> for network fees so you
+            can move funds later.
+          </p>
+        ) : (
+          <p className="text-[12.5px] leading-[1.5] font-normal text-white/80">
+            Send only <span className="font-semibold text-white">{tokenSymbol}</span> on{" "}
+            <span className="font-semibold text-white">{chainName}</span> to this address. Anything
+            else may be lost.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}

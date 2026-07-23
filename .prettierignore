@@ -16,3 +16,7 @@ next-env.d.ts
 
 # Assets
 public/
+
+# Agent tooling and vendored skills (not our code to format)
+.agents/
+.claude/
