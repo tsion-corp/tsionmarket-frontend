@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
+import { WaveGridBackground } from "@/components/landing/wave-grid-background";
 import { ArrowUpRightIcon, ClockIcon, GlobeIcon } from "@/components/ui/icons";
 
 const TICKER = ["Stocks", "Gold", "Treasuries", "Perps", "Predictions"];
@@ -17,20 +18,10 @@ function word(delay: number) {
 export function Hero() {
   return (
     <header id="top" className="relative flex min-h-screen flex-col overflow-hidden">
-      <motion.video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.6, delay: 0.2 }}
-        className="absolute top-0 left-1/2 z-0 h-[120%] w-[120%] -translate-x-1/2 object-cover object-top"
-      >
-        <source src="/hero.mp4" type="video/mp4" />
-      </motion.video>
-      <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.55)_0%,rgba(0,0,0,0.15)_30%,rgba(0,0,0,0.2)_60%,rgba(0,0,0,0.85)_100%)]" />
+      <div className="absolute inset-0 z-0">
+        <WaveGridBackground className="h-full w-full" />
+      </div>
+      <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0.12)_32%,rgba(0,0,0,0.2)_60%,rgba(0,0,0,0.86)_100%)]" />
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-[120px] pb-[30px] text-center">
         <motion.div
@@ -47,7 +38,7 @@ export function Hero() {
 
         <motion.h1
           {...word(0.2)}
-          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(34px,8vw,112px)] leading-[1.08] tracking-[-0.015em] text-balance"
+          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(46px,9.2vw,120px)] leading-[1.06] tracking-[-0.015em] text-balance"
         >
           Own the <span className="text-accent">world,</span>
           <br className="hidden sm:block" /> on your own terms.

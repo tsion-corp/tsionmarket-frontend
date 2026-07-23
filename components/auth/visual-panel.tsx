@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "motion/react";
+import { AuroraHeroBackground } from "@/components/landing/aurora-hero-bg";
 
 const STATS = [
   { value: "12,000+", label: "On the early list" },
@@ -11,19 +11,7 @@ const STATS = [
 export function VisualPanel() {
   return (
     <div className="relative m-3 ml-0 hidden overflow-hidden rounded-[28px] lg:block">
-      <motion.video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="auto"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.6, delay: 0.2 }}
-        className="absolute inset-0 h-full w-full object-cover object-center"
-      >
-        <source src="/hero.mp4" type="video/mp4" />
-      </motion.video>
+      <AuroraHeroBackground />
       <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.45)_0%,rgba(0,0,0,0.1)_35%,rgba(0,0,0,0.25)_65%,rgba(0,0,0,0.85)_100%)]" />
       <div className="relative z-[2] flex h-full flex-col justify-end p-12">
         <div className="mb-[22px] inline-flex items-center gap-2 self-start rounded-full border border-white/16 bg-white/8 px-3.5 py-1.5 backdrop-blur-[10px]">

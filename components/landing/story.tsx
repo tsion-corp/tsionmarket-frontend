@@ -1,20 +1,14 @@
 import { Reveal } from "@/components/ui/reveal";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { TwistingRibbon } from "@/components/landing/twisting-ribbon";
 
 export function Story() {
   return (
-    <section id="story" className="relative flex min-h-[92vh] items-center overflow-hidden">
-      <video
-        autoPlay
-        muted
-        loop
-        playsInline
-        preload="none"
-        className="absolute inset-0 z-0 h-full w-full object-cover"
-      >
-        <source src="/hero.mp4" type="video/mp4" />
-      </video>
-      <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.8)_0%,rgba(0,0,0,0.35)_40%,rgba(0,0,0,0.9)_100%)]" />
+    <section id="story" className="relative flex min-h-[50vh] items-center overflow-hidden">
+      <div className="absolute inset-0 z-0">
+        <TwistingRibbon className="h-full w-full" />
+      </div>
+      <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.78)_0%,rgba(0,0,0,0.4)_40%,rgba(0,0,0,0.9)_100%)]" />
       <div className="relative z-10 mx-auto w-full max-w-[1120px] px-8">
         <Reveal>
           <Eyebrow>Why we built this</Eyebrow>
