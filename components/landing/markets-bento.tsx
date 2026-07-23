@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/ui/reveal";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import {
   BulbIcon,
   ChartBarsIcon,
@@ -24,7 +25,7 @@ function IconTile({ children, accent = true }: { children: React.ReactNode; acce
 
 function Chip({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full border border-white/12 bg-white/8 px-3 py-[5px] text-[11px] text-white/90">
+    <span className="rounded-full border border-white/12 bg-white/8 px-3 py-[5px] text-xs font-normal text-white/90">
       {children}
     </span>
   );
@@ -34,8 +35,8 @@ export function MarketsBento() {
   return (
     <section id="markets" className="relative z-[2] bg-black px-6 pt-[110px] pb-[60px]">
       <div className="mx-auto max-w-[1120px]">
-        <Reveal className="mb-11 max-w-[22ch]">
-          <div className="text-sm font-normal text-white/60">{"// Everything you can own"}</div>
+        <Reveal className="mb-11 max-w-[40ch]">
+          <Eyebrow>Everything you can own</Eyebrow>
           <h2 className="ws-serif mt-3.5 text-[clamp(36px,5.5vw,68px)] leading-[1.02] tracking-[-0.03em]">
             One app, every market
           </h2>
@@ -51,10 +52,10 @@ export function MarketsBento() {
             <IconTile>
               <ChartBarsIcon size={22} />
             </IconTile>
-            <h3 className="ws-serif mt-[70px] max-w-[16ch] text-[clamp(28px,3.4vw,40px)] leading-[1.04] tracking-[-0.02em]">
+            <h3 className="ws-serif mt-[70px] max-w-[20ch] text-[clamp(28px,3.4vw,40px)] leading-[1.04] tracking-[-0.02em]">
               Stocks, gold &amp; treasuries, tokenized and yours
             </h3>
-            <p className="mt-3.5 max-w-[44ch] text-[15px] leading-[1.55] font-light text-white/82">
+            <p className="mt-3.5 max-w-[44ch] text-[15px] leading-[1.55] font-normal text-white/82">
               Own fractional Apple, physical-backed gold, or T-bill yield onchain. Real-world
               assets, real settlement, always open.
             </p>
@@ -69,7 +70,7 @@ export function MarketsBento() {
             </IconTile>
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Perpetual futures</h3>
-              <p className="mt-2.5 text-[14.5px] leading-[1.55] font-light text-white/82">
+              <p className="mt-2.5 text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Long or short with up to 100x leverage and deep liquidity.
               </p>
             </div>
@@ -81,7 +82,7 @@ export function MarketsBento() {
             </IconTile>
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Prediction markets</h3>
-              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-light text-white/82">
+              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Trade your conviction on politics, sports and world events. Priced by the crowd,
                 settled onchain.
               </p>
@@ -97,7 +98,7 @@ export function MarketsBento() {
             </IconTile>
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Instant token swaps</h3>
-              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-light text-white/82">
+              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Best-price routing across every pool, so your swap fills at the sharpest rate.
               </p>
             </div>
@@ -110,11 +111,11 @@ export function MarketsBento() {
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[26px] tracking-[-0.02em]">
                 Yield vaults{" "}
-                <span className="font-sans text-xs font-light text-white/55 not-italic">
+                <span className="font-sans text-xs font-normal text-white/55 not-italic">
                   · soon
                 </span>
               </h3>
-              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-light text-white/82">
+              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Put idle balances to work in curated, audited strategies.
               </p>
             </div>
@@ -130,11 +131,11 @@ export function MarketsBento() {
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[26px] tracking-[-0.02em]">
                 Collectibles{" "}
-                <span className="font-sans text-xs font-light text-white/55 not-italic">
+                <span className="font-sans text-xs font-normal text-white/55 not-italic">
                   · soon
                 </span>
               </h3>
-              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-light text-white/82">
+              <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Mint, hold and trade NFTs right beside the rest of your portfolio.
               </p>
             </div>

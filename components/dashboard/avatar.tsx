@@ -10,7 +10,7 @@ interface AvatarProps {
 export function Avatar({ seed, size = 32 }: AvatarProps) {
   return (
     <span
-      className="inline-block shrink-0 overflow-hidden rounded-full"
+      className="inline-block shrink-0 overflow-hidden rounded-full [&>canvas]:block [&>canvas]:h-full [&>canvas]:w-full"
       style={{ width: size, height: size }}
     >
       <Blockies seed={seed.toLowerCase()} size={8} scale={Math.ceil(size / 8)} />

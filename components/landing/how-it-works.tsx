@@ -1,10 +1,11 @@
 import { Reveal } from "@/components/ui/reveal";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
 const STEPS = [
   {
     n: "01",
     title: "Sign in with your socials",
-    body: "Use Google, X or email. No downloads, no seed phrase to memorize on day one.",
+    body: "Use Google, X or email. No downloads, no seed phrase to write down.",
   },
   {
     n: "02",
@@ -30,8 +31,8 @@ export function HowItWorks() {
     <section id="how" className="relative z-[2] bg-black px-6 pt-[70px] pb-[60px]">
       <div className="mx-auto max-w-[1120px]">
         <Reveal className="mb-[46px] text-center">
-          <div className="text-sm font-normal text-white/60">{"// From zero to trading"}</div>
-          <h2 className="ws-serif mx-auto mt-3.5 max-w-[20ch] text-[clamp(34px,4.8vw,60px)] leading-[0.94] tracking-[-0.03em]">
+          <Eyebrow>From zero to trading</Eyebrow>
+          <h2 className="ws-serif mx-auto mt-3.5 max-w-[24ch] text-[clamp(34px,4.8vw,60px)] leading-[0.94] tracking-[-0.03em]">
             No jargon. No seed phrase. Just start.
           </h2>
         </Reveal>
@@ -58,7 +59,7 @@ export function HowItWorks() {
               <div className="ws-serif text-accent text-[clamp(30px,3.4vw,44px)] leading-[0.85]">
                 {s.value}
               </div>
-              <div className="mt-2 text-[13px] font-light text-white/70">{s.label}</div>
+              <div className="mt-2 text-[13px] font-normal text-white/70">{s.label}</div>
             </Reveal>
           ))}
         </div>

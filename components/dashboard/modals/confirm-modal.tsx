@@ -1,6 +1,7 @@
 "use client";
 
-import { CoinBadge } from "@/components/ui/coin-badge";
+import { AssetIcon } from "@/components/ui/asset-icon";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import type { ConfirmPayload } from "@/components/dashboard/modal-types";
 
 interface ConfirmModalProps {
@@ -11,17 +12,22 @@ interface ConfirmModalProps {
 export function ConfirmModal({ confirm, onConfirm }: ConfirmModalProps) {
   return (
     <div>
-      <div className="text-[13px] font-normal text-white/55">{confirm.eyebrow}</div>
+      <Eyebrow>{confirm.eyebrow}</Eyebrow>
       <div className="mt-3 flex items-center gap-[13px]">
         {confirm.badgeSym && confirm.badgeBg ? (
-          <CoinBadge sym={confirm.badgeSym} bg={confirm.badgeBg} size={44} />
+          <AssetIcon
+            sym={confirm.badgeSym}
+            bg={confirm.badgeBg}
+            size={44}
+            logo={confirm.badgeLogo}
+          />
         ) : null}
         <div className="min-w-0">
           <div className="ws-serif text-[23px] tracking-[-0.01em]">{confirm.title}</div>
-          <div className="truncate text-[12.5px] text-white/50">{confirm.sub}</div>
+          <div className="truncate text-[12.5px] font-normal text-white/50">{confirm.sub}</div>
         </div>
       </div>
-      <div className="mt-5 flex flex-col gap-3 text-[13.5px] text-white/60">
+      <div className="mt-5 flex flex-col gap-3 text-[13.5px] font-normal text-white/60">
         {confirm.lines.map((l) => (
           <div key={l.k} className="flex justify-between gap-4">
             <span>{l.k}</span>

@@ -31,7 +31,7 @@ export function VisualPanel() {
           <span className="text-[13px] text-white/90">The onchain superapp for global markets</span>
         </div>
         <h2 className="ws-serif max-w-[14ch] text-[clamp(40px,4.4vw,64px)] leading-[1.02] tracking-[-0.03em]">
-          Own the world, <span className="text-accent">answer to no one</span>
+          Own the world, <span className="text-accent">on your own terms</span>
         </h2>
         <div className="mt-8 flex flex-wrap gap-[26px]">
           {STATS.map((s) => (

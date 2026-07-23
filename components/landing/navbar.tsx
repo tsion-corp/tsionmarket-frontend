@@ -3,8 +3,8 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 
 const LINKS = [
+  { href: "#story", label: "Why us" },
   { href: "#markets", label: "Markets" },
-  { href: "#naira", label: "Naira ramp" },
   { href: "#values", label: "Security" },
   { href: "#how", label: "How it works" },
   { href: "#faq", label: "FAQ" },
@@ -25,13 +25,21 @@ export function Navbar() {
           </a>
         ))}
       </div>
-      <Link
-        href="/auth"
-        className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-5 py-[11px] text-sm font-semibold whitespace-nowrap hover:opacity-90"
-      >
-        Get started
-        <ArrowUpRightIcon className="text-arrow" />
-      </Link>
+      <div className="flex items-center gap-0.5 sm:gap-1">
+        <Link
+          href="/auth"
+          className="hover:text-accent rounded-full px-2.5 py-[11px] text-[13px] font-medium whitespace-nowrap text-white/90 min-[400px]:px-3 min-[400px]:text-sm"
+        >
+          Log in
+        </Link>
+        <Link
+          href="/auth"
+          className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-3.5 py-[11px] text-[13px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-sm sm:px-5"
+        >
+          Get started
+          <ArrowUpRightIcon className="text-arrow hidden min-[400px]:block" />
+        </Link>
+      </div>
     </nav>
   );
 }

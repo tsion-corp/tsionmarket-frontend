@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { motion } from "motion/react";
-import { ArrowUpRightIcon, ClockIcon, GlobeIcon, PlayIcon } from "@/components/ui/icons";
+import { ArrowUpRightIcon, ClockIcon, GlobeIcon } from "@/components/ui/icons";
 
-const HEADLINE_TOP = ["Own", "the", "world,"];
-const HEADLINE_BOTTOM = ["answer", "to", "no", "one"];
 const TICKER = ["Stocks", "Gold", "Treasuries", "Perps", "Predictions"];
 
 function word(delay: number) {
@@ -42,42 +40,26 @@ export function Hero() {
           <span className="text-ink rounded-full bg-white px-[11px] py-[3px] text-[11px] font-semibold">
             New
           </span>
-          <span className="pr-1 text-[13.5px] text-white/90">
+          <span className="pr-1 text-[13.5px] font-normal text-white/90">
             The onchain superapp for global markets
           </span>
         </motion.div>
 
-        <h1 className="mt-[30px] flex max-w-[min(94vw,1000px)] flex-col items-center gap-y-[0.2em]">
-          <span className="flex justify-center gap-x-[0.28em] whitespace-nowrap">
-            {HEADLINE_TOP.map((w, i) => (
-              <motion.span
-                key={w}
-                {...word(0.05 + i * 0.09)}
-                className={`ws-serif text-[clamp(38px,8vw,112px)] leading-[1.12] tracking-[-0.04em] ${w === "world," ? "text-accent" : ""}`}
-              >
-                {w}
-              </motion.span>
-            ))}
-          </span>
-          <span className="flex justify-center gap-x-[0.28em] whitespace-nowrap">
-            {HEADLINE_BOTTOM.map((w, i) => (
-              <motion.span
-                key={w}
-                {...word(0.32 + i * 0.09)}
-                className="ws-serif text-[clamp(38px,8vw,112px)] leading-[1.12] tracking-[-0.04em]"
-              >
-                {w}
-              </motion.span>
-            ))}
-          </span>
-        </h1>
+        <motion.h1
+          {...word(0.2)}
+          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(34px,8vw,112px)] leading-[1.08] tracking-[-0.015em] text-balance"
+        >
+          Own the <span className="text-accent">world,</span>
+          <br className="hidden sm:block" /> on your own terms.
+        </motion.h1>
 
         <motion.p
           {...word(0.7)}
           className="mt-[22px] max-w-[60ch] text-[clamp(15px,1.6vw,18px)] leading-[1.55] font-light text-white/92"
         >
-          Buy stocks, gold and crypto, trade markets, and grow your money from one app. Fund in
-          Naira, hold your own keys, and reach global markets without a bank, a broker, or a border.
+          Buy stocks, gold and crypto, trade perps and predictions, and grow your money from one
+          app. Fund in Naira, stay in full control, and reach global markets without a bank, a
+          broker or a border.
         </motion.p>
 
         <motion.div
@@ -91,12 +73,6 @@ export function Hero() {
             Get started
             <ArrowUpRightIcon size={18} className="text-accent" />
           </Link>
-          <a
-            href="#story"
-            className="hover:text-accent inline-flex items-center gap-[9px] text-[15px] font-medium text-white"
-          >
-            <PlayIcon /> See the story
-          </a>
         </motion.div>
 
         <motion.div
@@ -106,14 +82,14 @@ export function Hero() {
           <div className="ws-glass w-full max-w-[320px] rounded-[22px] p-5 text-left sm:w-[220px]">
             <ClockIcon className="text-white" />
             <div className="ws-serif mt-3.5 text-[38px] leading-none tracking-[-0.02em]">24/7</div>
-            <div className="mt-2 text-xs font-light text-white/80">Global market access</div>
+            <div className="mt-2 text-xs font-normal text-white/80">Global market access</div>
           </div>
           <div className="ws-glass w-full max-w-[320px] rounded-[22px] p-5 text-left sm:w-[220px]">
             <GlobeIcon size={26} className="text-white" />
             <div className="ws-serif mt-3.5 text-[38px] leading-none tracking-[-0.02em]">
               6 markets
             </div>
-            <div className="mt-2 text-xs font-light text-white/80">In one seamless app</div>
+            <div className="mt-2 text-xs font-normal text-white/80">All in one app</div>
           </div>
         </motion.div>
       </div>

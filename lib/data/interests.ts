@@ -40,7 +40,7 @@ export const INTERESTS: Interest[] = [
   {
     key: "realestate",
     title: "Real estate",
-    desc: "Fractional property income, RWA-backed.",
+    desc: "Fractional property that pays rental income.",
     icon: "house",
   },
   {
@@ -50,5 +50,3 @@ export const INTERESTS: Interest[] = [
     icon: "bond",
   },
 ];
-
-export const DEFAULT_SELECTED: Record<string, boolean> = { stocks: true, crypto: true };

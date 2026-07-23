@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/ui/reveal";
+import { Eyebrow } from "@/components/ui/eyebrow";
 import { GlobeIcon, LockIcon, ShieldIcon } from "@/components/ui/icons";
 
 const VALUES = [
@@ -18,7 +19,7 @@ const VALUES = [
     icon: <ShieldIcon size={22} />,
     chips: ["Full control", "Export anytime", "Transparent"],
     title: "Self-sovereign",
-    body: "Full ownership, full control, the way stewardship was always meant to be. Export your keys whenever you want.",
+    body: "Full ownership, full control. Export your keys whenever you want and take your assets anywhere.",
   },
 ];
 
@@ -27,9 +28,9 @@ export function Values() {
     <section id="values" className="relative z-[2] bg-black px-6 pt-[70px] pb-[60px]">
       <div className="mx-auto max-w-[1120px]">
         <Reveal className="mb-11">
-          <div className="text-sm font-normal text-white/60">{"// What you actually control"}</div>
+          <Eyebrow>What you actually control</Eyebrow>
           <h2 className="ws-serif mt-3.5 text-[clamp(36px,5.5vw,68px)] leading-[1.02] tracking-[-0.03em]">
-            Sovereignty, evolved
+            Yours alone
           </h2>
         </Reveal>
         <div className="grid grid-cols-1 gap-[18px] md:grid-cols-3">
@@ -47,7 +48,7 @@ export function Values() {
                   {v.chips.map((c) => (
                     <span
                       key={c}
-                      className="rounded-full border border-white/12 bg-white/7 px-[11px] py-[5px] text-[11px] text-white/90"
+                      className="rounded-full border border-white/12 bg-white/7 px-[11px] py-[5px] text-xs font-normal text-white/90"
                     >
                       {c}
                     </span>
@@ -58,7 +59,7 @@ export function Values() {
                 <h3 className="ws-serif text-[32px] leading-[1.04] tracking-[-0.02em]">
                   {v.title}
                 </h3>
-                <p className="mt-3 max-w-[32ch] text-[14.5px] leading-[1.55] font-light text-white/85">
+                <p className="mt-3 max-w-[32ch] text-[14.5px] leading-[1.55] font-normal text-white/85">
                   {v.body}
                 </p>
               </div>

@@ -1,63 +1,73 @@
 "use client";
 
 import { useState } from "react";
-import { CoinBadge } from "@/components/ui/coin-badge";
-import { MARKETS, MARKET_CLASS_MAP, MARKET_TABS } from "@/lib/data/dashboard";
-import { isUp, parseMoney } from "@/lib/format";
+import { AssetIcon } from "@/components/ui/asset-icon";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { MARKET_TABS, useMarkets, type MarketRow, type MarketTab } from "@/hooks/use-markets";
+import { formatUsd } from "@/lib/trade/math";
 import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
-import type { Market } from "@/lib/types";
 
 interface MarketsViewProps {
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenConfirm: (confirm: ConfirmPayload) => void;
 }
 
-export function MarketsView({ onOpenDetail, onOpenConfirm }: MarketsViewProps) {
-  const [cat, setCat] = useState<(typeof MARKET_TABS)[number]>("All");
-  const rows = MARKETS.filter((m) => cat === "All" || m.class === MARKET_CLASS_MAP[cat]);
+const DEFAULT_BUY_USD = 500;
 
-  const buyConfirm = (m: Market): ConfirmPayload => ({
-    eyebrow: "// Trade",
-    badgeSym: m.sym,
-    badgeBg: m.bg,
-    title: `Buy ${m.name}`,
-    sub: `${m.ticker} · ${m.class}`,
+function buyConfirm(row: MarketRow): ConfirmPayload {
+  const receive = row.priceUsd > 0 ? DEFAULT_BUY_USD / row.priceUsd : 0;
+  return {
+    eyebrow: "Trade",
+    badgeSym: row.symbol,
+    badgeBg: row.bg,
+    badgeLogo: row.logo,
+    title: `Buy ${row.name}`,
+    sub: `${row.ticker} · ${row.category}`,
     lines: [
-      { k: "You pay", v: "$500.00" },
+      { k: "You pay", v: formatUsd(DEFAULT_BUY_USD) },
       {
         k: "You receive",
-        v: `${(500 / parseMoney(m.price)).toFixed(4)} ${m.ticker}`,
+        v: `${receive.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.ticker}`,
         c: "#A78BFA",
       },
-      { k: "Price", v: m.price },
+      { k: "Price", v: row.hasData ? formatUsd(row.priceUsd) : "—" },
       { k: "Fee", v: "$0.00 · no commission", c: "#7CE7B0" },
     ],
-    cta: `Buy ${m.ticker}`,
+    cta: `Buy ${row.ticker}`,
     successTitle: "Order filled",
-    successMsg: `You now own ${m.ticker}. It's live in your portfolio.`,
-  });
+    successMsg: `You now own ${row.ticker}. It's live in your portfolio.`,
+  };
+}
 
-  const openMarket = (m: Market) =>
+export function MarketsView({ onOpenDetail, onOpenConfirm }: MarketsViewProps) {
+  const { rows, error } = useMarkets();
+  const [cat, setCat] = useState<MarketTab>("All");
+  const visible = rows.filter((row) => cat === "All" || row.category === cat);
+
+  const openMarket = (row: MarketRow) =>
     onOpenDetail({
-      sym: m.sym,
-      name: m.name,
-      sub: `${m.ticker} · ${m.class}`,
-      price: m.price,
-      chg: m.chg,
-      bg: m.bg,
+      sym: row.symbol,
+      name: row.name,
+      sub: `${row.ticker} · ${row.category}`,
+      price: row.priceLabel,
+      chg: row.change24hLabel,
+      bg: row.bg,
+      coingeckoId: row.coingeckoId,
+      up: row.up,
+      logo: row.logo,
       stats: [
-        { k: "Price", v: m.price },
-        { k: "24h change", v: m.chg },
-        { k: "Asset class", v: m.class },
-        { k: "Ticker", v: m.ticker },
+        { k: "Price", v: row.priceLabel },
+        { k: "24h change", v: row.change24hLabel },
+        { k: "Asset class", v: row.category },
+        { k: "Ticker", v: row.ticker },
       ],
-      cta: `Buy ${m.name}`,
-      onCta: () => onOpenConfirm(buyConfirm(m)),
+      cta: `Buy ${row.name}`,
+      onCta: () => onOpenConfirm(buyConfirm(row)),
     });
 
   return (
-    <div className="max-w-[1180px] p-4 sm:p-7">
-      <div className="text-[13px] font-normal text-white/55">{"// Markets"}</div>
+    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+      <Eyebrow>Markets</Eyebrow>
       <div className="mt-3.5 flex flex-wrap gap-2">
         {MARKET_TABS.map((t) => (
           <button
@@ -82,41 +92,50 @@ export function MarketsView({ onOpenDetail, onOpenConfirm }: MarketsViewProps) {
           <span className="hidden text-right min-[560px]:block">Class</span>
           <span />
         </div>
-        {rows.map((m) => (
-          <div
-            key={m.ticker}
-            onClick={() => openMarket(m)}
-            className="grid cursor-pointer grid-cols-[1.7fr_1fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] sm:px-6"
-          >
-            <div className="flex items-center gap-3">
-              <CoinBadge sym={m.sym} bg={m.bg} />
-              <div>
-                <div className="font-sans text-[14.5px] font-medium">{m.name}</div>
-                <div className="text-xs text-white/50">{m.ticker}</div>
-              </div>
-            </div>
-            <span className="tnum text-right text-sm">{m.price}</span>
-            <span
-              className={`tnum hidden text-right text-[13.5px] min-[560px]:block ${isUp(m.chg) ? "text-up" : "text-down"}`}
-            >
-              {m.chg}
-            </span>
-            <span className="hidden text-right text-[13px] text-white/60 min-[560px]:block">
-              {m.class}
-            </span>
-            <span className="text-right">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onOpenConfirm(buyConfirm(m));
-                }}
-                className="border-accent/30 bg-accent/14 text-accent hover:bg-accent/20 cursor-pointer rounded-full border px-[15px] py-[7px] font-sans text-[12.5px] font-medium whitespace-nowrap"
-              >
-                Trade
-              </button>
-            </span>
+
+        {error && rows.every((row) => !row.hasData) ? (
+          <div className="border-t border-white/6 px-6 py-8 text-center text-[13.5px] font-normal text-white/45">
+            Live market prices are unavailable right now. Please try again shortly.
           </div>
-        ))}
+        ) : (
+          visible.map((row) => (
+            <div
+              key={row.symbol}
+              onClick={() => openMarket(row)}
+              className="grid cursor-pointer grid-cols-[1.7fr_1fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] sm:px-6"
+            >
+              <div className="flex items-center gap-3">
+                <AssetIcon sym={row.symbol} bg={row.bg} logo={row.logo} />
+                <div>
+                  <div className="font-sans text-[14.5px] font-medium">{row.name}</div>
+                  <div className="text-xs font-normal text-white/50">{row.ticker}</div>
+                </div>
+              </div>
+              <span className="tnum text-right text-sm font-normal">{row.priceLabel}</span>
+              <span
+                className={`tnum hidden text-right text-[13.5px] font-normal min-[560px]:block ${
+                  row.hasData ? (row.up ? "text-up" : "text-down") : "text-white/40"
+                }`}
+              >
+                {row.change24hLabel}
+              </span>
+              <span className="hidden text-right text-[13px] font-normal text-white/60 min-[560px]:block">
+                {row.category}
+              </span>
+              <span className="text-right">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenConfirm(buyConfirm(row));
+                  }}
+                  className="border-accent/30 bg-accent/14 text-accent hover:bg-accent/20 cursor-pointer rounded-full border px-[15px] py-[7px] font-sans text-[12.5px] font-medium whitespace-nowrap"
+                >
+                  Trade
+                </button>
+              </span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );

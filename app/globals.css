@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-barlow);
-  --font-serif: var(--font-instrument-serif);
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
 
   --color-accent: #a78bfa;
   --color-up: #7ce7b0;
@@ -36,7 +36,11 @@ body {
 @utility ws-serif {
   font-family: var(--font-serif), serif;
   font-style: italic;
-  font-weight: 400;
+  /* Fraunces runs heavier and wider than Instrument Serif at the same px size.
+     Weight 350 and a small negative tracking bring it back to the same visual
+     scale. Component tracking utilities still override the letter-spacing. */
+  font-weight: 350;
+  letter-spacing: -0.01em;
 }
 
 @utility ws-card {

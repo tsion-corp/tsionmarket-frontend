@@ -72,6 +72,10 @@ export const HOLDINGS: Holding[] = [
   },
 ];
 
+// Demo daily portfolio movement, in USD, matching the demo holdings above.
+export const DAILY_CHANGE_USD = 1204.18;
+export const DAILY_CHANGE_PCT = "+2.56%";
+
 export const MARKETS: Market[] = [
   {
     sym: "◎",
@@ -213,9 +217,3 @@ export const FUND_METHODS: FundMethod[] = [
   { key: "card", label: "Debit card", desc: "Visa · Mastercard" },
   { key: "crypto", label: "Crypto deposit", desc: "USDC · USDT" },
 ];
-
-export const DEMO_USER = {
-  name: "Ada Okafor",
-  email: "ada@email.com",
-  address: "0x8f4e21c09b7a5d3f6e8a90c1d2b3a4f5e6d7c8b9",
-};

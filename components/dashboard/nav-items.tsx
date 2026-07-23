@@ -1,26 +1,24 @@
-import {
-  BulbIcon,
-  ChartBarsIcon,
-  GridIcon,
-  HouseIcon,
-  SwapIcon,
-  TrendIcon,
-} from "@/components/ui/icons";
-import type { DashboardView } from "@/components/dashboard/modal-types";
+import { BulbIcon, ChartBarsIcon, GridIcon, HouseIcon, TrendIcon } from "@/components/ui/icons";
+import { SECTION_LABEL, orderedSections, type SectionId } from "@/lib/sections";
+
+export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => React.ReactNode> = {
+  portfolio: GridIcon,
+  trade: TrendIcon,
+  markets: ChartBarsIcon,
+  rwa: HouseIcon,
+  prediction: BulbIcon,
+};
 
 export interface NavItem {
-  key: DashboardView | "rwa";
+  id: SectionId;
   label: string;
   icon: (props: { size?: number }) => React.ReactNode;
-  href?: string;
-  badge?: string;
 }
 
-export const NAV_ITEMS: NavItem[] = [
-  { key: "portfolio", label: "Portfolio", icon: GridIcon },
-  { key: "swap", label: "Swap", icon: SwapIcon },
-  { key: "perps", label: "Perps", icon: TrendIcon },
-  { key: "markets", label: "Markets", icon: ChartBarsIcon },
-  { key: "prediction", label: "Prediction", icon: BulbIcon },
-  { key: "rwa", label: "RWA", icon: HouseIcon, href: "/rwa", badge: "SUB-APP" },
-];
+export function buildNav(interest: string | null): NavItem[] {
+  return orderedSections(interest).map((id) => ({
+    id,
+    label: SECTION_LABEL[id],
+    icon: SECTION_ICONS[id],
+  }));
+}

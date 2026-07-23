@@ -2,7 +2,7 @@
 
 import { motion } from "motion/react";
 import type { Interest } from "@/lib/types";
-import { CheckIcon, INTEREST_ICONS } from "@/components/ui/icons";
+import { INTEREST_ICONS } from "@/components/ui/icons";
 
 interface InterestCardProps {
   interest: Interest;
@@ -14,6 +14,8 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
   const Icon = INTEREST_ICONS[interest.icon];
   return (
     <motion.button
+      role="radio"
+      aria-checked={selected}
       onClick={onToggle}
       whileHover={{ y: -3 }}
       transition={{ duration: 0.18 }}
@@ -30,7 +32,11 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
             : "scale-[0.85] border border-white/16 bg-white/6 opacity-35"
         }`}
       >
-        <CheckIcon size={13} className="text-ink" />
+        <span
+          className={`h-2.5 w-2.5 rounded-full transition-colors duration-200 ${
+            selected ? "bg-ink" : "bg-transparent"
+          }`}
+        />
       </span>
       <span className="border-accent/20 bg-accent/12 text-accent grid h-[46px] w-[46px] place-items-center rounded-[13px] border">
         {Icon ? <Icon size={24} /> : null}
@@ -38,7 +44,7 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
       <span className="ws-serif mt-4 block text-lg tracking-[-0.01em] sm:text-[22px]">
         {interest.title}
       </span>
-      <span className="mt-1.5 block text-[13.5px] leading-[1.45] text-white/65">
+      <span className="mt-1.5 block text-[13.5px] leading-[1.45] font-normal text-white/65">
         {interest.desc}
       </span>
     </motion.button>

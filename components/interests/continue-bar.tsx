@@ -4,21 +4,23 @@ import Link from "next/link";
 import { ArrowRightIcon } from "@/components/ui/icons";
 
 interface ContinueBarProps {
-  count: number;
+  selectedTitle: string | null;
   onContinue: () => void;
+  onSkip: () => void;
 }
 
-export function ContinueBar({ count, onContinue }: ContinueBarProps) {
-  const enabled = count > 0;
+export function ContinueBar({ selectedTitle, onContinue, onSkip }: ContinueBarProps) {
+  const enabled = selectedTitle !== null;
   return (
     <div className="fixed right-0 bottom-0 left-0 z-50 flex justify-center bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0.85)_40%,#000_100%)] px-6 pt-4 pb-[22px]">
       <div className="ws-glass flex w-[min(760px,100%)] items-center justify-between gap-[18px] rounded-full py-3 pr-3 pl-[22px]">
-        <span className="text-sm text-white/85">
-          {count === 0 ? "Pick at least one to continue" : `${count} selected`}
+        <span className="text-sm font-normal text-white/85">
+          {selectedTitle === null ? "Pick one to continue" : `${selectedTitle} selected`}
         </span>
         <div className="flex items-center gap-2">
           <Link
             href="/dashboard"
+            onClick={onSkip}
             className="rounded-full px-4 py-3 font-sans text-sm font-medium text-white/70 hover:text-white"
           >
             Skip

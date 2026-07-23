@@ -1,75 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import { BankIcon, CardIcon, CoinIcon } from "@/components/ui/icons";
-import { FUND_METHODS } from "@/lib/data/dashboard";
+import { MethodTile } from "@/components/dashboard/funds/method-tile";
+import { CryptoDepositScreen } from "@/components/dashboard/funds/crypto-deposit-screen";
+import { DirectDepositScreen } from "@/components/dashboard/funds/direct-deposit-screen";
+import { FiatDepositScreen } from "@/components/dashboard/funds/fiat-deposit-screen";
+import { SwapIcon, WalletIcon, CardIcon } from "@/components/ui/icons";
 
-const METHOD_ICONS: Record<string, React.ReactNode> = {
-  bank: <BankIcon className="text-accent" />,
-  card: <CardIcon className="text-accent" />,
-  crypto: <CoinIcon size={18} className="text-accent" />,
-};
+type Step = "chooser" | "crypto" | "direct" | "fiat";
 
-interface FundsModalProps {
-  subtitle?: string;
-  onConfirm: () => void;
-}
+export function FundsModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<Step>("chooser");
+  const back = () => setStep("chooser");
 
-export function FundsModal({
-  subtitle = "Top up in Naira and start investing in seconds.",
-  onConfirm,
-}: FundsModalProps) {
-  const [method, setMethod] = useState("bank");
+  if (step === "crypto") return <CryptoDepositScreen onBack={back} />;
+  if (step === "direct") return <DirectDepositScreen onBack={back} />;
+  if (step === "fiat") return <FiatDepositScreen onBack={back} />;
+
   return (
     <div>
       <div className="ws-serif text-[24px] tracking-[-0.01em]">Add funds</div>
-      <p className="mt-2 text-[13.5px] leading-[1.5] text-white/65">{subtitle}</p>
-      <div className="ws-inset mt-[18px] p-4">
-        <div className="mb-[9px] flex justify-between text-xs text-white/55">
-          <span>Amount</span>
-          <span>≈ 161 USDC</span>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <span className="bg-accent/14 text-accent grid h-[34px] w-[34px] place-items-center rounded-[10px] text-[15px] font-semibold">
-            ₦
-          </span>
-          <span className="ws-serif tnum text-[28px]">250,000</span>
-        </div>
-      </div>
-      <div className="mt-3.5 flex flex-col gap-[9px]">
-        {FUND_METHODS.map((m) => {
-          const active = method === m.key;
-          return (
-            <button
-              key={m.key}
-              onClick={() => setMethod(m.key)}
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-[13px] border p-3 font-sans transition-colors ${
-                active ? "border-accent/45 bg-accent/12" : "border-white/10 bg-white/4"
-              }`}
-            >
-              <span className="grid h-[34px] w-[34px] place-items-center rounded-[10px] border border-white/10 bg-white/6">
-                {METHOD_ICONS[m.key]}
-              </span>
-              <span className="flex-1 text-left">
-                <span className="block text-sm font-medium text-white">{m.label}</span>
-                <span className="block text-xs text-white/50">{m.desc}</span>
-              </span>
-              <span
-                className={`grid h-5 w-5 place-items-center rounded-full ${
-                  active
-                    ? "bg-accent shadow-[inset_0_0_0_3px_#0c0c0e,0_0_0_1px_#A78BFA]"
-                    : "border border-white/20"
-                }`}
-              />
-            </button>
-          );
-        })}
+      <p className="mt-2 text-[13.5px] leading-[1.5] font-normal text-white/65">
+        Choose how you want to fund your wallet.
+      </p>
+      <div className="mt-[18px] flex flex-col gap-2">
+        <MethodTile
+          icon={<SwapIcon size={22} />}
+          title="Deposit crypto"
+          subtitle="Any token, any chain. Arrives as USDC."
+          badge="Popular"
+          onClick={() => setStep("crypto")}
+        />
+        <MethodTile
+          icon={<WalletIcon size={22} />}
+          title="Direct deposit"
+          subtitle="Send USDC straight to your wallet."
+          onClick={() => setStep("direct")}
+        />
+        <MethodTile
+          icon={<CardIcon size={22} />}
+          title="Card or bank"
+          subtitle="Fund in naira with a card or transfer."
+          badge="Soon"
+          onClick={() => setStep("fiat")}
+        />
       </div>
       <button
-        onClick={onConfirm}
-        className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+        onClick={onClose}
+        className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
       >
-        Continue
+        Close
       </button>
     </div>
   );

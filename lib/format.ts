@@ -15,3 +15,8 @@ export function isUp(change: string): boolean {
 export function predictionPayout(stake: number, cents: string): string {
   return (stake / (parseMoney(cents) / 100)).toFixed(2);
 }
+
+export function truncateAddress(address: string): string {
+  if (address.length <= 10) return address;
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}

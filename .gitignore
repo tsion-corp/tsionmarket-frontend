@@ -40,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent tooling and vendored skills (keep only the tracked engineering standards)
+.agents/
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/wsws-engineering-standards/

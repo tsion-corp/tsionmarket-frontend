@@ -13,7 +13,9 @@ export function SuccessPanel({ title, children, onDone }: SuccessPanelProps) {
         <CheckIcon size={30} />
       </span>
       <div className="ws-serif mt-4 text-[26px] tracking-[-0.01em]">{title}</div>
-      <p className="mx-auto mt-2.5 max-w-[34ch] text-sm leading-[1.55] text-white/70">{children}</p>
+      <p className="mx-auto mt-2.5 max-w-[34ch] text-sm leading-[1.55] font-normal text-white/70">
+        {children}
+      </p>
       <button
         onClick={onDone}
         className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"

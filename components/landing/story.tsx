@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/ui/reveal";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
 export function Story() {
   return (
@@ -16,12 +17,10 @@ export function Story() {
       <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.8)_0%,rgba(0,0,0,0.35)_40%,rgba(0,0,0,0.9)_100%)]" />
       <div className="relative z-10 mx-auto w-full max-w-[1120px] px-8">
         <Reveal>
-          <div className="text-sm font-normal tracking-[0.02em] text-white/75">
-            {"// Why we built this"}
-          </div>
+          <Eyebrow>Why we built this</Eyebrow>
         </Reveal>
         <Reveal delay={0.1}>
-          <h2 className="ws-serif mt-[18px] max-w-[15ch] text-[clamp(38px,7vw,96px)] leading-[1.02] tracking-[-0.03em]">
+          <h2 className="ws-serif mt-[18px] max-w-[20ch] text-[clamp(38px,7vw,96px)] leading-[1.02] tracking-[-0.03em]">
             Finance without borders.
             <br />
             Wealth without gatekeepers.

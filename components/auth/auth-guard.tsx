@@ -1,0 +1,29 @@
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+
+export function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { ready, authenticated } = usePrivy();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (ready && !authenticated) {
+      router.replace("/auth");
+    }
+  }, [ready, authenticated, router]);
+
+  if (!ready || !authenticated) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-black">
+        <span className="grid h-12 w-12 animate-pulse place-items-center rounded-full border border-white/18 bg-white/8">
+          <span className="ws-serif text-accent text-[26px] leading-none">w</span>
+        </span>
+        <span className="text-sm text-white/50">Opening World Street…</span>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useLoginWithOAuth, type OAuthProviderType } from "@privy-io/react-auth";
+import { toast } from "@/lib/toast";
 
 function GoogleLogo() {
   return (
@@ -38,18 +39,27 @@ function XLogo() {
 }
 
 const BUTTON =
-  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-[14px] border border-white/14 bg-white/6 p-3.5 font-sans text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12";
+  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-[14px] border border-white/14 bg-white/6 p-3.5 font-sans text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60";
 
 export function SocialButtons() {
-  const router = useRouter();
-  const next = () => router.push("/interests");
+  const { initOAuth, loading } = useLoginWithOAuth();
+
+  const signIn = async (provider: OAuthProviderType) => {
+    try {
+      await initOAuth({ provider });
+    } catch (err) {
+      console.error("OAuth login failed:", err);
+      toast.error("Sign-in didn't go through. Give it another try.");
+    }
+  };
+
   return (
     <div className="flex flex-col gap-[11px]">
-      <button className={BUTTON} onClick={next}>
+      <button className={BUTTON} disabled={loading} onClick={() => signIn("google")}>
         <GoogleLogo />
         Continue with Google
       </button>
-      <button className={BUTTON} onClick={next}>
+      <button className={BUTTON} disabled={loading} onClick={() => signIn("twitter")}>
         <XLogo />
         Continue with X
       </button>

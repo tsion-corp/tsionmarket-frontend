@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CloseIcon } from "@/components/ui/icons";
 
 interface ModalShellProps {
@@ -10,6 +10,8 @@ interface ModalShellProps {
 }
 
 export function ModalShell({ open, onClose, children }: ModalShellProps) {
+  const reduce = useReducedMotion();
+
   return (
     <AnimatePresence>
       {open ? (
@@ -19,16 +21,24 @@ export function ModalShell({ open, onClose, children }: ModalShellProps) {
           exit={{ opacity: 0 }}
           transition={{ duration: 0.18 }}
           onClick={onClose}
-          className="fixed inset-0 z-[300] flex items-end justify-center bg-black/62 p-0 backdrop-blur-[7px] sm:items-center sm:p-5"
+          className="fixed inset-0 z-[300] flex items-end justify-center bg-black/62 backdrop-blur-[7px] md:pb-6"
         >
           <motion.div
-            initial={{ opacity: 0, y: 24, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 24, scale: 0.98 }}
-            transition={{ duration: 0.22, ease: [0.2, 0.7, 0.2, 1] }}
+            initial={reduce ? { opacity: 0 } : { y: "100%" }}
+            animate={reduce ? { opacity: 1 } : { y: 0 }}
+            exit={reduce ? { opacity: 0 } : { y: "100%" }}
+            transition={
+              reduce
+                ? { duration: 0.15 }
+                : { type: "spring", stiffness: 380, damping: 38, mass: 0.9 }
+            }
             onClick={(e) => e.stopPropagation()}
-            className="bg-sheet relative max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 p-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_40px_90px_-30px_rgba(0,0,0,0.9)] sm:w-[min(440px,100%)] sm:rounded-[24px]"
+            className="bg-sheet relative max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:w-[min(440px,100%)] md:rounded-[24px] md:pt-[26px]"
           >
+            <span
+              aria-hidden
+              className="mx-auto mb-4 block h-1 w-9 rounded-full bg-white/20 md:hidden"
+            />
             <button
               onClick={onClose}
               aria-label="Close"

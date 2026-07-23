@@ -1,4 +1,5 @@
 import { Reveal } from "@/components/ui/reveal";
+import { Eyebrow } from "@/components/ui/eyebrow";
 
 const FAQS = [
   {
@@ -29,7 +30,7 @@ export function Faq() {
     <section id="faq" className="relative z-[2] bg-black px-6 py-[70px]">
       <div className="mx-auto max-w-[820px]">
         <Reveal className="mb-10 text-center">
-          <div className="text-sm font-normal text-white/60">{"// Questions"}</div>
+          <Eyebrow>Questions</Eyebrow>
           <h2 className="ws-serif mt-3 text-[clamp(34px,4.6vw,56px)] tracking-[-0.03em]">
             Good to know
           </h2>
