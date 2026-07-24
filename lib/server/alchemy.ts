@@ -154,7 +154,7 @@ function normalize(tokens: AlchemyToken[], rwa: RwaRegistry): TokenBalance[] {
       balance,
       priceUsd,
       valueUsd: balance * priceUsd,
-      logo: t.tokenMetadata?.logo ?? null,
+      logo: t.tokenMetadata?.logo ?? rwaInfo?.logo ?? null,
     });
   }
   return out;

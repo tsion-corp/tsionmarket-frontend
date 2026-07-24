@@ -105,13 +105,16 @@ export function useEvmSwapExecute() {
       }
 
       const tx = quote.transactionRequest;
-      await sendTransaction({
+      const { hash } = await sendTransaction({
         to: tx.to,
         data: tx.data,
         value: tx.value,
         chainId: tx.chainId,
         gasLimit: tx.gasLimit,
       });
+      // Wait for the swap to mine so the caller's balance refetch reflects the
+      // received token instead of the pre-swap balance.
+      await waitForReceipt(provider, hash);
     },
     [user, sendTransaction, wallets]
   );
