@@ -3,7 +3,18 @@
 import { useCallback } from "react";
 import { useSendTransaction } from "@privy-io/react-auth";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
-import type { RwaAction, RwaStep } from "@/lib/rwa-api";
+import type { RwaAction, RwaChain, RwaStep } from "@/lib/rwa-api";
+
+// EVM chain ids per RWA chain. Without an explicit chainId, Privy defaults to
+// Ethereum mainnet (1), so a Base/Arbitrum/Polygon RWA buy would be signed on
+// the wrong chain and fail with "insufficient funds for gas".
+const EVM_CHAIN_ID: Partial<Record<RwaChain, number>> = {
+  ethereum: 1,
+  base: 8453,
+  arbitrum: 42161,
+  bsc: 56,
+  polygon: 137,
+};
 
 function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
@@ -36,10 +47,13 @@ export function useExecuteRwa() {
           await signAndSendTransaction({ transaction: base64ToBytes(step.tx.base64), wallet });
         } else {
           if (!step.tx.to) throw new Error("The transaction is missing.");
+          const chainId = EVM_CHAIN_ID[step.chain];
+          if (!chainId) throw new Error(`Unsupported chain for this trade: ${step.chain}`);
           await sendTransaction({
             to: step.tx.to,
             data: step.tx.data as `0x${string}` | undefined,
             value: step.tx.value ? BigInt(step.tx.value) : undefined,
+            chainId,
           });
         }
       }
