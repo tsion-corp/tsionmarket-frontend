@@ -93,6 +93,28 @@ export function hasNativeGas(tokens: TokenBalance[], chain: RwaChain): boolean |
   );
 }
 
+// A sell can only be sized from a holding we can actually see, and the holding
+// carries the asset's exact on-chain decimals. So selling is offered only on the
+// chains the portfolio source indexes; elsewhere we cannot verify the balance or
+// its decimals and must not present a sell.
+export function isSellableChain(chain: RwaChain): boolean {
+  return PORTFOLIO_NETWORKS.has(CHAIN_GAS[chain].network);
+}
+
+// The user's holding of this exact RWA, used to size and gate a sell. Matches on
+// the asset's own chain network and contract address. null when the chain isn't
+// indexed or the asset isn't held, which is exactly when a sell is not offered.
+export function findRwaHolding(tokens: TokenBalance[], asset: RwaApiAsset): TokenBalance | null {
+  const { network } = CHAIN_GAS[asset.chain];
+  if (!PORTFOLIO_NETWORKS.has(network)) return null;
+  const addr = asset.address.toLowerCase();
+  return (
+    tokens.find(
+      (t) => t.network === network && (t.address ?? "").toLowerCase() === addr && t.balance > 0
+    ) ?? null
+  );
+}
+
 export interface RwaErrorInfo {
   message: string;
   retryable: boolean;
@@ -130,11 +152,26 @@ export function rwaErrorInfo(code: string | undefined, fallback?: string): RwaEr
         retryable: false,
         requote: false,
       };
+    case "RATE_LIMITED":
+    case "TOO_MANY_REQUESTS":
+    case "429":
+      return {
+        message: "You're going a bit fast. Wait a few seconds, then try again.",
+        retryable: true,
+        requote: false,
+      };
     case "SERVICE_UNAVAILABLE":
     case "BAD_GATEWAY":
     case "502":
       return { message: "RWA service is busy, try again", retryable: true, requote: false };
     default:
+      if ((fallback ?? "").toLowerCase().includes("too many requests")) {
+        return {
+          message: "You're going a bit fast. Wait a few seconds, then try again.",
+          retryable: true,
+          requote: false,
+        };
+      }
       return {
         message: fallback || "Something went wrong with the trade",
         retryable: true,
@@ -171,6 +208,14 @@ export function clampPage(page: number, total: number, perPage: number): number 
 export function estimateReceiveTokens(usd: number, priceUsd: number | null): number | null {
   if (priceUsd == null || priceUsd <= 0 || usd <= 0) return null;
   return usd / priceUsd;
+}
+
+// Estimated USDC received for selling `tokenAmount` of an asset at its USD price.
+// Preview only, so a null price yields a null estimate. The mirror of
+// estimateReceiveTokens for the sell direction.
+export function estimateReceiveUsdc(tokenAmount: number, priceUsd: number | null): number | null {
+  if (priceUsd == null || priceUsd <= 0 || tokenAmount <= 0) return null;
+  return tokenAmount * priceUsd;
 }
 
 // Minimum tokens received, from the quote's amountMin/amount ratio. The ratio
@@ -222,6 +267,32 @@ export function buyQuoteRequest(
     inputToken: pay.address,
     outputToken: asset.address,
     amountIn: toBaseUnits(humanAmount, pay.decimals).toString(),
+    slippageBps,
+  };
+}
+
+// Builds the quote/build request for a sell: send the RWA, receive the chain's
+// USDC. The input amount is sized at the asset's own on-chain decimals, sourced
+// from the held balance (the only place those decimals are known), so any RWA
+// sizes correctly regardless of its token decimals.
+export function sellQuoteRequest(
+  asset: RwaApiAsset,
+  humanAmount: string,
+  slippageBps: number,
+  assetDecimals: number
+): {
+  chain: RwaChain;
+  inputToken: string;
+  outputToken: string;
+  amountIn: string;
+  slippageBps: number;
+} {
+  const usdc = USDC_BY_CHAIN[asset.chain];
+  return {
+    chain: asset.chain,
+    inputToken: asset.address,
+    outputToken: usdc.address,
+    amountIn: toBaseUnits(humanAmount, assetDecimals).toString(),
     slippageBps,
   };
 }

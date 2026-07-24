@@ -6,12 +6,15 @@ import {
   clampPage,
   errorCode,
   estimateReceiveTokens,
+  estimateReceiveUsdc,
+  findRwaHolding,
   formatApy,
   formatCompactUsd,
   gasSymbolForChain,
   gradientFor,
   hasNativeGas,
   isIssuerAccess,
+  isSellableChain,
   isTradable,
   minReceiveTokens,
   pageCount,
@@ -19,6 +22,7 @@ import {
   priceImpactPercent,
   routeLabel,
   rwaErrorInfo,
+  sellQuoteRequest,
 } from "@/lib/rwa/presenter";
 import type { RwaApiAsset, RwaQuote } from "@/lib/rwa-api";
 import type { TokenBalance } from "@/hooks/use-portfolio";
@@ -269,6 +273,75 @@ describe("buyQuoteRequest", () => {
     const req = buyQuoteRequest(asset({ chain: "bsc", address: "0xasset" }), "1", 50);
     expect(req.amountIn).toBe("1000000000000000000");
     expect(req.inputToken).toBe("0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d");
+  });
+});
+
+describe("sellQuoteRequest", () => {
+  it("sends the RWA and receives the chain's USDC, sized at the asset's decimals", () => {
+    const req = sellQuoteRequest(asset({ chain: "base", address: "0xrwa" }), "2.5", 50, 6);
+    expect(req).toEqual({
+      chain: "base",
+      inputToken: "0xrwa",
+      outputToken: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+      amountIn: "2500000",
+      slippageBps: 50,
+    });
+  });
+
+  it("uses the asset's own decimals, not USDC's", () => {
+    // An 18-decimal RWA on Base still pairs to 6-decimal USDC on output.
+    const req = sellQuoteRequest(asset({ chain: "base", address: "0xrwa" }), "1", 50, 18);
+    expect(req.amountIn).toBe("1000000000000000000");
+  });
+});
+
+describe("estimateReceiveUsdc", () => {
+  it("multiplies token amount by the asset price", () => {
+    expect(estimateReceiveUsdc(2, 1.17)).toBeCloseTo(2.34);
+  });
+
+  it("returns null for a missing price or non-positive amount", () => {
+    expect(estimateReceiveUsdc(2, null)).toBeNull();
+    expect(estimateReceiveUsdc(0, 1.17)).toBeNull();
+    expect(estimateReceiveUsdc(-1, 1.17)).toBeNull();
+  });
+});
+
+describe("isSellableChain", () => {
+  it("is true only for the indexed chains", () => {
+    expect(isSellableChain("base")).toBe(true);
+    expect(isSellableChain("arbitrum")).toBe(true);
+    expect(isSellableChain("polygon")).toBe(true);
+    expect(isSellableChain("solana")).toBe(true);
+    expect(isSellableChain("ethereum")).toBe(false);
+    expect(isSellableChain("bsc")).toBe(false);
+  });
+});
+
+describe("findRwaHolding", () => {
+  const held = asset({ chain: "base", address: "0xRWA" });
+
+  it("matches the held RWA by chain network and address, case-insensitively", () => {
+    const tokens = [
+      token({ network: "base-mainnet", address: "0xrwa", symbol: "syrupUSDC", balance: 12 }),
+      token({ network: "base-mainnet", address: "0xother", balance: 4 }),
+    ];
+    expect(findRwaHolding(tokens, held)?.balance).toBe(12);
+  });
+
+  it("returns null when the asset isn't held", () => {
+    const tokens = [token({ network: "base-mainnet", address: "0xother", balance: 4 })];
+    expect(findRwaHolding(tokens, held)).toBeNull();
+  });
+
+  it("ignores a same-address token on a different chain", () => {
+    const tokens = [token({ network: "arb-mainnet", address: "0xrwa", balance: 9 })];
+    expect(findRwaHolding(tokens, held)).toBeNull();
+  });
+
+  it("returns null on a chain the portfolio does not index", () => {
+    const tokens = [token({ network: "eth-mainnet", address: "0xrwa", balance: 9 })];
+    expect(findRwaHolding(tokens, asset({ chain: "ethereum", address: "0xRWA" }))).toBeNull();
   });
 });
 

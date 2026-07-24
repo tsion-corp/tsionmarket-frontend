@@ -60,7 +60,7 @@ export function AssetChart({
       </div>
 
       <div className="relative" style={{ height }}>
-        {error ? (
+        {error || (!loading && points.length === 0) ? (
           <div className="grid h-full place-items-center text-[13px] font-normal text-white/40">
             Chart unavailable
           </div>

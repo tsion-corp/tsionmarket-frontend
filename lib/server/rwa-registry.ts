@@ -12,6 +12,8 @@ const RWA_CHAIN_TO_NETWORK: Record<string, string> = {
 export interface RwaTokenInfo {
   symbol: string;
   priceUsd: number;
+  // Same server-resolved logo the RWA table uses, so holdings show a real icon.
+  logo: string;
 }
 
 interface RwaAssetRow {
@@ -28,7 +30,10 @@ interface RwaAssetRow {
 export async function fetchRwaRegistry(): Promise<Record<string, Map<string, RwaTokenInfo>>> {
   const out: Record<string, Map<string, RwaTokenInfo>> = {};
   try {
-    const res = await wsapiRwaRequest("assets", { method: "GET", revalidate: 60 });
+    // Cached 5 minutes: the portfolio refetches often (every 30s and after each
+    // trade), and the RWA token list barely changes — so this must not re-hit the
+    // RWA backend on every portfolio load.
+    const res = await wsapiRwaRequest("assets", { method: "GET", revalidate: 300 });
     if (!res.ok) return out;
     const body = (await res.json().catch(() => ({}))) as { data?: RwaAssetRow[] };
     for (const a of body.data ?? []) {
@@ -38,6 +43,7 @@ export async function fetchRwaRegistry(): Promise<Record<string, Map<string, Rwa
       (out[network] ??= new Map()).set(a.address.toLowerCase(), {
         symbol: a.symbol ?? "RWA",
         priceUsd: Number.isFinite(price) ? price : 0,
+        logo: `/api/token-logo/${a.chain}/${a.address}`,
       });
     }
   } catch {
