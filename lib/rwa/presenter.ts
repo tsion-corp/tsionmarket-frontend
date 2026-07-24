@@ -45,17 +45,40 @@ const CHAIN_GAS: Record<RwaChain, { network: string; symbol: string }> = {
   bsc: { network: "bsc-mainnet", symbol: "BNB" },
 };
 
+// The four chains the portfolio source now indexes.
 const PORTFOLIO_NETWORKS = new Set([
-  "eth-mainnet",
   "base-mainnet",
   "arb-mainnet",
-  "opt-mainnet",
   "polygon-mainnet",
   "solana-mainnet",
 ]);
 
 export function gasSymbolForChain(chain: RwaChain): string {
   return CHAIN_GAS[chain].symbol;
+}
+
+// Human network label. The same RWA (symbol) is often deployed on several
+// chains, so the table shows this to tell those deployments apart.
+export const RWA_CHAIN_LABEL: Record<RwaChain, string> = {
+  solana: "Solana",
+  ethereum: "Ethereum",
+  base: "Base",
+  arbitrum: "Arbitrum",
+  bsc: "BNB",
+  polygon: "Polygon",
+};
+
+export function chainLabel(chain: RwaChain): string {
+  return RWA_CHAIN_LABEL[chain] ?? chain;
+}
+
+// Held tokens on the asset's own chain, the candidates for paying for a buy.
+// Empty when the chain isn't tracked (e.g. Ethereum/BSC), in which case the
+// caller falls back to USDC.
+export function payTokensForChain(tokens: TokenBalance[], chain: RwaChain): TokenBalance[] {
+  const { network } = CHAIN_GAS[chain];
+  if (!PORTFOLIO_NETWORKS.has(network)) return [];
+  return tokens.filter((t) => t.network === network && t.balance > 0);
 }
 
 // Whether the wallet holds native gas on the trade chain. The portfolio only
@@ -172,13 +195,20 @@ export function routeLabel(quote: RwaQuote | null): string {
   return quote.route.map((r) => r.venue).join(" + ");
 }
 
-// Builds the quote/build request for a buy: pay USDC, receive the asset. The
-// USDC amount is converted to base units at the pairing currency's decimals,
-// which are 18 on BSC and 6 elsewhere.
+// The token a buy is paid with. Defaults to the chain's USDC.
+export interface PayToken {
+  address: string;
+  decimals: number;
+}
+
+// Builds the quote/build request for a buy: pay `payToken` (USDC by default),
+// receive the asset. The input amount is converted to base units at the pay
+// token's own decimals, so any held token sizes correctly.
 export function buyQuoteRequest(
   asset: RwaApiAsset,
-  humanUsdc: string,
-  slippageBps: number
+  humanAmount: string,
+  slippageBps: number,
+  payToken?: PayToken
 ): {
   chain: RwaChain;
   inputToken: string;
@@ -186,14 +216,73 @@ export function buyQuoteRequest(
   amountIn: string;
   slippageBps: number;
 } {
-  const usdc = USDC_BY_CHAIN[asset.chain];
+  const pay = payToken ?? USDC_BY_CHAIN[asset.chain];
   return {
     chain: asset.chain,
-    inputToken: usdc.address,
+    inputToken: pay.address,
     outputToken: asset.address,
-    amountIn: toBaseUnits(humanUsdc, usdc.decimals).toString(),
+    amountIn: toBaseUnits(humanAmount, pay.decimals).toString(),
     slippageBps,
   };
+}
+
+// Canonical wrapped-SOL mint; native SOL is quoted through it.
+export const WSOL_MINT = "So11111111111111111111111111111111111111112";
+
+// The input token to send to the quote for a held balance. ERC-20/SPL tokens use
+// their contract; native SOL maps to wSOL. EVM native (ETH) is excluded because
+// it also pays gas and the RWA router expects a token address.
+export function resolvePayToken(t: TokenBalance, chain: RwaChain): PayToken | null {
+  if (t.address) return { address: t.address, decimals: t.decimals };
+  if (chain === "solana") return { address: WSOL_MINT, decimals: 9 };
+  return null;
+}
+
+// A selectable pay option for the buy panel, built from the user's holdings on
+// the asset's chain. USDC is always present as the default even if not held.
+export interface PayOption {
+  key: string;
+  symbol: string;
+  logo: string | null;
+  input: PayToken;
+  priceUsd: number;
+  balance: number;
+}
+
+export function buildPayOptions(tokens: TokenBalance[], asset: RwaApiAsset): PayOption[] {
+  const chain = asset.chain;
+  const usdc = USDC_BY_CHAIN[chain];
+  const options: PayOption[] = [];
+  for (const t of payTokensForChain(tokens, chain)) {
+    const input = resolvePayToken(t, chain);
+    if (!input) continue;
+    options.push({
+      key: input.address,
+      symbol: t.symbol,
+      logo: t.logo,
+      input,
+      priceUsd: t.priceUsd,
+      balance: t.balance,
+    });
+  }
+  const hasUsdc = options.some((o) => o.key.toLowerCase() === usdc.address.toLowerCase());
+  if (!hasUsdc) {
+    options.unshift({
+      key: usdc.address,
+      symbol: "USDC",
+      logo: null,
+      input: { address: usdc.address, decimals: usdc.decimals },
+      priceUsd: 1,
+      balance: 0,
+    });
+  }
+  // USDC first, then by held USD value.
+  return options.sort((a, b) => {
+    const au = a.symbol.toUpperCase() === "USDC" ? 1 : 0;
+    const bu = b.symbol.toUpperCase() === "USDC" ? 1 : 0;
+    if (au !== bu) return bu - au;
+    return b.balance * b.priceUsd - a.balance * a.priceUsd;
+  });
 }
 
 const GRADIENTS = [

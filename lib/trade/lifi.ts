@@ -1,9 +1,10 @@
-// Keyless LI.FI aggregator client. li.quest is LI.FI's public host and returns
-// real EVM swap routes without an API key for development use. A production
-// deployment should add an x-lifi-api-key header from the Partner Portal.
-// Docs: https://docs.li.fi/api-reference/get-a-quote-for-a-token-transfer
+// LI.FI aggregator client. Requests go through our server-side proxy
+// (/api/lifi), which attaches the API key and the "wsws" integrator string and
+// keeps the key off the client. Docs:
+// https://docs.li.fi/api-reference/get-a-quote-for-a-token-transfer
+import { apiFetch } from "@/lib/api";
 
-const LIFI_QUOTE_URL = "https://li.quest/v1/quote";
+const LIFI_QUOTE_PATH = "/api/lifi/quote";
 
 // The wallet-ready transaction LI.FI returns. Numeric fields are hex strings,
 // which the Privy sendTransaction Quantity type accepts as-is.
@@ -97,20 +98,23 @@ function normalize(raw: RawQuoteResponse): LifiQuote {
   };
 }
 
-// Fetch a keyless LI.FI quote for the given taker. The returned quote carries
-// both the UI preview data (toAmount, priceImpactPct) and everything needed to
-// execute the swap (approvalAddress, transactionRequest).
+// Fetch a LI.FI quote (through our /api/lifi proxy) for the given taker. The
+// returned quote carries both the UI preview data (toAmount, priceImpactPct) and
+// everything needed to execute the swap (approvalAddress, transactionRequest).
 export async function fetchLifiQuote(req: LifiQuoteRequest): Promise<LifiQuote> {
+  // LI.FI matches its token list by exact string, so a checksummed address can
+  // 404 where the same address lowercased resolves (Polygon USDC is one). EVM
+  // addresses are case-insensitive on-chain, so normalise to lowercase.
   const params = new URLSearchParams({
     fromChain: String(req.fromChain),
     toChain: String(req.toChain),
-    fromToken: req.fromToken,
-    toToken: req.toToken,
+    fromToken: req.fromToken.toLowerCase(),
+    toToken: req.toToken.toLowerCase(),
     fromAmount: req.fromAmount.toString(),
     fromAddress: req.fromAddress,
     slippage: String(req.slippage),
   });
-  const res = await fetch(`${LIFI_QUOTE_URL}?${params.toString()}`, { signal: req.signal });
+  const res = await apiFetch(`${LIFI_QUOTE_PATH}?${params.toString()}`, { signal: req.signal });
   if (!res.ok) throw new Error(`LI.FI quote failed: ${res.status}`);
   return normalize(await res.json());
 }

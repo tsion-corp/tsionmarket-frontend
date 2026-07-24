@@ -6,6 +6,7 @@ export const COINGECKO_IDS: Record<string, string> = {
   USDT: "tether",
   BNB: "binancecoin",
   MATIC: "matic-network",
+  POL: "matic-network",
   ARB: "arbitrum",
   OP: "optimism",
 };

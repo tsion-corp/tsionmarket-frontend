@@ -1,141 +1,193 @@
 "use client";
 
 import { useState } from "react";
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from "@tanstack/react-table";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { MARKET_TABS, useMarkets, type MarketRow, type MarketTab } from "@/hooks/use-markets";
+import { SearchIcon } from "@/components/ui/icons";
+import { useMarketTokens } from "@/hooks/use-market-tokens";
+import type { MarketToken } from "@/lib/market-catalog";
 import { formatUsd } from "@/lib/trade/math";
-import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
+import type { DetailPayload } from "@/components/dashboard/modal-types";
 
 interface MarketsViewProps {
   onOpenDetail: (detail: DetailPayload) => void;
-  onOpenConfirm: (confirm: ConfirmPayload) => void;
 }
 
-const DEFAULT_BUY_USD = 500;
+const ICON_BG = "linear-gradient(135deg,#A78BFA,#6d5bd0)";
 
-function buyConfirm(row: MarketRow): ConfirmPayload {
-  const receive = row.priceUsd > 0 ? DEFAULT_BUY_USD / row.priceUsd : 0;
-  return {
-    eyebrow: "Trade",
-    badgeSym: row.symbol,
-    badgeBg: row.bg,
-    badgeLogo: row.logo,
-    title: `Buy ${row.name}`,
-    sub: `${row.ticker} · ${row.category}`,
-    lines: [
-      { k: "You pay", v: formatUsd(DEFAULT_BUY_USD) },
-      {
-        k: "You receive",
-        v: `${receive.toLocaleString(undefined, { maximumFractionDigits: 4 })} ${row.ticker}`,
-        c: "#A78BFA",
-      },
-      { k: "Price", v: row.hasData ? formatUsd(row.priceUsd) : "—" },
-      { k: "Fee", v: "$0.00 · no commission", c: "#7CE7B0" },
-    ],
-    cta: `Buy ${row.ticker}`,
-    successTitle: "Order filled",
-    successMsg: `You now own ${row.ticker}. It's live in your portfolio.`,
-  };
+function changeLabel(chg: number): string {
+  const v = Number.isFinite(chg) ? chg : 0;
+  return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
-export function MarketsView({ onOpenDetail, onOpenConfirm }: MarketsViewProps) {
-  const { rows, error } = useMarkets();
-  const [cat, setCat] = useState<MarketTab>("All");
-  const visible = rows.filter((row) => cat === "All" || row.category === cat);
+function compactUsd(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n)}`;
+}
 
-  const openMarket = (row: MarketRow) =>
+const columnHelper = createColumnHelper<MarketToken>();
+const columns = [
+  columnHelper.accessor((r) => `${r.symbol} ${r.name}`, { id: "asset", enableSorting: false }),
+  columnHelper.accessor("priceUsd", { id: "price" }),
+  columnHelper.accessor("change24h", { id: "change" }),
+  columnHelper.accessor("marketCap", { id: "mcap" }),
+];
+
+export function MarketsView({ onOpenDetail }: MarketsViewProps) {
+  const [search, setSearch] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([{ id: "mcap", desc: true }]);
+  const { data: tokens = [], isLoading, isError } = useMarketTokens("popular");
+
+  const table = useReactTable({
+    data: tokens,
+    columns,
+    state: { globalFilter: search, sorting },
+    onGlobalFilterChange: setSearch,
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 12 } },
+  });
+
+  const rows = table.getRowModel().rows;
+  const { pageIndex } = table.getState().pagination;
+  const pageCount = table.getPageCount();
+
+  const openToken = (t: MarketToken) =>
     onOpenDetail({
-      sym: row.symbol,
-      name: row.name,
-      sub: `${row.ticker} · ${row.category}`,
-      price: row.priceLabel,
-      chg: row.change24hLabel,
-      bg: row.bg,
-      coingeckoId: row.coingeckoId,
-      up: row.up,
-      logo: row.logo,
+      sym: t.symbol,
+      name: t.name,
+      sub: t.symbol,
+      price: formatUsd(t.priceUsd),
+      chg: changeLabel(t.change24h),
+      bg: ICON_BG,
+      coingeckoId: t.id,
+      up: t.change24h >= 0,
+      logo: t.logo,
       stats: [
-        { k: "Price", v: row.priceLabel },
-        { k: "24h change", v: row.change24hLabel },
-        { k: "Asset class", v: row.category },
-        { k: "Ticker", v: row.ticker },
+        { k: "Price", v: formatUsd(t.priceUsd) },
+        { k: "24h change", v: changeLabel(t.change24h) },
+        { k: "Market cap", v: compactUsd(t.marketCap) },
       ],
-      cta: `Buy ${row.name}`,
-      onCta: () => onOpenConfirm(buyConfirm(row)),
     });
+
+  const sortHeader = (id: string, label: string, className: string) => {
+    const col = table.getColumn(id);
+    const sorted = col?.getIsSorted();
+    return (
+      <button
+        onClick={() => col?.toggleSorting()}
+        className={`flex cursor-pointer items-center gap-1 hover:text-white/70 ${className}`}
+      >
+        {label}
+        <span className="text-white/30">
+          {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : ""}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>Markets</Eyebrow>
-      <div className="mt-3.5 flex flex-wrap gap-2">
-        {MARKET_TABS.map((t) => (
-          <button
-            key={t}
-            onClick={() => setCat(t)}
-            className={`cursor-pointer rounded-full border px-[18px] py-[9px] font-sans text-[13.5px] font-medium transition-colors ${
-              cat === t
-                ? "border-accent/30 bg-accent/14 text-white"
-                : "border-white/10 bg-white/4 text-white/65 hover:text-white"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+      <div className="mt-3.5 flex justify-start">
+        <div className="flex w-full max-w-[340px] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
+          <SearchIcon />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tokens"
+            className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] font-normal text-white outline-none"
+          />
+        </div>
       </div>
 
       <div className="ws-card mt-4 overflow-hidden">
-        <div className="grid grid-cols-[1.7fr_1fr_auto] gap-3.5 px-4 py-4 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] sm:px-6">
-          <span>Market</span>
-          <span className="text-right">Price</span>
-          <span className="hidden text-right min-[560px]:block">24h</span>
-          <span className="hidden text-right min-[560px]:block">Class</span>
-          <span />
+        <div className="grid grid-cols-[1.6fr_1fr] gap-3.5 px-4 py-4 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr] sm:px-6">
+          <span>Asset</span>
+          {sortHeader("price", "Price", "justify-end")}
+          {sortHeader("change", "24h", "hidden justify-end min-[560px]:flex")}
+          {sortHeader("mcap", "Market cap", "hidden justify-end min-[560px]:flex")}
         </div>
 
-        {error && rows.every((row) => !row.hasData) ? (
-          <div className="border-t border-white/6 px-6 py-8 text-center text-[13.5px] font-normal text-white/45">
+        {isLoading ? (
+          <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
+            Loading markets…
+          </div>
+        ) : isError ? (
+          <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             Live market prices are unavailable right now. Please try again shortly.
           </div>
+        ) : rows.length === 0 ? (
+          <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
+            No tokens match your search.
+          </div>
         ) : (
-          visible.map((row) => (
-            <div
-              key={row.symbol}
-              onClick={() => openMarket(row)}
-              className="grid cursor-pointer grid-cols-[1.7fr_1fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr_0.8fr] sm:px-6"
-            >
-              <div className="flex items-center gap-3">
-                <AssetIcon sym={row.symbol} bg={row.bg} logo={row.logo} />
-                <div>
-                  <div className="font-sans text-[14.5px] font-medium">{row.name}</div>
-                  <div className="text-xs font-normal text-white/50">{row.ticker}</div>
-                </div>
-              </div>
-              <span className="tnum text-right text-sm font-normal">{row.priceLabel}</span>
-              <span
-                className={`tnum hidden text-right text-[13.5px] font-normal min-[560px]:block ${
-                  row.hasData ? (row.up ? "text-up" : "text-down") : "text-white/40"
-                }`}
+          rows.map((row) => {
+            const t = row.original;
+            return (
+              <div
+                key={t.id}
+                onClick={() => openToken(t)}
+                className="grid cursor-pointer grid-cols-[1.6fr_1fr] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr] sm:px-6"
               >
-                {row.change24hLabel}
-              </span>
-              <span className="hidden text-right text-[13px] font-normal text-white/60 min-[560px]:block">
-                {row.category}
-              </span>
-              <span className="text-right">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onOpenConfirm(buyConfirm(row));
-                  }}
-                  className="border-accent/30 bg-accent/14 text-accent hover:bg-accent/20 cursor-pointer rounded-full border px-[15px] py-[7px] font-sans text-[12.5px] font-medium whitespace-nowrap"
+                <div className="flex min-w-0 items-center gap-3">
+                  <AssetIcon sym={t.symbol} bg={ICON_BG} logo={t.logo} />
+                  <div className="min-w-0">
+                    <div className="truncate font-sans text-[14.5px] font-medium">{t.symbol}</div>
+                    <div className="truncate text-xs font-normal text-white/50">{t.name}</div>
+                  </div>
+                </div>
+                <span className="tnum text-right text-sm font-normal">{formatUsd(t.priceUsd)}</span>
+                <span
+                  className={`tnum hidden text-right text-[13.5px] font-normal min-[560px]:block ${
+                    t.change24h >= 0 ? "text-up" : "text-down"
+                  }`}
                 >
-                  Trade
-                </button>
-              </span>
-            </div>
-          ))
+                  {changeLabel(t.change24h)}
+                </span>
+                <span className="tnum hidden text-right text-[13px] font-normal text-white/60 min-[560px]:block">
+                  {compactUsd(t.marketCap)}
+                </span>
+              </div>
+            );
+          })
         )}
+
+        {!isLoading && !isError && rows.length > 0 ? (
+          <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
+            <span className="text-[12.5px] font-normal text-white/45">
+              Page {pageIndex + 1} of {pageCount}
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => table.previousPage()}
+                disabled={!table.getCanPreviousPage()}
+                className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Prev
+              </button>
+              <button
+                onClick={() => table.nextPage()}
+                disabled={!table.getCanNextPage()}
+                className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

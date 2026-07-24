@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { SectionChips } from "@/components/dashboard/section-chips";
+import { DashboardFooter } from "@/components/dashboard/dashboard-footer";
 import { buildNav } from "@/components/dashboard/nav-items";
 import { PortfolioView } from "@/components/dashboard/views/portfolio-view";
 import { TradeSection } from "@/components/dashboard/sections/trade-section";
@@ -20,6 +21,7 @@ import { SendModal } from "@/components/dashboard/modals/send-modal";
 import { AccountModal } from "@/components/dashboard/modals/account-modal";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
+import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { scrollToSection } from "@/lib/scroll";
 import { loadInterest } from "@/lib/preferences";
 import type { SectionId } from "@/lib/sections";
@@ -31,23 +33,41 @@ import type {
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
+// All five sections stay mounted at once, so memoize them: with stable handler
+// props they skip re-rendering when the page re-renders for a modal open/close
+// or an active-section scroll change. Each still re-renders on its own data.
+const Portfolio = memo(PortfolioView);
+const Trade = memo(TradeSection);
+const Markets = memo(MarketsView);
+const Rwa = memo(RwaSection);
+const Prediction = memo(PredictionView);
+
 export default function DashboardPage() {
   const [modal, setModal] = useState<DashboardModal>(null);
   const nav = useMemo(() => buildNav(loadInterest()), []);
   const sectionIds = useMemo(() => nav.map((n) => n.id), [nav]);
   const activeSection = useScrollSpy(sectionIds);
+  usePrefetchDepositCatalog();
 
-  const close = () => setModal(null);
-  const openDetail = (detail: DetailPayload) => setModal({ type: "detail", detail });
-  const openConfirm = (confirm: ConfirmPayload) => setModal({ type: "confirm", confirm });
-  const openFunds = () => setModal({ type: "funds" });
-  const openWithdraw = () => setModal({ type: "withdraw" });
-  const openSend = () => setModal({ type: "send" });
-  const openAccount = () => setModal({ type: "account" });
+  // Stable handler identities so the memoized section views below don't
+  // re-render when this page re-renders (modal open/close, active-section scroll).
+  const close = useCallback(() => setModal(null), []);
+  const openDetail = useCallback(
+    (detail: DetailPayload) => setModal({ type: "detail", detail }),
+    []
+  );
+  const openConfirm = useCallback(
+    (confirm: ConfirmPayload) => setModal({ type: "confirm", confirm }),
+    []
+  );
+  const openFunds = useCallback(() => setModal({ type: "funds" }), []);
+  const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
+  const openSend = useCallback(() => setModal({ type: "send" }), []);
+  const openAccount = useCallback(() => setModal({ type: "account" }), []);
 
   const sections: Record<SectionId, React.ReactNode> = {
     portfolio: (
-      <PortfolioView
+      <Portfolio
         onOpenFunds={openFunds}
         onOpenWithdraw={openWithdraw}
         onOpenSend={openSend}
@@ -55,10 +75,10 @@ export default function DashboardPage() {
         onOpenConfirm={openConfirm}
       />
     ),
-    trade: <TradeSection onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
-    markets: <MarketsView onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
-    rwa: <RwaSection onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
-    prediction: <PredictionView onOpenConfirm={openConfirm} />,
+    trade: <Trade onOpenDetail={openDetail} />,
+    markets: <Markets onOpenDetail={openDetail} />,
+    rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
+    prediction: <Prediction />,
   };
 
   return (
@@ -82,6 +102,8 @@ export default function DashboardPage() {
               {sections[n.id]}
             </section>
           ))}
+
+          <DashboardFooter sections={nav} />
         </main>
 
         <ModalShell open={modal !== null} onClose={close}>
@@ -111,15 +133,7 @@ export default function DashboardPage() {
               }
             />
           ) : null}
-          {modal?.type === "account" ? (
-            <AccountModal
-              onPortfolio={() => {
-                close();
-                scrollToSection("portfolio");
-              }}
-              onClose={close}
-            />
-          ) : null}
+          {modal?.type === "account" ? <AccountModal onClose={close} /> : null}
           {modal?.type === "done" ? (
             <SuccessPanel title={modal.title} onDone={close}>
               {modal.msg}

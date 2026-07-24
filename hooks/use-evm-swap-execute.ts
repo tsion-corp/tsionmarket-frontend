@@ -58,8 +58,9 @@ async function waitForReceipt(provider: EIP1193Provider, hash: string): Promise<
   throw new Error("Token approval is taking too long. Try again.");
 }
 
-// Executes an EVM swap on Base through LI.FI, signed by the Privy embedded EVM
-// wallet. Fetches a fresh quote for the taker, grants the ERC-20 allowance if
+// Executes an EVM swap on the token's own chain (Base, Arbitrum or Polygon)
+// through LI.FI, signed by the Privy embedded EVM wallet. Fetches a fresh quote
+// for the taker on input.fromChainId, grants the ERC-20 allowance if
 // the router needs one, then sends the swap transaction. The backend never
 // holds keys; the wallet signs client-side. Returns once the swap is submitted.
 export function useEvmSwapExecute() {

@@ -1,8 +1,11 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 const TEN_MINUTES = 10 * 60 * 1000;
+
+const EMPTY_RATES: Record<string, number> = {};
 
 interface FxResponse {
   rates: Record<string, number>;
@@ -21,10 +24,9 @@ export function useFx() {
     refetchInterval: TEN_MINUTES,
   });
 
-  const rates = data?.rates ?? {};
-  return {
-    rates,
-    updatedAt: data?.updatedAt ?? "",
-    rate: (code: string) => (code === "USD" ? 1 : (rates[code] ?? null)),
-  };
+  const rates = data?.rates ?? EMPTY_RATES;
+  const updatedAt = data?.updatedAt ?? "";
+  // Stable identities so consumers can safely put `rate`/`rates` in dep arrays.
+  const rate = useCallback((code: string) => (code === "USD" ? 1 : (rates[code] ?? null)), [rates]);
+  return useMemo(() => ({ rates, updatedAt, rate }), [rates, updatedAt, rate]);
 }

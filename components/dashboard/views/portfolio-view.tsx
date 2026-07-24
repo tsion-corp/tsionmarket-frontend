@@ -1,10 +1,21 @@
 "use client";
 
+import { useState } from "react";
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from "@tanstack/react-table";
 import { BalanceCard } from "@/components/dashboard/balance-card";
 import { AssetIcon } from "@/components/ui/asset-icon";
+import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { WalletIcon } from "@/components/ui/icons";
+import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
 import { coingeckoId } from "@/lib/coingecko";
@@ -61,7 +72,7 @@ function buildAllocation(tokens: TokenBalance[], totalUsd: number): AllocationSl
   if (totalUsd <= 0) return [];
   const top = tokens.slice(0, 5);
   const slices: AllocationSlice[] = top.map((t, i) => ({
-    name: t.name,
+    name: t.symbol,
     pct: (t.valueUsd / totalUsd) * 100,
     color: ALLOCATION_COLORS[i],
   }));
@@ -72,6 +83,13 @@ function buildAllocation(tokens: TokenBalance[], totalUsd: number): AllocationSl
   return slices;
 }
 
+const holdingsColumn = createColumnHelper<TokenBalance>();
+const HOLDINGS_COLUMNS = [
+  holdingsColumn.accessor((t) => `${t.symbol} ${t.name}`, { id: "search", enableSorting: false }),
+  holdingsColumn.accessor((t) => t.priceUsd, { id: "price" }),
+  holdingsColumn.accessor((t) => t.valueUsd, { id: "value" }),
+];
+
 export function PortfolioView({
   onOpenFunds,
   onOpenWithdraw,
@@ -79,10 +97,48 @@ export function PortfolioView({
   onOpenDetail,
   onOpenConfirm,
 }: PortfolioViewProps) {
-  const { totalUsd, tokens, loading } = usePortfolio();
+  const { totalUsd, tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
   const allocation = buildAllocation(tokens, totalUsd);
-  const isEmpty = !loading && tokens.length === 0;
+  // Distinguish "we couldn't load it" from "you have nothing". A failed request
+  // with no cached tokens is an error, not an empty wallet; if a cached balance
+  // survives (persisted), keep showing it rather than an error.
+  const errored = !loading && error && tokens.length === 0;
+  const isEmpty = !loading && !error && tokens.length === 0;
+
+  const [search, setSearch] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([{ id: "value", desc: true }]);
+  const table = useReactTable({
+    data: tokens,
+    columns: HOLDINGS_COLUMNS,
+    state: { globalFilter: search, sorting },
+    onGlobalFilterChange: setSearch,
+    onSortingChange: setSorting,
+    globalFilterFn: (row, _id, value) =>
+      String(row.getValue("search")).toLowerCase().includes(String(value).toLowerCase()),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: 10 } },
+  });
+  const holdingRows = table.getRowModel().rows;
+  const holdingsPage = table.getState().pagination.pageIndex + 1;
+  const holdingsPages = table.getPageCount();
+
+  const sortBtn = (id: string, label: string, extra: string) => {
+    const col = table.getColumn(id);
+    const s = col?.getIsSorted();
+    return (
+      <button
+        onClick={() => col?.toggleSorting()}
+        className={`flex cursor-pointer items-center gap-1 hover:text-white/70 ${extra}`}
+      >
+        {label}
+        <span className="text-white/30">{s === "asc" ? "↑" : s === "desc" ? "↓" : ""}</span>
+      </button>
+    );
+  };
 
   const reviewConfirm = (t: TokenBalance): ConfirmPayload => ({
     eyebrow: "Portfolio",
@@ -162,7 +218,23 @@ export function PortfolioView({
         </div>
       </div>
 
-      {isEmpty ? (
+      {errored ? (
+        <div className="ws-card mt-[18px] flex flex-col items-center gap-3 px-6 py-12 text-center">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
+            <WalletIcon size={22} />
+          </div>
+          <div className="ws-serif text-[22px]">Couldn&apos;t load your portfolio</div>
+          <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">
+            We couldn&apos;t reach your balances just now. Your funds are safe. Please try again.
+          </p>
+          <button
+            onClick={() => refetch()}
+            className="text-ink mt-1 cursor-pointer rounded-xl bg-white px-5 py-2.5 font-sans text-[13px] font-semibold hover:opacity-90"
+          >
+            Try again
+          </button>
+        </div>
+      ) : isEmpty ? (
         <div className="ws-card mt-[18px] flex flex-col items-center gap-3 px-6 py-12 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
             <WalletIcon size={22} />
@@ -180,60 +252,104 @@ export function PortfolioView({
         </div>
       ) : (
         <div className="ws-card mt-[18px] overflow-hidden">
-          <div className="flex items-center justify-between px-4 pt-5 pb-3.5 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
             <span className="ws-serif text-[22px]">Your holdings</span>
-            <span className="text-[13px] font-normal text-white/50">
-              {loading
-                ? "Loading…"
-                : `${tokens.length} ${tokens.length === 1 ? "asset" : "assets"}`}
-            </span>
+            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <SearchIcon />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search"
+                className="w-[130px] min-w-0 border-none bg-transparent text-[13px] font-normal text-white outline-none"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr] sm:px-6">
             <span>Asset</span>
-            <span className="hidden text-right min-[560px]:block">Price</span>
+            {sortBtn("price", "Price", "hidden justify-end text-right min-[560px]:flex")}
             <span className="hidden text-right min-[560px]:block">Network</span>
-            <span className="text-right">Value</span>
+            {sortBtn("value", "Value", "justify-end text-right")}
           </div>
 
-          {loading
-            ? [0, 1, 2].map((i) => (
-                <div
-                  key={i}
-                  className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6"
-                >
-                  <span className="h-9 w-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
-                  <span className="h-4 w-32 animate-pulse rounded bg-white/8" />
-                  <span className="ml-auto h-4 w-16 animate-pulse rounded bg-white/8" />
-                </div>
-              ))
-            : tokens.map((t) => (
-                <button
-                  key={t.symbol + t.network}
-                  onClick={() => openToken(t)}
-                  className="grid w-full cursor-pointer grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 text-left transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr] sm:px-6"
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <AssetIcon sym={t.symbol} bg={tokenBg(t.symbol)} logo={t.logo} />
-                    <span className="min-w-0">
-                      <span className="block truncate font-sans text-[14.5px] font-medium">
-                        {t.name}
+          {loading ? (
+            [0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6"
+              >
+                <span className="h-9 w-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
+                <span className="h-4 w-32 animate-pulse rounded bg-white/8" />
+                <span className="ml-auto h-4 w-16 animate-pulse rounded bg-white/8" />
+              </div>
+            ))
+          ) : holdingRows.length === 0 ? (
+            <div className="border-t border-white/6 px-6 py-8 text-center text-[13px] font-normal text-white/45">
+              No holdings match your search.
+            </div>
+          ) : (
+            <>
+              {holdingRows.map((row) => {
+                const t = row.original;
+                return (
+                  <button
+                    key={t.symbol + t.network}
+                    onClick={() => openToken(t)}
+                    className="grid w-full cursor-pointer grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 text-left transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr] sm:px-6"
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span className="relative shrink-0">
+                        <AssetIcon sym={t.symbol} bg={tokenBg(t.symbol)} logo={t.logo} />
+                        <span className="absolute -right-1 -bottom-1 grid place-items-center rounded-full bg-[#0d0d0f] p-[1.5px]">
+                          <NetworkIcon network={t.network} size={14} />
+                        </span>
                       </span>
-                      <span className="block truncate text-xs font-normal text-white/50">
-                        {formatQty(t.balance)} {t.symbol} · {networkLabel(t.network)}
+                      <span className="min-w-0">
+                        <span className="block truncate font-sans text-[14.5px] font-medium">
+                          {t.symbol}
+                        </span>
+                        <span className="block truncate text-xs font-normal text-white/50">
+                          {formatQty(t.balance)} · {networkLabel(t.network)}
+                        </span>
                       </span>
                     </span>
+                    <span className="tnum hidden text-right text-sm font-normal min-[560px]:block">
+                      {money.format(t.priceUsd)}
+                    </span>
+                    <span className="hidden items-center justify-end gap-1.5 text-[13px] font-normal text-white/60 min-[560px]:flex">
+                      <NetworkIcon network={t.network} size={16} />
+                      {networkLabel(t.network)}
+                    </span>
+                    <span className="tnum text-right font-sans text-sm font-medium">
+                      {money.format(t.valueUsd)}
+                    </span>
+                  </button>
+                );
+              })}
+              {holdingsPages > 1 ? (
+                <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
+                  <span className="text-[12.5px] font-normal text-white/45">
+                    Page {holdingsPage} of {holdingsPages}
                   </span>
-                  <span className="tnum hidden text-right text-sm font-normal min-[560px]:block">
-                    {money.format(t.priceUsd)}
-                  </span>
-                  <span className="hidden text-right text-[13px] font-normal text-white/45 min-[560px]:block">
-                    {networkLabel(t.network)}
-                  </span>
-                  <span className="tnum text-right font-sans text-sm font-medium">
-                    {money.format(t.valueUsd)}
-                  </span>
-                </button>
-              ))}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                      className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                      className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       )}
     </div>

@@ -48,6 +48,11 @@ export interface Prediction {
   yes: string;
   no: string;
   pct: number;
+  // CLOB identifiers for trading. Present on live Polymarket markets; absent on
+  // the static fallback set (those cards are display-only).
+  yesTokenId?: string;
+  noTokenId?: string;
+  conditionId?: string;
 }
 
 export type RwaCategory =

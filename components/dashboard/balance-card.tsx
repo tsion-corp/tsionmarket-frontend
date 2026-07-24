@@ -55,7 +55,7 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onOpenSend }: Balance
             onClick={onOpenSend}
             className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10 min-[560px]:flex-none"
           >
-            Send
+            Transfer
           </button>
         </div>
       </div>

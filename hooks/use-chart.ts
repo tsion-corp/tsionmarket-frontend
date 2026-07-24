@@ -18,6 +18,8 @@ export interface CandlePoint {
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 
+const EMPTY_POINTS: (AreaPoint | CandlePoint)[] = [];
+
 export function useChart(id: string | null, range: ChartRange, type: "area" | "candles" = "area") {
   const { data, isPending, isError } = useQuery<{ points: (AreaPoint | CandlePoint)[] }>({
     queryKey: ["chart", id, range, type],
@@ -32,5 +34,9 @@ export function useChart(id: string | null, range: ChartRange, type: "area" | "c
     refetchInterval: FIVE_MINUTES,
   });
 
-  return { points: data?.points ?? [], loading: Boolean(id) && isPending, error: isError };
+  return {
+    points: data?.points ?? EMPTY_POINTS,
+    loading: Boolean(id) && isPending,
+    error: isError,
+  };
 }

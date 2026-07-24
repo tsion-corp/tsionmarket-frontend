@@ -5,7 +5,6 @@ import { AmountField } from "@/components/dashboard/trade/amount-field";
 import { TokenSelect } from "@/components/dashboard/trade/token-select";
 import { formatAmount, formatUsd } from "@/lib/trade/math";
 import type { TradeAsset } from "@/lib/trade/assets";
-import type { ConfirmPayload, StatLine } from "@/components/dashboard/modal-types";
 
 interface LimitPanelProps {
   pay: TradeAsset;
@@ -15,7 +14,7 @@ interface LimitPanelProps {
   onFlip: () => void;
   prices: Record<string, number>;
   balances: Record<string, number>;
-  onOpenConfirm: (confirm: ConfirmPayload) => void;
+  assets?: TradeAsset[];
 }
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
@@ -30,7 +29,7 @@ export function LimitPanel({
   onFlip,
   prices,
   balances,
-  onOpenConfirm,
+  assets,
 }: LimitPanelProps) {
   const [amount, setAmount] = useState("");
   // Null means the field tracks the live market rate. A string is a user edit.
@@ -57,8 +56,6 @@ export function LimitPanel({
   const receiveAmount = limitNum > 0 ? amountNum / limitNum : 0;
   const payBalance = balances[pay.symbol] ?? 0;
   const fromMarket = marketRate > 0 && limitNum > 0 ? (limitNum / marketRate - 1) * 100 : 0;
-  const insufficient = payBalance > 0 && amountNum > payBalance;
-  const disabled = amountNum <= 0 || limitNum <= 0 || insufficient;
 
   const handleLimit = (raw: string) => {
     const next = raw.replace(/,/g, "");
@@ -66,27 +63,6 @@ export function LimitPanel({
   };
 
   const adjust = (pct: number) => setOverride(formatAmount(marketRate * (1 + pct / 100)));
-
-  const place = () => {
-    const lines: StatLine[] = [
-      { k: "You pay", v: `${formatAmount(amountNum)} ${pay.symbol}` },
-      { k: "You receive", v: `${formatAmount(receiveAmount)} ${receive.symbol}`, c: "#A78BFA" },
-      { k: "Limit price", v: `1 ${receive.symbol} = ${formatAmount(limitNum)} ${pay.symbol}` },
-      { k: "From market", v: `${fromMarket >= 0 ? "+" : ""}${fromMarket.toFixed(2)}%` },
-      { k: "Expires", v: expiry },
-    ];
-    onOpenConfirm({
-      eyebrow: "Review limit order",
-      badgeSym: receive.symbol,
-      badgeBg: receive.bg,
-      title: `Limit buy ${receive.symbol}`,
-      sub: `Fills at ${formatAmount(limitNum)} ${pay.symbol} or better`,
-      lines,
-      cta: "Place limit order",
-      successTitle: "Limit order placed",
-      successMsg: `Your order to buy ${receive.symbol} at ${formatAmount(limitNum)} ${pay.symbol} is working.`,
-    });
-  };
 
   return (
     <div className="flex flex-col gap-3">
@@ -98,6 +74,7 @@ export function LimitPanel({
         onAsset={onPay}
         prices={prices}
         balances={balances}
+        assets={assets}
         excludeSymbol={receive.symbol}
         balance={payBalance}
         onMax={() => setAmount(String(payBalance))}
@@ -169,6 +146,7 @@ export function LimitPanel({
             onChange={onReceive}
             prices={prices}
             balances={balances}
+            assets={assets}
             excludeSymbol={pay.symbol}
           />
         </div>
@@ -195,16 +173,14 @@ export function LimitPanel({
       </div>
 
       <button
-        onClick={place}
-        disabled={disabled}
-        className="text-ink mt-1 w-full cursor-pointer rounded-[14px] bg-white p-[15px] font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        disabled
+        className="text-ink mt-1 w-full cursor-not-allowed rounded-[14px] bg-white p-[15px] font-sans text-[15px] font-semibold opacity-50"
       >
-        {insufficient
-          ? `Not enough ${pay.symbol}`
-          : amountNum <= 0
-            ? "Enter an amount"
-            : "Place limit order"}
+        Coming soon
       </button>
+      <p className="text-center text-xs font-normal text-white/45">
+        Limit orders are coming soon. The amounts and pricing above are a live preview.
+      </p>
     </div>
   );
 }

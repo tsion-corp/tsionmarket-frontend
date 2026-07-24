@@ -3,18 +3,16 @@
 import { useState } from "react";
 import { MethodTile } from "@/components/dashboard/funds/method-tile";
 import { CryptoWithdrawScreen } from "@/components/dashboard/funds/crypto-withdraw-screen";
-import { DirectWithdrawScreen } from "@/components/dashboard/funds/direct-withdraw-screen";
 import { BankWithdrawScreen } from "@/components/dashboard/funds/bank-withdraw-screen";
-import { SwapIcon, WalletIcon, BankIcon } from "@/components/ui/icons";
+import { SwapIcon, BankIcon } from "@/components/ui/icons";
 
-type Step = "chooser" | "crypto" | "direct" | "bank";
+type Step = "chooser" | "crypto" | "bank";
 
 export function WithdrawModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("chooser");
   const back = () => setStep("chooser");
 
   if (step === "crypto") return <CryptoWithdrawScreen onBack={back} />;
-  if (step === "direct") return <DirectWithdrawScreen onBack={back} onDone={onClose} />;
   if (step === "bank") return <BankWithdrawScreen onBack={back} />;
 
   return (
@@ -30,12 +28,6 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
           subtitle="Send to a wallet on almost any network."
           badge="Popular"
           onClick={() => setStep("crypto")}
-        />
-        <MethodTile
-          icon={<WalletIcon size={22} />}
-          title="Direct crypto"
-          subtitle="Send USDC on the same network."
-          onClick={() => setStep("direct")}
         />
         <MethodTile
           icon={<BankIcon size={22} />}

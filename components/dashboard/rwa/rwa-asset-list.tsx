@@ -1,20 +1,24 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import {
+  createColumnHelper,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+} from "@tanstack/react-table";
 import { RwaAssetRow } from "@/components/dashboard/rwa/rwa-asset-row";
 import { RwaCategoryTabs } from "@/components/dashboard/rwa/rwa-category-tabs";
 import { RwaPagination } from "@/components/dashboard/rwa/rwa-pagination";
+import { SearchIcon } from "@/components/ui/icons";
 import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
-import type { RwaApiAsset } from "@/lib/rwa-api";
+import { assetPriceUsd, assetTvlUsd, type RwaApiAsset } from "@/lib/rwa-api";
 
 interface RwaAssetListProps {
-  tabs: readonly string[];
-  activeTab: string;
-  onTab: (tab: string) => void;
-  visible: RwaApiAsset[];
-  total: number;
-  page: number;
-  pages: number;
-  onPage: (page: number) => void;
+  assets: RwaApiAsset[];
   selectedId: string;
   loading: boolean;
   error: boolean;
@@ -22,33 +26,99 @@ interface RwaAssetListProps {
   onTrade: (asset: RwaApiAsset) => void;
 }
 
+const PER_PAGE = 9;
+
+const columnHelper = createColumnHelper<RwaApiAsset>();
+const columns = [
+  columnHelper.accessor((a) => `${a.symbol} ${a.name} ${a.issuer} ${a.chain}`, {
+    id: "search",
+    enableSorting: false,
+  }),
+  columnHelper.accessor((a) => assetPriceUsd(a) ?? 0, { id: "price" }),
+  columnHelper.accessor((a) => a.yieldApyBps ?? 0, { id: "apy" }),
+  columnHelper.accessor((a) => Number(assetTvlUsd(a) ?? 0), { id: "tvl" }),
+];
+
 export function RwaAssetList({
-  tabs,
-  activeTab,
-  onTab,
-  visible,
-  total,
-  page,
-  pages,
-  onPage,
+  assets,
   selectedId,
   loading,
   error,
   onOpen,
   onTrade,
 }: RwaAssetListProps) {
+  const [tab, setTab] = useState("All");
+  const [search, setSearch] = useState("");
+  const [sorting, setSorting] = useState<SortingState>([]);
+
+  const tabs = useMemo(
+    () => ["All", ...[...new Set(assets.map((a) => a.category))].sort()],
+    [assets]
+  );
+  const data = useMemo(
+    () => (tab === "All" ? assets : assets.filter((a) => a.category === tab)),
+    [assets, tab]
+  );
+
+  const table = useReactTable({
+    data,
+    columns,
+    state: { globalFilter: search, sorting },
+    onGlobalFilterChange: setSearch,
+    onSortingChange: setSorting,
+    globalFilterFn: (row, _id, value) =>
+      String(row.getValue("search")).toLowerCase().includes(String(value).toLowerCase()),
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: { pagination: { pageSize: PER_PAGE } },
+  });
+
+  const rows = table.getRowModel().rows;
+  const visible = rows.map((r) => r.original);
   const logos = useTokenLogos(visible.map((a) => ({ chain: a.chain, address: a.address })));
+  const page = table.getState().pagination.pageIndex + 1;
+  const pages = table.getPageCount();
+
+  const sortHeader = (id: string, label: string, extra = "") => {
+    const col = table.getColumn(id);
+    const sorted = col?.getIsSorted();
+    return (
+      <button
+        onClick={() => col?.toggleSorting()}
+        className={`flex w-full cursor-pointer items-center justify-end gap-1 hover:text-white/70 ${extra}`}
+      >
+        {label}
+        <span className="text-white/30">
+          {sorted === "asc" ? "↑" : sorted === "desc" ? "↓" : ""}
+        </span>
+      </button>
+    );
+  };
 
   return (
     <div>
-      <RwaCategoryTabs tabs={tabs} active={activeTab} onChange={onTab} />
+      <div className="flex flex-col gap-3 min-[720px]:flex-row min-[720px]:items-center min-[720px]:justify-between">
+        <RwaCategoryTabs tabs={tabs} active={tab} onChange={setTab} />
+        <div className="flex max-w-[260px] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
+          <SearchIcon />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search assets"
+            className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] font-normal text-white outline-none"
+          />
+        </div>
+      </div>
 
       <div className="ws-card mt-4 overflow-hidden">
-        <div className="grid grid-cols-[1.6fr_1fr_auto] gap-3 px-4 py-4 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[820px]:grid-cols-[2fr_1fr_0.8fr_1fr_0.8fr] sm:px-6">
+        <div className="grid grid-cols-[1.6fr_1fr_auto] gap-3 px-4 py-4 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[1.7fr_0.8fr_1fr_auto] min-[820px]:grid-cols-[1.9fr_0.8fr_1fr_0.7fr_1fr_0.8fr] sm:px-6">
           <span>Asset</span>
-          <span className="text-right">Price</span>
-          <span className="hidden text-right min-[820px]:block">APY</span>
-          <span className="hidden text-right min-[820px]:block">TVL</span>
+          <span className="hidden min-[560px]:block">Network</span>
+          {sortHeader("price", "Price")}
+          {sortHeader("apy", "APY", "hidden min-[820px]:flex")}
+          {sortHeader("tvl", "TVL", "hidden min-[820px]:flex")}
           <span />
         </div>
 
@@ -60,9 +130,9 @@ export function RwaAssetList({
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             Loading real-world assets…
           </div>
-        ) : total === 0 ? (
+        ) : visible.length === 0 ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            No assets in this category.
+            {search.trim() ? "No assets match your search." : "No assets in this category."}
           </div>
         ) : (
           <>
@@ -76,7 +146,9 @@ export function RwaAssetList({
                 onTrade={() => onTrade(asset)}
               />
             ))}
-            <RwaPagination page={page} pages={pages} onPage={onPage} />
+            {pages > 1 ? (
+              <RwaPagination page={page} pages={pages} onPage={(p) => table.setPageIndex(p - 1)} />
+            ) : null}
           </>
         )}
       </div>

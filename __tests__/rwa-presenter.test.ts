@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   apyPercent,
+  buildPayOptions,
   buyQuoteRequest,
   clampPage,
   errorCode,
@@ -41,7 +42,9 @@ function token(overrides: Partial<TokenBalance> = {}): TokenBalance {
   return {
     symbol: "ETH",
     name: "Ether",
-    network: "eth-mainnet",
+    network: "base-mainnet",
+    address: null,
+    decimals: 18,
     balance: 0.2,
     priceUsd: 3000,
     valueUsd: 600,
@@ -89,16 +92,73 @@ describe("access classification", () => {
   });
 });
 
+describe("buyQuoteRequest pay token", () => {
+  it("defaults to the chain's USDC and sizes at 6 decimals", () => {
+    const req = buyQuoteRequest(asset({ chain: "solana", address: "OUT" }), "10", 50);
+    expect(req.inputToken).toBe("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    expect(req.amountIn).toBe("10000000");
+  });
+
+  it("sizes an arbitrary pay token at its own decimals", () => {
+    const req = buyQuoteRequest(asset({ chain: "solana", address: "OUT" }), "1.5", 50, {
+      address: "So11111111111111111111111111111111111111112",
+      decimals: 9,
+    });
+    expect(req.inputToken).toBe("So11111111111111111111111111111111111111112");
+    expect(req.amountIn).toBe("1500000000");
+  });
+});
+
+describe("buildPayOptions", () => {
+  it("always offers USDC as the default even when not held", () => {
+    const opts = buildPayOptions([], asset({ chain: "solana" }));
+    expect(opts[0].symbol).toBe("USDC");
+    expect(opts[0].balance).toBe(0);
+  });
+
+  it("includes held tokens on the asset's chain and keeps USDC first", () => {
+    const held = [
+      token({
+        symbol: "USDT",
+        network: "solana-mainnet",
+        address: "USDTmint",
+        decimals: 6,
+        balance: 20,
+      }),
+      token({
+        symbol: "USDC",
+        network: "solana-mainnet",
+        address: "USDCmint",
+        decimals: 6,
+        balance: 5,
+      }),
+    ];
+    const opts = buildPayOptions(held, asset({ chain: "solana" }));
+    expect(opts[0].symbol).toBe("USDC");
+    expect(opts.map((o) => o.symbol)).toContain("USDT");
+  });
+
+  it("excludes tokens held on a different chain", () => {
+    const held = [
+      token({ symbol: "USDC", network: "base-mainnet", address: "baseUsdc", balance: 9 }),
+    ];
+    const opts = buildPayOptions(held, asset({ chain: "solana" }));
+    // Only the synthetic Solana USDC default, not the Base holding.
+    expect(opts).toHaveLength(1);
+    expect(opts[0].balance).toBe(0);
+  });
+});
+
 describe("hasNativeGas", () => {
   it("is true when the wallet holds the chain's native token", () => {
-    expect(hasNativeGas([token({ symbol: "ETH", balance: 0.1 })], "ethereum")).toBe(true);
+    expect(hasNativeGas([token({ symbol: "ETH", balance: 0.1 })], "base")).toBe(true);
     expect(
       hasNativeGas([token({ symbol: "SOL", network: "solana-mainnet", balance: 1 })], "solana")
     ).toBe(true);
   });
 
   it("is false when a covered network has no native balance", () => {
-    expect(hasNativeGas([token({ symbol: "USDC", balance: 500 })], "ethereum")).toBe(false);
+    expect(hasNativeGas([token({ symbol: "USDC", balance: 500 })], "base")).toBe(false);
     expect(hasNativeGas([], "base")).toBe(false);
   });
 

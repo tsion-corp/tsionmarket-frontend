@@ -1,30 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
-import { ChainTokenPicker } from "@/components/dashboard/funds/chain-token-picker";
+import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
+import { TokenList } from "@/components/dashboard/funds/token-list";
 import { AddressPanel } from "@/components/dashboard/funds/address-panel";
-import { DepositStatus } from "@/components/dashboard/funds/deposit-status";
-import { ClockIcon } from "@/components/ui/icons";
-import { useCreateQuote, useDepositStatus, useTerminalToast } from "@/hooks/use-deposit";
+import { useDepositChains, useDepositTokens, useStaticDepositAddress } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
-import { toBaseUnits } from "@/lib/trade/math";
+import { originFamily, refundChainType } from "@/lib/deposit-catalog";
 import {
-  depositProgress,
-  formatCountdown,
-  settlementFor,
+  depositMinimumUsd,
+  SETTLE_CHAINS,
+  SETTLE_ORDER,
   type DepositChain,
   type DepositToken,
+  type StaticAddressRequest,
+  type SettleChainKey,
 } from "@/lib/deposit";
-
-const DECIMAL_INPUT = /^\d*\.?\d*$/;
-const DEPOSIT_TOASTS = {
-  settled: "Deposit settled. Your balance is updated.",
-  failed: "Deposit failed. Any funds are refunded to the sender.",
-  refunded: "Deposit refunded to the sending wallet.",
-};
 
 interface CryptoDepositScreenProps {
   onBack: () => void;
@@ -33,183 +27,181 @@ interface CryptoDepositScreenProps {
 export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
   const { user } = usePrivy();
   const { refetch } = usePortfolio();
-  const quote = useCreateQuote();
 
-  const [chain, setChain] = useState<DepositChain | null>(null);
-  const [token, setToken] = useState<DepositToken | null>(null);
-  const [amount, setAmount] = useState("");
-  const [now, setNow] = useState(() => Date.now());
+  const [settleKey, setSettleKey] = useState<SettleChainKey>("base");
+  const [originChain, setOriginChain] = useState<DepositChain | null>(null);
+  const [originToken, setOriginToken] = useState<DepositToken | null>(null);
 
-  const depositRequestId = quote.data?.depositRequestId ?? null;
-  const status = useDepositStatus(depositRequestId);
+  const chains = useDepositChains();
+  const tokens = useDepositTokens(originChain?.chainId ?? null);
 
-  const settlement =
-    getWalletAddress(user, "ethereum") !== null
-      ? settlementFor("ethereum")
-      : settlementFor("solana");
-  const recipient = getWalletAddress(user, settlement.chainType);
+  const settle = SETTLE_CHAINS[settleKey];
+  const settlementAddress = getWalletAddress(user, settle.chainType);
 
-  useTerminalToast(status.data, depositRequestId, DEPOSIT_TOASTS, refetch);
+  // A static address needs a refund address on the origin's own VM family. The
+  // network picker already hides families we cannot refund, so this resolves for
+  // every offerable origin.
+  const family = originChain ? originFamily(originChain.chainId) : null;
+  const refundType = family ? refundChainType(family) : null;
+  const refundTo = refundType ? getWalletAddress(user, refundType) : null;
 
-  // Advance the clock once a second so the expiry countdown re-renders. The
-  // deadline is derived from the quote submit time, so this only supplies "now".
-  useEffect(() => {
-    if (!quote.data) return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [quote.data]);
+  const req: StaticAddressRequest | null =
+    user?.id && originChain && originToken && settlementAddress && refundTo
+      ? {
+          userId: user.id,
+          originChainId: originChain.chainId,
+          originAsset: originToken.address,
+          settlementChainId: settle.chainId,
+          settlementAsset: settle.usdc,
+          settlementAddress,
+          refundTo,
+        }
+      : null;
 
-  const amountValid = Number(amount) > 0;
-  const ready = Boolean(chain && token && amountValid && recipient);
+  const staticAddr = useStaticDepositAddress(req);
 
-  const generate = () => {
-    if (!chain || !token || !recipient) return;
-    quote.mutate({
-      originChainId: chain.chainId,
-      destinationChainId: settlement.chainId,
-      originAsset: token.address,
-      destinationAsset: settlement.asset,
-      amount: toBaseUnits(amount, token.decimals).toString(),
-      recipient,
-      static: false,
-    });
-  };
+  const resetToken = () => setOriginToken(null);
 
-  if (quote.data && token && chain) {
-    const expiresInSeconds = quote.data.expiresInSeconds ?? 0;
-    const hasExpiry = expiresInSeconds > 0;
-    // Clamp to the quote window so a stale first "now" never shows more time
-    // than the address actually has.
-    const deadlineMs = quote.submittedAt + expiresInSeconds * 1000;
-    const remaining = Math.max(
-      0,
-      Math.min(expiresInSeconds, Math.round((deadlineMs - now) / 1000))
-    );
-    const stage = depositProgress(
-      status.data?.status ?? quote.data.status,
-      status.data?.executionStatus
-    ).stage;
-    const expired = hasExpiry && remaining <= 0 && stage === "waiting";
+  const settleChooser = (
+    <div>
+      <div className="mb-2 text-xs font-normal text-white/55">Receive USDC on</div>
+      <div className="flex flex-wrap gap-2">
+        {SETTLE_ORDER.map((key) => {
+          const chain = SETTLE_CHAINS[key];
+          const enabled = getWalletAddress(user, chain.chainType) !== null;
+          const on = key === settleKey;
+          return (
+            <button
+              key={key}
+              disabled={!enabled}
+              onClick={() => setSettleKey(key)}
+              className={`cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[13px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                on
+                  ? "border-accent/45 bg-accent/12 text-white"
+                  : "border-white/10 bg-white/4 text-white/80 hover:bg-white/8"
+              }`}
+            >
+              {chain.chainName}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
-    if (expired) {
-      return (
-        <div>
-          <SheetNav
-            title="Address expired"
-            subtitle="Deposit windows are time-limited to lock in a rate."
-            onBack={onBack}
-          />
-          <div className="border-down/25 bg-down/10 mt-1 rounded-[14px] border px-4 py-4">
-            <div className="text-down text-[13px] font-semibold">
-              This address is no longer active
-            </div>
-            <p className="mt-1 text-[12.5px] leading-[1.5] font-normal text-white/70">
-              Generate a fresh address before sending. Funds sent to the expired address may not be
-              credited.
-            </p>
-          </div>
-          <button
-            onClick={generate}
-            disabled={quote.isPending}
-            className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {quote.isPending ? "Creating new address" : "Generate a new address"}
-          </button>
-        </div>
-      );
-    }
-
+  // Address view: a token is picked and its permanent address has been minted.
+  if (originToken && originChain && staticAddr.data) {
+    const minimum = depositMinimumUsd(originChain);
     return (
       <div>
         <SheetNav
-          title="Send your deposit"
-          subtitle={`We convert it to USDC on ${settlement.chainName} automatically.`}
+          title="Your deposit address"
+          subtitle={`Send ${originToken.symbol} on ${originChain.name}. It arrives as USDC on ${settle.chainName}.`}
           onBack={onBack}
         />
         <AddressPanel
-          address={quote.data.depositAddress}
-          tokenSymbol={token.symbol}
-          chainName={chain.name}
+          address={staticAddr.data.depositAddress}
+          tokenSymbol={originToken.symbol}
+          chainName={originChain.name}
         />
-        {hasExpiry ? (
-          <div className="mt-3 flex items-center justify-center gap-1.5 text-[12.5px] font-normal">
-            <span className={remaining < 60 ? "text-[#f2b544]" : "text-white/50"}>
-              <ClockIcon size={13} />
-            </span>
-            <span className={remaining < 60 ? "text-[#f2b544]" : "text-white/55"}>
-              Address expires in <span className="tnum">{formatCountdown(remaining)}</span>
-            </span>
-          </div>
-        ) : null}
-        <DepositStatus
-          status={status.data?.status ?? quote.data.status}
-          executionStatus={status.data?.executionStatus}
-          isError={status.isError}
-          onRetry={() => status.refetch()}
-        />
+        <div className="ws-inset mt-3 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
+          <span className="text-white/55">Minimum deposit</span>
+          <span className="tnum text-white/85">About ${minimum}</span>
+        </div>
+        <div className="border-accent/20 bg-accent/8 mt-3 rounded-[14px] border px-4 py-3">
+          <p className="text-[12.5px] leading-[1.5] font-normal text-white/80">
+            This address is permanent. Send to it any time and the funds land as USDC in your wallet
+            automatically, usually within a minute.
+          </p>
+        </div>
         <button
-          onClick={() => quote.reset()}
-          className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
+          onClick={() => refetch()}
+          className="mt-3 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
         >
-          New deposit
+          Refresh balance
+        </button>
+        <button
+          onClick={resetToken}
+          className="mt-2 w-full cursor-pointer rounded-[14px] p-2.5 font-sans text-[13px] font-medium text-white/60 hover:text-white"
+        >
+          Deposit a different token
         </button>
       </div>
     );
   }
 
+  // Picker view: choose where to settle, then origin network + token.
   return (
     <div>
       <SheetNav
         title="Deposit crypto"
-        subtitle="Send almost any token from any chain. It arrives as USDC in your wallet."
+        subtitle="Send from almost any chain. It arrives as USDC in your wallet."
         onBack={onBack}
       />
-      <ChainTokenPicker
-        chainLabel="From network"
-        chain={chain}
-        token={token}
-        onChain={(c) => {
-          setChain(c);
-          setToken(null);
-        }}
-        onToken={setToken}
-      />
 
-      {token ? (
-        <div className="ws-inset mt-2 p-[15px]">
-          <div className="mb-[9px] text-xs font-normal text-white/55">Amount to send</div>
-          <div className="flex items-center justify-between gap-3">
-            <input
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => {
-                const next = e.target.value;
-                if (next === "" || DECIMAL_INPUT.test(next)) setAmount(next);
-              }}
-              placeholder="0.00"
-              className="ws-serif tnum w-full border-none bg-transparent text-[26px] text-white outline-none placeholder:text-white/30"
+      <div className="flex flex-col gap-4">
+        {settleChooser}
+
+        <div>
+          <div className="mb-2 text-xs font-normal text-white/55">From network</div>
+          <NetworkTabs
+            chains={chains.data ?? []}
+            selectedId={originChain?.chainId ?? null}
+            onSelect={(c) => {
+              setOriginChain(c);
+              setOriginToken(null);
+            }}
+            loading={chains.isPending}
+            error={chains.isError}
+            onRetry={() => chains.refetch()}
+          />
+        </div>
+
+        {originChain ? (
+          <div>
+            <div className="mb-2 text-xs font-normal text-white/55">Token to send</div>
+            <TokenList
+              tokens={tokens.data ?? []}
+              selectedAddress={originToken?.address ?? null}
+              onSelect={setOriginToken}
+              loading={tokens.isPending}
+              error={tokens.isError}
+              onRetry={() => tokens.refetch()}
             />
-            <span className="font-sans text-[14px] font-medium text-white/70">{token.symbol}</span>
           </div>
-        </div>
-      ) : null}
+        ) : null}
 
-      {quote.isError ? (
-        <div className="text-down mt-3 text-[13px] font-normal">
-          {quote.error.message}{" "}
-          <button onClick={generate} className="text-accent cursor-pointer underline">
-            Try again
-          </button>
-        </div>
-      ) : null}
+        {req && staticAddr.isPending ? (
+          <div className="py-4 text-center text-[13px] font-normal text-white/55">
+            Creating your deposit address…
+          </div>
+        ) : null}
 
-      <button
-        onClick={generate}
-        disabled={!ready || quote.isPending}
-        className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {quote.isPending ? "Creating deposit address" : "Get deposit address"}
-      </button>
+        {req && staticAddr.isError ? (
+          <div className="text-down text-[13px] font-normal">
+            {staticAddr.error.message}{" "}
+            <button
+              onClick={() => staticAddr.refetch()}
+              className="text-accent cursor-pointer underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : null}
+
+        {originToken && !settlementAddress ? (
+          <div className="border-down/25 bg-down/10 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/70">
+            You need a {settle.chainName} wallet to receive there. Pick another settlement network.
+          </div>
+        ) : null}
+
+        {originToken && settlementAddress && !refundTo ? (
+          <div className="border-down/25 bg-down/10 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/70">
+            Deposits from {originChain?.name} need a {refundType === "solana" ? "Solana" : "wallet"}{" "}
+            address on your account for refunds. Pick another network to continue.
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
