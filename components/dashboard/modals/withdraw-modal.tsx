@@ -24,8 +24,8 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
       <div className="mt-[18px] flex flex-col gap-2">
         <MethodTile
           icon={<SwapIcon size={22} />}
-          title="To any chain"
-          subtitle="Send to a wallet on almost any network."
+          title="To external wallet"
+          subtitle="Send any token you hold to a wallet on its network."
           badge="Popular"
           onClick={() => setStep("crypto")}
         />

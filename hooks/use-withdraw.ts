@@ -25,6 +25,7 @@ import {
   getCreateAssociatedTokenIdempotentInstruction,
   getTransferCheckedInstruction,
 } from "@solana-program/token";
+import { getTransferSolInstruction } from "@solana-program/system";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
 import {
@@ -168,4 +169,87 @@ export function useSendUsdc() {
   );
 
   return { sendUsdc, sending };
+}
+
+// EVM chain ids by Alchemy network, for direct token/native sends.
+const EVM_CHAIN_ID: Record<string, number> = {
+  "base-mainnet": 8453,
+  "arb-mainnet": 42161,
+  "polygon-mainnet": 137,
+};
+
+// Native SOL transfer via the system program, for sending SOL itself.
+async function buildSolanaSolTransfer(
+  from: string,
+  to: string,
+  amount: bigint
+): Promise<Uint8Array> {
+  const rpc = createSolanaRpc(SOLANA_RPC);
+  const source = createNoopSigner(address(from));
+  const transfer = getTransferSolInstruction({ source, destination: address(to), amount });
+  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
+  const message = pipe(
+    createTransactionMessage({ version: 0 }),
+    (m) => setTransactionMessageFeePayerSigner(source, m),
+    (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
+    (m) => appendTransactionMessageInstructions([transfer], m)
+  );
+  return getTransactionEncoder().encode(compileTransaction(message)) as Uint8Array;
+}
+
+export interface SendTokenParams {
+  // Alchemy network id of the token's chain.
+  network: string;
+  // Token contract/mint address, or null for the chain's native gas token.
+  tokenAddress: string | null;
+  decimals: number;
+  to: string;
+  amount: bigint;
+}
+
+// Sends any held token to an external address on its own chain: native or ERC-20
+// on EVM, native SOL or SPL on Solana. Self-custody — the embedded wallet signs.
+export function useSendToken() {
+  const { user } = usePrivy();
+  const { sendTransaction } = useSendTransaction();
+  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const [sending, setSending] = useState(false);
+
+  const sendToken = useCallback(
+    async ({ network, tokenAddress, decimals, to, amount }: SendTokenParams): Promise<string> => {
+      setSending(true);
+      try {
+        const isSolana = network === "solana-mainnet";
+        const chainType: WalletChainType = isSolana ? "solana" : "ethereum";
+        const from = getWalletAddress(user, chainType);
+        if (!from) throw new Error(`No ${chainType} wallet found`);
+
+        if (!isSolana) {
+          const chainId = EVM_CHAIN_ID[network];
+          if (!chainId) throw new Error("Unsupported network");
+          const tx =
+            tokenAddress === null
+              ? { to, value: `0x${amount.toString(16)}` as `0x${string}`, chainId }
+              : { to: tokenAddress, data: encodeErc20Transfer(to, amount), chainId };
+          const { hash } = await sendTransaction(tx, { address: from });
+          return hash;
+        }
+
+        const wallet = solanaWallets.find((w) => w.address === from);
+        if (!wallet) throw new Error("Solana wallet is not ready");
+        const transaction =
+          tokenAddress === null
+            ? await buildSolanaSolTransfer(from, to, amount)
+            : await buildSolanaUsdcTransfer(from, to, amount, tokenAddress, decimals);
+        const { signature } = await signAndSendTransaction({ transaction, wallet });
+        return getBase58Decoder().decode(signature);
+      } finally {
+        setSending(false);
+      }
+    },
+    [user, sendTransaction, signAndSendTransaction, solanaWallets]
+  );
+
+  return { sendToken, sending };
 }

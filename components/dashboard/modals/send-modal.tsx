@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { AssetIcon } from "@/components/ui/asset-icon";
-import { usePortfolio } from "@/hooks/use-portfolio";
-import { useSendUsdc } from "@/hooks/use-withdraw";
+import { useMemo, useState } from "react";
+import { HeldTokenSelect } from "@/components/dashboard/funds/held-token-select";
+import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
+import { useSendToken } from "@/hooks/use-withdraw";
 import { toast } from "@/lib/toast";
 import { formatAmount, toBaseUnits } from "@/lib/trade/math";
 import { SETTLE_CHAINS, SETTLE_ORDER, type SettleChain, type SettleChainKey } from "@/lib/deposit";
@@ -17,40 +17,49 @@ function validAddress(settle: SettleChain, addr: string): boolean {
   return settle.chainType === "solana" ? SOL_ADDR.test(a) : EVM_ADDR.test(a);
 }
 
-// Transfers USDC from the user's wallet to any address on one of the four
-// settlement chains. This is a real on-chain send (self-custody), gated on the
-// user holding a little of the chain's native token for gas.
+// Transfers a chosen token — a stablecoin (USDC/USDT) or the native gas token —
+// from the user's wallet to any address on one of the four settlement chains.
+// A real on-chain send, gated on holding a little native token for gas.
 export function SendModal({ onConfirm }: { onConfirm: () => void }) {
   const { tokens } = usePortfolio();
-  const { sendUsdc, sending } = useSendUsdc();
+  const { sendToken, sending } = useSendToken();
   const [settleKey, setSettleKey] = useState<SettleChainKey>("base");
+  const [selectedSymbol, setSelectedSymbol] = useState("USDC");
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const settle = SETTLE_CHAINS[settleKey];
-  const usdcBalance =
-    tokens.find((t) => t.network === settle.alchemyNetwork && t.symbol.toUpperCase() === "USDC")
-      ?.balance ?? 0;
+
+  // The stablecoins and native token on the selected chain.
+  const options = useMemo(() => {
+    const wanted = new Set(["USDC", "USDT", settle.nativeSymbol.toUpperCase()]);
+    return tokens.filter(
+      (t) => t.network === settle.alchemyNetwork && wanted.has(t.symbol.toUpperCase())
+    );
+  }, [tokens, settle.alchemyNetwork, settle.nativeSymbol]);
+
+  const selected: TokenBalance | null =
+    options.find((t) => t.symbol.toUpperCase() === selectedSymbol.toUpperCase()) ??
+    options[0] ??
+    null;
+
+  const balance = selected?.balance ?? 0;
   const hasGas = tokens.some(
     (t) =>
       t.network === settle.alchemyNetwork &&
-      t.symbol.toUpperCase() === settle.nativeSymbol &&
+      t.symbol.toUpperCase() === settle.nativeSymbol.toUpperCase() &&
       t.balance > 0
   );
 
   const value = Number(amount) || 0;
   const addrOk = validAddress(settle, to);
-  const overBalance = value > usdcBalance;
-  const ready = addrOk && value > 0 && !overBalance && !sending;
-
-  const pickChain = (key: SettleChainKey) => {
-    setSettleKey(key);
-    setError(null);
-  };
+  const overBalance = value > balance;
+  const ready = Boolean(selected) && addrOk && value > 0 && !overBalance && !sending;
 
   const submit = async () => {
     setError(null);
+    if (!selected) return;
     if (!hasGas) {
       setError(
         `You need a little ${settle.nativeSymbol} on ${settle.chainName} for the network fee`
@@ -58,13 +67,14 @@ export function SendModal({ onConfirm }: { onConfirm: () => void }) {
       return;
     }
     try {
-      await sendUsdc({
-        chainType: settle.chainType,
+      await sendToken({
+        network: selected.network,
+        tokenAddress: selected.address,
+        decimals: selected.decimals,
         to: to.trim(),
-        amount: toBaseUnits(amount, settle.decimals),
-        settle,
+        amount: toBaseUnits(amount, selected.decimals),
       });
-      toast.success(`Sent ${formatAmount(value)} USDC`);
+      toast.success(`Sent ${formatAmount(value)} ${selected.symbol}`);
       onConfirm();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Transfer failed");
@@ -75,14 +85,17 @@ export function SendModal({ onConfirm }: { onConfirm: () => void }) {
     <div>
       <div className="ws-serif text-[24px] tracking-[-0.01em]">Transfer</div>
       <p className="mt-2 text-[13.5px] leading-[1.5] font-normal text-white/65">
-        Transfer USDC to any wallet address. Choose the network to send on.
+        Send a stablecoin or native token to any wallet. Choose the network, then the token.
       </p>
 
       <div className="mt-[18px] flex gap-1.5">
         {SETTLE_ORDER.map((key) => (
           <button
             key={key}
-            onClick={() => pickChain(key)}
+            onClick={() => {
+              setSettleKey(key);
+              setError(null);
+            }}
             className={`flex-1 cursor-pointer rounded-[11px] border px-2 py-2 font-sans text-[12.5px] font-semibold transition-colors ${
               key === settleKey
                 ? "border-accent/40 bg-accent/14 text-white"
@@ -92,6 +105,15 @@ export function SendModal({ onConfirm }: { onConfirm: () => void }) {
             {SETTLE_CHAINS[key].chainName}
           </button>
         ))}
+      </div>
+
+      <div className="mt-3">
+        <HeldTokenSelect
+          options={options}
+          selected={selected}
+          onSelect={(t) => setSelectedSymbol(t.symbol)}
+          label="Token to send"
+        />
       </div>
 
       <div className="ws-inset mt-3 p-[15px]">
@@ -114,10 +136,10 @@ export function SendModal({ onConfirm }: { onConfirm: () => void }) {
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
           <span>Amount</span>
           <button
-            onClick={() => setAmount(String(usdcBalance))}
+            onClick={() => setAmount(String(balance))}
             className="tnum cursor-pointer text-white/55 hover:text-white"
           >
-            Balance {formatAmount(usdcBalance)} USDC
+            Balance {formatAmount(balance)} {selected?.symbol ?? ""}
           </button>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -128,14 +150,13 @@ export function SendModal({ onConfirm }: { onConfirm: () => void }) {
             onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
             className="ws-serif tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
           />
-          <span className="inline-flex shrink-0 items-center gap-[7px] rounded-full border border-white/12 bg-white/7 px-[11px] py-[7px]">
-            <AssetIcon sym="USDC" bg="#2775CA" size={22} />
-            <span className="font-sans text-[13.5px] font-medium">USDC</span>
+          <span className="shrink-0 font-sans text-[14px] font-medium text-white/70">
+            {selected?.symbol ?? ""}
           </span>
         </div>
         {overBalance ? (
           <div className="text-down mt-1.5 text-[12px] font-normal">
-            More than your USDC balance on {settle.chainName}
+            More than your {selected?.symbol} balance on {settle.chainName}
           </div>
         ) : null}
       </div>
@@ -155,7 +176,7 @@ export function SendModal({ onConfirm }: { onConfirm: () => void }) {
             : "cursor-not-allowed bg-white/10 text-white/40"
         }`}
       >
-        {sending ? "Sending…" : "Transfer USDC"}
+        {sending ? "Sending…" : `Transfer ${selected?.symbol ?? ""}`}
       </button>
     </div>
   );
