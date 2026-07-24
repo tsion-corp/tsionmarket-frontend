@@ -145,6 +145,10 @@ function normalize(tokens: AlchemyToken[], rwa: RwaRegistry): TokenBalance[] {
     const usdPrice = t.tokenPrices?.find((p) => p.currency === "usd");
     let priceUsd = usdPrice ? parseFloat(usdPrice.value) : 0;
     if (priceUsd === 0 && rwaInfo) priceUsd = rwaInfo.priceUsd;
+    // Alchemy sometimes returns an empty price array for a tracked stablecoin
+    // (Polygon USDC has done this). They are dollar-pegged, so value a held
+    // balance at $1 rather than $0, which would hide a real holding.
+    if (priceUsd === 0 && isTrackedStable(network, address)) priceUsd = 1;
     out.push({
       symbol,
       name: native?.name ?? t.tokenMetadata?.name ?? symbol,
