@@ -1,21 +1,20 @@
 import "server-only";
+import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
 
-const EVM_NETWORKS = [
-  "eth-mainnet",
-  "base-mainnet",
-  "arb-mainnet",
-  "opt-mainnet",
-  "polygon-mainnet",
-];
+// We track/hold on the four settlement chains only (Base, Arbitrum, Polygon,
+// Solana) — USDC plus the native gas token on each.
+const EVM_NETWORKS = ["base-mainnet", "arb-mainnet", "polygon-mainnet"];
 const SOLANA_NETWORK = "solana-mainnet";
 
 export interface TokenBalance {
   symbol: string;
   name: string;
   network: string;
+  address: string | null;
+  decimals: number;
   balance: number;
   priceUsd: number;
   valueUsd: number;
@@ -29,6 +28,7 @@ export interface Portfolio {
 
 interface AlchemyToken {
   network: string;
+  tokenAddress?: string | null;
   tokenBalance: string;
   tokenMetadata?: { decimals?: number; logo?: string; name?: string; symbol?: string };
   tokenPrices?: { currency: string; value: string }[];
@@ -39,25 +39,184 @@ function toNumber(hexOrDec: string, decimals: number): number {
   return Number(raw) / 10 ** decimals;
 }
 
-function normalize(tokens: AlchemyToken[]): TokenBalance[] {
+// Native gas tokens come back from Alchemy with no contract metadata, so we
+// resolve their identity per network. Without this, native ETH/POL/SOL shows as
+// an "unknown token" AND the gas check (which matches on symbol) fails, which is
+// why funded gas still read as "no gas".
+const NATIVE_TOKEN: Record<string, { symbol: string; name: string; decimals: number }> = {
+  "eth-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
+  "base-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
+  "arb-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
+  "opt-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
+  "polygon-mainnet": { symbol: "POL", name: "Polygon", decimals: 18 },
+  "solana-mainnet": { symbol: "SOL", name: "Solana", decimals: 9 },
+};
+
+// The stablecoins we always surface per chain. Balances come from Alchemy; a
+// tracked stablecoin the user doesn't hold still shows as a zero row so the
+// portfolio reflects the full supported set (4 chains x USDC/USDT) for everyone.
+const TRACKED_STABLES: Record<string, { symbol: "USDC" | "USDT"; address: string }[]> = {
+  "base-mainnet": [
+    { symbol: "USDC", address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913" },
+    { symbol: "USDT", address: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2" },
+  ],
+  "arb-mainnet": [
+    { symbol: "USDC", address: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831" },
+    { symbol: "USDT", address: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9" },
+  ],
+  "polygon-mainnet": [
+    { symbol: "USDC", address: "0x3c499c542cEF5E3811e1192cE70d8cC03d5c3359" },
+    { symbol: "USDT", address: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F" },
+  ],
+  "solana-mainnet": [
+    { symbol: "USDC", address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+    { symbol: "USDT", address: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB" },
+  ],
+};
+
+const STABLE_NAME: Record<string, string> = { USDC: "USD Coin", USDT: "Tether" };
+
+// The chains we track. Native gas tokens are only shown on these.
+const TRACKED_CHAINS = new Set([
+  "base-mainnet",
+  "arb-mainnet",
+  "polygon-mainnet",
+  "solana-mainnet",
+]);
+
+// Non-stablecoin assets we still recognize (e.g. swappable cbBTC on Base),
+// lowercased address per network.
+const ALLOWED_EXTRA: Record<string, string[]> = {
+  "base-mainnet": ["0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf"], // cbBTC
+};
+
+function isTrackedStable(network: string, address: string | null): boolean {
+  if (!address) return false;
+  const lower = address.toLowerCase();
+  return (TRACKED_STABLES[network] ?? []).some((s) => s.address.toLowerCase() === lower);
+}
+
+type RwaRegistry = Record<string, Map<string, RwaTokenInfo>>;
+
+// Strict allowlist: only native gas tokens on tracked chains, tracked
+// stablecoins, recognized extras, and registered RWA tokens ever appear.
+// Everything else — airdrop spam and fake tokens with fabricated prices — is
+// hidden for every user.
+function isAllowedHolding(
+  network: string,
+  address: string | null,
+  isNative: boolean,
+  rwa: RwaRegistry
+): boolean {
+  if (isNative) return TRACKED_CHAINS.has(network);
+  if (!address) return false;
+  const lower = address.toLowerCase();
+  return (
+    isTrackedStable(network, address) ||
+    (ALLOWED_EXTRA[network] ?? []).includes(lower) ||
+    (rwa[network]?.has(lower) ?? false)
+  );
+}
+
+// Alchemy still tags Polygon results with its legacy "matic-mainnet" id even
+// when we request "polygon-mainnet". Canonicalize so native POL resolves and the
+// rest of the app (labels, gas checks, funding) sees one consistent network id.
+const NETWORK_ALIAS: Record<string, string> = { "matic-mainnet": "polygon-mainnet" };
+
+function normalize(tokens: AlchemyToken[], rwa: RwaRegistry): TokenBalance[] {
   const out: TokenBalance[] = [];
   for (const t of tokens) {
-    const decimals = t.tokenMetadata?.decimals ?? 18;
+    const network = NETWORK_ALIAS[t.network] ?? t.network;
+    const isNative = t.tokenAddress == null;
+    const address = t.tokenAddress ?? null;
+    // Strict allowlist — only recognized tokens ever appear, so no spam or fake
+    // token can reach any user's portfolio.
+    if (!isAllowedHolding(network, address, isNative, rwa)) continue;
+
+    const rwaInfo = address ? rwa[network]?.get(address.toLowerCase()) : undefined;
+    const native = isNative ? NATIVE_TOKEN[network] : undefined;
+    const decimals = native?.decimals ?? t.tokenMetadata?.decimals ?? 18;
     const balance = toNumber(t.tokenBalance, decimals);
     if (balance <= 0) continue;
+    // Resolve identity, falling back to the RWA registry for tokens Alchemy
+    // returns without metadata.
+    const symbol = native?.symbol ?? t.tokenMetadata?.symbol ?? rwaInfo?.symbol;
+    if (!symbol) continue;
     const usdPrice = t.tokenPrices?.find((p) => p.currency === "usd");
-    const priceUsd = usdPrice ? parseFloat(usdPrice.value) : 0;
+    let priceUsd = usdPrice ? parseFloat(usdPrice.value) : 0;
+    if (priceUsd === 0 && rwaInfo) priceUsd = rwaInfo.priceUsd;
     out.push({
-      symbol: t.tokenMetadata?.symbol ?? "?",
-      name: t.tokenMetadata?.name ?? "Unknown token",
-      network: t.network,
+      symbol,
+      name: native?.name ?? t.tokenMetadata?.name ?? symbol,
+      network,
+      address,
+      decimals,
       balance,
       priceUsd,
       valueUsd: balance * priceUsd,
       logo: t.tokenMetadata?.logo ?? null,
     });
   }
-  return out.sort((a, b) => b.valueUsd - a.valueUsd);
+  return out;
+}
+
+// Ensures every supported chain's native token and tracked stablecoins appear,
+// even at a zero balance, so the holdings list is a consistent picture of the
+// supported set. Held assets stay on top (sorted by value); zero rows follow in
+// chain order.
+async function withTrackedBaseline(
+  held: TokenBalance[],
+  networks: string[]
+): Promise<TokenBalance[]> {
+  const present = new Set(held.map((t) => `${t.network}:${(t.address ?? "native").toLowerCase()}`));
+  const nativePrices = await fetchPrices(["ETH", "POL", "SOL"]).catch(() => [] as SymbolPrice[]);
+  const priceOf = (symbol: string) => nativePrices.find((p) => p.symbol === symbol)?.priceUsd ?? 0;
+
+  const baseline: TokenBalance[] = [];
+  for (const network of networks) {
+    const native = NATIVE_TOKEN[network];
+    if (native && !present.has(`${network}:native`)) {
+      baseline.push({
+        symbol: native.symbol,
+        name: native.name,
+        network,
+        address: null,
+        decimals: native.decimals,
+        balance: 0,
+        priceUsd: priceOf(native.symbol),
+        valueUsd: 0,
+        logo: null,
+      });
+    }
+    for (const stable of TRACKED_STABLES[network] ?? []) {
+      if (present.has(`${network}:${stable.address.toLowerCase()}`)) continue;
+      baseline.push({
+        symbol: stable.symbol,
+        name: STABLE_NAME[stable.symbol] ?? stable.symbol,
+        network,
+        address: stable.address,
+        decimals: 6,
+        balance: 0,
+        priceUsd: 1,
+        valueUsd: 0,
+        logo: null,
+      });
+    }
+  }
+
+  // Alchemy occasionally returns a native balance with no price (POL has done
+  // this). Backfill from the by-symbol price so gas tokens are never valued at $0
+  // when they shouldn't be.
+  const patched = held.map((t) => {
+    if (t.address === null && t.priceUsd === 0 && priceOf(t.symbol) > 0) {
+      const price = priceOf(t.symbol);
+      return { ...t, priceUsd: price, valueUsd: t.balance * price };
+    }
+    return t;
+  });
+
+  const heldSorted = patched.sort((a, b) => b.valueUsd - a.valueUsd);
+  return [...heldSorted, ...baseline];
 }
 
 export interface SymbolPrice {
@@ -65,17 +224,48 @@ export interface SymbolPrice {
   priceUsd: number;
 }
 
+// Free-tier Alchemy keys are partitioned by purpose to spread load, and each
+// call rotates through a small pool (purpose key -> fallback -> default) so a
+// slow or throttled key fails over instead of hanging. Set the per-purpose keys
+// in env; each falls back to ALCHEMY_API_KEY.
+function alchemyKeys(purpose: "prices" | "portfolio"): string[] {
+  const primary =
+    purpose === "prices" ? process.env.ALCHEMY_KEY_PRICES : process.env.ALCHEMY_KEY_PORTFOLIO;
+  const pool = [primary, process.env.ALCHEMY_KEY_FALLBACK, process.env.ALCHEMY_API_KEY].filter(
+    (k): k is string => Boolean(k)
+  );
+  const unique = [...new Set(pool)];
+  if (unique.length === 0) throw new Error("No Alchemy API key configured");
+  return unique;
+}
+
+async function alchemyFetch(
+  keys: string[],
+  buildUrl: (key: string) => string,
+  init?: RequestInit
+): Promise<Response> {
+  let lastError: unknown;
+  for (const key of keys) {
+    try {
+      const res = await fetch(buildUrl(key), { ...init, signal: AbortSignal.timeout(7000) });
+      if (res.ok) return res;
+      lastError = new Error(`Alchemy request failed: ${res.status}`);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError ?? new Error("Alchemy request failed");
+}
+
 export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) throw new Error("ALCHEMY_API_KEY is not set");
   if (symbols.length === 0) return [];
 
   const params = new URLSearchParams();
   for (const s of symbols) params.append("symbols", s);
-  const res = await fetch(
-    `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
+  const res = await alchemyFetch(
+    alchemyKeys("prices"),
+    (key) => `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
   );
-  if (!res.ok) throw new Error(`Alchemy prices failed: ${res.status}`);
   const data = await res.json();
   const out: SymbolPrice[] = [];
   for (const item of data?.data ?? []) {
@@ -86,29 +276,29 @@ export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
 }
 
 export async function fetchPortfolio(evm?: string, solana?: string): Promise<Portfolio> {
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) throw new Error("ALCHEMY_API_KEY is not set");
-
   const addresses: { address: string; networks: string[] }[] = [];
   if (evm) addresses.push({ address: evm, networks: EVM_NETWORKS });
   if (solana) addresses.push({ address: solana, networks: [SOLANA_NETWORK] });
   if (addresses.length === 0) return { totalUsd: 0, tokens: [] };
 
-  const res = await fetch(`https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      addresses,
-      withMetadata: true,
-      withPrices: true,
-      includeNativeTokens: true,
-      includeErc20Tokens: true,
-    }),
+  const body = JSON.stringify({
+    addresses,
+    withMetadata: true,
+    withPrices: true,
+    includeNativeTokens: true,
+    includeErc20Tokens: true,
   });
+  const res = await alchemyFetch(
+    alchemyKeys("portfolio"),
+    (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
+    { method: "POST", headers: { "Content-Type": "application/json" }, body }
+  );
 
-  if (!res.ok) throw new Error(`Alchemy request failed: ${res.status}`);
-  const data = await res.json();
-  const tokens = normalize(data?.data?.tokens ?? []);
+  const [data, rwa] = await Promise.all([res.json(), fetchRwaRegistry()]);
+  const held = normalize(data?.data?.tokens ?? [], rwa);
+  // Only baseline the chains the user actually has a wallet on.
+  const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
+  const tokens = await withTrackedBaseline(held, networks);
   const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
   return { totalUsd, tokens };
 }

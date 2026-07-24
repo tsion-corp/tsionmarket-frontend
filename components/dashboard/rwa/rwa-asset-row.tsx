@@ -3,7 +3,13 @@
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { assetPriceUsd, assetTvlUsd, rwaLogoUrl, type RwaApiAsset } from "@/lib/rwa-api";
 import { formatUsd } from "@/lib/trade/math";
-import { formatApy, formatCompactUsd, gradientFor, isTradable } from "@/lib/rwa/presenter";
+import {
+  chainLabel,
+  formatApy,
+  formatCompactUsd,
+  gradientFor,
+  isTradable,
+} from "@/lib/rwa/presenter";
 
 interface RwaAssetRowProps {
   asset: RwaApiAsset;
@@ -25,7 +31,7 @@ export function RwaAssetRow({ asset, selected, logo, onOpen, onTrade }: RwaAsset
   return (
     <div
       onClick={onOpen}
-      className={`grid cursor-pointer grid-cols-[1.6fr_1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 transition-colors first:border-t-0 hover:bg-white/4 min-[820px]:grid-cols-[2fr_1fr_0.8fr_1fr_0.8fr] sm:px-6 ${
+      className={`grid cursor-pointer grid-cols-[1.6fr_1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 transition-colors first:border-t-0 hover:bg-white/4 min-[560px]:grid-cols-[1.7fr_0.8fr_1fr_auto] min-[820px]:grid-cols-[1.9fr_0.8fr_1fr_0.7fr_1fr_0.8fr] sm:px-6 ${
         selected ? "bg-accent/8" : ""
       }`}
     >
@@ -39,9 +45,14 @@ export function RwaAssetRow({ asset, selected, logo, onOpen, onTrade }: RwaAsset
           <div className="truncate font-sans text-[14.5px] font-medium">{asset.name}</div>
           <div className="truncate text-xs font-normal text-white/50">
             {asset.symbol} · {asset.issuer}
+            <span className="min-[560px]:hidden"> · {chainLabel(asset.chain)}</span>
           </div>
         </div>
       </div>
+
+      <span className="hidden text-[13px] font-normal text-white/60 min-[560px]:block">
+        {chainLabel(asset.chain)}
+      </span>
 
       <span className="tnum text-right text-sm font-normal">
         {price != null ? formatUsd(price) : <Dash />}

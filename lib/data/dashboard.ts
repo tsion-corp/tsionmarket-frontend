@@ -204,6 +204,38 @@ export const PREDICTIONS: Prediction[] = [
     no: "63¢",
     pct: 37,
   },
+  {
+    tag: "Crypto",
+    vol: "$2.1M vol",
+    q: "Will a spot SOL ETF launch in the US in 2026?",
+    yes: "64¢",
+    no: "36¢",
+    pct: 64,
+  },
+  {
+    tag: "Politics",
+    vol: "$1.3M vol",
+    q: "Will voter turnout exceed 60% in the next US election?",
+    yes: "52¢",
+    no: "48¢",
+    pct: 52,
+  },
+  {
+    tag: "Sports",
+    vol: "$690k vol",
+    q: "Will the next World Cup final go to penalties?",
+    yes: "22¢",
+    no: "78¢",
+    pct: 22,
+  },
+  {
+    tag: "World",
+    vol: "$1.5M vol",
+    q: "Will oil close above $90 a barrel this year?",
+    yes: "44¢",
+    no: "56¢",
+    pct: 44,
+  },
 ];
 
 export const SWAP_ROUTES = [

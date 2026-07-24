@@ -1,0 +1,57 @@
+"use client";
+
+import { scrollToSection } from "@/lib/scroll";
+
+interface DashboardFooterProps {
+  // The dashboard nav sections, used for in-page quick links.
+  sections: { id: string; label: string }[];
+}
+
+// Footer for the authenticated dashboard. Section links scroll in-page (no dead
+// anchors), and the copy stays honest about the self-custody, at-your-own-risk
+// nature of the app.
+export function DashboardFooter({ sections }: DashboardFooterProps) {
+  const year = new Date().getFullYear();
+
+  return (
+    <footer className="mt-8 border-t border-white/8 bg-black px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto flex max-w-[1520px] flex-col gap-8">
+        <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
+          <div className="max-w-[34ch]">
+            <div className="flex items-center gap-2">
+              <span className="grid h-[30px] w-[30px] place-items-center rounded-full border border-white/18 bg-white/8">
+                <span className="ws-serif text-accent text-[17px] leading-none">w</span>
+              </span>
+              <span className="ws-serif text-[17px]">World Street</span>
+            </div>
+            <p className="mt-3 text-[13px] leading-[1.6] font-normal text-white/55">
+              Self-custody markets for everyone. Your keys, your money, your call.
+            </p>
+          </div>
+
+          <nav className="flex flex-wrap gap-x-6 gap-y-2.5">
+            {sections.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => scrollToSection(s.id)}
+                className="hover:text-accent cursor-pointer text-[13.5px] font-normal text-white/60"
+              >
+                {s.label}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 pt-6">
+          <span className="text-[13px] font-normal text-white/40">
+            © {year} World Street Web Services. All rights reserved.
+          </span>
+          <span className="max-w-[62ch] text-xs font-normal text-white/35">
+            Crypto, tokenized assets, and prediction markets carry risk, including loss of
+            principal. Nothing here is financial advice.
+          </span>
+        </div>
+      </div>
+    </footer>
+  );
+}

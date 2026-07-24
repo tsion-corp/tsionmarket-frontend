@@ -12,18 +12,22 @@ import {
   type DepositToken,
   type QuoteRequest,
   type QuoteResult,
+  type StaticAddress,
+  type StaticAddressRequest,
+  type StaticAddressResult,
   type ValidateAddressResult,
 } from "@/lib/deposit";
+import { PERSISTED_GC_TIME } from "@/lib/query-persist";
 
 const ONE_HOUR = 60 * 60 * 1000;
 const POLL_MS = 4000;
 
-// The chain and token catalogs are effectively static for a session, so we
-// never refetch them on focus or remount. This keeps the shared Dextopus key
-// well under its rate limit.
+// The chain and token catalogs are effectively static and are persisted to
+// localStorage, so we keep them in memory for a day, never refetch on focus or
+// remount, and let them rehydrate instantly on the next visit.
 const CATALOG_OPTIONS = {
   staleTime: ONE_HOUR,
-  gcTime: ONE_HOUR,
+  gcTime: PERSISTED_GC_TIME,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
   refetchOnMount: false,
@@ -78,54 +82,91 @@ interface RawToken {
   supportsStaticAddress?: boolean;
 }
 
+export const DEPOSIT_CHAINS_KEY = ["deposit-chains"] as const;
+export const depositTokensKey = (chainId: number) => ["deposit-tokens", chainId] as const;
+
+export async function fetchDepositChains(): Promise<DepositChain[]> {
+  const data = await dextopusGet<{ chains?: RawChain[] }>(
+    "deposit/chains",
+    "Couldn't load networks"
+  );
+  return (data.chains ?? [])
+    .map((c) => ({
+      chainId: c.chainId,
+      name: c.name,
+      nativeSymbol: c.nativeCurrency?.symbol ?? "",
+      nativeDecimals: c.nativeCurrency?.decimals ?? 18,
+      logoUrl: c.logoUrl ?? null,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export async function fetchDepositTokens(chainId: number): Promise<DepositToken[]> {
+  const data = await dextopusGet<{ tokens?: RawToken[] }>(
+    `deposit/tokens?chainId=${chainId}`,
+    "Couldn't load tokens"
+  );
+  return (data.tokens ?? []).map((t) => ({
+    address: t.address,
+    symbol: t.symbol,
+    name: t.name,
+    decimals: t.decimals,
+    chainId: t.chainId,
+    logoUrl: t.logoUrl ?? null,
+    supportsStaticAddress: Boolean(t.supportsStaticAddress),
+  }));
+}
+
 export function useDepositChains() {
   return useQuery<DepositChain[]>({
-    queryKey: ["dextopus", "chains"],
+    queryKey: DEPOSIT_CHAINS_KEY,
     ...CATALOG_OPTIONS,
-    queryFn: async () => {
-      const data = await dextopusGet<{ chains?: RawChain[] }>(
-        "deposit/chains",
-        "Couldn't load networks"
-      );
-      return (data.chains ?? [])
-        .map((c) => ({
-          chainId: c.chainId,
-          name: c.name,
-          nativeSymbol: c.nativeCurrency?.symbol ?? "",
-          nativeDecimals: c.nativeCurrency?.decimals ?? 18,
-          logoUrl: c.logoUrl ?? null,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-    },
+    queryFn: fetchDepositChains,
   });
 }
 
 export function useDepositTokens(chainId: number | null) {
   return useQuery<DepositToken[]>({
-    queryKey: ["dextopus", "tokens", chainId],
+    queryKey: depositTokensKey(chainId ?? 0),
     enabled: chainId !== null,
     ...CATALOG_OPTIONS,
-    queryFn: async () => {
-      const data = await dextopusGet<{ tokens?: RawToken[] }>(
-        `deposit/tokens?chainId=${chainId}`,
-        "Couldn't load tokens"
-      );
-      return (data.tokens ?? []).map((t) => ({
-        address: t.address,
-        symbol: t.symbol,
-        name: t.name,
-        decimals: t.decimals,
-        chainId: t.chainId,
-        logoUrl: t.logoUrl ?? null,
-        supportsStaticAddress: Boolean(t.supportsStaticAddress),
-      }));
-    },
+    queryFn: () => fetchDepositTokens(chainId as number),
   });
 }
 
 export function useCreateQuote() {
   return useMutation<QuoteResult, Error, QuoteRequest>({
     mutationFn: (req) => dextopusPost<QuoteResult>("deposit/quote", req, "Couldn't create a quote"),
+  });
+}
+
+// Mints (or returns the cached) permanent deposit address for a given origin
+// asset + settlement. Static addresses never change, so this is persisted and
+// never restaled; re-opening the same selection is instant and offline-safe.
+export function useStaticDepositAddress(req: StaticAddressRequest | null) {
+  return useQuery<StaticAddress>({
+    queryKey: [
+      "deposit-static",
+      req?.userId ?? null,
+      req?.settlementChainId ?? null,
+      req?.originChainId ?? null,
+      req?.originAsset ?? null,
+    ],
+    enabled: req !== null,
+    staleTime: PERSISTED_GC_TIME,
+    gcTime: PERSISTED_GC_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    queryFn: async () => {
+      if (!req) throw new Error("Missing deposit parameters");
+      const data = await dextopusPost<StaticAddressResult>(
+        "deposit/static/generate",
+        req,
+        "Couldn't create a deposit address"
+      );
+      return data.data;
+    },
   });
 }
 

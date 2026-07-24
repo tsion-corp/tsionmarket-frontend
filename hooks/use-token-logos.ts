@@ -9,6 +9,8 @@ interface TokenRef {
 
 const ONE_HOUR = 60 * 60 * 1000;
 
+const EMPTY_LOGOS: Record<string, string> = {};
+
 // Composite key the batch route and callers both derive independently, so a
 // resolved logo lines up with its token regardless of the asset's own id format.
 export function tokenLogoKey(chain: string, address: string): string {
@@ -38,5 +40,5 @@ export function useTokenLogos(tokens: TokenRef[]): Record<string, string> {
       return body.logos ?? {};
     },
   });
-  return data ?? {};
+  return data ?? EMPTY_LOGOS;
 }

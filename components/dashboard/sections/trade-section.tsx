@@ -14,16 +14,17 @@ import { formatUsd } from "@/lib/trade/math";
 import { coingeckoId } from "@/lib/coingecko";
 import {
   findAsset,
+  networkForSymbol,
   PERP_ASSETS,
-  TRADE_ASSETS,
+  SWAP_TOKENS,
   TRADE_PRICE_SYMBOLS,
+  type SwapChainKey,
   type TradeAsset,
 } from "@/lib/trade/assets";
-import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
+import type { DetailPayload } from "@/components/dashboard/modal-types";
 
 interface TradeSectionProps {
   onOpenDetail: (detail: DetailPayload) => void;
-  onOpenConfirm: (confirm: ConfirmPayload) => void;
 }
 
 const STABLES = new Set(["USDC", "USDT"]);
@@ -41,12 +42,14 @@ function pickBase(
   return receive.symbol;
 }
 
-export function TradeSection({ onOpenDetail, onOpenConfirm }: TradeSectionProps) {
+export function TradeSection({ onOpenDetail }: TradeSectionProps) {
   const [mode, setMode] = useState<TradeMode>("swap");
-  const [pay, setPay] = useState<TradeAsset>(findAsset("USDC") ?? TRADE_ASSETS[0]);
-  const [receive, setReceive] = useState<TradeAsset>(findAsset("SOL") ?? TRADE_ASSETS[1]);
+  const [network, setNetwork] = useState<SwapChainKey>("solana");
+  const [pay, setPay] = useState<TradeAsset>(SWAP_TOKENS.solana[0]);
+  const [receive, setReceive] = useState<TradeAsset>(SWAP_TOKENS.solana[1]);
   const [market, setMarket] = useState<TradeAsset>(PERP_ASSETS[0]);
 
+  const netTokens = SWAP_TOKENS[network];
   const prices = usePrices(TRADE_PRICE_SYMBOLS);
   const portfolio = usePortfolio();
 
@@ -55,6 +58,13 @@ export function TradeSection({ onOpenDetail, onOpenConfirm }: TradeSectionProps)
     for (const t of portfolio.tokens) map[t.symbol] = (map[t.symbol] ?? 0) + t.balance;
     return map;
   }, [portfolio.tokens]);
+
+  // Switching network resets the pair to that network's default USDC -> native.
+  const changeNetwork = (next: SwapChainKey) => {
+    setNetwork(next);
+    setPay(SWAP_TOKENS[next][0]);
+    setReceive(SWAP_TOKENS[next][1]);
+  };
 
   const flip = () => {
     setPay(receive);
@@ -80,8 +90,11 @@ export function TradeSection({ onOpenDetail, onOpenConfirm }: TradeSectionProps)
       cta: `Trade ${asset.symbol}`,
       onCta: () => {
         setMode("swap");
-        if (asset.symbol === pay.symbol) flip();
-        else setReceive(asset);
+        const homeNet = networkForSymbol(asset.symbol);
+        const toks = SWAP_TOKENS[homeNet];
+        setNetwork(homeNet);
+        setPay(toks.find((t) => t.symbol === "USDC") ?? toks[0]);
+        setReceive(toks.find((t) => t.symbol === asset.symbol) ?? toks[1]);
       },
     });
   };
@@ -120,13 +133,14 @@ export function TradeSection({ onOpenDetail, onOpenConfirm }: TradeSectionProps)
           <div className="mt-4">
             {mode === "swap" ? (
               <SwapPanel
+                network={network}
                 pay={pay}
                 receive={receive}
+                onNetwork={changeNetwork}
                 onPay={setPay}
                 onReceive={setReceive}
                 onFlip={flip}
                 prices={prices}
-                balances={balances}
               />
             ) : null}
             {mode === "limit" ? (
@@ -138,16 +152,11 @@ export function TradeSection({ onOpenDetail, onOpenConfirm }: TradeSectionProps)
                 onFlip={flip}
                 prices={prices}
                 balances={balances}
-                onOpenConfirm={onOpenConfirm}
+                assets={netTokens}
               />
             ) : null}
             {mode === "perps" ? (
-              <PerpsPanel
-                market={market}
-                onMarket={setMarket}
-                prices={prices}
-                onOpenConfirm={onOpenConfirm}
-              />
+              <PerpsPanel market={market} onMarket={setMarket} prices={prices} />
             ) : null}
           </div>
         </div>
@@ -174,16 +183,16 @@ export function TradeSection({ onOpenDetail, onOpenConfirm }: TradeSectionProps)
                 <p className="text-[13px] leading-[1.55] font-normal text-white/65">
                   Mark and liquidation prices update live from the market. Leverage magnifies both
                   gains and losses. Liquidation is an estimate using a 0.5% maintenance margin.
-                  Execution routes to a perps venue at confirmation.
+                  Perps trading is coming soon; the figures here are a live preview.
                 </p>
               </>
             ) : (
               <>
                 <div className="ws-serif mb-1.5 text-[17px]">Always the best price</div>
                 <p className="text-[13px] leading-[1.55] font-normal text-white/65">
-                  Swaps between Solana assets are quoted live and auto routed for the sharpest rate.
-                  Pairs without an on-chain route are previewed from live market prices, clearly
-                  labelled on the rate line.
+                  Swap on Solana, Base, Arbitrum and Polygon. Solana routes live through Jupiter and
+                  the EVM networks through LI.FI, each staying on its own chain for the sharpest
+                  rate. Every swap settles in your own wallet.
                 </p>
               </>
             )}

@@ -41,12 +41,14 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
           </div>
         ))}
       </div>
-      <button
-        onClick={detail.onCta}
-        className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
-      >
-        {detail.cta}
-      </button>
+      {detail.cta && detail.onCta ? (
+        <button
+          onClick={detail.onCta}
+          className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+        >
+          {detail.cta}
+        </button>
+      ) : null}
     </div>
   );
 }

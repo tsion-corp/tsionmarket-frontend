@@ -48,7 +48,7 @@ function InterestPicker() {
       <div className="mx-auto flex w-full max-w-[1000px] flex-1 flex-col items-center px-6 pt-5 pb-[140px]">
         <div className="max-w-[24ch] text-center">
           <Eyebrow>Tailor your app</Eyebrow>
-          <h1 className="ws-serif mt-3 text-[clamp(38px,6vw,72px)] leading-[0.98] tracking-[-0.03em]">
+          <h1 className="ws-serif mt-3 text-[clamp(46px,9.2vw,120px)] leading-[0.98] tracking-[-0.03em]">
             What are you here to <span className="text-accent">own?</span>
           </h1>
         </div>

@@ -31,6 +31,7 @@ import {
   BASE_CHAIN_ID,
   encodeErc20Transfer,
   settlementFor,
+  type SettleChain,
   type WalletChainType,
 } from "@/lib/deposit";
 
@@ -66,16 +67,19 @@ export interface SendUsdcParams {
   chainType: WalletChainType;
   to: string;
   amount: bigint;
+  // Which settlement chain's USDC to move. Defaults to Base (EVM) / Solana.
+  settle?: SettleChain;
 }
 
 async function buildSolanaUsdcTransfer(
   from: string,
   to: string,
-  amount: bigint
+  amount: bigint,
+  mintAddress: string,
+  decimals: number
 ): Promise<Uint8Array> {
   const rpc = createSolanaRpc(SOLANA_RPC);
-  const settlement = settlementFor("solana");
-  const mint = address(settlement.asset);
+  const mint = address(mintAddress);
   const owner = address(from);
   const destinationOwner = address(to);
   const signer = createNoopSigner(owner);
@@ -103,7 +107,7 @@ async function buildSolanaUsdcTransfer(
     destination,
     authority: signer,
     amount,
-    decimals: settlement.decimals,
+    decimals,
   });
 
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -128,20 +132,17 @@ export function useSendUsdc() {
   const [sending, setSending] = useState(false);
 
   const sendUsdc = useCallback(
-    async ({ chainType, to, amount }: SendUsdcParams): Promise<string> => {
+    async ({ chainType, to, amount, settle }: SendUsdcParams): Promise<string> => {
       setSending(true);
       try {
         const from = getWalletAddress(user, chainType);
         if (!from) throw new Error(`No ${chainType} wallet found`);
 
         if (chainType === "ethereum") {
-          const settlement = settlementFor("ethereum");
+          const usdc = settle?.usdc ?? settlementFor("ethereum").asset;
+          const chainId = settle?.chainId ?? BASE_CHAIN_ID;
           const { hash } = await sendTransaction(
-            {
-              to: settlement.asset,
-              data: encodeErc20Transfer(to, amount),
-              chainId: BASE_CHAIN_ID,
-            },
+            { to: usdc, data: encodeErc20Transfer(to, amount), chainId },
             { address: from }
           );
           return hash;
@@ -149,7 +150,14 @@ export function useSendUsdc() {
 
         const wallet = solanaWallets.find((w) => w.address === from);
         if (!wallet) throw new Error("Solana wallet is not ready");
-        const transaction = await buildSolanaUsdcTransfer(from, to, amount);
+        const solana = settlementFor("solana");
+        const transaction = await buildSolanaUsdcTransfer(
+          from,
+          to,
+          amount,
+          settle?.usdc ?? solana.asset,
+          settle?.decimals ?? solana.decimals
+        );
         const { signature } = await signAndSendTransaction({ transaction, wallet });
         return getBase58Decoder().decode(signature);
       } finally {

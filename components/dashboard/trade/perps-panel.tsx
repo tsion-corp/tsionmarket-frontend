@@ -4,19 +4,17 @@ import { useState } from "react";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { formatAmount, formatUsd, liquidationPrice, positionSize } from "@/lib/trade/math";
 import { PERP_ASSETS, type TradeAsset } from "@/lib/trade/assets";
-import type { ConfirmPayload, StatLine } from "@/components/dashboard/modal-types";
 
 interface PerpsPanelProps {
   market: TradeAsset;
   onMarket: (asset: TradeAsset) => void;
   prices: Record<string, number>;
-  onOpenConfirm: (confirm: ConfirmPayload) => void;
 }
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const LEVERAGE_MARKS = [1, 5, 10, 25, 50];
 
-export function PerpsPanel({ market, onMarket, prices, onOpenConfirm }: PerpsPanelProps) {
+export function PerpsPanel({ market, onMarket, prices }: PerpsPanelProps) {
   const [side, setSide] = useState<"long" | "short">("long");
   const [collateral, setCollateral] = useState("");
   const [leverage, setLeverage] = useState(10);
@@ -26,34 +24,10 @@ export function PerpsPanel({ market, onMarket, prices, onOpenConfirm }: PerpsPan
   const collateralNum = parseFloat(collateral) || 0;
   const size = positionSize(collateralNum, leverage);
   const liq = liquidationPrice(mark, leverage, side);
-  const disabled = collateralNum <= 0 || mark <= 0;
 
   const handleCollateral = (raw: string) => {
     const next = raw.replace(/,/g, "");
     if (next === "" || DECIMAL_INPUT.test(next)) setCollateral(next);
-  };
-
-  const open = () => {
-    const lines: StatLine[] = [
-      { k: "Market", v: `${market.symbol}-PERP` },
-      { k: "Side", v: long ? "Long" : "Short", c: long ? "#7CE7B0" : "#F6A5A5" },
-      { k: "Collateral", v: `${formatAmount(collateralNum)} USDC` },
-      { k: "Position size", v: `${formatAmount(size)} USDC` },
-      { k: "Leverage", v: `${leverage}x` },
-      { k: "Entry price", v: formatUsd(mark) },
-      { k: "Liq. price", v: formatUsd(liq), c: "#F6A5A5" },
-    ];
-    onOpenConfirm({
-      eyebrow: "Review order",
-      badgeSym: market.symbol,
-      badgeBg: market.bg,
-      title: `${long ? "Open long" : "Open short"} · ${market.symbol}-PERP`,
-      sub: `${leverage}x · ${formatAmount(size)} USDC size`,
-      lines,
-      cta: long ? `Open long · ${market.symbol}` : `Open short · ${market.symbol}`,
-      successTitle: "Order confirmed",
-      successMsg: `Your ${side} ${market.symbol}-PERP order is confirmed. Execution routes to your chosen venue.`,
-    });
   };
 
   return (
@@ -159,18 +133,16 @@ export function PerpsPanel({ market, onMarket, prices, onOpenConfirm }: PerpsPan
       </div>
 
       <button
-        onClick={open}
-        disabled={disabled}
-        className={`mt-1 w-full cursor-pointer rounded-[14px] p-[15px] font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${
+        disabled
+        className={`mt-1 w-full cursor-not-allowed rounded-[14px] p-[15px] font-sans text-[15px] font-semibold opacity-50 ${
           long ? "bg-up text-up-ink" : "bg-down text-down-ink"
         }`}
       >
-        {collateralNum <= 0
-          ? "Enter collateral"
-          : long
-            ? `Open long · ${market.symbol}`
-            : `Open short · ${market.symbol}`}
+        Coming soon
       </button>
+      <p className="text-center text-xs font-normal text-white/45">
+        Perps are coming soon. The size, entry, and liquidation figures above are a live preview.
+      </p>
     </div>
   );
 }

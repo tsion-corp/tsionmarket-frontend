@@ -33,6 +33,10 @@ interface UseTradeQuoteArgs {
 }
 
 const TEN_SECONDS = 10 * 1000;
+// LI.FI proxies through one shared key with a 100 RPM ceiling, so the EVM quote
+// refreshes less often than the keyless Jupiter quote. React Query does not poll
+// a backgrounded tab, so this only ticks while the panel is on screen.
+const EVM_QUOTE_INTERVAL = 20 * 1000;
 
 export function useTradeQuote({
   pay,
@@ -79,8 +83,8 @@ export function useTradeQuote({
       evmAddress,
     ],
     enabled: evmEnabled,
-    staleTime: TEN_SECONDS,
-    refetchInterval: TEN_SECONDS,
+    staleTime: EVM_QUOTE_INTERVAL,
+    refetchInterval: EVM_QUOTE_INTERVAL,
     queryFn: ({ signal }) =>
       fetchLifiQuote({
         fromChain: pay.evmChainId as number,

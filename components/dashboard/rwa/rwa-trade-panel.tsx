@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowDownIcon } from "@/components/ui/icons";
@@ -14,6 +14,7 @@ import { getWalletAddress } from "@/lib/user";
 import { toast } from "@/lib/toast";
 import { formatAmount, formatUsd } from "@/lib/trade/math";
 import {
+  buildPayOptions,
   buyQuoteRequest,
   errorCode,
   estimateReceiveTokens,
@@ -42,7 +43,6 @@ interface SignStep {
 }
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
-const BUY_PRESETS = [100, 500, 1000];
 const SLIPPAGE_BPS = 50;
 
 interface RwaTradePanelProps {
@@ -66,6 +66,8 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
   const [quote, setQuote] = useState<RwaQuote | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [signStep, setSignStep] = useState<SignStep | null>(null);
+  const [payKey, setPayKey] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const logos = useTokenLogos([{ chain: asset.chain, address: asset.address }]);
   const logo = logos[tokenLogoKey(asset.chain, asset.address)] ?? rwaLogoUrl(asset);
@@ -74,14 +76,24 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
   const price = assetPriceUsd(asset);
   const payValue = Number.parseFloat(amount) || 0;
 
+  // Tokens the user can pay with on this asset's chain (USDC always available).
+  const payOptions = useMemo(
+    () => buildPayOptions(portfolio.tokens, asset),
+    [portfolio.tokens, asset]
+  );
+  const payOption = payOptions.find((o) => o.key === payKey) ?? payOptions[0] ?? null;
+  const payInput = payOption?.input ?? null;
+  const payPrice = payOption?.priceUsd ?? 1;
+  const payBalance = payOption?.balance ?? 0;
+
   const runQuote = useCallback(
     async (value: string) => {
       const num = Number.parseFloat(value);
-      if (!(num > 0)) return;
+      if (!(num > 0) || !payInput) return;
       setPhase("quoting");
       setNotice(null);
       try {
-        const res = await quoteAsync(buyQuoteRequest(asset, value, SLIPPAGE_BPS));
+        const res = await quoteAsync(buyQuoteRequest(asset, value, SLIPPAGE_BPS, payInput));
         if (!res.best) {
           setQuote(null);
           setPhase("idle");
@@ -97,7 +109,7 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
         setNotice({ kind: "error", message: info.message });
       }
     },
-    [asset, quoteAsync]
+    [asset, quoteAsync, payInput]
   );
 
   // Debounce the live quote. All state changes happen inside runQuote or event
@@ -134,14 +146,23 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
     setSignStep(null);
   };
 
-  const setPreset = (value: number) => onInput(String(value));
-
   const reset = () => {
     setAmount("");
     setPhase("idle");
     setQuote(null);
     setNotice(null);
     setSignStep(null);
+  };
+
+  const setPct = (pct: number) => {
+    if (payBalance <= 0) return;
+    onInput(String(payBalance * pct));
+  };
+
+  const selectPay = (key: string) => {
+    setPayKey(key);
+    setPickerOpen(false);
+    reset();
   };
 
   const confirmBuy = async () => {
@@ -168,7 +189,7 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
     setSignStep(null);
     try {
       const action = await buildAsync({
-        ...buyQuoteRequest(asset, amount, SLIPPAGE_BPS),
+        ...buyQuoteRequest(asset, amount, SLIPPAGE_BPS, payInput ?? undefined),
         taker,
         simulate: true,
       });
@@ -192,7 +213,8 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
     return <RwaIssuerCard asset={asset} />;
   }
 
-  const receiveTokens = estimateReceiveTokens(payValue, price);
+  const usdValue = payValue * payPrice;
+  const receiveTokens = estimateReceiveTokens(usdValue, price);
   const minReceive = minReceiveTokens(receiveTokens, quote);
   const impact = priceImpactPercent(quote?.priceImpactBps ?? null);
   const confirming = phase === "confirming";
@@ -250,12 +272,19 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
         </div>
       ) : (
         <>
-          <div className="ws-inset p-[15px]">
+          <div className="ws-inset relative p-[15px]">
             <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
               <span>You pay</span>
-              <span>
-                1 {asset.symbol} = {price != null ? formatUsd(price) : "—"}
-              </span>
+              {payBalance > 0 ? (
+                <button
+                  onClick={() => setPct(1)}
+                  className="tnum cursor-pointer text-white/55 hover:text-white"
+                >
+                  Balance {formatAmount(payBalance)} {payOption?.symbol}
+                </button>
+              ) : (
+                <span>≈ {usdValue > 0 ? formatUsd(usdValue) : "$0"}</span>
+              )}
             </div>
             <div className="flex items-center justify-between gap-3">
               <input
@@ -265,19 +294,62 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
                 onChange={(e) => onInput(e.target.value)}
                 className="ws-serif tnum w-full min-w-0 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
               />
-              <span className="inline-flex shrink-0 items-center gap-[7px] rounded-full border border-white/12 bg-white/7 px-[11px] py-[7px]">
-                <AssetIcon sym="USDC" bg="#2775CA" size={22} />
-                <span className="font-sans text-[13.5px] font-medium">USDC</span>
-              </span>
+              <button
+                onClick={() => setPickerOpen((v) => !v)}
+                disabled={payOptions.length <= 1}
+                className="inline-flex shrink-0 cursor-pointer items-center gap-[7px] rounded-full border border-white/12 bg-white/7 px-[11px] py-[7px] hover:bg-white/12 disabled:cursor-default"
+              >
+                <AssetIcon
+                  sym={payOption?.symbol ?? "USDC"}
+                  bg={gradientFor(payOption?.symbol ?? "USDC")}
+                  size={22}
+                  logo={payOption?.logo ?? undefined}
+                />
+                <span className="font-sans text-[13.5px] font-medium">
+                  {payOption?.symbol ?? "USDC"}
+                </span>
+                {payOptions.length > 1 ? (
+                  <ArrowDownIcon size={12} className="text-white/50" />
+                ) : null}
+              </button>
             </div>
+            {pickerOpen ? (
+              <div className="bg-panel absolute top-[58px] right-[15px] z-10 max-h-[224px] w-[210px] overflow-auto rounded-[14px] border border-white/12 p-1.5 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.9)]">
+                {payOptions.map((o) => (
+                  <button
+                    key={o.key}
+                    onClick={() => selectPay(o.key)}
+                    className={`flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-white/6 ${
+                      o.key === payOption?.key ? "bg-white/6" : ""
+                    }`}
+                  >
+                    <AssetIcon
+                      sym={o.symbol}
+                      bg={gradientFor(o.symbol)}
+                      size={22}
+                      logo={o.logo ?? undefined}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-sans text-[13px] font-medium">
+                        {o.symbol}
+                      </span>
+                      <span className="tnum block text-[11px] text-white/45">
+                        {formatAmount(o.balance)}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="mt-3 flex gap-1.5">
-              {BUY_PRESETS.map((value) => (
+              {[0.25, 0.5, 1].map((pct) => (
                 <button
-                  key={value}
-                  onClick={() => setPreset(value)}
-                  className="flex-1 cursor-pointer rounded-lg border border-white/10 bg-white/4 py-1.5 font-sans text-[12px] font-medium text-white/70 transition-colors hover:text-white"
+                  key={pct}
+                  onClick={() => setPct(pct)}
+                  disabled={payBalance <= 0}
+                  className="flex-1 cursor-pointer rounded-lg border border-white/10 bg-white/4 py-1.5 font-sans text-[12px] font-medium text-white/70 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  ${value}
+                  {pct === 1 ? "Max" : `${pct * 100}%`}
                 </button>
               ))}
             </div>

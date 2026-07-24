@@ -3,18 +3,16 @@
 import { useState } from "react";
 import { MethodTile } from "@/components/dashboard/funds/method-tile";
 import { CryptoDepositScreen } from "@/components/dashboard/funds/crypto-deposit-screen";
-import { DirectDepositScreen } from "@/components/dashboard/funds/direct-deposit-screen";
 import { FiatDepositScreen } from "@/components/dashboard/funds/fiat-deposit-screen";
-import { SwapIcon, WalletIcon, CardIcon } from "@/components/ui/icons";
+import { SwapIcon, CardIcon } from "@/components/ui/icons";
 
-type Step = "chooser" | "crypto" | "direct" | "fiat";
+type Step = "chooser" | "crypto" | "fiat";
 
 export function FundsModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("chooser");
   const back = () => setStep("chooser");
 
   if (step === "crypto") return <CryptoDepositScreen onBack={back} />;
-  if (step === "direct") return <DirectDepositScreen onBack={back} />;
   if (step === "fiat") return <FiatDepositScreen onBack={back} />;
 
   return (
@@ -30,12 +28,6 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
           subtitle="Any token, any chain. Arrives as USDC."
           badge="Popular"
           onClick={() => setStep("crypto")}
-        />
-        <MethodTile
-          icon={<WalletIcon size={22} />}
-          title="Direct deposit"
-          subtitle="Send USDC straight to your wallet."
-          onClick={() => setStep("direct")}
         />
         <MethodTile
           icon={<CardIcon size={22} />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { AmountField } from "@/components/dashboard/trade/amount-field";
 import { RouteSummary } from "@/components/dashboard/trade/route-summary";
@@ -11,20 +11,29 @@ import { useSwapExecute } from "@/hooks/use-swap-execute";
 import { useEvmSwapExecute } from "@/hooks/use-evm-swap-execute";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, toBaseUnits } from "@/lib/trade/math";
-import { isEvmRoutable, isRoutable, type TradeAsset } from "@/lib/trade/assets";
+import {
+  isEvmRoutable,
+  isRoutable,
+  SWAP_NETWORKS,
+  SWAP_NETWORK_ORDER,
+  SWAP_TOKENS,
+  type SwapChainKey,
+  type TradeAsset,
+} from "@/lib/trade/assets";
 import { toast } from "@/lib/toast";
 import type { StatLine } from "@/components/dashboard/modal-types";
 
 type Phase = "idle" | "signing" | "done";
 
 interface SwapPanelProps {
+  network: SwapChainKey;
   pay: TradeAsset;
   receive: TradeAsset;
+  onNetwork: (network: SwapChainKey) => void;
   onPay: (asset: TradeAsset) => void;
   onReceive: (asset: TradeAsset) => void;
   onFlip: () => void;
   prices: Record<string, number>;
-  balances: Record<string, number>;
 }
 
 const SLIPPAGE_OPTIONS = [
@@ -34,13 +43,14 @@ const SLIPPAGE_OPTIONS = [
 ];
 
 export function SwapPanel({
+  network,
   pay,
   receive,
+  onNetwork,
   onPay,
   onReceive,
   onFlip,
   prices,
-  balances,
 }: SwapPanelProps) {
   const [amount, setAmount] = useState("");
   const [slippageBps, setSlippageBps] = useState(50);
@@ -54,8 +64,21 @@ export function SwapPanel({
   const debounced = useDebouncedValue(amount, 350);
   const quote = useTradeQuote({ pay, receive, amount: debounced, prices, slippageBps });
 
+  const net = SWAP_NETWORKS[network];
+  const netTokens = SWAP_TOKENS[network];
+
+  // Balances scoped to the selected network, so ETH on Base never stands in for
+  // ETH on Arbitrum and the "Max"/insufficient checks match the actual chain.
+  const netBalances = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const t of portfolio.tokens) {
+      if (t.network === net.alchemyNetwork) map[t.symbol] = (map[t.symbol] ?? 0) + t.balance;
+    }
+    return map;
+  }, [portfolio.tokens, net.alchemyNetwork]);
+
   const amountNum = parseFloat(amount) || 0;
-  const payBalance = balances[pay.symbol] ?? 0;
+  const payBalance = netBalances[pay.symbol] ?? 0;
   const payUsd = amountNum * (prices[pay.symbol] ?? 0);
   const receiveUsd = quote.receiveAmount * (prices[receive.symbol] ?? 0);
   const insufficient = payBalance > 0 && amountNum > payBalance;
@@ -63,9 +86,13 @@ export function SwapPanel({
   const evmRouted = !routed && isEvmRoutable(pay, receive);
   const actionable = routed || evmRouted;
   const signing = phase === "signing";
-  // Solana swaps pay network fees in SOL, Base swaps pay in ETH.
-  const gasSymbol = evmRouted ? "ETH" : "SOL";
-  const noGas = !portfolio.loading && (balances[gasSymbol] ?? 0) <= 0;
+  // The network fee is paid in the chain's own native token, on that chain.
+  const gasSymbol = net.nativeSymbol;
+  const noGas =
+    !portfolio.loading &&
+    !portfolio.tokens.some(
+      (t) => t.symbol === gasSymbol && t.network === net.alchemyNetwork && t.balance > 0
+    );
   const disabled =
     !actionable ||
     amountNum <= 0 ||
@@ -83,6 +110,7 @@ export function SwapPanel({
     });
   }
   rows.push({ k: "Max slippage", v: `${(slippageBps / 100).toFixed(2)}%` });
+  rows.push({ k: "Network", v: net.name });
   rows.push({
     k: "Route",
     v: quote.route.length ? quote.route.map((r) => r.label).join(" · ") : "Live price",
@@ -91,11 +119,7 @@ export function SwapPanel({
   const swap = async () => {
     if (!actionable) return;
     if (noGas) {
-      setError(
-        evmRouted
-          ? "You need a little ETH for the network fee"
-          : "You need a little SOL for the network fee"
-      );
+      setError(`You need a little ${gasSymbol} on ${net.name} for the network fee`);
       return;
     }
     setError(null);
@@ -126,7 +150,7 @@ export function SwapPanel({
           slippageBps,
         });
       }
-      toast.success(`Swapped ${pay.symbol} to ${receive.symbol}`);
+      toast.success(`Swapped ${pay.symbol} to ${receive.symbol} on ${net.name}`);
       await portfolio.refetch();
       setAmount("");
       setPhase("done");
@@ -138,6 +162,25 @@ export function SwapPanel({
 
   return (
     <div className="flex flex-col">
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {SWAP_NETWORK_ORDER.map((key) => {
+          const on = key === network;
+          return (
+            <button
+              key={key}
+              onClick={() => onNetwork(key)}
+              className={`cursor-pointer rounded-full border px-3 py-1.5 font-sans text-[12.5px] font-medium transition-colors ${
+                on
+                  ? "border-accent/45 bg-accent/12 text-white"
+                  : "border-white/10 bg-white/4 text-white/70 hover:bg-white/8"
+              }`}
+            >
+              {SWAP_NETWORKS[key].name}
+            </button>
+          );
+        })}
+      </div>
+
       <AmountField
         label="You pay"
         amount={amount}
@@ -145,7 +188,8 @@ export function SwapPanel({
         asset={pay}
         onAsset={onPay}
         prices={prices}
-        balances={balances}
+        balances={netBalances}
+        assets={netTokens}
         excludeSymbol={receive.symbol}
         balance={payBalance}
         onMax={() => setAmount(String(payBalance))}
@@ -169,7 +213,8 @@ export function SwapPanel({
         asset={receive}
         onAsset={onReceive}
         prices={prices}
-        balances={balances}
+        balances={netBalances}
+        assets={netTokens}
         excludeSymbol={pay.symbol}
         usdValue={receiveUsd}
         accent

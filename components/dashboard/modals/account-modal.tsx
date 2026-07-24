@@ -4,13 +4,12 @@ import { useRouter } from "next/navigation";
 import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
 import { Avatar } from "@/components/dashboard/avatar";
 import { WalletList } from "@/components/dashboard/wallet-list";
-import { GridIcon, HelpIcon, SettingsIcon, SignOutIcon } from "@/components/ui/icons";
+import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
 import { markPasskeyDevice } from "@/lib/preferences";
 import { toast } from "@/lib/toast";
 
 interface AccountModalProps {
-  onPortfolio: () => void;
   onClose: () => void;
 }
 
@@ -36,7 +35,7 @@ function PasskeyIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-export function AccountModal({ onPortfolio, onClose }: AccountModalProps) {
+export function AccountModal({ onClose }: AccountModalProps) {
   const { user } = usePrivy();
   const router = useRouter();
   const { logout } = useLogout({
@@ -69,10 +68,6 @@ export function AccountModal({ onPortfolio, onClose }: AccountModalProps) {
       </div>
       <WalletList user={user} />
       <div className="mt-[18px] flex flex-col gap-1.5">
-        <button onClick={onPortfolio} className={`${item} text-white`}>
-          <GridIcon size={20} />
-          Portfolio
-        </button>
         {!hasPasskey ? (
           <button onClick={() => linkWithPasskey()} className={`${item} text-white`}>
             <span className="text-accent">
@@ -81,10 +76,6 @@ export function AccountModal({ onPortfolio, onClose }: AccountModalProps) {
             Add a passkey for faster sign-in
           </button>
         ) : null}
-        <button onClick={onClose} className={`${item} text-white`}>
-          <SettingsIcon size={20} />
-          Settings
-        </button>
         <button onClick={onClose} className={`${item} text-white`}>
           <HelpIcon size={20} />
           Help &amp; support

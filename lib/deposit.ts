@@ -8,9 +8,8 @@ import { toBaseUnits } from "@/lib/trade/math";
 // Solana, which uses this large synthetic id.
 export const SOLANA_CHAIN_ID = 792703809;
 export const BASE_CHAIN_ID = 8453;
-
-// Sentinel address Dextopus uses for a chain's native asset.
-export const NATIVE_ASSET_SENTINEL = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+export const ARBITRUM_CHAIN_ID = 42161;
+export const POLYGON_CHAIN_ID = 137;
 
 // The address family a chain's addresses belong to. Matches the enum the
 // validate-address endpoint accepts.
@@ -107,6 +106,111 @@ const SETTLEMENTS: Record<WalletChainType, SettlementTarget> = {
 
 export function settlementFor(chainType: WalletChainType): SettlementTarget {
   return SETTLEMENTS[chainType];
+}
+
+// The four chains a deposit can settle to (as USDC in the user's own wallet).
+// EVM chains share one embedded wallet address; nativeSymbol is the gas token we
+// also track/hold on that chain. This is the single source of truth for the
+// deposit "settle to" chooser and for withdrawal source selection.
+export type SettleChainKey = "base" | "arbitrum" | "polygon" | "solana";
+
+export interface SettleChain {
+  key: SettleChainKey;
+  chainType: WalletChainType;
+  chainId: number;
+  chainName: string;
+  usdc: string;
+  decimals: number;
+  nativeSymbol: string;
+  // Alchemy portfolio network id, so we can find the native gas balance.
+  alchemyNetwork: string;
+}
+
+export const SETTLE_CHAINS: Record<SettleChainKey, SettleChain> = {
+  base: {
+    key: "base",
+    chainType: "ethereum",
+    chainId: BASE_CHAIN_ID,
+    chainName: "Base",
+    usdc: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    decimals: 6,
+    nativeSymbol: "ETH",
+    alchemyNetwork: "base-mainnet",
+  },
+  arbitrum: {
+    key: "arbitrum",
+    chainType: "ethereum",
+    chainId: ARBITRUM_CHAIN_ID,
+    chainName: "Arbitrum",
+    usdc: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    decimals: 6,
+    nativeSymbol: "ETH",
+    alchemyNetwork: "arb-mainnet",
+  },
+  polygon: {
+    key: "polygon",
+    chainType: "ethereum",
+    chainId: POLYGON_CHAIN_ID,
+    chainName: "Polygon",
+    usdc: "0x3c499c542cEF5E3811e1192cE70d8cC03d5c3359",
+    decimals: 6,
+    nativeSymbol: "POL",
+    alchemyNetwork: "polygon-mainnet",
+  },
+  solana: {
+    key: "solana",
+    chainType: "solana",
+    chainId: SOLANA_CHAIN_ID,
+    chainName: "Solana",
+    usdc: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    decimals: 6,
+    nativeSymbol: "SOL",
+    alchemyNetwork: "solana-mainnet",
+  },
+};
+
+export const SETTLE_ORDER: readonly SettleChainKey[] = ["base", "arbitrum", "polygon", "solana"];
+
+// Per-origin deposit minimum in USD value of the sent asset (Dextopus docs).
+// Matched by chain name since only a few chains carry a non-default minimum.
+export function depositMinimumUsd(chain: { name: string }): number {
+  const n = chain.name.toLowerCase();
+  if (n.includes("bitcoin")) return 5;
+  if (n.includes("tron")) return 3;
+  if (n.includes("solana")) return 2;
+  if (n === "ethereum") return 2;
+  return 1;
+}
+
+// Static (permanent) deposit address. Minted once per (user, origin asset,
+// settlement) and reused forever; the address lives on the origin chain and any
+// supported token sent to it converts to the settlement USDC.
+export interface StaticAddressRequest {
+  userId: string;
+  originChainId: number;
+  originAsset: string;
+  settlementChainId: number;
+  settlementAsset: string;
+  settlementAddress: string;
+  refundTo?: string;
+}
+
+export interface StaticAddress {
+  id: string;
+  depositAddress: string;
+  originChainId: number;
+  originAsset: string;
+  settlementChainId: number;
+  settlementAsset: string;
+  settlementAddress: string;
+  userId: string;
+  qrCodeData?: string;
+  createdAt: string;
+}
+
+export interface StaticAddressResult {
+  success: boolean;
+  data: StaticAddress;
 }
 
 // A direct (same-chain) USDC deposit or send network. Keyless for deposits,

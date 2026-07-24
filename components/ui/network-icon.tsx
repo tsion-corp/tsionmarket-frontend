@@ -2,6 +2,8 @@
 
 import NetworkBase from "@web3icons/react/icons/networks/NetworkBase";
 import NetworkSolana from "@web3icons/react/icons/networks/NetworkSolana";
+import NetworkArbitrumOne from "@web3icons/react/icons/networks/NetworkArbitrumOne";
+import NetworkPolygon from "@web3icons/react/icons/networks/NetworkPolygon";
 import type { IconComponent } from "@web3icons/react";
 import { CoinBadge } from "@/components/ui/coin-badge";
 
@@ -10,6 +12,10 @@ const NETWORK_ICONS: Record<string, IconComponent> = {
   Base: NetworkBase,
   "solana-mainnet": NetworkSolana,
   Solana: NetworkSolana,
+  "arb-mainnet": NetworkArbitrumOne,
+  Arbitrum: NetworkArbitrumOne,
+  "polygon-mainnet": NetworkPolygon,
+  Polygon: NetworkPolygon,
 };
 
 interface NetworkIconProps {

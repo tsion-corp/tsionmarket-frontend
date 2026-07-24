@@ -12,8 +12,8 @@ export interface DetailPayload {
   chg: string;
   bg: string;
   stats: StatLine[];
-  cta: string;
-  onCta: () => void;
+  cta?: string;
+  onCta?: () => void;
   coingeckoId?: string;
   up?: boolean;
   logo?: string | null;
