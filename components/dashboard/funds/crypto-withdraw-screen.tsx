@@ -1,129 +1,108 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
-import { ChainTokenPicker } from "@/components/dashboard/funds/chain-token-picker";
-import { AmountInput } from "@/components/dashboard/funds/amount-input";
+import { HeldTokenSelect } from "@/components/dashboard/funds/held-token-select";
 import { GasWarning } from "@/components/dashboard/funds/gas-warning";
-import { DepositStatus } from "@/components/dashboard/funds/deposit-status";
-import {
-  useCreateQuote,
-  useDepositStatus,
-  useTerminalToast,
-  useValidateAddress,
-} from "@/hooks/use-deposit";
-import { useGasStatus, useSendUsdc } from "@/hooks/use-withdraw";
-import { usePortfolio } from "@/hooks/use-portfolio";
-import { fromBaseUnits } from "@/lib/trade/math";
-import {
-  DIRECT_NETWORKS,
-  addressKindForChain,
-  usdcBaseUnits,
-  type DepositChain,
-  type DepositToken,
-} from "@/lib/deposit";
+import { useSendToken } from "@/hooks/use-withdraw";
+import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
+import { formatAmount, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
 
-// Withdrawals draw from the user's USDC on Base, the primary settlement balance.
-const SOURCE = DIRECT_NETWORKS.find((n) => n.chainType === "ethereum") ?? DIRECT_NETWORKS[0];
+const DECIMAL = /^\d*\.?\d*$/;
+const EVM_ADDR = /^0x[0-9a-fA-F]{40}$/;
+const SOL_ADDR = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
 
-const WITHDRAW_TOASTS = {
-  settled: "Withdrawal complete.",
-  failed: "Withdrawal failed. Any funds are refunded to your wallet.",
-  refunded: "Withdrawal refunded to your wallet.",
+const NATIVE_SYMBOL: Record<string, string> = {
+  "base-mainnet": "ETH",
+  "arb-mainnet": "ETH",
+  "polygon-mainnet": "POL",
+  "solana-mainnet": "SOL",
 };
+const CHAIN_LABEL: Record<string, string> = {
+  "base-mainnet": "Base",
+  "arb-mainnet": "Arbitrum",
+  "polygon-mainnet": "Polygon",
+  "solana-mainnet": "Solana",
+};
+const isSolana = (network: string) => network === "solana-mainnet";
 
 interface CryptoWithdrawScreenProps {
   onBack: () => void;
 }
 
-type Phase = "form" | "review" | "status";
-
+// Withdraw any held token — a stablecoin, native gas token, or other asset — to
+// an external wallet on that token's own chain. A real self-custody send.
 export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
-  const { tokens, refetch } = usePortfolio();
-  const quote = useCreateQuote();
-  const validate = useValidateAddress();
-  const status = useDepositStatus(quote.data?.depositRequestId ?? null);
-  const gas = useGasStatus("ethereum");
-  const { sendUsdc, sending } = useSendUsdc();
-
-  const [phase, setPhase] = useState<Phase>("form");
-  const [chain, setChain] = useState<DepositChain | null>(null);
-  const [token, setToken] = useState<DepositToken | null>(null);
-  const [address, setAddress] = useState("");
+  const { tokens } = usePortfolio();
+  const { sendToken, sending } = useSendToken();
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
-  const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
-  const usdcBalance =
-    tokens.find((t) => t.symbol === "USDC" && t.network === SOURCE.networkKey)?.balance ?? 0;
-  const numeric = Number(amount);
-  const amountOk = numeric > 0 && numeric <= usdcBalance;
-  const formReady = Boolean(chain && token && address.trim() && amountOk && gas.hasGas);
+  const key = (t: TokenBalance) => `${t.symbol}-${t.network}`;
+  const options = useMemo(() => tokens.filter((t) => t.balance > 0), [tokens]);
+  const selected = options.find((t) => key(t) === selectedKey) ?? options[0] ?? null;
 
-  useTerminalToast(status.data, quote.data?.depositRequestId ?? null, WITHDRAW_TOASTS, refetch);
+  const network = selected?.network ?? "";
+  const balance = selected?.balance ?? 0;
+  const nativeSym = NATIVE_SYMBOL[network] ?? "";
+  const chainLabel = CHAIN_LABEL[network] ?? network;
+  const hasGas = selected
+    ? tokens.some(
+        (t) =>
+          t.network === network &&
+          t.symbol.toUpperCase() === nativeSym.toUpperCase() &&
+          t.balance > 0
+      )
+    : false;
 
-  const review = async () => {
-    if (!chain || !token) return;
+  const addrOk = selected
+    ? isSolana(network)
+      ? SOL_ADDR.test(to.trim())
+      : EVM_ADDR.test(to.trim())
+    : false;
+  const value = Number(amount) || 0;
+  const overBalance = value > balance;
+  const ready = Boolean(selected) && addrOk && value > 0 && !overBalance && !sending;
+
+  const submit = async () => {
+    if (!selected) return;
     setError(null);
-    try {
-      const check = await validate.mutateAsync({
-        address: address.trim(),
-        chainType: addressKindForChain(chain.chainId),
-      });
-      if (!check.valid) {
-        setError(check.reason ?? "That address is not valid for this network.");
-        return;
-      }
-      await quote.mutateAsync({
-        originChainId: SOURCE.chainId,
-        destinationChainId: chain.chainId,
-        originAsset: SOURCE.asset,
-        destinationAsset: token.address,
-        amount: usdcBaseUnits(amount).toString(),
-        recipient: address.trim(),
-        static: false,
-      });
-      setPhase("review");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+    if (!hasGas) {
+      setError(`You need a little ${nativeSym} on ${chainLabel} for the network fee`);
+      return;
     }
-  };
-
-  const confirm = async () => {
-    if (!quote.data) return;
-    setError(null);
     try {
-      const hash = await sendUsdc({
-        chainType: "ethereum",
-        to: quote.data.depositAddress,
-        amount: usdcBaseUnits(amount),
+      const hash = await sendToken({
+        network: selected.network,
+        tokenAddress: selected.address,
+        decimals: selected.decimals,
+        to: to.trim(),
+        amount: toBaseUnits(amount, selected.decimals),
       });
       setTxHash(hash);
-      setPhase("status");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "The transfer was not sent.");
+      toast.success(`Withdrew ${formatAmount(value)} ${selected.symbol}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "The withdrawal was not sent.");
       toast.error("Withdrawal was not sent.");
     }
   };
 
-  if (phase === "status" && quote.data && token && chain) {
+  if (txHash && selected) {
     return (
       <div>
         <SheetNav
           title="Withdrawal sent"
-          subtitle={`On its way to your ${chain.name} address.`}
+          subtitle={`${amount} ${selected.symbol} on its way.`}
           onBack={onBack}
         />
-        <DepositStatus
-          status={status.data?.status ?? quote.data.status}
-          executionStatus={status.data?.executionStatus}
-          isError={status.isError}
-          onRetry={() => status.refetch()}
-        />
-        {txHash ? (
-          <p className="tnum mt-3 text-[12px] font-normal break-all text-white/45">Tx {txHash}</p>
-        ) : null}
+        <div className="border-accent/20 bg-accent/8 mt-1 rounded-[14px] border px-4 py-4 text-[13px] leading-[1.5] font-normal text-white/80">
+          Your {selected.symbol} is on its way to the address on {chainLabel}.
+        </div>
+        <p className="tnum mt-3 text-[12px] font-normal break-all text-white/45">Tx {txHash}</p>
         <button
           onClick={onBack}
           className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
@@ -134,94 +113,77 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     );
   }
 
-  if (phase === "review" && quote.data && token && chain) {
-    const receive = fromBaseUnits(
-      BigInt(quote.data.minAmountOut || quote.data.amountOut || "0"),
-      token.decimals
-    );
-    return (
-      <div>
-        <SheetNav
-          title="Confirm withdrawal"
-          subtitle="Check the details before you send."
-          onBack={() => setPhase("form")}
-        />
-        <div className="ws-inset flex flex-col gap-3 p-4 text-[13.5px] font-normal text-white/60">
-          <div className="flex justify-between gap-4">
-            <span>You send</span>
-            <span className="text-white">{amount} USDC on Base</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span>They receive (min)</span>
-            <span className="text-white">
-              {receive} {token.symbol}
-            </span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span>Network</span>
-            <span className="text-white">{chain.name}</span>
-          </div>
-          <div className="flex justify-between gap-4">
-            <span>To</span>
-            <span className="tnum text-right break-all text-white">{address.trim()}</span>
-          </div>
-        </div>
-        {error ? <div className="text-down mt-3 text-[13px] font-normal">{error}</div> : null}
-        <button
-          onClick={confirm}
-          disabled={sending}
-          className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {sending ? "Sending" : `Send ${amount} USDC`}
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div>
       <SheetNav
         title="Withdraw crypto"
-        subtitle="Send to any wallet on almost any chain. We convert from your USDC."
+        subtitle="Send any token you hold to an external wallet on its network."
         onBack={onBack}
       />
-      <ChainTokenPicker
-        chainLabel="To network"
-        chain={chain}
-        token={token}
-        onChain={(c) => {
-          setChain(c);
-          setToken(null);
-        }}
-        onToken={setToken}
+
+      <HeldTokenSelect
+        options={options}
+        selected={selected}
+        onSelect={(t) => setSelectedKey(key(t))}
+        label="Token to withdraw"
       />
 
       <div className="ws-inset mt-2 p-[15px]">
-        <div className="mb-2 text-xs font-normal text-white/55">Destination address</div>
+        <div className="mb-2 text-xs font-normal text-white/55">
+          Destination address{selected ? ` (${chainLabel})` : ""}
+        </div>
         <input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="Paste the wallet address"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder={isSolana(network) ? "Solana address" : "0x address"}
+          spellCheck={false}
           className="tnum w-full border-none bg-transparent text-[14px] break-all text-white outline-none"
         />
+        {to.trim().length > 0 && !addrOk ? (
+          <div className="text-down mt-1.5 text-[12px] font-normal">
+            Not a valid {chainLabel} address
+          </div>
+        ) : null}
       </div>
 
-      <div className="mt-2">
-        <AmountInput value={amount} onChange={setAmount} balance={usdcBalance} symbol="USDC" />
+      <div className="ws-inset mt-2 p-[15px]">
+        <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
+          <span>Amount</span>
+          <button
+            onClick={() => setAmount(String(balance))}
+            className="tnum cursor-pointer text-white/55 hover:text-white"
+          >
+            Balance {formatAmount(balance)} {selected?.symbol ?? ""}
+          </button>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <input
+            inputMode="decimal"
+            placeholder="0"
+            value={amount}
+            onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
+            className="ws-serif tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+          />
+          <span className="shrink-0 font-sans text-[14px] font-medium text-white/70">
+            {selected?.symbol ?? ""}
+          </span>
+        </div>
+        {overBalance ? (
+          <div className="text-down mt-1.5 text-[12px] font-normal">
+            More than your {selected?.symbol} balance
+          </div>
+        ) : null}
       </div>
 
-      {!gas.loading && !gas.hasGas ? (
-        <GasWarning nativeSymbol={gas.nativeSymbol} chainName="Base" />
-      ) : null}
-
+      {selected && !hasGas ? <GasWarning nativeSymbol={nativeSym} chainName={chainLabel} /> : null}
       {error ? <div className="text-down mt-3 text-[13px] font-normal">{error}</div> : null}
 
       <button
-        onClick={review}
-        disabled={!formReady || validate.isPending || quote.isPending}
+        onClick={() => void submit()}
+        disabled={!ready}
         className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {validate.isPending || quote.isPending ? "Checking route" : "Review withdrawal"}
+        {sending ? "Sending…" : `Withdraw ${selected?.symbol ?? ""}`}
       </button>
     </div>
   );
