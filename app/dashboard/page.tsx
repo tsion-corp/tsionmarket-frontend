@@ -18,6 +18,7 @@ import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { FundsModal } from "@/components/dashboard/modals/funds-modal";
 import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
 import { AccountModal } from "@/components/dashboard/modals/account-modal";
+import { BuySheet } from "@/components/dashboard/buy/buy-sheet";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
@@ -25,6 +26,7 @@ import { scrollToSection } from "@/lib/scroll";
 import { loadInterest } from "@/lib/preferences";
 import type { SectionId } from "@/lib/sections";
 import type {
+  BuyPayload,
   ConfirmPayload,
   DetailPayload,
   DashboardModal,
@@ -59,6 +61,7 @@ export default function DashboardPage() {
     (confirm: ConfirmPayload) => setModal({ type: "confirm", confirm }),
     []
   );
+  const openBuy = useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []);
   const openFunds = useCallback(() => setModal({ type: "funds" }), []);
   const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
   const openAccount = useCallback(() => setModal({ type: "account" }), []);
@@ -73,7 +76,7 @@ export default function DashboardPage() {
       />
     ),
     trade: <Trade onOpenDetail={openDetail} />,
-    markets: <Markets onOpenDetail={openDetail} />,
+    markets: <Markets onOpenDetail={openDetail} onOpenBuy={openBuy} />,
     rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
     prediction: <Prediction />,
   };
@@ -103,7 +106,7 @@ export default function DashboardPage() {
           <DashboardFooter sections={nav} />
         </main>
 
-        <ModalShell open={modal !== null} onClose={close}>
+        <ModalShell open={modal !== null} onClose={close} contentKey={modal?.type ?? "none"}>
           {modal?.type === "detail" ? <DetailModal detail={modal.detail} /> : null}
           {modal?.type === "confirm" ? (
             <ConfirmModal
@@ -117,6 +120,7 @@ export default function DashboardPage() {
               }
             />
           ) : null}
+          {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
           {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
           {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
           {modal?.type === "account" ? <AccountModal onClose={close} /> : null}

@@ -17,8 +17,8 @@ import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
+import { selectHoldings } from "@/lib/holdings";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
 import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
@@ -53,36 +53,6 @@ function tokenBg(symbol: string): string {
   return `linear-gradient(135deg, hsl(${hue} 62% 46%), hsl(${(hue + 42) % 360} 55% 32%))`;
 }
 
-const ALLOCATION_COLORS = [
-  "#A78BFA",
-  "#7C9CE7",
-  "#7CE7B0",
-  "#E7C97C",
-  "#E79CC9",
-  "rgba(255,255,255,0.4)",
-];
-
-interface AllocationSlice {
-  name: string;
-  pct: number;
-  color: string;
-}
-
-function buildAllocation(tokens: TokenBalance[], totalUsd: number): AllocationSlice[] {
-  if (totalUsd <= 0) return [];
-  const top = tokens.slice(0, 5);
-  const slices: AllocationSlice[] = top.map((t, i) => ({
-    name: t.symbol,
-    pct: (t.valueUsd / totalUsd) * 100,
-    color: ALLOCATION_COLORS[i],
-  }));
-  const restValue = tokens.slice(5).reduce((sum, t) => sum + t.valueUsd, 0);
-  if (restValue > 0) {
-    slices.push({ name: "Other", pct: (restValue / totalUsd) * 100, color: ALLOCATION_COLORS[5] });
-  }
-  return slices;
-}
-
 const holdingsColumn = createColumnHelper<TokenBalance>();
 const HOLDINGS_COLUMNS = [
   holdingsColumn.accessor((t) => `${t.symbol} ${t.name}`, { id: "search", enableSorting: false }),
@@ -96,9 +66,8 @@ export function PortfolioView({
   onOpenDetail,
   onOpenConfirm,
 }: PortfolioViewProps) {
-  const { totalUsd, tokens, loading, error, refetch } = usePortfolio();
+  const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
-  const allocation = buildAllocation(tokens, totalUsd);
   // Distinguish "we couldn't load it" from "you have nothing". A failed request
   // with no cached tokens is an error, not an empty wallet; if a cached balance
   // survives (persisted), keep showing it rather than an error.
@@ -109,13 +78,15 @@ export function PortfolioView({
   const [hideZero, setHideZero] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([{ id: "value", desc: true }]);
 
-  // When on, drop rows with no real value — the always-present USDC/USDT/native
-  // baseline (shown at $0) plus dust that rounds to $0.00. The 0.005 floor is one
-  // rounded cent, so anything the table would render as "$0.00" is hidden.
-  const visibleTokens = useMemo(
-    () => (hideZero ? tokens.filter((t) => t.valueUsd >= 0.005) : tokens),
-    [tokens, hideZero]
-  );
+  // The table shows bought assets only, so drop the USDC-on-Base deposit float
+  // first (see selectHoldings). Then, when hideZero is on, drop rows with no real
+  // value — the always-present USDC/USDT/native baseline (shown at $0) plus dust
+  // that rounds to $0.00. The 0.005 floor is one rounded cent, so anything the
+  // table would render as "$0.00" is hidden.
+  const visibleTokens = useMemo(() => {
+    const holdings = selectHoldings(tokens);
+    return hideZero ? holdings.filter((t) => t.valueUsd >= 0.005) : holdings;
+  }, [tokens, hideZero]);
 
   const table = useReactTable({
     data: visibleTokens,
@@ -192,35 +163,8 @@ export function PortfolioView({
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>Portfolio</Eyebrow>
 
-      <div className="mt-3.5 grid grid-cols-1 gap-4 min-[720px]:grid-cols-[1.4fr_1fr]">
+      <div className="mt-3.5">
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
-
-        <div className="ws-card flex flex-col p-5 sm:p-[26px]">
-          <div className="text-[13px] font-normal text-white/60">Allocation</div>
-          {loading ? (
-            <div className="mt-4 flex flex-col gap-3.5">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-[7px] animate-pulse rounded-full bg-white/8" />
-              ))}
-            </div>
-          ) : allocation.length === 0 ? (
-            <div className="grid flex-1 place-items-center py-8 text-center text-[13px] font-normal text-white/40">
-              No assets to allocate yet
-            </div>
-          ) : (
-            <div className="mt-4 flex flex-col gap-3.5">
-              {allocation.map((a) => (
-                <div key={a.name}>
-                  <div className="mb-1.5 flex justify-between text-[13.5px] font-normal">
-                    <span className="truncate text-white/85">{a.name}</span>
-                    <span className="tnum text-white/55">{a.pct.toFixed(1)}%</span>
-                  </div>
-                  <ProgressBar pct={a.pct} color={a.color} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       {errored ? (

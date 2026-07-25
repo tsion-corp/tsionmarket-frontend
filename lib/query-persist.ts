@@ -14,6 +14,7 @@ export const PERSISTED_PREFIXES = new Set([
   "deposit-static",
   "portfolio",
   "prices",
+  "buy-destinations",
   "rwa-assets",
   "rwa-categories",
   "fx-rates",
