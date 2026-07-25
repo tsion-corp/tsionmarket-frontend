@@ -268,7 +268,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           subtitle={`${amount} ${selected.symbol} on its way.`}
           onBack={onBack}
         />
-        <div className="border-accent/20 bg-accent/8 mt-1 rounded-[14px] border px-4 py-4 text-[13px] leading-[1.5] font-normal text-white/80">
+        <div className="border-accent/20 bg-accent/8 mt-1 rounded-[14px] border px-4 py-4 text-[13px] leading-normal font-normal text-white/80">
           {isReroutable
             ? `Converting to ${destSymbolLabel} and sending to the address on ${destChainLabel}.`
             : `Your ${selected.symbol} is on its way to the address on ${destChainLabel}.`}

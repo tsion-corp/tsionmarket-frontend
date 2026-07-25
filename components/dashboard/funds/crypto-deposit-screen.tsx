@@ -85,11 +85,11 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
           chainName={originChain.name}
         />
         <div className="border-down/25 bg-down/10 mt-3 rounded-[14px] border px-4 py-3">
-          <p className="text-[12.5px] leading-[1.5] font-normal text-white/80">
+          <p className="text-[12.5px] leading-normal font-normal text-white/80">
             Only send <span className="font-semibold text-white">{originToken.symbol}</span> on{" "}
             {originChain.name} to this address. Any other asset, including{" "}
-            {originChain.nativeSymbol || "the network's gas token"}, will not convert to USDC and may
-            not be recoverable.
+            {originChain.nativeSymbol || "the network's gas token"}, will not convert to USDC and
+            may not be recoverable.
           </p>
         </div>
         <div className="ws-inset mt-3 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
@@ -97,7 +97,7 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
           <span className="tnum text-white/85">About ${minimum}</span>
         </div>
         <div className="border-accent/20 bg-accent/8 mt-3 rounded-[14px] border px-4 py-3">
-          <p className="text-[12.5px] leading-[1.5] font-normal text-white/80">
+          <p className="text-[12.5px] leading-normal font-normal text-white/80">
             This address is permanent. Send to it any time and the funds land as USDC in your wallet
             automatically, usually within a minute.
           </p>

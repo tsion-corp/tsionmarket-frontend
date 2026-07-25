@@ -22,7 +22,7 @@ export function SheetNav({ title, subtitle, onBack }: SheetNavProps) {
       </button>
       <div className="ws-serif text-[24px] tracking-[-0.01em]">{title}</div>
       {subtitle ? (
-        <p className="mt-1.5 text-[13.5px] leading-[1.5] font-normal text-white/60">{subtitle}</p>
+        <p className="mt-1.5 text-[13.5px] leading-normal font-normal text-white/60">{subtitle}</p>
       ) : null}
     </div>
   );

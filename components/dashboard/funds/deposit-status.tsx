@@ -75,7 +75,7 @@ export function DepositStatus({
           })}
         </div>
       ) : (
-        <p className="mt-2 text-[12px] leading-[1.5] font-normal text-white/60">
+        <p className="mt-2 text-[12px] leading-normal font-normal text-white/60">
           {progress.stage === "refunded"
             ? "The deposit was refunded to the sending wallet."
             : "The deposit could not be completed. Any funds are refunded to the sender."}
