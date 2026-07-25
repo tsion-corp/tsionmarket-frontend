@@ -20,12 +20,6 @@ export interface Market {
   bg: string;
 }
 
-export interface AllocationSlice {
-  name: string;
-  pct: number;
-  color: string;
-}
-
 export interface PerpMarket {
   pair: string;
   price: string;
