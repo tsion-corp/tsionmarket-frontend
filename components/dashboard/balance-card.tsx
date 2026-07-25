@@ -8,10 +8,9 @@ import { coingeckoId } from "@/lib/coingecko";
 interface BalanceCardProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
-  onOpenSend: () => void;
 }
 
-export function BalanceCard({ onOpenFunds, onOpenWithdraw, onOpenSend }: BalanceCardProps) {
+export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   const { totalUsd, tokens, loading } = usePortfolio();
   const money = useMoney();
 
@@ -50,12 +49,6 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onOpenSend }: Balance
             className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10 min-[560px]:flex-none"
           >
             Withdraw
-          </button>
-          <button
-            onClick={onOpenSend}
-            className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10 min-[560px]:flex-none"
-          >
-            Transfer
           </button>
         </div>
       </div>

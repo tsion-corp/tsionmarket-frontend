@@ -24,19 +24,29 @@ interface BetModalProps {
 export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps) {
   const { accepted, accept } = usePredictionConsent();
   const { place, placing, error, status } = usePlaceBet();
-  const { fund, funding } = usePolymarketFunding();
+  const { fund, funding, error: fundError, usdcTotal, portfolioLoading } = usePolymarketFunding();
   const [amount, setAmount] = useState(10);
 
   // Placing fails with a balance/allowance error when the account has no pUSD;
   // offer to top up from the user's existing USDC.
   const needsFunds = error != null && /balance|allowance|insufficient|funds/i.test(error);
 
+  // Guard the top-up: once balances have loaded, block it when the user can't
+  // cover the amount rather than letting it fail deep in the transfer.
+  const insufficientUsdc = !portfolioLoading && usdcTotal < amount;
+
   const addFunds = async () => {
+    if (insufficientUsdc) {
+      toast.error(
+        `You have $${usdcTotal.toFixed(2)} USDC, which isn't enough for a $${amount} bet. Add USDC to your wallet first.`
+      );
+      return;
+    }
     try {
       await fund(amount);
       toast.success(`Adding $${amount}. It lands in about a minute — then place your bet.`);
-    } catch {
-      // Funding error surfaces via the funding hook; keep the modal open.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not add funds. Try again.");
     }
   };
 
@@ -164,18 +174,28 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
 
                 <button
                   onClick={addFunds}
-                  disabled={funding || placing}
+                  disabled={funding || placing || insufficientUsdc}
                   className={`w-full cursor-pointer rounded-[14px] border p-3 font-sans text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                    needsFunds
+                    needsFunds && !insufficientUsdc
                       ? "border-accent/45 bg-accent/12 text-white"
                       : "border-white/12 bg-white/5 text-white/80 hover:bg-white/10"
                   }`}
                 >
-                  {funding ? "Adding funds…" : `Add $${amount} from your USDC`}
+                  {funding
+                    ? "Adding funds…"
+                    : insufficientUsdc
+                      ? `Not enough USDC · you have $${usdcTotal.toFixed(2)}`
+                      : `Add $${amount} from your USDC`}
                 </button>
+
+                {fundError ? (
+                  <p className="text-down text-[13px] font-normal">{fundError}</p>
+                ) : null}
+
                 <p className="text-center text-xs font-normal text-white/45">
-                  Bets settle in pUSD. Funding converts your Polygon USDC automatically. No network
-                  fee to trade.
+                  {!portfolioLoading ? `USDC available: $${usdcTotal.toFixed(2)}. ` : ""}Bets settle
+                  in pUSD. Funding converts your Polygon USDC automatically. No network fee to
+                  trade.
                 </p>
               </>
             )}

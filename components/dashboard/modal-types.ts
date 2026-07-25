@@ -37,7 +37,6 @@ export type DashboardModal =
   | { type: "confirm"; confirm: ConfirmPayload }
   | { type: "funds" }
   | { type: "withdraw" }
-  | { type: "send" }
   | { type: "account" }
   | { type: "done"; title: string; msg: string }
   | null;

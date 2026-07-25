@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePolymarketSession } from "@/hooks/use-polymarket-session";
 import { useSendUsdc } from "@/hooks/use-withdraw";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -39,7 +39,7 @@ function pickAddress(data: unknown, family: "evm" | "svm"): string | null {
 export function usePolymarketFunding() {
   const { ensureReady } = usePolymarketSession();
   const { sendUsdc } = useSendUsdc();
-  const { tokens } = usePortfolio();
+  const { tokens, loading: portfolioLoading } = usePortfolio();
   const [funding, setFunding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +50,9 @@ export function usePolymarketFunding() {
         .reduce((sum, t) => sum + t.balance, 0),
     [tokens]
   );
+
+  // Total USDC across the fundable chains — what the user can actually pull from.
+  const usdcTotal = useMemo(() => SOURCES.reduce((sum, s) => sum + usdcOn(s.network), 0), [usdcOn]);
 
   const fund = useCallback(
     async (amountUsd: number): Promise<string> => {
@@ -94,5 +97,5 @@ export function usePolymarketFunding() {
     [ensureReady, sendUsdc, usdcOn]
   );
 
-  return { fund, funding, error };
+  return { fund, funding, error, usdcTotal, portfolioLoading };
 }
