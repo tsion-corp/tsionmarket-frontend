@@ -18,6 +18,7 @@ import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
+import { selectHoldings } from "@/lib/holdings";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
 import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
@@ -77,13 +78,15 @@ export function PortfolioView({
   const [hideZero, setHideZero] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([{ id: "value", desc: true }]);
 
-  // When on, drop rows with no real value — the always-present USDC/USDT/native
-  // baseline (shown at $0) plus dust that rounds to $0.00. The 0.005 floor is one
-  // rounded cent, so anything the table would render as "$0.00" is hidden.
-  const visibleTokens = useMemo(
-    () => (hideZero ? tokens.filter((t) => t.valueUsd >= 0.005) : tokens),
-    [tokens, hideZero]
-  );
+  // The table shows bought assets only, so drop the USDC-on-Base deposit float
+  // first (see selectHoldings). Then, when hideZero is on, drop rows with no real
+  // value — the always-present USDC/USDT/native baseline (shown at $0) plus dust
+  // that rounds to $0.00. The 0.005 floor is one rounded cent, so anything the
+  // table would render as "$0.00" is hidden.
+  const visibleTokens = useMemo(() => {
+    const holdings = selectHoldings(tokens);
+    return hideZero ? holdings.filter((t) => t.valueUsd >= 0.005) : holdings;
+  }, [tokens, hideZero]);
 
   const table = useReactTable({
     data: visibleTokens,
