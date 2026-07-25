@@ -17,7 +17,6 @@ import { DetailModal } from "@/components/dashboard/modals/detail-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { FundsModal } from "@/components/dashboard/modals/funds-modal";
 import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
-import { SendModal } from "@/components/dashboard/modals/send-modal";
 import { AccountModal } from "@/components/dashboard/modals/account-modal";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
@@ -62,7 +61,6 @@ export default function DashboardPage() {
   );
   const openFunds = useCallback(() => setModal({ type: "funds" }), []);
   const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
-  const openSend = useCallback(() => setModal({ type: "send" }), []);
   const openAccount = useCallback(() => setModal({ type: "account" }), []);
 
   const sections: Record<SectionId, React.ReactNode> = {
@@ -70,7 +68,6 @@ export default function DashboardPage() {
       <Portfolio
         onOpenFunds={openFunds}
         onOpenWithdraw={openWithdraw}
-        onOpenSend={openSend}
         onOpenDetail={openDetail}
         onOpenConfirm={openConfirm}
       />
@@ -122,17 +119,6 @@ export default function DashboardPage() {
           ) : null}
           {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
           {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
-          {modal?.type === "send" ? (
-            <SendModal
-              onConfirm={() =>
-                setModal({
-                  type: "done",
-                  title: "Transfer sent",
-                  msg: "Your transfer is on its way and settles instantly.",
-                })
-              }
-            />
-          ) : null}
           {modal?.type === "account" ? <AccountModal onClose={close} /> : null}
           {modal?.type === "done" ? (
             <SuccessPanel title={modal.title} onDone={close}>

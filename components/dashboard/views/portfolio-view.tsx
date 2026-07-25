@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -25,7 +25,6 @@ import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal
 interface PortfolioViewProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
-  onOpenSend: () => void;
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenConfirm: (confirm: ConfirmPayload) => void;
 }
@@ -93,7 +92,6 @@ const HOLDINGS_COLUMNS = [
 export function PortfolioView({
   onOpenFunds,
   onOpenWithdraw,
-  onOpenSend,
   onOpenDetail,
   onOpenConfirm,
 }: PortfolioViewProps) {
@@ -107,9 +105,19 @@ export function PortfolioView({
   const isEmpty = !loading && !error && tokens.length === 0;
 
   const [search, setSearch] = useState("");
+  const [hideZero, setHideZero] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([{ id: "value", desc: true }]);
+
+  // When on, drop rows the user holds nothing in — the always-present USDC/USDT/
+  // native baseline shows every supported asset at $0, which is noise once you
+  // only care about what you actually own.
+  const visibleTokens = useMemo(
+    () => (hideZero ? tokens.filter((t) => t.valueUsd > 0) : tokens),
+    [tokens, hideZero]
+  );
+
   const table = useReactTable({
-    data: tokens,
+    data: visibleTokens,
     columns: HOLDINGS_COLUMNS,
     state: { globalFilter: search, sorting },
     onGlobalFilterChange: setSearch,
@@ -184,11 +192,7 @@ export function PortfolioView({
       <Eyebrow>Portfolio</Eyebrow>
 
       <div className="mt-3.5 grid grid-cols-1 gap-4 min-[720px]:grid-cols-[1.4fr_1fr]">
-        <BalanceCard
-          onOpenFunds={onOpenFunds}
-          onOpenWithdraw={onOpenWithdraw}
-          onOpenSend={onOpenSend}
-        />
+        <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
 
         <div className="ws-card flex flex-col p-5 sm:p-[26px]">
           <div className="text-[13px] font-normal text-white/60">Allocation</div>
@@ -254,14 +258,36 @@ export function PortfolioView({
         <div className="ws-card mt-[18px] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
             <span className="ws-serif text-[22px]">Your holdings</span>
-            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-              <SearchIcon />
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search"
-                className="w-[130px] min-w-0 border-none bg-transparent text-[13px] font-normal text-white outline-none"
-              />
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={hideZero}
+                onClick={() => setHideZero((v) => !v)}
+                className="flex cursor-pointer items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60 hover:text-white/85"
+              >
+                <span>Hide zero value</span>
+                <span
+                  className={`relative h-[18px] w-[32px] shrink-0 rounded-full transition-colors ${
+                    hideZero ? "bg-accent/70" : "bg-white/15"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white transition-transform ${
+                      hideZero ? "translate-x-[16px]" : "translate-x-[2px]"
+                    }`}
+                  />
+                </span>
+              </button>
+              <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <SearchIcon />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search"
+                  className="w-[130px] min-w-0 border-none bg-transparent text-[13px] font-normal text-white outline-none"
+                />
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr] sm:px-6">
@@ -284,7 +310,11 @@ export function PortfolioView({
             ))
           ) : holdingRows.length === 0 ? (
             <div className="border-t border-white/6 px-6 py-8 text-center text-[13px] font-normal text-white/45">
-              No holdings match your search.
+              {search
+                ? "No holdings match your search."
+                : hideZero
+                  ? "No assets with a balance yet. Turn off “Hide zero value” to see every supported asset."
+                  : "No holdings yet."}
             </div>
           ) : (
             <>
