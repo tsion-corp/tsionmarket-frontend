@@ -14,6 +14,7 @@ import {
   gradientFor,
   hasNativeGas,
   isIssuerAccess,
+  isRateLimitError,
   isSellableChain,
   isTradable,
   minReceiveTokens,
@@ -190,6 +191,25 @@ describe("rwaErrorInfo", () => {
   it("falls back for unknown codes", () => {
     expect(rwaErrorInfo(undefined, "boom").message).toBe("boom");
     expect(rwaErrorInfo("WHATEVER").message).toMatch(/went wrong/i);
+  });
+});
+
+describe("isRateLimitError", () => {
+  it("detects rate limits from the code", () => {
+    expect(isRateLimitError("RATE_LIMITED")).toBe(true);
+    expect(isRateLimitError("TOO_MANY_REQUESTS")).toBe(true);
+    expect(isRateLimitError("429")).toBe(true);
+  });
+
+  it("detects rate limits from the message", () => {
+    expect(isRateLimitError(undefined, "Too many requests, please try again later")).toBe(true);
+    expect(isRateLimitError("UNKNOWN", "rate limit exceeded")).toBe(true);
+  });
+
+  it("is false for unrelated errors", () => {
+    expect(isRateLimitError("NO_ROUTE")).toBe(false);
+    expect(isRateLimitError(undefined, "network down")).toBe(false);
+    expect(isRateLimitError(undefined)).toBe(false);
   });
 });
 

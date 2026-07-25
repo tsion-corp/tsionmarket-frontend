@@ -189,6 +189,22 @@ export function errorCode(e: unknown): string | undefined {
   return undefined;
 }
 
+// True when an error is a rate limit, from either its code or message. Used to
+// decide whether a read-only call (quote/build) is worth retrying transparently
+// instead of interrupting the user.
+export function isRateLimitError(code: string | undefined, message?: string): boolean {
+  const c = (code ?? "").toUpperCase();
+  const m = (message ?? "").toLowerCase();
+  return (
+    c === "RATE_LIMITED" ||
+    c === "TOO_MANY_REQUESTS" ||
+    c === "429" ||
+    c.includes("RATE") ||
+    m.includes("too many requests") ||
+    m.includes("rate limit")
+  );
+}
+
 export function pageCount(total: number, perPage: number): number {
   if (perPage <= 0) return 1;
   return Math.max(1, Math.ceil(total / perPage));

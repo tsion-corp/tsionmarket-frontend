@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowDownIcon } from "@/components/ui/icons";
@@ -31,6 +31,7 @@ import {
   gradientFor,
   hasNativeGas,
   isIssuerAccess,
+  isRateLimitError,
   isSellableChain,
   minReceiveTokens,
   priceImpactPercent,
@@ -55,6 +56,26 @@ interface SignStep {
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const SLIPPAGE_BPS = 50;
+
+// Backoff schedule for transparently retrying a rate-limited read (quote/build).
+// These calls never submit a transaction, so a retry is safe and spares the user
+// a "you're going a bit fast" error for a blip that clears in a second.
+const RATE_LIMIT_BACKOFFS_MS = [800, 1600];
+
+async function withRateLimitRetry<T>(fn: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : undefined;
+      if (isRateLimitError(errorCode(e), message) && attempt < RATE_LIMIT_BACKOFFS_MS.length) {
+        await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_BACKOFFS_MS[attempt]));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
 
 interface RwaTradePanelProps {
   asset: RwaApiAsset;
@@ -133,7 +154,7 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
       setPhase("quoting");
       setNotice(null);
       try {
-        const res = await quoteAsync(req);
+        const res = await withRateLimitRetry(() => quoteAsync(req));
         if (!res.best) {
           setQuote(null);
           setPhase("idle");
@@ -152,16 +173,35 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
     [quoteAsync, buildReq]
   );
 
-  // Debounce the live quote. All state changes happen inside runQuote or event
-  // handlers, so this effect only schedules the fetch.
+  // A stable identity for the current quote request: the direction and the exact
+  // token being traded (address + decimals). The portfolio refetches every 30s
+  // and on window focus, handing back new `holding`/`payInput` object references
+  // with identical values; keying the debounce on this string instead of on the
+  // callback identity stops those refetches from firing a redundant quote and
+  // needlessly spending the shared RWA rate budget.
+  const quoteSig = isBuy
+    ? payInput
+      ? `buy:${payInput.address}:${payInput.decimals}`
+      : null
+    : holding
+      ? `sell:${asset.address}:${holding.decimals}`
+      : null;
+
+  const runQuoteRef = useRef(runQuote);
+  useEffect(() => {
+    runQuoteRef.current = runQuote;
+  }, [runQuote]);
+
+  // Debounce the live quote. Only a changed amount or a changed traded token
+  // reschedules it, so a background portfolio refetch never re-quotes.
   useEffect(() => {
     const num = Number.parseFloat(amount);
-    if (!(num > 0)) return;
+    if (!(num > 0) || !quoteSig) return;
     const timer = setTimeout(() => {
-      void runQuote(amount);
+      void runQuoteRef.current(amount);
     }, 700);
     return () => clearTimeout(timer);
-  }, [amount, runQuote]);
+  }, [amount, quoteSig]);
 
   const onInput = (value: string) => {
     if (!DECIMAL_INPUT.test(value)) return;
@@ -230,7 +270,7 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
     setNotice(null);
     setSignStep(null);
     try {
-      const action = await buildAsync({ ...req, taker, simulate: true });
+      const action = await withRateLimitRetry(() => buildAsync({ ...req, taker, simulate: true }));
       await execute(action, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });

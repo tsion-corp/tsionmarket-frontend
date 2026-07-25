@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
-import type { EIP1193Provider } from "@privy-io/react-auth";
+import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
 import { fetchLifiQuote } from "@/lib/trade/lifi";
 import {
   encodeAllowanceCall,
@@ -10,6 +9,7 @@ import {
   isNativeToken,
   parseAllowance,
 } from "@/lib/trade/erc20";
+import { awaitReceipt, publicClientForChain, type ChainReadClient } from "@/lib/trade/receipt";
 import { getWalletAddress } from "@/lib/user";
 
 export interface EvmSwapExecuteInput {
@@ -20,60 +20,35 @@ export interface EvmSwapExecuteInput {
   slippageBps: number;
 }
 
-// Poll for a mined receipt so the approve transaction confirms before the swap
-// spends the allowance. Caps the wait so a stuck transaction surfaces an error
-// instead of hanging the flow.
-const RECEIPT_POLL_ATTEMPTS = 40;
-const RECEIPT_POLL_INTERVAL_MS = 3000;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function readAllowance(
-  provider: EIP1193Provider,
+  client: ChainReadClient,
   token: string,
   owner: string,
   spender: string
 ): Promise<bigint> {
-  const result: string = await provider.request({
-    method: "eth_call",
-    params: [{ to: token, data: encodeAllowanceCall(owner, spender) }, "latest"],
+  const { data } = await client.call({
+    to: token as `0x${string}`,
+    data: encodeAllowanceCall(owner, spender),
   });
-  return parseAllowance(result);
-}
-
-async function waitForReceipt(provider: EIP1193Provider, hash: string): Promise<void> {
-  for (let attempt = 0; attempt < RECEIPT_POLL_ATTEMPTS; attempt++) {
-    const receipt = await provider.request({
-      method: "eth_getTransactionReceipt",
-      params: [hash],
-    });
-    if (receipt) {
-      if (receipt.status === "0x0") throw new Error("Token approval failed on-chain.");
-      return;
-    }
-    await delay(RECEIPT_POLL_INTERVAL_MS);
-  }
-  throw new Error("Token approval is taking too long. Try again.");
+  return parseAllowance(data ?? "0x");
 }
 
 // Executes an EVM swap on the token's own chain (Base, Arbitrum or Polygon)
 // through LI.FI, signed by the Privy embedded EVM wallet. Fetches a fresh quote
-// for the taker on input.fromChainId, grants the ERC-20 allowance if
-// the router needs one, then sends the swap transaction. The backend never
-// holds keys; the wallet signs client-side. Returns once the swap is submitted.
+// for the taker on input.fromChainId, grants the ERC-20 allowance if the router
+// needs one, then sends the swap transaction. The backend never holds keys; the
+// wallet signs client-side. Returns once the swap has confirmed on-chain so the
+// caller's balance refetch reflects the received token.
 export function useEvmSwapExecute() {
   const { user } = usePrivy();
   const { sendTransaction } = useSendTransaction();
-  const { wallets } = useWallets();
 
   return useCallback(
     async (input: EvmSwapExecuteInput): Promise<void> => {
       const owner = getWalletAddress(user, "ethereum");
       if (!owner) throw new Error("No EVM wallet is connected.");
-      const wallet = wallets.find((w) => w.address.toLowerCase() === owner.toLowerCase());
-      if (!wallet) throw new Error("The EVM wallet is not ready. Try again.");
+
+      const client = publicClientForChain(input.fromChainId);
 
       const quote = await fetchLifiQuote({
         fromChain: input.fromChainId,
@@ -85,11 +60,9 @@ export function useEvmSwapExecute() {
         slippage: input.slippageBps / 10000,
       });
 
-      const provider = await wallet.getEthereumProvider();
-
       if (!isNativeToken(input.fromToken)) {
         const allowance = await readAllowance(
-          provider,
+          client,
           input.fromToken,
           owner,
           quote.approvalAddress
@@ -100,7 +73,7 @@ export function useEvmSwapExecute() {
             data: encodeApprove(quote.approvalAddress, input.fromAmount),
             chainId: input.fromChainId,
           });
-          await waitForReceipt(provider, hash);
+          await awaitReceipt(client, hash, "Token approval");
         }
       }
 
@@ -114,8 +87,8 @@ export function useEvmSwapExecute() {
       });
       // Wait for the swap to mine so the caller's balance refetch reflects the
       // received token instead of the pre-swap balance.
-      await waitForReceipt(provider, hash);
+      await awaitReceipt(client, hash, "The swap");
     },
-    [user, sendTransaction, wallets]
+    [user, sendTransaction]
   );
 }

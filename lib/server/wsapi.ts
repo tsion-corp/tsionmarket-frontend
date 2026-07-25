@@ -20,15 +20,32 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function wsapiRwaRequest(
   path: string,
-  init: { method: "GET" | "POST"; query?: URLSearchParams; body?: unknown; revalidate?: number }
+  init: {
+    method: "GET" | "POST";
+    query?: URLSearchParams;
+    body?: unknown;
+    revalidate?: number;
+    clientIp?: string;
+  }
 ): Promise<Response> {
   const url = new URL(`${BASE}/v1/rwa/${path}`);
   if (init.query) url.search = init.query.toString();
 
+  // Every user's RWA traffic is proxied through this server, so without the
+  // originating IP the gateway sees one shared address and its per-IP rate limit
+  // becomes a single bucket for all users. Forward the real client IP so the
+  // limit is applied per user. Harmless if the gateway ignores it.
+  const headers: Record<string, string> = {};
+  if (init.body) headers["Content-Type"] = "application/json";
+  if (init.clientIp) {
+    headers["X-Forwarded-For"] = init.clientIp;
+    headers["X-Real-IP"] = init.clientIp;
+  }
+
   const send = () =>
     fetch(url, {
       method: init.method,
-      headers: init.body ? { "Content-Type": "application/json" } : undefined,
+      headers: Object.keys(headers).length ? headers : undefined,
       body: init.body ? JSON.stringify(init.body) : undefined,
       ...(init.revalidate != null
         ? { next: { revalidate: init.revalidate } }

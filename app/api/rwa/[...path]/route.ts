@@ -17,12 +17,23 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
     }
   }
 
+  // Forward the originating IP on trade calls so the gateway rate-limits per user
+  // rather than lumping every user behind this server's shared address. GETs are
+  // left untouched so their shared response cache is not fragmented per client.
+  const clientIp =
+    method === "POST"
+      ? (req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+        req.headers.get("x-real-ip") ??
+        undefined)
+      : undefined;
+
   try {
     const res = await wsapiRwaRequest(joined, {
       method,
       query: method === "GET" ? req.nextUrl.searchParams : undefined,
       body,
       revalidate: method === "GET" ? rwaRevalidate(joined) : undefined,
+      clientIp,
     });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
