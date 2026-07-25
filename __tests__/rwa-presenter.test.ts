@@ -17,6 +17,7 @@ import {
   isRateLimitError,
   isSellableChain,
   isTradable,
+  isTransientRwaError,
   minReceiveTokens,
   pageCount,
   pageSlice,
@@ -210,6 +211,26 @@ describe("isRateLimitError", () => {
     expect(isRateLimitError("NO_ROUTE")).toBe(false);
     expect(isRateLimitError(undefined, "network down")).toBe(false);
     expect(isRateLimitError(undefined)).toBe(false);
+  });
+});
+
+describe("isTransientRwaError", () => {
+  it("treats rate limits and upstream blips as transient", () => {
+    expect(isTransientRwaError("RATE_LIMITED")).toBe(true);
+    expect(isTransientRwaError("SERVICE_UNAVAILABLE")).toBe(true);
+    expect(isTransientRwaError("502")).toBe(true);
+  });
+
+  it("treats a bare network failure as transient", () => {
+    expect(isTransientRwaError(undefined, "Failed to fetch")).toBe(true);
+    expect(isTransientRwaError(undefined, "network error")).toBe(true);
+  });
+
+  it("does not retry deterministic errors", () => {
+    expect(isTransientRwaError("NO_ROUTE")).toBe(false);
+    expect(isTransientRwaError("INSUFFICIENT_LIQUIDITY")).toBe(false);
+    expect(isTransientRwaError("SIMULATION_FAILED")).toBe(false);
+    expect(isTransientRwaError("VALIDATION_ERROR", "bad input")).toBe(false);
   });
 });
 

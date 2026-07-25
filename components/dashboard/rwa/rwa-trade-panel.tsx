@@ -31,8 +31,8 @@ import {
   gradientFor,
   hasNativeGas,
   isIssuerAccess,
-  isRateLimitError,
   isSellableChain,
+  isTransientRwaError,
   minReceiveTokens,
   priceImpactPercent,
   routeLabel,
@@ -57,19 +57,19 @@ interface SignStep {
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const SLIPPAGE_BPS = 50;
 
-// Backoff schedule for transparently retrying a rate-limited read (quote/build).
+// Backoff schedule for transparently retrying a transient read (quote/build).
 // These calls never submit a transaction, so a retry is safe and spares the user
-// a "you're going a bit fast" error for a blip that clears in a second.
-const RATE_LIMIT_BACKOFFS_MS = [800, 1600];
+// a rate-limit or "service busy" error for a blip that clears in a second.
+const RETRY_BACKOFFS_MS = [800, 1600];
 
-async function withRateLimitRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function withTransientRetry<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (e) {
       const message = e instanceof Error ? e.message : undefined;
-      if (isRateLimitError(errorCode(e), message) && attempt < RATE_LIMIT_BACKOFFS_MS.length) {
-        await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_BACKOFFS_MS[attempt]));
+      if (isTransientRwaError(errorCode(e), message) && attempt < RETRY_BACKOFFS_MS.length) {
+        await new Promise((resolve) => setTimeout(resolve, RETRY_BACKOFFS_MS[attempt]));
         continue;
       }
       throw e;
@@ -154,7 +154,7 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
       setPhase("quoting");
       setNotice(null);
       try {
-        const res = await withRateLimitRetry(() => quoteAsync(req));
+        const res = await withTransientRetry(() => quoteAsync(req));
         if (!res.best) {
           setQuote(null);
           setPhase("idle");
@@ -270,7 +270,7 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
     setNotice(null);
     setSignStep(null);
     try {
-      const action = await withRateLimitRetry(() => buildAsync({ ...req, taker, simulate: true }));
+      const action = await withTransientRetry(() => buildAsync({ ...req, taker, simulate: true }));
       await execute(action, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });
