@@ -2,7 +2,6 @@
 
 import { useCallback, useState } from "react";
 import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
-import type { EIP1193Provider } from "@privy-io/react-auth";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { usePolymarketSession } from "@/hooks/use-polymarket-session";
 import { useEvmSwapExecute } from "@/hooks/use-evm-swap-execute";
@@ -10,6 +9,7 @@ import { getWalletAddress } from "@/lib/user";
 import { CONTRACTS, POLYGON_CHAIN_ID, PUSD_DECIMALS } from "@/lib/polymarket/config";
 import { SETTLE_CHAINS } from "@/lib/deposit";
 import { toBaseUnits } from "@/lib/trade/math";
+import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 
 // CollateralOfframp.unwrap(asset, to, amount): burns pUSD, sends the underlying
 // stablecoin (USDC.e) to `to`.
@@ -26,27 +26,6 @@ const OFFRAMP_ABI = [
     outputs: [],
   },
 ] as const;
-
-const RECEIPT_ATTEMPTS = 40;
-const RECEIPT_INTERVAL_MS = 3000;
-const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-async function waitForReceipt(provider: EIP1193Provider, hash: string): Promise<void> {
-  for (let i = 0; i < RECEIPT_ATTEMPTS; i++) {
-    const receipt = await provider.request({
-      method: "eth_getTransactionReceipt",
-      params: [hash],
-    });
-    if (receipt) {
-      if ((receipt as { status?: string }).status === "0x0") {
-        throw new Error("A withdrawal step failed on-chain.");
-      }
-      return;
-    }
-    await delay(RECEIPT_INTERVAL_MS);
-  }
-  throw new Error("The withdrawal is taking too long. Try again.");
-}
 
 // Cashes pUSD out to USDC.e in the user's own Polygon wallet: moves pUSD from the
 // Deposit Wallet to the EOA gaslessly, then approves and unwraps it via the
@@ -82,7 +61,9 @@ export function usePolymarketWithdraw() {
         });
         await transfer.wait();
 
-        const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
+        // Confirm the on-chain steps through a client pinned to Polygon, not the
+        // wallet's ambient provider, which may point at another chain.
+        const polygonClient = publicClientForChain(POLYGON_CHAIN_ID);
 
         // 2) Approve the offramp to spend the EOA's pUSD.
         const approveData = encodeFunctionData({
@@ -94,7 +75,7 @@ export function usePolymarketWithdraw() {
           { to: CONTRACTS.pusd, data: approveData, chainId: POLYGON_CHAIN_ID },
           { address: eoa }
         );
-        await waitForReceipt(provider, approve.hash);
+        await awaitReceipt(polygonClient, approve.hash, "The approval");
 
         // 3) Unwrap pUSD -> USDC.e to the EOA.
         const unwrapData = encodeFunctionData({
@@ -106,7 +87,7 @@ export function usePolymarketWithdraw() {
           { to: CONTRACTS.collateralOfframp, data: unwrapData, chainId: POLYGON_CHAIN_ID },
           { address: eoa }
         );
-        await waitForReceipt(provider, unwrap.hash);
+        await awaitReceipt(polygonClient, unwrap.hash, "The withdrawal");
 
         // 4) Normalise USDC.e -> native USDC via LI.FI. Best-effort: the funds are
         // already safely in the wallet as USDC.e if this last hop can't route.
