@@ -205,6 +205,27 @@ export function isRateLimitError(code: string | undefined, message?: string): bo
   );
 }
 
+// True when an RWA error is transient and a read-only retry is worth attempting:
+// a rate limit, an upstream 502/service blip, or a bare network failure. Excludes
+// deterministic errors (no route, bad input, simulation, expired quote) that a
+// retry would not fix.
+export function isTransientRwaError(code: string | undefined, message?: string): boolean {
+  if (isRateLimitError(code, message)) return true;
+  const c = (code ?? "").toUpperCase();
+  if (c === "SERVICE_UNAVAILABLE" || c === "BAD_GATEWAY" || c === "502") return true;
+  // A bare network/fetch failure carries no backend code.
+  if (!code) {
+    const m = (message ?? "").toLowerCase();
+    return (
+      m.includes("fetch") ||
+      m.includes("network") ||
+      m.includes("timeout") ||
+      m.includes("failed to")
+    );
+  }
+  return false;
+}
+
 export function pageCount(total: number, perPage: number): number {
   if (perPage <= 0) return 1;
   return Math.max(1, Math.ceil(total / perPage));

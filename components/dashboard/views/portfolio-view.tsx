@@ -11,6 +11,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { BalanceCard } from "@/components/dashboard/balance-card";
+import { Switch } from "@/components/ui/switch";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
@@ -108,11 +109,11 @@ export function PortfolioView({
   const [hideZero, setHideZero] = useState(true);
   const [sorting, setSorting] = useState<SortingState>([{ id: "value", desc: true }]);
 
-  // When on, drop rows the user holds nothing in — the always-present USDC/USDT/
-  // native baseline shows every supported asset at $0, which is noise once you
-  // only care about what you actually own.
+  // When on, drop rows with no real value — the always-present USDC/USDT/native
+  // baseline (shown at $0) plus dust that rounds to $0.00. The 0.005 floor is one
+  // rounded cent, so anything the table would render as "$0.00" is hidden.
   const visibleTokens = useMemo(
-    () => (hideZero ? tokens.filter((t) => t.valueUsd > 0) : tokens),
+    () => (hideZero ? tokens.filter((t) => t.valueUsd >= 0.005) : tokens),
     [tokens, hideZero]
   );
 
@@ -259,26 +260,14 @@ export function PortfolioView({
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
             <span className="ws-serif text-[22px]">Your holdings</span>
             <div className="flex items-center gap-3">
-              <button
-                type="button"
-                role="switch"
-                aria-checked={hideZero}
-                onClick={() => setHideZero((v) => !v)}
-                className="flex cursor-pointer items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60 hover:text-white/85"
-              >
+              <div className="flex items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60">
                 <span>Hide zero value</span>
-                <span
-                  className={`relative h-[18px] w-[32px] shrink-0 rounded-full transition-colors ${
-                    hideZero ? "bg-accent/70" : "bg-white/15"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-[2px] h-[14px] w-[14px] rounded-full bg-white transition-transform ${
-                      hideZero ? "translate-x-[16px]" : "translate-x-[2px]"
-                    }`}
-                  />
-                </span>
-              </button>
+                <Switch
+                  size="sm"
+                  checked={hideZero}
+                  onCheckedChange={(checked) => setHideZero(checked)}
+                />
+              </div>
               <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
                 <SearchIcon />
                 <input

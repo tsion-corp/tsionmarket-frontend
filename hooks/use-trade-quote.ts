@@ -99,18 +99,36 @@ export function useTradeQuote({
   });
 
   return useMemo<TradeQuote>(() => {
+    const payPrice = prices[pay.symbol] ?? 0;
+    const receivePrice = prices[receive.symbol] ?? 0;
+    // Live-price estimate. Used for non-routable pairs and, crucially, as the
+    // fallback whenever a route quote hasn't landed — the first fetch for a new
+    // amount, or a transient provider failure (LI.FI shares one rate-limited
+    // key). Without this the receive field would blank out intermittently. The
+    // execute hooks re-quote a real route at swap time, so this stays an estimate.
+    const priceEstimate: TradeQuote = {
+      source: "price",
+      receiveAmount: receiveFromPrices(amountNum, payPrice, receivePrice),
+      rate: payPrice > 0 && receivePrice > 0 ? receivePrice / payPrice : 0,
+      priceImpactPct: null,
+      route: [{ label: "Live price", percent: 100 }],
+      loading: false,
+      error: false,
+    };
+
     if (routable) {
       const data = query.data;
-      const receiveAmount = data
-        ? Number(fromBaseUnits(data.outAmount, receive.decimals as number))
-        : 0;
+      if (!data) {
+        return { ...priceEstimate, loading: query.isFetching, error: query.isError };
+      }
+      const receiveAmount = Number(fromBaseUnits(data.outAmount, receive.decimals as number));
       const rate = receiveAmount > 0 ? amountNum / receiveAmount : 0;
       return {
         source: "jupiter",
         receiveAmount,
         rate,
-        priceImpactPct: data ? data.priceImpactPct * 100 : null,
-        route: data?.route ?? [],
+        priceImpactPct: data.priceImpactPct * 100,
+        route: data.route ?? [],
         loading: query.isFetching,
         error: query.isError,
       };
@@ -118,34 +136,23 @@ export function useTradeQuote({
 
     if (evmRoutable) {
       const data = evmQuery.data;
-      const receiveAmount = data
-        ? Number(fromBaseUnits(data.toAmount, receive.evmDecimals as number))
-        : 0;
+      if (!data) {
+        return { ...priceEstimate, loading: evmQuery.isFetching, error: evmQuery.isError };
+      }
+      const receiveAmount = Number(fromBaseUnits(data.toAmount, receive.evmDecimals as number));
       const rate = receiveAmount > 0 ? amountNum / receiveAmount : 0;
       return {
         source: "lifi",
         receiveAmount,
         rate,
-        priceImpactPct: data ? data.priceImpactPct : null,
-        route: [{ label: data?.toolName ?? "LI.FI", percent: 100 }],
+        priceImpactPct: data.priceImpactPct,
+        route: [{ label: data.toolName ?? "LI.FI", percent: 100 }],
         loading: evmQuery.isFetching,
         error: evmQuery.isError,
       };
     }
 
-    const payPrice = prices[pay.symbol] ?? 0;
-    const receivePrice = prices[receive.symbol] ?? 0;
-    const receiveAmount = receiveFromPrices(amountNum, payPrice, receivePrice);
-    const rate = payPrice > 0 && receivePrice > 0 ? receivePrice / payPrice : 0;
-    return {
-      source: "price",
-      receiveAmount,
-      rate,
-      priceImpactPct: null,
-      route: [{ label: "Live price", percent: 100 }],
-      loading: false,
-      error: false,
-    };
+    return priceEstimate;
   }, [
     routable,
     query.data,
