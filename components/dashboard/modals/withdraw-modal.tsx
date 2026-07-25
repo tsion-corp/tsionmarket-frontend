@@ -18,7 +18,7 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
   return (
     <div>
       <div className="ws-serif text-[24px] tracking-[-0.01em]">Withdraw</div>
-      <p className="mt-2 text-[13.5px] leading-[1.5] font-normal text-white/65">
+      <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">
         Choose where you want your funds to go.
       </p>
       <div className="mt-[18px] flex flex-col gap-2">
