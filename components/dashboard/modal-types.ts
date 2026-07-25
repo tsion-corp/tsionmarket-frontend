@@ -32,9 +32,19 @@ export interface ConfirmPayload {
   successMsg: string;
 }
 
+// The asset a buy sheet opens for. The sheet resolves its own routes from the
+// symbol; priceUsd drives the instant "you get about" estimate.
+export interface BuyPayload {
+  symbol: string;
+  name: string;
+  priceUsd: number;
+  logo?: string | null;
+}
+
 export type DashboardModal =
   | { type: "detail"; detail: DetailPayload }
   | { type: "confirm"; confirm: ConfirmPayload }
+  | { type: "buy"; buy: BuyPayload }
   | { type: "funds" }
   | { type: "withdraw" }
   | { type: "account" }

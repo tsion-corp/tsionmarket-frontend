@@ -8,6 +8,7 @@ export const PERSISTED_PREFIXES = new Set([
   "deposit-chains",
   "deposit-tokens",
   "deposit-static",
+  "buy-destinations",
   "rwa-assets",
   "rwa-categories",
   "fx-rates",
