@@ -86,7 +86,7 @@ export default function AuthPage() {
           </div>
         </div>
 
-        <p className="mx-auto max-w-[420px] text-center text-xs leading-[1.5] text-white/35">
+        <p className="mx-auto max-w-[420px] text-center text-xs leading-normal text-white/35">
           By continuing you agree to World Street&apos;s{" "}
           <a href="#" className="text-white/60 underline">
             Terms

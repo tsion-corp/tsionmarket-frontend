@@ -11,7 +11,7 @@ interface BalanceCardProps {
 }
 
 export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
-  const { totalUsd, tokens, loading } = usePortfolio();
+  const { totalUsd, tokens, loading, refreshing, error } = usePortfolio();
   const money = useMoney();
 
   // True portfolio value history is not stored, so we chart the dominant
@@ -23,7 +23,15 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   return (
     <div className="ws-card p-5 sm:p-[26px]">
       <div className="flex items-center justify-between gap-4">
-        <div className="text-[13px] font-normal text-white/60">Total balance</div>
+        <div className="flex items-center gap-1.5 text-[13px] font-normal text-white/60">
+          Total balance
+          {refreshing ? (
+            <span
+              className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full"
+              title="Refreshing…"
+            />
+          ) : null}
+        </div>
         <CurrencySelect value={money.currency} onSelect={money.setCurrency} />
       </div>
 
@@ -31,6 +39,13 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
         <div>
           {loading ? (
             <div className="h-[52px] w-44 animate-pulse rounded-xl bg-white/8" />
+          ) : error && tokens.length === 0 ? (
+            // A failed fetch and a genuinely empty wallet both leave totalUsd
+            // at 0 — showing "$0.00" here would read as "your funds are
+            // gone." Say so isn't known instead of asserting a wrong number.
+            <div className="ws-serif text-[28px] leading-none tracking-[-0.02em] text-white/45">
+              Couldn&apos;t load
+            </div>
           ) : (
             <div className="ws-serif tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
               {money.format(totalUsd)}

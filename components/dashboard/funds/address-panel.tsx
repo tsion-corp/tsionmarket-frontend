@@ -25,7 +25,7 @@ export function AddressPanel({ address, tokenSymbol, chainName }: AddressPanelPr
         <CopyButton value={address} />
       </div>
       <div className="border-accent/25 bg-accent/10 mt-3 rounded-[14px] border px-4 py-3">
-        <p className="text-[12.5px] leading-[1.5] font-normal text-white/80">
+        <p className="text-[12.5px] leading-normal font-normal text-white/80">
           Send only <span className="font-semibold text-white">{tokenSymbol}</span> on{" "}
           <span className="font-semibold text-white">{chainName}</span> to this address. Anything
           else may be lost.

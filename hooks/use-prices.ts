@@ -2,7 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-const THIRTY_SECONDS = 30 * 1000;
+// Matches usePortfolio's poll interval — same backend, same reasoning.
+const POLL_MS = 60 * 1000;
 
 // Stable identity for the loading/empty state so consumers keying memos or
 // effects on the prices map don't churn every render.
@@ -17,14 +18,16 @@ export function usePrices(symbols: string[]) {
       const params = new URLSearchParams();
       for (const s of symbols) params.append("symbols", s);
       const res = await fetch(`/api/prices?${params.toString()}`);
-      if (!res.ok) throw new Error("Prices request failed");
+      if (!res.ok) {
+        throw new Error(res.status === 429 ? "Too many requests" : "Prices request failed");
+      }
       const body = await res.json();
       const map: Record<string, number> = {};
       for (const p of body.prices ?? []) map[p.symbol] = p.priceUsd;
       return map;
     },
-    staleTime: THIRTY_SECONDS,
-    refetchInterval: THIRTY_SECONDS,
+    staleTime: POLL_MS,
+    refetchInterval: POLL_MS,
   });
   return data ?? EMPTY_PRICES;
 }
