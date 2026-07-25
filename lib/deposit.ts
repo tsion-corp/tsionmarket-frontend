@@ -24,6 +24,24 @@ export interface DepositChain {
   nativeSymbol: string;
   nativeDecimals: number;
   logoUrl: string | null;
+  blockExplorer: string | null;
+}
+
+// Tron's explorer uses a hash-route path; every other chain in Dextopus's
+// catalog (EVM, Solana, Bitcoin, XRP, ...) follows the plain /tx/{hash}
+// convention. Verified against Dextopus's own chain list.
+const TRON_CHAIN_ID = 728126428;
+
+// Builds a link to view a transaction on its chain's block explorer, or null
+// when we don't have an explorer URL for that chain.
+export function txExplorerUrl(
+  chainId: number,
+  blockExplorer: string | null,
+  hash: string
+): string | null {
+  if (!blockExplorer) return null;
+  const base = blockExplorer.replace(/\/$/, "");
+  return chainId === TRON_CHAIN_ID ? `${base}/#/transaction/${hash}` : `${base}/tx/${hash}`;
 }
 
 export interface DepositToken {
@@ -46,6 +64,22 @@ export interface QuoteRequest {
   refundTo?: string;
   slippageBps?: number;
   static?: boolean;
+  // Locks the deposit address to the exact quoted amount: an under/overpay
+  // auto-refunds to refundTo instead of settling at a different rate.
+  strict?: boolean;
+}
+
+// A valid conversion target for a given origin asset, as reported by
+// GET /deposit/destinations. Used to build the "withdraw to" chain + token
+// picker: only options Dextopus itself confirms it can route to are offered.
+export interface WithdrawDestination {
+  destinationChainId: number;
+  blockchain: string;
+  currency: string;
+  symbol: string;
+  decimals: number;
+  addressKind: AddressKind;
+  logoUrl: string | null;
 }
 
 export interface QuoteResult {
@@ -170,6 +204,23 @@ export const SETTLE_CHAINS: Record<SettleChainKey, SettleChain> = {
 };
 
 export const SETTLE_ORDER: readonly SettleChainKey[] = ["base", "arbitrum", "polygon", "solana"];
+
+// The portfolio only ever holds balances on these four networks (see
+// lib/server/alchemy.ts), so this reverse lookup is exhaustive: every held
+// token's Alchemy network resolves to a Dextopus chain id.
+export function chainIdForNetwork(network: string): number | null {
+  return (
+    SETTLE_ORDER.map((key) => SETTLE_CHAINS[key]).find((c) => c.alchemyNetwork === network)
+      ?.chainId ?? null
+  );
+}
+
+// Identifies a (chain, token) pair across Dextopus's origin-token catalog, so
+// a held token can be checked against the solver-eligible set it was fetched
+// from.
+export function eligibilityKey(chainId: number, address: string): string {
+  return `${chainId}:${address.toLowerCase()}`;
+}
 
 // Per-origin deposit minimum in USD value of the sent asset (Dextopus docs).
 // Matched by chain name since only a few chains carry a non-default minimum.

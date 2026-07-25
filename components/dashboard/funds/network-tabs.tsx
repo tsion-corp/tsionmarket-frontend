@@ -8,6 +8,16 @@ import type { DepositChain } from "@/lib/deposit";
 
 interface NetworkTabsProps {
   chains: DepositChain[];
+  // Chain ids that actually have a static-address-eligible token, from
+  // Dextopus's solver-curated catalog. A chain missing from this set is
+  // hidden even if /deposit/chains lists it, so no pick dead-ends into an
+  // empty token list.
+  eligibleChainIds: Set<number>;
+  // Deposits need a refundable origin wallet, so that picker also restricts
+  // to families we hold a wallet for (isSupportedOrigin). A destination has
+  // no such requirement — any chain Dextopus can route to is fair game — so
+  // callers picking a withdrawal target pass false to skip that filter.
+  filterOrigin?: boolean;
   selectedId: number | null;
   onSelect: (chain: DepositChain) => void;
   loading: boolean;
@@ -39,6 +49,8 @@ function ChainGlyph({ chain, size = 20 }: { chain: DepositChain; size?: number }
 // set is one tap away.
 export function NetworkTabs({
   chains,
+  eligibleChainIds,
+  filterOrigin = true,
   selectedId,
   onSelect,
   loading,
@@ -48,10 +60,14 @@ export function NetworkTabs({
   const [query, setQuery] = useState("");
 
   const list = useMemo(() => {
-    const supported = orderChains(chains.filter((c) => isSupportedOrigin(c.chainId)));
+    const supported = orderChains(
+      chains.filter(
+        (c) => (!filterOrigin || isSupportedOrigin(c.chainId)) && eligibleChainIds.has(c.chainId)
+      )
+    );
     const q = query.trim().toLowerCase();
     return q ? supported.filter((c) => c.name.toLowerCase().includes(q)) : supported;
-  }, [chains, query]);
+  }, [chains, eligibleChainIds, filterOrigin, query]);
 
   return (
     <div>

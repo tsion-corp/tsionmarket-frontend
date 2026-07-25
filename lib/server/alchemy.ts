@@ -243,6 +243,19 @@ function alchemyKeys(purpose: "prices" | "portfolio"): string[] {
   return unique;
 }
 
+// Thrown with the upstream status folded into the message so route handlers
+// and the client's retry guard can both recognize a 429 without re-parsing
+// anything. Kept as a plain Error (not a subclass) since it crosses a
+// server/client boundary via JSON, where only the message survives anyway.
+function alchemyError(status: number): Error {
+  return new Error(`Alchemy request failed: ${status}`);
+}
+
+export function isRateLimitError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return message.includes("429") || message.includes("rate limit") || message.includes("too many");
+}
+
 async function alchemyFetch(
   keys: string[],
   buildUrl: (key: string) => string,
@@ -253,7 +266,7 @@ async function alchemyFetch(
     try {
       const res = await fetch(buildUrl(key), { ...init, signal: AbortSignal.timeout(7000) });
       if (res.ok) return res;
-      lastError = new Error(`Alchemy request failed: ${res.status}`);
+      lastError = alchemyError(res.status);
     } catch (error) {
       lastError = error;
     }
@@ -261,48 +274,72 @@ async function alchemyFetch(
   throw lastError ?? new Error("Alchemy request failed");
 }
 
+// Short in-memory cache so a burst of near-simultaneous requests — multiple
+// browser tabs on the same wallet, every dashboard section re-rendering on
+// load, the native-price lookup below that every user's portfolio fetch
+// triggers with the identical ["ETH","POL","SOL"] key — collapses into one
+// upstream Alchemy call instead of one per caller. Short enough that it never
+// reads as stale next to the 30s client poll interval; it only absorbs
+// bursts. In-process only: fine for smoothing load, not meant to survive a
+// restart or span multiple server instances.
+const CACHE_TTL_MS = 15_000;
+const responseCache = new Map<string, { expires: number; value: unknown }>();
+
+async function cached<T>(cacheKey: string, load: () => Promise<T>): Promise<T> {
+  const hit = responseCache.get(cacheKey);
+  if (hit && hit.expires > Date.now()) return hit.value as T;
+  const value = await load();
+  responseCache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, value });
+  return value;
+}
+
 export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
   if (symbols.length === 0) return [];
-
-  const params = new URLSearchParams();
-  for (const s of symbols) params.append("symbols", s);
-  const res = await alchemyFetch(
-    alchemyKeys("prices"),
-    (key) => `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
-  );
-  const data = await res.json();
-  const out: SymbolPrice[] = [];
-  for (const item of data?.data ?? []) {
-    const usd = item?.prices?.find((p: { currency: string }) => p.currency === "usd");
-    out.push({ symbol: item.symbol, priceUsd: usd ? parseFloat(usd.value) : 0 });
-  }
-  return out;
+  const cacheKey = `prices:${[...symbols].sort().join(",")}`;
+  return cached(cacheKey, async () => {
+    const params = new URLSearchParams();
+    for (const s of symbols) params.append("symbols", s);
+    const res = await alchemyFetch(
+      alchemyKeys("prices"),
+      (key) => `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
+    );
+    const data = await res.json();
+    const out: SymbolPrice[] = [];
+    for (const item of data?.data ?? []) {
+      const usd = item?.prices?.find((p: { currency: string }) => p.currency === "usd");
+      out.push({ symbol: item.symbol, priceUsd: usd ? parseFloat(usd.value) : 0 });
+    }
+    return out;
+  });
 }
 
 export async function fetchPortfolio(evm?: string, solana?: string): Promise<Portfolio> {
-  const addresses: { address: string; networks: string[] }[] = [];
-  if (evm) addresses.push({ address: evm, networks: EVM_NETWORKS });
-  if (solana) addresses.push({ address: solana, networks: [SOLANA_NETWORK] });
-  if (addresses.length === 0) return { totalUsd: 0, tokens: [] };
+  if (!evm && !solana) return { totalUsd: 0, tokens: [] };
+  const cacheKey = `portfolio:${evm ?? ""}:${solana ?? ""}`;
+  return cached(cacheKey, async () => {
+    const addresses: { address: string; networks: string[] }[] = [];
+    if (evm) addresses.push({ address: evm, networks: EVM_NETWORKS });
+    if (solana) addresses.push({ address: solana, networks: [SOLANA_NETWORK] });
 
-  const body = JSON.stringify({
-    addresses,
-    withMetadata: true,
-    withPrices: true,
-    includeNativeTokens: true,
-    includeErc20Tokens: true,
+    const body = JSON.stringify({
+      addresses,
+      withMetadata: true,
+      withPrices: true,
+      includeNativeTokens: true,
+      includeErc20Tokens: true,
+    });
+    const res = await alchemyFetch(
+      alchemyKeys("portfolio"),
+      (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body }
+    );
+
+    const [data, rwa] = await Promise.all([res.json(), fetchRwaRegistry()]);
+    const held = normalize(data?.data?.tokens ?? [], rwa);
+    // Only baseline the chains the user actually has a wallet on.
+    const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
+    const tokens = await withTrackedBaseline(held, networks);
+    const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
+    return { totalUsd, tokens };
   });
-  const res = await alchemyFetch(
-    alchemyKeys("portfolio"),
-    (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
-    { method: "POST", headers: { "Content-Type": "application/json" }, body }
-  );
-
-  const [data, rwa] = await Promise.all([res.json(), fetchRwaRegistry()]);
-  const held = normalize(data?.data?.tokens ?? [], rwa);
-  // Only baseline the chains the user actually has a wallet on.
-  const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
-  const tokens = await withTrackedBaseline(held, networks);
-  const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
-  return { totalUsd, tokens };
 }

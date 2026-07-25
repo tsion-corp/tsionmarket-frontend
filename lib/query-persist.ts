@@ -1,13 +1,19 @@
-// Query-key prefixes whose data is safe to persist to localStorage. These are
-// long-lived catalogs (Dextopus chains/tokens, minted static addresses, the RWA
-// registry, FX rates) that rarely change, so persisting them makes the data
-// render instantly on the next visit instead of refetching. Volatile queries
-// (portfolio, prices, deposit-status polls, token logos) are intentionally
-// excluded so persisted state never goes stale in a harmful way.
+// Query-key prefixes whose data is safe to persist to localStorage, so a
+// reload paints the last-known value immediately instead of a blank/zero
+// state. This is safe even for volatile data like portfolio and prices
+// because each query keeps its own short staleTime — a rehydrated value is
+// shown at once, but React Query's normal refetch-on-mount immediately fires
+// a background refresh behind it, so the stale window is bounded by however
+// long that refetch takes (typically well under a second), not by how old
+// the persisted snapshot was. Still excluded: deposit-status polls and token
+// logos, which have no meaningful "last known" value worth showing early.
 export const PERSISTED_PREFIXES = new Set([
   "deposit-chains",
   "deposit-tokens",
+  "deposit-master-eligibility",
   "deposit-static",
+  "portfolio",
+  "prices",
   "rwa-assets",
   "rwa-categories",
   "fx-rates",
@@ -16,8 +22,11 @@ export const PERSISTED_PREFIXES = new Set([
 
 export const RQ_PERSIST_KEY = "wsws.rq-cache.v1";
 export const RQ_PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
-// Bump to invalidate every persisted cache after a shape change.
-export const RQ_PERSIST_BUSTER = "wsws-2026-07";
+// Bump to invalidate every persisted cache after a shape change. Bumped again
+// here: deposit-tokens' supportsStaticAddress correction and the deposit
+// flow's settle-to-Base change both altered what a persisted entry means, so
+// anything cached under the old shape has to be dropped, not reused.
+export const RQ_PERSIST_BUSTER = "wsws-2026-07-25";
 
 // Long gcTime for persisted queries so they are not evicted from memory before
 // the throttled write reaches storage, and so a restore has something to hydrate.

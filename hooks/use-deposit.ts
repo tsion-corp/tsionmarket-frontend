@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import {
   TERMINAL_STAGES,
   depositProgress,
+  eligibilityKey,
+  type AddressKind,
   type DepositChain,
   type DepositStatusResult,
   type DepositToken,
@@ -16,6 +18,7 @@ import {
   type StaticAddressRequest,
   type StaticAddressResult,
   type ValidateAddressResult,
+  type WithdrawDestination,
 } from "@/lib/deposit";
 import { PERSISTED_GC_TIME } from "@/lib/query-persist";
 
@@ -47,10 +50,27 @@ function errorMessage(data: unknown, fallback: string): string {
   return fallback;
 }
 
+// Carries the HTTP status so callers can tell a request-shaped rejection
+// (4xx, retrying the same input will never succeed) from a transient
+// server/network failure (worth a retry).
+export class DextopusError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "DextopusError";
+    this.status = status;
+  }
+}
+
+export function isRetryableDextopusError(error: unknown): boolean {
+  if (!(error instanceof DextopusError)) return true;
+  return error.status >= 500;
+}
+
 async function dextopusGet<T>(path: string, fallback: string): Promise<T> {
   const res = await apiFetch(`/api/dextopus/${path}`);
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(errorMessage(data, fallback));
+  if (!res.ok) throw new DextopusError(errorMessage(data, fallback), res.status);
   return data as T;
 }
 
@@ -61,7 +81,7 @@ async function dextopusPost<T>(path: string, body: unknown, fallback: string): P
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(errorMessage(data, fallback));
+  if (!res.ok) throw new DextopusError(errorMessage(data, fallback), res.status);
   return data as T;
 }
 
@@ -70,6 +90,7 @@ interface RawChain {
   name: string;
   nativeCurrency?: { symbol?: string; decimals?: number };
   logoUrl?: string;
+  blockExplorer?: string;
 }
 
 interface RawToken {
@@ -80,6 +101,134 @@ interface RawToken {
   chainId: number;
   logoUrl?: string;
   supportsStaticAddress?: boolean;
+}
+
+// Dextopus's per-chain `deposit/tokens?chainId=X` catalog carries a
+// `supportsStaticAddress` flag that is unreliable: on Polygon it flags native
+// POL and wrapped WPOL as eligible, and `deposit/static/generate` then rejects
+// both with "only supported for major tokens." Their own unfiltered
+// `deposit/tokens` call (no chainId) returns the actual solver-curated token
+// set the generate endpoint honors, so we cross-reference against that
+// instead of trusting the per-chain flag.
+interface RawMasterToken {
+  address: string;
+  chainId: number;
+  supportsStaticAddress?: boolean;
+}
+
+interface MasterEligibility {
+  // "{chainId}:{address}" keys, used to correct the per-chain endpoint's
+  // unreliable supportsStaticAddress flag.
+  keys: string[];
+  // Chain ids that have at least one eligible origin token, so the network
+  // picker never offers a chain that dead-ends into an empty token list.
+  chainIds: number[];
+}
+
+export async function fetchMasterEligibility(): Promise<MasterEligibility> {
+  const data = await dextopusGet<{ tokens?: RawMasterToken[] }>(
+    "deposit/tokens",
+    "Couldn't load token eligibility"
+  );
+  const keys: string[] = [];
+  const chainIds = new Set<number>();
+  for (const t of data.tokens ?? []) {
+    if (!t.supportsStaticAddress) continue;
+    keys.push(eligibilityKey(t.chainId, t.address));
+    chainIds.add(t.chainId);
+  }
+  return { keys, chainIds: [...chainIds] };
+}
+
+export const MASTER_ELIGIBILITY_KEY = ["deposit-master-eligibility"] as const;
+
+function useMasterEligibility() {
+  return useQuery<MasterEligibility>({
+    queryKey: MASTER_ELIGIBILITY_KEY,
+    ...CATALOG_OPTIONS,
+    queryFn: fetchMasterEligibility,
+  });
+}
+
+// Chain ids with at least one static-address-eligible origin token, per
+// Dextopus's solver-curated catalog (GET /deposit/tokens, no chainId). The
+// "From network" picker filters to this set so every offered network
+// actually has a sendable token once selected.
+export function useEligibleOriginChainIds() {
+  const master = useMasterEligibility();
+  return {
+    data: master.data ? new Set(master.data.chainIds) : undefined,
+    isPending: master.isPending,
+    isError: master.isError,
+    refetch: master.refetch,
+  };
+}
+
+// "{chainId}:{address}" keys of tokens Dextopus can accept as a deposit or
+// withdrawal origin. The withdrawal screen filters a user's held tokens
+// against this before offering them as a "withdraw from" source, so a token
+// Dextopus can't route never even reaches the quote step.
+export function useOriginEligibleKeys() {
+  const master = useMasterEligibility();
+  return {
+    data: master.data ? new Set(master.data.keys) : undefined,
+    isPending: master.isPending,
+    isError: master.isError,
+    refetch: master.refetch,
+  };
+}
+
+interface RawDestination {
+  destinationChainId: number;
+  blockchain: string;
+  currency: string;
+  symbol: string;
+  decimals: number;
+  addressKind?: string;
+  logoUrl?: string;
+}
+
+// Valid conversion targets for a given origin token, per Dextopus's solver
+// (GET /deposit/destinations). This is the same forward path a deposit uses,
+// just read for the reverse direction: our own held origin token routes out
+// to whichever of these the user picks.
+export async function fetchWithdrawDestinations(
+  originChainId: number,
+  originAddress: string
+): Promise<WithdrawDestination[]> {
+  const data = await dextopusGet<{ destinations?: RawDestination[] }>(
+    `deposit/destinations?originChainId=${originChainId}&originAddress=${encodeURIComponent(originAddress)}`,
+    "Couldn't load withdrawal destinations"
+  );
+  return (data.destinations ?? []).map((d) => ({
+    destinationChainId: d.destinationChainId,
+    blockchain: d.blockchain,
+    currency: d.currency,
+    symbol: d.symbol,
+    decimals: d.decimals,
+    addressKind: (d.addressKind as AddressKind | undefined) ?? "evm",
+    logoUrl: d.logoUrl ?? null,
+  }));
+}
+
+export interface WithdrawOrigin {
+  chainId: number;
+  address: string;
+}
+
+export function useWithdrawDestinations(origin: WithdrawOrigin | null) {
+  return useQuery<WithdrawDestination[]>({
+    queryKey: ["withdraw-destinations", origin?.chainId ?? null, origin?.address ?? null],
+    enabled: origin !== null,
+    staleTime: ONE_HOUR,
+    gcTime: PERSISTED_GC_TIME,
+    refetchOnWindowFocus: false,
+    queryFn: () =>
+      fetchWithdrawDestinations(
+        (origin as WithdrawOrigin).chainId,
+        (origin as WithdrawOrigin).address
+      ),
+  });
 }
 
 export const DEPOSIT_CHAINS_KEY = ["deposit-chains"] as const;
@@ -97,11 +246,15 @@ export async function fetchDepositChains(): Promise<DepositChain[]> {
       nativeSymbol: c.nativeCurrency?.symbol ?? "",
       nativeDecimals: c.nativeCurrency?.decimals ?? 18,
       logoUrl: c.logoUrl ?? null,
+      blockExplorer: c.blockExplorer ?? null,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export async function fetchDepositTokens(chainId: number): Promise<DepositToken[]> {
+export async function fetchDepositTokens(
+  chainId: number,
+  eligible: Set<string>
+): Promise<DepositToken[]> {
   const data = await dextopusGet<{ tokens?: RawToken[] }>(
     `deposit/tokens?chainId=${chainId}`,
     "Couldn't load tokens"
@@ -113,7 +266,7 @@ export async function fetchDepositTokens(chainId: number): Promise<DepositToken[
     decimals: t.decimals,
     chainId: t.chainId,
     logoUrl: t.logoUrl ?? null,
-    supportsStaticAddress: Boolean(t.supportsStaticAddress),
+    supportsStaticAddress: eligible.has(eligibilityKey(t.chainId, t.address)),
   }));
 }
 
@@ -126,11 +279,14 @@ export function useDepositChains() {
 }
 
 export function useDepositTokens(chainId: number | null) {
+  const master = useMasterEligibility();
+  const eligibleSet = useMemo(() => new Set(master.data?.keys ?? []), [master.data]);
+
   return useQuery<DepositToken[]>({
     queryKey: depositTokensKey(chainId ?? 0),
-    enabled: chainId !== null,
+    enabled: chainId !== null && master.data !== undefined,
     ...CATALOG_OPTIONS,
-    queryFn: () => fetchDepositTokens(chainId as number),
+    queryFn: () => fetchDepositTokens(chainId as number, eligibleSet),
   });
 }
 
