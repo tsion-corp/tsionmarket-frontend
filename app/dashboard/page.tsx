@@ -75,7 +75,7 @@ export default function DashboardPage() {
         onOpenConfirm={openConfirm}
       />
     ),
-    trade: <Trade onOpenDetail={openDetail} />,
+    trade: <Trade />,
     markets: <Markets onOpenDetail={openDetail} onOpenBuy={openBuy} />,
     rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
     prediction: <Prediction />,
