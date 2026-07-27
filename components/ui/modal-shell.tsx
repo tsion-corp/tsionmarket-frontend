@@ -7,9 +7,13 @@ interface ModalShellProps {
   open: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  // Identity of the current content. When it changes while the shell stays open
+  // (e.g. the detail modal opening the buy sheet), the new content slides in
+  // instead of swapping instantly.
+  contentKey?: string | number;
 }
 
-export function ModalShell({ open, onClose, children }: ModalShellProps) {
+export function ModalShell({ open, onClose, children, contentKey }: ModalShellProps) {
   const reduce = useReducedMotion();
 
   return (
@@ -42,11 +46,21 @@ export function ModalShell({ open, onClose, children }: ModalShellProps) {
             <button
               onClick={onClose}
               aria-label="Close"
-              className="absolute top-[18px] right-[18px] grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full border border-white/12 bg-white/6 text-white/70"
+              className="absolute top-[18px] right-[18px] z-[1] grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full border border-white/12 bg-white/6 text-white/70"
             >
               <CloseIcon />
             </button>
-            {children}
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={contentKey}
+                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                exit={reduce ? { opacity: 0 } : { opacity: 0, y: -10 }}
+                transition={{ duration: 0.16, ease: "easeOut" }}
+              >
+                {children}
+              </motion.div>
+            </AnimatePresence>
           </motion.div>
         </motion.div>
       ) : null}

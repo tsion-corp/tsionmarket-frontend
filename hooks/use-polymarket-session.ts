@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { friendlyError } from "@/lib/errors";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { deployDepositWallet, isWalletDeployed } from "@polymarket/client/actions";
 import type { EIP1193Provider } from "viem";
@@ -64,7 +65,7 @@ export function usePolymarketSession() {
       return await building;
     } catch (e) {
       setStatus("error");
-      setError(e instanceof Error ? e.message : "Could not connect to Polymarket");
+      setError(friendlyError(e, "Couldn't connect to predictions. Please try again."));
       throw e;
     } finally {
       building = null;

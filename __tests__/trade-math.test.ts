@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   fromBaseUnits,
   liquidationPrice,
+  openFee,
   positionSize,
   receiveFromPrices,
   toBaseUnits,
@@ -83,5 +84,17 @@ describe("receiveFromPrices", () => {
   it("returns zero when a price is missing", () => {
     expect(receiveFromPrices(1000, 0, 174.2)).toBe(0);
     expect(receiveFromPrices(1000, 1, 0)).toBe(0);
+  });
+});
+
+describe("openFee", () => {
+  it("is a flat rate on the notional size", () => {
+    expect(openFee(10_000)).toBeCloseTo(6);
+    expect(openFee(2500)).toBeCloseTo(1.5);
+  });
+
+  it("is zero for a non-positive size", () => {
+    expect(openFee(0)).toBe(0);
+    expect(openFee(-100)).toBe(0);
   });
 });

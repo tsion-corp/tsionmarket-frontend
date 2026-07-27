@@ -7,7 +7,7 @@ import { RwaAssetList } from "@/components/dashboard/rwa/rwa-asset-list";
 import { RwaTradePanel } from "@/components/dashboard/rwa/rwa-trade-panel";
 import { RwaDetailSheet } from "@/components/dashboard/rwa/rwa-detail-sheet";
 import { useRwaAssets } from "@/hooks/use-rwa-assets";
-import { isTradable } from "@/lib/rwa/presenter";
+import { isBaseAsset, isTradable } from "@/lib/rwa/presenter";
 import type { RwaApiAsset } from "@/lib/rwa-api";
 import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
 
@@ -25,9 +25,11 @@ export const RwaSection: FC<RwaSectionProps> = () => {
   const [selectedId, setSelectedId] = useState("");
   const [detailAsset, setDetailAsset] = useState<RwaApiAsset | null>(null);
 
-  // Only buyable assets are shown — non-tradable (issuer-only) ones are filtered
-  // out entirely, so every row is actionable. The list owns search/sort/paging.
-  const buyable = useMemo(() => assets.filter(isTradable), [assets]);
+  // The table shows only buyable assets on Base: non-tradable (issuer-only) ones
+  // and assets on other chains are filtered out, so every row is actionable and
+  // on Base. Category tabs derive from this list, so they follow the filter. The
+  // list owns search/sort/paging.
+  const buyable = useMemo(() => assets.filter((a) => isTradable(a) && isBaseAsset(a)), [assets]);
   const selected = buyable.find((a) => a.id === selectedId) ?? buyable[0] ?? null;
 
   const onTrade = (asset: RwaApiAsset) => {

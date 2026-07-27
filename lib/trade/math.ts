@@ -47,6 +47,14 @@ export function liquidationPrice(
   return side === "long" ? entry * (1 - distance) : entry * (1 + distance);
 }
 
+// Estimated fee to open a position, a flat rate on the notional size. Like the
+// liquidation model this is a UI estimate; real venues vary the rate per market.
+export const OPEN_FEE_RATE = 0.0006;
+
+export function openFee(size: number): number {
+  return size > 0 ? size * OPEN_FEE_RATE : 0;
+}
+
 // Amount of the receive asset you get by paying `amount` of the pay asset,
 // derived purely from live USD prices. Used when no on-chain route is available.
 export function receiveFromPrices(amount: number, payPrice: number, receivePrice: number): number {

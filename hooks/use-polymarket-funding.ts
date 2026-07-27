@@ -1,35 +1,37 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { friendlyError } from "@/lib/errors";
 import { usePolymarketSession } from "@/hooks/use-polymarket-session";
 import { useSendUsdc } from "@/hooks/use-withdraw";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { apiFetch } from "@/lib/api";
-import { SETTLE_CHAINS, type SettleChain } from "@/lib/deposit";
+import { SETTLE_CHAINS } from "@/lib/deposit";
 import { toBaseUnits } from "@/lib/trade/math";
 
-// Funding sources in preference order. Polymarket's deposit bridge is itself
-// cross-chain, so we send from whichever chain the user already holds USDC on —
-// Polygon first (cheapest, same chain), then the other EVM chains, then Solana —
-// and it auto-wraps to pUSD regardless of origin.
-const SOURCES: { network: string; settle: SettleChain; family: "evm" | "svm" }[] = [
-  { network: "polygon-mainnet", settle: SETTLE_CHAINS.polygon, family: "evm" },
-  { network: "base-mainnet", settle: SETTLE_CHAINS.base, family: "evm" },
-  { network: "arb-mainnet", settle: SETTLE_CHAINS.arbitrum, family: "evm" },
-  { network: "solana-mainnet", settle: SETTLE_CHAINS.solana, family: "svm" },
-];
+// Betting settles in pUSD inside the Polymarket account. We fund it from the
+// user's USDC on Base only: the platform runs on Base, so every spend comes from
+// there. Polymarket's deposit bridge is cross-chain and auto-wraps the incoming
+// USDC to pUSD in the account's Deposit Wallet (a short, asynchronous hop).
+const FUNDING_NETWORK = "base-mainnet";
+const FUNDING_SETTLE = SETTLE_CHAINS.base;
 
-// The bridge returns an address per VM family; keys have varied across versions,
-// so pull each defensively.
-function pickAddress(data: unknown, family: "evm" | "svm"): string | null {
+// The bridge returns an address per VM family under `address` (e.g.
+// { address: { evm, svm, tron, btc } }). Key names have varied across versions,
+// so check the known containers and EVM keys defensively. We only ever use the
+// EVM address (Base origin).
+function pickEvmAddress(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const d = data as Record<string, unknown>;
-  const nested = (d.addresses as Record<string, unknown>) ?? {};
-  const keys =
-    family === "evm" ? ["evm", "evmAddress", "polygon"] : ["svm", "solana", "svmAddress"];
-  const re = family === "evm" ? /^0x[0-9a-fA-F]{40}$/ : /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-  for (const k of keys) {
-    for (const v of [d[k], nested[k]]) {
+  const re = /^0x[0-9a-fA-F]{40}$/;
+  const containers: Record<string, unknown>[] = [d];
+  for (const key of ["address", "addresses"]) {
+    const c = d[key];
+    if (c && typeof c === "object") containers.push(c as Record<string, unknown>);
+  }
+  for (const c of containers) {
+    for (const k of ["evm", "evmAddress", "polygon"]) {
+      const v = c[k];
       if (typeof v === "string" && re.test(v)) return v;
     }
   }
@@ -43,58 +45,48 @@ export function usePolymarketFunding() {
   const [funding, setFunding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const usdcOn = useCallback(
-    (network: string) =>
+  // Spendable USDC on Base — the only funding source.
+  const usdcTotal = useMemo(
+    () =>
       tokens
-        .filter((t) => t.symbol === "USDC" && t.network === network)
+        .filter((t) => t.symbol === "USDC" && t.network === FUNDING_NETWORK)
         .reduce((sum, t) => sum + t.balance, 0),
     [tokens]
   );
 
-  // Total USDC across the fundable chains — what the user can actually pull from.
-  const usdcTotal = useMemo(() => SOURCES.reduce((sum, s) => sum + usdcOn(s.network), 0), [usdcOn]);
-
+  // Sends `amountUsd` of Base USDC to the deposit bridge, which credits pUSD to
+  // the account's Deposit Wallet. Resolves once the Base transfer is sent; the
+  // pUSD lands a little later, which the caller waits out.
   const fund = useCallback(
     async (amountUsd: number): Promise<string> => {
       setFunding(true);
       setError(null);
       try {
-        // Choose the source chain: one with enough USDC, else any with a balance.
-        const source =
-          SOURCES.find((s) => usdcOn(s.network) >= amountUsd) ??
-          SOURCES.find((s) => usdcOn(s.network) > 0);
-        if (!source) {
-          throw new Error("You don't have enough USDC yet. Add USDC to your wallet first.");
-        }
-
         const client = await ensureReady();
-        const account = client.account.wallet;
-
         const res = await apiFetch("/api/polymarket/deposit-address", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ address: account }),
+          body: JSON.stringify({ address: client.account.wallet }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error("Could not get a deposit address");
-        const bridge = pickAddress(data, source.family);
-        if (!bridge) throw new Error("No deposit address returned for that chain");
+        const bridge = pickEvmAddress(data);
+        if (!bridge) throw new Error("No deposit address returned");
 
         return await sendUsdc({
-          chainType: source.family === "evm" ? "ethereum" : "solana",
+          chainType: "ethereum",
           to: bridge,
           amount: toBaseUnits(String(amountUsd), 6),
-          settle: source.settle,
+          settle: FUNDING_SETTLE,
         });
       } catch (e) {
-        const message = e instanceof Error ? e.message : "Could not add funds.";
-        setError(message);
+        setError(friendlyError(e, "Couldn't add funds. Please try again."));
         throw e;
       } finally {
         setFunding(false);
       }
     },
-    [ensureReady, sendUsdc, usdcOn]
+    [ensureReady, sendUsdc]
   );
 
   return { fund, funding, error, usdcTotal, portfolioLoading };

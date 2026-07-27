@@ -1,13 +1,26 @@
 import "server-only";
 import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
+import { fetchBuyableRegistry, type BuyableRegistry } from "@/lib/server/buyable-registry";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
 
-// We track/hold on the four settlement chains only (Base, Arbitrum, Polygon,
-// Solana) — USDC plus the native gas token on each.
-const EVM_NETWORKS = ["base-mainnet", "arb-mainnet", "polygon-mainnet"];
+// The chains we read holdings on: the networks a buy can settle to, so a bought
+// asset shows on the chain it landed on. Keep in sync with SUPPORTED_CHAINS in
+// lib/buy.ts.
+const EVM_NETWORKS = [
+  "base-mainnet",
+  "eth-mainnet",
+  "arb-mainnet",
+  "opt-mainnet",
+  "polygon-mainnet",
+];
 const SOLANA_NETWORK = "solana-mainnet";
+
+// How a holding is classified for display: a native coin (ETH/POL/SOL), a
+// stablecoin (USDC/USDT), a real-world asset (from the RWA registry), or any
+// other token.
+export type AssetKind = "coin" | "stablecoin" | "rwa" | "token";
 
 export interface TokenBalance {
   symbol: string;
@@ -15,7 +28,13 @@ export interface TokenBalance {
   network: string;
   address: string | null;
   decimals: number;
+  // What kind of asset this is, for the holdings "Type" column.
+  kind: AssetKind;
   balance: number;
+  // Exact on-chain balance in base units, as a decimal string. `balance` is a
+  // lossy float for display; `rawBalance` is the precise integer to send so a
+  // "max" never rounds above what the wallet actually holds.
+  rawBalance: string;
   priceUsd: number;
   valueUsd: number;
   logo: string | null;
@@ -34,8 +53,11 @@ interface AlchemyToken {
   tokenPrices?: { currency: string; value: string }[];
 }
 
-function toNumber(hexOrDec: string, decimals: number): number {
-  const raw = hexOrDec.startsWith("0x") ? BigInt(hexOrDec) : BigInt(hexOrDec || "0");
+function toRawUnits(hexOrDec: string): bigint {
+  return hexOrDec.startsWith("0x") ? BigInt(hexOrDec) : BigInt(hexOrDec || "0");
+}
+
+function toNumber(raw: bigint, decimals: number): number {
   return Number(raw) / 10 ** decimals;
 }
 
@@ -79,7 +101,9 @@ const STABLE_NAME: Record<string, string> = { USDC: "USD Coin", USDT: "Tether" }
 // The chains we track. Native gas tokens are only shown on these.
 const TRACKED_CHAINS = new Set([
   "base-mainnet",
+  "eth-mainnet",
   "arb-mainnet",
+  "opt-mainnet",
   "polygon-mainnet",
   "solana-mainnet",
 ]);
@@ -106,7 +130,8 @@ function isAllowedHolding(
   network: string,
   address: string | null,
   isNative: boolean,
-  rwa: RwaRegistry
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
 ): boolean {
   if (isNative) return TRACKED_CHAINS.has(network);
   if (!address) return false;
@@ -114,7 +139,8 @@ function isAllowedHolding(
   return (
     isTrackedStable(network, address) ||
     (ALLOWED_EXTRA[network] ?? []).includes(lower) ||
-    (rwa[network]?.has(lower) ?? false)
+    (rwa[network]?.has(lower) ?? false) ||
+    (buyable[network]?.has(lower) ?? false)
   );
 }
 
@@ -123,20 +149,26 @@ function isAllowedHolding(
 // rest of the app (labels, gas checks, funding) sees one consistent network id.
 const NETWORK_ALIAS: Record<string, string> = { "matic-mainnet": "polygon-mainnet" };
 
-function normalize(tokens: AlchemyToken[], rwa: RwaRegistry): TokenBalance[] {
+function normalize(
+  tokens: AlchemyToken[],
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
+): TokenBalance[] {
   const out: TokenBalance[] = [];
   for (const t of tokens) {
     const network = NETWORK_ALIAS[t.network] ?? t.network;
     const isNative = t.tokenAddress == null;
     const address = t.tokenAddress ?? null;
-    // Strict allowlist — only recognized tokens ever appear, so no spam or fake
-    // token can reach any user's portfolio.
-    if (!isAllowedHolding(network, address, isNative, rwa)) continue;
+    // Strict allowlist — only recognized tokens (tracked stables, cbBTC, RWAs,
+    // and buyable-catalog tokens) ever appear, so no spam or fake token can reach
+    // any user's portfolio.
+    if (!isAllowedHolding(network, address, isNative, rwa, buyable)) continue;
 
     const rwaInfo = address ? rwa[network]?.get(address.toLowerCase()) : undefined;
     const native = isNative ? NATIVE_TOKEN[network] : undefined;
     const decimals = native?.decimals ?? t.tokenMetadata?.decimals ?? 18;
-    const balance = toNumber(t.tokenBalance, decimals);
+    const rawUnits = toRawUnits(t.tokenBalance);
+    const balance = toNumber(rawUnits, decimals);
     if (balance <= 0) continue;
     // Resolve identity, falling back to the RWA registry for tokens Alchemy
     // returns without metadata.
@@ -149,13 +181,22 @@ function normalize(tokens: AlchemyToken[], rwa: RwaRegistry): TokenBalance[] {
     // (Polygon USDC has done this). They are dollar-pegged, so value a held
     // balance at $1 rather than $0, which would hide a real holding.
     if (priceUsd === 0 && isTrackedStable(network, address)) priceUsd = 1;
+    const kind: AssetKind = isNative
+      ? "coin"
+      : rwaInfo
+        ? "rwa"
+        : isTrackedStable(network, address)
+          ? "stablecoin"
+          : "token";
     out.push({
       symbol,
       name: native?.name ?? t.tokenMetadata?.name ?? symbol,
       network,
       address,
       decimals,
+      kind,
       balance,
+      rawBalance: rawUnits.toString(),
       priceUsd,
       valueUsd: balance * priceUsd,
       logo: t.tokenMetadata?.logo ?? rwaInfo?.logo ?? null,
@@ -186,7 +227,9 @@ async function withTrackedBaseline(
         network,
         address: null,
         decimals: native.decimals,
+        kind: "coin",
         balance: 0,
+        rawBalance: "0",
         priceUsd: priceOf(native.symbol),
         valueUsd: 0,
         logo: null,
@@ -200,7 +243,9 @@ async function withTrackedBaseline(
         network,
         address: stable.address,
         decimals: 6,
+        kind: "stablecoin",
         balance: 0,
+        rawBalance: "0",
         priceUsd: 1,
         valueUsd: 0,
         logo: null,
@@ -334,8 +379,12 @@ export async function fetchPortfolio(evm?: string, solana?: string): Promise<Por
       { method: "POST", headers: { "Content-Type": "application/json" }, body }
     );
 
-    const [data, rwa] = await Promise.all([res.json(), fetchRwaRegistry()]);
-    const held = normalize(data?.data?.tokens ?? [], rwa);
+    const [data, rwa, buyable] = await Promise.all([
+      res.json(),
+      fetchRwaRegistry(),
+      fetchBuyableRegistry(),
+    ]);
+    const held = normalize(data?.data?.tokens ?? [], rwa, buyable);
     // Only baseline the chains the user actually has a wallet on.
     const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
     const tokens = await withTrackedBaseline(held, networks);

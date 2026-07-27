@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -14,12 +14,15 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon } from "@/components/ui/icons";
 import { useMarketTokens } from "@/hooks/use-market-tokens";
+import { useBuyDestinations } from "@/hooks/use-buy-catalog";
+import { buyableSymbols } from "@/lib/buy";
 import type { MarketToken } from "@/lib/market-catalog";
 import { formatUsd } from "@/lib/trade/math";
-import type { DetailPayload } from "@/components/dashboard/modal-types";
+import type { BuyPayload, DetailPayload } from "@/components/dashboard/modal-types";
 
 interface MarketsViewProps {
   onOpenDetail: (detail: DetailPayload) => void;
+  onOpenBuy: (buy: BuyPayload) => void;
 }
 
 const ICON_BG = "linear-gradient(135deg,#A78BFA,#6d5bd0)";
@@ -42,13 +45,28 @@ const columns = [
   columnHelper.accessor("marketCap", { id: "mcap" }),
 ];
 
-export function MarketsView({ onOpenDetail }: MarketsViewProps) {
+export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "mcap", desc: true }]);
   const { data: tokens = [], isLoading, isError } = useMarketTokens("popular");
+  const destinations = useBuyDestinations();
+
+  // Show only assets a user can actually buy: intersect the market list with the
+  // Dextopus buyable set, matched by symbol. While the catalog loads we hold the
+  // table in its loading state rather than flash rows that then disappear. If the
+  // catalog fails, fall back to the full list so price discovery still works.
+  const buyable = useMemo(
+    () => (destinations.data ? buyableSymbols(destinations.data) : null),
+    [destinations.data]
+  );
+  const visibleTokens = useMemo(
+    () => (buyable ? tokens.filter((t) => buyable.has(t.symbol.toUpperCase())) : tokens),
+    [tokens, buyable]
+  );
+  const loading = isLoading || destinations.isLoading;
 
   const table = useReactTable({
-    data: tokens,
+    data: visibleTokens,
     columns,
     state: { globalFilter: search, sorting },
     onGlobalFilterChange: setSearch,
@@ -80,6 +98,9 @@ export function MarketsView({ onOpenDetail }: MarketsViewProps) {
         { k: "24h change", v: changeLabel(t.change24h) },
         { k: "Market cap", v: compactUsd(t.marketCap) },
       ],
+      cta: `Buy ${t.name}`,
+      onCta: () =>
+        onOpenBuy({ symbol: t.symbol, name: t.name, priceUsd: t.priceUsd, logo: t.logo }),
     });
 
   const sortHeader = (id: string, label: string, className: string) => {
@@ -121,7 +142,7 @@ export function MarketsView({ onOpenDetail }: MarketsViewProps) {
           {sortHeader("mcap", "Market cap", "hidden justify-end min-[560px]:flex")}
         </div>
 
-        {isLoading ? (
+        {loading ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             Loading markets…
           </div>
@@ -165,7 +186,7 @@ export function MarketsView({ onOpenDetail }: MarketsViewProps) {
           })
         )}
 
-        {!isLoading && !isError && rows.length > 0 ? (
+        {!loading && !isError && rows.length > 0 ? (
           <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
             <span className="text-[12.5px] font-normal text-white/45">
               Page {pageIndex + 1} of {pageCount}

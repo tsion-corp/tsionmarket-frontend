@@ -1,19 +1,4 @@
-import type {
-  AllocationSlice,
-  FundMethod,
-  Holding,
-  Market,
-  PerpMarket,
-  Position,
-  Prediction,
-} from "@/lib/types";
-
-export const ALLOCATION: AllocationSlice[] = [
-  { name: "Tokenized stocks", pct: 38, color: "#A78BFA" },
-  { name: "Crypto", pct: 31, color: "#7C9CE7" },
-  { name: "Gold & RWA", pct: 19, color: "#E7C97C" },
-  { name: "Stablecoins", pct: 12, color: "rgba(255,255,255,0.4)" },
-];
+import type { FundMethod, Holding, Market, PerpMarket, Position, Prediction } from "@/lib/types";
 
 export const HOLDINGS: Holding[] = [
   {

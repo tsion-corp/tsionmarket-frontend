@@ -2,7 +2,7 @@ export type SectionId = "portfolio" | "trade" | "markets" | "rwa" | "prediction"
 
 export const SECTION_LABEL: Record<SectionId, string> = {
   portfolio: "Portfolio",
-  trade: "Trade",
+  trade: "Perpetuals",
   markets: "Markets",
   rwa: "Real assets",
   prediction: "Prediction",

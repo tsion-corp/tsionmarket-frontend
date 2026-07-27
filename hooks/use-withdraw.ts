@@ -172,9 +172,13 @@ export function useSendUsdc() {
 }
 
 // EVM chain ids by Alchemy network, for direct token/native sends.
+// Every EVM chain we hold balances on, so sends and sells work on all of them.
+// Keep in sync with the portfolio's supported chains (lib/server/alchemy).
 const EVM_CHAIN_ID: Record<string, number> = {
   "base-mainnet": 8453,
+  "eth-mainnet": 1,
   "arb-mainnet": 42161,
+  "opt-mainnet": 10,
   "polygon-mainnet": 137,
 };
 

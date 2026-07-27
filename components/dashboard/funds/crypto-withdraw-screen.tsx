@@ -28,6 +28,7 @@ import {
   type WithdrawDestination,
 } from "@/lib/deposit";
 import { detectAddressKind } from "@/lib/wallet-address";
+import { friendlyError } from "@/lib/errors";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
 
@@ -301,7 +302,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         `Sending ${formatAmount(value)} USDC → ${selectedDestination.symbol} on ${destChainLabel}…`
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The withdrawal was not sent.");
+      setError(friendlyError(e, "The withdrawal wasn't sent. Please try again."));
       toast.error("Withdrawal was not sent.");
     } finally {
       setSubmitting(false);

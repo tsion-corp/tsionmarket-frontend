@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { friendlyError } from "@/lib/errors";
 import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
 import { encodeFunctionData, erc20Abi } from "viem";
 import { usePolymarketSession } from "@/hooks/use-polymarket-session";
@@ -105,7 +106,7 @@ export function usePolymarketWithdraw() {
 
         return true;
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Could not cash out.");
+        setError(friendlyError(e, "Couldn't cash out. Please try again."));
         throw e;
       } finally {
         setWithdrawing(false);
