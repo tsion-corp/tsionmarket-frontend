@@ -50,11 +50,10 @@ interface VaultApiError {
   details?: unknown;
 }
 
-function baseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_VAULT_API_URL;
-  if (!url) throw new Error("Vault isn't configured yet");
-  return url;
-}
+// Reads go through our own same-origin proxy (app/api/vault) rather than the
+// vault gateway directly: the gateway sends no CORS headers, so a direct
+// browser fetch is blocked. The proxy forwards server-side and caches briefly.
+const BASE_PATH = "/api/vault";
 
 // Unwraps the { success, data | error } envelope and throws a typed error.
 async function unwrap<T>(res: Response): Promise<T> {
@@ -71,24 +70,24 @@ async function unwrap<T>(res: Response): Promise<T> {
 }
 
 export async function fetchVaultStatus(): Promise<VaultGameStatus> {
-  return unwrap<VaultGameStatus>(await fetch(`${baseUrl()}/game/status`));
+  return unwrap<VaultGameStatus>(await fetch(`${BASE_PATH}/game/status`));
 }
 
 export async function fetchPendingWinnings(address: string): Promise<TokenAmount> {
   const data = await unwrap<{ pendingWinnings: TokenAmount }>(
-    await fetch(`${baseUrl()}/game/pending-winnings/${encodeURIComponent(address)}`)
+    await fetch(`${BASE_PATH}/game/pending-winnings/${encodeURIComponent(address)}`)
   );
   return data.pendingWinnings;
 }
 
 export async function fetchVaultWinners(): Promise<VaultWinner[]> {
-  const data = await unwrap<{ winners: VaultWinner[] }>(await fetch(`${baseUrl()}/game/winners`));
+  const data = await unwrap<{ winners: VaultWinner[] }>(await fetch(`${BASE_PATH}/game/winners`));
   return data.winners;
 }
 
 export async function fetchVaultActivities(): Promise<VaultActivity[]> {
   const data = await unwrap<{ activities: VaultActivity[] }>(
-    await fetch(`${baseUrl()}/game/activities`)
+    await fetch(`${BASE_PATH}/game/activities`)
   );
   return data.activities;
 }

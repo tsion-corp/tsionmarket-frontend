@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { WaveGridBackground } from "@/components/landing/wave-grid-background";
 import { ArrowUpRightIcon, ClockIcon, GlobeIcon } from "@/components/ui/icons";
 
-const TICKER = ["Stocks", "Gold", "Treasuries", "Perps", "Predictions"];
+const TICKER = ["Stocks", "Gold", "Treasuries", "Trading", "Predictions"];
 
 function word(delay: number) {
   return {
@@ -24,33 +24,20 @@ export function Hero() {
       <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.5)_0%,rgba(0,0,0,0.12)_32%,rgba(0,0,0,0.2)_60%,rgba(0,0,0,0.86)_100%)]" />
 
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-[120px] pb-[30px] text-center">
-        <motion.div
-          {...word(0.05)}
-          className="inline-flex items-center gap-2.5 rounded-full border border-white/14 bg-white/6 py-[5px] pr-4 pl-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.2)] backdrop-blur-[10px]"
-        >
-          <span className="text-ink rounded-full bg-white px-[11px] py-[3px] text-[11px] font-semibold">
-            New
-          </span>
-          <span className="pr-1 text-[13.5px] font-normal text-white/90">
-            The onchain superapp for global markets
-          </span>
-        </motion.div>
-
         <motion.h1
-          {...word(0.2)}
-          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(46px,9.2vw,120px)] leading-[1.06] tracking-[-0.015em] text-balance"
+          {...word(0.05)}
+          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(44px,6.6vw,72px)] leading-[1.06] tracking-[-0.015em] text-balance"
         >
-          Own the <span className="text-accent">world,</span>
-          <br className="hidden sm:block" /> on your own terms.
+          Control your <span className="text-accent">money,</span>
+          <br className="hidden sm:block" /> and access global markets.
         </motion.h1>
 
         <motion.p
           {...word(0.7)}
           className="mt-[22px] max-w-[60ch] text-[clamp(15px,1.6vw,18px)] leading-[1.55] font-light text-white/92"
         >
-          Buy stocks, gold and crypto, trade perps and predictions, and grow your money from one
-          app. Fund in Naira, stay in full control, and reach global markets without a bank, a
-          broker or a border.
+          Buy stocks, gold and crypto, trade, predict outcomes, and grow your money, all from one
+          place.
         </motion.p>
 
         <motion.div
@@ -77,8 +64,10 @@ export function Hero() {
           </div>
           <div className="ws-glass w-full max-w-[320px] rounded-[22px] p-5 text-left sm:w-[220px]">
             <GlobeIcon size={26} className="text-white" />
-            <div className="ws-serif mt-3.5 text-[38px] leading-none tracking-[-0.02em]">
-              6 markets
+            <div className="ws-serif mt-3.5 text-[34px] leading-[1.05] tracking-[-0.02em]">
+              Multiple
+              <br />
+              markets
             </div>
             <div className="mt-2 text-xs font-normal text-white/80">All in one app</div>
           </div>
@@ -89,9 +78,6 @@ export function Hero() {
         {...word(1.1)}
         className="relative z-10 flex flex-col items-center gap-4 pb-[34px]"
       >
-        <span className="rounded-full border border-white/12 bg-white/6 px-4 py-1.5 text-xs font-medium text-white/85 backdrop-blur-[10px]">
-          Everything you can own, on open rails
-        </span>
         <div className="hidden items-center gap-[clamp(28px,5vw,64px)] md:flex">
           {TICKER.map((t) => (
             <span key={t} className="ws-serif text-[clamp(20px,2.6vw,30px)] text-white/92">

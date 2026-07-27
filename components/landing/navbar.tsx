@@ -3,7 +3,6 @@ import { Wordmark } from "@/components/ui/wordmark";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 
 const LINKS = [
-  { href: "#story", label: "Why us" },
   { href: "#markets", label: "Markets" },
   { href: "#values", label: "Security" },
   { href: "#how", label: "How it works" },

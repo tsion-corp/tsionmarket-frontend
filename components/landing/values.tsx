@@ -7,19 +7,19 @@ const VALUES = [
     icon: <LockIcon size={22} />,
     chips: ["Your keys", "No freezes", "Fully yours"],
     title: "Non-custodial",
-    body: "Your assets live in your wallet, not on our books. We can never freeze, lend, or lose what's yours.",
+    body: "Your money stays in your own account, not ours. We can't freeze it, lend it out, or lose it.",
   },
   {
     icon: <GlobeIcon size={22} />,
-    chips: ["Permissionless", "Open rails", "Borderless"],
+    chips: ["Permissionless", "Open access", "Borderless"],
     title: "Censorship-resistant",
-    body: "Built on open, permissionless rails. No one can block your transaction or shut you out of your money.",
+    body: "Nobody can block your payment or shut you out of your money, not a company, not a government.",
   },
   {
     icon: <ShieldIcon size={22} />,
     chips: ["Full control", "Export anytime", "Transparent"],
     title: "Self-sovereign",
-    body: "Full ownership, full control. Export your keys whenever you want and take your assets anywhere.",
+    body: "Take your funds anywhere, anytime. Nothing here is locked to us.",
   },
 ];
 

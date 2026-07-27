@@ -62,11 +62,22 @@ export interface SellPayload {
   logo?: string | null;
 }
 
+// A held RWA to trade. RWA buy/sell must go through the RWA service (quote +
+// build), never Dextopus, so holdings resolve the registry asset by network and
+// address and open the RWA trade panel on the requested side.
+export interface RwaTradePayload {
+  network: string;
+  address: string;
+  symbol: string;
+  mode: "buy" | "sell";
+}
+
 export type DashboardModal =
   | { type: "detail"; detail: DetailPayload }
   | { type: "confirm"; confirm: ConfirmPayload }
   | { type: "buy"; buy: BuyPayload }
   | { type: "sell"; sell: SellPayload }
+  | { type: "rwaTrade"; rwaTrade: RwaTradePayload }
   | { type: "funds" }
   | { type: "withdraw" }
   | { type: "account" }
