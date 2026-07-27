@@ -19,6 +19,7 @@ import { FundsModal } from "@/components/dashboard/modals/funds-modal";
 import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
 import { AccountModal } from "@/components/dashboard/modals/account-modal";
 import { BuySheet } from "@/components/dashboard/buy/buy-sheet";
+import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
@@ -30,6 +31,7 @@ import type {
   ConfirmPayload,
   DetailPayload,
   DashboardModal,
+  SellPayload,
 } from "@/components/dashboard/modal-types";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
@@ -62,6 +64,7 @@ export default function DashboardPage() {
     []
   );
   const openBuy = useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []);
+  const openSell = useCallback((sell: SellPayload) => setModal({ type: "sell", sell }), []);
   const openFunds = useCallback(() => setModal({ type: "funds" }), []);
   const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
   const openAccount = useCallback(() => setModal({ type: "account" }), []);
@@ -72,10 +75,11 @@ export default function DashboardPage() {
         onOpenFunds={openFunds}
         onOpenWithdraw={openWithdraw}
         onOpenDetail={openDetail}
-        onOpenConfirm={openConfirm}
+        onOpenBuy={openBuy}
+        onOpenSell={openSell}
       />
     ),
-    trade: <Trade onOpenDetail={openDetail} />,
+    trade: <Trade />,
     markets: <Markets onOpenDetail={openDetail} onOpenBuy={openBuy} />,
     rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
     prediction: <Prediction />,
@@ -121,6 +125,7 @@ export default function DashboardPage() {
             />
           ) : null}
           {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
+          {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
           {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
           {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
           {modal?.type === "account" ? <AccountModal onClose={close} /> : null}

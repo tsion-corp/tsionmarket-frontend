@@ -34,6 +34,11 @@ export function isTradable(a: RwaApiAsset): boolean {
   return a.freelyTradable === true && a.accessMode !== "issuer";
 }
 
+// The table shows Base-network assets only.
+export function isBaseAsset(a: RwaApiAsset): boolean {
+  return a.chain === "base";
+}
+
 // Native gas token and portfolio network id per chain. The portfolio source
 // (Alchemy) does not index BSC, so BSC gas cannot be verified from it.
 const CHAIN_GAS: Record<RwaChain, { network: string; symbol: string }> = {

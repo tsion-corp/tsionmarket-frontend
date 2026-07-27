@@ -6,6 +6,7 @@ import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
 import { TokenList } from "@/components/dashboard/funds/token-list";
 import { AddressPanel } from "@/components/dashboard/funds/address-panel";
+import { friendlyError } from "@/lib/errors";
 import {
   isRetryableDextopusError,
   useDepositChains,
@@ -169,7 +170,7 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
 
         {req && staticAddr.isError ? (
           <div className="text-down text-[13px] font-normal">
-            {staticAddr.error.message}{" "}
+            {friendlyError(staticAddr.error, "We couldn't create a deposit address. Try again.")}{" "}
             {isRetryableDextopusError(staticAddr.error) ? (
               <button
                 onClick={() => staticAddr.refetch()}

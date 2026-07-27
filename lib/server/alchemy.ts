@@ -17,13 +17,24 @@ const EVM_NETWORKS = [
 ];
 const SOLANA_NETWORK = "solana-mainnet";
 
+// How a holding is classified for display: a native coin (ETH/POL/SOL), a
+// stablecoin (USDC/USDT), a real-world asset (from the RWA registry), or any
+// other token.
+export type AssetKind = "coin" | "stablecoin" | "rwa" | "token";
+
 export interface TokenBalance {
   symbol: string;
   name: string;
   network: string;
   address: string | null;
   decimals: number;
+  // What kind of asset this is, for the holdings "Type" column.
+  kind: AssetKind;
   balance: number;
+  // Exact on-chain balance in base units, as a decimal string. `balance` is a
+  // lossy float for display; `rawBalance` is the precise integer to send so a
+  // "max" never rounds above what the wallet actually holds.
+  rawBalance: string;
   priceUsd: number;
   valueUsd: number;
   logo: string | null;
@@ -42,8 +53,11 @@ interface AlchemyToken {
   tokenPrices?: { currency: string; value: string }[];
 }
 
-function toNumber(hexOrDec: string, decimals: number): number {
-  const raw = hexOrDec.startsWith("0x") ? BigInt(hexOrDec) : BigInt(hexOrDec || "0");
+function toRawUnits(hexOrDec: string): bigint {
+  return hexOrDec.startsWith("0x") ? BigInt(hexOrDec) : BigInt(hexOrDec || "0");
+}
+
+function toNumber(raw: bigint, decimals: number): number {
   return Number(raw) / 10 ** decimals;
 }
 
@@ -153,7 +167,8 @@ function normalize(
     const rwaInfo = address ? rwa[network]?.get(address.toLowerCase()) : undefined;
     const native = isNative ? NATIVE_TOKEN[network] : undefined;
     const decimals = native?.decimals ?? t.tokenMetadata?.decimals ?? 18;
-    const balance = toNumber(t.tokenBalance, decimals);
+    const rawUnits = toRawUnits(t.tokenBalance);
+    const balance = toNumber(rawUnits, decimals);
     if (balance <= 0) continue;
     // Resolve identity, falling back to the RWA registry for tokens Alchemy
     // returns without metadata.
@@ -166,13 +181,22 @@ function normalize(
     // (Polygon USDC has done this). They are dollar-pegged, so value a held
     // balance at $1 rather than $0, which would hide a real holding.
     if (priceUsd === 0 && isTrackedStable(network, address)) priceUsd = 1;
+    const kind: AssetKind = isNative
+      ? "coin"
+      : rwaInfo
+        ? "rwa"
+        : isTrackedStable(network, address)
+          ? "stablecoin"
+          : "token";
     out.push({
       symbol,
       name: native?.name ?? t.tokenMetadata?.name ?? symbol,
       network,
       address,
       decimals,
+      kind,
       balance,
+      rawBalance: rawUnits.toString(),
       priceUsd,
       valueUsd: balance * priceUsd,
       logo: t.tokenMetadata?.logo ?? rwaInfo?.logo ?? null,
@@ -203,7 +227,9 @@ async function withTrackedBaseline(
         network,
         address: null,
         decimals: native.decimals,
+        kind: "coin",
         balance: 0,
+        rawBalance: "0",
         priceUsd: priceOf(native.symbol),
         valueUsd: 0,
         logo: null,
@@ -217,7 +243,9 @@ async function withTrackedBaseline(
         network,
         address: stable.address,
         decimals: 6,
+        kind: "stablecoin",
         balance: 0,
+        rawBalance: "0",
         priceUsd: 1,
         valueUsd: 0,
         logo: null,

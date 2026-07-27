@@ -9,6 +9,7 @@ import { DepositStatus } from "@/components/dashboard/funds/deposit-status";
 import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
 import { TokenList } from "@/components/dashboard/funds/token-list";
 import { useSendToken, useReroutedWithdraw } from "@/hooks/use-withdraw";
+import { friendlyError } from "@/lib/errors";
 import {
   useDepositChains,
   useDepositStatus,
@@ -255,7 +256,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         toast.success(`Withdrew ${formatAmount(value)} ${selected.symbol}`);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "The withdrawal was not sent.");
+      setError(friendlyError(e, "The withdrawal wasn't sent. Please try again."));
       toast.error("Withdrawal was not sent.");
     }
   };

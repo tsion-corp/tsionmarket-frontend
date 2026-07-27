@@ -42,12 +42,22 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
         ))}
       </div>
       {detail.cta && detail.onCta ? (
-        <button
-          onClick={detail.onCta}
-          className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
-        >
-          {detail.cta}
-        </button>
+        <div className="mt-5 flex flex-col gap-2.5">
+          <button
+            onClick={detail.onCta}
+            className="text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+          >
+            {detail.cta}
+          </button>
+          {detail.cta2 && detail.onCta2 ? (
+            <button
+              onClick={detail.onCta2}
+              className="w-full cursor-pointer rounded-[14px] border border-white/15 bg-white/5 p-3.5 font-sans text-[15px] font-semibold text-white transition-colors hover:bg-white/10"
+            >
+              {detail.cta2}
+            </button>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );
