@@ -164,7 +164,6 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       .sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [destinations.data]);
   const selectedSymbolOption = symbolOptions.find((o) => o.symbol === destSymbol) ?? null;
-  const destSymbolAddress = selectedSymbolOption?.address ?? null;
 
   const chainIdsForSymbol = useMemo(() => {
     const list = destinations.data ?? [];
@@ -396,7 +395,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         ) : (
           <TokenList
             tokens={symbolOptions}
-            selectedAddress={destSymbolAddress}
+            selected={selectedSymbolOption}
             onSelect={(t) => {
               setDestSymbol(t.symbol);
               setDestChainId(null);
