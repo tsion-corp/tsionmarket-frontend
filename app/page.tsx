@@ -1,6 +1,5 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
-import { Story } from "@/components/landing/story";
 import { MarketsBento } from "@/components/landing/markets-bento";
 import { NairaRamp } from "@/components/landing/naira-ramp";
 import { Values } from "@/components/landing/values";
@@ -14,10 +13,9 @@ export default function LandingPage() {
     <div className="relative w-full overflow-hidden bg-black">
       <Navbar />
       <Hero />
-      <Story />
+      <Values />
       <MarketsBento />
       <NairaRamp />
-      <Values />
       <HowItWorks />
       <Faq />
       <FinalCta />

@@ -27,6 +27,7 @@ import type {
   DashboardModal,
   SellPayload,
 } from "@/components/dashboard/modal-types";
+import { AccountModal } from "@/components/dashboard/modals/account-modal";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
@@ -113,6 +114,7 @@ export default function DashboardPage() {
         {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
         {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
+        {modal?.type === "account" ? <AccountModal onClose={close} /> : null}
         {modal?.type === "done" ? (
           <SuccessPanel title={modal.title} onDone={close}>
             {modal.msg}

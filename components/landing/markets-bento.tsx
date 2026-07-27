@@ -53,11 +53,10 @@ export function MarketsBento() {
               <ChartBarsIcon size={22} />
             </IconTile>
             <h3 className="ws-serif mt-[70px] max-w-[20ch] text-[clamp(28px,3.4vw,40px)] leading-[1.04] tracking-[-0.02em]">
-              Stocks, gold &amp; treasuries, tokenized and yours
+              Stocks, gold &amp; treasuries
             </h3>
             <p className="mt-3.5 max-w-[44ch] text-[15px] leading-[1.55] font-normal text-white/82">
-              Own fractional Apple, physical-backed gold, or T-bill yield onchain. Real-world
-              assets, real settlement, always open.
+              Own a piece of Apple, real gold, or government bonds, starting with a few dollars.
             </p>
           </Reveal>
 
@@ -69,9 +68,14 @@ export function MarketsBento() {
               <TrendIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Perpetual futures</h3>
+              <div className="mb-3.5 flex flex-wrap gap-[7px]">
+                <Chip>Leverage</Chip>
+                <Chip>Advanced</Chip>
+                <Chip>Higher risk</Chip>
+              </div>
+              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Leveraged trading</h3>
               <p className="mt-2.5 text-[14.5px] leading-[1.55] font-normal text-white/82">
-                Long or short with up to 100x leverage and deep liquidity.
+                Bet on prices rising or falling, with your gains or losses multiplied.
               </p>
             </div>
           </Reveal>
@@ -81,10 +85,10 @@ export function MarketsBento() {
               <BulbIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Prediction markets</h3>
+              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Trade on Events</h3>
               <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
-                Trade your conviction on politics, sports and world events. Priced by the crowd,
-                settled onchain.
+                Put money on what you think will happen, in politics, sports, or world events. Get
+                paid the moment the result lands.
               </p>
             </div>
           </Reveal>
@@ -97,9 +101,9 @@ export function MarketsBento() {
               <SwapIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Instant token swaps</h3>
+              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Games</h3>
               <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
-                Best-price routing across every pool, so your swap fills at the sharpest rate.
+                Play different games, grow your money, cash out whenever you choose.
               </p>
             </div>
           </Reveal>
@@ -110,13 +114,13 @@ export function MarketsBento() {
             </IconTile>
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[26px] tracking-[-0.02em]">
-                Yield vaults{" "}
+                Auto-earn{" "}
                 <span className="font-sans text-xs font-normal text-white/55 not-italic">
                   · soon
                 </span>
               </h3>
               <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
-                Put idle balances to work in curated, audited strategies.
+                Put idle balances to work, in strategies reviewed by professionals.
               </p>
             </div>
           </Reveal>
@@ -130,13 +134,13 @@ export function MarketsBento() {
             </IconTile>
             <div className="mt-auto pt-6">
               <h3 className="ws-serif text-[26px] tracking-[-0.02em]">
-                Collectibles{" "}
+                Collectibles (NFTs){" "}
                 <span className="font-sans text-xs font-normal text-white/55 not-italic">
                   · soon
                 </span>
               </h3>
               <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
-                Mint, hold and trade NFTs right beside the rest of your portfolio.
+                Collect and trade digital items, right alongside the rest of your portfolio.
               </p>
             </div>
           </Reveal>

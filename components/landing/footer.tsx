@@ -5,7 +5,7 @@ const COLUMNS = [
     title: "Product",
     links: [
       { href: "#markets", label: "Markets" },
-      { href: "#naira", label: "Naira ramp" },
+      { href: "#naira", label: "Funding" },
       { href: "#how", label: "How it works" },
       { href: "#early", label: "Get started" },
     ],
@@ -13,8 +13,7 @@ const COLUMNS = [
   {
     title: "Company",
     links: [
-      { href: "#story", label: "Why us" },
-      { href: "#values", label: "Values" },
+      { href: "#values", label: "Security" },
       { href: "#", label: "Careers" },
       { href: "#faq", label: "FAQ" },
     ],
@@ -37,7 +36,7 @@ export function Footer() {
         <div className="col-span-2 md:col-span-1">
           <Wordmark href="#top" />
           <p className="mt-4 max-w-[32ch] text-sm leading-[1.6] font-normal text-white/60">
-            The onchain superapp for global markets. Own your money, answer to no one.
+            The super app for global markets. Own your money, answer to no one.
           </p>
         </div>
         {COLUMNS.map((col) => (
@@ -58,8 +57,7 @@ export function Footer() {
           © 2026 World Street Web Services. All rights reserved.
         </span>
         <span className="max-w-[60ch] text-right text-xs font-normal text-white/35">
-          Crypto and tokenized assets carry risk, including loss of principal. Nothing here is
-          financial advice.
+          Not investment advice. Crypto and market products carry risk, including loss of principal.
         </span>
       </div>
     </footer>

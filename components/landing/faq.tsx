@@ -4,24 +4,24 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 const FAQS = [
   {
     q: "Is World Street a bank or exchange holding my money?",
-    a: "No. World Street is non-custodial. Your assets sit in a self-custody wallet only you control. We never take possession of your funds, so we can't freeze or lend them.",
+    a: "No. Your money stays in your own account, not ours. We can't freeze it or move it.",
     open: true,
   },
   {
     q: "Do I need to understand crypto to use it?",
-    a: "Not at all. You sign in with your social login, fund with a normal bank transfer, and buy assets like on any app. The crypto complexity runs quietly in the background.",
+    a: "No. Sign in like any app, fund by bank transfer, and buy assets like you'd shop online.",
   },
   {
     q: "What can I actually trade?",
-    a: "At launch: tokenized stocks, gold and treasuries, perpetual futures, prediction markets, and instant token swaps. Yield vaults and collectibles follow soon after.",
+    a: "Stocks, gold, government bonds, leveraged trading, prediction markets, and instant swaps today. Auto-earn and collectibles are next.",
   },
   {
-    q: "How do I fund my account from Nigeria?",
-    a: "Transfer Naira directly from your bank. It converts to stable value in seconds so you can invest immediately, and you can withdraw back to any Nigerian bank just as fast.",
+    q: "How do I fund my account?",
+    a: "Transfer from your bank. It converts in seconds, and you can withdraw back to your bank just as fast.",
   },
   {
     q: "When does it launch?",
-    a: "We're rolling out access in waves to the early list. Sign up and you'll be among the first invited when your region opens.",
+    a: "We're rolling out access in waves. Sign up now to be near the front of the line.",
   },
 ];
 

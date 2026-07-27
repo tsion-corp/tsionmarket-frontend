@@ -4,24 +4,24 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 const STEPS = [
   {
     n: "01",
-    title: "Sign in with your socials",
-    body: "Use Google, X or email. No downloads, no seed phrase to write down.",
+    title: "Sign in",
+    body: "Google, X, or email. Takes seconds.",
   },
   {
     n: "02",
-    title: "Your wallet, created for you",
-    body: "A self-custody wallet spins up instantly. Only you hold the keys, and you can export them whenever you want.",
+    title: "Choose your market",
+    body: "Stocks, gold, crypto, or whatever you're after.",
   },
   {
     n: "03",
-    title: "Fund in Naira & trade",
-    body: "Top up with a bank transfer and buy your first global asset in minutes. No broker required.",
+    title: "Fund and trade",
+    body: "Top up by bank transfer, buy your first asset in minutes.",
   },
 ];
 
 const STATS = [
-  { value: "12,000+", label: "On the early list" },
-  { value: "6", label: "Markets in one app" },
+  { value: "12,000+", label: "On the waitlist" },
+  { value: "Multiple", label: "Markets in one app" },
   { value: "100%", label: "Self-custody, always" },
   { value: "24/7", label: "Global market access" },
 ];
