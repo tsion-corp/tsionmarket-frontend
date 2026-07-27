@@ -54,6 +54,7 @@ function token(overrides: Partial<TokenBalance> = {}): TokenBalance {
     decimals: 18,
     kind: "coin",
     balance: 0.2,
+    rawBalance: "200000000000000000",
     priceUsd: 3000,
     valueUsd: 600,
     logo: null,
