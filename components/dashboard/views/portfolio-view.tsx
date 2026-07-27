@@ -19,15 +19,17 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
 import { selectHoldings } from "@/lib/holdings";
+import { canSellAsset } from "@/lib/sell";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
-import type { ConfirmPayload, DetailPayload } from "@/components/dashboard/modal-types";
+import type { BuyPayload, DetailPayload, SellPayload } from "@/components/dashboard/modal-types";
 
 interface PortfolioViewProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
   onOpenDetail: (detail: DetailPayload) => void;
-  onOpenConfirm: (confirm: ConfirmPayload) => void;
+  onOpenBuy: (buy: BuyPayload) => void;
+  onOpenSell: (sell: SellPayload) => void;
 }
 
 const NETWORK_LABELS: Record<string, string> = {
@@ -53,6 +55,31 @@ function tokenBg(symbol: string): string {
   return `linear-gradient(135deg, hsl(${hue} 62% 46%), hsl(${(hue + 42) % 360} 55% 32%))`;
 }
 
+const KIND_LABEL: Record<TokenBalance["kind"], string> = {
+  coin: "Coin",
+  stablecoin: "Stablecoin",
+  rwa: "RWA",
+  token: "Token",
+};
+
+const KIND_STYLE: Record<TokenBalance["kind"], string> = {
+  coin: "border-[#7C9CE7]/30 bg-[#7C9CE7]/12 text-[#9DB4F0]",
+  stablecoin: "border-[#7CE7B0]/30 bg-[#7CE7B0]/12 text-[#7CE7B0]",
+  rwa: "border-accent/35 bg-accent/12 text-accent",
+  token: "border-white/12 bg-white/6 text-white/70",
+};
+
+// The asset-type pill shown in the holdings "Type" column.
+function TypeChip({ kind }: { kind: TokenBalance["kind"] }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${KIND_STYLE[kind]}`}
+    >
+      {KIND_LABEL[kind]}
+    </span>
+  );
+}
+
 const holdingsColumn = createColumnHelper<TokenBalance>();
 const HOLDINGS_COLUMNS = [
   holdingsColumn.accessor((t) => `${t.symbol} ${t.name}`, { id: "search", enableSorting: false }),
@@ -64,7 +91,8 @@ export function PortfolioView({
   onOpenFunds,
   onOpenWithdraw,
   onOpenDetail,
-  onOpenConfirm,
+  onOpenBuy,
+  onOpenSell,
 }: PortfolioViewProps) {
   const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
@@ -120,25 +148,10 @@ export function PortfolioView({
     );
   };
 
-  const reviewConfirm = (t: TokenBalance): ConfirmPayload => ({
-    eyebrow: "Portfolio",
-    badgeSym: t.symbol,
-    badgeBg: tokenBg(t.symbol),
-    badgeLogo: t.logo,
-    title: t.name,
-    sub: `${formatQty(t.balance)} ${t.symbol} · ${networkLabel(t.network)}`,
-    lines: [
-      { k: "Holdings", v: `${formatQty(t.balance)} ${t.symbol}` },
-      { k: "Market price", v: money.format(t.priceUsd) },
-      { k: "Network", v: networkLabel(t.network) },
-      { k: "Position value", v: money.format(t.valueUsd), c: "#7CE7B0" },
-    ],
-    cta: "Done",
-    successTitle: "All set",
-    successMsg: `${t.name} is up to date in your portfolio.`,
-  });
-
-  const openToken = (t: TokenBalance) =>
+  const openToken = (t: TokenBalance) => {
+    // Offer "Sell" only for assets Dextopus can actually take as an origin;
+    // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
+    const sellable = canSellAsset(t.network, t.address);
     onOpenDetail({
       sym: t.symbol,
       name: t.name,
@@ -152,12 +165,31 @@ export function PortfolioView({
         { k: "Network", v: networkLabel(t.network) },
         { k: "Position value", v: money.format(t.valueUsd) },
       ],
-      cta: `Trade ${t.name}`,
-      onCta: () => onOpenConfirm(reviewConfirm(t)),
+      cta: `Buy more ${t.name}`,
+      onCta: () =>
+        onOpenBuy({ symbol: t.symbol, name: t.name, priceUsd: t.priceUsd, logo: t.logo }),
+      ...(sellable
+        ? {
+            cta2: `Sell ${t.name}`,
+            onCta2: () =>
+              onOpenSell({
+                symbol: t.symbol,
+                name: t.name,
+                network: t.network,
+                address: t.address,
+                decimals: t.decimals,
+                balance: t.balance,
+                rawBalance: t.rawBalance,
+                priceUsd: t.priceUsd,
+                logo: t.logo,
+              }),
+          }
+        : {}),
       coingeckoId: coingeckoId(t.symbol) ?? undefined,
       up: true,
       logo: t.logo,
     });
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
@@ -223,8 +255,9 @@ export function PortfolioView({
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr] sm:px-6">
+          <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6">
             <span>Asset</span>
+            <span className="hidden min-[560px]:block">Type</span>
             {sortBtn("price", "Price", "hidden justify-end text-right min-[560px]:flex")}
             <span className="hidden text-right min-[560px]:block">Network</span>
             {sortBtn("value", "Value", "justify-end text-right")}
@@ -257,7 +290,7 @@ export function PortfolioView({
                   <button
                     key={t.symbol + t.network}
                     onClick={() => openToken(t)}
-                    className="grid w-full cursor-pointer grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 text-left transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr] sm:px-6"
+                    className="grid w-full cursor-pointer grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 text-left transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6"
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <span className="relative shrink-0">
@@ -267,13 +300,21 @@ export function PortfolioView({
                         </span>
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate font-sans text-[14.5px] font-medium">
-                          {t.symbol}
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate font-sans text-[14.5px] font-medium">
+                            {t.symbol}
+                          </span>
+                          <span className="shrink-0 min-[560px]:hidden">
+                            <TypeChip kind={t.kind} />
+                          </span>
                         </span>
                         <span className="block truncate text-xs font-normal text-white/50">
                           {formatQty(t.balance)} · {networkLabel(t.network)}
                         </span>
                       </span>
+                    </span>
+                    <span className="hidden min-[560px]:flex">
+                      <TypeChip kind={t.kind} />
                     </span>
                     <span className="tnum hidden text-right text-sm font-normal min-[560px]:block">
                       {money.format(t.priceUsd)}

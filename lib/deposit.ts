@@ -11,6 +11,53 @@ export const BASE_CHAIN_ID = 8453;
 export const ARBITRUM_CHAIN_ID = 42161;
 export const POLYGON_CHAIN_ID = 137;
 
+// Dextopus represents native SOL by three different addresses across its
+// endpoints, and only the system-program placeholder is accepted by the
+// quote/generate endpoints (all verified live):
+//   - /deposit/destinations and master /deposit/tokens  -> wrapped-SOL mint
+//   - per-chain /deposit/tokens?chainId=792703809        -> native placeholder
+//   - /deposit/quote and /deposit/static/generate        -> system-program id
+// We normalize every representation to the last one so a SOL deposit or
+// withdrawal actually goes through.
+const WRAPPED_SOL_MINT = "So11111111111111111111111111111111111111112";
+const NATIVE_SOL_PLACEHOLDER = "11111111111111111111111111111111";
+// The generic "native gas token" address the per-chain token catalog uses.
+const NATIVE_GAS_PLACEHOLDER = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+
+// Maps a destination currency (from /deposit/destinations) to the id the quote
+// endpoint accepts. Only native SOL needs it today.
+export function quoteReadyDestinationAsset(chainId: number, currency: string): string {
+  if (chainId === SOLANA_CHAIN_ID && currency === WRAPPED_SOL_MINT) {
+    return NATIVE_SOL_PLACEHOLDER;
+  }
+  return currency;
+}
+
+// Maps an origin token address (from the per-chain /deposit/tokens catalog) to
+// the id the generate/quote endpoints accept. The per-chain catalog lists
+// native SOL as the generic gas placeholder, which generate rejects; the
+// system-program id is the only form it honors.
+export function depositOriginAsset(chainId: number, address: string): string {
+  if (
+    chainId === SOLANA_CHAIN_ID &&
+    address.toLowerCase() === NATIVE_GAS_PLACEHOLDER.toLowerCase()
+  ) {
+    return NATIVE_SOL_PLACEHOLDER;
+  }
+  return address;
+}
+
+// The master eligibility catalog keys native SOL under the wrapped mint, but
+// after depositOriginAsset() the origin token carries the placeholder id. This
+// maps the placeholder back to the wrapped mint so the eligibility lookup for
+// SOL still matches.
+export function eligibilityLookupAddress(chainId: number, address: string): string {
+  if (chainId === SOLANA_CHAIN_ID && address === NATIVE_SOL_PLACEHOLDER) {
+    return WRAPPED_SOL_MINT;
+  }
+  return address;
+}
+
 // The address family a chain's addresses belong to. Matches the enum the
 // validate-address endpoint accepts.
 export type AddressKind =

@@ -7,11 +7,13 @@ import { SearchIcon } from "@/components/ui/icons";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Avatar } from "@/components/dashboard/avatar";
 import { useGlobalSearch, type SearchResult } from "@/hooks/use-global-search";
-import { scrollToSection } from "@/lib/scroll";
 import { deriveProfile } from "@/lib/user";
 
 interface TopbarProps {
   onOpenAccount: () => void;
+  // Scrolls in-page on /dashboard, or navigates there first from any other
+  // page (e.g. /vault) — same dispatcher the sidebar uses.
+  onSelectSection: (id: string) => void;
 }
 
 const GROUPS: { key: "holdings" | "rwa" | "markets"; label: string }[] = [
@@ -74,7 +76,7 @@ function SearchResults({
   );
 }
 
-export function Topbar({ onOpenAccount }: TopbarProps) {
+export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   const { user } = usePrivy();
   const profile = deriveProfile(user);
   const [query, setQuery] = useState("");
@@ -83,7 +85,7 @@ export function Topbar({ onOpenAccount }: TopbarProps) {
   const open = focused && query.trim().length > 0;
 
   const select = (r: SearchResult) => {
-    scrollToSection(r.sectionId);
+    onSelectSection(r.sectionId);
     setQuery("");
     setFocused(false);
   };

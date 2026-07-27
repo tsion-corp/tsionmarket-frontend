@@ -46,10 +46,18 @@ const CANONICAL_CHAIN: Record<string, number> = {
   SOL: SOLANA_CHAIN_ID,
 };
 
-// A route is offerable when we can deliver to its chain and it is not a
-// misleading wrapped representation of a coin native to another chain.
+// Assets Dextopus lists as destinations but its quote endpoint cannot actually
+// deliver. Native SOL is one: the bridge only settles SPL tokens (USDC, USDT,
+// ...) to Solana, not native lamports, so offering it only yields a quote error.
+// Addresses are lowercased for comparison.
+const NON_BUYABLE_ASSETS = new Set(["so11111111111111111111111111111111111111112"]);
+
+// A route is offerable when we can deliver to its chain, it is a token Dextopus
+// can actually settle, and it is not a misleading wrapped representation of a
+// coin native to another chain.
 export function isOfferable(route: BuyRoute): boolean {
   if (!SUPPORTED_CHAINS.has(route.chainName.toLowerCase())) return false;
+  if (NON_BUYABLE_ASSETS.has(route.asset.toLowerCase())) return false;
   const canonical = CANONICAL_CHAIN[route.symbol.toUpperCase()];
   return canonical == null || route.destinationChainId === canonical;
 }

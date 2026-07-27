@@ -7,7 +7,10 @@ import { toast } from "@/lib/toast";
 import {
   TERMINAL_STAGES,
   depositProgress,
+  depositOriginAsset,
   eligibilityKey,
+  eligibilityLookupAddress,
+  quoteReadyDestinationAsset,
   type AddressKind,
   type DepositChain,
   type DepositStatusResult,
@@ -26,14 +29,17 @@ const ONE_HOUR = 60 * 60 * 1000;
 const POLL_MS = 4000;
 
 // The chain and token catalogs are effectively static and are persisted to
-// localStorage, so we keep them in memory for a day, never refetch on focus or
-// remount, and let them rehydrate instantly on the next visit.
+// localStorage, so they rehydrate instantly on the next visit and we never
+// refetch on focus/reconnect. refetchOnMount stays on (the default) but is
+// gated by the long staleTime: fresh cached data is shown without a refetch,
+// while data that is missing or failed to load (e.g. the initial fetch lost
+// a race during the busy dashboard-load burst) refetches when the deposit
+// screen mounts, instead of staying empty until a hard reload.
 const CATALOG_OPTIONS = {
   staleTime: ONE_HOUR,
   gcTime: PERSISTED_GC_TIME,
   refetchOnWindowFocus: false,
   refetchOnReconnect: false,
-  refetchOnMount: false,
 } as const;
 
 // Pull a human error message out of a Dextopus proxy error body.
@@ -203,7 +209,9 @@ export async function fetchWithdrawDestinations(
   return (data.destinations ?? []).map((d) => ({
     destinationChainId: d.destinationChainId,
     blockchain: d.blockchain,
-    currency: d.currency,
+    // Store the quote-ready asset id, not the raw catalog one: native SOL is
+    // listed as the wrapped mint but only quotes under its native placeholder.
+    currency: quoteReadyDestinationAsset(d.destinationChainId, d.currency),
     symbol: d.symbol,
     decimals: d.decimals,
     addressKind: (d.addressKind as AddressKind | undefined) ?? "evm",
@@ -259,15 +267,25 @@ export async function fetchDepositTokens(
     `deposit/tokens?chainId=${chainId}`,
     "Couldn't load tokens"
   );
-  return (data.tokens ?? []).map((t) => ({
-    address: t.address,
-    symbol: t.symbol,
-    name: t.name,
-    decimals: t.decimals,
-    chainId: t.chainId,
-    logoUrl: t.logoUrl ?? null,
-    supportsStaticAddress: eligible.has(eligibilityKey(t.chainId, t.address)),
-  }));
+  return (data.tokens ?? []).map((t) => {
+    // Native SOL is listed here under the generic gas placeholder, but the
+    // generate endpoint only accepts the system-program id — normalize so the
+    // address we carry is the one that works.
+    const address = depositOriginAsset(t.chainId, t.address);
+    return {
+      address,
+      symbol: t.symbol,
+      name: t.name,
+      decimals: t.decimals,
+      chainId: t.chainId,
+      logoUrl: t.logoUrl ?? null,
+      // Master eligibility keys SOL under the wrapped mint, so map the
+      // normalized address back to that form for the lookup.
+      supportsStaticAddress: eligible.has(
+        eligibilityKey(t.chainId, eligibilityLookupAddress(t.chainId, address))
+      ),
+    };
+  });
 }
 
 export function useDepositChains() {
@@ -293,6 +311,53 @@ export function useDepositTokens(chainId: number | null) {
 export function useCreateQuote() {
   return useMutation<QuoteResult, Error, QuoteRequest>({
     mutationFn: (req) => dextopusPost<QuoteResult>("deposit/quote", req, "Couldn't create a quote"),
+  });
+}
+
+export interface WithdrawQuoteInput {
+  originChainId: number;
+  originAsset: string;
+  destinationChainId: number;
+  destinationAsset: string;
+  // Origin amount in base units (string), i.e. exactly what we will send.
+  amount: string;
+  // External wallet on the destination chain.
+  recipient: string;
+  // User's own wallet on the origin chain's family, for auto-refunds.
+  refundTo: string;
+}
+
+// A single withdrawal quote. Always strict: because we control the exact
+// amount we send, strict binds the deposit address to that amount and
+// auto-refunds any mismatch back to refundTo on the origin chain — the
+// "if the swap can't complete, funds return to the sender" guarantee. The
+// returned depositAddress is where the origin token is sent to trigger the
+// cross-chain settlement Dextopus performs under the hood.
+export async function createWithdrawQuote(input: WithdrawQuoteInput): Promise<QuoteResult> {
+  return dextopusPost<QuoteResult>(
+    "deposit/quote",
+    { ...input, strict: true },
+    "Couldn't get a withdrawal quote"
+  );
+}
+
+// Reactive quote for the withdrawal screen: refetches whenever the inputs
+// change so the UI can preview the exact amount the recipient will receive,
+// and hands back the deposit address to send to. A fresh quote (new address)
+// is minted per fetch, so we never refetch on focus/reconnect — only on input
+// change or an explicit refetch at execution time. `retry: false` so an
+// unroutable destination surfaces immediately instead of retrying.
+export function useWithdrawQuote(input: WithdrawQuoteInput | null) {
+  return useQuery<QuoteResult>({
+    queryKey: ["withdraw-quote", input],
+    enabled: input !== null,
+    staleTime: 45_000,
+    gcTime: 60_000,
+    retry: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    queryFn: () => createWithdrawQuote(input as WithdrawQuoteInput),
   });
 }
 

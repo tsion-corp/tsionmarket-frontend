@@ -7,23 +7,25 @@ import type { DepositToken } from "@/lib/deposit";
 
 interface TokenListProps {
   tokens: DepositToken[];
-  selectedAddress: string | null;
+  selected: DepositToken | null;
   onSelect: (token: DepositToken) => void;
   loading: boolean;
   error: boolean;
   onRetry: () => void;
 }
 
+// A token's identity is its (chain, address) pair, not the address alone:
+// native gas tokens across chains all share 0x000…000, so keying by address
+// would collide (duplicate React keys, and every native row highlighting at
+// once).
+function tokenKey(t: { chainId: number; address: string }): string {
+  return `${t.chainId}:${t.address.toLowerCase()}`;
+}
+
 // Token picker for the chosen origin network. A flat, searchable list — no
 // dropdown — so the token is one tap from the network selection.
-export function TokenList({
-  tokens,
-  selectedAddress,
-  onSelect,
-  loading,
-  error,
-  onRetry,
-}: TokenListProps) {
+export function TokenList({ tokens, selected, onSelect, loading, error, onRetry }: TokenListProps) {
+  const selectedKey = selected ? tokenKey(selected) : null;
   const [query, setQuery] = useState("");
 
   const list = useMemo(() => {
@@ -65,10 +67,10 @@ export function TokenList({
       ) : (
         <div className="mt-2 flex max-h-[46vh] flex-col gap-1 overflow-y-auto pr-0.5">
           {list.map((t) => {
-            const on = t.address === selectedAddress;
+            const on = tokenKey(t) === selectedKey;
             return (
               <button
-                key={t.address}
+                key={tokenKey(t)}
                 onClick={() => onSelect(t)}
                 className={`flex cursor-pointer items-center gap-3 rounded-[12px] border px-2.5 py-2 text-left transition-colors ${
                   on ? "border-accent/40 bg-accent/10" : "border-transparent hover:bg-white/6"
