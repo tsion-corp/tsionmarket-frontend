@@ -1,16 +1,16 @@
 "use client";
 
-import { scrollToSection } from "@/lib/scroll";
-
 interface DashboardFooterProps {
-  // The dashboard nav sections, used for in-page quick links.
+  // The dashboard nav sections, used for quick links.
   sections: { id: string; label: string }[];
+  // Scrolls in-page on /dashboard, or navigates there first from any other
+  // page (e.g. /vault) — same dispatcher the sidebar and topbar use.
+  onSelect: (id: string) => void;
 }
 
-// Footer for the authenticated dashboard. Section links scroll in-page (no dead
-// anchors), and the copy stays honest about the self-custody, at-your-own-risk
-// nature of the app.
-export function DashboardFooter({ sections }: DashboardFooterProps) {
+// Footer for the authenticated dashboard. The copy stays honest about the
+// self-custody, at-your-own-risk nature of the app.
+export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
   const year = new Date().getFullYear();
 
   return (
@@ -33,7 +33,7 @@ export function DashboardFooter({ sections }: DashboardFooterProps) {
             {sections.map((s) => (
               <button
                 key={s.id}
-                onClick={() => scrollToSection(s.id)}
+                onClick={() => onSelect(s.id)}
                 className="hover:text-accent cursor-pointer text-[13.5px] font-normal text-white/60"
               >
                 {s.label}

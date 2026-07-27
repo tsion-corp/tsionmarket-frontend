@@ -70,13 +70,24 @@ interface AllocationSlice {
 
 function buildAllocation(tokens: TokenBalance[], totalUsd: number): AllocationSlice[] {
   if (totalUsd <= 0) return [];
-  const top = tokens.slice(0, 5);
-  const slices: AllocationSlice[] = top.map((t, i) => ({
-    name: t.symbol,
-    pct: (t.valueUsd / totalUsd) * 100,
+
+  // Allocation is a breakdown by asset, not by chain — the same symbol held
+  // on multiple networks (e.g. ETH on both Base and Arbitrum) collapses into
+  // one slice, so names (used as the React key) stay unique and the pie
+  // reads as "how much of each asset," not "how much per chain."
+  const valueBySymbol = new Map<string, number>();
+  for (const t of tokens) {
+    valueBySymbol.set(t.symbol, (valueBySymbol.get(t.symbol) ?? 0) + t.valueUsd);
+  }
+  const sorted = [...valueBySymbol.entries()].sort((a, b) => b[1] - a[1]);
+
+  const top = sorted.slice(0, 5);
+  const slices: AllocationSlice[] = top.map(([symbol, value], i) => ({
+    name: symbol,
+    pct: (value / totalUsd) * 100,
     color: ALLOCATION_COLORS[i],
   }));
-  const restValue = tokens.slice(5).reduce((sum, t) => sum + t.valueUsd, 0);
+  const restValue = sorted.slice(5).reduce((sum, [, value]) => sum + value, 0);
   if (restValue > 0) {
     slices.push({ name: "Other", pct: (restValue / totalUsd) * 100, color: ALLOCATION_COLORS[5] });
   }
