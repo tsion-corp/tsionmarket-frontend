@@ -79,6 +79,9 @@ async function withTransientRetry<T>(fn: () => Promise<T>): Promise<T> {
 
 interface RwaTradePanelProps {
   asset: RwaApiAsset;
+  // Drop the card chrome when rendered inside a modal, which already provides
+  // its own sheet surface and padding.
+  bare?: boolean;
 }
 
 // Buy and sell surface for one RWA. Both directions run a live debounced quote,
@@ -87,7 +90,7 @@ interface RwaTradePanelProps {
 // spends the held RWA (sized at the on-chain decimals its balance carries) for
 // USDC. Sell is offered only where we can see the balance, so it is never
 // presented for a size or a token we cannot verify.
-export function RwaTradePanel({ asset }: RwaTradePanelProps) {
+export function RwaTradePanel({ asset, bare = false }: RwaTradePanelProps) {
   const { user } = usePrivy();
   const portfolio = usePortfolio();
   const { mutateAsync: quoteAsync } = useRwaQuote();
@@ -307,7 +310,13 @@ export function RwaTradePanel({ asset }: RwaTradePanelProps) {
       : `You don't hold any ${asset.symbol} to sell.`;
 
   return (
-    <div className="ws-card p-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_30px_70px_-30px_rgba(0,0,0,0.85)] sm:p-[22px]">
+    <div
+      className={
+        bare
+          ? ""
+          : "ws-card p-[18px] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_30px_70px_-30px_rgba(0,0,0,0.85)] sm:p-[22px]"
+      }
+    >
       <div className="mb-1 flex items-center gap-2.5">
         <AssetIcon sym={asset.symbol} bg={gradientFor(asset.symbol)} logo={logo} size={30} />
         <div className="min-w-0">

@@ -22,19 +22,29 @@ export interface RwaSectionProps {
 export const RwaSection: FC<RwaSectionProps> = () => {
   const { assets, loading, error } = useRwaAssets();
 
-  const [selectedId, setSelectedId] = useState("");
+  // The table owns the full view; a row opens the detail modal, and "Trade"
+  // opens the trade modal — the same modal-driven flow the Markets tab uses,
+  // rather than a static side panel.
   const [detailAsset, setDetailAsset] = useState<RwaApiAsset | null>(null);
+  const [tradeAsset, setTradeAsset] = useState<RwaApiAsset | null>(null);
 
-  // The table shows only buyable assets on Base: non-tradable (issuer-only) ones
-  // and assets on other chains are filtered out, so every row is actionable and
-  // on Base. Category tabs derive from this list, so they follow the filter. The
-  // list owns search/sort/paging.
+  // Only buyable assets on Base: non-tradable (issuer-only) ones and assets on
+  // other chains are filtered out, so every row is actionable. The list owns
+  // search/sort/paging.
   const buyable = useMemo(() => assets.filter((a) => isTradable(a) && isBaseAsset(a)), [assets]);
-  const selected = buyable.find((a) => a.id === selectedId) ?? buyable[0] ?? null;
 
-  const onTrade = (asset: RwaApiAsset) => {
-    setSelectedId(asset.id);
+  const openTrade = (asset: RwaApiAsset) => {
     setDetailAsset(null);
+    setTradeAsset(asset);
+  };
+
+  // One shell, two views: opening a trade from the detail sheet swaps the
+  // content (contentKey change) so it slides across instead of stacking.
+  const modalAsset = tradeAsset ?? detailAsset;
+  const modalMode = tradeAsset ? "trade" : detailAsset ? "detail" : null;
+  const closeModal = () => {
+    setDetailAsset(null);
+    setTradeAsset(null);
   };
 
   return (
@@ -54,25 +64,27 @@ export const RwaSection: FC<RwaSectionProps> = () => {
         </span>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 min-[980px]:grid-cols-[1fr_380px] min-[980px]:items-start">
-        <div className="order-2 min-[980px]:order-1">
-          <RwaAssetList
-            assets={buyable}
-            selectedId={selected?.id ?? ""}
-            loading={loading}
-            error={error}
-            onOpen={setDetailAsset}
-            onTrade={onTrade}
-          />
-        </div>
-
-        <div className="order-1 mt-2.5 min-[980px]:sticky min-[980px]:top-[88px] min-[980px]:order-2">
-          {selected ? <RwaTradePanel key={selected.id} asset={selected} /> : null}
-        </div>
+      <div className="mt-5">
+        <RwaAssetList
+          assets={buyable}
+          selectedId={modalAsset?.id ?? ""}
+          loading={loading}
+          error={error}
+          onOpen={setDetailAsset}
+          onTrade={openTrade}
+        />
       </div>
 
-      <ModalShell open={detailAsset !== null} onClose={() => setDetailAsset(null)}>
-        {detailAsset ? <RwaDetailSheet asset={detailAsset} onTrade={onTrade} /> : null}
+      <ModalShell
+        open={modalMode !== null}
+        onClose={closeModal}
+        contentKey={`${modalMode}-${modalAsset?.id ?? ""}`}
+      >
+        {modalMode === "trade" && tradeAsset ? (
+          <RwaTradePanel key={tradeAsset.id} asset={tradeAsset} bare />
+        ) : modalMode === "detail" && detailAsset ? (
+          <RwaDetailSheet asset={detailAsset} onTrade={openTrade} />
+        ) : null}
       </ModalShell>
     </div>
   );
