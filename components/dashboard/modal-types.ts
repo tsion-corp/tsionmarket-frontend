@@ -14,6 +14,10 @@ export interface DetailPayload {
   stats: StatLine[];
   cta?: string;
   onCta?: () => void;
+  // Optional secondary action, rendered as an outlined button below the primary
+  // one (e.g. "Sell" beside "Buy more" on a held asset).
+  cta2?: string;
+  onCta2?: () => void;
   coingeckoId?: string;
   up?: boolean;
   logo?: string | null;
@@ -41,10 +45,28 @@ export interface BuyPayload {
   logo?: string | null;
 }
 
+// A held asset a sell sheet operates on. Sells settle to USDC on Base, so the
+// sheet needs the origin token's identity (network/address/decimals), the
+// balance available to sell, and priceUsd for the "you get about" estimate.
+export interface SellPayload {
+  symbol: string;
+  name: string;
+  network: string;
+  address: string | null;
+  decimals: number;
+  balance: number;
+  // Exact on-chain balance in base units, so a "max" sell sends precisely what
+  // the wallet holds instead of a rounded float.
+  rawBalance: string;
+  priceUsd: number;
+  logo?: string | null;
+}
+
 export type DashboardModal =
   | { type: "detail"; detail: DetailPayload }
   | { type: "confirm"; confirm: ConfirmPayload }
   | { type: "buy"; buy: BuyPayload }
+  | { type: "sell"; sell: SellPayload }
   | { type: "funds" }
   | { type: "withdraw" }
   | { type: "account" }

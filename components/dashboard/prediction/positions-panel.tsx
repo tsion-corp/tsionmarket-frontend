@@ -1,18 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { ChevronLeftIcon } from "@/components/ui/icons";
+import { isClaimable } from "@/lib/prediction";
 import type { PolymarketPosition } from "@/hooks/use-polymarket-positions";
 
 interface PositionsPanelProps {
   positions: PolymarketPosition[];
+  available: number | null;
+  cashable: number | null;
   loading: boolean;
   loaded: boolean;
   error: string | null;
   onRefresh: () => void;
+  onOpenSlip: (position: PolymarketPosition) => void;
   onRedeem: (conditionId: string) => void;
   redeemingId: string | null;
-  onWithdraw: (amount: number) => void;
-  withdrawing: boolean;
+  onCashOut: () => void;
+  cashingOut: boolean;
 }
 
 // Position fields are read defensively so a schema tweak in the SDK never breaks
@@ -26,8 +30,6 @@ interface PositionInfo {
   redeemable?: boolean;
 }
 
-const CASH_OUT = [10, 25, 50];
-
 function num(v: string | number | undefined): number {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
   return Number.isFinite(n) ? n : 0;
@@ -35,21 +37,29 @@ function num(v: string | number | undefined): number {
 
 export function PositionsPanel({
   positions,
+  available,
+  cashable,
   loading,
   loaded,
   error,
   onRefresh,
+  onOpenSlip,
   onRedeem,
   redeemingId,
-  onWithdraw,
-  withdrawing,
+  onCashOut,
+  cashingOut,
 }: PositionsPanelProps) {
-  const [cashOut, setCashOut] = useState(10);
-
   return (
     <div className="ws-card mt-4 overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-3 sm:px-6">
-        <span className="ws-serif text-[18px]">Your positions</span>
+        <div className="min-w-0">
+          <span className="ws-serif text-[18px]">Your positions</span>
+          {available != null ? (
+            <div className="tnum mt-0.5 text-[12px] font-normal text-white/50">
+              ${available.toFixed(2)} available to bet
+            </div>
+          ) : null}
+        </div>
         <button
           onClick={onRefresh}
           disabled={loading}
@@ -74,24 +84,40 @@ export function PositionsPanel({
           return (
             <div
               key={i}
-              className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3 sm:px-6"
+              onClick={() => onOpenSlip(positions[i])}
+              className="grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3 transition-colors hover:bg-white/4 sm:px-6"
             >
               <div className="min-w-0">
                 <div className="truncate font-sans text-[13.5px] font-medium">
                   {p.title ?? "Market"}
                 </div>
-                <div className="text-xs font-normal text-white/50">
-                  {p.outcome ?? "—"} · {num(p.size).toFixed(2)} shares
+                <div className="flex items-center gap-1 text-xs font-normal text-white/50">
+                  <span className="truncate">
+                    {p.outcome ?? "—"} · {num(p.size).toFixed(2)} shares
+                  </span>
+                  <span className="text-accent inline-flex shrink-0 items-center">
+                    · View slip
+                    <ChevronLeftIcon size={12} className="-scale-x-100" />
+                  </span>
                 </div>
               </div>
-              {p.redeemable && p.conditionId ? (
+              {isClaimable(p.redeemable, num(p.currentValue)) && p.conditionId ? (
                 <button
-                  onClick={() => onRedeem(p.conditionId as string)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRedeem(p.conditionId as string);
+                  }}
                   disabled={claiming}
                   className="border-accent/45 bg-accent/12 cursor-pointer rounded-lg border px-3 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-60"
                 >
                   {claiming ? "Claiming…" : "Claim"}
                 </button>
+              ) : p.redeemable ? (
+                // Resolved but worth nothing — the losing side. Say so plainly
+                // instead of showing a bare $0.00.
+                <span className="text-down text-right text-[12.5px] font-medium">
+                  Resolved · no win
+                </span>
               ) : (
                 <span className="tnum text-right font-sans text-sm font-medium">
                   ${num(p.currentValue).toFixed(2)}
@@ -102,33 +128,18 @@ export function PositionsPanel({
         })
       ) : null}
 
-      {loaded && positions.length > 0 ? (
+      {loaded && cashable != null && cashable > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6">
-          <span className="text-[12.5px] font-normal text-white/55">Cash out to USDC</span>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1">
-              {CASH_OUT.map((a) => (
-                <button
-                  key={a}
-                  onClick={() => setCashOut(a)}
-                  className={`cursor-pointer rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
-                    cashOut === a
-                      ? "border-accent/45 bg-accent/12 text-white"
-                      : "border-white/10 bg-white/4 text-white/70 hover:bg-white/8"
-                  }`}
-                >
-                  ${a}
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => onWithdraw(cashOut)}
-              disabled={withdrawing}
-              className="text-ink cursor-pointer rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-semibold hover:opacity-90 disabled:opacity-60"
-            >
-              {withdrawing ? "Cashing out…" : `Cash out $${cashOut}`}
-            </button>
-          </div>
+          <span className="text-[12.5px] font-normal text-white/55">
+            Cash out ${cashable.toFixed(2)} to USDC on Base
+          </span>
+          <button
+            onClick={onCashOut}
+            disabled={cashingOut}
+            className="text-ink cursor-pointer rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {cashingOut ? "Cashing out…" : "Cash out"}
+          </button>
         </div>
       ) : null}
     </div>

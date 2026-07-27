@@ -14,6 +14,7 @@ import { routesForSymbol } from "@/lib/buy";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
+import { friendlyError } from "@/lib/errors";
 import type { BuyPayload } from "@/components/dashboard/modal-types";
 
 // 1% price tolerance, kept out of the UI. Non-crypto users should not have to
@@ -255,7 +256,9 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
         </p>
       ) : null}
       {buy.error ? (
-        <p className="text-down mt-3 text-[13px] font-normal">{buy.error.message}</p>
+        <p className="text-down mt-3 text-[13px] font-normal">
+          {friendlyError(buy.error, "We couldn't complete your purchase. Please try again.")}
+        </p>
       ) : null}
 
       <button

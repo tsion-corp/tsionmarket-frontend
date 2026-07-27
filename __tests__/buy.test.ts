@@ -29,9 +29,11 @@ function route(overrides: Partial<BuyRoute>): BuyRoute {
   };
 }
 
-// ETH on three chains, USDT on two, cbBTC on Base, WIF on Solana, SOL on both
-// Solana (native) and Base (a wrapped ERC-20), plus BTC and XRP that only route
-// to chains we hold no wallet for.
+const SOL_MINT = "So11111111111111111111111111111111111111112";
+
+// ETH on three chains, USDT on two, cbBTC on Base, WIF on Solana (an SPL token),
+// SOL on both Solana (native, which Dextopus can't deliver) and Base (a wrapped
+// ERC-20), plus BTC and XRP that only route to chains we hold no wallet for.
 const DESTINATIONS: BuyRoute[] = [
   route({ symbol: "ETH", destinationChainId: ARBITRUM, chainName: "Arbitrum" }),
   route({ symbol: "ETH", destinationChainId: BASE, chainName: "Base" }),
@@ -40,7 +42,13 @@ const DESTINATIONS: BuyRoute[] = [
   route({ symbol: "USDT", destinationChainId: ARBITRUM, chainName: "Arbitrum", decimals: 6 }),
   route({ symbol: "cbBTC", destinationChainId: BASE, chainName: "Base", decimals: 8 }),
   route({ symbol: "WIF", destinationChainId: SOLANA, chainName: "solana", decimals: 6 }),
-  route({ symbol: "SOL", destinationChainId: SOLANA, chainName: "solana", decimals: 9 }),
+  route({
+    symbol: "SOL",
+    destinationChainId: SOLANA,
+    chainName: "solana",
+    decimals: 9,
+    asset: SOL_MINT,
+  }),
   route({
     symbol: "SOL",
     destinationChainId: BASE,
@@ -81,13 +89,15 @@ describe("isOfferable", () => {
     );
   });
 
-  it("rejects a wrapped coin off its canonical chain (SOL only on Solana)", () => {
+  it("rejects native SOL (undeliverable) and the Base wrapper", () => {
     expect(isOfferable(route({ symbol: "SOL", chainName: "Base", destinationChainId: BASE }))).toBe(
       false
     );
     expect(
-      isOfferable(route({ symbol: "SOL", chainName: "solana", destinationChainId: SOLANA }))
-    ).toBe(true);
+      isOfferable(
+        route({ symbol: "SOL", chainName: "solana", destinationChainId: SOLANA, asset: SOL_MINT })
+      )
+    ).toBe(false);
   });
 });
 
@@ -102,10 +112,8 @@ describe("routesForSymbol", () => {
     expect(routes.map((r) => r.chainName)).toEqual(["Arbitrum", "Polygon"]);
   });
 
-  it("offers SOL only on Solana, hiding the Base wrapper", () => {
-    const routes = routesForSymbol(DESTINATIONS, "SOL");
-    expect(routes).toHaveLength(1);
-    expect(routes[0].destinationChainId).toBe(SOLANA);
+  it("offers nothing for SOL: native SOL is undeliverable and the Base one is wrapped", () => {
+    expect(routesForSymbol(DESTINATIONS, "SOL")).toEqual([]);
   });
 
   it("resolves BTC through its alias to cbBTC on Base", () => {
@@ -137,23 +145,25 @@ describe("defaultRouteForSymbol", () => {
 
   it("picks the only chain for a single-chain symbol", () => {
     expect(defaultRouteForSymbol(DESTINATIONS, "cbBTC")?.destinationChainId).toBe(BASE);
-    expect(defaultRouteForSymbol(DESTINATIONS, "SOL")?.destinationChainId).toBe(SOLANA);
+    expect(defaultRouteForSymbol(DESTINATIONS, "WIF")?.destinationChainId).toBe(SOLANA);
   });
 
   it("is null for a non-offerable symbol", () => {
     expect(defaultRouteForSymbol(DESTINATIONS, "XRP")).toBeNull();
+    expect(defaultRouteForSymbol(DESTINATIONS, "SOL")).toBeNull();
   });
 });
 
 describe("buyableSymbols / isBuyable", () => {
   it("collects offerable symbols by display ticker (cbBTC surfaces as BTC)", () => {
-    expect(buyableSymbols(DESTINATIONS)).toEqual(new Set(["ETH", "USDT", "BTC", "WIF", "SOL"]));
+    expect(buyableSymbols(DESTINATIONS)).toEqual(new Set(["ETH", "USDT", "BTC", "WIF"]));
   });
 
-  it("reports buyability, resolving aliases and excluding non-deliverable chains", () => {
+  it("reports buyability, resolving aliases and excluding undeliverable assets", () => {
     expect(isBuyable(DESTINATIONS, "eth")).toBe(true);
-    expect(isBuyable(DESTINATIONS, "SOL")).toBe(true);
     expect(isBuyable(DESTINATIONS, "BTC")).toBe(true);
+    expect(isBuyable(DESTINATIONS, "WIF")).toBe(true);
+    expect(isBuyable(DESTINATIONS, "SOL")).toBe(false);
     expect(isBuyable(DESTINATIONS, "XRP")).toBe(false);
     expect(isBuyable(DESTINATIONS, "DOGE")).toBe(false);
   });
