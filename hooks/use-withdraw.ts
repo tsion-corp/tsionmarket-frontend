@@ -27,7 +27,6 @@ import {
 } from "@solana-program/token";
 import { getTransferSolInstruction } from "@solana-program/system";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { useCreateQuote } from "@/hooks/use-deposit";
 import { getWalletAddress } from "@/lib/user";
 import {
   BASE_CHAIN_ID,
@@ -257,73 +256,4 @@ export function useSendToken() {
   );
 
   return { sendToken, sending };
-}
-
-export interface ReroutedWithdrawParams {
-  // Alchemy network id the held token lives on (e.g. "base-mainnet").
-  originNetwork: string;
-  // Dextopus chain id for that same network.
-  originChainId: number;
-  // The held token's contract/mint address. Never null: native gas tokens
-  // don't go through this path, only ERC-20/SPL holdings do.
-  originTokenAddress: string;
-  originDecimals: number;
-  destinationChainId: number;
-  destinationAsset: string;
-  to: string;
-  amount: bigint;
-  // The user's own wallet on the origin chain's family, so Dextopus can
-  // refund there if the amount comes in under or over the quote.
-  refundTo: string;
-}
-
-export interface ReroutedWithdrawResult {
-  depositRequestId: string;
-  txHash: string;
-}
-
-// Withdraws any held token to a different chain and/or asset by reusing the
-// deposit pipeline in reverse: quote an origin -> destination conversion
-// (strict, so a mismatch auto-refunds to our own wallet instead of getting
-// stuck), then send the origin token to the deposit address the quote
-// returns. Dextopus takes it from there and delivers to `to`.
-export function useReroutedWithdraw() {
-  const quote = useCreateQuote();
-  const { sendToken, sending } = useSendToken();
-
-  const withdraw = useCallback(
-    async ({
-      originNetwork,
-      originChainId,
-      originTokenAddress,
-      originDecimals,
-      destinationChainId,
-      destinationAsset,
-      to,
-      amount,
-      refundTo,
-    }: ReroutedWithdrawParams): Promise<ReroutedWithdrawResult> => {
-      const result = await quote.mutateAsync({
-        originChainId,
-        destinationChainId,
-        originAsset: originTokenAddress,
-        destinationAsset,
-        amount: amount.toString(),
-        recipient: to,
-        refundTo,
-        strict: true,
-      });
-      const txHash = await sendToken({
-        network: originNetwork,
-        tokenAddress: originTokenAddress,
-        decimals: originDecimals,
-        to: result.depositAddress,
-        amount,
-      });
-      return { depositRequestId: result.depositRequestId, txHash };
-    },
-    [quote, sendToken]
-  );
-
-  return { withdraw, quoting: quote.isPending, sending };
 }

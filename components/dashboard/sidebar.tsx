@@ -18,7 +18,7 @@ export function Sidebar({ items, activeSection, onNavigate, onOpenAccount }: Sid
   const { user } = usePrivy();
   const profile = deriveProfile(user);
   return (
-    <aside className="bg-panel fixed top-0 bottom-0 left-0 z-[100] hidden w-[248px] flex-col border-r border-white/8 px-4 py-5 md:flex">
+    <aside className="bg-panel fixed top-0 bottom-0 left-0 z-100 hidden w-[248px] flex-col border-r border-white/8 px-4 py-5 md:flex">
       <div className="px-2 pb-5">
         <Wordmark href="/dashboard" />
       </div>

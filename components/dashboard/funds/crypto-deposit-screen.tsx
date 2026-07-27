@@ -153,7 +153,7 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
             <div className="mb-2 text-xs font-normal text-white/55">Token to send</div>
             <TokenList
               tokens={tokens.data ?? []}
-              selectedAddress={originToken?.address ?? null}
+              selected={originToken}
               onSelect={setOriginToken}
               loading={tokens.isPending}
               error={tokens.isError}
