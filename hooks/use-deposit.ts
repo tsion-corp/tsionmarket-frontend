@@ -7,7 +7,9 @@ import { toast } from "@/lib/toast";
 import {
   TERMINAL_STAGES,
   depositProgress,
+  depositOriginAsset,
   eligibilityKey,
+  eligibilityLookupAddress,
   quoteReadyDestinationAsset,
   type AddressKind,
   type DepositChain,
@@ -265,15 +267,25 @@ export async function fetchDepositTokens(
     `deposit/tokens?chainId=${chainId}`,
     "Couldn't load tokens"
   );
-  return (data.tokens ?? []).map((t) => ({
-    address: t.address,
-    symbol: t.symbol,
-    name: t.name,
-    decimals: t.decimals,
-    chainId: t.chainId,
-    logoUrl: t.logoUrl ?? null,
-    supportsStaticAddress: eligible.has(eligibilityKey(t.chainId, t.address)),
-  }));
+  return (data.tokens ?? []).map((t) => {
+    // Native SOL is listed here under the generic gas placeholder, but the
+    // generate endpoint only accepts the system-program id — normalize so the
+    // address we carry is the one that works.
+    const address = depositOriginAsset(t.chainId, t.address);
+    return {
+      address,
+      symbol: t.symbol,
+      name: t.name,
+      decimals: t.decimals,
+      chainId: t.chainId,
+      logoUrl: t.logoUrl ?? null,
+      // Master eligibility keys SOL under the wrapped mint, so map the
+      // normalized address back to that form for the lookup.
+      supportsStaticAddress: eligible.has(
+        eligibilityKey(t.chainId, eligibilityLookupAddress(t.chainId, address))
+      ),
+    };
+  });
 }
 
 export function useDepositChains() {
