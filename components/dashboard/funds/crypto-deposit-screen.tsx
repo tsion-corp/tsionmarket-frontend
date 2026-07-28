@@ -6,6 +6,7 @@ import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
 import { TokenList } from "@/components/dashboard/funds/token-list";
 import { AddressPanel } from "@/components/dashboard/funds/address-panel";
+import { AssetIcon } from "@/components/ui/asset-icon";
 import { friendlyError } from "@/lib/errors";
 import {
   isRetryableDextopusError,
@@ -75,45 +76,64 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
     const minimum = depositMinimumUsd(originChain);
     return (
       <div>
-        <SheetNav
-          title="Your deposit address"
-          subtitle={`Send ${originToken.symbol} on ${originChain.name}. It arrives as USDC on ${settle.chainName}.`}
-          onBack={onBack}
-        />
+        <SheetNav title={`Fund with ${originToken.symbol}`} onBack={onBack} />
+
+        {/* Selected token + chain, with a one-tap way back to change it. */}
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2.5">
+            <AssetIcon sym={originToken.symbol} bg="#26262b" size={26} logo={originToken.logoUrl} />
+            <span className="min-w-0 truncate text-[14px] font-medium text-white">
+              {originToken.symbol}
+              <span className="font-normal text-white/45"> on </span>
+              {originChain.name}
+            </span>
+          </span>
+          <button
+            onClick={resetToken}
+            className="text-accent shrink-0 cursor-pointer text-[13px] font-semibold hover:underline"
+          >
+            Change
+          </button>
+        </div>
+
         <AddressPanel
           address={staticAddr.data.depositAddress}
           tokenSymbol={originToken.symbol}
           chainName={originChain.name}
         />
-        <div className="border-down/25 bg-down/10 mt-3 rounded-[14px] border px-4 py-3">
+
+        {/* Minimum-deposit caution, styled as a warning banner. */}
+        <div className="mt-3 flex items-start gap-2.5 rounded-[14px] border border-[#F6D365]/25 bg-[#F6D365]/8 px-4 py-3">
+          <span aria-hidden className="mt-px shrink-0 text-[15px]">
+            ⚠️
+          </span>
           <p className="text-[12.5px] leading-normal font-normal text-white/80">
-            Only send <span className="font-semibold text-white">{originToken.symbol}</span> on{" "}
-            {originChain.name} to this address. Any other asset, including{" "}
-            {originChain.nativeSymbol || "the network's gas token"}, will not convert to USDC and
-            may not be recoverable.
+            Minimum deposit is about{" "}
+            <span className="tnum font-semibold text-white">${minimum}</span>.{" "}
+            <span className="text-white/55">Smaller amounts may not be credited.</span>
           </p>
         </div>
-        <div className="ws-inset mt-3 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
-          <span className="text-white/55">Minimum deposit</span>
-          <span className="tnum text-white/85">About ${minimum}</span>
+
+        {/* Live pending indicator — the static address credits automatically. */}
+        <div className="mt-3 flex items-center justify-center gap-2 text-[13px] font-normal text-white/55">
+          <span className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full" />
+          Waiting for your deposit…
         </div>
-        <div className="border-accent/20 bg-accent/8 mt-3 rounded-[14px] border px-4 py-3">
-          <p className="text-[12.5px] leading-normal font-normal text-white/80">
-            This address is permanent. Send to it any time and the funds land as USDC in your wallet
-            automatically, usually within a minute.
+
+        <div className="ws-inset mt-3 px-4 py-3">
+          <p className="text-[12.5px] leading-normal font-normal text-white/70">
+            Send only <span className="font-semibold text-white">{originToken.symbol}</span> on{" "}
+            <span className="font-semibold text-white">{originChain.name}</span>. Your balance is
+            credited automatically as USDC — usually within a minute of the transfer confirming. You
+            can leave this screen; the balance updates when it lands.
           </p>
         </div>
+
         <button
           onClick={() => refetch()}
           className="mt-3 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
         >
           Refresh balance
-        </button>
-        <button
-          onClick={resetToken}
-          className="mt-2 w-full cursor-pointer rounded-[14px] p-2.5 font-sans text-[13px] font-medium text-white/60 hover:text-white"
-        >
-          Deposit a different token
         </button>
       </div>
     );

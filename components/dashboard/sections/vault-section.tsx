@@ -1,27 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatEther } from "viem";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { LockIcon } from "@/components/ui/icons";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { Pager } from "@/components/ui/pager";
+import { MoneyTicker } from "@/components/ui/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
 import { VaultFundSheet } from "@/components/dashboard/vault/vault-fund-sheet";
+import { RoundOverlay, type RoundPhase } from "@/components/dashboard/vault/round-overlay";
 import { useVaultGame } from "@/hooks/use-vault-game";
 import { useVaultActions } from "@/hooks/use-vault-actions";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { fetchPendingWinnings } from "@/lib/vault-api";
+import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
-import { truncateAddress } from "@/lib/format";
+import { timeAgo, truncateAddress } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
 const EXPLORER_TX_URL = "https://basescan.org/tx/";
 const EXPLORER_ADDRESS_URL = "https://basescan.org/address/";
-const PENDING_POLL_MS = 15_000;
+// How long to keep re-checking the balance after a win, and how often. The
+// portfolio is cached ~15s server-side, so a 5s cadence catches the credited
+// winnings shortly after the cache turns over without hammering the API.
+const WIN_POLL_WINDOW_MS = 30_000;
+const WIN_POLL_INTERVAL_MS = 5_000;
+// Suspense window shown to everyone the moment a round ends, before revealing
+// whether this wallet won. Builds anticipation and covers the brief gap while
+// the result settles.
+const CALCULATING_MS = 5_000;
+// How many feed rows to show per page in the activity and winners cards.
+const FEED_PAGE_SIZE = 10;
+
+// Decorative sparkle field drifting behind the arena. Fixed positions/timings
+// keep the layout deterministic — no per-render randomness.
+const SPARKLES = [
+  { left: "8%", top: "20%", size: 10, dur: 3.4, delay: 0 },
+  { left: "23%", top: "64%", size: 7, dur: 4.2, delay: 0.8 },
+  { left: "70%", top: "22%", size: 8, dur: 3.8, delay: 1.4 },
+  { left: "89%", top: "56%", size: 11, dur: 4.6, delay: 0.4 },
+  { left: "52%", top: "80%", size: 6, dur: 3.2, delay: 2.0 },
+  { left: "41%", top: "12%", size: 7, dur: 4.0, delay: 1.1 },
+];
 
 function formatCountdown(totalSeconds: number): string {
   const clamped = Math.max(0, Math.floor(totalSeconds));
@@ -54,18 +77,36 @@ export function VaultSection() {
   const { user } = usePrivy();
   const money = useMoney();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
-  const { status, statusLoading, activities, winners, winnersLoading, connected } = useVaultGame();
-  const { wager, wagering, claim, claiming } = useVaultActions();
+  const { status, statusLoading, activities, winners, winnersLoading } = useVaultGame();
+  const { wager, wagering } = useVaultActions();
   const [fundOpen, setFundOpen] = useState(false);
+  // End-of-round overlay: null (idle), "calculating" (5s suspense), or "won"
+  // (the reveal, shown to everyone). Prize is USD, formatted to money only at
+  // render. `youWon` switches the reveal from a personal jackpot to a "someone
+  // won" announcement; `winnerLabel` is the winner's truncated address.
+  const [phase, setPhase] = useState<RoundPhase>(null);
+  const [roundPrizeUsd, setRoundPrizeUsd] = useState<number | null>(null);
+  // The winner being revealed (full address, held only in memory). youWon and
+  // the truncated label are derived from it at render, so the reveal has a
+  // single source of truth and no state to keep in sync.
+  const [revealWinner, setRevealWinner] = useState<string | null>(null);
+  // Shows the "you won, balance updating" banner briefly after a win.
+  const [recentWinUsd, setRecentWinUsd] = useState<number | null>(null);
 
+  const reduce = useReducedMotion();
   const address = getWalletAddress(user, "ethereum");
-  const pending = useQuery({
-    queryKey: ["vault-pending-winnings", address],
-    queryFn: () => fetchPendingWinnings(address as string),
-    enabled: Boolean(address),
-    staleTime: PENDING_POLL_MS,
-    refetchInterval: PENDING_POLL_MS,
-  });
+
+  // Derived reveal state: did this wallet win, and how to name the winner.
+  const youWon = !!(
+    revealWinner &&
+    address &&
+    revealWinner.toLowerCase() === address.toLowerCase()
+  );
+  const winnerLabel = revealWinner ? truncateAddress(revealWinner) : null;
+
+  // Both feeds page 10 rows at a time so the cards don't grow unbounded.
+  const pagedActivities = usePaged(activities, FEED_PAGE_SIZE);
+  const pagedWinners = usePaged(winners, FEED_PAGE_SIZE);
 
   // The balance the player spends from is their own money on the platform. We
   // present everything as plain dollars — the underlying asset (ETH on Base)
@@ -78,6 +119,9 @@ export function VaultSection() {
   const entryFeeEth = status ? Number(status.entryFee.amount) : 0;
   const entryFeeUsd = status?.entryFee.usdValue ?? 0;
   const canPlay = entryFeeEth > 0 && balanceEth >= entryFeeEth;
+  // The primary CTA is in its "Add money to play" state — short on funds but
+  // otherwise pressable. This gets the blinking, coin-tagged nudge.
+  const luring = !!status && !!address && !wagering && !canPlay;
 
   // Dollar value of an on-chain (wei) amount, derived from the entry fee's
   // token/USD pair the backend already gives us — so the activity feed and
@@ -99,7 +143,111 @@ export function VaultSection() {
     gameActive && status ? Math.min(100, (countdown / Math.max(1, status.timerDuration)) * 100) : 0;
   const urgent = gameActive && countdown <= 10;
 
-  const hasPending = (pending.data?.usdValue ?? 0) > 0;
+  // Round-end handling. The winner is whoever was the last to play when the
+  // clock ran out, and the contract credits their balance automatically — no
+  // claim needed. The moment a live round ends we show the "calculating"
+  // suspense to everyone; after it, only the winning wallet sees the jackpot.
+  const potUsd = status?.vaultBalance.usdValue ?? 0;
+  const lastPlayer = status?.lastPlayer ?? null;
+  const prevActiveRef = useRef(false);
+  const lastPotRef = useRef(0);
+  const winnerAtEndRef = useRef<string | null>(null);
+  // Newest winner id we've already reacted to, so the winners feed (when it
+  // works) reveals a fresh win without re-firing on load or on repeat polls.
+  const seenWinnerIdRef = useRef<string | null>(null);
+  const [pollUntil, setPollUntil] = useState(0);
+
+  // Starts the end-of-round sequence: suspense now, winner reveal after it.
+  const beginRoundEnd = (winnerAddress: string | null, prizeUsd: number) => {
+    winnerAtEndRef.current = winnerAddress;
+    setRoundPrizeUsd(prizeUsd);
+    setPhase("calculating");
+    setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
+    void refetchPortfolio();
+  };
+
+  useEffect(() => {
+    // Remember the pot while the round is live; it resets to 0 once paid out.
+    if (gameActive && potUsd > 0) lastPotRef.current = potUsd;
+
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = gameActive;
+    // A live round just ended (active -> inactive). Only start once per round.
+    if (wasActive && !gameActive && phase === null) {
+      beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameActive]);
+
+  // Reveal after the suspense: everyone sees who won. If a winner is known we
+  // announce them by truncated address; the winning wallet gets the personal
+  // jackpot treatment. With no known winner we just close.
+  useEffect(() => {
+    if (phase !== "calculating") return;
+    const id = setTimeout(() => {
+      const winner = winnerAtEndRef.current;
+      if (!winner) {
+        setPhase(null);
+        return;
+      }
+      const me = address?.toLowerCase();
+      const iWon = !!(me && winner.toLowerCase() === me);
+      setRevealWinner(winner);
+      if (iWon) setRecentWinUsd(roundPrizeUsd);
+      setPhase("won");
+    }, CALCULATING_MS);
+    return () => clearTimeout(id);
+  }, [phase, address, roundPrizeUsd]);
+
+  // Fallback reveal: if the winners feed surfaces a fresh win for this wallet
+  // (e.g. we missed the live round), jackpot straight away, deduped by id.
+  useEffect(() => {
+    const latest = winners[0];
+    if (!latest) return;
+    if (seenWinnerIdRef.current === null) {
+      // First load — mark as seen so we never celebrate an old win.
+      seenWinnerIdRef.current = latest.id;
+      return;
+    }
+    if (seenWinnerIdRef.current === latest.id) return;
+    seenWinnerIdRef.current = latest.id;
+    const me = address?.toLowerCase();
+    if (!(me && latest.winnerAddress.toLowerCase() === me && phase === null)) return;
+    const winnerAddress = latest.winnerAddress;
+    // Fire the reveal on the next tick rather than synchronously inside this
+    // polled-data effect, matching the timed primary-reveal path above and
+    // keeping the state updates out of the effect body.
+    const id = setTimeout(() => {
+      setRevealWinner(winnerAddress);
+      setRoundPrizeUsd(lastPotRef.current);
+      setRecentWinUsd(lastPotRef.current);
+      setPhase("won");
+      setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
+    }, 0);
+    void refetchPortfolio();
+    return () => clearTimeout(id);
+  }, [winners, address, phase, refetchPortfolio]);
+
+  // Brief post-win balance re-check so the auto-credited winnings appear
+  // quickly; self-clearing once the window passes.
+  useEffect(() => {
+    if (pollUntil <= Date.now()) return;
+    const id = setInterval(() => {
+      if (Date.now() > pollUntil) {
+        clearInterval(id);
+        return;
+      }
+      void refetchPortfolio();
+    }, WIN_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [pollUntil, refetchPortfolio]);
+
+  // Auto-dismiss the "you won" banner after the balance has had time to update.
+  useEffect(() => {
+    if (recentWinUsd === null) return;
+    const id = setTimeout(() => setRecentWinUsd(null), WIN_POLL_WINDOW_MS);
+    return () => clearTimeout(id);
+  }, [recentWinUsd]);
 
   const onPlay = async () => {
     if (!canPlay) {
@@ -112,17 +260,6 @@ export function VaultSection() {
       void refetchPortfolio();
     } catch (e) {
       toast.error(friendlyError(e, "That didn't go through."));
-    }
-  };
-
-  const onClaim = async () => {
-    try {
-      await claim();
-      toast.success("Winnings added to your balance.");
-      void refetchPortfolio();
-      void pending.refetch();
-    } catch (e) {
-      toast.error(friendlyError(e, "The claim didn't go through."));
     }
   };
 
@@ -155,13 +292,13 @@ export function VaultSection() {
         </div>
         <span
           className={`ws-glass inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold text-white/75 ${
-            connected ? "shadow-[0_0_24px_-8px_rgba(124,231,176,0.7)]" : ""
+            gameActive ? "shadow-[0_0_24px_-8px_rgba(124,231,176,0.7)]" : ""
           }`}
         >
           <span
-            className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-up animate-pulse" : "bg-white/25"}`}
+            className={`h-1.5 w-1.5 rounded-full ${gameActive ? "bg-up animate-pulse" : "bg-white/25"}`}
           />
-          {connected ? "Live" : "Offline"}
+          {gameActive ? "Live" : "Offline"}
         </span>
       </div>
 
@@ -172,15 +309,48 @@ export function VaultSection() {
             aria-hidden
             className="bg-accent/30 pointer-events-none absolute -top-32 left-1/2 h-64 w-72 -translate-x-1/2 animate-pulse rounded-full blur-[100px]"
           />
+          {/* Drifting sparkles for a living, arcade-y arena. */}
+          {reduce ? null : (
+            <div aria-hidden className="pointer-events-none absolute inset-0">
+              {SPARKLES.map((s, i) => (
+                <motion.span
+                  key={i}
+                  className="absolute text-[#F6D365]/45"
+                  style={{ left: s.left, top: s.top, fontSize: s.size }}
+                  animate={{ y: [0, -16, 0], opacity: [0, 0.85, 0], scale: [0.8, 1.05, 0.8] }}
+                  transition={{
+                    duration: s.dur,
+                    repeat: Infinity,
+                    delay: s.delay,
+                    ease: "easeInOut",
+                  }}
+                >
+                  ✦
+                </motion.span>
+              ))}
+            </div>
+          )}
           <div className="relative">
             <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
               Prize pool
             </div>
             {statusLoading || !status ? (
               <div className="mt-2 h-[62px] w-52 animate-pulse rounded-xl bg-white/8" />
+            ) : gameActive ? (
+              // Live round: the pot pulses between white and gold so it reads as
+              // hot money on the line.
+              <motion.div
+                className="ws-serif tnum mt-1.5 text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] drop-shadow-[0_0_34px_rgba(246,211,101,0.4)]"
+                animate={
+                  reduce ? { color: "#F6D365" } : { color: ["#ffffff", "#F6D365", "#ffffff"] }
+                }
+                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+              >
+                <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
+              </motion.div>
             ) : (
               <div className="ws-serif tnum mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent drop-shadow-[0_0_30px_rgba(167,139,250,0.35)]">
-                {money.format(status.vaultBalance.usdValue)}
+                <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
               </div>
             )}
             <div className="mt-2 text-[13px] font-normal text-white/50">
@@ -276,31 +446,60 @@ export function VaultSection() {
               </div>
             </div>
 
-            {/* Play CTA — the primary action, with an inviting glow when ready. */}
+            {/* Play CTA — the primary action, purple whether you're playing or
+                being nudged to add money. The add-money state carries a golden
+                coin and blinks to pull the eye. */}
             <div className="relative mt-5">
-              {canPlay ? (
+              {canPlay || luring ? (
                 <div
                   aria-hidden
                   className="bg-accent/40 pointer-events-none absolute -inset-1 animate-pulse rounded-2xl blur-lg"
                 />
               ) : null}
-              <button
+              <motion.button
                 onClick={() => void onPlay()}
                 disabled={wagering || !status || !address}
-                className={`relative w-full cursor-pointer rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform,opacity] hover:-translate-y-0.5 hover:opacity-95 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  canPlay
+                animate={luring && !reduce ? { opacity: [1, 0.5, 1] } : undefined}
+                transition={
+                  luring && !reduce
+                    ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
+                    : undefined
+                }
+                className={`relative w-full cursor-pointer overflow-hidden rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  canPlay || luring
                     ? "bg-[linear-gradient(180deg,#c3b0ff,#8b6ef0)] text-white shadow-[0_18px_44px_-12px_rgba(167,139,250,0.9),inset_0_1px_0_rgba(255,255,255,0.45)]"
                     : "text-ink bg-white shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)]"
                 }`}
               >
-                {wagering
-                  ? "Placing your play…"
-                  : !status
-                    ? "Loading…"
-                    : canPlay
-                      ? `Play · ${money.format(entryFeeUsd)}`
-                      : "Add money to play"}
-              </button>
+                {/* Light sweeps across the button whenever it's inviting a press. */}
+                {(canPlay || luring) && !reduce ? (
+                  <motion.span
+                    aria-hidden
+                    className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)]"
+                    animate={{ x: ["0%", "420%"] }}
+                    transition={{
+                      duration: 2.2,
+                      repeat: Infinity,
+                      repeatDelay: 1.2,
+                      ease: "easeInOut",
+                    }}
+                  />
+                ) : null}
+                <span className="relative inline-flex items-center justify-center gap-2">
+                  {luring ? (
+                    <span aria-hidden className="text-xl">
+                      💰
+                    </span>
+                  ) : null}
+                  {wagering
+                    ? "Placing your play…"
+                    : !status
+                      ? "Loading…"
+                      : canPlay
+                        ? `Play · ${money.format(entryFeeUsd)}`
+                        : "Add money to play"}
+                </span>
+              </motion.button>
             </div>
 
             {/* Balance */}
@@ -313,31 +512,27 @@ export function VaultSection() {
                   {money.format(balanceUsd)}
                 </div>
               </div>
-              <button
-                onClick={() => setFundOpen(true)}
-                className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
-              >
-                Add money
-              </button>
+              {/* Only a top-up affordance here. When the player can't afford a
+                  play the primary CTA above already reads "Add money to play",
+                  so showing a second "Add money" here would just duplicate it. */}
+              {canPlay ? (
+                <button
+                  onClick={() => setFundOpen(true)}
+                  className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
+                >
+                  Add money
+                </button>
+              ) : null}
             </div>
 
-            {/* Winnings to claim */}
-            {hasPending ? (
+            {/* You won — auto-credited, no claim needed. */}
+            {recentWinUsd !== null ? (
               <div className="border-up/40 bg-up/10 mt-3 rounded-[16px] border px-4 py-3.5 shadow-[0_0_28px_-10px_rgba(124,231,176,0.6)]">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[13.5px] font-bold text-white">You won a round 🎉</div>
-                    <div className="tnum text-[12.5px] font-normal text-white/60">
-                      {money.format(pending.data?.usdValue ?? 0)} ready to claim
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => void onClaim()}
-                    disabled={claiming}
-                    className="text-up-ink bg-up shrink-0 cursor-pointer rounded-xl px-4 py-2.5 font-sans text-[13px] font-bold whitespace-nowrap transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {claiming ? "Claiming…" : "Claim"}
-                  </button>
+                <div className="text-[13.5px] font-bold text-white">
+                  You won a round, your money will be added to your balance 🎉
+                </div>
+                <div className="tnum mt-0.5 text-[12.5px] font-normal text-white/60">
+                  {money.format(recentWinUsd)} — updating your balance now
                 </div>
               </div>
             ) : null}
@@ -359,7 +554,7 @@ export function VaultSection() {
               </div>
             ) : (
               <div className="mt-3 flex flex-col gap-1">
-                {activities.map((a) => (
+                {pagedActivities.pageItems.map((a) => (
                   <a
                     key={a.id}
                     href={`${EXPLORER_TX_URL}${a.transactionHash}`}
@@ -387,57 +582,152 @@ export function VaultSection() {
                 ))}
               </div>
             )}
+            {pagedActivities.total > FEED_PAGE_SIZE ? (
+              <Pager
+                from={pagedActivities.from}
+                to={pagedActivities.to}
+                total={pagedActivities.total}
+                canPrev={pagedActivities.canPrev}
+                canNext={pagedActivities.canNext}
+                onPrev={pagedActivities.goPrev}
+                onNext={pagedActivities.goNext}
+              />
+            ) : null}
           </div>
+        </div>
+      </div>
 
-          <div className="ws-glass rounded-[22px] p-5">
-            <div className="flex items-center gap-2 text-[13px] font-semibold text-white/80">
-              <LockIcon size={14} />
-              Hall of Winners
+      {/* Hall of Winners — champions of past rounds, given the main stage rather
+          than a cramped side slot. Chronological (newest first), not a ranking. */}
+      <div className="ws-glass relative mt-4 overflow-hidden rounded-[24px] p-5 sm:p-6">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-20 -right-16 h-52 w-52 rounded-full bg-[#F6D365]/10 blur-[80px]"
+        />
+        <div className="relative flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(180deg,#F6D365,#e0a83a)] text-[15px] shadow-[0_8px_20px_-8px_rgba(246,211,101,0.9)]">
+              👑
+            </span>
+            <div>
+              <div className="text-[14px] font-semibold text-white/90">Hall of Winners</div>
+              <div className="text-[11.5px] font-normal text-white/45">
+                Past rounds — newest first
+              </div>
             </div>
-            {winnersLoading ? (
-              <div className="mt-3 flex flex-col gap-2">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-[42px] animate-pulse rounded-[10px] bg-white/6" />
-                ))}
-              </div>
-            ) : winners.length === 0 ? (
-              <div className="grid place-items-center py-10 text-center text-[13px] font-normal text-white/40">
-                No rounds settled yet
-              </div>
-            ) : (
-              <div className="mt-3 flex flex-col gap-1">
-                {winners.map((w, i) => (
-                  <a
+          </div>
+          {winners.length > 0 ? (
+            <span className="tnum rounded-full bg-[#F6D365]/12 px-2.5 py-1 text-[11px] font-semibold text-[#F6D365]/80 ring-1 ring-[#F6D365]/20">
+              {winners.length} settled
+            </span>
+          ) : null}
+        </div>
+
+        {winnersLoading ? (
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-[52px] animate-pulse rounded-[14px] bg-white/6" />
+            ))}
+          </div>
+        ) : winners.length === 0 ? (
+          <div className="grid place-items-center py-12 text-center text-[13px] font-normal text-white/40">
+            No rounds settled yet — be the first to take a pot.
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5">
+              {pagedWinners.pageItems.map((w, idx) => {
+                // Only the very newest settled round (page 1, first row) is the
+                // "latest" — everything else is just chronological history.
+                const isLatest = pagedWinners.page === 0 && idx === 0;
+                return (
+                  <motion.a
                     key={w.id}
+                    initial={reduce ? false : { opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(idx * 0.04, 0.3), duration: 0.28 }}
                     href={`${EXPLORER_ADDRESS_URL}${w.winnerAddress}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-between gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-white/6"
+                    className={`relative flex items-center gap-3 overflow-hidden rounded-[14px] px-3 py-2.5 transition-colors ${
+                      isLatest
+                        ? "bg-[linear-gradient(110deg,rgba(246,211,101,0.14),rgba(246,211,101,0.02))] ring-1 ring-[#F6D365]/25"
+                        : "bg-white/[0.03] hover:bg-white/[0.06]"
+                    }`}
                   >
-                    <span className="flex min-w-0 items-center gap-2.5 text-[13px] font-normal text-white/75">
-                      <span
-                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ${
-                          i === 0 ? "bg-accent/20 text-accent" : "bg-white/6 text-white/45"
-                        }`}
-                      >
-                        {i + 1}
+                    {/* A light sweeps across the most recent winner's row. */}
+                    {isLatest && !reduce ? (
+                      <motion.span
+                        aria-hidden
+                        className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/2 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent)]"
+                        animate={{ x: ["0%", "360%"] }}
+                        transition={{
+                          duration: 2.8,
+                          repeat: Infinity,
+                          repeatDelay: 1.8,
+                          ease: "easeInOut",
+                        }}
+                      />
+                    ) : null}
+                    <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#F6D365]/12 text-[15px] ring-1 ring-[#F6D365]/20">
+                      🏆
+                    </span>
+                    <span className="relative min-w-0 flex-1">
+                      <span className="tnum block truncate text-[13.5px] font-semibold text-white/90">
+                        {truncateAddress(w.winnerAddress)}
                       </span>
-                      <span className="tnum truncate">{truncateAddress(w.winnerAddress)}</span>
+                      <span className="mt-0.5 block truncate text-[11.5px] font-normal text-white/45">
+                        {/* Historical rounds don't always carry a player count;
+                            only show it when it's real so we never read "0 players". */}
+                        {w.playerCount > 0
+                          ? `${w.playerCount} ${w.playerCount === 1 ? "player" : "players"} · `
+                          : ""}
+                        {timeAgo(w.endedAt)}
+                      </span>
                     </span>
-                    <span className="tnum text-accent shrink-0 text-[12.5px] font-semibold">
-                      {weiToMoney(w.winnerPrizeWei)}
+                    <span className="relative shrink-0 text-right">
+                      <span className="tnum block text-[14px] font-bold text-[#F6D365]">
+                        {weiToMoney(w.winnerPrizeWei)}
+                      </span>
+                      {isLatest ? (
+                        <span className="block text-[9.5px] font-semibold tracking-[0.12em] text-[#F6D365]/70 uppercase">
+                          Latest
+                        </span>
+                      ) : null}
                     </span>
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
+                  </motion.a>
+                );
+              })}
+            </div>
+            {pagedWinners.total > FEED_PAGE_SIZE ? (
+              <Pager
+                from={pagedWinners.from}
+                to={pagedWinners.to}
+                total={pagedWinners.total}
+                canPrev={pagedWinners.canPrev}
+                canNext={pagedWinners.canNext}
+                onPrev={pagedWinners.goPrev}
+                onNext={pagedWinners.goNext}
+                label="winners"
+              />
+            ) : null}
+          </>
+        )}
       </div>
 
       <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
         <VaultFundSheet onClose={() => setFundOpen(false)} />
       </ModalShell>
+
+      <RoundOverlay
+        phase={phase}
+        youWon={youWon}
+        winnerLabel={winnerLabel}
+        prizeValue={roundPrizeUsd ?? 0}
+        prizeLabel={money.format(roundPrizeUsd ?? 0)}
+        formatMoney={money.format}
+        onClose={() => setPhase(null)}
+      />
     </div>
   );
 }

@@ -4,9 +4,14 @@ import { useState } from "react";
 import { MethodTile } from "@/components/dashboard/funds/method-tile";
 import { CryptoDepositScreen } from "@/components/dashboard/funds/crypto-deposit-screen";
 import { FiatDepositScreen } from "@/components/dashboard/funds/fiat-deposit-screen";
-import { SwapIcon, CardIcon } from "@/components/ui/icons";
+import { AssetIcon } from "@/components/ui/asset-icon";
+import { ArrowRightIcon, CardIcon } from "@/components/ui/icons";
 
 type Step = "chooser" | "crypto" | "fiat";
+
+// USDC brand blue — only the fallback tint; AssetIcon renders the real
+// TokenUSDC web3icon for "USDC".
+const USDC_BLUE = "#2775CA";
 
 export function FundsModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("chooser");
@@ -22,13 +27,30 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
         Choose how you want to fund your wallet.
       </p>
       <div className="mt-[18px] flex flex-col gap-2">
-        <MethodTile
-          icon={<SwapIcon size={22} />}
-          title="Deposit crypto"
-          subtitle="Any token, any chain. Arrives as USDC."
-          badge="Popular"
+        {/* Fund with crypto — a USDC-led row, since that's what deposits settle
+            to. Any token on almost any chain arrives as USDC. */}
+        <button
           onClick={() => setStep("crypto")}
-        />
+          className="flex w-full cursor-pointer items-center gap-3.5 rounded-[16px] border border-white/8 bg-white/4 px-4 py-3.5 text-left transition-colors hover:bg-white/8"
+        >
+          <AssetIcon sym="USDC" bg={USDC_BLUE} size={42} />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="font-sans text-[15px] font-semibold text-white">
+                Fund with crypto
+              </span>
+              <span className="rounded-full border border-white/12 bg-white/6 px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] text-white/55 uppercase">
+                Popular
+              </span>
+            </span>
+            <span className="mt-0.5 block text-[12.5px] leading-[1.4] font-normal text-white/55">
+              USDC, ETH, SOL · any chain
+            </span>
+          </span>
+          <span className="text-white/35">
+            <ArrowRightIcon size={16} />
+          </span>
+        </button>
         <MethodTile
           icon={<CardIcon size={22} />}
           title="Card or bank"
