@@ -62,6 +62,31 @@ export function gasSymbolForChain(chain: RwaChain): string {
   return CHAIN_GAS[chain].symbol;
 }
 
+// Alchemy network id -> RWA chain, the reverse of CHAIN_GAS. Null for a network
+// that maps to no RWA chain.
+export function networkToRwaChain(network: string): RwaChain | null {
+  for (const chain of Object.keys(CHAIN_GAS) as RwaChain[]) {
+    if (CHAIN_GAS[chain].network === network) return chain;
+  }
+  return null;
+}
+
+// Resolve the registry asset a held RWA token corresponds to, matching chain and
+// address. The address is compared lowercased because the wallet source lowercases
+// it while the registry keeps its original casing. Null when the token isn't an
+// RWA in the registry, so the caller can fall back to the normal token flow.
+export function findRwaAsset(
+  assets: RwaApiAsset[],
+  network: string,
+  address: string | null
+): RwaApiAsset | null {
+  if (!address) return null;
+  const chain = networkToRwaChain(network);
+  if (!chain) return null;
+  const lower = address.toLowerCase();
+  return assets.find((a) => a.chain === chain && a.address.toLowerCase() === lower) ?? null;
+}
+
 // Human network label. The same RWA (symbol) is often deployed on several
 // chains, so the table shows this to tell those deployments apart.
 export const RWA_CHAIN_LABEL: Record<RwaChain, string> = {

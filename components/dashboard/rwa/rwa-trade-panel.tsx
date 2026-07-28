@@ -82,6 +82,8 @@ interface RwaTradePanelProps {
   // Drop the card chrome when rendered inside a modal, which already provides
   // its own sheet surface and padding.
   bare?: boolean;
+  // Which side to open on. Defaults to buy; holdings open it on sell.
+  initialMode?: Mode;
 }
 
 // Buy and sell surface for one RWA. Both directions run a live debounced quote,
@@ -90,14 +92,14 @@ interface RwaTradePanelProps {
 // spends the held RWA (sized at the on-chain decimals its balance carries) for
 // USDC. Sell is offered only where we can see the balance, so it is never
 // presented for a size or a token we cannot verify.
-export function RwaTradePanel({ asset, bare = false }: RwaTradePanelProps) {
+export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaTradePanelProps) {
   const { user } = usePrivy();
   const portfolio = usePortfolio();
   const { mutateAsync: quoteAsync } = useRwaQuote();
   const { mutateAsync: buildAsync } = useRwaBuild();
   const execute = useExecuteRwa();
 
-  const [mode, setMode] = useState<Mode>("buy");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [amount, setAmount] = useState("");
   const [phase, setPhase] = useState<Phase>("idle");
   const [quote, setQuote] = useState<RwaQuote | null>(null);

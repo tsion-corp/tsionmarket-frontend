@@ -16,6 +16,7 @@ import { FundsModal } from "@/components/dashboard/modals/funds-modal";
 import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
 import { BuySheet } from "@/components/dashboard/buy/buy-sheet";
 import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
+import { RwaTradeModal } from "@/components/dashboard/rwa/rwa-trade-modal";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { loadInterest } from "@/lib/preferences";
@@ -25,6 +26,7 @@ import type {
   ConfirmPayload,
   DetailPayload,
   DashboardModal,
+  RwaTradePayload,
   SellPayload,
 } from "@/components/dashboard/modal-types";
 import { AccountModal } from "@/components/dashboard/modals/account-modal";
@@ -67,6 +69,10 @@ export default function DashboardPage() {
   );
   const openBuy = useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []);
   const openSell = useCallback((sell: SellPayload) => setModal({ type: "sell", sell }), []);
+  const openRwaTrade = useCallback(
+    (rwaTrade: RwaTradePayload) => setModal({ type: "rwaTrade", rwaTrade }),
+    []
+  );
   const openFunds = useCallback(() => setModal({ type: "funds" }), []);
   const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
 
@@ -78,6 +84,7 @@ export default function DashboardPage() {
         onOpenDetail={openDetail}
         onOpenBuy={openBuy}
         onOpenSell={openSell}
+        onOpenRwaTrade={openRwaTrade}
       />
     ),
     trade: <Trade />,
@@ -112,6 +119,7 @@ export default function DashboardPage() {
         ) : null}
         {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
         {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
+        {modal?.type === "rwaTrade" ? <RwaTradeModal payload={modal.rwaTrade} /> : null}
         {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
         {modal?.type === "account" ? <AccountModal onClose={close} /> : null}

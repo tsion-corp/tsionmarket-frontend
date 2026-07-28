@@ -17,6 +17,12 @@ const READ_CHAINS: Record<number, Chain> = {
 const RECEIPT_TIMEOUT_MS = 120_000;
 const RECEIPT_POLL_MS = 2_000;
 
+// Whether a read client exists for this chain, so callers can decide to wait for
+// a receipt rather than call publicClientForChain and catch a throw.
+export function isReceiptChain(chainId: number): boolean {
+  return chainId in READ_CHAINS;
+}
+
 export function publicClientForChain(chainId: number) {
   const chain = READ_CHAINS[chainId];
   if (!chain) throw new Error(`This chain isn't supported yet (${chainId}).`);

@@ -2,35 +2,15 @@
 
 import { useCallback } from "react";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
-import { createSolanaRpc, getBase58Decoder, signature as toSignature } from "@solana/kit";
+import { getBase58Decoder } from "@solana/kit";
 import { buildJupiterSwapTransaction } from "@/lib/trade/jupiter";
-
-const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
 
 function base64ToBytes(b64: string): Uint8Array {
   const bin = atob(b64);
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
-}
-
-// Waits for the swap to confirm on-chain so the caller's balance refetch reflects
-// the received token instead of the pre-swap balance. Best-effort: returns after
-// confirmation, a failure, or a short timeout.
-async function confirmSolana(sigBase58: string): Promise<void> {
-  const rpc = createSolanaRpc(SOLANA_RPC);
-  const sig = toSignature(sigBase58);
-  for (let i = 0; i < 20; i++) {
-    const { value } = await rpc.getSignatureStatuses([sig]).send();
-    const status = value[0];
-    if (status) {
-      if (status.err) throw new Error("The swap failed on-chain.");
-      if (status.confirmationStatus === "confirmed" || status.confirmationStatus === "finalized") {
-        return;
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-  }
 }
 
 export interface SwapExecuteInput {
@@ -55,7 +35,7 @@ export function useSwapExecute() {
         transaction: base64ToBytes(txBase64),
         wallet,
       });
-      await confirmSolana(getBase58Decoder().decode(signature));
+      await confirmSolanaSignature(getBase58Decoder().decode(signature));
     },
     [signAndSendTransaction, wallets]
   );

@@ -277,15 +277,12 @@ export interface SymbolPrice {
 // call rotates through a small pool (purpose key -> fallback -> default) so a
 // slow or throttled key fails over instead of hanging. Set the per-purpose keys
 // in env; each falls back to ALCHEMY_API_KEY.
-function alchemyKeys(purpose: "prices" | "portfolio"): string[] {
-  const primary =
-    purpose === "prices" ? process.env.ALCHEMY_KEY_PRICES : process.env.ALCHEMY_KEY_PORTFOLIO;
-  const pool = [primary, process.env.ALCHEMY_KEY_FALLBACK, process.env.ALCHEMY_API_KEY].filter(
-    (k): k is string => Boolean(k)
-  );
-  const unique = [...new Set(pool)];
-  if (unique.length === 0) throw new Error("No Alchemy API key configured");
-  return unique;
+// One premium Alchemy key now covers every purpose (portfolio, prices, RPC). The
+// old per-purpose key pool only existed to spread free-tier rate limits.
+function alchemyKey(): string {
+  const key = process.env.ALCHEMY_API_KEY;
+  if (!key) throw new Error("No Alchemy API key configured");
+  return key;
 }
 
 // Thrown with the upstream status folded into the message so route handlers
@@ -302,16 +299,22 @@ export function isRateLimitError(error: unknown): boolean {
 }
 
 async function alchemyFetch(
-  keys: string[],
   buildUrl: (key: string) => string,
   init?: RequestInit
 ): Promise<Response> {
+  const key = alchemyKey();
   let lastError: unknown;
-  for (const key of keys) {
+  // Retry the single key on a transient failure (network error or 5xx). A 4xx
+  // (rate limit, bad key) won't improve on retry, so surface it immediately.
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const res = await fetch(buildUrl(key), { ...init, signal: AbortSignal.timeout(7000) });
+      // 12s, not 7s: a cold serverless start plus a cold Alchemy connection on
+      // the first request can exceed 7s and abort, showing "could not load" on
+      // first paint even though a warm retry succeeds.
+      const res = await fetch(buildUrl(key), { ...init, signal: AbortSignal.timeout(12_000) });
       if (res.ok) return res;
       lastError = alchemyError(res.status);
+      if (res.status < 500) break;
     } catch (error) {
       lastError = error;
     }
@@ -345,7 +348,6 @@ export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
     const params = new URLSearchParams();
     for (const s of symbols) params.append("symbols", s);
     const res = await alchemyFetch(
-      alchemyKeys("prices"),
       (key) => `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
     );
     const data = await res.json();
@@ -374,7 +376,6 @@ export async function fetchPortfolio(evm?: string, solana?: string): Promise<Por
       includeErc20Tokens: true,
     });
     const res = await alchemyFetch(
-      alchemyKeys("portfolio"),
       (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body }
     );

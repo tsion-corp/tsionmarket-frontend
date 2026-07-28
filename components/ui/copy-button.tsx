@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
+import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 
 const RESET_MS = 1500;
@@ -22,9 +23,8 @@ export function CopyButton({ value }: CopyButtonProps) {
   }, []);
 
   const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
+    const ok = await copyText(value);
+    if (!ok) {
       toast.error("Couldn't copy. Long-press the address instead.");
       return;
     }

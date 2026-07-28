@@ -3,6 +3,9 @@
 import { useCallback } from "react";
 import { useSendTransaction } from "@privy-io/react-auth";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
+import { getBase58Decoder } from "@solana/kit";
+import { awaitReceipt, isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
+import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
 import type { RwaAction, RwaChain, RwaStep } from "@/lib/rwa-api";
 
 // EVM chain ids per RWA chain. Without an explicit chainId, Privy defaults to
@@ -33,6 +36,12 @@ export function useExecuteRwa() {
 
   return useCallback(
     async (action: RwaAction, onStep?: (index: number, step: RwaStep) => void) => {
+      // The last step moves the balance (approve precedes it, ordered by nonce).
+      // Track it so we can wait for it to settle before returning, which lets the
+      // caller's portfolio refetch reflect the trade instead of the old balance.
+      let lastEvm: { hash: string; chainId: number } | null = null;
+      let lastSolanaSig: string | null = null;
+
       for (let i = 0; i < action.steps.length; i++) {
         const step = action.steps[i];
         onStep?.(i, step);
@@ -44,18 +53,32 @@ export function useExecuteRwa() {
           const wallet = solanaWallets[0];
           if (!wallet) throw new Error("No Solana wallet is connected.");
           if (!step.tx.base64) throw new Error("The transaction is missing.");
-          await signAndSendTransaction({ transaction: base64ToBytes(step.tx.base64), wallet });
+          const { signature } = await signAndSendTransaction({
+            transaction: base64ToBytes(step.tx.base64),
+            wallet,
+          });
+          lastSolanaSig = getBase58Decoder().decode(signature);
         } else {
           if (!step.tx.to) throw new Error("The transaction is missing.");
           const chainId = EVM_CHAIN_ID[step.chain];
           if (!chainId) throw new Error(`Unsupported chain for this trade: ${step.chain}`);
-          await sendTransaction({
+          const { hash } = await sendTransaction({
             to: step.tx.to,
             data: step.tx.data as `0x${string}` | undefined,
             value: step.tx.value ? BigInt(step.tx.value) : undefined,
             chainId,
           });
+          lastEvm = { hash, chainId };
         }
+      }
+
+      // Wait for the balance-changing transaction to confirm. EVM waits for a
+      // receipt where we have a read client (Base/Arbitrum/Polygon); other chains
+      // are best-effort. Solana polls the signature status.
+      if (lastEvm && isReceiptChain(lastEvm.chainId)) {
+        await awaitReceipt(publicClientForChain(lastEvm.chainId), lastEvm.hash, "The trade");
+      } else if (lastSolanaSig) {
+        await confirmSolanaSignature(lastSolanaSig);
       }
     },
     [sendTransaction, signAndSendTransaction, solanaWallets]

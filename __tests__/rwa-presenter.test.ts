@@ -7,6 +7,7 @@ import {
   errorCode,
   estimateReceiveTokens,
   estimateReceiveUsdc,
+  findRwaAsset,
   findRwaHolding,
   formatApy,
   formatCompactUsd,
@@ -20,6 +21,7 @@ import {
   isTradable,
   isTransientRwaError,
   minReceiveTokens,
+  networkToRwaChain,
   pageCount,
   pageSlice,
   priceImpactPercent,
@@ -365,6 +367,43 @@ describe("isSellableChain", () => {
     expect(isSellableChain("solana")).toBe(true);
     expect(isSellableChain("ethereum")).toBe(false);
     expect(isSellableChain("bsc")).toBe(false);
+  });
+});
+
+describe("networkToRwaChain", () => {
+  it("maps the Alchemy network id back to the RWA chain", () => {
+    expect(networkToRwaChain("base-mainnet")).toBe("base");
+    expect(networkToRwaChain("polygon-mainnet")).toBe("polygon");
+    expect(networkToRwaChain("arb-mainnet")).toBe("arbitrum");
+    expect(networkToRwaChain("solana-mainnet")).toBe("solana");
+  });
+
+  it("returns null for an unknown network", () => {
+    expect(networkToRwaChain("zksync-mainnet")).toBeNull();
+  });
+});
+
+describe("findRwaAsset", () => {
+  const assets = [
+    asset({ id: "base:0xRWA", chain: "base", address: "0xRWA", symbol: "syrupUSDC" }),
+    asset({ id: "polygon:0xPOL", chain: "polygon", address: "0xPOL", symbol: "USDY" }),
+  ];
+
+  it("resolves a held RWA by network and address, case-insensitively", () => {
+    expect(findRwaAsset(assets, "base-mainnet", "0xrwa")?.symbol).toBe("syrupUSDC");
+  });
+
+  it("returns null when the address isn't in the registry", () => {
+    expect(findRwaAsset(assets, "base-mainnet", "0xother")).toBeNull();
+  });
+
+  it("returns null for a native balance (no address) or an untracked network", () => {
+    expect(findRwaAsset(assets, "base-mainnet", null)).toBeNull();
+    expect(findRwaAsset(assets, "zksync-mainnet", "0xRWA")).toBeNull();
+  });
+
+  it("does not match the right address on the wrong chain", () => {
+    expect(findRwaAsset(assets, "polygon-mainnet", "0xRWA")).toBeNull();
   });
 });
 

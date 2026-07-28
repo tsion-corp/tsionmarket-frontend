@@ -22,7 +22,12 @@ import { selectHoldings } from "@/lib/holdings";
 import { canSellAsset } from "@/lib/sell";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
-import type { BuyPayload, DetailPayload, SellPayload } from "@/components/dashboard/modal-types";
+import type {
+  BuyPayload,
+  DetailPayload,
+  RwaTradePayload,
+  SellPayload,
+} from "@/components/dashboard/modal-types";
 
 interface PortfolioViewProps {
   onOpenFunds: () => void;
@@ -30,6 +35,7 @@ interface PortfolioViewProps {
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenBuy: (buy: BuyPayload) => void;
   onOpenSell: (sell: SellPayload) => void;
+  onOpenRwaTrade: (rwaTrade: RwaTradePayload) => void;
 }
 
 const NETWORK_LABELS: Record<string, string> = {
@@ -93,6 +99,7 @@ export function PortfolioView({
   onOpenDetail,
   onOpenBuy,
   onOpenSell,
+  onOpenRwaTrade,
 }: PortfolioViewProps) {
   const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
@@ -149,26 +156,36 @@ export function PortfolioView({
   };
 
   const openToken = (t: TokenBalance) => {
-    // Offer "Sell" only for assets Dextopus can actually take as an origin;
+    // RWA tokens trade through the RWA service (quote + build), never Dextopus,
+    // which cannot source or deliver them. Route both buy and sell to the RWA
+    // panel. `address` is always set for an RWA (it is never a native balance).
+    const isRwa = t.kind === "rwa" && t.address !== null;
+    // Otherwise offer "Sell" only for assets Dextopus can take as an origin;
     // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
     const sellable = canSellAsset(t.network, t.address);
-    onOpenDetail({
-      sym: t.symbol,
-      name: t.name,
-      sub: `${formatQty(t.balance)} ${t.symbol}`,
-      price: money.format(t.priceUsd),
-      chg: "",
-      bg: tokenBg(t.symbol),
-      stats: [
-        { k: "Holdings", v: `${formatQty(t.balance)} ${t.symbol}` },
-        { k: "Market price", v: money.format(t.priceUsd) },
-        { k: "Network", v: networkLabel(t.network) },
-        { k: "Position value", v: money.format(t.valueUsd) },
-      ],
-      cta: `Buy more ${t.name}`,
-      onCta: () =>
-        onOpenBuy({ symbol: t.symbol, name: t.name, priceUsd: t.priceUsd, logo: t.logo }),
-      ...(sellable
+
+    const buyAction = isRwa
+      ? () =>
+          onOpenRwaTrade({
+            network: t.network,
+            address: t.address as string,
+            symbol: t.symbol,
+            mode: "buy",
+          })
+      : () => onOpenBuy({ symbol: t.symbol, name: t.name, priceUsd: t.priceUsd, logo: t.logo });
+
+    const sellAction = isRwa
+      ? {
+          cta2: `Sell ${t.name}`,
+          onCta2: () =>
+            onOpenRwaTrade({
+              network: t.network,
+              address: t.address as string,
+              symbol: t.symbol,
+              mode: "sell",
+            }),
+        }
+      : sellable
         ? {
             cta2: `Sell ${t.name}`,
             onCta2: () =>
@@ -184,7 +201,24 @@ export function PortfolioView({
                 logo: t.logo,
               }),
           }
-        : {}),
+        : {};
+
+    onOpenDetail({
+      sym: t.symbol,
+      name: t.name,
+      sub: `${formatQty(t.balance)} ${t.symbol}`,
+      price: money.format(t.priceUsd),
+      chg: "",
+      bg: tokenBg(t.symbol),
+      stats: [
+        { k: "Holdings", v: `${formatQty(t.balance)} ${t.symbol}` },
+        { k: "Market price", v: money.format(t.priceUsd) },
+        { k: "Network", v: networkLabel(t.network) },
+        { k: "Position value", v: money.format(t.valueUsd) },
+      ],
+      cta: `Buy more ${t.name}`,
+      onCta: buyAction,
+      ...sellAction,
       coingeckoId: coingeckoId(t.symbol) ?? undefined,
       up: true,
       logo: t.logo,
