@@ -35,6 +35,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       config={{
         loginMethods: ["google", "twitter", "email", "passkey"],
         embeddedWallets: {
+          // Sign and send under the hood — no confirmation modal. The app
+          // abstracts web3 away, so transactions (RWA buys, vault wagers,
+          // swaps, deposits) go through without a Privy approval prompt. Can be
+          // overridden per call with uiOptions.showWalletUIs when a specific
+          // action ever needs an explicit confirmation.
+          showWalletUIs: false,
           ethereum: {
             createOnLogin: "users-without-wallets",
           },

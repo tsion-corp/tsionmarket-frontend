@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import {
   useSignAndSendTransaction,
   useWallets as useSolanaWallets,
@@ -28,6 +28,7 @@ import {
 import { getTransferSolInstruction } from "@solana-program/system";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useCreateQuote } from "@/hooks/use-deposit";
+import { useEvmSend } from "@/hooks/use-evm-send";
 import { getWalletAddress } from "@/lib/user";
 import {
   BASE_CHAIN_ID,
@@ -128,7 +129,7 @@ async function buildSolanaUsdcTransfer(
 // ERC-20 transfer; Solana settles USDC via an SPL transfer. Returns the tx hash.
 export function useSendUsdc() {
   const { user } = usePrivy();
-  const { sendTransaction } = useSendTransaction();
+  const evmSend = useEvmSend();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [sending, setSending] = useState(false);
@@ -143,10 +144,12 @@ export function useSendUsdc() {
         if (chainType === "ethereum") {
           const usdc = settle?.usdc ?? settlementFor("ethereum").asset;
           const chainId = settle?.chainId ?? BASE_CHAIN_ID;
-          const { hash } = await sendTransaction(
-            { to: usdc, data: encodeErc20Transfer(to, amount), chainId },
-            { address: from }
-          );
+          const hash = await evmSend({
+            to: usdc as `0x${string}`,
+            data: encodeErc20Transfer(to, amount) as `0x${string}`,
+            chainId,
+            address: from,
+          });
           return hash;
         }
 
@@ -166,7 +169,7 @@ export function useSendUsdc() {
         setSending(false);
       }
     },
-    [user, sendTransaction, signAndSendTransaction, solanaWallets]
+    [user, evmSend, signAndSendTransaction, solanaWallets]
   );
 
   return { sendUsdc, sending };
@@ -216,7 +219,7 @@ export interface SendTokenParams {
 // on EVM, native SOL or SPL on Solana. Self-custody — the embedded wallet signs.
 export function useSendToken() {
   const { user } = usePrivy();
-  const { sendTransaction } = useSendTransaction();
+  const evmSend = useEvmSend();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [sending, setSending] = useState(false);
@@ -235,9 +238,13 @@ export function useSendToken() {
           if (!chainId) throw new Error("Unsupported network");
           const tx =
             tokenAddress === null
-              ? { to, value: `0x${amount.toString(16)}` as `0x${string}`, chainId }
-              : { to: tokenAddress, data: encodeErc20Transfer(to, amount), chainId };
-          const { hash } = await sendTransaction(tx, { address: from });
+              ? { to: to as `0x${string}`, value: amount, chainId }
+              : {
+                  to: tokenAddress as `0x${string}`,
+                  data: encodeErc20Transfer(to, amount) as `0x${string}`,
+                  chainId,
+                };
+          const hash = await evmSend({ ...tx, address: from });
           return hash;
         }
 
@@ -253,7 +260,7 @@ export function useSendToken() {
         setSending(false);
       }
     },
-    [user, sendTransaction, signAndSendTransaction, solanaWallets]
+    [user, evmSend, signAndSendTransaction, solanaWallets]
   );
 
   return { sendToken, sending };

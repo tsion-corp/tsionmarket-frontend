@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { fetchLifiQuote } from "@/lib/trade/lifi";
+import { useEvmSend } from "@/hooks/use-evm-send";
 import {
   encodeAllowanceCall,
   encodeApprove,
@@ -41,7 +42,7 @@ async function readAllowance(
 // caller's balance refetch reflects the received token.
 export function useEvmSwapExecute() {
   const { user } = usePrivy();
-  const { sendTransaction } = useSendTransaction();
+  const evmSend = useEvmSend();
 
   return useCallback(
     async (input: EvmSwapExecuteInput): Promise<void> => {
@@ -68,9 +69,9 @@ export function useEvmSwapExecute() {
           quote.approvalAddress
         );
         if (allowance < input.fromAmount) {
-          const { hash } = await sendTransaction({
-            to: input.fromToken,
-            data: encodeApprove(quote.approvalAddress, input.fromAmount),
+          const hash = await evmSend({
+            to: input.fromToken as `0x${string}`,
+            data: encodeApprove(quote.approvalAddress, input.fromAmount) as `0x${string}`,
             chainId: input.fromChainId,
           });
           await awaitReceipt(client, hash, "Token approval");
@@ -78,17 +79,18 @@ export function useEvmSwapExecute() {
       }
 
       const tx = quote.transactionRequest;
-      const { hash } = await sendTransaction({
-        to: tx.to,
-        data: tx.data,
-        value: tx.value,
+      // Gasless on Base via the sponsored path; other chains pay their own gas.
+      const hash = await evmSend({
+        to: tx.to as `0x${string}`,
+        data: tx.data as `0x${string}`,
+        value: BigInt(tx.value),
         chainId: tx.chainId,
-        gasLimit: tx.gasLimit,
+        gasLimit: tx.gasLimit ? BigInt(tx.gasLimit) : undefined,
       });
       // Wait for the swap to mine so the caller's balance refetch reflects the
       // received token instead of the pre-swap balance.
       await awaitReceipt(client, hash, "The swap");
     },
-    [user, sendTransaction]
+    [user, evmSend]
   );
 }

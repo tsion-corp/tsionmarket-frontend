@@ -146,7 +146,12 @@ export function RoundOverlay({
             <canvas
               ref={canvasRef}
               aria-hidden
-              className="pointer-events-none fixed inset-0 z-[399]"
+              // A <canvas> is a replaced element: `fixed inset-0` alone leaves it
+              // at its default 300x150 in the top-left, so confetti (with
+              // resize:true reading that size) fires into a tiny box up there.
+              // Sizing it to the viewport (w/h-screen) makes the burst fill the
+              // screen and frame the card.
+              className="pointer-events-none fixed inset-0 z-[399] h-screen w-screen"
             />
           ) : null}
           <div className="pointer-events-none fixed inset-0 z-[400] grid place-items-center p-6">

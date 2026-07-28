@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePrivy, useSendTransaction } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { encodeFunctionData } from "viem";
 import { base } from "viem/chains";
 import { getWalletAddress } from "@/lib/user";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
+import { useEvmSend } from "@/hooks/use-evm-send";
 
 // The Last Standing vault contract lives on Base only.
 const VAULT_CHAIN_ID = base.id;
@@ -44,7 +45,7 @@ export async function readVaultEntryFee(): Promise<bigint> {
 // confirmation so the caller's balance/status refetch reflects the result.
 export function useVaultActions() {
   const { user } = usePrivy();
-  const { sendTransaction } = useSendTransaction();
+  const evmSend = useEvmSend();
   const [wagering, setWagering] = useState(false);
   const [claiming, setClaiming] = useState(false);
 
@@ -55,21 +56,19 @@ export function useVaultActions() {
     try {
       const client = publicClientForChain(VAULT_CHAIN_ID);
       const entryFee = await readVaultEntryFee();
-      const { hash } = await sendTransaction(
-        {
-          to: contractAddress(),
-          data: encodeFunctionData({ abi: VAULT_ABI, functionName: "wager" }),
-          value: `0x${entryFee.toString(16)}` as `0x${string}`,
-          chainId: VAULT_CHAIN_ID,
-        },
-        { address: owner }
-      );
+      const hash = await evmSend({
+        to: contractAddress(),
+        data: encodeFunctionData({ abi: VAULT_ABI, functionName: "wager" }),
+        value: entryFee,
+        chainId: VAULT_CHAIN_ID,
+        address: owner,
+      });
       await awaitReceipt(client, hash, "Your wager");
       return hash;
     } finally {
       setWagering(false);
     }
-  }, [user, sendTransaction]);
+  }, [user, evmSend]);
 
   const claim = useCallback(async (): Promise<string> => {
     const owner = getWalletAddress(user, "ethereum");
@@ -77,20 +76,18 @@ export function useVaultActions() {
     setClaiming(true);
     try {
       const client = publicClientForChain(VAULT_CHAIN_ID);
-      const { hash } = await sendTransaction(
-        {
-          to: contractAddress(),
-          data: encodeFunctionData({ abi: VAULT_ABI, functionName: "claim" }),
-          chainId: VAULT_CHAIN_ID,
-        },
-        { address: owner }
-      );
+      const hash = await evmSend({
+        to: contractAddress(),
+        data: encodeFunctionData({ abi: VAULT_ABI, functionName: "claim" }),
+        chainId: VAULT_CHAIN_ID,
+        address: owner,
+      });
       await awaitReceipt(client, hash, "Your claim");
       return hash;
     } finally {
       setClaiming(false);
     }
-  }, [user, sendTransaction]);
+  }, [user, evmSend]);
 
   return { wager, wagering, claim, claiming };
 }

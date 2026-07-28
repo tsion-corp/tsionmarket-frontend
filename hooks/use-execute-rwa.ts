@@ -1,11 +1,11 @@
 "use client";
 
 import { useCallback } from "react";
-import { useSendTransaction } from "@privy-io/react-auth";
 import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
 import { getBase58Decoder } from "@solana/kit";
 import { awaitReceipt, isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
+import { useEvmSend } from "@/hooks/use-evm-send";
 import type { RwaAction, RwaChain, RwaStep } from "@/lib/rwa-api";
 
 // EVM chain ids per RWA chain. Without an explicit chainId, Privy defaults to
@@ -30,7 +30,7 @@ function base64ToBytes(b64: string): Uint8Array {
 // Solana steps carry a base64 versioned transaction; EVM steps carry to/data.
 // The backend never signs, so every step is signed client-side here.
 export function useExecuteRwa() {
-  const { sendTransaction } = useSendTransaction();
+  const evmSend = useEvmSend();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { wallets: solanaWallets } = useWallets();
 
@@ -62,8 +62,10 @@ export function useExecuteRwa() {
           if (!step.tx.to) throw new Error("The transaction is missing.");
           const chainId = EVM_CHAIN_ID[step.chain];
           if (!chainId) throw new Error(`Unsupported chain for this trade: ${step.chain}`);
-          const { hash } = await sendTransaction({
-            to: step.tx.to,
+          // On Base this is gasless (EIP-7702 sponsored); other chains send
+          // normally. Either way we get an on-chain hash to confirm below.
+          const hash = await evmSend({
+            to: step.tx.to as `0x${string}`,
             data: step.tx.data as `0x${string}` | undefined,
             value: step.tx.value ? BigInt(step.tx.value) : undefined,
             chainId,
@@ -81,6 +83,6 @@ export function useExecuteRwa() {
         await confirmSolanaSignature(lastSolanaSig);
       }
     },
-    [sendTransaction, signAndSendTransaction, solanaWallets]
+    [evmSend, signAndSendTransaction, solanaWallets]
   );
 }
