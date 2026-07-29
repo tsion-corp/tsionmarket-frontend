@@ -16,8 +16,8 @@ export function FinalCta() {
           Your money. Your world. Your call.
         </h2>
         <p className="mx-auto mt-[22px] max-w-[48ch] text-[17px] leading-[1.6] font-light text-white/90">
-          Create your account in seconds and be first through the door when World Street opens in
-          your region.
+          Create your account in seconds and be first through the door when TSION opens in your
+          region.
         </p>
         <div className="mt-8 flex justify-center">
           <Link

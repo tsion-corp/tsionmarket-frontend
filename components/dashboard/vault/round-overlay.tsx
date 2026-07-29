@@ -7,8 +7,8 @@ import { MoneyTicker } from "@/components/ui/money-ticker";
 
 // Two confetti palettes: gold-forward when this wallet won, cooler house
 // colours when we're celebrating someone else taking the pot.
-const GOLD = ["#F6D365", "#e0a83a", "#ffffff", "#A78BFA", "#7CE7B0"];
-const HOUSE = ["#A78BFA", "#8b6ef0", "#c3b0ff", "#7CE7B0", "#ffffff"];
+const GOLD = ["#d8d8dc", "#a8a8ae", "#ffffff", "#d4d4d8", "#7CE7B0"];
+const HOUSE = ["#d4d4d8", "#b6b6bc", "#e8e8ea", "#7CE7B0", "#ffffff"];
 const BURST_MS = 4200;
 const WON_AUTO_CLOSE_MS = 7000;
 
@@ -165,11 +165,11 @@ export function RoundOverlay({
                   transition={
                     reduce ? { duration: 0.2 } : { type: "spring", stiffness: 300, damping: 20 }
                   }
-                  className="ws-glass pointer-events-auto relative w-full max-w-[440px] overflow-hidden rounded-[28px] p-8 text-center shadow-[0_50px_140px_-30px_rgba(246,211,101,0.6)]"
+                  className="ws-glass shadow-[0_50px_140px_-30px_rgba(216, 216, 220, 0.6)] pointer-events-auto relative w-full max-w-[440px] overflow-hidden rounded-[28px] p-8 text-center"
                 >
                   <div
                     aria-hidden
-                    className="pointer-events-none absolute -top-28 left-1/2 h-60 w-60 -translate-x-1/2 rounded-full bg-[#F6D365]/25 blur-[80px]"
+                    className="pointer-events-none absolute -top-28 left-1/2 h-60 w-60 -translate-x-1/2 rounded-full bg-[#d8d8dc]/25 blur-[80px]"
                   />
                   <div className="relative">
                     {/* Trophy on a slowly rotating conic shine. */}
@@ -182,7 +182,7 @@ export function RoundOverlay({
                           className="absolute inset-0 rounded-full opacity-80"
                           style={{
                             background:
-                              "conic-gradient(from 0deg, rgba(246,211,101,0) 0deg, #F6D365 70deg, #ffffff 150deg, rgba(246,211,101,0) 260deg)",
+                              "conic-gradient(from 0deg, rgba(216, 216, 220, 0) 0deg, #d8d8dc 70deg, #ffffff 150deg, rgba(216, 216, 220, 0) 260deg)",
                             mask: "radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px))",
                             WebkitMask:
                               "radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 7px))",
@@ -193,18 +193,18 @@ export function RoundOverlay({
                         initial={reduce ? {} : { scale: 0, rotate: -30 }}
                         animate={reduce ? {} : { scale: 1, rotate: 0 }}
                         transition={{ delay: 0.1, type: "spring", stiffness: 260, damping: 13 }}
-                        className="absolute inset-[10px] grid place-items-center rounded-full bg-[linear-gradient(180deg,#F6D365,#e0a83a)] text-[34px] shadow-[0_14px_36px_-8px_rgba(246,211,101,0.8)]"
+                        className="shadow-[0_14px_36px_-8px_rgba(216, 216, 220, 0.8)] absolute inset-[10px] grid place-items-center rounded-full bg-[linear-gradient(180deg,#d8d8dc,#a8a8ae)] text-[34px]"
                       >
                         🏆
                       </motion.div>
                     </div>
-                    <div className="mt-5 text-[13px] font-bold tracking-[0.24em] text-[#F6D365] uppercase">
+                    <div className="mt-5 text-[13px] font-bold tracking-[0.24em] text-[#d8d8dc] uppercase">
                       Jackpot
                     </div>
                     <div className="ws-display mt-1 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[40px] leading-none text-transparent">
                       You won!
                     </div>
-                    <div className="ws-display tnum mt-4 text-[clamp(48px,13vw,72px)] leading-none text-white drop-shadow-[0_0_32px_rgba(246,211,101,0.5)]">
+                    <div className="ws-display tnum drop-shadow-[0_0_32px_rgba(216, 216, 220, 0.5)] mt-4 text-[clamp(48px,13vw,72px)] leading-none text-white">
                       {canTick ? (
                         <MoneyTicker value={prizeValue} format={formatMoney} delay={0.25} />
                       ) : (
@@ -212,7 +212,7 @@ export function RoundOverlay({
                       )}
                     </div>
                     {winnerLabel ? (
-                      <div className="tnum mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#F6D365]/25 bg-[#F6D365]/10 px-3 py-1 text-[12px] font-semibold text-[#F6D365]">
+                      <div className="tnum mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#d8d8dc]/25 bg-[#d8d8dc]/10 px-3 py-1 text-[12px] font-semibold text-[#d8d8dc]">
                         <span aria-hidden>✦</span>
                         Credited to {winnerLabel}
                       </div>
@@ -222,7 +222,7 @@ export function RoundOverlay({
                     </div>
                     <button
                       onClick={onClose}
-                      className="mt-7 w-full cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#c3b0ff,#8b6ef0)] p-4 font-sans text-[16px] font-bold text-white shadow-[0_16px_42px_-12px_rgba(167,139,250,0.9)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+                      className="shadow-[0_16px_42px_-12px_rgba(255, 255, 255, 0.9)] mt-7 w-full cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)] p-4 font-sans text-[16px] font-bold text-white transition-transform hover:-translate-y-0.5 active:translate-y-0"
                     >
                       Nice!
                     </button>
@@ -237,7 +237,7 @@ export function RoundOverlay({
                   transition={
                     reduce ? { duration: 0.2 } : { type: "spring", stiffness: 300, damping: 22 }
                   }
-                  className="ws-glass pointer-events-auto relative w-full max-w-[440px] overflow-hidden rounded-[28px] p-8 text-center shadow-[0_50px_140px_-30px_rgba(167,139,250,0.7)]"
+                  className="ws-glass shadow-[0_50px_140px_-30px_rgba(255, 255, 255, 0.7)] pointer-events-auto relative w-full max-w-[440px] overflow-hidden rounded-[28px] p-8 text-center"
                 >
                   <div
                     aria-hidden
@@ -248,7 +248,7 @@ export function RoundOverlay({
                       initial={reduce ? {} : { scale: 0, rotate: -20 }}
                       animate={reduce ? {} : { scale: 1, rotate: 0 }}
                       transition={{ delay: 0.08, type: "spring", stiffness: 260, damping: 14 }}
-                      className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-[linear-gradient(180deg,#c3b0ff,#8b6ef0)] text-[36px] shadow-[0_14px_36px_-8px_rgba(167,139,250,0.8)]"
+                      className="shadow-[0_14px_36px_-8px_rgba(255, 255, 255, 0.8)] mx-auto grid h-20 w-20 place-items-center rounded-full bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)] text-[36px]"
                     >
                       👑
                     </motion.div>
@@ -286,7 +286,7 @@ export function RoundOverlay({
                   animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.94 }}
                   transition={{ duration: 0.22, ease: "easeOut" }}
-                  className="ws-glass pointer-events-auto relative w-full max-w-[420px] overflow-hidden rounded-[28px] p-8 text-center shadow-[0_50px_140px_-30px_rgba(167,139,250,0.6)]"
+                  className="ws-glass shadow-[0_50px_140px_-30px_rgba(255, 255, 255, 0.6)] pointer-events-auto relative w-full max-w-[420px] overflow-hidden rounded-[28px] p-8 text-center"
                 >
                   <div
                     aria-hidden
@@ -303,7 +303,7 @@ export function RoundOverlay({
                           className="absolute inset-0 rounded-full"
                           style={{
                             background:
-                              "conic-gradient(from 0deg, rgba(167,139,250,0) 0deg, #A78BFA 90deg, #F6D365 200deg, rgba(167,139,250,0) 320deg)",
+                              "conic-gradient(from 0deg, rgba(255, 255, 255, 0) 0deg, #d4d4d8 90deg, #d8d8dc 200deg, rgba(255, 255, 255, 0) 320deg)",
                             mask: "radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px))",
                             WebkitMask:
                               "radial-gradient(farthest-side, transparent calc(100% - 6px), #000 calc(100% - 6px))",

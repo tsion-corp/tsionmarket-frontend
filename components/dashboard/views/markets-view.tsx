@@ -25,7 +25,7 @@ interface MarketsViewProps {
   onOpenBuy: (buy: BuyPayload) => void;
 }
 
-const ICON_BG = "linear-gradient(135deg,#A78BFA,#6d5bd0)";
+const ICON_BG = "linear-gradient(135deg,#d4d4d8,#a2a2a8)";
 
 function changeLabel(chg: number): string {
   const v = Number.isFinite(chg) ? chg : 0;

@@ -33,7 +33,7 @@ export const ONDO_PRODUCTS: OndoProduct[] = [
     name: "US Dollar Yield",
     ticker: "USDY",
     category: "Treasuries",
-    bg: "linear-gradient(135deg,#A78BFA,#6d5bd0)",
+    bg: "linear-gradient(135deg,#d4d4d8,#a2a2a8)",
     blurb:
       "A tokenized note secured by short-term US Treasuries and bank demand deposits. Yield accrues into the token price every day.",
     facts: ["Backed by US Treasuries", "Yield accrues daily", "Redeemable onchain"],
@@ -45,7 +45,7 @@ export const ONDO_PRODUCTS: OndoProduct[] = [
     name: "Short-Term Treasuries",
     ticker: "OUSG",
     category: "Treasuries",
-    bg: "linear-gradient(135deg,#8B7BE0,#4c3fa0)",
+    bg: "linear-gradient(135deg,#c2c2c8,#87878d)",
     blurb:
       "Ondo's tokenized fund of short-duration US Treasuries. Institutional cash management that mints and redeems around the clock.",
     facts: ["Short-term US Treasuries", "Instant mint and redeem", "Held by a regulated custodian"],
@@ -143,7 +143,7 @@ export const ONDO_PRODUCTS: OndoProduct[] = [
     name: "Gold Trust",
     ticker: "IAUon",
     category: "Metals",
-    bg: "linear-gradient(135deg,#E7C97C,#9c7d2e)",
+    bg: "linear-gradient(135deg,#d0d0d4,#88888e)",
     blurb:
       "Tokenized iShares Gold Trust. Exposure to physical gold, issued through Ondo Global Markets.",
     facts: ["Tracks the iShares Gold Trust", "Physical gold exposure", "Trades onchain 24/7"],

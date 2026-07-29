@@ -89,7 +89,7 @@ export function PerpsPanel({ market, prices, balances }: PerpsPanelProps) {
               onClick={() => setOrderType(t)}
               className={`cursor-pointer rounded-xl py-2 font-sans text-[13px] font-medium capitalize transition-colors ${
                 on
-                  ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.35)]"
+                  ? "bg-accent/16 shadow-[inset_0_0_0_1px_rgba(255, 255, 255, 0.35)] text-white"
                   : "text-white/55 hover:text-white/80"
               }`}
             >

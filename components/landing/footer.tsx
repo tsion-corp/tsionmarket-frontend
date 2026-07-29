@@ -54,7 +54,7 @@ export function Footer() {
       </div>
       <div className="mx-auto flex max-w-[1120px] flex-wrap justify-between gap-3 border-t border-white/6 px-6 pt-[22px] pb-10">
         <span className="text-[13px] font-normal text-white/40">
-          © 2026 World Street Web Services. All rights reserved.
+          © 2026 TSION. All rights reserved.
         </span>
         <span className="max-w-[60ch] text-right text-xs font-normal text-white/35">
           Not investment advice. Crypto and market products carry risk, including loss of principal.

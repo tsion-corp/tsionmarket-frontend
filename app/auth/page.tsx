@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Wordmark } from "@/components/ui/wordmark";
+import { TsionMark } from "@/components/ui/tsion-mark";
 import { LockIcon } from "@/components/ui/icons";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
@@ -46,7 +47,7 @@ export default function AuthPage() {
           </div>
 
           <h1 className="ws-display text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
-            Welcome to <span className="text-accent">World Street</span>
+            Welcome to <span className="text-accent">TSION</span>
           </h1>
           <p className="mt-4 max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72">
             Sign in to own stocks, gold, crypto and real-world assets from one self-custody account.
@@ -54,8 +55,8 @@ export default function AuthPage() {
 
           {signingIn ? (
             <div className="mt-[34px] flex items-center gap-3 rounded-[14px] border border-white/14 bg-white/6 p-4">
-              <span className="grid h-8 w-8 animate-pulse place-items-center rounded-full border border-white/18 bg-white/8">
-                <span className="ws-display text-accent text-[17px] leading-none">w</span>
+              <span className="grid h-8 w-8 animate-pulse place-items-center rounded-full">
+                <TsionMark size={30} />
               </span>
               <span className="text-sm text-white/80">
                 Signing you in and setting up your wallet…
@@ -87,7 +88,7 @@ export default function AuthPage() {
         </div>
 
         <p className="mx-auto max-w-[420px] text-center text-xs leading-normal text-white/35">
-          By continuing you agree to World Street&apos;s{" "}
+          By continuing you agree to TSION&apos;s{" "}
           <a href="#" className="text-white/60 underline">
             Terms
           </a>{" "}

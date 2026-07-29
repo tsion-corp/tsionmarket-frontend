@@ -29,7 +29,7 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
           <AssetChart coingeckoId={detail.coingeckoId} up={detail.up ?? isUp(detail.chg)} />
         </div>
       ) : (
-        <div className="mt-4 rounded-[14px] bg-[linear-gradient(180deg,rgba(167,139,250,0.12),rgba(167,139,250,0))]">
+        <div className="bg-[linear-gradient(180deg,rgba(255, 255, 255, 0.12),rgba(255, 255, 255, 0))] mt-4 rounded-[14px]">
           <Sparkline id="detail" line={DETAIL_LINE} height={120} viewHeight={120} />
         </div>
       )}

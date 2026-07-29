@@ -85,8 +85,8 @@ export function PredictionView() {
         <div className="ws-card mt-[18px] flex flex-col items-center gap-2 px-6 py-12 text-center">
           <div className="ws-display text-[22px]">Not available in your region</div>
           <p className="max-w-[360px] text-[13.5px] font-normal text-white/55">
-            Prediction markets aren&apos;t offered where you are right now. The rest of World Street
-            stays fully available.
+            Prediction markets aren&apos;t offered where you are right now. The rest of TSION stays
+            fully available.
           </p>
         </div>
       ) : (

@@ -14,6 +14,7 @@ import { DetailModal } from "@/components/dashboard/modals/detail-modal";
 import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
 import { FundsModal } from "@/components/dashboard/modals/funds-modal";
 import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
+import { CrossBorderModal } from "@/components/dashboard/remit/cross-border-modal";
 import { BuySheet } from "@/components/dashboard/buy/buy-sheet";
 import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
 import { RwaTradeModal } from "@/components/dashboard/rwa/rwa-trade-modal";
@@ -75,12 +76,14 @@ export default function DashboardPage() {
   );
   const openFunds = useCallback(() => setModal({ type: "funds" }), []);
   const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
+  const openCrossBorder = useCallback(() => setModal({ type: "crossBorder" }), []);
 
   const sections: Record<ScrollSectionId, React.ReactNode> = {
     portfolio: (
       <Portfolio
         onOpenFunds={openFunds}
         onOpenWithdraw={openWithdraw}
+        onOpenCrossBorder={openCrossBorder}
         onOpenDetail={openDetail}
         onOpenBuy={openBuy}
         onOpenSell={openSell}
@@ -122,6 +125,7 @@ export default function DashboardPage() {
         {modal?.type === "rwaTrade" ? <RwaTradeModal payload={modal.rwaTrade} /> : null}
         {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
+        {modal?.type === "crossBorder" ? <CrossBorderModal /> : null}
         {modal?.type === "account" ? <AccountModal onClose={close} /> : null}
         {modal?.type === "done" ? (
           <SuccessPanel title={modal.title} onDone={close}>

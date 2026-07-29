@@ -141,7 +141,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   if (requestId) {
     const failed = stage === "failed" || stage === "refunded";
     const done = stage === "settled";
-    const color = failed ? "#f6a5a5" : done ? "#7ce7b0" : "#a78bfa";
+    const color = failed ? "#f6a5a5" : done ? "#7ce7b0" : "#d4d4d8";
     return (
       <div>
         <Eyebrow>{done ? "All done" : "Buying"}</Eyebrow>

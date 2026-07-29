@@ -38,7 +38,7 @@ export function DepositStatus({
   const progress = depositProgress(status, executionStatus);
   const failed = progress.stage === "failed" || progress.stage === "refunded";
   const current = RANK[progress.stage];
-  const color = failed ? "#f6a5a5" : progress.stage === "settled" ? "#7ce7b0" : "#a78bfa";
+  const color = failed ? "#f6a5a5" : progress.stage === "settled" ? "#7ce7b0" : "#d4d4d8";
 
   return (
     <div className="ws-inset mt-4 p-4">

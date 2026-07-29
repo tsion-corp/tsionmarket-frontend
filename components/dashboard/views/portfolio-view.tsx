@@ -11,6 +11,7 @@ import {
   type SortingState,
 } from "@tanstack/react-table";
 import { BalanceCard } from "@/components/dashboard/balance-card";
+import { CrossBorderBanner } from "@/components/dashboard/remit/cross-border-banner";
 import { Switch } from "@/components/ui/switch";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
@@ -32,6 +33,7 @@ import type {
 interface PortfolioViewProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
+  onOpenCrossBorder: () => void;
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenBuy: (buy: BuyPayload) => void;
   onOpenSell: (sell: SellPayload) => void;
@@ -51,14 +53,18 @@ function networkLabel(network: string): string {
   return NETWORK_LABELS[network] ?? network;
 }
 
-// Stable gradient per symbol so tokens without a built-in icon stay visually
-// distinct across the app.
+// Stable greyscale gradient per symbol so tokens without a built-in icon stay
+// visually distinct. TSION is monochrome, so the seed varies lightness only, not
+// hue.
 function tokenBg(symbol: string): string {
-  let hue = 0;
+  let seed = 0;
   for (let i = 0; i < symbol.length; i++) {
-    hue = (hue * 31 + symbol.charCodeAt(i)) % 360;
+    seed = (seed * 31 + symbol.charCodeAt(i)) % 360;
   }
-  return `linear-gradient(135deg, hsl(${hue} 62% 46%), hsl(${(hue + 42) % 360} 55% 32%))`;
+  // Map the seed to a light step in 58–80% so the badge reads on black, with a
+  // consistently darker foot.
+  const light = 58 + (seed % 22);
+  return `linear-gradient(135deg, hsl(0 0% ${light}%), hsl(0 0% ${Math.max(28, light - 30)}%))`;
 }
 
 const KIND_LABEL: Record<TokenBalance["kind"], string> = {
@@ -96,6 +102,7 @@ const HOLDINGS_COLUMNS = [
 export function PortfolioView({
   onOpenFunds,
   onOpenWithdraw,
+  onOpenCrossBorder,
   onOpenDetail,
   onOpenBuy,
   onOpenSell,
@@ -231,6 +238,10 @@ export function PortfolioView({
 
       <div className="mt-3.5">
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
+      </div>
+
+      <div className="mt-3">
+        <CrossBorderBanner onClick={onOpenCrossBorder} />
       </div>
 
       {errored ? (

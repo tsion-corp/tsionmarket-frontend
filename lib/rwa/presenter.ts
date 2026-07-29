@@ -423,15 +423,17 @@ export function buildPayOptions(tokens: TokenBalance[], asset: RwaApiAsset): Pay
   });
 }
 
+// Monochrome silver-to-charcoal gradients for an asset's icon fallback. TSION is
+// greyscale, so these vary only in lightness, never hue.
 const GRADIENTS = [
-  "linear-gradient(135deg,#A78BFA,#6d5bd0)",
-  "linear-gradient(135deg,#8B7BE0,#4c3fa0)",
-  "linear-gradient(135deg,#5FA8A0,#2c5c56)",
-  "linear-gradient(135deg,#E7C97C,#9c7d2e)",
-  "linear-gradient(135deg,#4b6cb7,#182848)",
-  "linear-gradient(135deg,#76B900,#3c5f00)",
-  "linear-gradient(135deg,#00C4B4,#00786d)",
-  "linear-gradient(135deg,#C0C6CE,#7c828b)",
+  "linear-gradient(135deg,#e8e8ea,#9b9b9b)",
+  "linear-gradient(135deg,#cfcfd4,#6a6a70)",
+  "linear-gradient(135deg,#b4b4ba,#57575c)",
+  "linear-gradient(135deg,#d8d8dc,#88888e)",
+  "linear-gradient(135deg,#9b9b9b,#3c3c3c)",
+  "linear-gradient(135deg,#c0c0c6,#4a4a50)",
+  "linear-gradient(135deg,#a8a8ae,#5a5a5a)",
+  "linear-gradient(135deg,#e0e0e4,#7a7a7a)",
 ];
 
 // Stable gradient for an asset's icon fallback. Deterministic from the seed so

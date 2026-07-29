@@ -3,7 +3,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 
 const FAQS = [
   {
-    q: "Is World Street a bank or exchange holding my money?",
+    q: "Is TSION a bank or exchange holding my money?",
     a: "No. Your money stays in your own account, not ours. We can't freeze it or move it.",
     open: true,
   },

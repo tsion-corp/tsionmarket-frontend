@@ -340,7 +340,7 @@ export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaT
             onClick={() => switchMode(m)}
             className={`cursor-pointer rounded-[10px] p-2.5 font-sans text-sm font-semibold capitalize transition-colors ${
               mode === m
-                ? "bg-accent/18 text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.35)]"
+                ? "bg-accent/18 shadow-[inset_0_0_0_1px_rgba(255, 255, 255, 0.35)] text-white"
                 : "bg-transparent text-white/55 hover:text-white"
             }`}
           >

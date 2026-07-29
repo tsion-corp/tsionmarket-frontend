@@ -33,7 +33,7 @@ function InterestPicker() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(167,139,250,0.14)_0%,rgba(0,0,0,0)_55%),#000]">
+    <div className="bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(255, 255, 255, 0.14)_0%,rgba(0,0,0,0)_55%),#000] flex min-h-screen flex-col">
       <header className="mx-auto flex w-full max-w-[1120px] items-center justify-between px-6 py-[22px] sm:px-8">
         <Wordmark />
         <div className="flex items-center gap-3.5">

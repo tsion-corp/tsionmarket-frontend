@@ -103,7 +103,7 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
         />
 
         {/* Minimum-deposit caution, styled as a warning banner. */}
-        <div className="mt-3 flex items-start gap-2.5 rounded-[14px] border border-[#F6D365]/25 bg-[#F6D365]/8 px-4 py-3">
+        <div className="mt-3 flex items-start gap-2.5 rounded-[14px] border border-[#d8d8dc]/25 bg-[#d8d8dc]/8 px-4 py-3">
           <span aria-hidden className="mt-px shrink-0 text-[15px]">
             ⚠️
           </span>

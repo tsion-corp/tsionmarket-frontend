@@ -7,25 +7,42 @@
      face, not a serif. */
   --font-serif: var(--font-display);
 
-  --color-accent: #a78bfa;
+  /* TSION brand is monochrome: no purple, no gold. The accent is silver, so
+     text-accent and the accent tints read as light neutral washes on black. */
+  --color-accent: #d4d4d8;
+  /* Gain and loss stay semantic (functional, not brand color). */
   --color-up: #7ce7b0;
   --color-up-ink: #04241a;
   --color-down: #f6a5a5;
   --color-down-ink: #2a0e0e;
-  --color-ink: #04120e;
-  --color-arrow: #0b7a63;
+  /* Dark text on light (silver/white) buttons. Neutral near-black now. */
+  --color-ink: #0a0a0a;
+  /* Small directional glyphs. Neutral grey, was green. */
+  --color-arrow: #8a8a8f;
   --color-panel: #0a0a0a;
   --color-sheet: #0c0c0e;
+
+  /* Designer greyscale scale (TSION COLOR palette). Neutral steps for text,
+     borders, and surfaces. Token names mirror the design file's grey/20..100. */
+  --color-grey-100: #f4f4f4;
+  --color-grey-200: #dcdcdc;
+  --color-grey-300: #bfbfbf;
+  --color-grey-400: #9b9b9b;
+  --color-grey-500: #7a7a7a;
+  --color-grey-600: #5a5a5a;
+  --color-grey-700: #3c3c3c;
+  --color-grey-800: #1c1c1c;
+  --color-grey-900: #0f0f0f;
 
   /* Semantic tokens used by shadcn-style primitives (e.g. the Switch), mapped to
      this app's dark palette so those components render without a separate token
      layer. */
-  --color-primary: #a78bfa;
-  --color-primary-foreground: #ffffff;
+  --color-primary: #e8e8ea;
+  --color-primary-foreground: #0a0a0a;
   --color-foreground: #ededed;
   --color-background: #fafafa;
   --color-input: #33333a;
-  --color-ring: #a78bfa;
+  --color-ring: #d4d4d8;
   --color-destructive: #ef4444;
 }
 
@@ -41,7 +58,7 @@ body {
 }
 
 ::selection {
-  background: rgba(167, 139, 250, 0.35);
+  background: rgba(255, 255, 255, 0.35);
   color: #fff;
 }
 

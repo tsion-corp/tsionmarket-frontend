@@ -80,6 +80,7 @@ export type DashboardModal =
   | { type: "rwaTrade"; rwaTrade: RwaTradePayload }
   | { type: "funds" }
   | { type: "withdraw" }
+  | { type: "crossBorder" }
   | { type: "account" }
   | { type: "done"; title: string; msg: string }
   | null;

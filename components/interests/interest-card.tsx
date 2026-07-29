@@ -21,7 +21,7 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
       transition={{ duration: 0.18 }}
       className={`relative cursor-pointer rounded-[20px] p-4 text-left font-sans text-white transition-colors sm:p-6 ${
         selected
-          ? "border-accent/55 bg-accent/12 border shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_0_1px_rgba(167,139,250,0.25)]"
+          ? "border-accent/55 bg-accent/12 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_0_0_1px_rgba(255, 255, 255, 0.25)] border"
           : "border border-white/12 bg-white/5 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-white/28"
       }`}
     >

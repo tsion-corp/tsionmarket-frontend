@@ -90,7 +90,7 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
             <span className="bg-accent h-1 w-1 rounded-full" />
             {charted.name} price
           </div>
-          <div className="rounded-[14px] bg-[linear-gradient(180deg,rgba(167,139,250,0.10),rgba(167,139,250,0))] p-2">
+          <div className="bg-[linear-gradient(180deg,rgba(255, 255, 255, 0.10),rgba(255, 255, 255, 0))] rounded-[14px] p-2">
             <AssetChart coingeckoId={chartId} up height={150} allowCandles={false} />
           </div>
         </div>

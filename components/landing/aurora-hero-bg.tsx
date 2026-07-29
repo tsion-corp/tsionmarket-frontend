@@ -1,17 +1,19 @@
 "use client";
 
 // Background-only adaptation of the vengenceui "Aurora Hero": the animated
-// fluted-stripe + rainbow difference-blend layer, retinted violet to blend with
-// the dark page. The title and full-screen fluted-glass content layer are
-// dropped so it sits behind each section's own content.
+// fluted-stripe + shimmer difference-blend layer, retinted to TSION monochrome
+// (silver on near-black) to blend with the dark page. The title and full-screen
+// fluted-glass content layer are dropped so it sits behind each section's own
+// content.
 export function AuroraHeroBackground() {
   return (
     <div aria-hidden className="ws-aurora absolute inset-0 z-0 overflow-hidden">
       <style>{`
         .ws-aurora {
-          --stripe-color: #06040e;
-          --bg-filter: blur(12px) opacity(45%) saturate(150%);
-          background: #070510;
+          --stripe-color: #0a0a0c;
+          /* No saturate: the shimmer is greyscale, so keep it neutral. */
+          --bg-filter: blur(12px) opacity(45%);
+          background: #08080a;
         }
         @keyframes wsAuroraShift {
           from { background-position: 50% 50%, 50% 50%; }
@@ -28,13 +30,14 @@ export function AuroraHeroBackground() {
             transparent 12%,
             var(--stripe-color) 16%
           );
+          /* Silver shimmer: greyscale steps only, no hue. */
           --rainbow: repeating-linear-gradient(
             100deg,
-            #6d54b8 10%,
-            #a78bfa 15%,
-            #6d54b8 20%,
-            #4f46b0 25%,
-            #6d54b8 30%
+            #5c5c62 10%,
+            #e8e8ea 15%,
+            #6c6c72 20%,
+            #3c3c40 25%,
+            #808088 30%
           );
           background-image: var(--stripes), var(--rainbow);
           background-size: 300%, 200%;

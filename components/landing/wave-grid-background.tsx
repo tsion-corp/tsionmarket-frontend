@@ -16,7 +16,8 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
  * a mouse-trail displacement shader, and a vignette / RGB-shift post pass.
  *
  * Ported from the vengenceui "3D Wave Grid" component; the `cn` dependency was
- * dropped and the default palette retinted to blend with the dark violet page.
+ * dropped and the default palette retinted to TSION monochrome: a near-black
+ * base with silver wave peaks, to blend with the dark page.
  */
 
 const MAX_TRAIL = 128;
@@ -129,9 +130,9 @@ export interface WaveGridBackgroundProps {
   className?: string;
   /** Grid resolution (NxN cubes). Defaults to 40. */
   gridSize?: number;
-  /** Base cube color / scene tint. Defaults to a deep violet that blends with the page. */
+  /** Base cube color / scene tint. Defaults to a near-black neutral. */
   colorBase?: string;
-  /** Color of the wave peaks. Defaults to the brand accent. */
+  /** Color of the wave peaks. Defaults to the brand silver accent. */
   colorHigh?: string;
   /** Peak displacement multiplier. Defaults to 0.4. */
   waveAmplitude?: number;
@@ -155,8 +156,8 @@ export function WaveGridBackground({
   children,
   className,
   gridSize = 40,
-  colorBase = "#0f0b1c",
-  colorHigh = "#6d54b8",
+  colorBase = "#101014",
+  colorHigh = "#dcdce0",
   waveAmplitude = 0.4,
   waveSpeed = 3.0,
   waveFrequency = 1,
@@ -437,7 +438,7 @@ export function WaveGridBackground({
     renderer.toneMappingExposure = 1.95;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFShadowMap;
-    renderer.setClearColor("#0a0716");
+    renderer.setClearColor("#09090b");
     renderer.setSize(size.width, size.height);
     renderer.setPixelRatio(size.pixelRatio);
 

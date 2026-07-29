@@ -5,7 +5,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import confetti from "canvas-confetti";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 
-const GOLD = ["#F6D365", "#e0a83a", "#ffffff", "#ffd86b"];
+const GOLD = ["#d8d8dc", "#a8a8ae", "#ffffff", "#ffd86b"];
 const AUTO_CLOSE_MS = 3600;
 
 interface PlayOverlayProps {
@@ -93,7 +93,7 @@ export function PlayOverlay({
           {/* Neon arena wash behind everything. */}
           <div
             aria-hidden
-            className="pointer-events-none fixed inset-0 z-[398] bg-[radial-gradient(60%_50%_at_50%_45%,rgba(246,211,101,0.22),transparent_70%)]"
+            className="bg-[radial-gradient(60%_50%_at_50%_45%,rgba(216, 216, 220, 0.22),transparent_70%)] pointer-events-none fixed inset-0 z-[398]"
           />
           <canvas
             ref={canvasRef}
@@ -115,7 +115,7 @@ export function PlayOverlay({
                 initial={reduce ? {} : { y: -140, rotate: -220, opacity: 0 }}
                 animate={reduce ? {} : { y: 0, rotate: 0, opacity: 1 }}
                 transition={{ type: "spring", stiffness: 320, damping: 16, delay: 0.05 }}
-                className="grid h-24 w-24 place-items-center rounded-full bg-[linear-gradient(180deg,#ffe7a0,#F6D365,#e0a83a)] text-[46px] shadow-[0_0_50px_-6px_rgba(246,211,101,0.9),inset_0_2px_0_rgba(255,255,255,0.6)]"
+                className="shadow-[0_0_50px_-6px_rgba(216, 216, 220, 0.9),inset_0_2px_0_rgba(255,255,255,0.6)] grid h-24 w-24 place-items-center rounded-full bg-[linear-gradient(180deg,#f0f0f2,#d8d8dc,#a8a8ae)] text-[46px]"
               >
                 🪙
               </motion.div>
@@ -124,7 +124,7 @@ export function PlayOverlay({
                 initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.4, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ delay: 0.28, type: "spring", stiffness: 420, damping: 18 }}
-                className="ws-display mt-6 bg-[linear-gradient(180deg,#fff6da,#F6D365,#e0a83a)] bg-clip-text text-[clamp(44px,11vw,76px)] leading-[0.95] tracking-[-0.02em] text-transparent drop-shadow-[0_4px_30px_rgba(246,211,101,0.55)]"
+                className="ws-display drop-shadow-[0_4px_30px_rgba(216, 216, 220, 0.55)] mt-6 bg-[linear-gradient(180deg,#fff6da,#d8d8dc,#a8a8ae)] bg-clip-text text-[clamp(44px,11vw,76px)] leading-[0.95] tracking-[-0.02em] text-transparent"
               >
                 YOU&apos;RE IN!
               </motion.div>
@@ -133,7 +133,7 @@ export function PlayOverlay({
                 initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#F6D365]/40 bg-[#F6D365]/12 px-4 py-1.5 text-[13px] font-bold tracking-[0.18em] text-[#F6D365] uppercase"
+                className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#d8d8dc]/40 bg-[#d8d8dc]/12 px-4 py-1.5 text-[13px] font-bold tracking-[0.18em] text-[#d8d8dc] uppercase"
               >
                 <span className="bg-up h-1.5 w-1.5 animate-pulse rounded-full" />
                 Last standing
@@ -147,7 +147,7 @@ export function PlayOverlay({
               >
                 Chasing a pot of
               </motion.div>
-              <div className="ws-display tnum text-[clamp(40px,10vw,60px)] leading-none text-white drop-shadow-[0_0_28px_rgba(246,211,101,0.4)]">
+              <div className="ws-display tnum drop-shadow-[0_0_28px_rgba(216, 216, 220, 0.4)] text-[clamp(40px,10vw,60px)] leading-none text-white">
                 <MoneyTicker value={potValue} format={formatMoney} delay={0.62} />
               </div>
 
@@ -165,7 +165,7 @@ export function PlayOverlay({
 
               <button
                 onClick={onClose}
-                className="mt-8 cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#ffe7a0,#F6D365,#e6b23c)] px-10 py-3.5 font-sans text-[15px] font-bold text-[#3a2a00] shadow-[0_16px_42px_-12px_rgba(246,211,101,0.95)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+                className="shadow-[0_16px_42px_-12px_rgba(216, 216, 220, 0.95)] mt-8 cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#f0f0f2,#d8d8dc,#b0b0b6)] px-10 py-3.5 font-sans text-[15px] font-bold text-[#1a1a1a] transition-transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 Let&apos;s go
               </button>

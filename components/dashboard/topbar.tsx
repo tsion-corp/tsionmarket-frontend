@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { SearchIcon } from "@/components/ui/icons";
+import { TsionMark } from "@/components/ui/tsion-mark";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Avatar } from "@/components/dashboard/avatar";
 import { useGlobalSearch, type SearchResult } from "@/hooks/use-global-search";
@@ -93,9 +94,7 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   return (
     <div className="flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
       <Link href="/dashboard" className="flex items-center text-white md:hidden">
-        <span className="grid h-[34px] w-[34px] place-items-center rounded-full border border-white/18 bg-white/8">
-          <span className="ws-display text-accent text-[19px] leading-none">w</span>
-        </span>
+        <TsionMark size={34} />
       </Link>
 
       <div className="relative max-w-[420px] flex-1">

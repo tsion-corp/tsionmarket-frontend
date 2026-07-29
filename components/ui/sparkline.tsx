@@ -8,7 +8,7 @@ interface SparklineProps {
 
 export function Sparkline({
   line,
-  color = "#A78BFA",
+  color = "#d4d4d8",
   height = 150,
   viewHeight = 150,
   id,

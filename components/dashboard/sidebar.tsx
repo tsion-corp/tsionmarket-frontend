@@ -32,7 +32,7 @@ export function Sidebar({ items, activeSection, onNavigate, onOpenAccount }: Sid
               onClick={() => onNavigate(n.id)}
               className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-[11px] text-left font-sans text-[14.5px] font-medium transition-colors ${
                 active
-                  ? "bg-accent/14 text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.3)]"
+                  ? "bg-accent/14 shadow-[inset_0_0_0_1px_rgba(255, 255, 255, 0.3)] text-white"
                   : "text-white/60 hover:bg-white/6 hover:text-white"
               }`}
             >

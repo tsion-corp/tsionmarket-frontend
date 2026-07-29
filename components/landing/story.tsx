@@ -23,8 +23,7 @@ export function Story() {
         <Reveal delay={0.2}>
           <p className="mt-6 max-w-[52ch] text-[clamp(16px,1.7vw,19px)] leading-[1.6] font-light text-white/90">
             Your ability to save, send and grow your wealth should never need anyone&apos;s
-            permission. World Street puts the whole market in your hands, and the keys stay yours
-            alone.
+            permission. TSION puts the whole market in your hands, and the keys stay yours alone.
           </p>
         </Reveal>
       </div>
