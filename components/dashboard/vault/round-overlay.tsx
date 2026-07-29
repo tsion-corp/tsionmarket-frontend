@@ -201,7 +201,7 @@ export function RoundOverlay({
                     <div className="mt-5 text-[13px] font-bold tracking-[0.24em] text-[#d8d8dc] uppercase">
                       Jackpot
                     </div>
-                    <div className="ws-display mt-1 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[40px] leading-none text-transparent">
+                    <div className="ws-display mt-1 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[40px] leading-none text-transparent">
                       You won!
                     </div>
                     <div className="ws-display tnum drop-shadow-[0_0_32px_rgba(216, 216, 220, 0.5)] mt-4 text-[clamp(48px,13vw,72px)] leading-none text-white">
@@ -255,7 +255,7 @@ export function RoundOverlay({
                     <div className="text-accent mt-5 text-[13px] font-bold tracking-[0.24em] uppercase">
                       We have a winner
                     </div>
-                    <div className="ws-display tnum mt-2 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(34px,10vw,52px)] leading-none tracking-[0.02em] text-transparent">
+                    <div className="ws-display tnum mt-2 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(34px,10vw,52px)] leading-none tracking-[0.02em] text-transparent">
                       {winnerLabel ?? "A player"}
                     </div>
                     <div className="mt-4 text-[14px] font-normal text-white/60">

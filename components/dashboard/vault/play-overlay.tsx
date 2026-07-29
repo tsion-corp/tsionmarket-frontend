@@ -5,7 +5,8 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import confetti from "canvas-confetti";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 
-const GOLD = ["#d8d8dc", "#a8a8ae", "#ffffff", "#ffd86b"];
+// Confetti palette. Silver/white to match the monochrome brand.
+const CONFETTI_COLORS = ["#d8d8dc", "#a8a8ae", "#ffffff", "#c6c6cc"];
 const AUTO_CLOSE_MS = 3600;
 
 interface PlayOverlayProps {
@@ -26,7 +27,7 @@ function pad(total: number): string {
 }
 
 // The moment you join a round. A full-screen arcade takeover: a coin drops, the
-// title slams in, the pot you're chasing counts up, and gold confetti fires,
+// title slams in, the pot you're chasing counts up, and silver confetti fires,
 // so clicking Play lands as a real event instead of a silent state change. Auto
 // dismisses back to the arena after a beat.
 export function PlayOverlay({
@@ -43,7 +44,7 @@ export function PlayOverlay({
   }, [onClose]);
   const reduce = useReducedMotion();
 
-  // Gold burst from the centre while the takeover is up.
+  // Silver burst from the centre while the takeover is up.
   useEffect(() => {
     if (!open || reduce || !canvasRef.current) return;
     const fire = confetti.create(canvasRef.current, { resize: true, useWorker: false });
@@ -54,7 +55,7 @@ export function PlayOverlay({
       gravity: 0.9,
       scalar: 1.05,
       origin: { x: 0.5, y: 0.5 },
-      colors: GOLD,
+      colors: CONFETTI_COLORS,
     });
     const burst = setTimeout(() => {
       fire({
@@ -62,7 +63,7 @@ export function PlayOverlay({
         spread: 360,
         startVelocity: 30,
         origin: { x: 0.5, y: 0.42 },
-        colors: GOLD,
+        colors: CONFETTI_COLORS,
       });
     }, 500);
     return () => {
@@ -124,7 +125,7 @@ export function PlayOverlay({
                 initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 1.4, y: 10 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ delay: 0.28, type: "spring", stiffness: 420, damping: 18 }}
-                className="ws-display drop-shadow-[0_4px_30px_rgba(216, 216, 220, 0.55)] mt-6 bg-[linear-gradient(180deg,#fff6da,#d8d8dc,#a8a8ae)] bg-clip-text text-[clamp(44px,11vw,76px)] leading-[0.95] tracking-[-0.02em] text-transparent"
+                className="ws-display drop-shadow-[0_4px_30px_rgba(216, 216, 220, 0.55)] mt-6 bg-[linear-gradient(180deg,#ffffff,#d8d8dc,#a8a8ae)] bg-clip-text text-[clamp(44px,11vw,76px)] leading-[0.95] tracking-[-0.02em] text-transparent"
               >
                 YOU&apos;RE IN!
               </motion.div>

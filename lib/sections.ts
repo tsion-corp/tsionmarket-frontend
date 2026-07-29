@@ -6,7 +6,7 @@ export const SECTION_LABEL: Record<SectionId, string> = {
   markets: "Markets",
   rwa: "Real assets",
   prediction: "Prediction",
-  vault: "Vault",
+  vault: "Casino",
 };
 
 // Portfolio is always the account home. The rest follow, led by whatever the

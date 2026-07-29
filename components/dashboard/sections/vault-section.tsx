@@ -360,8 +360,8 @@ export function VaultSection() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Eyebrow>Vault · Winner takes all</Eyebrow>
-          <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
-            Last Standing
+          <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
+            Last Man Standing
           </h2>
           <p className="mt-1.5 max-w-[54ch] text-[13.5px] font-normal text-white/55">
             Play to become the last one standing. When the timer runs out, the last player to play
@@ -466,7 +466,7 @@ export function VaultSection() {
                 <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
               </motion.div>
             ) : (
-              <div className="ws-display tnum drop-shadow-[0_0_30px_rgba(255, 255, 255, 0.35)] mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent">
+              <div className="ws-display tnum drop-shadow-[0_0_30px_rgba(255, 255, 255, 0.35)] mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent">
                 <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
               </div>
             )}

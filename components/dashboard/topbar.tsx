@@ -57,7 +57,7 @@ function SearchResults({
                   onClick={() => onSelect(r)}
                   className="flex w-full cursor-pointer items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left hover:bg-white/6"
                 >
-                  <AssetIcon sym={r.symbol} bg="#2a2140" size={26} logo={r.logo} />
+                  <AssetIcon sym={r.symbol} bg="#1c1c1e" size={26} logo={r.logo} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-sans text-[13.5px] font-medium">
                       {r.symbol}
