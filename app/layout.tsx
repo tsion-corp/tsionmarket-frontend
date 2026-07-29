@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Fraunces, Hanken_Grotesk } from "next/font/google";
+import { Geist, Space_Grotesk } from "next/font/google";
 import Providers from "./providers";
 import "./globals.css";
 
-const hankenGrotesk = Hanken_Grotesk({
+// Body and normal text. Geist is a variable font, so every weight (we default
+// to medium in globals.css) ships in one file, no per-weight requests.
+const geist = Geist({
   variable: "--font-body",
   subsets: ["latin"],
 });
 
-const fraunces = Fraunces({
+// Headers. Space Grotesk, also a variable font, used at medium weight by the
+// ws-serif utility.
+const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],
-  style: ["normal", "italic"],
-  axes: ["opsz"],
 });
 
 export const metadata: Metadata = {
@@ -27,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${hankenGrotesk.variable} ${fraunces.variable} h-full antialiased`}>
+    <html lang="en" className={`${geist.variable} ${spaceGrotesk.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <Providers>{children}</Providers>
       </body>

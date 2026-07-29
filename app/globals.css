@@ -2,6 +2,9 @@
 
 @theme inline {
   --font-sans: var(--font-body);
+  /* Header font. Kept under the --font-serif token (and the ws-serif utility)
+     to avoid renaming 47 call sites, but it is now Space Grotesk, a sans display
+     face, not a serif. */
   --font-serif: var(--font-display);
 
   --color-accent: #a78bfa;
@@ -30,7 +33,9 @@ body {
   background: #000;
   color: #fff;
   font-family: var(--font-sans), sans-serif;
-  font-weight: 300;
+  /* Board direction: normal text runs in Geist medium, not the old light
+     weight. Component classes still override where a different weight is wanted. */
+  font-weight: 500;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
 }
@@ -45,12 +50,10 @@ body {
 }
 
 @utility ws-serif {
-  font-family: var(--font-serif), serif;
-  font-style: italic;
-  /* Fraunces runs heavier and wider than Instrument Serif at the same px size.
-     Weight 350 and a small negative tracking bring it back to the same visual
-     scale. Component tracking utilities still override the letter-spacing. */
-  font-weight: 350;
+  font-family: var(--font-serif), sans-serif;
+  /* Space Grotesk at medium weight, not the old italic serif. Component tracking
+     utilities still override the letter-spacing where a title needs it tighter. */
+  font-weight: 500;
   letter-spacing: -0.01em;
 }
 
