@@ -14,7 +14,7 @@ export function ComingSoon({ title, children }: ComingSoonProps) {
       <span className="bg-accent/14 text-accent inline-grid h-[52px] w-[52px] place-items-center rounded-full">
         <ClockIcon size={24} />
       </span>
-      <div className="ws-serif mt-3 text-[19px]">{title}</div>
+      <div className="ws-display mt-3 text-[19px]">{title}</div>
       <p className="mx-auto mt-2 max-w-[32ch] text-[13px] leading-[1.55] font-normal text-white/60">
         {children}
       </p>

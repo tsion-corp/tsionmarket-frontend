@@ -50,7 +50,7 @@ export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps)
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={slip.outcome} bg="#26262b" size={40} logo={slip.icon} />
         <div className="min-w-0 flex-1">
-          <div className="ws-serif text-[19px] leading-tight">{slip.market}</div>
+          <div className="ws-display text-[19px] leading-tight">{slip.market}</div>
           <div className="mt-1 text-[12.5px] font-normal">
             <span style={{ color: outcomeColor }} className="font-medium">
               {slip.outcome}

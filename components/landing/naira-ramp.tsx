@@ -15,7 +15,7 @@ export function NairaRamp() {
       <div className="mx-auto grid max-w-[1120px] grid-cols-1 items-center gap-12 md:grid-cols-2">
         <Reveal>
           <Eyebrow>Cash in / off ramp</Eyebrow>
-          <h2 className="ws-serif mt-3.5 text-[clamp(34px,4.6vw,60px)] leading-[1.02] tracking-[-0.03em]">
+          <h2 className="ws-display mt-3.5 text-[clamp(34px,4.6vw,60px)] leading-[1.02] tracking-[-0.03em]">
             Cash in.
             <br />
             Global assets out.

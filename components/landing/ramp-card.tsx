@@ -20,7 +20,7 @@ export function RampCard() {
   return (
     <div className="rounded-[24px] border border-white/12 bg-white/5 p-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_30px_70px_-30px_rgba(0,0,0,0.8)] backdrop-blur-[16px]">
       <div className="mb-4 flex items-center justify-between">
-        <span className="ws-serif text-[20px]">Add funds</span>
+        <span className="ws-display text-[20px]">Add funds</span>
         <span className="flex items-center gap-1.5 text-xs font-normal text-white/60">
           {live ? (
             <>
@@ -50,7 +50,7 @@ export function RampCard() {
             onChange={(e) => handleChange(e.target.value)}
             placeholder="250,000"
             aria-label="Amount in Naira"
-            className="ws-serif tnum w-full min-w-0 border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+            className="ws-display tnum w-full min-w-0 border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
           />
         </span>
       </label>
@@ -68,7 +68,7 @@ export function RampCard() {
           <span className="bg-accent/16 text-accent grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px] text-sm font-semibold">
             $
           </span>
-          <span className="ws-serif tnum text-accent min-w-0 truncate text-[28px]">
+          <span className="ws-display tnum text-accent min-w-0 truncate text-[28px]">
             {usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>

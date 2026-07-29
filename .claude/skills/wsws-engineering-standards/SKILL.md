@@ -51,8 +51,8 @@ These are the rules for building the Worldstreet SuperApp frontend. They apply t
 ## Git and review
 
 - One issue, one branch, one pull request. Keep the scope of a PR equal to the scope of its issue.
-- Branch off `dev`, never off `main`. Feature branches use a clear prefix: `feat/`, `fix/`, `chore/`.
-- Open PRs against `dev`. The `quality` CI check (format, lint, test, build) must pass. `dev` merges to `main` only for deployment.
+- Branch off `main`. Never push to `main` directly. Feature branches use a clear prefix: `feat/`, `fix/`, `chore/`.
+- Open PRs against `main`. The `quality` CI check (format, lint, test, build) must pass before a PR can merge. `main` is the single long-lived branch and is protected: no direct pushes (admins included), and only squash merges are allowed.
 - All merges are squash merges. The branch is deleted on merge.
 - Commits are atomic. One logical change per commit, with a message that says what changed and why.
 - Never add AI co-author trailers to commits. Never commit or push on a contributor's behalf without being asked.

@@ -45,7 +45,7 @@ export default function AuthPage() {
             <span className="pr-1 text-[13px] text-white/90">Early access is open</span>
           </div>
 
-          <h1 className="ws-serif text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
+          <h1 className="ws-display text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
             Welcome to <span className="text-accent">World Street</span>
           </h1>
           <p className="mt-4 max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72">
@@ -55,7 +55,7 @@ export default function AuthPage() {
           {signingIn ? (
             <div className="mt-[34px] flex items-center gap-3 rounded-[14px] border border-white/14 bg-white/6 p-4">
               <span className="grid h-8 w-8 animate-pulse place-items-center rounded-full border border-white/18 bg-white/8">
-                <span className="ws-serif text-accent text-[17px] leading-none">w</span>
+                <span className="ws-display text-accent text-[17px] leading-none">w</span>
               </span>
               <span className="text-sm text-white/80">
                 Signing you in and setting up your wallet…

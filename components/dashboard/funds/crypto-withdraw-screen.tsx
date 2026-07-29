@@ -372,7 +372,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
       <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
         <span className="text-[13px] font-normal text-white/55">Available balance</span>
-        <span className="ws-serif tnum text-[20px] text-white">
+        <span className="ws-display tnum text-[20px] text-white">
           {formatAmount(balance)} <span className="text-[14px] text-white/60">USDC</span>
         </span>
       </div>
@@ -502,7 +502,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               placeholder="0"
               value={amount}
               onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
-              className="ws-serif tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+              className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
             />
             <span className="shrink-0 font-sans text-[14px] font-medium text-white/70">USDC</span>
           </div>

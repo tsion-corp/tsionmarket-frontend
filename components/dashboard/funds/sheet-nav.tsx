@@ -20,7 +20,7 @@ export function SheetNav({ title, subtitle, onBack }: SheetNavProps) {
         <ChevronLeftIcon size={14} />
         Back
       </button>
-      <div className="ws-serif text-[24px] tracking-[-0.01em]">{title}</div>
+      <div className="ws-display text-[24px] tracking-[-0.01em]">{title}</div>
       {subtitle ? (
         <p className="mt-1.5 text-[13.5px] leading-normal font-normal text-white/60">{subtitle}</p>
       ) : null}

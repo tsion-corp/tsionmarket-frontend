@@ -53,7 +53,7 @@ export function PositionsPanel({
     <div className="ws-card mt-4 overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-3 sm:px-6">
         <div className="min-w-0">
-          <span className="ws-serif text-[18px]">Your positions</span>
+          <span className="ws-display text-[18px]">Your positions</span>
           {available != null ? (
             <div className="tnum mt-0.5 text-[12px] font-normal text-white/50">
               ${available.toFixed(2)} available to bet

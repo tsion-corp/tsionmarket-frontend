@@ -18,13 +18,13 @@ export function VisualPanel() {
           <span className="bg-accent h-[7px] w-[7px] rounded-full" />
           <span className="text-[13px] text-white/90">The onchain superapp for global markets</span>
         </div>
-        <h2 className="ws-serif max-w-[14ch] text-[clamp(40px,4.4vw,64px)] leading-[1.02] tracking-[-0.03em]">
+        <h2 className="ws-display max-w-[14ch] text-[clamp(40px,4.4vw,64px)] leading-[1.02] tracking-[-0.03em]">
           Own the world, <span className="text-accent">on your own terms</span>
         </h2>
         <div className="mt-8 flex flex-wrap gap-[26px]">
           {STATS.map((s) => (
             <div key={s.label}>
-              <div className="ws-serif text-[34px] leading-none text-white">{s.value}</div>
+              <div className="ws-display text-[34px] leading-none text-white">{s.value}</div>
               <div className="mt-0.5 text-[13px] text-white/65">{s.label}</div>
             </div>
           ))}

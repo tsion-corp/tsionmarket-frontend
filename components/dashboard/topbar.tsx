@@ -94,7 +94,7 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
     <div className="flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
       <Link href="/dashboard" className="flex items-center text-white md:hidden">
         <span className="grid h-[34px] w-[34px] place-items-center rounded-full border border-white/18 bg-white/8">
-          <span className="ws-serif text-accent text-[19px] leading-none">w</span>
+          <span className="ws-display text-accent text-[19px] leading-none">w</span>
         </span>
       </Link>
 

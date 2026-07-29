@@ -43,7 +43,7 @@ export function FiatDepositScreen({ onBack }: FiatDepositScreenProps) {
               if (next === "" || DIGITS.test(next)) setAmount(next);
             }}
             placeholder="0"
-            className="ws-serif tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+            className="ws-display tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
           />
           <span className="font-sans text-[15px] font-medium text-white/70">NGN</span>
         </div>

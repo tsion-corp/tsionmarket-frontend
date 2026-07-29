@@ -37,7 +37,7 @@ export function MarketsBento() {
       <div className="mx-auto max-w-[1120px]">
         <Reveal className="mb-11 max-w-[40ch]">
           <Eyebrow>Everything you can own</Eyebrow>
-          <h2 className="ws-serif mt-3.5 text-[clamp(36px,5.5vw,68px)] leading-[1.02] tracking-[-0.03em]">
+          <h2 className="ws-display mt-3.5 text-[clamp(36px,5.5vw,68px)] leading-[1.02] tracking-[-0.03em]">
             One app, every market
           </h2>
         </Reveal>
@@ -52,7 +52,7 @@ export function MarketsBento() {
             <IconTile>
               <ChartBarsIcon size={22} />
             </IconTile>
-            <h3 className="ws-serif mt-[70px] max-w-[20ch] text-[clamp(28px,3.4vw,40px)] leading-[1.04] tracking-[-0.02em]">
+            <h3 className="ws-display mt-[70px] max-w-[20ch] text-[clamp(28px,3.4vw,40px)] leading-[1.04] tracking-[-0.02em]">
               Stocks, gold &amp; treasuries
             </h3>
             <p className="mt-3.5 max-w-[44ch] text-[15px] leading-[1.55] font-normal text-white/82">
@@ -73,7 +73,7 @@ export function MarketsBento() {
                 <Chip>Advanced</Chip>
                 <Chip>Higher risk</Chip>
               </div>
-              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Leveraged trading</h3>
+              <h3 className="ws-display text-[28px] tracking-[-0.02em]">Leveraged trading</h3>
               <p className="mt-2.5 text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Bet on prices rising or falling, with your gains or losses multiplied.
               </p>
@@ -85,7 +85,7 @@ export function MarketsBento() {
               <BulbIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Trade on Events</h3>
+              <h3 className="ws-display text-[28px] tracking-[-0.02em]">Trade on Events</h3>
               <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Put money on what you think will happen, in politics, sports, or world events. Get
                 paid the moment the result lands.
@@ -101,7 +101,7 @@ export function MarketsBento() {
               <SwapIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[28px] tracking-[-0.02em]">Games</h3>
+              <h3 className="ws-display text-[28px] tracking-[-0.02em]">Games</h3>
               <p className="mt-2.5 max-w-[40ch] text-[14.5px] leading-[1.55] font-normal text-white/82">
                 Play different games, grow your money, cash out whenever you choose.
               </p>
@@ -113,7 +113,7 @@ export function MarketsBento() {
               <YieldIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[26px] tracking-[-0.02em]">
+              <h3 className="ws-display text-[26px] tracking-[-0.02em]">
                 Auto-earn{" "}
                 <span className="font-sans text-xs font-normal text-white/55 not-italic">
                   · soon
@@ -133,7 +133,7 @@ export function MarketsBento() {
               <CollectiblesIcon size={22} />
             </IconTile>
             <div className="mt-auto pt-6">
-              <h3 className="ws-serif text-[26px] tracking-[-0.02em]">
+              <h3 className="ws-display text-[26px] tracking-[-0.02em]">
                 Collectibles (NFTs){" "}
                 <span className="font-sans text-xs font-normal text-white/55 not-italic">
                   · soon

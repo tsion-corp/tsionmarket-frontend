@@ -125,7 +125,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         <div className="mt-3 flex items-center gap-[13px]">
           <AssetIcon sym={payload.symbol} bg="#26262b" size={44} logo={payload.logo} />
           <div className="min-w-0 flex-1">
-            <div className="ws-serif text-[22px]">{payload.name}</div>
+            <div className="ws-display text-[22px]">{payload.name}</div>
             <div className="truncate text-[12.5px] font-normal text-white/50">{payload.symbol}</div>
           </div>
         </div>
@@ -165,7 +165,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={payload.symbol} bg="#26262b" size={44} logo={payload.logo} />
         <div className="min-w-0 flex-1">
-          <div className="ws-serif text-[22px]">{payload.name}</div>
+          <div className="ws-display text-[22px]">{payload.name}</div>
           <div className="truncate text-[12.5px] font-normal text-white/50">
             {payload.symbol} · {chainLabel}
           </div>
@@ -188,7 +188,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
             placeholder="0"
             value={amount}
             onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
-            className="ws-serif tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+            className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
           />
           <span className="shrink-0 font-sans text-sm font-medium text-white/70">
             {payload.symbol}

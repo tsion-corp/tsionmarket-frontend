@@ -41,7 +41,7 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
       <span className="border-accent/20 bg-accent/12 text-accent grid h-[46px] w-[46px] place-items-center rounded-[13px] border">
         {Icon ? <Icon size={24} /> : null}
       </span>
-      <span className="ws-serif mt-4 block text-lg tracking-[-0.01em] sm:text-[22px]">
+      <span className="ws-display mt-4 block text-lg tracking-[-0.01em] sm:text-[22px]">
         {interest.title}
       </span>
       <span className="mt-1.5 block text-[13.5px] leading-[1.45] font-normal text-white/65">

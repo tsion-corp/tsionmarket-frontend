@@ -74,7 +74,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
       <div className="p-5 sm:p-6">
         {!accepted ? (
           <div className="flex flex-col gap-3">
-            <div className="ws-serif text-[22px]">Before you trade</div>
+            <div className="ws-display text-[22px]">Before you trade</div>
             <p className="text-[13.5px] leading-[1.55] font-normal text-white/70">
               Prediction markets involve real money and real risk. Prices move, outcomes can go
               against you, and you can lose the full amount you stake. This is speculative trading,
@@ -104,7 +104,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
               <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
                 {prediction?.tag}
               </div>
-              <div className="ws-serif mt-1 text-[19px] leading-tight">{prediction?.q}</div>
+              <div className="ws-display mt-1 text-[19px] leading-tight">{prediction?.q}</div>
             </div>
 
             <div className="ws-inset flex items-center justify-between p-3.5">

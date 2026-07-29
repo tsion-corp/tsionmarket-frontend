@@ -393,7 +393,7 @@ export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaT
                 placeholder="0"
                 value={amount}
                 onChange={(e) => onInput(e.target.value)}
-                className="ws-serif tnum w-full min-w-0 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
+                className="ws-display tnum w-full min-w-0 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
               />
               <button
                 onClick={() => canPickPay && setPickerOpen((v) => !v)}
@@ -463,7 +463,7 @@ export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaT
               <span>You receive (est.)</span>
             </div>
             <div className="flex items-center justify-between gap-3">
-              <span className="ws-serif tnum text-accent min-w-0 truncate text-[30px]">
+              <span className="ws-display tnum text-accent min-w-0 truncate text-[30px]">
                 {receiveEst != null ? formatAmount(receiveEst) : "—"}
               </span>
               <span className="inline-flex shrink-0 items-center gap-[7px] rounded-full border border-white/12 bg-white/7 px-[11px] py-[7px]">

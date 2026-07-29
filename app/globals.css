@@ -2,7 +2,7 @@
 
 @theme inline {
   --font-sans: var(--font-body);
-  /* Header font. Kept under the --font-serif token (and the ws-serif utility)
+  /* Header font. Kept under the --font-serif token (and the ws-display utility)
      to avoid renaming 47 call sites, but it is now Space Grotesk, a sans display
      face, not a serif. */
   --font-serif: var(--font-display);
@@ -49,7 +49,7 @@ body {
   color: rgba(255, 255, 255, 0.4);
 }
 
-@utility ws-serif {
+@utility ws-display {
   font-family: var(--font-serif), sans-serif;
   /* Space Grotesk at medium weight, not the old italic serif. Component tracking
      utilities still override the letter-spacing where a title needs it tighter. */

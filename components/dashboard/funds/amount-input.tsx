@@ -37,7 +37,7 @@ export function AmountInput({ value, onChange, balance, symbol }: AmountInputPro
             if (next === "" || DECIMAL_INPUT.test(next)) onChange(next);
           }}
           placeholder="0.00"
-          className="ws-serif tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+          className="ws-display tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
         />
         <span className="inline-flex shrink-0 items-center gap-[7px] rounded-full border border-white/12 bg-white/7 px-[11px] py-[7px]">
           <AssetIcon sym={symbol} bg="#2775CA" size={22} />

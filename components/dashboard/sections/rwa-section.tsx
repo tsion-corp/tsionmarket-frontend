@@ -52,7 +52,7 @@ export const RwaSection: FC<RwaSectionProps> = () => {
       <Eyebrow>Real-world assets</Eyebrow>
       <div className="mt-3.5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="ws-serif text-[26px] tracking-[-0.01em]">Real-world assets</h2>
+          <h2 className="ws-display text-[26px] tracking-[-0.01em]">Real-world assets</h2>
           <p className="mt-1 max-w-[52ch] text-[13.5px] font-normal text-white/55">
             Tokenized treasuries, equities, credit and metals. Live prices, onchain settlement,
             trade or access through the issuer.

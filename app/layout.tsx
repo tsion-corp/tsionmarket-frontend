@@ -11,7 +11,7 @@ const geist = Geist({
 });
 
 // Headers. Space Grotesk, also a variable font, used at medium weight by the
-// ws-serif utility.
+// ws-display utility.
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-display",
   subsets: ["latin"],

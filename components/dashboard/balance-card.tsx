@@ -43,11 +43,11 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
             // A failed fetch and a genuinely empty wallet both leave totalUsd
             // at 0 — showing "$0.00" here would read as "your funds are
             // gone." Say so isn't known instead of asserting a wrong number.
-            <div className="ws-serif text-[28px] leading-none tracking-[-0.02em] text-white/45">
+            <div className="ws-display text-[28px] leading-none tracking-[-0.02em] text-white/45">
               Couldn&apos;t load
             </div>
           ) : (
-            <div className="ws-serif tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
+            <div className="ws-display tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
               {money.format(totalUsd)}
             </div>
           )}

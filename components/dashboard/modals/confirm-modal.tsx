@@ -23,7 +23,7 @@ export function ConfirmModal({ confirm, onConfirm }: ConfirmModalProps) {
           />
         ) : null}
         <div className="min-w-0">
-          <div className="ws-serif text-[23px] tracking-[-0.01em]">{confirm.title}</div>
+          <div className="ws-display text-[23px] tracking-[-0.01em]">{confirm.title}</div>
           <div className="truncate text-[12.5px] font-normal text-white/50">{confirm.sub}</div>
         </div>
       </div>

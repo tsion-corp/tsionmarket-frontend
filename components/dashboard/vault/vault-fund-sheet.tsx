@@ -165,7 +165,7 @@ export function VaultFundSheet({ onClose }: VaultFundSheetProps) {
 
       <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
         <span className="text-[13px] font-normal text-white/55">Available to add</span>
-        <span className="ws-serif tnum text-[18px] text-white">{money.format(balance)}</span>
+        <span className="ws-display tnum text-[18px] text-white">{money.format(balance)}</span>
       </div>
 
       <div className="ws-inset mt-2 p-[15px]">
@@ -185,7 +185,7 @@ export function VaultFundSheet({ onClose }: VaultFundSheetProps) {
             placeholder="0"
             value={amount}
             onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
-            className="ws-serif tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+            className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
           />
         </div>
         {overBalance ? (

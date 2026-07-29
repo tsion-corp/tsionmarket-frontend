@@ -17,7 +17,7 @@ export function PredictionCard({ prediction: p, onBuy }: PredictionCardProps) {
       </div>
       <div className="flex-1 font-sans text-[17px] leading-[1.3] font-medium">{p.q}</div>
       <div className="mt-2 flex items-center gap-2.5">
-        <span className="ws-serif text-accent text-[30px]">{p.yes}</span>
+        <span className="ws-display text-accent text-[30px]">{p.yes}</span>
         <span className="text-[13px] font-normal text-white/50">Yes</span>
       </div>
       <div className="mt-1.5">

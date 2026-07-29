@@ -75,11 +75,11 @@ export function PredictionView() {
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>Prediction markets</Eyebrow>
-      <h2 className="ws-serif mt-2.5 text-[30px] tracking-[-0.02em]">Trade your conviction</h2>
+      <h2 className="ws-display mt-2.5 text-[30px] tracking-[-0.02em]">Trade your conviction</h2>
 
       {!access.allowed ? (
         <div className="ws-card mt-[18px] flex flex-col items-center gap-2 px-6 py-12 text-center">
-          <div className="ws-serif text-[22px]">Not available in your region</div>
+          <div className="ws-display text-[22px]">Not available in your region</div>
           <p className="max-w-[360px] text-[13.5px] font-normal text-white/55">
             Prediction markets aren&apos;t offered where you are right now. The rest of World Street
             stays fully available.

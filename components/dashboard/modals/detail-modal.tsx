@@ -14,11 +14,11 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={detail.sym} bg={detail.bg} size={44} logo={detail.logo} />
         <div className="min-w-0 flex-1">
-          <div className="ws-serif text-[23px] tracking-[-0.01em]">{detail.name}</div>
+          <div className="ws-display text-[23px] tracking-[-0.01em]">{detail.name}</div>
           <div className="truncate text-[12.5px] font-normal text-white/50">{detail.sub}</div>
         </div>
         <div className="text-right">
-          <div className="ws-serif tnum text-[22px]">{detail.price}</div>
+          <div className="ws-display tnum text-[22px]">{detail.price}</div>
           <div className={`text-[13px] font-normal ${isUp(detail.chg) ? "text-up" : "text-down"}`}>
             {detail.chg}
           </div>

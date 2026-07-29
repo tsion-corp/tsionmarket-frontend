@@ -282,7 +282,7 @@ export function VaultSection() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Eyebrow>Vault · Winner takes all</Eyebrow>
-          <h2 className="ws-serif mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
+          <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
             Last Standing
           </h2>
           <p className="mt-1.5 max-w-[54ch] text-[13.5px] font-normal text-white/55">
@@ -340,7 +340,7 @@ export function VaultSection() {
               // Live round: the pot pulses between white and gold so it reads as
               // hot money on the line.
               <motion.div
-                className="ws-serif tnum mt-1.5 text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] drop-shadow-[0_0_34px_rgba(246,211,101,0.4)]"
+                className="ws-display tnum mt-1.5 text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] drop-shadow-[0_0_34px_rgba(246,211,101,0.4)]"
                 animate={
                   reduce ? { color: "#F6D365" } : { color: ["#ffffff", "#F6D365", "#ffffff"] }
                 }
@@ -349,7 +349,7 @@ export function VaultSection() {
                 <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
               </motion.div>
             ) : (
-              <div className="ws-serif tnum mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent drop-shadow-[0_0_30px_rgba(167,139,250,0.35)]">
+              <div className="ws-display tnum mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cbbcff)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent drop-shadow-[0_0_30px_rgba(167,139,250,0.35)]">
                 <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
               </div>
             )}
@@ -399,7 +399,7 @@ export function VaultSection() {
                 </span>
               </div>
               <div
-                className={`ws-serif tnum mt-3 text-center text-[clamp(52px,11vw,76px)] leading-none tracking-[-0.01em] ${
+                className={`ws-display tnum mt-3 text-center text-[clamp(52px,11vw,76px)] leading-none tracking-[-0.01em] ${
                   gameActive
                     ? urgent
                       ? "text-down animate-pulse drop-shadow-[0_0_28px_rgba(246,165,165,0.5)]"

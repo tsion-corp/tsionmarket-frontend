@@ -27,7 +27,7 @@ export function TradeSection() {
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>Perpetuals</Eyebrow>
-      <h2 className="ws-serif mt-3.5 text-[32px] tracking-[-0.01em]">Perpetuals</h2>
+      <h2 className="ws-display mt-3.5 text-[32px] tracking-[-0.01em]">Perpetuals</h2>
 
       <div className="mt-4 grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,440px)_1fr]">
         <div className="ws-card p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_30px_70px_-30px_rgba(0,0,0,0.8)] sm:p-5">
@@ -70,13 +70,13 @@ export function TradeSection() {
                   {findAsset(base)?.name ?? base}
                 </div>
               </div>
-              <div className="ws-serif tnum text-[19px]">{formatUsd(prices[base] ?? 0)}</div>
+              <div className="ws-display tnum text-[19px]">{formatUsd(prices[base] ?? 0)}</div>
             </div>
             <AssetChart coingeckoId={coingeckoId(base)} allowCandles />
           </div>
 
           <div className="ws-card p-4 sm:p-5">
-            <div className="ws-serif mb-1.5 text-[17px]">Trade with care</div>
+            <div className="ws-display mb-1.5 text-[17px]">Trade with care</div>
             <p className="text-[13px] leading-[1.55] font-normal text-white/65">
               Mark and liquidation prices update live from the market. Leverage magnifies both gains
               and losses. Liquidation is an estimate using a 0.5% maintenance margin. Perps trading

@@ -14,7 +14,7 @@ export function Story() {
           <Eyebrow>Why we built this</Eyebrow>
         </Reveal>
         <Reveal delay={0.1}>
-          <h2 className="ws-serif mt-[18px] max-w-[20ch] text-[clamp(38px,7vw,96px)] leading-[1.02] tracking-[-0.03em]">
+          <h2 className="ws-display mt-[18px] max-w-[20ch] text-[clamp(38px,7vw,96px)] leading-[1.02] tracking-[-0.03em]">
             Finance without borders.
             <br />
             Wealth without gatekeepers.

@@ -22,7 +22,7 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div>
-      <div className="ws-serif text-[24px] tracking-[-0.01em]">Add funds</div>
+      <div className="ws-display text-[24px] tracking-[-0.01em]">Add funds</div>
       <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">
         Choose how you want to fund your wallet.
       </p>

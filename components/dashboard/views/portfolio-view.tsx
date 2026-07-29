@@ -238,7 +238,7 @@ export function PortfolioView({
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
             <WalletIcon size={22} />
           </div>
-          <div className="ws-serif text-[22px]">Couldn&apos;t load your portfolio</div>
+          <div className="ws-display text-[22px]">Couldn&apos;t load your portfolio</div>
           <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">
             We couldn&apos;t reach your balances just now. Your funds are safe. Please try again.
           </p>
@@ -254,7 +254,7 @@ export function PortfolioView({
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
             <WalletIcon size={22} />
           </div>
-          <div className="ws-serif text-[22px]">Your portfolio is empty</div>
+          <div className="ws-display text-[22px]">Your portfolio is empty</div>
           <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">
             Add funds to get started. Tokens across your wallets show up here automatically.
           </p>
@@ -268,7 +268,7 @@ export function PortfolioView({
       ) : (
         <div className="ws-card mt-[18px] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
-            <span className="ws-serif text-[22px]">Your holdings</span>
+            <span className="ws-display text-[22px]">Your holdings</span>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60">
                 <span>Hide zero value</span>

@@ -12,7 +12,7 @@ export function FinalCta() {
       <AuroraHeroBackground />
       <div className="absolute inset-0 z-[1] bg-[linear-gradient(180deg,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.5)_45%,rgba(0,0,0,0.9)_100%)]" />
       <Reveal className="relative z-10 max-w-[760px] px-6 text-center">
-        <h2 className="ws-serif mx-auto max-w-[18ch] text-[clamp(40px,6.5vw,88px)] leading-none tracking-[-0.03em]">
+        <h2 className="ws-display mx-auto max-w-[18ch] text-[clamp(40px,6.5vw,88px)] leading-none tracking-[-0.03em]">
           Your money. Your world. Your call.
         </h2>
         <p className="mx-auto mt-[22px] max-w-[48ch] text-[17px] leading-[1.6] font-light text-white/90">

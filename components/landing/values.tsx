@@ -29,7 +29,7 @@ export function Values() {
       <div className="mx-auto max-w-[1120px]">
         <Reveal className="mb-11">
           <Eyebrow>What you actually control</Eyebrow>
-          <h2 className="ws-serif mt-3.5 text-[clamp(36px,5.5vw,68px)] leading-[1.02] tracking-[-0.03em]">
+          <h2 className="ws-display mt-3.5 text-[clamp(36px,5.5vw,68px)] leading-[1.02] tracking-[-0.03em]">
             Yours alone
           </h2>
         </Reveal>
@@ -56,7 +56,7 @@ export function Values() {
                 </div>
               </div>
               <div className="mt-auto pt-8">
-                <h3 className="ws-serif text-[32px] leading-[1.04] tracking-[-0.02em]">
+                <h3 className="ws-display text-[32px] leading-[1.04] tracking-[-0.02em]">
                   {v.title}
                 </h3>
                 <p className="mt-3 max-w-[32ch] text-[14.5px] leading-[1.55] font-normal text-white/85">

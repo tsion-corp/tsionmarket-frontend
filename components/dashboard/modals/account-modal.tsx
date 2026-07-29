@@ -62,7 +62,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
       <div className="flex items-center gap-[13px]">
         <Avatar seed={profile.avatarSeed} size={46} />
         <div className="min-w-0">
-          <div className="ws-serif truncate text-[21px]">{profile.name}</div>
+          <div className="ws-display truncate text-[21px]">{profile.name}</div>
           <div className="truncate text-[12.5px] font-normal text-white/50">{profile.email}</div>
         </div>
       </div>

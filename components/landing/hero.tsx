@@ -26,7 +26,7 @@ export function Hero() {
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-[120px] pb-[30px] text-center">
         <motion.h1
           {...word(0.05)}
-          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(46px,9.2vw,92px)] leading-[1.06] tracking-[-0.015em] text-balance"
+          className="ws-display mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(46px,9.2vw,92px)] leading-[1.06] tracking-[-0.015em] text-balance"
         >
           Control your <span className="text-accent">money,</span>
           <br className="hidden sm:block" /> and access global markets.
@@ -59,12 +59,14 @@ export function Hero() {
         >
           <div className="ws-glass w-full max-w-[320px] rounded-[22px] p-5 text-left sm:w-[220px]">
             <ClockIcon className="text-white" />
-            <div className="ws-serif mt-3.5 text-[38px] leading-none tracking-[-0.02em]">24/7</div>
+            <div className="ws-display mt-3.5 text-[38px] leading-none tracking-[-0.02em]">
+              24/7
+            </div>
             <div className="mt-2 text-xs font-normal text-white/80">Global market access</div>
           </div>
           <div className="ws-glass w-full max-w-[320px] rounded-[22px] p-5 text-left sm:w-[220px]">
             <GlobeIcon size={26} className="text-white" />
-            <div className="ws-serif mt-3.5 text-[34px] leading-[1.05] tracking-[-0.02em]">
+            <div className="ws-display mt-3.5 text-[34px] leading-[1.05] tracking-[-0.02em]">
               Multiple
               <br />
               markets
@@ -80,7 +82,7 @@ export function Hero() {
       >
         <div className="hidden items-center gap-[clamp(28px,5vw,64px)] md:flex">
           {TICKER.map((t) => (
-            <span key={t} className="ws-serif text-[clamp(20px,2.6vw,30px)] text-white/92">
+            <span key={t} className="ws-display text-[clamp(20px,2.6vw,30px)] text-white/92">
               {t}
             </span>
           ))}

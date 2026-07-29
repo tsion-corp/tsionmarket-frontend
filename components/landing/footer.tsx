@@ -41,7 +41,7 @@ export function Footer() {
         </div>
         {COLUMNS.map((col) => (
           <div key={col.title}>
-            <div className="ws-serif mb-3.5 text-base">{col.title}</div>
+            <div className="ws-display mb-3.5 text-base">{col.title}</div>
             <div className="flex flex-col gap-2.5 text-sm font-normal">
               {col.links.map((l) => (
                 <a key={l.label} href={l.href} className="hover:text-accent text-white/60">

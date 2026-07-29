@@ -120,7 +120,7 @@ export function PerpsPanel({ market, prices, balances }: PerpsPanelProps) {
             onChange={(e) => handleCollateral(e.target.value)}
             inputMode="decimal"
             placeholder="0"
-            className="ws-serif tnum min-w-0 flex-1 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
+            className="ws-display tnum min-w-0 flex-1 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
           />
           <span className="shrink-0 font-sans text-sm font-medium text-white/70">USDC</span>
         </div>
@@ -146,7 +146,7 @@ export function PerpsPanel({ market, prices, balances }: PerpsPanelProps) {
               onChange={(e) => handleTrigger(e.target.value)}
               inputMode="decimal"
               placeholder="0"
-              className="ws-serif tnum min-w-0 flex-1 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+              className="ws-display tnum min-w-0 flex-1 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
             />
             <span className="shrink-0 text-[13px] font-normal text-white/55">USD</span>
           </div>

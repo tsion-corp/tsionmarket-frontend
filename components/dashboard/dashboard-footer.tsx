@@ -20,9 +20,9 @@ export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
           <div className="max-w-[34ch]">
             <div className="flex items-center gap-2">
               <span className="grid h-[30px] w-[30px] place-items-center rounded-full border border-white/18 bg-white/8">
-                <span className="ws-serif text-accent text-[17px] leading-none">w</span>
+                <span className="ws-display text-accent text-[17px] leading-none">w</span>
               </span>
-              <span className="ws-serif text-[17px]">World Street</span>
+              <span className="ws-display text-[17px]">World Street</span>
             </div>
             <p className="mt-3 text-[13px] leading-[1.6] font-normal text-white/55">
               Self-custody markets for everyone. Your keys, your money, your call.
