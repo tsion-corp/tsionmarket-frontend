@@ -263,6 +263,9 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     if (!selectedDestination) return;
     setError(null);
     setSubmitting(true);
+    // One processing toast that resolves in place; dismissed if we bail on a
+    // validation check before anything is actually sent.
+    const toastId = toast.loading("Sending your withdrawal…");
     try {
       const sendAmount = toBaseUnits(amount, SOURCE.decimals);
       if (isDirectSend) {
@@ -274,11 +277,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           amount: sendAmount,
         });
         setTxHash(hash);
-        toast.success(`Withdrew ${formatAmount(value)} USDC`);
+        toast.success(`Withdrew ${formatAmount(value)} USDC`, { id: toastId });
         return;
       }
       if (!refundTo) {
         setError("Your Base wallet isn't ready yet.");
+        toast.dismiss(toastId);
         return;
       }
       // Refetch so we send to a deposit address with a full, unexpired window,
@@ -286,6 +290,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       const fresh = await quote.refetch();
       if (fresh.isError || !fresh.data) {
         setError(quoteErrorMessage(fresh.error));
+        toast.dismiss(toastId);
         return;
       }
       const hash = await sendToken({
@@ -298,11 +303,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       setTxHash(hash);
       setDepositRequestId(fresh.data.depositRequestId);
       toast.success(
-        `Sending ${formatAmount(value)} USDC → ${selectedDestination.symbol} on ${destChainLabel}…`
+        `Sending ${formatAmount(value)} USDC → ${selectedDestination.symbol} on ${destChainLabel}…`,
+        { id: toastId }
       );
     } catch (e) {
       setError(friendlyError(e, "The withdrawal wasn't sent. Please try again."));
-      toast.error("Withdrawal was not sent.");
+      toast.error("Withdrawal was not sent.", { id: toastId });
     } finally {
       setSubmitting(false);
     }

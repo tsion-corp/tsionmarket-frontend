@@ -59,13 +59,15 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
   // USDC and retry until it lands.
   const submit = async () => {
     if (!tokenId) return;
+    const toastId = toast.loading("Placing your bet…");
     try {
       await placeBet({ tokenId, amountUsd: amount });
-      toast.success(`Bet placed: $${amount} on ${side === "yes" ? "Yes" : "No"}`);
+      toast.success(`Bet placed: $${amount} on ${side === "yes" ? "Yes" : "No"}`, { id: toastId });
       onPlaced?.();
       onClose();
     } catch {
       // Error is surfaced inline below; keep the modal open to retry.
+      toast.error("Couldn't place your bet. Try again.", { id: toastId });
     }
   };
 

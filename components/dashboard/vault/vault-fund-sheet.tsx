@@ -106,10 +106,14 @@ export function VaultFundSheet({ onClose }: VaultFundSheetProps) {
     if (!wallet) return;
     setError(null);
     setSubmitting(true);
+    // Processing toast for the gasless send; the terminal "Money added" toast
+    // (useTerminalToast) confirms separately once it settles.
+    const toastId = toast.loading(`Adding ${money.format(value)} to your balance…`);
     try {
       const fresh = await quote.refetch();
       if (fresh.isError || !fresh.data) {
         setError(friendlyError(fresh.error, "Couldn't do that right now. Try again."));
+        toast.dismiss(toastId);
         return;
       }
       await sendToken({
@@ -121,10 +125,13 @@ export function VaultFundSheet({ onClose }: VaultFundSheetProps) {
       });
       setDepositRequestId(fresh.data.depositRequestId);
       setSent(true);
-      toast.success(`Adding ${money.format(value)} to your balance…`);
+      toast.success(`Adding ${money.format(value)} — it lands in your balance shortly.`, {
+        id: toastId,
+      });
       void refetchPortfolio();
     } catch (e) {
       setError(friendlyError(e, "That didn't go through. Please try again."));
+      toast.error(friendlyError(e, "That didn't go through. Please try again."), { id: toastId });
     } finally {
       setSubmitting(false);
     }

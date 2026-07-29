@@ -274,12 +274,15 @@ export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaT
     setPhase("confirming");
     setNotice(null);
     setSignStep(null);
+    // One processing toast that resolves in place. Signing is headless on Base
+    // (gasless), so this plus the panel's confirming state is the feedback.
+    const toastId = toast.loading(`${isBuy ? "Buying" : "Selling"} ${asset.symbol}…`);
     try {
       const action = await withTransientRetry(() => buildAsync({ ...req, taker, simulate: true }));
       await execute(action, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });
-      toast.success(`${isBuy ? "Bought" : "Sold"} ${asset.symbol}`);
+      toast.success(`${isBuy ? "Bought" : "Sold"} ${asset.symbol}`, { id: toastId });
       await portfolio.refetch();
       setSignStep(null);
       setPhase("done");
@@ -287,6 +290,7 @@ export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaT
       const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
       setSignStep(null);
       setNotice({ kind: "error", message: info.message });
+      toast.error(info.message, { id: toastId });
       setPhase("quoted");
       if (info.requote) void runQuote(amount);
     }

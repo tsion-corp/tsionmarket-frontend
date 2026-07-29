@@ -87,15 +87,22 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const stage = progress.stage;
 
   const settledRef = useRef(false);
+  // Id of the processing toast opened on confirm, resolved when the order settles.
+  const toastRef = useRef<string | number | undefined>(undefined);
   useEffect(() => {
-    if (stage === "settled" && !settledRef.current) {
+    if (settledRef.current) return;
+    if (stage === "settled") {
       settledRef.current = true;
-      toast.success(`Sold ${payload.symbol}`);
+      toast.success(`Sold ${payload.symbol}`, { id: toastRef.current });
       void portfolio.refetch();
+    } else if (stage === "failed" || stage === "refunded") {
+      settledRef.current = true;
+      toast.error("The sale didn't complete — you were refunded.", { id: toastRef.current });
     }
   }, [stage, payload.symbol, portfolio]);
 
   const confirm = async () => {
+    toastRef.current = toast.loading(`Selling ${payload.symbol}…`);
     try {
       // Clamp to the exact on-chain balance so a "max" never sends more than the
       // wallet holds (the displayed balance is a rounded float).
@@ -111,7 +118,8 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       setProceeds(formatAmount(Number(fromBaseUnits(result.estimatedOutput, 6))));
       setRequestId(result.requestId);
     } catch {
-      // The message is surfaced from sell.error below.
+      // The detailed message is surfaced from sell.error below; resolve the toast.
+      toast.error(`Couldn't sell ${payload.symbol}. Try again.`, { id: toastRef.current });
     }
   };
 

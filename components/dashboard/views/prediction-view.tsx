@@ -28,20 +28,23 @@ export function PredictionView() {
   const { data: live } = usePredictions();
 
   const onRedeem = async (conditionId: string) => {
+    const toastId = toast.loading("Claiming your winnings…");
     // 1) Claim: convert the winning shares to pUSD in the prediction account.
     try {
       await redeem.redeem(conditionId);
     } catch {
-      toast.error(redeem.error ?? "Could not claim your winnings.");
+      toast.error(redeem.error ?? "Could not claim your winnings.", { id: toastId });
       return;
     }
     // 2) Move the winnings out to USDC on Base. If this leg fails, the claim
     // still succeeded and the funds are safe as pUSD, recoverable via Cash out.
     try {
       await settle.settleToBase();
-      toast.success("Winnings claimed and on their way to your USDC on Base.");
+      toast.success("Winnings claimed and on their way to your USDC on Base.", { id: toastId });
     } catch {
-      toast.error("Claimed to your prediction balance. Use Cash out to move it to Base.");
+      toast.error("Claimed to your prediction balance. Use Cash out to move it to Base.", {
+        id: toastId,
+      });
     }
     setSlip(null);
     positions.refresh();
@@ -49,12 +52,13 @@ export function PredictionView() {
 
   const onCashOut = async () => {
     if (positions.cashable == null || positions.cashable <= 0) return;
+    const toastId = toast.loading("Cashing out…");
     try {
       await settle.settleToBase();
-      toast.success("Cashing out. Your USDC will arrive on Base shortly.");
+      toast.success("Cashing out. Your USDC will arrive on Base shortly.", { id: toastId });
       positions.refresh();
     } catch {
-      toast.error(settle.error ?? "Couldn't cash out.");
+      toast.error(settle.error ?? "Couldn't cash out.", { id: toastId });
     }
   };
 

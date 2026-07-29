@@ -106,16 +106,23 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   // Once the order settles, refresh holdings so the new asset appears, and thank
   // the user once.
   const settledRef = useRef(false);
+  // Id of the processing toast opened on confirm, resolved when the order settles.
+  const toastRef = useRef<string | number | undefined>(undefined);
   useEffect(() => {
-    if (stage === "settled" && !settledRef.current) {
+    if (settledRef.current) return;
+    if (stage === "settled") {
       settledRef.current = true;
-      toast.success(`You bought ${payload.name}`);
+      toast.success(`You bought ${payload.name}`, { id: toastRef.current });
       void portfolio.refetch();
+    } else if (stage === "failed" || stage === "refunded") {
+      settledRef.current = true;
+      toast.error("The purchase didn't complete — you were refunded.", { id: toastRef.current });
     }
   }, [stage, payload.name, portfolio]);
 
   const confirm = async () => {
     if (!route) return;
+    toastRef.current = toast.loading(`Buying ${payload.name}…`);
     try {
       const result = await buy.mutateAsync({
         route,
@@ -125,7 +132,8 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       setBought(formatAmount(Number(fromBaseUnits(result.estimatedOutput, route.decimals))));
       setRequestId(result.requestId);
     } catch {
-      // The message is surfaced from buy.error below.
+      // The detailed message is surfaced from buy.error below; resolve the toast.
+      toast.error(`Couldn't buy ${payload.name}. Try again.`, { id: toastRef.current });
     }
   };
 
