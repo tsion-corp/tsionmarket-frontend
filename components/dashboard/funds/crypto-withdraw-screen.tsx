@@ -6,7 +6,7 @@ import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { DepositStatus } from "@/components/dashboard/funds/deposit-status";
 import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
 import { TokenList } from "@/components/dashboard/funds/token-list";
-import { useSendToken, useReroutedWithdraw } from "@/hooks/use-withdraw";
+import { useSendToken } from "@/hooks/use-withdraw";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { CoinBadge } from "@/components/ui/coin-badge";
 import {
@@ -39,6 +39,20 @@ const QUOTE_DEBOUNCE_MS = 450;
 // it's the single source every withdrawal sends from.
 const SOURCE = SETTLE_CHAINS.base;
 const SOURCE_NETWORK = SOURCE.alchemyNetwork; // "base-mainnet"
+
+// Dextopus's solver omits Base as a withdrawal destination (bridging Base->Base
+// isn't a cross-chain route), but sending USDC-on-Base to an external Base
+// address is a valid plain same-chain transfer (see isDirectSend). Inject it so
+// Base still appears as a "withdraw to" network.
+const BASE_USDC_DESTINATION: WithdrawDestination = {
+  destinationChainId: BASE_CHAIN_ID,
+  blockchain: "Base",
+  currency: SOURCE.usdc,
+  symbol: "USDC",
+  decimals: SOURCE.decimals,
+  addressKind: "evm",
+  logoUrl: null,
+};
 
 const ADDRESS_KIND_LABEL: Record<AddressKind, string> = {
   evm: "EVM",
@@ -143,10 +157,23 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     address: SOURCE.usdc,
   });
 
+  // Dextopus's destinations plus a Base-USDC row (which the solver omits), so
+  // Base is offered for the plain same-chain send. Deduped in case the solver
+  // ever starts returning it.
+  const allDestinations = useMemo(() => {
+    const solver = destinations.data ?? [];
+    const hasBaseUsdc = solver.some(
+      (d) =>
+        d.destinationChainId === BASE_CHAIN_ID &&
+        d.currency.toLowerCase() === SOURCE.usdc.toLowerCase()
+    );
+    return hasBaseUsdc ? solver : [BASE_USDC_DESTINATION, ...solver];
+  }, [destinations.data]);
+
   // One row per destination symbol (e.g. "USDC" once, though it exists on many
   // chains) — pick the coin, then the network, reusing TokenList as-is.
   const symbolOptions = useMemo(() => {
-    const list = destinations.data ?? [];
+    const list = allDestinations;
     const seen = new Map<string, WithdrawDestination>();
     for (const d of list) {
       if (!seen.has(d.symbol)) seen.set(d.symbol, d);
@@ -162,20 +189,20 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         supportsStaticAddress: true,
       }))
       .sort((a, b) => a.symbol.localeCompare(b.symbol));
-  }, [destinations.data]);
+  }, [allDestinations]);
   const selectedSymbolOption = symbolOptions.find((o) => o.symbol === destSymbol) ?? null;
 
   const chainIdsForSymbol = useMemo(() => {
-    const list = destinations.data ?? [];
+    const list = allDestinations;
     return new Set(list.filter((d) => d.symbol === destSymbol).map((d) => d.destinationChainId));
-  }, [destinations.data, destSymbol]);
+  }, [allDestinations, destSymbol]);
 
   const selectedDestination = useMemo(() => {
-    const list = destinations.data ?? [];
+    const list = allDestinations;
     return (
       list.find((d) => d.symbol === destSymbol && d.destinationChainId === destChainId) ?? null
     );
-  }, [destinations.data, destSymbol, destChainId]);
+  }, [allDestinations, destSymbol, destChainId]);
 
   const destChain = (allChains.data ?? []).find((c) => c.chainId === destChainId) ?? null;
   const destChainLabel = destChain?.name ?? selectedDestination?.blockchain ?? "";
