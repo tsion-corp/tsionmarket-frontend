@@ -14,6 +14,7 @@ import {
 } from "@/lib/query-persist";
 import { Toaster } from "@/components/ui/toaster";
 import { NetworkStatusProvider } from "@/components/providers/network-status";
+import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 
 // Well-formed placeholder lets the app build before env vars are set.
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cl0123456789abcdefghijklm";
@@ -65,7 +66,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           },
         }}
       >
-        <NetworkStatusProvider>{children}</NetworkStatusProvider>
+        <NetworkStatusProvider>
+          <BalanceVisibilityProvider>{children}</BalanceVisibilityProvider>
+        </NetworkStatusProvider>
         <Toaster />
       </PersistQueryClientProvider>
     </PrivyProvider>

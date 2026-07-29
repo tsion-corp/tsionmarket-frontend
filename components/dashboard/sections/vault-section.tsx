@@ -10,6 +10,7 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { Pager } from "@/components/ui/pager";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
+import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { VaultFundSheet } from "@/components/dashboard/vault/vault-fund-sheet";
 import { RoundOverlay, type RoundPhase } from "@/components/dashboard/vault/round-overlay";
 import { useVaultGame } from "@/hooks/use-vault-game";
@@ -76,6 +77,7 @@ function useCountdown(serverSeconds: number, active: boolean): number {
 export function VaultSection() {
   const { user } = usePrivy();
   const money = useMoney();
+  const { mask } = useBalanceVisibility();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
   const { status, statusLoading, activities, winners, winnersLoading } = useVaultGame();
   const { wager, wagering } = useVaultActions();
@@ -254,12 +256,16 @@ export function VaultSection() {
       setFundOpen(true);
       return;
     }
+    // One processing toast that resolves in place. Signing is headless (no Privy
+    // modal), so this toast plus the button's "Placing your play…" state is the
+    // only feedback the player sees while the gasless wager settles.
+    const toastId = toast.loading("Placing your play…");
     try {
       await wager();
-      toast.success("You're in — last one standing takes the pot.");
+      toast.success("You're in — last one standing takes the pot.", { id: toastId });
       void refetchPortfolio();
     } catch (e) {
-      toast.error(friendlyError(e, "That didn't go through."));
+      toast.error(friendlyError(e, "That didn't go through."), { id: toastId });
     }
   };
 
@@ -509,7 +515,7 @@ export function VaultSection() {
                   Your balance
                 </div>
                 <div className="tnum mt-0.5 text-[16px] font-bold text-white/90">
-                  {money.format(balanceUsd)}
+                  {mask(money.format(balanceUsd))}
                 </div>
               </div>
               {/* Only a top-up affordance here. When the player can't afford a

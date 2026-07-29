@@ -12,6 +12,12 @@ export interface ToastOptions {
 // Single seam for app notifications. Components call these instead of the
 // library so the toast provider can change without touching call sites.
 export const toast = {
+  // Shows a spinner toast and returns its id. Pass that id to success/error to
+  // update the same toast in place, so a tx reads as one processing -> done
+  // notification instead of two stacked toasts.
+  loading(message: string, options?: ToastOptions) {
+    return sonner.loading(message, options);
+  },
   success(message: string, options?: ToastOptions) {
     sonner.success(message, options);
   },

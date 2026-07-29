@@ -2,6 +2,8 @@
 
 import { AssetChart } from "@/components/ui/asset-chart";
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
+import { useBalanceVisibility } from "@/components/ui/balance-visibility";
+import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { coingeckoId } from "@/lib/coingecko";
 
@@ -13,6 +15,7 @@ interface BalanceCardProps {
 export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   const { totalUsd, tokens, loading, refreshing, error } = usePortfolio();
   const money = useMoney();
+  const { hidden, toggle, mask } = useBalanceVisibility();
 
   // True portfolio value history is not stored, so we chart the dominant
   // holding's real price history and label it by the asset. Tokens arrive
@@ -25,6 +28,13 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-1.5 text-[13px] font-normal text-white/60">
           Total balance
+          <button
+            onClick={toggle}
+            aria-label={hidden ? "Show balance" : "Hide balance"}
+            className="grid h-6 w-6 cursor-pointer place-items-center rounded-full text-white/45 transition-colors hover:bg-white/8 hover:text-white/80"
+          >
+            {hidden ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
+          </button>
           {refreshing ? (
             <span
               className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full"
@@ -48,7 +58,7 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
             </div>
           ) : (
             <div className="ws-display tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
-              {money.format(totalUsd)}
+              {mask(money.format(totalUsd))}
             </div>
           )}
         </div>
