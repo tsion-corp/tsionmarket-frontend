@@ -15,7 +15,7 @@ export type { Portfolio, TokenBalance } from "@/lib/server/alchemy";
 // is plenty for background polling. Anything that needs to see its own
 // effect immediately (e.g. right after a trade or withdrawal) calls
 // `refetch()` directly instead of waiting on this interval.
-const POLL_MS = 60 * 1000;
+const POLL_MS = 20 * 1000;
 
 // Stable identity for the empty/loading state. Consumers key memos and effects
 // on `tokens` (trade balances, swap net-balances, global search, funding), so a

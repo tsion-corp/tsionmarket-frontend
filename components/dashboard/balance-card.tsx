@@ -5,7 +5,12 @@ import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { coingeckoId } from "@/lib/coingecko";
+
+// Refresh the portfolio each new Base block, so a deposit, withdrawal or add-money
+// shows in the balance within ~2s instead of on the slow poll.
+const PORTFOLIO_KEY = [["portfolio"]] as const;
 
 interface BalanceCardProps {
   onOpenFunds: () => void;
@@ -16,6 +21,7 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   const { totalUsd, tokens, loading, refreshing, error } = usePortfolio();
   const money = useMoney();
   const { hidden, toggle, mask } = useBalanceVisibility();
+  useInvalidateOnBlock(PORTFOLIO_KEY);
 
   // True portfolio value history is not stored, so we chart the dominant
   // holding's real price history and label it by the asset. Tokens arrive

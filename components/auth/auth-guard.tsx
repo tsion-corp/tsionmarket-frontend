@@ -8,7 +8,7 @@ import { toast } from "@/lib/toast";
 
 // Sign the user out after this long with no interaction, so a funded session
 // left open on an unattended device doesn't stay open.
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { ready, authenticated } = usePrivy();
@@ -21,7 +21,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [ready, authenticated, router]);
 
   useIdleLogout(IDLE_TIMEOUT_MS, ready && authenticated, () =>
-    toast.info("Signed out after 5 minutes of inactivity. Please sign in again.")
+    toast.info("Signed out after 15 minutes of inactivity. Please sign in again.")
   );
 
   if (!ready || !authenticated) {

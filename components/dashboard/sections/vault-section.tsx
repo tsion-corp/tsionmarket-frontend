@@ -13,8 +13,11 @@ import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { VaultFundSheet } from "@/components/dashboard/vault/vault-fund-sheet";
 import { RoundOverlay, type RoundPhase } from "@/components/dashboard/vault/round-overlay";
+import { PlayOverlay } from "@/components/dashboard/vault/play-overlay";
 import { useVaultGame } from "@/hooks/use-vault-game";
 import { useVaultActions } from "@/hooks/use-vault-actions";
+import { useVaultPendingWinnings } from "@/hooks/use-vault-winnings";
+import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
@@ -32,7 +35,11 @@ const WIN_POLL_INTERVAL_MS = 5_000;
 // Suspense window shown to everyone the moment a round ends, before revealing
 // whether this wallet won. Builds anticipation and covers the brief gap while
 // the result settles.
-const CALCULATING_MS = 5_000;
+const CALCULATING_MS = 1_200;
+
+// On-chain-derived queries the block watcher refreshes each new Base block while
+// the vault is open, so balance and claimable winnings react within ~2s.
+const BLOCK_WATCH_KEYS = [["portfolio"], ["vault-winnings"]] as const;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
 
@@ -80,8 +87,10 @@ export function VaultSection() {
   const { mask } = useBalanceVisibility();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
   const { status, statusLoading, activities, winners, winnersLoading } = useVaultGame();
-  const { wager, wagering } = useVaultActions();
+  const { wager, wagering, claim, claiming } = useVaultActions();
   const [fundOpen, setFundOpen] = useState(false);
+  // Shows the "you're in!" arcade takeover the moment a play confirms.
+  const [playEntering, setPlayEntering] = useState(false);
   // End-of-round overlay: null (idle), "calculating" (5s suspense), or "won"
   // (the reveal, shown to everyone). Prize is USD, formatted to money only at
   // render. `youWon` switches the reveal from a personal jackpot to a "someone
@@ -97,6 +106,12 @@ export function VaultSection() {
 
   const reduce = useReducedMotion();
   const address = getWalletAddress(user, "ethereum");
+
+  // Unclaimed winnings straight from the contract (winners take the pot via
+  // claim(), it is not auto-credited). Refreshed on each new block so it clears
+  // right after a claim lands.
+  const { pendingWei, refetch: refetchWinnings } = useVaultPendingWinnings(address);
+  useInvalidateOnBlock(BLOCK_WATCH_KEYS);
 
   // Derived reveal state: did this wallet win, and how to name the winner.
   const youWon = !!(
@@ -136,6 +151,24 @@ export function VaultSection() {
       return "—";
     }
   };
+  const weiToUsd = (wei: string): number => {
+    try {
+      return Number(formatEther(BigInt(wei))) * unitUsd;
+    } catch {
+      return 0;
+    }
+  };
+
+  // The reveal amount, preferring the backend's exact winnerPrizeWei over the
+  // client-captured pot snapshot — that snapshot goes stale when the final wager
+  // lands right at round-end (the "$0.38 instead of $1.15" bug).
+  const latestWinner = winners[0];
+  const revealPrizeUsd =
+    latestWinner &&
+    revealWinner &&
+    latestWinner.winnerAddress.toLowerCase() === revealWinner.toLowerCase()
+      ? weiToUsd(latestWinner.winnerPrizeWei)
+      : (roundPrizeUsd ?? 0);
 
   // Only trust timeRemaining while a round is live; between rounds the backend
   // reports a sentinel, so the timer rests at the round length instead.
@@ -151,6 +184,10 @@ export function VaultSection() {
   // suspense to everyone; after it, only the winning wallet sees the jackpot.
   const potUsd = status?.vaultBalance.usdValue ?? 0;
   const lastPlayer = status?.lastPlayer ?? null;
+  // This wallet is the last to have played, so it wins if the clock hits zero.
+  // Drives the live "last standing" tension state on the game panel.
+  const iAmLastStanding =
+    gameActive && !!address && !!lastPlayer && lastPlayer.toLowerCase() === address.toLowerCase();
   const prevActiveRef = useRef(false);
   const lastPotRef = useRef(0);
   const winnerAtEndRef = useRef<string | null>(null);
@@ -251,6 +288,40 @@ export function VaultSection() {
     return () => clearTimeout(id);
   }, [recentWinUsd]);
 
+  // Sweep a won pot to the wallet with a gasless claim(); the contract holds it
+  // in pendingWinnings until then. Guarded so it never fires an empty claim.
+  const onClaim = async () => {
+    if (pendingWei <= 0n || claiming) return;
+    const id = toast.loading("Claiming your winnings…");
+    try {
+      await claim();
+      toast.success("Winnings claimed — added to your balance.", { id });
+      void refetchWinnings();
+      void refetchPortfolio();
+    } catch (e) {
+      toast.error(friendlyError(e, "Couldn't claim right now. Try again."), { id });
+    }
+  };
+
+  // Auto-claim: when a win credits pendingWinnings, collect it automatically so
+  // "winner takes the pot" actually pays out. The persistent banner below is the
+  // fallback for anything left unclaimed. Latest handler kept in a ref, updated
+  // in an effect, so the trigger effect doesn't re-bind every render.
+  const claimRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    claimRef.current = () => void onClaim();
+  });
+  const wonPendingRef = useRef(false);
+  useEffect(() => {
+    if (phase === "won" && youWon) wonPendingRef.current = true;
+  }, [phase, youWon]);
+  useEffect(() => {
+    if (wonPendingRef.current && pendingWei > 0n && !claiming) {
+      wonPendingRef.current = false;
+      claimRef.current();
+    }
+  }, [pendingWei, claiming]);
+
   const onPlay = async () => {
     if (!canPlay) {
       setFundOpen(true);
@@ -263,6 +334,7 @@ export function VaultSection() {
     try {
       await wager();
       toast.success("You're in — last one standing takes the pot.", { id: toastId });
+      setPlayEntering(true);
       void refetchPortfolio();
     } catch (e) {
       toast.error(friendlyError(e, "That didn't go through."), { id: toastId });
@@ -308,6 +380,36 @@ export function VaultSection() {
         </span>
       </div>
 
+      {/* Winners take the pot via a gasless claim(); the contract holds it in
+          pendingWinnings until then. Auto-claim usually collects it on the win;
+          this persistent banner sweeps up anything left unclaimed. */}
+      {pendingWei > 0n ? (
+        <motion.div
+          initial={reduce ? false : { opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="relative mt-5 flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-[20px] border border-[#F6D365]/40 bg-[linear-gradient(110deg,rgba(246,211,101,0.16),rgba(246,211,101,0.04))] px-5 py-4"
+        >
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[linear-gradient(180deg,#F6D365,#e0a83a)] text-[22px] shadow-[0_8px_22px_-8px_rgba(246,211,101,0.9)]">
+              🏆
+            </span>
+            <div>
+              <div className="text-[14px] font-bold text-white">You won! Claim your winnings</div>
+              <div className="tnum text-[13px] font-normal text-[#F6D365]">
+                {weiToMoney(pendingWei.toString())} waiting in the vault
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={() => void onClaim()}
+            disabled={claiming}
+            className="shrink-0 cursor-pointer rounded-xl bg-[linear-gradient(180deg,#ffe7a0,#F6D365,#e6b23c)] px-6 py-2.5 font-sans text-[14px] font-bold text-[#3a2a00] shadow-[0_12px_30px_-10px_rgba(246,211,101,0.9)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {claiming ? "Claiming…" : "Claim now"}
+          </button>
+        </motion.div>
+      ) : null}
+
       <div className="mt-5 grid grid-cols-1 gap-4 min-[980px]:grid-cols-[1fr_360px] min-[980px]:items-start">
         {/* Game panel */}
         <div className="ws-glass relative overflow-hidden rounded-[26px] p-5 shadow-[0_40px_120px_-50px_rgba(167,139,250,0.55)] sm:p-7">
@@ -336,6 +438,15 @@ export function VaultSection() {
               ))}
             </div>
           )}
+          {/* Final-seconds tension: the whole arena edge pulses red. */}
+          {urgent && !reduce ? (
+            <motion.div
+              aria-hidden
+              className="ring-down/50 pointer-events-none absolute inset-0 rounded-[26px] ring-2 ring-inset"
+              animate={{ opacity: [0.3, 0.9, 0.3] }}
+              transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
+            />
+          ) : null}
           <div className="relative">
             <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
               Prize pool
@@ -362,6 +473,46 @@ export function VaultSection() {
             <div className="mt-2 text-[13px] font-normal text-white/50">
               The whole pot goes to the last player standing.
             </div>
+
+            {/* Live tension: when this wallet is last to play, it's winning. The
+                banner ramps up in the final seconds. */}
+            {iAmLastStanding ? (
+              <motion.div
+                initial={reduce ? false : { opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={`relative mt-4 overflow-hidden rounded-[16px] border px-4 py-3 ${
+                  urgent
+                    ? "border-[#F6D365]/60 bg-[#F6D365]/15"
+                    : "border-[#F6D365]/35 bg-[#F6D365]/10"
+                }`}
+              >
+                <motion.div
+                  aria-hidden
+                  className="pointer-events-none absolute -inset-3 bg-[radial-gradient(55%_60%_at_50%_50%,rgba(246,211,101,0.4),transparent_70%)] blur-md"
+                  animate={reduce ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
+                  transition={{ duration: urgent ? 0.7 : 1.5, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <div className="relative flex items-center gap-2.5">
+                  <motion.span
+                    className="text-[22px]"
+                    animate={reduce || !urgent ? {} : { scale: [1, 1.18, 1] }}
+                    transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    👑
+                  </motion.span>
+                  <div className="min-w-0">
+                    <div className="text-[13.5px] font-bold text-[#F6D365]">
+                      {urgent ? "Hold on — you're about to win!" : "You're last standing"}
+                    </div>
+                    <div className="text-[12px] font-normal text-white/70">
+                      {urgent
+                        ? "Take the whole pot when the clock hits zero."
+                        : "You win the pot if the clock hits zero. Don't let anyone overtake you."}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            ) : null}
 
             {/* Countdown — the arcade centerpiece. */}
             <div
@@ -612,9 +763,7 @@ export function VaultSection() {
         />
         <div className="relative flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-[linear-gradient(180deg,#F6D365,#e0a83a)] text-[15px] shadow-[0_8px_20px_-8px_rgba(246,211,101,0.9)]">
-              👑
-            </span>
+            <span className="text-[30px]">👑</span>
             <div>
               <div className="text-[14px] font-semibold text-white/90">Hall of Winners</div>
               <div className="text-[11.5px] font-normal text-white/45">
@@ -725,12 +874,20 @@ export function VaultSection() {
         <VaultFundSheet onClose={() => setFundOpen(false)} />
       </ModalShell>
 
+      <PlayOverlay
+        open={playEntering}
+        potValue={potUsd}
+        formatMoney={money.format}
+        secondsToSurvive={status?.timerDuration ?? 0}
+        onClose={() => setPlayEntering(false)}
+      />
+
       <RoundOverlay
         phase={phase}
         youWon={youWon}
         winnerLabel={winnerLabel}
-        prizeValue={roundPrizeUsd ?? 0}
-        prizeLabel={money.format(roundPrizeUsd ?? 0)}
+        prizeValue={revealPrizeUsd}
+        prizeLabel={money.format(revealPrizeUsd)}
         formatMoney={money.format}
         onClose={() => setPhase(null)}
       />

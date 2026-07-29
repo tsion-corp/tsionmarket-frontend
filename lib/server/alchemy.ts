@@ -331,13 +331,22 @@ async function alchemyFetch(
 // bursts. In-process only: fine for smoothing load, not meant to survive a
 // restart or span multiple server instances.
 const CACHE_TTL_MS = 15_000;
+// Balances change on every deposit/withdraw/wager/claim, and the client now
+// refetches per Base block (~2s) via the block watcher. A 15s portfolio cache
+// would cap that at 15s stale, so keep it short; premium Alchemy absorbs the
+// extra calls. Prices keep the longer TTL (they move slowly).
+const PORTFOLIO_CACHE_TTL_MS = 4_000;
 const responseCache = new Map<string, { expires: number; value: unknown }>();
 
-async function cached<T>(cacheKey: string, load: () => Promise<T>): Promise<T> {
+async function cached<T>(
+  cacheKey: string,
+  load: () => Promise<T>,
+  ttlMs: number = CACHE_TTL_MS
+): Promise<T> {
   const hit = responseCache.get(cacheKey);
   if (hit && hit.expires > Date.now()) return hit.value as T;
   const value = await load();
-  responseCache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, value });
+  responseCache.set(cacheKey, { expires: Date.now() + ttlMs, value });
   return value;
 }
 
@@ -363,33 +372,37 @@ export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
 export async function fetchPortfolio(evm?: string, solana?: string): Promise<Portfolio> {
   if (!evm && !solana) return { totalUsd: 0, tokens: [] };
   const cacheKey = `portfolio:${evm ?? ""}:${solana ?? ""}`;
-  return cached(cacheKey, async () => {
-    const addresses: { address: string; networks: string[] }[] = [];
-    if (evm) addresses.push({ address: evm, networks: EVM_NETWORKS });
-    if (solana) addresses.push({ address: solana, networks: [SOLANA_NETWORK] });
+  return cached(
+    cacheKey,
+    async () => {
+      const addresses: { address: string; networks: string[] }[] = [];
+      if (evm) addresses.push({ address: evm, networks: EVM_NETWORKS });
+      if (solana) addresses.push({ address: solana, networks: [SOLANA_NETWORK] });
 
-    const body = JSON.stringify({
-      addresses,
-      withMetadata: true,
-      withPrices: true,
-      includeNativeTokens: true,
-      includeErc20Tokens: true,
-    });
-    const res = await alchemyFetch(
-      (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
-      { method: "POST", headers: { "Content-Type": "application/json" }, body }
-    );
+      const body = JSON.stringify({
+        addresses,
+        withMetadata: true,
+        withPrices: true,
+        includeNativeTokens: true,
+        includeErc20Tokens: true,
+      });
+      const res = await alchemyFetch(
+        (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body }
+      );
 
-    const [data, rwa, buyable] = await Promise.all([
-      res.json(),
-      fetchRwaRegistry(),
-      fetchBuyableRegistry(),
-    ]);
-    const held = normalize(data?.data?.tokens ?? [], rwa, buyable);
-    // Only baseline the chains the user actually has a wallet on.
-    const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
-    const tokens = await withTrackedBaseline(held, networks);
-    const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
-    return { totalUsd, tokens };
-  });
+      const [data, rwa, buyable] = await Promise.all([
+        res.json(),
+        fetchRwaRegistry(),
+        fetchBuyableRegistry(),
+      ]);
+      const held = normalize(data?.data?.tokens ?? [], rwa, buyable);
+      // Only baseline the chains the user actually has a wallet on.
+      const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
+      const tokens = await withTrackedBaseline(held, networks);
+      const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
+      return { totalUsd, tokens };
+    },
+    PORTFOLIO_CACHE_TTL_MS
+  );
 }
