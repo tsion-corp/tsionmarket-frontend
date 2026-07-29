@@ -26,7 +26,7 @@ export function Hero() {
       <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pt-[120px] pb-[30px] text-center">
         <motion.h1
           {...word(0.05)}
-          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(46px,9.2vw,96px)] leading-[1.06] tracking-[-0.015em] text-balance"
+          className="ws-serif mt-[30px] max-w-[min(94vw,1000px)] text-center text-[clamp(46px,9.2vw,92px)] leading-[1.06] tracking-[-0.015em] text-balance"
         >
           Control your <span className="text-accent">money,</span>
           <br className="hidden sm:block" /> and access global markets.
