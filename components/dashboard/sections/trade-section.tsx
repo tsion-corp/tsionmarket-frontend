@@ -25,11 +25,16 @@ export function TradeSection() {
   const base = market.symbol;
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+    // @container so the layout below responds to this panel's real width, not the
+    // viewport. The fixed 248px sidebar means an iPad landscape (1024px viewport)
+    // only leaves ~776px here, so a viewport breakpoint would wrongly go
+    // two-column and crush the chart. A container query splits only when this
+    // area is genuinely wide enough.
+    <div className="@container mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>Perpetuals</Eyebrow>
       <h2 className="ws-display mt-3.5 text-[32px] tracking-[-0.01em]">Perpetuals</h2>
 
-      <div className="mt-4 grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,440px)_1fr]">
+      <div className="mt-4 grid grid-cols-1 items-start gap-4 @[860px]:grid-cols-[minmax(0,440px)_1fr]">
         <div className="ws-card p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.2),0_30px_70px_-30px_rgba(0,0,0,0.8)] sm:p-5">
           <PerpsPanel market={market} prices={prices} balances={balances} />
         </div>
