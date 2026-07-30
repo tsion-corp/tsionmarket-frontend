@@ -1,0 +1,186 @@
+import { describe, it, expect } from "vitest";
+import {
+  formatTimeControl,
+  isMatchId,
+  parseTimeControl,
+  toChessChallenge,
+  toChessMatch,
+  toResult,
+  type ChessMatchWire,
+  type ChessMoveWire,
+} from "@/lib/casino/api/chess-wire";
+
+// The chess service is the authority on a game, and this is the only place its
+// shape is understood. A mapping error here shows up as a wrong result on a
+// settled board, so every branch is pinned.
+
+const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+const wire = (over: Partial<ChessMatchWire> = {}): ChessMatchWire => ({
+  id: "3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+  status: "active",
+  fen: START_FEN,
+  turn: "white",
+  ply: 0,
+  timeControl: { initialSeconds: 300, incrementSeconds: 3 },
+  clocks: { whiteMs: 300_000, blackMs: 297_500 },
+  white: "0xwhite",
+  black: "0xblack",
+  drawOfferBy: null,
+  result: null,
+  resultReason: null,
+  createdAt: "2026-07-30T09:00:00.000Z",
+  startedAt: "2026-07-30T09:01:00.000Z",
+  finishedAt: null,
+  ...over,
+});
+
+const move = (over: Partial<ChessMoveWire> = {}): ChessMoveWire => ({
+  ply: 1,
+  uci: "e2e4",
+  san: "e4",
+  fenAfter: START_FEN,
+  byPlayer: "0xwhite",
+  clockMsRemaining: 299_000,
+  createdAt: "2026-07-30T09:01:30.000Z",
+  ...over,
+});
+
+describe("match id", () => {
+  it("accepts a uuid and rejects anything the gateway would choke on", () => {
+    expect(isMatchId("3f2504e0-4f89-11d3-9a0c-0305e82c3301")).toBe(true);
+    expect(isMatchId("does-not-exist")).toBe(false);
+    expect(isMatchId("")).toBe(false);
+  });
+});
+
+describe("time control", () => {
+  it("reads whole minutes as the familiar label", () => {
+    expect(formatTimeControl(300, 3)).toBe("5+3");
+    expect(formatTimeControl(180, 2)).toBe("3+2");
+    expect(formatTimeControl(600, 0)).toBe("10+0");
+  });
+
+  it("keeps seconds for a control that is not whole minutes", () => {
+    expect(formatTimeControl(90, 1)).toBe("90s+1");
+  });
+
+  it("round-trips the presets", () => {
+    for (const label of ["3+2", "5+3", "10+0", "15+10"]) {
+      const { initialSeconds, incrementSeconds } = parseTimeControl(label);
+      expect(formatTimeControl(initialSeconds, incrementSeconds)).toBe(label);
+    }
+  });
+
+  it("refuses a label it cannot turn into seconds", () => {
+    expect(() => parseTimeControl("bullet")).toThrow(/Unrecognised time control/);
+  });
+});
+
+describe("result", () => {
+  it("has no result while a game is running", () => {
+    expect(toResult(null, null)).toBeNull();
+  });
+
+  it("pairs a winner with how they won", () => {
+    expect(toResult("white", "checkmate")).toEqual({ kind: "checkmate", winner: "w" });
+    expect(toResult("black", "resignation")).toEqual({ kind: "resignation", winner: "b" });
+    expect(toResult("white", "timeout")).toEqual({ kind: "timeout", winner: "w" });
+    expect(toResult("black", "flagged on time")).toEqual({ kind: "timeout", winner: "b" });
+  });
+
+  it("maps every way a game can be drawn", () => {
+    expect(toResult("draw", "stalemate")).toEqual({ kind: "draw", reason: "stalemate" });
+    expect(toResult("draw", "threefold_repetition")).toEqual({
+      kind: "draw",
+      reason: "repetition",
+    });
+    expect(toResult("draw", "insufficient_material")).toEqual({
+      kind: "draw",
+      reason: "insufficient",
+    });
+    expect(toResult("draw", "agreement")).toEqual({ kind: "draw", reason: "agreement" });
+  });
+
+  // The reason is the service's free text. An unfamiliar one still has to
+  // produce a usable result rather than losing a finished game.
+  it("falls back rather than dropping a result it doesn't recognise", () => {
+    expect(toResult("draw", "some_new_rule")).toEqual({ kind: "draw", reason: "agreement" });
+    expect(toResult("draw", null)).toEqual({ kind: "draw", reason: "agreement" });
+    expect(toResult("white", "some_new_way")).toEqual({ kind: "checkmate", winner: "w" });
+    expect(toResult("white", null)).toEqual({ kind: "checkmate", winner: "w" });
+  });
+});
+
+describe("match", () => {
+  it("maps every lifecycle status onto our state", () => {
+    expect(toChessMatch(wire({ status: "waiting" })).state).toBe("awaiting_opponent");
+    expect(toChessMatch(wire({ status: "active" })).state).toBe("in_progress");
+    expect(toChessMatch(wire({ status: "finished" })).state).toBe("settled");
+    expect(toChessMatch(wire({ status: "aborted" })).state).toBe("cancelled");
+  });
+
+  it("converts clocks from milliseconds to seconds", () => {
+    expect(toChessMatch(wire()).clocks).toEqual({ w: 300, b: 297.5 });
+  });
+
+  it("dates the clocks from the last move, so the countdown starts there", () => {
+    const match = toChessMatch(wire(), { moves: [move(), move({ ply: 2, san: "e5" })] });
+    expect(match.clockUpdatedAt).toBe("2026-07-30T09:01:30.000Z");
+  });
+
+  it("dates the clocks from the start when no move has been played", () => {
+    expect(toChessMatch(wire()).clockUpdatedAt).toBe("2026-07-30T09:01:00.000Z");
+  });
+
+  it("falls back to creation time for a game that never started", () => {
+    expect(toChessMatch(wire({ status: "waiting", startedAt: null })).clockUpdatedAt).toBe(
+      "2026-07-30T09:00:00.000Z"
+    );
+  });
+
+  it("leaves an empty seat empty rather than inventing a player", () => {
+    const match = toChessMatch(wire({ status: "waiting", black: null }));
+    expect(match.black).toBeNull();
+    expect(match.white).toMatchObject({ walletAddress: "0xwhite", rating: 0 });
+  });
+
+  it("resolves a draw offer to the side that made it", () => {
+    expect(toChessMatch(wire({ drawOfferBy: "0xwhite" })).drawOffered).toBe("w");
+    expect(toChessMatch(wire({ drawOfferBy: "0xblack" })).drawOffered).toBe("b");
+    expect(toChessMatch(wire()).drawOffered).toBeNull();
+    // An address that holds neither seat is not a side.
+    expect(toChessMatch(wire({ drawOfferBy: "0xother" })).drawOffered).toBeNull();
+  });
+
+  it("takes the move list in order", () => {
+    const match = toChessMatch(wire(), {
+      moves: [move(), move({ ply: 2, san: "c5" }), move({ ply: 3, san: "Nf3" })],
+    });
+    expect(match.moves).toEqual(["e4", "c5", "Nf3"]);
+  });
+
+  // The service runs games and settles nothing. A screen cannot show an amount
+  // it was never given, which is the point.
+  it("carries no money at all", () => {
+    const match = toChessMatch(wire());
+    expect(match).not.toHaveProperty("stake");
+    expect(match).not.toHaveProperty("pot");
+  });
+});
+
+describe("challenge", () => {
+  it("presents a waiting game as joinable, with the match id as the invite", () => {
+    const c = toChessChallenge(wire({ status: "waiting", black: null }));
+    expect(c.id).toBe("3f2504e0-4f89-11d3-9a0c-0305e82c3301");
+    expect(c.inviteCode).toBe(c.id);
+    expect(c.creator.walletAddress).toBe("0xwhite");
+    expect(c.timeControl).toBe("5+3");
+    expect(c).not.toHaveProperty("stake");
+  });
+
+  it("takes the creator from whichever seat is filled", () => {
+    const c = toChessChallenge(wire({ status: "waiting", white: null }));
+    expect(c.creator.walletAddress).toBe("0xblack");
+  });
+});

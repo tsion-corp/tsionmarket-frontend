@@ -11,7 +11,6 @@ import {
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
-import { amountUsd, potBreakdown, weiToUnits } from "@/lib/casino/money";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
@@ -46,24 +45,15 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
   if (error) return frame(<CasinoError error={error} subject="this challenge" />);
   if (isLoading || !challenge) return frame(<CasinoLoading label="Loading challenge" rows={4} />);
 
-  const stakeUsd = amountUsd(challenge.stake, wallet.unitPriceUsd);
-  const { feeWei, payoutWei } = potBreakdown(BigInt(challenge.stake.wei));
-  const toUsd = (wei: bigint) => weiToUnits(wei.toString()) * wallet.unitPriceUsd;
-  const affordable = wallet.canAfford(challenge.stake.wei);
-
   const onAccept = async () => {
     if (!wallet.connected) {
       toast.error("Sign in to accept this challenge.");
       return;
     }
-    if (!affordable) {
-      toast.error("Not enough balance to match this stake.");
-      return;
-    }
-    const id = toast.loading("Matching the stake…");
+    const id = toast.loading("Taking your seat…");
     try {
       const match = await accept.mutateAsync(challenge.id);
-      toast.success("Stake matched. Good luck.", { id });
+      toast.success("You're in. Good luck.", { id });
       router.push(`/casino/chess/play?match=${match.id}`);
     } catch (e) {
       toast.error(friendlyError(e, "Couldn't accept that challenge."), { id });
@@ -76,38 +66,17 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       <div className="mx-auto mb-3.5 h-14 w-14 rounded-full border border-white/10 bg-white/8" />
       <div className="text-[15px]">{challenge.creator.username}</div>
       <div className="mb-5 text-[12px] font-normal text-white/50">
-        Rating {challenge.creator.rating} · {timeControlLabel(challenge.timeControl)}
+        {timeControlLabel(challenge.timeControl)}
       </div>
-      <div className="ws-display tnum text-grey-100 text-[44px]">{wallet.format(stakeUsd)}</div>
-      <div className="mb-5 text-[12px] font-normal text-white/50">stake to match</div>
-      <div className="text-up mb-5 flex items-center justify-center gap-2 text-[12px]">
-        <span className="bg-up h-[7px] w-[7px] rounded-full" />
-        Challenger&apos;s stake is already locked
-      </div>
-      <div className="ws-inset tnum mb-5 px-4 py-3.5 text-left text-[12.5px]">
-        <div className="mb-1.5 flex justify-between">
-          <span className="font-normal text-white/50">Your stake</span>
-          <span>{wallet.format(stakeUsd)}</span>
-        </div>
-        <div className="mb-1.5 flex justify-between">
-          <span className="font-normal text-white/50">Participation fee (5%)</span>
-          <span className="font-normal text-white/50">−{wallet.format(toUsd(feeWei))}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Potential winnings</span>
-          <span className="text-grey-100">{wallet.format(toUsd(payoutWei))}</span>
-        </div>
+      <div className="mb-6 text-[12.5px] font-normal text-white/55">
+        They opened this game and are waiting on an opponent. Accept and the clock starts.
       </div>
       <button
         onClick={() => void onAccept()}
-        disabled={accept.isPending || !affordable}
+        disabled={accept.isPending}
         className="text-ink mb-2.5 block w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
       >
-        {accept.isPending
-          ? "Matching stake…"
-          : affordable
-            ? `Accept & stake ${wallet.format(stakeUsd)}`
-            : "Not enough balance"}
+        {accept.isPending ? "Taking your seat…" : "Accept challenge"}
       </button>
       <Link
         href="/casino"

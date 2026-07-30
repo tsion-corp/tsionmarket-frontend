@@ -8,6 +8,8 @@ import type { ReactNode } from "react";
 const chessApi = vi.hoisted(() => ({
   fetchOpenChallenges: vi.fn(),
   fetchLiveMatches: vi.fn(),
+  fetchJoinableMatches: vi.fn(),
+  fetchWaitingMatches: vi.fn(),
   fetchMatch: vi.fn(),
   acceptChallenge: vi.fn(),
   submitMove: vi.fn(),
@@ -17,6 +19,10 @@ const chessApi = vi.hoisted(() => ({
   cancelMatchmaking: vi.fn(),
   fetchChallengeByInvite: vi.fn(),
   offerDraw: vi.fn(),
+  respondToDraw: vi.fn(),
+  claimTimeout: vi.fn(),
+  abortMatch: vi.fn(),
+  requestRematch: vi.fn(),
   cancelChallenge: vi.fn(),
 }));
 vi.mock("@/lib/casino/api/chess", () => chessApi);
@@ -81,7 +87,6 @@ const challenge = (over: Record<string, unknown> = {}) => ({
   id: "c1",
   creator: { id: "u1", username: "GrandmasterKay", rating: 2210, walletAddress: "0xdef" },
   timeControl: "5+3",
-  stake: money(100),
   createdAt: new Date().toISOString(),
   inviteCode: null,
   ...over,
@@ -92,6 +97,8 @@ beforeEach(() => {
   wallet.balance = 10;
   chessApi.fetchOpenChallenges.mockResolvedValue([]);
   chessApi.fetchLiveMatches.mockResolvedValue([]);
+  chessApi.fetchJoinableMatches.mockResolvedValue([]);
+  chessApi.fetchWaitingMatches.mockResolvedValue([]);
   drawApi.fetchPastResults.mockResolvedValue([]);
   drawApi.fetchMyEntries.mockResolvedValue([]);
 });
@@ -103,13 +110,21 @@ describe("chess lobby", () => {
     expect(await screen.findByText(/No open challenges/)).toBeInTheDocument();
   });
 
-  it("lists live challenges with the stake in the player's currency", async () => {
+  it("lists an open challenge with its time control", async () => {
     chessApi.fetchOpenChallenges.mockResolvedValue([challenge()]);
     render(<LobbySection />, { wrapper });
 
     expect(await screen.findByText("GrandmasterKay")).toBeInTheDocument();
-    expect(screen.getByText("$100.00")).toBeInTheDocument();
     expect(screen.getByText("5+3 Blitz")).toBeInTheDocument();
+  });
+
+  // The service settles nothing, so no screen may show an amount.
+  it("shows no money anywhere in the lobby", async () => {
+    chessApi.fetchOpenChallenges.mockResolvedValue([challenge()]);
+    const { container } = render(<LobbySection />, { wrapper });
+
+    await screen.findByText("GrandmasterKay");
+    expect(container.textContent).not.toMatch(/\$|stake|pot|escrow/i);
   });
 
   it("surfaces a gateway failure instead of an empty page", async () => {
@@ -120,63 +135,72 @@ describe("chess lobby", () => {
     expect(await screen.findByText(/Couldn't load the chess lobby/)).toBeInTheDocument();
   });
 
-  it("blocks joining a stake the balance can't cover", async () => {
+  // Nothing is escrowed, so a thin balance is not a reason to refuse a seat.
+  it("lets a player join regardless of balance", async () => {
     wallet.balance = 0.001;
-    chessApi.fetchOpenChallenges.mockResolvedValue([challenge()]);
-    render(<LobbySection />, { wrapper });
-
-    const join = await screen.findByRole("button", { name: "Join" });
-    expect(join).toBeDisabled();
-    fireEvent.click(join);
-    expect(chessApi.acceptChallenge).not.toHaveBeenCalled();
-  });
-
-  it("escrows the stake and opens the match when joining succeeds", async () => {
     chessApi.fetchOpenChallenges.mockResolvedValue([challenge()]);
     chessApi.acceptChallenge.mockResolvedValue({ id: "m9" });
     render(<LobbySection />, { wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Join" }));
-    await waitFor(() => expect(chessApi.acceptChallenge).toHaveBeenCalledWith("c1"));
+    await waitFor(() => expect(chessApi.acceptChallenge).toHaveBeenCalledWith("c1", "0xabc"));
+  });
+
+  it("opens the match when joining succeeds", async () => {
+    chessApi.fetchOpenChallenges.mockResolvedValue([challenge()]);
+    chessApi.acceptChallenge.mockResolvedValue({ id: "m9" });
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Join" }));
+    await waitFor(() => expect(chessApi.acceptChallenge).toHaveBeenCalledWith("c1", "0xabc"));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=m9"));
+  });
+
+  it("reports a failed join instead of navigating to a game that isn't there", async () => {
+    chessApi.fetchOpenChallenges.mockResolvedValue([challenge()]);
+    chessApi.acceptChallenge.mockRejectedValue(
+      Object.assign(new Error("gone"), { code: "CONFLICT" })
+    );
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Join" }));
+    await waitFor(() => expect(chessApi.acceptChallenge).toHaveBeenCalled());
+    expect(push).not.toHaveBeenCalled();
   });
 });
 
-describe("create staked game", () => {
-  it("derives the fee and winnings from the typed stake", () => {
-    render(<CreateSection />, { wrapper });
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "100" } });
-
-    // $100 stake: $200 pot, 5% fee $10, winner takes $190.
-    expect(screen.getByText("−$10.00")).toBeInTheDocument();
-    expect(screen.getByText("$190.00")).toBeInTheDocument();
-  });
-
-  it("refuses to create a game the balance can't cover", () => {
-    wallet.balance = 0.001;
-    render(<CreateSection />, { wrapper });
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "100" } });
-
-    const cta = screen.getByRole("button", { name: "Not enough balance" });
-    expect(cta).toBeDisabled();
-    fireEvent.click(cta);
-    expect(chessApi.createChallenge).not.toHaveBeenCalled();
-  });
-
-  it("sends the exact wei amount, not a rounded dollar figure", async () => {
+describe("create a game", () => {
+  it("creates with the chosen time control, named by the caller's wallet", async () => {
     chessApi.createChallenge.mockResolvedValue({
-      challenge: challenge({ inviteCode: "kx82mQ" }),
+      challenge: challenge({ inviteCode: "c1" }),
       ticket: null,
     });
     render(<CreateSection />, { wrapper });
-    fireEvent.change(screen.getByPlaceholderText("0.00"), { target: { value: "100" } });
-    fireEvent.click(screen.getByRole("button", { name: /Lock stake & get invite link/ }));
+    fireEvent.click(screen.getByRole("button", { name: "10+0" }));
+    fireEvent.click(screen.getByRole("button", { name: /Create game & get invite link/ }));
 
     await waitFor(() => expect(chessApi.createChallenge).toHaveBeenCalled());
     const sent = chessApi.createChallenge.mock.calls[0][0];
-    // $100 at $2000 a unit is exactly 0.05 units.
-    expect(sent.stakeWei).toBe((5n * 10n ** 16n).toString());
-    expect(sent.timeControl).toBe("5+3");
+    expect(sent.timeControl).toBe("10+0");
+    expect(sent.mode).toBe("invite");
+    expect(sent.creator).toBe("0xabc");
+  });
+
+  it("asks for nothing but a time control", () => {
+    const { container } = render(<CreateSection />, { wrapper });
+    expect(container.textContent).not.toMatch(/\$|stake|escrow|winnings|fee/i);
+    expect(screen.queryByPlaceholderText("0.00")).not.toBeInTheDocument();
+  });
+
+  it("shares the match itself as the invite link", async () => {
+    chessApi.createChallenge.mockResolvedValue({
+      challenge: challenge({ inviteCode: "c1" }),
+      ticket: null,
+    });
+    render(<CreateSection />, { wrapper });
+    fireEvent.click(screen.getByRole("button", { name: /Create game & get invite link/ }));
+
+    expect(await screen.findByText(/\/casino\/chess\/invite\?code=c1$/)).toBeInTheDocument();
   });
 });
 
@@ -265,98 +289,196 @@ describe("a drawn game", () => {
     white: player("0xabc", "you"),
     black: player("0xdef", "them"),
     timeControl: "5+3",
-    stake: money(50),
-    pot: money(100),
     fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
     moves: [],
     clocks: { w: 300, b: 300 },
     clockUpdatedAt: new Date().toISOString(),
     turn: "w",
     result: { kind: "draw", reason: "agreement" },
-    rematchId: "m2",
-    rematchOf: null,
     drawOffered: null,
-    spectatorCount: 0,
     createdAt: new Date().toISOString(),
     ...over,
   });
 
-  it("tells the player their stake came back and a rematch is starting", async () => {
+  it("reports the result and does not claim money changed hands", async () => {
     chessApi.fetchMatch.mockResolvedValue(drawnMatch());
-    render(<PlaySection matchId="m1" />, { wrapper });
+    const { container } = render(<PlaySection matchId="m1" />, { wrapper });
 
     // The result reads in both the status line and the overlay.
     expect((await screen.findAllByText(/Draw · agreement/)).length).toBeGreaterThan(0);
-    // The stake is returned in full, so that is the figure shown, not the pot.
-    expect(screen.getByText("$50.00")).toBeInTheDocument();
-    expect(screen.getByText(/Your stake came back in full/)).toBeInTheDocument();
-    expect(screen.getByText(/Rematch starting, colours swapped/)).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/\$|stake|pot|escrow|balance|winnings/i);
   });
 
-  it("says so plainly when a draw ends play without a rematch", async () => {
-    chessApi.fetchMatch.mockResolvedValue(drawnMatch({ rematchId: null }));
+  it("offers a rematch rather than moving the player on by itself", async () => {
+    chessApi.fetchMatch.mockResolvedValue(drawnMatch());
+    chessApi.requestRematch.mockResolvedValue({ id: "m2" });
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    expect(await screen.findByText(/No rematch this time/)).toBeInTheDocument();
-    expect(screen.queryByText(/Rematch starting/)).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Rematch" }));
+    await waitFor(() => expect(chessApi.requestRematch).toHaveBeenCalledWith("m1", "0xabc"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=m2"));
   });
 
-  it("offers a draw, and switches to accepting one the opponent offered", async () => {
-    const live = drawnMatch({ state: "in_progress", result: null, rematchId: null });
+  // A rematch seats only the player who asked for it, so the other one has to
+  // join that game. Opening a second rematch would leave them in two empty
+  // games waiting for each other.
+  it("joins the opponent's rematch instead of opening a second one", async () => {
+    chessApi.fetchMatch.mockResolvedValue(drawnMatch());
+    chessApi.fetchWaitingMatches.mockResolvedValue([
+      { id: "rematch-1", white: null, black: "0xdef", createdAt: "2099-01-01T00:00:00.000Z" },
+    ]);
+    chessApi.acceptChallenge.mockResolvedValue({ id: "rematch-1" });
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    expect(await screen.findByText(/Your opponent wants a rematch/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Rematch" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Accept rematch" }));
+    await waitFor(() =>
+      expect(chessApi.acceptChallenge).toHaveBeenCalledWith("rematch-1", "0xabc")
+    );
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=rematch-1"));
+    expect(chessApi.requestRematch).not.toHaveBeenCalled();
+  });
+
+  it("ignores a waiting game that predates the finished one", async () => {
+    chessApi.fetchMatch.mockResolvedValue(drawnMatch());
+    chessApi.fetchWaitingMatches.mockResolvedValue([
+      { id: "older", white: null, black: "0xdef", createdAt: "2000-01-01T00:00:00.000Z" },
+    ]);
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    expect(await screen.findByRole("button", { name: "Rematch" })).toBeInTheDocument();
+    expect(screen.queryByText(/wants a rematch/)).not.toBeInTheDocument();
+  });
+
+  it("offers a draw, then answers the one the opponent offered", async () => {
+    const live = drawnMatch({ state: "in_progress", result: null });
     chessApi.fetchMatch.mockResolvedValue(live);
     chessApi.offerDraw.mockResolvedValue({ ...live, drawOffered: "w" });
 
     const { unmount } = render(<PlaySection matchId="m1" />, { wrapper });
     fireEvent.click(await screen.findByRole("button", { name: "Offer draw" }));
-    await waitFor(() => expect(chessApi.offerDraw).toHaveBeenCalledWith("m1"));
+    await waitFor(() => expect(chessApi.offerDraw).toHaveBeenCalledWith("m1", "0xabc"));
     unmount();
 
-    // With the opponent's offer outstanding, the same control accepts it.
-    // A fresh client so the match is fetched again rather than served warm.
+    // With the opponent's offer outstanding, accepting and declining are both
+    // offered. A fresh client so the match is fetched again, not served warm.
     chessApi.fetchMatch.mockResolvedValue({ ...live, drawOffered: "b" });
+    chessApi.respondToDraw.mockResolvedValue({ ...live, drawOffered: null });
     render(<PlaySection matchId="m1" />, { wrapper });
-    expect(await screen.findByRole("button", { name: "Accept draw" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Accept draw" }));
+    await waitFor(() => expect(chessApi.respondToDraw).toHaveBeenCalledWith("m1", "0xabc", true));
+  });
+
+  it("declines a draw without ending the game", async () => {
+    const live = drawnMatch({ state: "in_progress", result: null, drawOffered: "b" });
+    chessApi.fetchMatch.mockResolvedValue(live);
+    chessApi.respondToDraw.mockResolvedValue({ ...live, drawOffered: null });
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
+    await waitFor(() => expect(chessApi.respondToDraw).toHaveBeenCalledWith("m1", "0xabc", false));
+  });
+
+  it("aborts a game nobody has joined", async () => {
+    chessApi.fetchMatch.mockResolvedValue(
+      drawnMatch({ state: "awaiting_opponent", result: null, black: null })
+    );
+    chessApi.abortMatch.mockResolvedValue(drawnMatch({ state: "cancelled", result: null }));
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Abort" }));
+    await waitFor(() => expect(chessApi.abortMatch).toHaveBeenCalledWith("m1", "0xabc"));
+  });
+
+  // The service does not end a game on time by itself, so a game whose clock
+  // expired would sit unfinished until somebody claims it.
+  it("claims a flag fall exactly once when the opponent's clock runs out", async () => {
+    const flagged = drawnMatch({
+      state: "in_progress",
+      result: null,
+      turn: "b",
+      clocks: { w: 300, b: 0 },
+      clockUpdatedAt: new Date(Date.now() - 5_000).toISOString(),
+    });
+    chessApi.fetchMatch.mockResolvedValue(flagged);
+    chessApi.claimTimeout.mockResolvedValue(
+      drawnMatch({ result: { kind: "timeout", winner: "w" } })
+    );
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    await waitFor(() => expect(chessApi.claimTimeout).toHaveBeenCalledWith("m1", "0xabc"));
+    await waitFor(() => expect(screen.getAllByText(/Flag fall/).length).toBeGreaterThan(0));
+    expect(chessApi.claimTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not claim a flag fall against itself", async () => {
+    chessApi.fetchMatch.mockResolvedValue(
+      drawnMatch({
+        state: "in_progress",
+        result: null,
+        turn: "w",
+        clocks: { w: 0, b: 300 },
+        clockUpdatedAt: new Date(Date.now() - 5_000).toISOString(),
+      })
+    );
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    await screen.findByText(/Your move|Opponent thinking/);
+    expect(chessApi.claimTimeout).not.toHaveBeenCalled();
   });
 });
 
+// There is no queue on the service, so quick match is a read of the lobby
+// followed by a join, with opening a game as the fallback.
 describe("quick match", () => {
-  it("won't start a search without a stake", async () => {
+  const waitingMatch = (id: string, createdAt: string) => ({ id, createdAt });
+
+  it("takes the oldest seat that is free", async () => {
+    chessApi.fetchJoinableMatches.mockResolvedValue([
+      waitingMatch("newer", "2026-07-30T12:00:00.000Z"),
+      waitingMatch("older", "2026-07-30T09:00:00.000Z"),
+    ]);
+    chessApi.acceptChallenge.mockResolvedValue({ id: "m9" });
     render(<LobbySection />, { wrapper });
-    const find = await screen.findByRole("button", { name: "Find opponent" });
-    expect(find).toBeDisabled();
-    fireEvent.click(find);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Find opponent" }));
+
+    await waitFor(() => expect(chessApi.acceptChallenge).toHaveBeenCalledWith("older", "0xabc"));
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=m9"));
     expect(chessApi.createChallenge).not.toHaveBeenCalled();
   });
 
-  it("escrows the stake, enters the queue and follows the search", async () => {
-    chessApi.createChallenge.mockResolvedValue({
-      challenge: challenge(),
-      ticket: { id: "t7", state: "searching", matchId: null },
-    });
+  it("tries the next seat when somebody else took the first", async () => {
+    chessApi.fetchJoinableMatches.mockResolvedValue([
+      waitingMatch("taken", "2026-07-30T09:00:00.000Z"),
+      waitingMatch("free", "2026-07-30T10:00:00.000Z"),
+    ]);
+    chessApi.acceptChallenge
+      .mockRejectedValueOnce(Object.assign(new Error("gone"), { code: "CONFLICT" }))
+      .mockResolvedValueOnce({ id: "m4" });
     render(<LobbySection />, { wrapper });
 
-    fireEvent.change(await screen.findByLabelText("Quick match stake"), {
-      target: { value: "100" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Find opponent" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find opponent" }));
+
+    await waitFor(() => expect(chessApi.acceptChallenge).toHaveBeenCalledTimes(2));
+    expect(chessApi.acceptChallenge).toHaveBeenLastCalledWith("free", "0xabc");
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=m4"));
+  });
+
+  it("opens its own game when nobody is waiting", async () => {
+    chessApi.fetchJoinableMatches.mockResolvedValue([]);
+    chessApi.createChallenge.mockResolvedValue({ challenge: challenge(), ticket: null });
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Find opponent" }));
 
     await waitFor(() => expect(chessApi.createChallenge).toHaveBeenCalled());
     const sent = chessApi.createChallenge.mock.calls[0][0];
     expect(sent.mode).toBe("auto");
-    // The exact wei amount, not a rounded dollar figure.
-    expect(sent.stakeWei).toBe((5n * 10n ** 16n).toString());
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/matchmaking?ticket=t7"));
-  });
-
-  it("blocks a stake the balance can't cover and says so", async () => {
-    wallet.balance = 0.001;
-    render(<LobbySection />, { wrapper });
-
-    fireEvent.change(await screen.findByLabelText("Quick match stake"), {
-      target: { value: "100" },
-    });
-    expect(screen.getByText(/Not enough balance for that stake/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Find opponent" })).toBeDisabled();
-    expect(chessApi.createChallenge).not.toHaveBeenCalled();
+    expect(sent.timeControl).toBe("5+3");
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/matchmaking?ticket=c1"));
   });
 });

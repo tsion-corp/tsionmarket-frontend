@@ -6,7 +6,7 @@ import { CasinoPage } from "@/components/dashboard/casino/casino-page";
 import { PlaySection } from "@/components/dashboard/casino/chess/play-section";
 
 function PlayFromParams() {
-  return <PlaySection matchId={useSearchParams().get("match")} />;
+  return <PlaySection matchId={useSearchParams()?.get("match") ?? null} />;
 }
 
 export default function ChessPlayPage() {

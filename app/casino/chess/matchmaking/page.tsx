@@ -6,7 +6,7 @@ import { CasinoPage } from "@/components/dashboard/casino/casino-page";
 import { MatchmakingSection } from "@/components/dashboard/casino/chess/matchmaking-section";
 
 function MatchmakingFromParams() {
-  return <MatchmakingSection ticketId={useSearchParams().get("ticket")} />;
+  return <MatchmakingSection ticketId={useSearchParams()?.get("ticket") ?? null} />;
 }
 
 export default function ChessMatchmakingPage() {

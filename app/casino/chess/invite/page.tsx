@@ -6,7 +6,7 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { InviteSection } from "@/components/dashboard/casino/chess/invite-section";
 
 function InviteFromParams() {
-  return <InviteSection inviteCode={useSearchParams().get("code")} />;
+  return <InviteSection inviteCode={useSearchParams()?.get("code") ?? null} />;
 }
 
 // No app shell on purpose: a challenge link lands on a focused offer card.

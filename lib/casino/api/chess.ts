@@ -1,6 +1,15 @@
 "use client";
 
-import { casinoGet, casinoPost } from "@/lib/casino/api/client";
+import { chessGet, chessPost } from "@/lib/casino/api/chess-client";
+import {
+  isMatchId,
+  parseTimeControl,
+  toChessChallenge,
+  toChessMatch,
+  type ChessMatchWire,
+  type ChessMoveWire,
+} from "@/lib/casino/api/chess-wire";
+import { apiError } from "@/lib/casino/api/envelope";
 import type {
   ChessChallenge,
   ChessMatch,
@@ -8,70 +17,233 @@ import type {
   MatchmakingTicket,
 } from "@/lib/casino/api/types";
 
-// Read and write client for staked chess. The server owns the position and
-// the clocks: this client sends intended moves and renders whatever the
-// server returns, so a tampered client can never manufacture a win.
+// Read and write client for chess. The server owns the position and the clocks:
+// this client sends intended moves and renders whatever the server returns, so
+// a tampered client can never manufacture a win.
+//
+// Every write names the player acting. The caller passes their wallet address,
+// but the proxy replaces it with the address the session actually owns before
+// the request leaves our origin, so the value here is a hint rather than an
+// authority.
+
+interface MatchListWire {
+  items: ChessMatchWire[];
+}
+
+interface MovesWire {
+  moves: ChessMoveWire[];
+}
+
+interface MoveResultWire {
+  match: ChessMatchWire;
+  move: ChessMoveWire;
+}
+
+function requireMatchId(matchId: string): string {
+  if (!isMatchId(matchId)) {
+    throw apiError("NOT_FOUND", "That game doesn't exist.", 404);
+  }
+  return matchId;
+}
+
+async function fetchMatchWire(matchId: string): Promise<ChessMatchWire> {
+  return chessGet<ChessMatchWire>(`/matches/${requireMatchId(matchId)}`);
+}
+
+export async function fetchMatchMoves(matchId: string): Promise<ChessMoveWire[]> {
+  const data = await chessGet<MovesWire>(`/matches/${requireMatchId(matchId)}/moves`);
+  return data.moves;
+}
+
+// The board and its move history are two endpoints, so they are fetched
+// together: a position without the moves that produced it would leave the move
+// list blank on every refresh.
+export async function fetchMatch(matchId: string): Promise<ChessMatch> {
+  requireMatchId(matchId);
+  const [wire, moves] = await Promise.all([fetchMatchWire(matchId), fetchMatchMoves(matchId)]);
+  return toChessMatch(wire, { moves });
+}
 
 export async function fetchOpenChallenges(): Promise<ChessChallenge[]> {
-  const data = await casinoGet<{ challenges: ChessChallenge[] }>("/chess/challenges");
-  return data.challenges;
+  const data = await chessGet<MatchListWire>("/matches", { status: "waiting", limit: "50" });
+  return data.items.map((wire) => toChessChallenge(wire));
 }
 
 export async function fetchLiveMatches(): Promise<ChessMatch[]> {
-  const data = await casinoGet<{ matches: ChessMatch[] }>("/chess/matches", {
-    state: "in_progress",
-  });
-  return data.matches;
+  const data = await chessGet<MatchListWire>("/matches", { status: "active", limit: "50" });
+  return data.items.map((wire) => toChessMatch(wire));
 }
 
-export async function fetchMatch(matchId: string): Promise<ChessMatch> {
-  return casinoGet<ChessMatch>(`/chess/matches/${encodeURIComponent(matchId)}`);
+// Every game sitting open, as the service reports it.
+export async function fetchWaitingMatches(): Promise<ChessMatchWire[]> {
+  const data = await chessGet<MatchListWire>("/matches", { status: "waiting", limit: "50" });
+  return data.items;
 }
 
+// Waiting games this player could join. Their own open games are excluded: the
+// service would reject the join, and offering it reads as a bug.
+export async function fetchJoinableMatches(wallet: string): Promise<ChessMatchWire[]> {
+  const mine = wallet.toLowerCase();
+  return (await fetchWaitingMatches()).filter(
+    (m) => m.white?.toLowerCase() !== mine && m.black?.toLowerCase() !== mine
+  );
+}
+
+// An invite link carries the match id, so resolving one is just reading the
+// game. There are no separate invite codes on this service.
 export async function fetchChallengeByInvite(inviteCode: string): Promise<ChessChallenge> {
-  return casinoGet<ChessChallenge>(`/chess/invites/${encodeURIComponent(inviteCode)}`);
+  const wire = await fetchMatchWire(inviteCode);
+  return toChessChallenge(wire);
 }
 
-// Creates a challenge and escrows the creator's stake. Returns the challenge
-// so the caller can show its invite link, or the matchmaking ticket when the
-// mode is "auto".
+// Opens a game and returns it as a challenge to share. "auto" mode also returns
+// a ticket so the matchmaking screen has something to follow; there is no queue
+// on this service, so the ticket is the match itself waiting to be joined.
 export async function createChallenge(
-  input: CreateChessChallengeInput
+  input: CreateChessChallengeInput & { creator: string }
 ): Promise<{ challenge: ChessChallenge; ticket: MatchmakingTicket | null }> {
-  return casinoPost("/chess/challenges", input);
+  const { initialSeconds, incrementSeconds } = parseTimeControl(input.timeControl);
+  const wire = await chessPost<ChessMatchWire>("/matches", {
+    creator: input.creator,
+    color: "random",
+    initial_seconds: initialSeconds,
+    increment_seconds: incrementSeconds,
+  });
+
+  return {
+    challenge: toChessChallenge(wire),
+    ticket:
+      input.mode === "auto"
+        ? {
+            id: wire.id,
+            state: "searching",
+            matchId: wire.id,
+            acceptSecondsRemaining: null,
+            opponent: null,
+          }
+        : null,
+  };
 }
 
-export async function cancelChallenge(challengeId: string): Promise<void> {
-  await casinoPost(`/chess/challenges/${encodeURIComponent(challengeId)}/cancel`);
+// Abandoning a game you opened. The service calls it aborting, which is also
+// what a player does to a game nobody joined.
+export async function cancelChallenge(challengeId: string, player: string): Promise<void> {
+  await chessPost(`/matches/${requireMatchId(challengeId)}/abort`, { player });
 }
 
-// Accepts a challenge, escrows the joiner's stake, and returns the match that
-// starts as a result.
-export async function acceptChallenge(challengeId: string): Promise<ChessMatch> {
-  return casinoPost<ChessMatch>(`/chess/challenges/${encodeURIComponent(challengeId)}/accept`);
+export async function acceptChallenge(challengeId: string, player: string): Promise<ChessMatch> {
+  const wire = await chessPost<ChessMatchWire>(`/matches/${requireMatchId(challengeId)}/join`, {
+    player,
+  });
+  return toChessMatch(wire);
 }
 
+// Polling a "ticket" is polling the match the player opened, which is matched
+// the moment somebody joins it.
 export async function fetchMatchmakingTicket(ticketId: string): Promise<MatchmakingTicket> {
-  return casinoGet<MatchmakingTicket>(`/chess/matchmaking/${encodeURIComponent(ticketId)}`);
+  const wire = await fetchMatchWire(ticketId);
+  const opponentWallet = wire.white && wire.black ? wire.black : null;
+  return {
+    id: wire.id,
+    state:
+      wire.status === "waiting" ? "searching" : wire.status === "active" ? "matched" : "expired",
+    matchId: wire.id,
+    acceptSecondsRemaining: null,
+    opponent: opponentWallet
+      ? { id: opponentWallet, username: opponentWallet, rating: 0, walletAddress: opponentWallet }
+      : null,
+  };
 }
 
-export async function cancelMatchmaking(ticketId: string): Promise<void> {
-  await casinoPost(`/chess/matchmaking/${encodeURIComponent(ticketId)}/cancel`);
+export async function cancelMatchmaking(ticketId: string, player: string): Promise<void> {
+  await cancelChallenge(ticketId, player);
 }
 
 // Submits a move in coordinate notation ("e2e4", with a promotion suffix like
 // "e7e8q"). The server validates legality and returns the new authoritative
-// match state; an illegal move throws ILLEGAL_MOVE and the board stays put.
-export async function submitMove(matchId: string, move: string): Promise<ChessMatch> {
-  return casinoPost<ChessMatch>(`/chess/matches/${encodeURIComponent(matchId)}/moves`, { move });
+// state; an illegal move throws and the board stays put.
+//
+// The response carries the applied move as well as the new position, so the
+// move list is the history the caller already had with this move appended,
+// rather than a second request for the whole thing. Slicing to the new ply
+// keeps the list right even if the caller's copy was behind.
+export async function submitMove(
+  matchId: string,
+  move: string,
+  player: string,
+  previousSan: string[] = []
+): Promise<ChessMatch> {
+  const result = await chessPost<MoveResultWire>(`/matches/${requireMatchId(matchId)}/moves`, {
+    player,
+    uci: move,
+  });
+  const match = toChessMatch(result.match, { moves: [result.move] });
+  return {
+    ...match,
+    moves: [...previousSan.slice(0, Math.max(0, result.move.ply - 1)), result.move.san],
+  };
 }
 
-export async function resignMatch(matchId: string): Promise<ChessMatch> {
-  return casinoPost<ChessMatch>(`/chess/matches/${encodeURIComponent(matchId)}/resign`);
+async function playerAction(matchId: string, action: string, player: string): Promise<ChessMatch> {
+  const wire = await chessPost<ChessMatchWire>(`/matches/${requireMatchId(matchId)}/${action}`, {
+    player,
+  });
+  return toChessMatch(wire);
 }
 
-// Offers a draw, or accepts one the opponent already offered. Agreement
-// settles the game as a draw and starts the rematch.
-export async function offerDraw(matchId: string): Promise<ChessMatch> {
-  return casinoPost<ChessMatch>(`/chess/matches/${encodeURIComponent(matchId)}/offer-draw`);
+export async function resignMatch(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "resign", player);
+}
+
+export async function offerDraw(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "draw-offer", player);
+}
+
+// Answers an outstanding offer. Declining leaves the game running.
+export async function respondToDraw(
+  matchId: string,
+  player: string,
+  accept: boolean
+): Promise<ChessMatch> {
+  const wire = await chessPost<ChessMatchWire>(
+    `/matches/${requireMatchId(matchId)}/draw-response`,
+    { player, accept }
+  );
+  return toChessMatch(wire);
+}
+
+// Claims a draw the position already entitles the player to, by repetition or
+// the fifty-move rule.
+export async function claimDraw(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "claim-draw", player);
+}
+
+// Flags an opponent whose clock has run out. The service does not end a game on
+// time by itself, so without this call a game whose clock expired would sit
+// unfinished forever.
+export async function claimTimeout(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "claim-timeout", player);
+}
+
+export async function abortMatch(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "abort", player);
+}
+
+// Starts a fresh game between the same players with the colours swapped, and
+// returns that new game.
+export async function requestRematch(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "rematch", player);
+}
+
+export async function fetchPgn(matchId: string): Promise<string> {
+  const data = await chessGet<{ pgn: string }>(`/matches/${requireMatchId(matchId)}/pgn`);
+  return data.pgn;
+}
+
+export async function fetchPlayerMatches(wallet: string, status?: string): Promise<ChessMatch[]> {
+  const data = await chessGet<MatchListWire>(`/players/${encodeURIComponent(wallet)}/matches`, {
+    limit: "50",
+    ...(status ? { status } : {}),
+  });
+  return data.items.map((wire) => toChessMatch(wire));
 }

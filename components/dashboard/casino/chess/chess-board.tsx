@@ -1,7 +1,7 @@
 "use client";
 
-import type { Board, Move, Square } from "@/lib/casino/chess/engine";
-import { PIECE_PATHS } from "@/components/dashboard/casino/chess/piece-art";
+import type { Board, Move, PieceColor, PieceType, Square } from "@/lib/casino/chess/engine";
+import { PIECE_ART } from "@/components/dashboard/casino/chess/piece-art";
 
 // Board palette, taken from the Ark greyscale steps (grey-100..grey-900).
 // These are inline styles rather than classes because the square colour is
@@ -18,26 +18,64 @@ const DARK_SELECTED = "#7a7a7a"; // grey-500
 const WHITE_PIECE = "#f4f4f4"; // grey-100
 const BLACK_PIECE = "#0f0f0f"; // grey-900
 
+// One piece. The body is filled in the piece's colour and outlined in the
+// opposite one so it reads on either square; the detail strokes sit on top in
+// the outline colour.
+function PieceGlyph({ type, white }: { type: PieceType; white: boolean }) {
+  const fill = white ? WHITE_PIECE : BLACK_PIECE;
+  const line = white ? BLACK_PIECE : WHITE_PIECE;
+  const art = PIECE_ART[type];
+
+  return (
+    <svg viewBox="0 0 45 45" className="pointer-events-none h-[84%] w-[84%]">
+      <g fill={fill} stroke={line} strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round">
+        {art.body.map((d, i) => (
+          <path key={i} d={d} />
+        ))}
+      </g>
+      {art.detail?.map((d, i) => (
+        <path key={i} d={d} fill="none" stroke={line} strokeWidth="1.4" strokeLinecap="round" />
+      ))}
+    </svg>
+  );
+}
+
 interface ChessBoardProps {
   board: Board;
   selected?: Square | null;
   legalTargets?: Square[];
   lastMove?: Move | null;
+  // Which side sits at the bottom. A player looks at the board from their own
+  // side, the way they would across a real one.
+  orientation?: PieceColor;
   // Omit to render a read-only board (spectator view).
   onSquareClick?: (r: number, c: number) => void;
 }
+
+const FILES = [0, 1, 2, 3, 4, 5, 6, 7];
 
 export function ChessBoard({
   board,
   selected = null,
   legalTargets = [],
   lastMove = null,
+  orientation = "w",
   onSquareClick,
 }: ChessBoardProps) {
+  // Row 0 is black's back rank, so white already looks at the board the right
+  // way up. Black reads it from the far side: both ranks and files reverse, and
+  // the indices stay the true ones so a click still names the square it hit.
+  const flipped = orientation === "b";
+  const ranks = flipped ? [...FILES].reverse() : FILES;
+  const files = flipped ? [...FILES].reverse() : FILES;
+
   return (
-    <div className="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-md border border-white/10">
-      {board.map((row, r) =>
-        row.map((piece, c) => {
+    // Each square carries its own aspect rather than the board carrying one, so
+    // all 64 stay identical whether or not a piece sits on them.
+    <div className="grid w-full grid-cols-8 overflow-hidden rounded-md border border-white/10">
+      {ranks.map((r) =>
+        files.map((c) => {
+          const piece = board[r][c];
           const isDark = (r + c) % 2 === 1;
           const isSelected = selected?.r === r && selected?.c === c;
           const isTarget = legalTargets.some((t) => t.r === r && t.c === c);
@@ -60,21 +98,12 @@ export function ChessBoard({
             <div
               key={`${r}-${c}`}
               onClick={onSquareClick ? () => onSquareClick(r, c) : undefined}
-              className={`relative flex items-center justify-center ${
+              className={`relative flex aspect-square items-center justify-center ${
                 onSquareClick ? "cursor-pointer" : ""
               }`}
               style={{ background }}
             >
-              {piece ? (
-                <svg viewBox="0 0 45 45" className="pointer-events-none h-[78%] w-[78%]">
-                  <path
-                    d={PIECE_PATHS[piece.type]}
-                    fill={piece.color === "w" ? WHITE_PIECE : BLACK_PIECE}
-                    stroke={piece.color === "w" ? BLACK_PIECE : WHITE_PIECE}
-                    strokeWidth="1"
-                  />
-                </svg>
-              ) : null}
+              {piece ? <PieceGlyph type={piece.type} white={piece.color === "w"} /> : null}
               {isTarget ? (
                 <span
                   aria-hidden

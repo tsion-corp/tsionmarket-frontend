@@ -19,7 +19,13 @@ export type GameId = "chess" | "draw" | "last-standing";
 
 // ----- Chess -----
 
-export type ChessTimeControl = "3+2" | "5+3" | "10+0" | "15+10";
+// A time control reads as "minutes+increment", e.g. "5+3". The service accepts
+// any number of seconds per side, so this is a string rather than a union: a
+// game created elsewhere with an unusual control still has to display.
+export type ChessTimeControl = string;
+
+// The controls offered on the create screen.
+export const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["3+2", "5+3", "10+0", "15+10"];
 
 export type ChessColor = "w" | "b";
 
@@ -30,8 +36,7 @@ export interface ChessPlayer {
   walletAddress: string;
 }
 
-export type ChessMatchState =
-  "awaiting_opponent" | "awaiting_stakes" | "in_progress" | "settled" | "cancelled";
+export type ChessMatchState = "awaiting_opponent" | "in_progress" | "settled" | "cancelled";
 
 export type ChessResult =
   | { kind: "checkmate"; winner: ChessColor }
@@ -39,16 +44,17 @@ export type ChessResult =
   | { kind: "timeout"; winner: ChessColor }
   | { kind: "draw"; reason: "stalemate" | "agreement" | "repetition" | "insufficient" };
 
+// Chess is played for nothing at the moment: the service runs games, and has no
+// concept of a stake, an escrow or a pot. Nothing here carries an amount, so no
+// screen can imply money is at risk.
 export interface ChessMatch {
   id: string;
   state: ChessMatchState;
   white: ChessPlayer | null;
   black: ChessPlayer | null;
   timeControl: ChessTimeControl;
-  stake: TokenAmount;
-  pot: TokenAmount;
   // Server-authoritative position. The client renders this; it never decides
-  // legality for money purposes.
+  // legality itself.
   fen: string;
   // Full move history in SAN, oldest first.
   moves: string[];
@@ -57,17 +63,10 @@ export interface ChessMatch {
   clocks: Record<ChessColor, number>;
   clockUpdatedAt: string;
   turn: ChessColor;
-  // Set once the match settles.
+  // Set once the game ends.
   result: ChessResult | null;
-  // A drawn game spawns a rematch for the same stake with colours swapped;
-  // this is that game. Null when the draw ended play, e.g. because a player
-  // could no longer cover the stake.
-  rematchId: string | null;
-  // On a rematch, the drawn game it came from.
-  rematchOf: string | null;
   // The colour with an outstanding draw offer, if any.
   drawOffered: ChessColor | null;
-  spectatorCount: number;
   createdAt: string;
 }
 
@@ -76,16 +75,14 @@ export interface ChessChallenge {
   id: string;
   creator: ChessPlayer;
   timeControl: ChessTimeControl;
-  stake: TokenAmount;
   createdAt: string;
-  // Present for invite-link challenges.
+  // The match id, which is what an invite link carries.
   inviteCode: string | null;
 }
 
 export interface CreateChessChallengeInput {
-  stakeWei: string;
   timeControl: ChessTimeControl;
-  // "invite" mints a shareable link; "auto" enters the matchmaking queue.
+  // "invite" produces a shareable link; "auto" pairs with whoever is waiting.
   mode: "invite" | "auto";
 }
 

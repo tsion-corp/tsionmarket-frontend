@@ -26,9 +26,10 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
         <div className="ws-glass rounded-2xl p-9 text-center">
-          <div className="ws-display mb-1.5 text-[19px]">No search in progress</div>
+          <div className="ws-display mb-1.5 text-[19px]">No game waiting</div>
           <div className="mb-5 text-[12.5px] font-normal text-white/55">
-            Set a stake on the lobby and we&apos;ll pair you with someone at the same one.
+            Start a quick match from the lobby and we&apos;ll sit you down against whoever is
+            around.
           </div>
           <Link
             href="/casino/chess"
@@ -58,10 +59,10 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
   const onCancel = async () => {
     try {
       await cancel();
-      toast.success("Search cancelled. Your stake is on its way back.");
+      toast.success("Game closed.");
       router.push("/casino/chess");
     } catch {
-      toast.error("Couldn't cancel the search.");
+      toast.error("Couldn't close that game.");
     }
   };
 
@@ -69,9 +70,9 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20">
         <div className="ws-glass rounded-2xl p-9 text-center">
-          <div className="ws-display mb-1.5 text-[19px]">No opponent found</div>
+          <div className="ws-display mb-1.5 text-[19px]">That game is no longer open</div>
           <div className="text-[12.5px] font-normal text-white/55">
-            Your stake has been returned. Try again, or create an invite link instead.
+            It was closed before anyone joined. Start another, or create an invite link instead.
           </div>
         </div>
       </div>
@@ -82,18 +83,18 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
       <div className="ws-glass rounded-2xl p-9 text-center">
         <div className="border-accent/30 border-t-accent mx-auto mb-5 h-11 w-11 animate-spin rounded-full border-2" />
-        <div className="ws-display mb-1.5 text-[19px]">Finding an opponent</div>
+        <div className="ws-display mb-1.5 text-[19px]">Waiting for an opponent</div>
         <div className="mb-4.5 text-[12.5px] font-normal text-white/55">
-          Your stake is locked in escrow while we search.
+          Your game is open in the lobby. It starts the moment somebody takes the other side.
         </div>
         <div className="mb-5 text-[11.5px] font-normal text-white/40">
-          You can leave this page — we&apos;ll notify you the moment you&apos;re matched.
+          You can leave this page. The game stays open until you close it.
         </div>
         <button
           onClick={() => void onCancel()}
           className="cursor-pointer rounded-full border border-white/15 px-4 py-2 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"
         >
-          Cancel search
+          Close game
         </button>
       </div>
     </div>

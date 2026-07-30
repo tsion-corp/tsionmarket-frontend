@@ -129,14 +129,8 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
     <div className="mx-auto w-full max-w-[1160px] px-4 pt-6 pb-20 sm:px-6">
       <div className="tnum mb-4 flex flex-wrap gap-5 text-[13px]">
         <div>
-          <span className="font-normal text-white/50">Pot </span>
-          <span className="text-grey-100 font-semibold">
-            {wallet.format(amountUsd(match.pot, wallet.unitPriceUsd))}
-          </span>
-        </div>
-        <div>
-          <span className="font-normal text-white/50">Watching </span>
-          <span>{match.spectatorCount}</span>
+          <span className="font-normal text-white/50">Time control </span>
+          <span className="text-grey-100 font-semibold">{match.timeControl}</span>
         </div>
       </div>
 
