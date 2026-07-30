@@ -423,7 +423,7 @@ export function buildPayOptions(tokens: TokenBalance[], asset: RwaApiAsset): Pay
   });
 }
 
-// Monochrome silver-to-charcoal gradients for an asset's icon fallback. TSION is
+// Monochrome silver-to-charcoal gradients for an asset's icon fallback. Ark is
 // greyscale, so these vary only in lightness, never hue.
 const GRADIENTS = [
   "linear-gradient(135deg,#e8e8ea,#9b9b9b)",

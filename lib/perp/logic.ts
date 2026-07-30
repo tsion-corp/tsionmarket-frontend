@@ -147,10 +147,18 @@ export function needsApproval(allowance: bigint, collateralUsdc: string): boolea
   return allowance < collateralBaseUnits(collateralUsdc);
 }
 
-// Step values arrive as wei decimal strings. Parses one for signing, rejecting
-// anything that is not a plain non-negative integer so a malformed step can
-// never be signed with a garbage value.
-export function parseStepValueWei(value: string): bigint {
+// Step values arrive as wei decimal strings per the API contract, but the
+// deployed gateway sends a plain JSON number 0 on approval steps. Accept a
+// number only when it is a safe non-negative integer: a large numeric wei
+// value would already have lost precision in JSON, so it must be rejected
+// rather than signed wrong.
+export function parseStepValueWei(value: string | number): bigint {
+  if (typeof value === "number") {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw new Error("Transaction step has an invalid value.");
+    }
+    return BigInt(value);
+  }
   if (!/^\d+$/.test(value)) {
     throw new Error("Transaction step has an invalid value.");
   }

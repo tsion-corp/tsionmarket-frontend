@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { useTranslations } from "next-intl";
 import { Reveal } from "@/components/ui/reveal";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -22,7 +23,7 @@ export function Story() {
         </Reveal>
         <Reveal delay={0.2}>
           <p className="mt-6 max-w-[52ch] text-[clamp(16px,1.7vw,19px)] leading-[1.6] font-light text-white/90">
-            {t("body", { brand: "TSION" })}
+            {t("body", { brand: BRAND })}
           </p>
         </Reveal>
       </div>

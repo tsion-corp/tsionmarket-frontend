@@ -3,7 +3,7 @@
 import type { Board, Move, Square } from "@/lib/casino/chess/engine";
 import { PIECE_PATHS } from "@/components/dashboard/casino/chess/piece-art";
 
-// Board palette, taken from the TSION greyscale steps (grey-100..grey-900).
+// Board palette, taken from the Ark greyscale steps (grey-100..grey-900).
 // These are inline styles rather than classes because the square colour is
 // data-driven, but every value is a palette step.
 const LIGHT_SQ = "#bfbfbf"; // grey-300

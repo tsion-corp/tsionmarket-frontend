@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { useTranslations } from "next-intl";
 import { Reveal } from "@/components/ui/reveal";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -30,7 +31,7 @@ export function Faq() {
               className="group rounded-2xl border border-white/10 bg-white/4 px-[22px] py-0.5"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-[18px] text-[17px] font-medium [&::-webkit-details-marker]:hidden">
-                {t(f.q, { brand: "TSION" })}
+                {t(f.q, { brand: BRAND })}
                 <span className="text-accent shrink-0 text-[22px] leading-none transition-transform duration-200 group-open:rotate-45">
                   +
                 </span>

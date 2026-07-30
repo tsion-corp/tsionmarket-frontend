@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AssetIcon } from "@/components/ui/asset-icon";
 import { AssetChart } from "@/components/ui/asset-chart";
 import { SearchIcon } from "@/components/ui/icons";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
+import { PerpPairIcon } from "@/components/dashboard/trade/perp-pair-icon";
 import { usePerpMarket } from "@/hooks/use-perp-markets";
 import { usePerpQuote } from "@/hooks/use-perp-quote";
 import { usePerpActions } from "@/hooks/use-perp-actions";
@@ -14,7 +14,6 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
 import { CATEGORY_ORDER, pairSymbol, validateOrder } from "@/lib/perp/logic";
 import { coingeckoId } from "@/lib/coingecko";
-import { findAsset } from "@/lib/trade/assets";
 import type { PerpCategory, PerpOrderType, PerpPair } from "@/lib/perp/types";
 
 // The full-control interface: every market Avantis lists across crypto, forex,
@@ -191,7 +190,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                       on ? "bg-white/6" : "hover:bg-white/4"
                     }`}
                   >
-                    <AssetIcon sym={p.from} bg={findAsset(p.from)?.bg ?? "#3c3c3c"} size={22} />
+                    <PerpPairIcon sym={p.from} category={p.category} size={22} />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-sans text-[13px] font-medium">{s}</span>
                       <span className="block text-[11px] font-normal text-white/40">
@@ -212,7 +211,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
         <div className="flex min-w-0 flex-col gap-4">
           <div className="ws-card p-4 sm:p-5">
             <div className="flex flex-wrap items-center gap-3">
-              <AssetIcon sym={baseSym} bg={findAsset(baseSym)?.bg ?? "#3c3c3c"} size={34} />
+              <PerpPairIcon sym={baseSym} category={pair?.category} size={34} />
               <div className="min-w-0 flex-1">
                 <div className="font-sans text-[16px] font-semibold">{selected}</div>
                 <div className="text-xs font-normal text-white/50">

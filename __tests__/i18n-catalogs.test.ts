@@ -48,9 +48,12 @@ describe("translation catalogs", () => {
   });
 
   it("the brand name never appears inside a catalog string", () => {
+    // Word boundary for the current brand so words like "Markets" never
+    // false-positive; the retired name is checked verbatim.
+    const embedsBrand = (s: string) => /\bArk\b/.test(s) || s.includes("TSION");
     for (const locale of LOCALES) {
       for (const [key, value] of Object.entries(catalogs[locale])) {
-        expect(value.includes("TSION"), `${locale}:${key} embeds the brand`).toBe(false);
+        expect(embedsBrand(value), `${locale}:${key} embeds the brand`).toBe(false);
       }
     }
   });

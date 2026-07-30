@@ -23,7 +23,7 @@ export function rwaRevalidate(path: string): number | undefined {
 // The perp surface: reads plus the quote and the non-custodial build calls that
 // return unsigned transaction steps. Nothing else is forwarded.
 const PERP_ALLOWED =
-  /^(health|pairs|market|prices|snapshot|trades|referral\/0x[a-fA-F0-9]{40}|quote|build\/(approve-usdc|open-trade|close-trade|update-margin|update-tp-sl|cancel-order))$/;
+  /^(health|pairs|market|prices|snapshot|trades|quote|build\/(approve-usdc|open-trade|close-trade|update-margin|update-tp-sl|cancel-order))$/;
 
 export function isAllowedPerpPath(path: string): boolean {
   return PERP_ALLOWED.test(path);
@@ -37,7 +37,6 @@ export function perpRevalidate(path: string): number | undefined {
   if (path === "pairs") return 300;
   if (path === "prices" || path === "market") return 3;
   if (path === "snapshot") return 60;
-  if (path.startsWith("referral/")) return 60;
   return undefined;
 }
 

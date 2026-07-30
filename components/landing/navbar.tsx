@@ -16,7 +16,10 @@ export function Navbar() {
   return (
     <nav className="ws-glass fixed top-4 left-1/2 z-[200] flex w-[min(1120px,calc(100%-24px))] -translate-x-1/2 items-center justify-between rounded-full py-[9px] pr-2.5 pl-[18px]">
       <Wordmark />
-      <div className="hidden items-center gap-0.5 rounded-full border border-white/10 bg-white/5 p-[5px] lg:flex">
+      {/* Absolutely centered so the pill stays in the true middle of the nav
+          regardless of how wide the side clusters are; justify-between alone
+          drifts it toward the lighter side. */}
+      <div className="absolute top-1/2 left-1/2 hidden -translate-x-1/2 -translate-y-1/2 items-center gap-0.5 rounded-full border border-white/10 bg-white/5 p-[5px] lg:flex">
         {LINKS.map((l) => (
           <a
             key={l.href}

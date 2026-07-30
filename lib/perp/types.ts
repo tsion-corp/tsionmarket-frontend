@@ -64,11 +64,13 @@ export interface TradeQuote {
 }
 
 // One unsigned transaction the user's wallet signs. `value` is wei as a decimal
-// string ("0" for approvals, the keeper execution fee for open/close).
+// string per the contract ("0" for approvals, the keeper execution fee for
+// open/close), but the deployed gateway sends approval zeros as a JSON number,
+// so the type reflects the wire reality. parseStepValueWei guards both.
 export interface TransactionStep {
   to: string;
   data: string;
-  value: string;
+  value: string | number;
   label: string;
 }
 

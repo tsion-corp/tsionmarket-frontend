@@ -599,7 +599,14 @@
     "v_overMaxLeverage": "Max leverage for this market is {max}x.",
     "v_underMinLeverage": "Leverage must be at least 1x.",
     "v_underMinPosition": "Minimum position for this market is about ${min}.",
-    "v_overBalance": "That is more than your USDC balance."
+    "v_overBalance": "That is more than your USDC balance.",
+    "partialCloseHeading": "Partial close",
+    "partialCloseAmount": "Amount (USDC)",
+    "partialCloseAction": "Close amount",
+    "partialCloseMax": "Max closable: {amount}",
+    "orderMarket": "Market",
+    "orderLimit": "Limit",
+    "orderStop": "Stop"
   },
   "fundsFlow": {
     "back": "Back",

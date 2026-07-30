@@ -7,7 +7,7 @@
      face, not a serif. */
   --font-serif: var(--font-display);
 
-  /* TSION brand is monochrome: no purple, no gold. The accent is silver, so
+  /* Ark brand is monochrome: no purple, no gold. The accent is silver, so
      text-accent and the accent tints read as light neutral washes on black. */
   --color-accent: #d4d4d8;
   /* Gain and loss stay semantic (functional, not brand color). */
@@ -22,7 +22,7 @@
   --color-panel: #0a0a0a;
   --color-sheet: #0c0c0e;
 
-  /* Designer greyscale scale (TSION COLOR palette). Neutral steps for text,
+  /* Designer greyscale scale (Ark COLOR palette). Neutral steps for text,
      borders, and surfaces. Token names mirror the design file's grey/20..100. */
   --color-grey-100: #f4f4f4;
   --color-grey-200: #dcdcdc;

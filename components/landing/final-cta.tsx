@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Reveal } from "@/components/ui/reveal";
@@ -18,7 +19,7 @@ export function FinalCta() {
           {t("title")}
         </h2>
         <p className="mx-auto mt-[22px] max-w-[48ch] text-[17px] leading-[1.6] font-light text-white/90">
-          {t("body", { brand: "TSION" })}
+          {t("body", { brand: BRAND })}
         </p>
         <div className="mt-8 flex justify-center">
           <Link

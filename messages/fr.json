@@ -599,7 +599,14 @@
     "v_overMaxLeverage": "Le levier max pour ce marché est {max}x.",
     "v_underMinLeverage": "Le levier doit être d'au moins 1x.",
     "v_underMinPosition": "La position minimum pour ce marché est d'environ {min} $.",
-    "v_overBalance": "C'est plus que votre solde USDC."
+    "v_overBalance": "C'est plus que votre solde USDC.",
+    "partialCloseHeading": "Clôture partielle",
+    "partialCloseAmount": "Montant (USDC)",
+    "partialCloseAction": "Clôturer le montant",
+    "partialCloseMax": "Max clôturable : {amount}",
+    "orderMarket": "Marché",
+    "orderLimit": "Limite",
+    "orderStop": "Stop"
   },
   "fundsFlow": {
     "back": "Retour",

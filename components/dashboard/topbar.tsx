@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { SearchIcon } from "@/components/ui/icons";
-import { TsionMark } from "@/components/ui/tsion-mark";
+import { ArkMark } from "@/components/ui/ark-mark";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Avatar } from "@/components/dashboard/avatar";
@@ -101,7 +101,7 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   return (
     <div className="relative z-[2] flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
       <Link href="/dashboard" className="flex items-center text-white md:hidden">
-        <TsionMark size={42} />
+        <ArkMark height={17} />
       </Link>
 
       <div className="relative max-w-[230px] flex-1 md:max-w-[420px]">

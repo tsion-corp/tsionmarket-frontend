@@ -16,7 +16,7 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
  * a mouse-trail displacement shader, and a vignette / RGB-shift post pass.
  *
  * Ported from the vengenceui "3D Wave Grid" component; the `cn` dependency was
- * dropped and the default palette retinted to TSION monochrome: a near-black
+ * dropped and the default palette retinted to Ark monochrome: a near-black
  * base with silver wave peaks, to blend with the dark page.
  */
 

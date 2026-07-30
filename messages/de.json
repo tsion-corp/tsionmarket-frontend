@@ -599,7 +599,14 @@
     "v_overMaxLeverage": "Der maximale Hebel für diesen Markt ist {max}x.",
     "v_underMinLeverage": "Der Hebel muss mindestens 1x sein.",
     "v_underMinPosition": "Die Mindestposition für diesen Markt liegt bei etwa {min} $.",
-    "v_overBalance": "Das ist mehr als Ihr USDC-Guthaben."
+    "v_overBalance": "Das ist mehr als Ihr USDC-Guthaben.",
+    "partialCloseHeading": "Teilschließung",
+    "partialCloseAmount": "Betrag (USDC)",
+    "partialCloseAction": "Betrag schließen",
+    "partialCloseMax": "Max. schließbar: {amount}",
+    "orderMarket": "Markt",
+    "orderLimit": "Limit",
+    "orderStop": "Stop"
   },
   "fundsFlow": {
     "back": "Zurück",

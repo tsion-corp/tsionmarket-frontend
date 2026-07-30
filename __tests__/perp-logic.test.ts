@@ -132,6 +132,16 @@ describe("allowance and steps", () => {
     expect(() => parseStepValueWei("1.5")).toThrow();
   });
 
+  it("accepts the deployed gateway's numeric zero but rejects unsafe numbers", () => {
+    // approve-usdc steps arrive with value: 0 (a JSON number) in production.
+    expect(parseStepValueWei(0)).toBe(0n);
+    expect(parseStepValueWei(350_000_000_000_000)).toBe(350_000_000_000_000n);
+    // Anything past 2^53 already lost precision in JSON and must never sign.
+    expect(() => parseStepValueWei(9_007_199_254_740_993)).toThrow();
+    expect(() => parseStepValueWei(-1)).toThrow();
+    expect(() => parseStepValueWei(1.5)).toThrow();
+  });
+
   it('treats "0" TP/SL as unset', () => {
     expect(isUnsetLevel("0")).toBe(true);
     expect(isUnsetLevel("0.00")).toBe(true);

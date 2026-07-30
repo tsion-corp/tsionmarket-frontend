@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { TsionMark } from "@/components/ui/tsion-mark";
+import { ArkMark } from "@/components/ui/ark-mark";
+import { BRAND } from "@/lib/brand";
 
 interface DashboardFooterProps {
   // The dashboard nav sections, used for quick links.
@@ -22,10 +23,7 @@ export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
       <div className="mx-auto flex max-w-[1520px] flex-col gap-8">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
           <div className="max-w-[34ch]">
-            <div className="flex items-center gap-2">
-              <TsionMark size={30} />
-              <span className="ws-display text-[17px]">TSION</span>
-            </div>
+            <ArkMark height={20} />
             <p className="mt-3 text-[13px] leading-[1.6] font-normal text-white/55">
               {t("tagline")}
             </p>
@@ -46,7 +44,7 @@ export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 pt-6">
           <span className="text-[13px] font-normal text-white/40">
-            {t("rights", { year, brand: "TSION" })}
+            {t("rights", { year, brand: BRAND })}
           </span>
           <span className="max-w-[62ch] text-xs font-normal text-white/35">{t("disclaimer")}</span>
         </div>

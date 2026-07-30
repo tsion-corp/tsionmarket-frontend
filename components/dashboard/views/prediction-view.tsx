@@ -1,5 +1,6 @@
 "use client";
 
+import { BRAND } from "@/lib/brand";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -87,7 +88,7 @@ export function PredictionView() {
         <div className="ws-card mt-[18px] flex flex-col items-center gap-2 px-6 py-12 text-center">
           <div className="ws-display text-[22px]">{t("regionBlockedTitle")}</div>
           <p className="max-w-[360px] text-[13.5px] font-normal text-white/55">
-            {t("regionBlockedBody", { brand: "TSION" })}
+            {t("regionBlockedBody", { brand: BRAND })}
           </p>
         </div>
       ) : (

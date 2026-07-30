@@ -30,6 +30,28 @@ import TokenMUSD from "@web3icons/react/icons/tokens/TokenMUSD";
 import TokenLINK from "@web3icons/react/icons/tokens/TokenLINK";
 import TokenUNI from "@web3icons/react/icons/tokens/TokenUNI";
 import TokenAAVE from "@web3icons/react/icons/tokens/TokenAAVE";
+import TokenAPT from "@web3icons/react/icons/tokens/TokenAPT";
+import TokenARKM from "@web3icons/react/icons/tokens/TokenARKM";
+import TokenDOGE from "@web3icons/react/icons/tokens/TokenDOGE";
+import TokenFET from "@web3icons/react/icons/tokens/TokenFET";
+import TokenINJ from "@web3icons/react/icons/tokens/TokenINJ";
+import TokenJUP from "@web3icons/react/icons/tokens/TokenJUP";
+import TokenLDO from "@web3icons/react/icons/tokens/TokenLDO";
+import TokenLIT from "@web3icons/react/icons/tokens/TokenLIT";
+import TokenNEAR from "@web3icons/react/icons/tokens/TokenNEAR";
+import TokenORDI from "@web3icons/react/icons/tokens/TokenORDI";
+import TokenPENDLE from "@web3icons/react/icons/tokens/TokenPENDLE";
+import TokenPEPE from "@web3icons/react/icons/tokens/TokenPEPE";
+import TokenPOPCAT from "@web3icons/react/icons/tokens/TokenPOPCAT";
+import TokenSEI from "@web3icons/react/icons/tokens/TokenSEI";
+import TokenSHIB from "@web3icons/react/icons/tokens/TokenSHIB";
+import TokenSTX from "@web3icons/react/icons/tokens/TokenSTX";
+import TokenSUI from "@web3icons/react/icons/tokens/TokenSUI";
+import TokenTAO from "@web3icons/react/icons/tokens/TokenTAO";
+import TokenTIA from "@web3icons/react/icons/tokens/TokenTIA";
+import TokenXMR from "@web3icons/react/icons/tokens/TokenXMR";
+import TokenXRP from "@web3icons/react/icons/tokens/TokenXRP";
+import TokenZEC from "@web3icons/react/icons/tokens/TokenZEC";
 import type { IconComponent } from "@web3icons/react";
 import { CoinBadge } from "@/components/ui/coin-badge";
 
@@ -72,6 +94,28 @@ const CRYPTO_ICONS: Record<string, IconComponent> = {
   LINK: TokenLINK,
   UNI: TokenUNI,
   AAVE: TokenAAVE,
+  APT: TokenAPT,
+  ARKM: TokenARKM,
+  DOGE: TokenDOGE,
+  FET: TokenFET,
+  INJ: TokenINJ,
+  JUP: TokenJUP,
+  LDO: TokenLDO,
+  LIT: TokenLIT,
+  NEAR: TokenNEAR,
+  ORDI: TokenORDI,
+  PENDLE: TokenPENDLE,
+  PEPE: TokenPEPE,
+  POPCAT: TokenPOPCAT,
+  SEI: TokenSEI,
+  SHIB: TokenSHIB,
+  STX: TokenSTX,
+  SUI: TokenSUI,
+  TAO: TokenTAO,
+  TIA: TokenTIA,
+  XMR: TokenXMR,
+  XRP: TokenXRP,
+  ZEC: TokenZEC,
 };
 
 interface AssetIconProps {

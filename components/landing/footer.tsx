@@ -1,3 +1,4 @@
+import { BRAND } from "@/lib/brand";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 
@@ -68,7 +69,7 @@ export function Footer() {
       </div>
       <div className="mx-auto flex max-w-[1120px] flex-wrap justify-between gap-3 border-t border-white/6 px-6 pt-[22px] pb-10">
         <span className="text-[13px] font-normal text-white/40">
-          {t("rights", { brand: "TSION" })}
+          {t("rights", { brand: BRAND })}
         </span>
         <span className="max-w-[60ch] text-right text-xs font-normal text-white/35">
           {t("disclaimer")}

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
-import { TsionMark } from "@/components/ui/tsion-mark";
+import { ArkMark } from "@/components/ui/ark-mark";
+import { BRAND } from "@/lib/brand";
 import { LockIcon } from "@/components/ui/icons";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
@@ -49,7 +50,7 @@ export default function AuthPage() {
           </div>
 
           <h1 className="ws-display text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
-            {t("welcome")} <span className="text-accent">TSION</span>
+            {t("welcome")} <span className="text-accent">{BRAND}</span>
           </h1>
           <p className="mt-4 max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72">
             {t("tagline")}
@@ -57,8 +58,8 @@ export default function AuthPage() {
 
           {signingIn ? (
             <div className="mt-[34px] flex items-center gap-3 rounded-[14px] border border-white/14 bg-white/6 p-4">
-              <span className="grid h-8 w-8 animate-pulse place-items-center rounded-full">
-                <TsionMark size={30} />
+              <span className="animate-pulse">
+                <ArkMark height={18} />
               </span>
               <span className="text-sm text-white/80">{t("signingIn")}</span>
             </div>
@@ -88,7 +89,7 @@ export default function AuthPage() {
 
         <p className="mx-auto max-w-[420px] text-center text-xs leading-normal text-white/35">
           {t.rich("agree", {
-            brand: "TSION",
+            brand: BRAND,
             terms: (chunks) => (
               <a href="#" className="text-white/60 underline">
                 {chunks}

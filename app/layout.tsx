@@ -20,10 +20,10 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "TSION",
+  title: "Ark",
   description:
     "The onchain superapp for global markets. Own stocks, gold, crypto and real-world assets from one self-custody account, funded in Naira.",
-  icons: { icon: "/tsion-logo.svg" },
+  icons: { icon: "/ark-logo.svg" },
 };
 
 export default async function RootLayout({

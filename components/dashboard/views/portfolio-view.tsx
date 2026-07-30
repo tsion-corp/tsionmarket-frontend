@@ -55,7 +55,7 @@ function networkLabel(network: string): string {
 }
 
 // Stable greyscale gradient per symbol so tokens without a built-in icon stay
-// visually distinct. TSION is monochrome, so the seed varies lightness only, not
+// visually distinct. Ark is monochrome, so the seed varies lightness only, not
 // hue.
 function tokenBg(symbol: string): string {
   let seed = 0;

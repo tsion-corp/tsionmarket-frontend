@@ -599,7 +599,14 @@
     "v_overMaxLeverage": "El apalancamiento máximo de este mercado es {max}x.",
     "v_underMinLeverage": "El apalancamiento debe ser de al menos 1x.",
     "v_underMinPosition": "La posición mínima de este mercado es de unos {min} $.",
-    "v_overBalance": "Es más que tu saldo USDC."
+    "v_overBalance": "Es más que tu saldo USDC.",
+    "partialCloseHeading": "Cierre parcial",
+    "partialCloseAmount": "Importe (USDC)",
+    "partialCloseAction": "Cerrar importe",
+    "partialCloseMax": "Máx. a cerrar: {amount}",
+    "orderMarket": "Mercado",
+    "orderLimit": "Límite",
+    "orderStop": "Stop"
   },
   "fundsFlow": {
     "back": "Atrás",

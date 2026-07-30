@@ -1,7 +1,7 @@
 "use client";
 
 // Background-only adaptation of the vengenceui "Aurora Hero": the animated
-// fluted-stripe + shimmer difference-blend layer, retinted to TSION monochrome
+// fluted-stripe + shimmer difference-blend layer, retinted to Ark monochrome
 // (silver on near-black) to blend with the dark page. The title and full-screen
 // fluted-glass content layer are dropped so it sits behind each section's own
 // content.

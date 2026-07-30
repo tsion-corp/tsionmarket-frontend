@@ -79,7 +79,7 @@ export function TwistingRibbon({
 
     // Violet-on-black palette shared by both branches (dimmed to sit quietly
     // behind copy).
-    // TSION monochrome: a silver ribbon face with darker greyscale folds.
+    // Ark monochrome: a silver ribbon face with darker greyscale folds.
     const V_FACE: [number, number, number] = [180, 180, 186];
     const V_FOLD_A: [number, number, number] = [58, 58, 62];
     const V_FOLD_B: [number, number, number] = [34, 34, 38];

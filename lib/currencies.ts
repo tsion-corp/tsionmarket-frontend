@@ -47,6 +47,8 @@ export const CURRENCY_COUNTRY: Record<string, string> = {
   MUR: "mu",
   EUR: "eu",
   GBP: "gb",
+  AUD: "au",
+  NZD: "nz",
 };
 
 export function findCurrency(code: string): Currency | undefined {

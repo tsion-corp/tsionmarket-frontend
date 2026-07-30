@@ -52,7 +52,10 @@ export function isPerpUnavailable(e: unknown): boolean {
 
 export async function fetchPerpPairs(category?: string): Promise<PerpPair[]> {
   const query = category ? `?category=${encodeURIComponent(category)}` : "";
-  return unwrap<PerpPair[]>(await apiFetch(`/api/perp/pairs${query}`));
+  const pairs = await unwrap<PerpPair[]>(await apiFetch(`/api/perp/pairs${query}`));
+  // The gateway currently returns a couple of placeholder slots with empty
+  // from/to (delisted pair indices). They render as "/" rows, so drop them.
+  return pairs.filter((p) => p.from !== "" && p.to !== "");
 }
 
 export async function fetchPerpMarket(pair: string): Promise<PerpPairMarket> {
