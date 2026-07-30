@@ -1,183 +1,292 @@
 "use client";
 
-import { useState } from "react";
-import { ModalShell } from "@/components/ui/modal-shell";
-import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useChessMatch } from "@/hooks/use-casino-chess";
+import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
-import { useChessMatch } from "@/components/dashboard/casino/chess/use-chess-match";
-import { PIECE_GLYPHS } from "@/components/dashboard/casino/chess/piece-art";
 import {
-  DEMO_OPPONENT,
-  DEMO_PLAYER,
-  timeControlSeconds,
-  type TimeControl,
-} from "@/lib/casino/demo";
-import { formatCasinoAmount, stakeBreakdown, type CasinoCurrency } from "@/lib/casino/stakes";
-import type { PieceColor, PieceType } from "@/lib/casino/chess/engine";
+  CasinoEmpty,
+  CasinoError,
+  CasinoLoading,
+} from "@/components/dashboard/casino/casino-state";
+import { legalMovesForPiece, parseFen, toUci, type Square } from "@/lib/casino/chess/engine";
+import { amountUsd } from "@/lib/casino/money";
+import { friendlyError } from "@/lib/errors";
+import { toast } from "@/lib/toast";
+import type { ChessColor, ChessMatch } from "@/lib/casino/api/types";
 
 function formatClock(totalSeconds: number): string {
-  const m = Math.floor(totalSeconds / 60);
-  const s = totalSeconds % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  const s = Math.max(0, Math.floor(totalSeconds));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-interface PlaySectionProps {
-  stakeMinor: number;
-  currency: CasinoCurrency;
-  timeControl: TimeControl;
+function resultLine(match: ChessMatch, you: ChessColor | null): string {
+  const r = match.result;
+  if (!r) return "";
+  if (r.kind === "draw") return `Draw · ${r.reason}`;
+  const how =
+    r.kind === "checkmate" ? "Checkmate" : r.kind === "resignation" ? "Resignation" : "Flag fall";
+  if (you === null) return `${how} · ${r.winner === "w" ? "White" : "Black"} won`;
+  return `${how} · You ${r.winner === you ? "won" : "lost"}`;
 }
 
-export function PlaySection({ stakeMinor, currency, timeControl }: PlaySectionProps) {
-  const { base, increment } = timeControlSeconds(timeControl);
-  const match = useChessMatch({ baseSeconds: base, increment });
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
+export function PlaySection({ matchId }: { matchId: string | null }) {
+  const wallet = useCasinoWallet();
+  const router = useRouter();
+  const {
+    match,
+    clocks,
+    isLoading,
+    error,
+    submitMove,
+    moving,
+    resign,
+    resigning,
+    offerDraw,
+    offeringDraw,
+  } = useChessMatch(matchId);
+  const [selected, setSelected] = useState<Square | null>(null);
 
-  const { potMinor, potentialMinor } = stakeBreakdown(stakeMinor);
-  const fmt = (minor: number) => formatCasinoAmount(minor, currency);
+  // The board is whatever the server says. A malformed FEN yields null rather
+  // than a silently half-rendered position.
+  const position = useMemo(() => {
+    if (!match) return null;
+    try {
+      return parseFen(match.fen);
+    } catch {
+      return null;
+    }
+  }, [match]);
 
-  const capturedLine = (color: PieceColor) =>
-    match.captured[color].map((t: PieceType) => PIECE_GLYPHS[t]).join(" ");
+  // Which side the signed-in player is, or null when they are only watching.
+  const you: ChessColor | null = !match
+    ? null
+    : match.white?.walletAddress?.toLowerCase() === wallet.address?.toLowerCase()
+      ? "w"
+      : match.black?.walletAddress?.toLowerCase() === wallet.address?.toLowerCase()
+        ? "b"
+        : null;
 
-  const clockClass = (color: PieceColor) => {
-    const active = match.live && match.turn === color;
-    const low = match.clocks[color] <= 30;
-    return `tnum rounded-lg px-3.5 py-1.5 text-[20px] transition-colors ${
-      low
-        ? "border border-down/60 bg-white/4 text-down"
-        : active
-          ? "border border-accent/50 bg-white/6 text-white"
-          : "border border-transparent bg-white/4 text-white"
-    }`;
+  const yourTurn = !!match && match.state === "in_progress" && you !== null && match.turn === you;
+
+  // Highlights are computed locally only so the board feels responsive. The
+  // server revalidates every move, so a wrong hint can never become a wrong
+  // result.
+  const legalTargets = useMemo(() => {
+    if (!position || !selected || !yourTurn) return [];
+    return legalMovesForPiece(position.board, selected.r, selected.c);
+  }, [position, selected, yourTurn]);
+
+  // A drawn game starts its rematch straight away. Give players a moment to
+  // read the result, then move them onto the new board.
+  const rematchId = match?.rematchId ?? null;
+  useEffect(() => {
+    if (!rematchId) return;
+    const id = setTimeout(() => router.push(`/casino/chess/play?match=${rematchId}`), 2500);
+    return () => clearTimeout(id);
+  }, [rematchId, router]);
+
+  if (!matchId) {
+    return (
+      <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
+        <CasinoEmpty>No game selected. Pick one from the lobby to start playing.</CasinoEmpty>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
+        <CasinoError error={error} subject="this game" />
+      </div>
+    );
+  }
+  if (isLoading || !match || !position) {
+    return (
+      <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
+        <CasinoLoading label="Loading the game" rows={5} />
+      </div>
+    );
+  }
+
+  const board = position.board;
+  const settled = match.state === "settled";
+
+  const onSquareClick = async (r: number, c: number) => {
+    if (!yourTurn || moving) return;
+    if (selected && legalTargets.some((t) => t.r === r && t.c === c)) {
+      const uci = toUci(board, selected, { r, c });
+      setSelected(null);
+      try {
+        await submitMove(uci);
+      } catch (e) {
+        toast.error(friendlyError(e, "That move didn't go through."));
+      }
+      return;
+    }
+    const piece = board[r][c];
+    setSelected(piece && piece.color === you ? { r, c } : null);
   };
 
-  const showOverlay = match.youWon || match.youLost || match.drawn;
-  const resultLabel = match.resigned
-    ? "Resigned · You lost"
-    : match.flagged === "w"
-      ? "Flag fall · You lost on time"
-      : match.flagged === "b"
-        ? "Flag fall · You won on time"
-        : match.status === "checkmate"
-          ? match.youWon
-            ? "Checkmate · You won"
-            : "Checkmate · You lost"
-          : "Stalemate · Draw";
-  const resultColor = match.youWon ? "text-up" : match.drawn ? "text-white/50" : "text-down";
-  const resultPayout = match.youWon ? fmt(potentialMinor) : match.drawn ? fmt(stakeMinor) : fmt(0);
+  const onOfferDraw = async () => {
+    try {
+      const next = await offerDraw();
+      toast.success(
+        next.result?.kind === "draw"
+          ? "Draw agreed. Stakes returned, rematch starting."
+          : "Draw offered."
+      );
+    } catch (e) {
+      toast.error(friendlyError(e, "Couldn't offer a draw."));
+    }
+  };
 
-  const turnLabel =
-    match.status === "checkmate"
-      ? "Checkmate"
-      : match.status === "stalemate"
-        ? "Stalemate"
-        : match.status === "check" && match.turn === "w"
-          ? "Check — your move"
-          : match.turn === "w"
-            ? "Your move"
-            : "Opponent thinking…";
+  const onResign = async () => {
+    const id = toast.loading("Resigning…");
+    try {
+      await resign();
+      toast.success("Game resigned.", { id });
+    } catch (e) {
+      toast.error(friendlyError(e, "Couldn't resign."), { id });
+    }
+  };
 
-  let moveListDisplay = "";
-  for (let i = 0; i < match.moveList.length; i += 2) {
-    const black = match.moveList[i + 1] ? ` ${match.moveList[i + 1]}` : "";
-    moveListDisplay += `${i / 2 + 1}. ${match.moveList[i]}${black}  `;
-  }
-  moveListDisplay = moveListDisplay.trim() || "No moves yet";
+  const opponent = you === "w" ? match.black : match.white;
+  const self = you === "w" ? match.white : match.black;
+  const opponentColor: ChessColor = you === "w" ? "b" : "w";
+  const selfColor: ChessColor = you ?? "w";
+
+  const moveList =
+    match.moves.length === 0
+      ? "No moves yet"
+      : match.moves
+          .reduce<string[]>((acc, san, i) => {
+            if (i % 2 === 0) acc.push(`${i / 2 + 1}. ${san}`);
+            else acc[acc.length - 1] += ` ${san}`;
+            return acc;
+          }, [])
+          .join("  ");
+
+  const turnLabel = settled
+    ? resultLine(match, you)
+    : match.state !== "in_progress"
+      ? "Waiting for an opponent"
+      : yourTurn
+        ? moving
+          ? "Sending your move…"
+          : "Your move"
+        : you === null
+          ? "Spectating"
+          : "Opponent thinking…";
 
   return (
     <div className="relative mx-auto w-full max-w-[560px] px-4 pt-7 pb-20 sm:px-6">
       <div className="ws-display tnum text-grey-100 mb-4 text-center text-[28px]">
-        {fmt(potMinor)} pot
+        {wallet.format(amountUsd(match.pot, wallet.unitPriceUsd))} pot
       </div>
 
-      <div className="mb-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 text-[13.5px]">
-          <span className="h-[26px] w-[26px] rounded-full border border-white/10 bg-white/8" />
-          <span>
-            {DEMO_OPPONENT.name} ({DEMO_OPPONENT.rating})
-            <span className="block min-h-[14px] text-[11px] font-normal text-white/50">
-              {capturedLine("b")}
-            </span>
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
+          <span className="h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 bg-white/8" />
+          <span className="truncate">
+            {opponent ? `${opponent.username} (${opponent.rating})` : "Waiting for opponent"}
           </span>
         </div>
-        <div className={clockClass("b")}>{formatClock(match.clocks.b)}</div>
+        <div className="tnum shrink-0 rounded-lg border border-transparent bg-white/4 px-3.5 py-1.5 text-[20px]">
+          {formatClock(clocks?.[opponentColor] ?? 0)}
+        </div>
       </div>
 
       <ChessBoard
-        board={match.board}
-        selected={match.selected}
-        legalTargets={match.legalTargets}
-        lastMove={match.lastMove}
-        onSquareClick={match.clickSquare}
+        board={board}
+        selected={selected}
+        legalTargets={legalTargets}
+        onSquareClick={you !== null && !settled ? (r, c) => void onSquareClick(r, c) : undefined}
       />
 
-      <div className="mt-2.5 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 text-[13.5px]">
-          <span className="border-accent h-[26px] w-[26px] rounded-full border bg-white/8" />
-          <span>
-            {DEMO_PLAYER.name} ({DEMO_PLAYER.rating})
-            <span className="block min-h-[14px] text-[11px] font-normal text-white/50">
-              {capturedLine("w")}
-            </span>
-          </span>
+      <div className="mt-2.5 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
+          <span className="border-accent h-[26px] w-[26px] shrink-0 rounded-full border bg-white/8" />
+          <span className="truncate">{self ? `${self.username} (${self.rating})` : "You"}</span>
         </div>
-        <div className={clockClass("w")}>{formatClock(match.clocks.w)}</div>
+        <div
+          className={`tnum shrink-0 rounded-lg border px-3.5 py-1.5 text-[20px] ${
+            yourTurn ? "border-accent/50 bg-white/6" : "border-transparent bg-white/4"
+          }`}
+        >
+          {formatClock(clocks?.[selfColor] ?? 0)}
+        </div>
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-3">
-        {/* The strip stays scrolled to the latest move via the rtl overflow trick. */}
         <div className="ws-inset min-w-0 flex-1 truncate rounded-[10px] px-3 py-2 text-left text-[12px] font-normal text-white/70 [direction:rtl]">
-          <span className="tnum [direction:ltr] [unicode-bidi:bidi-override]">
-            {moveListDisplay}
-          </span>
+          <span className="tnum [direction:ltr] [unicode-bidi:bidi-override]">{moveList}</span>
         </div>
-        <div
-          className={`text-[12px] whitespace-nowrap ${
-            match.status === "check" && match.turn === "w" ? "text-down" : "text-white/50"
-          }`}
-        >
-          {turnLabel}
-        </div>
-        <button
-          onClick={match.resign}
-          className="border-down/40 text-down cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap"
-        >
-          Resign
-        </button>
+        <div className="text-[12px] whitespace-nowrap text-white/50">{turnLabel}</div>
+        {you !== null && !settled ? (
+          <>
+            <button
+              onClick={() => void onOfferDraw()}
+              disabled={offeringDraw}
+              className="cursor-pointer rounded-full border border-white/15 px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50"
+            >
+              {offeringDraw
+                ? "…"
+                : match.drawOffered && match.drawOffered !== you
+                  ? "Accept draw"
+                  : "Offer draw"}
+            </button>
+            <button
+              onClick={() => void onResign()}
+              disabled={resigning}
+              className="border-down/40 text-down cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap disabled:opacity-50"
+            >
+              {resigning ? "…" : "Resign"}
+            </button>
+          </>
+        ) : null}
       </div>
 
-      {showOverlay ? (
+      {settled ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[10px] bg-black/60 backdrop-blur-md">
           <div className="ws-glass w-[320px] rounded-2xl px-8 py-9 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
-            <div className={`text-[12px] font-semibold tracking-[0.06em] uppercase ${resultColor}`}>
-              {resultLabel}
+            <div className="text-[12px] font-semibold tracking-[0.06em] text-white/70 uppercase">
+              {resultLine(match, you)}
             </div>
-            <div className="ws-display tnum text-grey-100 mt-2 text-[34px]">{resultPayout}</div>
-            <div className="mt-1 text-[12px] font-normal text-white/50">Payout after 5% fee</div>
-            <div className="mt-5 flex gap-2.5">
-              <button
-                onClick={() => setWithdrawOpen(true)}
-                className="text-ink flex-1 cursor-pointer rounded-full bg-white px-3 py-3 font-sans text-[13px] font-bold"
-              >
-                Withdraw
-              </button>
-              <button
-                onClick={match.reset}
-                className="flex-1 cursor-pointer rounded-full border border-white/15 px-3 py-3 font-sans text-[13px] font-semibold text-white"
-              >
-                Rematch same stake
-              </button>
-            </div>
+            {match.result?.kind === "draw" ? (
+              <>
+                <div className="ws-display tnum text-grey-100 mt-2 text-[28px]">
+                  {wallet.format(amountUsd(match.stake, wallet.unitPriceUsd))}
+                </div>
+                <div className="mt-1 text-[12px] font-normal text-white/50">
+                  Your stake came back in full
+                </div>
+                {rematchId ? (
+                  <div className="mt-5">
+                    <div className="border-accent/30 border-t-accent mx-auto mb-3 h-7 w-7 animate-spin rounded-full border-2" />
+                    <div className="text-[12.5px] font-normal text-white/70">
+                      Rematch starting, colours swapped…
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-5 text-[12.5px] font-normal text-white/50">
+                    No rematch this time. Your stake is back in your balance.
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="ws-display tnum text-grey-100 mt-2 text-[34px]">
+                  {wallet.format(amountUsd(match.pot, wallet.unitPriceUsd))}
+                </div>
+                <div className="mt-1 text-[12px] font-normal text-white/50">
+                  Settled by the casino, paid to your balance
+                </div>
+              </>
+            )}
           </div>
         </div>
       ) : null}
-
-      <ModalShell
-        open={withdrawOpen}
-        onClose={() => setWithdrawOpen(false)}
-        contentKey="chess-withdraw"
-      >
-        <WithdrawModal onClose={() => setWithdrawOpen(false)} />
-      </ModalShell>
     </div>
   );
 }

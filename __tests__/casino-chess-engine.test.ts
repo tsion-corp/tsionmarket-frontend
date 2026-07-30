@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
+  parseFen,
+  toUci,
   initialBoard,
   applyMove,
   legalMovesForPiece,
@@ -7,7 +9,6 @@ import {
   gameStatus,
   isInCheck,
   squareName,
-  pickBotMove,
   type Board,
   type Square,
 } from "@/lib/casino/chess/engine";
@@ -118,34 +119,47 @@ describe("casino chess engine", () => {
     expect(squareName(0, 7)).toBe("h8");
     expect(squareName(4, 4)).toBe("e4");
   });
+});
 
-  it("bot always returns a legal move while the game is ongoing", () => {
-    const b = initialBoard();
-    const move = pickBotMove(b, "b", () => 0.5);
-    expect(move).not.toBeNull();
-    const legal = allLegalMoves(b, "b");
-    expect(
-      legal.some(
-        (m) =>
-          m.from.r === move?.from.r &&
-          m.from.c === move.from.c &&
-          m.to.r === move.to.r &&
-          m.to.c === move.to.c
-      )
-    ).toBe(true);
+describe("server interop", () => {
+  it("parses the opening position from FEN", () => {
+    const { board, turn } = parseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    expect(turn).toBe("w");
+    expect(board[0][0]).toEqual({ type: "r", color: "b" });
+    expect(board[7][4]).toEqual({ type: "k", color: "w" });
+    expect(board[4].every((sq) => sq === null)).toBe(true);
   });
 
-  it("bot prefers delivering checkmate", () => {
-    // Back-rank mate in one: black rook a8 to a1 style setup.
-    const board: Board = Array.from({ length: 8 }, () => Array(8).fill(null));
-    board[7][7] = { type: "k", color: "w" };
-    board[6][6] = { type: "p", color: "w" };
-    board[6][7] = { type: "p", color: "w" };
-    board[0][0] = { type: "r", color: "b" };
-    board[0][4] = { type: "k", color: "b" };
-    const move = pickBotMove(board, "b", () => 0);
-    expect(move).toEqual({ from: { r: 0, c: 0 }, to: { r: 7, c: 0 } });
-    const after = applyMove(board, move!.from, move!.to);
-    expect(gameStatus(after, "w")).toBe("checkmate");
+  it("parses a mid-game position with the side to move", () => {
+    const { board, turn } = parseFen(
+      "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2"
+    );
+    expect(turn).toBe("b");
+    // Both e-pawns have advanced two squares.
+    expect(board[4][4]).toEqual({ type: "p", color: "w" });
+    expect(board[3][4]).toEqual({ type: "p", color: "b" });
+    expect(board[6][4]).toBeNull();
+  });
+
+  it("rejects a malformed FEN rather than rendering a partial board", () => {
+    expect(() => parseFen("not-a-fen")).toThrow();
+    expect(() => parseFen("rnbqkbnr/pppppppp/8/8 w")).toThrow(/8 ranks/);
+    expect(() => parseFen("xnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")).toThrow(
+      /unknown piece/
+    );
+  });
+
+  it("encodes moves as the server expects, promoting to a queen", () => {
+    const board = initialBoard();
+    expect(toUci(board, { r: 6, c: 4 }, { r: 4, c: 4 })).toBe("e2e4");
+
+    const promo: Board = Array.from({ length: 8 }, () => Array(8).fill(null));
+    promo[1][0] = { type: "p", color: "w" };
+    expect(toUci(promo, { r: 1, c: 0 }, { r: 0, c: 0 })).toBe("a7a8q");
+  });
+
+  it("round-trips a position through FEN into legal move generation", () => {
+    const { board } = parseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    expect(allLegalMoves(board, "w")).toHaveLength(20);
   });
 });

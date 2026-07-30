@@ -1,11 +1,51 @@
 "use client";
 
 import Link from "next/link";
-import { LIVE_CHESS_GAMES, OPEN_CHALLENGES } from "@/lib/casino/demo";
-import { formatCasinoAmount } from "@/lib/casino/stakes";
-import { stakeQuery } from "@/lib/casino/stake-params";
+import { useRouter } from "next/navigation";
+import { useAcceptChallenge, useChessLobby } from "@/hooks/use-casino-chess";
+import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import {
+  CasinoEmpty,
+  CasinoError,
+  CasinoLoading,
+} from "@/components/dashboard/casino/casino-state";
+import { amountUsd } from "@/lib/casino/money";
+import { friendlyError } from "@/lib/errors";
+import { toast } from "@/lib/toast";
+import type { ChessChallenge } from "@/lib/casino/api/types";
+
+function timeControlLabel(tc: string): string {
+  return tc === "3+2" || tc === "5+3" ? `${tc} Blitz` : `${tc} Rapid`;
+}
 
 export function LobbySection() {
+  const router = useRouter();
+  const { challenges, liveMatches, isLoading, error, refetch } = useChessLobby();
+  const wallet = useCasinoWallet();
+  const accept = useAcceptChallenge();
+
+  // Joining escrows the joiner's stake, so it is blocked when the balance
+  // can't cover it. The wallet is the platform's, so topping up is the same
+  // flow as everywhere else in the app.
+  const onJoin = async (challenge: ChessChallenge) => {
+    if (!wallet.connected) {
+      toast.error("Connect your wallet to play.");
+      return;
+    }
+    if (!wallet.canAfford(challenge.stake.wei)) {
+      toast.error("Not enough balance for this stake. Add money and try again.");
+      return;
+    }
+    const id = toast.loading("Locking your stake…");
+    try {
+      const match = await accept.mutateAsync(challenge.id);
+      toast.success("You're in. Good luck.", { id });
+      router.push(`/casino/chess/play?match=${match.id}`);
+    } catch (e) {
+      toast.error(friendlyError(e, "Couldn't join that game."), { id });
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 pt-8 pb-20 sm:px-6">
       <div className="mb-8 flex flex-wrap gap-3.5">
@@ -29,64 +69,88 @@ export function LobbySection() {
         </Link>
       </div>
 
-      <div className="ws-display mb-3 text-[18px]">Live now</div>
-      <div className="mb-9 flex gap-3.5 overflow-x-auto pb-2">
-        {LIVE_CHESS_GAMES.map((g) => (
-          <Link
-            key={`${g.white}-${g.black}`}
-            href="/casino/chess/watch"
-            className="ws-inset flex-[0_0_290px] cursor-pointer rounded-[14px] p-4 text-left text-white transition-colors hover:border-white/20"
-          >
-            <div className="mb-2.5 flex justify-between text-[13px]">
-              <span>{g.white}</span>
-              <span className="font-normal text-white/50">vs</span>
-              <span>{g.black}</span>
+      {error ? (
+        <CasinoError error={error} subject="the chess lobby" onRetry={refetch} />
+      ) : isLoading ? (
+        <CasinoLoading label="Loading the lobby" rows={4} />
+      ) : (
+        <>
+          <div className="ws-display mb-3 text-[18px]">Live now</div>
+          {liveMatches.length === 0 ? (
+            <CasinoEmpty>No games in play yet. Create one and it shows up here.</CasinoEmpty>
+          ) : (
+            <div className="flex gap-3.5 overflow-x-auto pb-2">
+              {liveMatches.map((m) => (
+                <Link
+                  key={m.id}
+                  href={`/casino/chess/watch?match=${m.id}`}
+                  className="ws-inset flex-[0_0_290px] cursor-pointer rounded-[14px] p-4 text-left text-white transition-colors hover:border-white/20"
+                >
+                  <div className="mb-2.5 flex justify-between gap-2 text-[13px]">
+                    <span className="truncate">{m.white?.username ?? "Waiting"}</span>
+                    <span className="font-normal text-white/50">vs</span>
+                    <span className="truncate">{m.black?.username ?? "Waiting"}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="tnum text-[12px] font-normal text-white/50">
+                      {m.timeControl}
+                    </div>
+                    <div className="ws-display tnum text-grey-100 text-[16px]">
+                      {wallet.format(amountUsd(m.pot, wallet.unitPriceUsd))}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[11px] font-normal text-white/50">
+                    {m.spectatorCount} watching
+                  </div>
+                </Link>
+              ))}
             </div>
-            <div className="mb-2.5 flex h-[5px] overflow-hidden rounded-[3px] bg-white/10">
-              <div className="h-full bg-white" style={{ width: `${g.evalPct}%` }} />
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="tnum text-[12px] font-normal text-white/50">
-                W {g.oddsWhite} · B {g.oddsBlack}
-              </div>
-              <div className="ws-display tnum text-grey-100 text-[16px]">{g.pot}</div>
-            </div>
-            <div className="mt-2 text-[11px] font-normal text-white/50">{g.viewers} watching</div>
-          </Link>
-        ))}
-      </div>
+          )}
 
-      <div className="ws-display mb-3 text-[18px]">Open challenges</div>
-      <div className="overflow-x-auto rounded-[14px] border border-white/8">
-        <div className="min-w-[640px]">
-          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_90px] bg-white/4 px-4.5 py-2.5 text-[11px] font-normal tracking-[0.05em] text-white/50 uppercase">
-            <div>Opponent</div>
-            <div>Rating</div>
-            <div>Stake</div>
-            <div>Time control</div>
-            <div />
-          </div>
-          {OPEN_CHALLENGES.map((c) => (
-            <div
-              key={c.name}
-              className="grid grid-cols-[2fr_1fr_1fr_1fr_90px] items-center border-t border-white/6 px-4.5 py-3 text-[13px]"
-            >
-              <div>{c.name}</div>
-              <div className="tnum font-normal text-white/50">{c.rating}</div>
-              <div className="tnum text-grey-100">
-                {formatCasinoAmount(c.stakeMinor, c.currency)}
+          <div className="ws-display mt-9 mb-3 text-[18px]">Open challenges</div>
+          {challenges.length === 0 ? (
+            <CasinoEmpty>No open challenges. Create one and other players can join it.</CasinoEmpty>
+          ) : (
+            <div className="overflow-x-auto rounded-[14px] border border-white/8">
+              <div className="min-w-[640px]">
+                <div className="grid grid-cols-[2fr_1fr_1fr_1fr_90px] bg-white/4 px-4.5 py-2.5 text-[11px] font-normal tracking-[0.05em] text-white/50 uppercase">
+                  <div>Opponent</div>
+                  <div>Rating</div>
+                  <div>Stake</div>
+                  <div>Time control</div>
+                  <div />
+                </div>
+                {challenges.map((c) => {
+                  const affordable = wallet.canAfford(c.stake.wei);
+                  return (
+                    <div
+                      key={c.id}
+                      className="grid grid-cols-[2fr_1fr_1fr_1fr_90px] items-center border-t border-white/6 px-4.5 py-3 text-[13px]"
+                    >
+                      <div className="truncate">{c.creator.username}</div>
+                      <div className="tnum font-normal text-white/50">{c.creator.rating}</div>
+                      <div className="tnum text-grey-100">
+                        {wallet.format(amountUsd(c.stake, wallet.unitPriceUsd))}
+                      </div>
+                      <div className="font-normal text-white/50">
+                        {timeControlLabel(c.timeControl)}
+                      </div>
+                      <button
+                        onClick={() => void onJoin(c)}
+                        disabled={accept.isPending || !affordable}
+                        title={affordable ? undefined : "Not enough balance for this stake"}
+                        className="bg-up text-up-ink cursor-pointer rounded-full py-1.5 text-center font-sans text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        {accept.isPending ? "…" : "Join"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-              <div className="font-normal text-white/50">{c.tcLabel}</div>
-              <Link
-                href={`/casino/chess/play?${stakeQuery(c.stakeMinor, c.currency, c.tc)}`}
-                className="bg-up text-up-ink cursor-pointer rounded-full py-1.5 text-center font-sans text-[12px] font-bold"
-              >
-                Join
-              </Link>
             </div>
-          ))}
-        </div>
-      </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

@@ -4,25 +4,12 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { InviteSection } from "@/components/dashboard/casino/chess/invite-section";
-import {
-  parseCurrencyParam,
-  parseStakeMinorParam,
-  parseTimeControlParam,
-} from "@/lib/casino/stake-params";
 
 function InviteFromParams() {
-  const params = useSearchParams();
-  return (
-    <InviteSection
-      stakeMinor={parseStakeMinorParam(params.get("stake"))}
-      currency={parseCurrencyParam(params.get("cur"))}
-      timeControl={parseTimeControlParam(params.get("tc"))}
-    />
-  );
+  return <InviteSection inviteCode={useSearchParams().get("code")} />;
 }
 
-// No app shell here on purpose: a challenge link lands on a focused offer
-// card, not the dashboard chrome.
+// No app shell on purpose: a challenge link lands on a focused offer card.
 export default function ChessInvitePage() {
   return (
     <AuthGuard>

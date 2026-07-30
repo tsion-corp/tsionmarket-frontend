@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import type { CasinoGame, TileSize, TilePresence } from "@/lib/casino/games";
+import type { CasinoGame, TileSize } from "@/lib/casino/games";
+import type { GamePresence } from "@/lib/casino/api/types";
 
 // Tailwind needs static class strings, so each tile footprint maps to a
 // literal span/height combo on the hub's 6-column grid.
@@ -26,29 +27,50 @@ const TITLE_SIZE: Record<TileSize, string> = {
   wide: "text-[17px]",
 };
 
-function presenceStyle(presence: TilePresence): { dot: string; text: string } {
-  switch (presence.kind) {
-    case "playing":
-    case "entries":
-      return { dot: "bg-up", text: "text-up" };
-    case "queue":
-      return { dot: "bg-grey-100", text: "text-grey-100" };
-    case "befirst":
-      return { dot: "bg-white/40", text: "text-white/50" };
-  }
+interface GameTileProps {
+  game: CasinoGame;
+  // Live figures for this game, absent until the presence API answers.
+  presence?: GamePresence;
+  // The game's headline figure already formatted in the viewer's currency.
+  headline?: string;
 }
 
-function badgeFor(game: CasinoGame): { text: string; className: string } | null {
+// Turns live presence into the small status line on the tile. A game with
+// nobody in it says so honestly rather than inventing activity.
+function presenceLine(
+  game: CasinoGame,
+  presence?: GamePresence
+): { dot: string; text: string; label: string } | null {
+  if (game.comingSoon) return null;
+  if (!presence) return null;
+  if (presence.playersOnline > 0) {
+    return {
+      dot: "bg-up",
+      text: "text-up",
+      label: `${presence.playersOnline.toLocaleString()} playing`,
+    };
+  }
+  if (presence.inQueue > 0) {
+    return {
+      dot: "bg-grey-300",
+      text: "text-grey-300",
+      label: `${presence.inQueue.toLocaleString()} in queue`,
+    };
+  }
+  return { dot: "bg-white/40", text: "text-white/50", label: "Be the first" };
+}
+
+function badgeFor(game: CasinoGame, presence?: GamePresence) {
   if (game.comingSoon) return { text: "COMING SOON", className: "bg-white/12 text-white/70" };
-  if (game.presence?.kind === "playing")
+  if (presence && presence.playersOnline > 0)
     return { text: "POPULAR", className: "bg-accent text-ink" };
   if (game.category === "New") return { text: "NEW", className: "bg-grey-100 text-ink" };
   return null;
 }
 
-export function GameTile({ game }: { game: CasinoGame }) {
-  const badge = badgeFor(game);
-  const presence = game.presence && !game.comingSoon ? presenceStyle(game.presence) : null;
+export function GameTile({ game, presence, headline }: GameTileProps) {
+  const badge = badgeFor(game, presence);
+  const line = presenceLine(game, presence);
   const hasArrow = !game.comingSoon && (game.size === "hero" || game.size === "tall");
 
   const body = (
@@ -56,7 +78,7 @@ export function GameTile({ game }: { game: CasinoGame }) {
       {/* Oversized glyph motif floating behind the content. */}
       <span
         aria-hidden
-        className={`pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(ellipse_at_70%_20%,rgba(212,212,216,0.08),transparent_60%)]`}
+        className="pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(ellipse_at_70%_20%,rgba(212,212,216,0.08),transparent_60%)]"
       >
         <span
           className={`ws-display -rotate-8 leading-none select-none ${MOTIF_SIZE[game.size]} ${
@@ -79,12 +101,10 @@ export function GameTile({ game }: { game: CasinoGame }) {
         </span>
       ) : null}
 
-      {presence && game.presence ? (
+      {line ? (
         <span className="absolute top-3 right-3 flex items-center gap-1.5 rounded-full border border-white/12 bg-white/8 px-2.5 py-1 backdrop-blur-md">
-          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${presence.dot}`} />
-          <span className={`tnum text-[10.5px] whitespace-nowrap ${presence.text}`}>
-            {game.presence.label}
-          </span>
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${line.dot}`} />
+          <span className={`tnum text-[10.5px] whitespace-nowrap ${line.text}`}>{line.label}</span>
         </span>
       ) : null}
 
@@ -97,10 +117,8 @@ export function GameTile({ game }: { game: CasinoGame }) {
           >
             {game.name}
           </span>
-          {game.jackpot ? (
-            <span className="ws-display tnum text-grey-100 mt-1 block text-[25px]">
-              {game.jackpot}
-            </span>
+          {headline ? (
+            <span className="ws-display tnum text-grey-100 mt-1 block text-[25px]">{headline}</span>
           ) : null}
           {game.note ? (
             <span className="mt-1 block truncate text-[11.5px] font-normal text-white/60">

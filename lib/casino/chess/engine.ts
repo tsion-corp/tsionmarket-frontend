@@ -228,36 +228,58 @@ export function squareName(r: number, c: number): string {
   return "abcdefgh"[c] + String(8 - r);
 }
 
-const PIECE_VALUE: Record<PieceType, number> = { p: 1, n: 3, b: 3.2, r: 5, q: 9, k: 0 };
+// ----- Server interop -----
+//
+// The casino server owns the position: it sends FEN and we render it. The
+// engine's move generation is used only to highlight legal destinations while
+// the player is choosing, never to decide an outcome. The server revalidates
+// every move it receives.
 
-// Greedy one-ply bot: prefers captures and mate, avoids hanging the moved
-// piece, with a little noise so games differ. Good enough to demo a live
-// opponent, not a serious engine.
-export function pickBotMove(
-  board: Board,
-  color: PieceColor,
-  random: () => number = Math.random
-): Move | null {
-  const moves = allLegalMoves(board, color);
-  if (moves.length === 0) return null;
-  const enemy = opponentOf(color);
-  let best: Move | null = null;
-  let bestScore = -Infinity;
-  for (const m of moves) {
-    const target = board[m.to.r][m.to.c];
-    const next = applyMove(board, m.from, m.to);
-    let score = (target ? PIECE_VALUE[target.type] : 0) + random() * 0.5;
-    const status = gameStatus(next, enemy);
-    if (status === "checkmate") score += 1000;
-    else if (status === "check") score += 0.4;
-    const mover = board[m.from.r][m.from.c];
-    if (mover && isSquareAttacked(next, m.to.r, m.to.c, enemy)) {
-      score -= PIECE_VALUE[mover.type] * 0.8;
+const FEN_PIECES: Record<string, PieceType> = {
+  p: "p",
+  n: "n",
+  b: "b",
+  r: "r",
+  q: "q",
+  k: "k",
+};
+
+export interface FenPosition {
+  board: Board;
+  turn: PieceColor;
+}
+
+// Parses the placement and side-to-move fields of a FEN string. Throws on a
+// malformed string rather than rendering a half-built board.
+export function parseFen(fen: string): FenPosition {
+  const [placement, side] = fen.trim().split(/\s+/);
+  if (!placement) throw new Error("Malformed FEN: no placement field");
+  const rows = placement.split("/");
+  if (rows.length !== 8) throw new Error("Malformed FEN: expected 8 ranks");
+
+  const board: Board = Array.from({ length: 8 }, () => Array<Piece | null>(8).fill(null));
+  rows.forEach((row, r) => {
+    let c = 0;
+    for (const ch of row) {
+      if (/[1-8]/.test(ch)) {
+        c += Number(ch);
+        continue;
+      }
+      const type = FEN_PIECES[ch.toLowerCase()];
+      if (!type) throw new Error(`Malformed FEN: unknown piece "${ch}"`);
+      if (c > 7) throw new Error("Malformed FEN: rank overflows");
+      board[r][c] = { type, color: ch === ch.toUpperCase() ? "w" : "b" };
+      c++;
     }
-    if (score > bestScore) {
-      bestScore = score;
-      best = m;
-    }
-  }
-  return best;
+  });
+
+  return { board, turn: side === "b" ? "b" : "w" };
+}
+
+// Encodes a move the way the server expects it: coordinate notation, with a
+// promotion piece appended when a pawn reaches the last rank ("e7e8q").
+export function toUci(board: Board, from: Square, to: Square): string {
+  const piece = board[from.r][from.c];
+  const promotion = piece?.type === "p" && (to.r === 0 || to.r === 7) ? "q" : "";
+  return squareName(from.r, from.c) + squareName(to.r, to.c) + promotion;
 }

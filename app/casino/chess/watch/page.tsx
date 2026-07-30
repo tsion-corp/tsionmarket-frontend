@@ -1,12 +1,20 @@
 "use client";
 
+import { Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { CasinoPage } from "@/components/dashboard/casino/casino-page";
 import { SpectateSection } from "@/components/dashboard/casino/chess/spectate-section";
+
+function WatchFromParams() {
+  return <SpectateSection matchId={useSearchParams().get("match")} />;
+}
 
 export default function ChessWatchPage() {
   return (
     <CasinoPage>
-      <SpectateSection />
+      <Suspense fallback={null}>
+        <WatchFromParams />
+      </Suspense>
     </CasinoPage>
   );
 }

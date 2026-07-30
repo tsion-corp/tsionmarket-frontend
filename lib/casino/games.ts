@@ -1,6 +1,7 @@
-// The casino hub's game catalog. Tiles, categories, and presence lines are
-// static product copy for now: only Last Man Standing and the flows linked below
-// are live, the rest are teasers for what ships next.
+// The casino's game catalogue: which games exist, where they live, and how
+// their tile is laid out. This is static product structure, not game data.
+// Everything that changes (jackpots, who is playing, queue depth) comes from
+// the presence API and is merged in at render.
 
 export type GameCategory = "Skill" | "Cards" | "Draws" | "Racing" | "New";
 
@@ -19,13 +20,8 @@ export type GameCategoryFilter = (typeof GAME_CATEGORIES)[number];
 // Tile footprint on the hub's 6-column grid.
 export type TileSize = "hero" | "tall" | "medium" | "wide";
 
-export type TilePresence =
-  | { kind: "playing"; label: string }
-  | { kind: "entries"; label: string }
-  | { kind: "queue"; label: string }
-  | { kind: "befirst"; label: string };
-
 export interface CasinoGame {
+  // Matches the GameId the presence API reports for live games.
   id: string;
   name: string;
   category: GameCategory;
@@ -33,9 +29,8 @@ export interface CasinoGame {
   // Oversized text motif rendered behind the tile content.
   glyph: string;
   href: string | null;
-  jackpot?: string;
+  // Static one-liner describing the game itself, not its current state.
   note?: string;
-  presence?: TilePresence;
   comingSoon: boolean;
 }
 
@@ -48,7 +43,18 @@ export const CASINO_GAMES: CasinoGame[] = [
     glyph: "♞",
     href: "/casino/chess",
     note: "Staked head-to-head, invite or quick match",
-    presence: { kind: "playing", label: "1,240 playing" },
+    comingSoon: false,
+  },
+  // Sits beside Chess in the first row: the hero spans four of the six
+  // columns, and "tall" is the two-column slot that pairs with it.
+  {
+    id: "last-standing",
+    name: "Last Man Standing",
+    category: "New",
+    size: "tall",
+    glyph: "⌛",
+    href: "/casino/last-standing",
+    note: "Outlast everyone, winner takes the pot",
     comingSoon: false,
   },
   {
@@ -58,20 +64,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     size: "tall",
     glyph: "✦",
     href: "/casino/draw",
-    jackpot: "₦12,480,000",
     note: "Pick 5 numbers and a bonus",
-    presence: { kind: "entries", label: "3,402 entries" },
-    comingSoon: false,
-  },
-  {
-    id: "last-standing",
-    name: "Last Man Standing",
-    category: "New",
-    size: "medium",
-    glyph: "⌛",
-    href: "/casino/last-standing",
-    note: "Outlast everyone, winner takes the pot",
-    presence: { kind: "playing", label: "Live rounds" },
     comingSoon: false,
   },
   {
@@ -82,7 +75,6 @@ export const CASINO_GAMES: CasinoGame[] = [
     glyph: "⛃",
     href: null,
     note: "Fast staked matches",
-    presence: { kind: "queue", label: "86 in queue" },
     comingSoon: true,
   },
   {
@@ -93,7 +85,6 @@ export const CASINO_GAMES: CasinoGame[] = [
     glyph: "◉",
     href: null,
     note: "Staked mancala, head-to-head",
-    presence: { kind: "befirst", label: "Be the first" },
     comingSoon: true,
   },
   {
