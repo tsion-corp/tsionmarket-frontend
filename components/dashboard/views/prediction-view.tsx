@@ -93,7 +93,8 @@ export function PredictionView() {
         <div className="mt-[18px]">
           {desktop ? (
             // Non-mobile: a fixed 2 rows x 4 columns grid (up to 8 markets).
-            <div className="grid grid-cols-4 gap-3.5">
+            // Generous gaps on both axes so the cards read as distinct tiles.
+            <div className="grid grid-cols-4 gap-6 lg:gap-7">
               {predictions.slice(0, 8).map((p) => (
                 <PredictionCard key={p.q} prediction={p} onBuy={(yes) => openBet(p, yes)} />
               ))}

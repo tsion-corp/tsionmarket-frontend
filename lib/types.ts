@@ -42,6 +42,9 @@ export interface Prediction {
   yes: string;
   no: string;
   pct: number;
+  // Market artwork from Polymarket (an S3 image URL). Present on live markets;
+  // absent on the static fallback set, so the card falls back to a plain header.
+  image?: string | null;
   // CLOB identifiers for trading. Present on live Polymarket markets; absent on
   // the static fallback set (those cards are display-only).
   yesTokenId?: string;

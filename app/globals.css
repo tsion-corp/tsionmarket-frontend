@@ -97,3 +97,54 @@ body {
 @utility tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* Border beam: a light that travels around a card's rounded border, in the
+   MagicUI "border beam" style but monochrome to match the brand. Applied via the
+   ws-beam class. The animated custom property is registered so the angle can be
+   tweened; the conic gradient is clipped to a 1px ring with a mask so only the
+   border glows, not the fill. */
+@property --ws-beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes ws-beam-spin {
+  to {
+    --ws-beam-angle: 360deg;
+  }
+}
+
+.ws-beam::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--ws-beam-angle),
+    transparent 0%,
+    rgba(255, 255, 255, 0.7) 9%,
+    transparent 24%
+  );
+  /* Show only the padding ring (the border), not the interior. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0.6;
+  animation: ws-beam-spin 6s linear infinite;
+}
+
+.ws-beam:hover::before {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-beam::before {
+    animation: none;
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeftIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, ChartBarsIcon } from "@/components/ui/icons";
 import { isClaimable } from "@/lib/prediction";
 import type { PolymarketPosition } from "@/hooks/use-polymarket-positions";
 
@@ -50,20 +50,35 @@ export function PositionsPanel({
   cashingOut,
 }: PositionsPanelProps) {
   return (
-    <div className="ws-card mt-4 overflow-hidden">
-      <div className="flex items-center justify-between px-4 pt-4 pb-3 sm:px-6">
-        <div className="min-w-0">
-          <span className="ws-display text-[18px]">Your positions</span>
-          {available != null ? (
-            <div className="tnum mt-0.5 text-[12px] font-normal text-white/50">
-              ${available.toFixed(2)} available to bet
+    <div className="ws-card relative mt-7 overflow-hidden sm:mt-9">
+      {/* Accent wash across the header so this section reads as a distinct
+          "your money" area, not another market tile. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[92px] bg-[linear-gradient(180deg,rgba(255,255,255,0.08),transparent)]"
+      />
+      <div className="relative flex flex-wrap items-center justify-between gap-3 px-5 pt-5 pb-4 sm:px-6">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <span className="bg-accent/16 text-accent grid h-12 w-12 shrink-0 place-items-center rounded-[14px]">
+            <ChartBarsIcon size={24} />
+          </span>
+          <div className="min-w-0">
+            <span className="ws-display text-[21px] tracking-[-0.01em]">Your positions</span>
+            <div className="tnum mt-0.5 text-[13px] font-normal text-white/60">
+              {available != null
+                ? `$${available.toFixed(2)} available to bet`
+                : "Track your open bets and cash out your winnings"}
             </div>
-          ) : null}
+          </div>
         </div>
         <button
           onClick={onRefresh}
           disabled={loading}
-          className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:opacity-50"
+          className={
+            loaded
+              ? "shrink-0 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white/80 hover:text-white disabled:opacity-50"
+              : "text-ink shrink-0 cursor-pointer rounded-xl bg-white px-5 py-2.5 font-sans text-[13px] font-semibold hover:opacity-90 disabled:opacity-50"
+          }
         >
           {loading ? "Loading…" : loaded ? "Refresh" : "Load positions"}
         </button>

@@ -1,5 +1,6 @@
 import "server-only";
 import type { Prediction } from "@/lib/types";
+import { pickMarketImage } from "@/lib/prediction-image";
 
 // Read-only Polymarket market data via the public Gamma API (the same public
 // data the @polymarket/client PublicClient wraps). Cached five minutes. This is
@@ -32,11 +33,17 @@ interface GammaMarket {
   // JSON-encoded array of CLOB token IDs, parallel to `outcomes`.
   clobTokenIds?: string;
   conditionId?: string;
+  // Market artwork (S3 URLs). image is the wide banner; icon the square badge.
+  image?: string;
+  icon?: string;
 }
 interface GammaEvent {
   volume?: number;
   tags?: GammaTag[];
   markets?: GammaMarket[];
+  // Event-level artwork, used as a fallback when a market has none of its own.
+  image?: string;
+  icon?: string;
 }
 
 function parseJsonArray(raw?: string): string[] {
@@ -92,10 +99,12 @@ export async function fetchPredictions(limit = 12): Promise<Prediction[]> {
         const yes = prices[yesIdx];
         if (!Number.isFinite(yes)) return null;
         const tokenIds = parseJsonArray(m.clobTokenIds);
+        const image = pickMarketImage(m, ev);
         return {
           question: (m.question ?? "").trim(),
           yes,
           vol: m.volumeNum ?? ev.volume ?? 0,
+          image,
           yesTokenId: tokenIds[yesIdx],
           noTokenId: tokenIds[noIdx],
           conditionId: m.conditionId,
@@ -108,6 +117,7 @@ export async function fetchPredictions(limit = 12): Promise<Prediction[]> {
           question: string;
           yes: number;
           vol: number;
+          image: string | null;
           yesTokenId: string;
           noTokenId: string;
           conditionId: string | undefined;
@@ -127,6 +137,7 @@ export async function fetchPredictions(limit = 12): Promise<Prediction[]> {
       yes: `${yesCents}¢`,
       no: `${100 - yesCents}¢`,
       pct: yesCents,
+      image: market.image,
       yesTokenId: market.yesTokenId,
       noTokenId: market.noTokenId,
       conditionId: market.conditionId,
