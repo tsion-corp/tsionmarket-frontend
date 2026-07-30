@@ -32,11 +32,11 @@ const SOURCE = SETTLE_CHAINS.base; // USDC on Base
 const ETH_BASE_ADDRESS = "0x0000000000000000000000000000000000000000";
 const ETH_DECIMALS = 18;
 
-interface VaultFundSheetProps {
+interface FundSheetProps {
   onClose: () => void;
 }
 
-export function VaultFundSheet({ onClose }: VaultFundSheetProps) {
+export function FundSheet({ onClose }: FundSheetProps) {
   const { user } = usePrivy();
   const money = useMoney();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();

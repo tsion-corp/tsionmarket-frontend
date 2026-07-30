@@ -6,7 +6,7 @@ interface DashboardFooterProps {
   // The dashboard nav sections, used for quick links.
   sections: { id: string; label: string }[];
   // Scrolls in-page on /dashboard, or navigates there first from any other
-  // page (e.g. /vault) — same dispatcher the sidebar and topbar use.
+  // page (e.g. /casino) — same dispatcher the sidebar and topbar use.
   onSelect: (id: string) => void;
 }
 

@@ -11,9 +11,12 @@ import { Pager } from "@/components/ui/pager";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
-import { VaultFundSheet } from "@/components/dashboard/vault/vault-fund-sheet";
-import { RoundOverlay, type RoundPhase } from "@/components/dashboard/vault/round-overlay";
-import { PlayOverlay } from "@/components/dashboard/vault/play-overlay";
+import { FundSheet } from "@/components/dashboard/casino/last-standing/fund-sheet";
+import {
+  RoundOverlay,
+  type RoundPhase,
+} from "@/components/dashboard/casino/last-standing/round-overlay";
+import { PlayOverlay } from "@/components/dashboard/casino/last-standing/play-overlay";
 import { useVaultGame } from "@/hooks/use-vault-game";
 import { useVaultActions } from "@/hooks/use-vault-actions";
 import { useVaultPendingWinnings } from "@/hooks/use-vault-winnings";
@@ -81,7 +84,7 @@ function useCountdown(serverSeconds: number, active: boolean): number {
   return seconds;
 }
 
-export function VaultSection() {
+export function LastStandingSection() {
   const { user } = usePrivy();
   const money = useMoney();
   const { mask } = useBalanceVisibility();
@@ -359,7 +362,7 @@ export function VaultSection() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Eyebrow>Vault · Winner takes all</Eyebrow>
+          <Eyebrow>Casino · Winner takes all</Eyebrow>
           <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
             Last Man Standing
           </h2>
@@ -871,7 +874,7 @@ export function VaultSection() {
       </div>
 
       <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
-        <VaultFundSheet onClose={() => setFundOpen(false)} />
+        <FundSheet onClose={() => setFundOpen(false)} />
       </ModalShell>
 
       <PlayOverlay

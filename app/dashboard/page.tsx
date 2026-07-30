@@ -34,9 +34,9 @@ import { AccountModal } from "@/components/dashboard/modals/account-modal";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
-// The scroll-spy sections mounted inline on this page. Vault lives on its
-// own route (/vault) and is never one of these.
-type ScrollSectionId = Exclude<SectionId, "vault">;
+// The scroll-spy sections mounted inline on this page. Casino lives on its
+// own route (/casino) and is never one of these.
+type ScrollSectionId = Exclude<SectionId, "casino">;
 
 // The five scroll-spy sections stay mounted at once, so memoize them: with
 // stable handler props they skip re-rendering when the page re-renders for a
@@ -52,7 +52,7 @@ export default function DashboardPage() {
   const [modal, setModal] = useState<DashboardModal>(null);
   const nav = useMemo(() => buildNav(loadInterest()), []);
   const scrollSectionIds = useMemo(
-    () => nav.map((n) => n.id).filter((id): id is ScrollSectionId => id !== "vault"),
+    () => nav.map((n) => n.id).filter((id): id is ScrollSectionId => id !== "casino"),
     [nav]
   );
   const activeSection = useScrollSpy(scrollSectionIds);

@@ -1,6 +1,6 @@
 "use client";
 
-// REST client for the Last Standing vault game (world-street-vault service).
+// REST client for the Last Man Standing vault game (world-street-vault service).
 // Called directly against the game's own gateway, not proxied through our
 // /api/* routes: the gateway handles CORS and every read here is public, no
 // key required. See world-street-vault-frontend.md for the full contract.

@@ -98,6 +98,28 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Casino: the hub's top-wins marquee scrolls one full copy of a duplicated
+   list, and drawn lottery balls pop in as they land. */
+@keyframes ws-ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes ws-ball-in {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 /* Border beam: a light that travels around a card's rounded border, in the
    MagicUI "border beam" style but monochrome to match the brand. Applied via the
    ws-beam class. The animated custom property is registered so the angle can be

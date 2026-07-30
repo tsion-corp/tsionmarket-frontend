@@ -1,9 +1,9 @@
 import {
   BulbIcon,
   ChartBarsIcon,
+  DiceIcon,
   GridIcon,
   HouseIcon,
-  LockIcon,
   TrendIcon,
 } from "@/components/ui/icons";
 import { SECTION_LABEL, orderedSections, type SectionId } from "@/lib/sections";
@@ -14,7 +14,7 @@ export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => Reac
   markets: ChartBarsIcon,
   rwa: HouseIcon,
   prediction: BulbIcon,
-  vault: LockIcon,
+  casino: DiceIcon,
 };
 
 export interface NavItem {

@@ -258,6 +258,18 @@ export function LockIcon({ size = 13, className }: IconProps) {
   );
 }
 
+export function DiceIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <rect x="4" y="4" width="16" height="16" rx="4" stroke={stroke} strokeWidth="1.8" />
+      <circle cx="9" cy="9" r="1.3" fill={stroke} />
+      <circle cx="15" cy="9" r="1.3" fill={stroke} />
+      <circle cx="9" cy="15" r="1.3" fill={stroke} />
+      <circle cx="15" cy="15" r="1.3" fill={stroke} />
+    </svg>
+  );
+}
+
 export function WalletIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
