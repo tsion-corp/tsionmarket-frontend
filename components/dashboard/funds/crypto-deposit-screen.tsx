@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
@@ -26,16 +26,20 @@ import {
   type DepositToken,
   type StaticAddressRequest,
 } from "@/lib/deposit";
+import { matchDepositChain } from "@/lib/voice/chain-match";
+import type { DepositPrefill } from "@/lib/voice/intent";
 
 interface CryptoDepositScreenProps {
   onBack: () => void;
+  // Optional voice prefill: pre-select this chain (and token, when it matches).
+  initialDeposit?: DepositPrefill;
 }
 
 // Deposits always settle to USDC on Base, so every user gets one deposit
 // address per origin token regardless of which chain they send from.
 const settle = SETTLE_CHAINS.base;
 
-export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
+export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScreenProps) {
   const t = useTranslations("fundsFlow");
   const { user } = usePrivy();
   const { refetch } = usePortfolio();
@@ -46,6 +50,48 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
   const chains = useDepositChains();
   const eligibleChains = useEligibleOriginChainIds();
   const tokens = useDepositTokens(originChain?.chainId ?? null);
+
+  // Resolve the spoken chain NAME against Dextopus's live chain list (any chain
+  // the user said — never a hardcoded subset). null when it doesn't match one we
+  // offer, in which case we just leave the picker for the user.
+  const prefillChain = initialDeposit ? matchDepositChain(initialDeposit.chain, chains.data) : null;
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    console.log("[deposit-prefill] state", {
+      initialDeposit,
+      chainsLoaded: Boolean(chains.data),
+      chainCount: chains.data?.length ?? 0,
+      chainNames: (chains.data ?? []).map((c) => c.name),
+      matchedChain: prefillChain?.name ?? null,
+      originChain: originChain?.name ?? null,
+      tokensLoaded: Boolean(tokens.data),
+      tokenSymbols: (tokens.data ?? []).map((t) => t.symbol),
+    });
+  });
+
+  // Apply the voice prefill once the async lists arrive: select the matched
+  // chain, then its token. A legitimate external-sync effect (URL/data → local
+  // picker state, one-shot via refs), so once a user touches the picker they are
+  // never overridden.
+  const prefilledChain = useRef(false);
+  const prefilledToken = useRef(false);
+  useEffect(() => {
+    if (prefilledChain.current || !prefillChain) return;
+    prefilledChain.current = true;
+    setOriginChain(prefillChain);
+  }, [prefillChain]);
+  useEffect(() => {
+    if (prefilledToken.current || !initialDeposit?.token || !tokens.data) return;
+    if (!prefillChain || originChain?.chainId !== prefillChain.chainId) return;
+    const want = initialDeposit.token.toUpperCase();
+    const match = tokens.data.find((t) => t.symbol.toUpperCase() === want);
+    if (match) {
+      prefilledToken.current = true;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOriginToken(match);
+    }
+  }, [initialDeposit, prefillChain, originChain, tokens.data]);
 
   const settlementAddress = getWalletAddress(user, settle.chainType);
 

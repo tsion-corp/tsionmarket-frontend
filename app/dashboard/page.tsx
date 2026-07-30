@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { buildNav } from "@/components/dashboard/nav-items";
@@ -21,6 +21,8 @@ import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
 import { RwaTradeModal } from "@/components/dashboard/rwa/rwa-trade-modal";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
+import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
+import type { DepositPrefill } from "@/lib/voice/intent";
 import { loadInterest } from "@/lib/preferences";
 import type { SectionId } from "@/lib/sections";
 import type {
@@ -58,6 +60,21 @@ export default function DashboardPage() {
     [nav]
   );
   const activeSection = useScrollSpy(scrollSectionIds);
+
+  // A spoken deposit ("deposit USDC on Solana") lands here as URL params: open
+  // the funds modal on the crypto screen with the chain/token pre-selected. The
+  // hook returns a NEW prefill object each time a fresh deposit command arrives
+  // and clears the URL params so a reload doesn't re-open it. We guard on the
+  // prefill's identity (not a one-shot boolean) so a SECOND spoken deposit while
+  // the page is still mounted re-opens the modal — the boolean latch used to
+  // block every deposit after the first, which is why it only worked on refresh.
+  const depositPrefill = useDepositPrefill();
+  const openedDepositRef = useRef<DepositPrefill | null>(null);
+  useEffect(() => {
+    if (!depositPrefill || openedDepositRef.current === depositPrefill) return;
+    openedDepositRef.current = depositPrefill;
+    setModal({ type: "funds", deposit: depositPrefill });
+  }, [depositPrefill]);
 
   // Stable handler identities so the memoized section views below don't
   // re-render when this page re-renders (modal open/close, active-section scroll).
@@ -125,7 +142,7 @@ export default function DashboardPage() {
         {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
         {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
         {modal?.type === "rwaTrade" ? <RwaTradeModal payload={modal.rwaTrade} /> : null}
-        {modal?.type === "funds" ? <FundsModal onClose={close} /> : null}
+        {modal?.type === "funds" ? <FundsModal onClose={close} deposit={modal.deposit} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
         {modal?.type === "crossBorder" ? <CrossBorderModal /> : null}
         {modal?.type === "account" ? <AccountModal onClose={close} /> : null}

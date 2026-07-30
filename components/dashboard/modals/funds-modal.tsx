@@ -7,6 +7,7 @@ import { CryptoDepositScreen } from "@/components/dashboard/funds/crypto-deposit
 import { FiatDepositScreen } from "@/components/dashboard/funds/fiat-deposit-screen";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowRightIcon, CardIcon } from "@/components/ui/icons";
+import type { DepositPrefill } from "@/lib/voice/intent";
 
 type Step = "chooser" | "crypto" | "fiat";
 
@@ -14,12 +15,21 @@ type Step = "chooser" | "crypto" | "fiat";
 // TokenUSDC web3icon for "USDC".
 const USDC_BLUE = "#2775CA";
 
-export function FundsModal({ onClose }: { onClose: () => void }) {
+// `deposit` is an optional voice prefill: when present the modal opens straight
+// on the crypto screen with that chain/token pre-selected (the user still sees
+// and confirms the address; nothing is sent).
+export function FundsModal({
+  onClose,
+  deposit,
+}: {
+  onClose: () => void;
+  deposit?: DepositPrefill;
+}) {
   const t = useTranslations("funds");
-  const [step, setStep] = useState<Step>("chooser");
+  const [step, setStep] = useState<Step>(deposit ? "crypto" : "chooser");
   const back = () => setStep("chooser");
 
-  if (step === "crypto") return <CryptoDepositScreen onBack={back} />;
+  if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
   if (step === "fiat") return <FiatDepositScreen onBack={back} />;
 
   return (

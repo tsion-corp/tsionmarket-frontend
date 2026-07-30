@@ -85,6 +85,9 @@ interface RwaTradePanelProps {
   bare?: boolean;
   // Which side to open on. Defaults to buy; holdings open it on sell.
   initialMode?: Mode;
+  // Pre-fill the amount, e.g. from a spoken "buy $10 of Ondo". The user still
+  // reviews and confirms — we only stage the form.
+  initialAmount?: string;
 }
 
 // Buy and sell surface for one RWA. Both directions run a live debounced quote,
@@ -93,7 +96,12 @@ interface RwaTradePanelProps {
 // spends the held RWA (sized at the on-chain decimals its balance carries) for
 // USDC. Sell is offered only where we can see the balance, so it is never
 // presented for a size or a token we cannot verify.
-export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaTradePanelProps) {
+export function RwaTradePanel({
+  asset,
+  bare = false,
+  initialMode = "buy",
+  initialAmount = "",
+}: RwaTradePanelProps) {
   const t = useTranslations("rwa");
   const { user } = usePrivy();
   const portfolio = usePortfolio();
@@ -102,7 +110,7 @@ export function RwaTradePanel({ asset, bare = false, initialMode = "buy" }: RwaT
   const execute = useExecuteRwa();
 
   const [mode, setMode] = useState<Mode>(initialMode);
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initialAmount);
   const [phase, setPhase] = useState<Phase>("idle");
   const [quote, setQuote] = useState<RwaQuote | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);

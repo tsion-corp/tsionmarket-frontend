@@ -15,6 +15,7 @@ import {
 import { Toaster } from "@/components/ui/toaster";
 import { NetworkStatusProvider } from "@/components/providers/network-status";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
+import { RecordButton } from "@/components/voice/record-button";
 
 // Well-formed placeholder lets the app build before env vars are set.
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cl0123456789abcdefghijklm";
@@ -67,7 +68,13 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         }}
       >
         <NetworkStatusProvider>
-          <BalanceVisibilityProvider>{children}</BalanceVisibilityProvider>
+          <BalanceVisibilityProvider>
+            {children}
+            {/* Inside BalanceVisibilityProvider so the voice command can read
+                the hide-balances state; needs Privy + React Query too, both of
+                which wrap this. */}
+            <RecordButton />
+          </BalanceVisibilityProvider>
         </NetworkStatusProvider>
         <Toaster />
       </PersistQueryClientProvider>

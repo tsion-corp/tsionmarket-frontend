@@ -1,7 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Topbar } from "@/components/dashboard/topbar";
 import { SectionChips } from "@/components/dashboard/section-chips";
@@ -9,7 +8,7 @@ import { DashboardFooter } from "@/components/dashboard/dashboard-footer";
 import { AccountModal } from "@/components/dashboard/modals/account-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
-import { scrollToSection } from "@/lib/scroll";
+import { useAppNavigate } from "@/hooks/use-app-navigate";
 import type { NavItem } from "@/components/dashboard/nav-items";
 import type { SectionId } from "@/lib/sections";
 
@@ -29,8 +28,6 @@ interface DashboardShellProps {
 // anchor that only exists on /dashboard, so it scrolls in-page when already
 // there and otherwise navigates to /dashboard#id first.
 export function DashboardShell({ nav, activeSection, children }: DashboardShellProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
 
   // Warm the deposit network/token catalog into the store as soon as the user
@@ -39,20 +36,7 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   // on click.
   usePrefetchDepositCatalog();
 
-  const navigate = useCallback(
-    (id: string) => {
-      if (id === "casino") {
-        router.push("/casino");
-        return;
-      }
-      if (pathname === "/dashboard") {
-        scrollToSection(id);
-      } else {
-        router.push(`/dashboard#${id}`);
-      }
-    },
-    [router, pathname]
-  );
+  const navigate = useAppNavigate();
 
   return (
     <div className="min-h-screen bg-black">
