@@ -6,6 +6,7 @@ import {
   isUnsetLevel,
   isWireDecimal,
   needsApproval,
+  orderFieldValidity,
   parseStepValueWei,
   positionSizeBaseUnits,
   validateOrder,
@@ -116,6 +117,45 @@ describe("validateOrder", () => {
   it("rejects collateral above the balance, compared exactly", () => {
     expect(validateOrder(pair(), "100.000001", "10", "100").ok).toBe(false);
     expect(validateOrder(pair(), "100", "10", "100").ok).toBe(true);
+  });
+});
+
+describe("orderFieldValidity (live per-field feedback)", () => {
+  it("flags an over-max leverage even while collateral is still empty", () => {
+    const v = orderFieldValidity(pair({ maxLeverage: 10 }), "", "26");
+    expect(v.leverageInvalid).toBe(true);
+    expect(v.collateralInvalid).toBe(false);
+  });
+
+  it("flags collateral over balance even while leverage is empty", () => {
+    const v = orderFieldValidity(pair(), "150", "", "100");
+    expect(v.collateralInvalid).toBe(true);
+    expect(v.leverageInvalid).toBe(false);
+  });
+
+  it("never flags pristine empty fields", () => {
+    const v = orderFieldValidity(pair(), "", "");
+    expect(v.collateralInvalid).toBe(false);
+    expect(v.leverageInvalid).toBe(false);
+  });
+
+  it("flags leverage under 1x and malformed values", () => {
+    expect(orderFieldValidity(pair(), "", "0.5").leverageInvalid).toBe(true);
+    expect(orderFieldValidity(pair(), "", "0").leverageInvalid).toBe(true);
+    expect(orderFieldValidity(pair(), "1.2.3", "abc")).toEqual({
+      collateralInvalid: true,
+      leverageInvalid: true,
+    });
+  });
+
+  it("marks both fields when the position is under the pair minimum", () => {
+    const v = orderFieldValidity(pair(), "5", "10");
+    expect(v.collateralInvalid).toBe(true);
+    expect(v.leverageInvalid).toBe(true);
+    expect(orderFieldValidity(pair(), "10", "10")).toEqual({
+      collateralInvalid: false,
+      leverageInvalid: false,
+    });
   });
 });
 

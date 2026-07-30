@@ -127,6 +127,63 @@ export function validateOrder(
   return { ok: true };
 }
 
+// Per-field validity for live input feedback (the red borders that appear as
+// the user types). Unlike validateOrder — which short-circuits to produce ONE
+// message for the CTA — every field is judged independently, so an over-max
+// leverage reads as wrong even while the collateral box is still empty. Empty
+// fields are never flagged.
+export interface OrderFieldValidity {
+  collateralInvalid: boolean;
+  leverageInvalid: boolean;
+}
+
+export function orderFieldValidity(
+  pair: PerpPair,
+  collateralUsdc: string,
+  leverage: string,
+  balanceUsdc?: string
+): OrderFieldValidity {
+  let collateralInvalid = false;
+  let leverageInvalid = false;
+
+  const collateralOk = isPositiveWireDecimal(collateralUsdc);
+  const leverageOk = isPositiveWireDecimal(leverage);
+
+  if (collateralUsdc !== "") {
+    if (!collateralOk) {
+      collateralInvalid = true;
+    } else if (
+      balanceUsdc != null &&
+      isWireDecimal(balanceUsdc) &&
+      collateralBaseUnits(collateralUsdc) > collateralBaseUnits(balanceUsdc)
+    ) {
+      collateralInvalid = true;
+    }
+  }
+
+  if (leverage !== "") {
+    if (!leverageOk) {
+      leverageInvalid = true;
+    } else {
+      const hundredths = toBaseUnits(leverage, 2);
+      if (hundredths < 100n || hundredths > BigInt(pair.maxLeverage) * 100n) {
+        leverageInvalid = true;
+      }
+    }
+  }
+
+  // Under-minimum marks both entered fields once each is individually fine,
+  // since raising either one fixes it.
+  if (!collateralInvalid && !leverageInvalid && collateralOk && leverageOk) {
+    if (positionSizeBaseUnits(collateralUsdc, leverage) < minPositionBaseUnits(pair)) {
+      collateralInvalid = collateralUsdc !== "";
+      leverageInvalid = leverage !== "";
+    }
+  }
+
+  return { collateralInvalid, leverageInvalid };
+}
+
 // Crypto trades around the clock; forex, commodities, and equities close on
 // weekends and outside session hours. When those markets are closed the Pyth
 // feed goes stale, so a price older than this is treated as "likely closed"

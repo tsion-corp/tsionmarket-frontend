@@ -118,6 +118,12 @@ const CRYPTO_ICONS: Record<string, IconComponent> = {
   ZEC: TokenZEC,
 };
 
+// Whether a real token icon exists for this symbol, so callers can pick their
+// own fallback (the perps section uses gradient coins instead of text badges).
+export function hasTokenIcon(sym: string): boolean {
+  return CRYPTO_ICONS[sym] != null || CRYPTO_ICONS[sym.toUpperCase()] != null;
+}
+
 interface AssetIconProps {
   sym: string;
   bg: string;

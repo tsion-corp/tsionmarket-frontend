@@ -1,7 +1,8 @@
 "use client";
 
-import { AssetIcon } from "@/components/ui/asset-icon";
+import { AssetIcon, hasTokenIcon } from "@/components/ui/asset-icon";
 import { FlagIcon } from "@/components/ui/flag-icon";
+import { GradientCoin } from "@/components/ui/gradient-coin";
 import { findAsset } from "@/lib/trade/assets";
 import type { PerpCategory } from "@/lib/perp/types";
 
@@ -13,12 +14,16 @@ interface PerpPairIconProps {
 }
 
 // The icon for a perp market row. Crypto resolves through the token icon set;
-// forex bases are currencies, so they get their country flag; commodities and
-// equities have no token artwork anywhere (the gateway sends none), so they
-// keep the lettered badge until the backend exposes a logoUrl per pair.
+// forex bases are currencies, so they get their country flag; everything with
+// no artwork anywhere (memecoins the icon set lacks, commodities, equities —
+// the gateway sends no logoUrl) gets a deterministic gradient coin instead of
+// a text badge.
 export function PerpPairIcon({ sym, category, size = 22 }: PerpPairIconProps) {
   if (category === "forex") {
     return <FlagIcon code={sym} symbol={sym} size={size} />;
+  }
+  if (!hasTokenIcon(sym)) {
+    return <GradientCoin sym={sym} size={size} />;
   }
   return <AssetIcon sym={sym} bg={findAsset(sym)?.bg ?? "#3c3c3c"} size={size} />;
 }

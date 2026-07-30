@@ -93,6 +93,17 @@ function PositionRow({
     if (next === "" || DECIMAL_INPUT.test(next)) set(next);
   };
 
+  // Red border once a typed value is the reason its action cannot run; empty
+  // fields stay neutral.
+  const tpInvalid = tp !== "" && !isPositiveWireDecimal(tp);
+  const slInvalid = sl !== "" && !isPositiveWireDecimal(sl);
+  const marginInvalid = marginAmt !== "" && !isPositiveWireDecimal(marginAmt);
+  const closeInvalid = closeAmt !== "" && !partialCloseValid;
+  const fieldClass = (invalid: boolean) =>
+    `tnum w-full rounded-lg border bg-black/35 px-2.5 py-2 text-[13px] text-white outline-none placeholder:text-white/30 ${
+      invalid ? "border-down/60" : "border-white/10"
+    }`;
+
   return (
     <div className="border-t border-white/6 px-4 py-3 sm:px-5">
       <div className="flex flex-wrap items-center gap-3">
@@ -168,14 +179,14 @@ function PositionRow({
                   onChange={(e) => guard(e.target.value, setTp)}
                   inputMode="decimal"
                   placeholder={t("tpPrice")}
-                  className="tnum w-full rounded-lg border border-white/10 bg-black/35 px-2.5 py-2 text-[13px] text-white outline-none placeholder:text-white/30"
+                  className={fieldClass(tpInvalid)}
                 />
                 <input
                   value={sl}
                   onChange={(e) => guard(e.target.value, setSl)}
                   inputMode="decimal"
                   placeholder={t("slPrice")}
-                  className="tnum w-full rounded-lg border border-white/10 bg-black/35 px-2.5 py-2 text-[13px] text-white outline-none placeholder:text-white/30"
+                  className={fieldClass(slInvalid)}
                 />
                 <button
                   onClick={() => onUpdateTpSl(p, tp || "0", sl || "0")}
@@ -198,7 +209,7 @@ function PositionRow({
                   onChange={(e) => guard(e.target.value, setMarginAmt)}
                   inputMode="decimal"
                   placeholder={t("amount")}
-                  className="tnum w-full rounded-lg border border-white/10 bg-black/35 px-2.5 py-2 text-[13px] text-white outline-none placeholder:text-white/30"
+                  className={fieldClass(marginInvalid)}
                 />
                 <button
                   onClick={() => onUpdateMargin(p, marginAmt, "deposit")}
@@ -227,7 +238,7 @@ function PositionRow({
                 onChange={(e) => guard(e.target.value, setCloseAmt)}
                 inputMode="decimal"
                 placeholder={t("partialCloseAmount")}
-                className="tnum w-full rounded-lg border border-white/10 bg-black/35 px-2.5 py-2 text-[13px] text-white outline-none placeholder:text-white/30"
+                className={fieldClass(closeInvalid)}
               />
               <button
                 onClick={() => onClose(p, closeAmt)}

@@ -3,15 +3,16 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
-import { AssetChart } from "@/components/ui/asset-chart";
+import { TradingViewChart } from "@/components/ui/tradingview-chart";
+import { FlashPrice } from "@/components/dashboard/trade/flash-price";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
 import { usePerpQuote } from "@/hooks/use-perp-quote";
 import { usePerpActions } from "@/hooks/use-perp-actions";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
-import { pairSymbol, validateOrder } from "@/lib/perp/logic";
-import { coingeckoId } from "@/lib/coingecko";
+import { orderFieldValidity, pairSymbol, validateOrder } from "@/lib/perp/logic";
+import { tradingViewFallbackSymbol, tradingViewSymbol } from "@/lib/perp/tradingview";
 import { findAsset } from "@/lib/trade/assets";
 import type { PerpPair } from "@/lib/perp/types";
 
@@ -78,6 +79,14 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
   const validation = pair
     ? validateOrder(pair, collateral, String(clampedLeverage), usdcBalance.toFixed(6))
     : { ok: false as const, message: t("marketUnavailable") };
+
+  // Red border judged live on every keystroke; an empty field stays neutral
+  // (the CTA already says "enter an amount"). Leverage is a clamped slider
+  // here, so only the collateral can ever be wrong.
+  const collateralInvalid = pair
+    ? orderFieldValidity(pair, collateral, String(clampedLeverage), usdcBalance.toFixed(6))
+        .collateralInvalid
+    : false;
 
   const collateralNum = parseFloat(collateral) || 0;
   const size = collateralNum * clampedLeverage;
@@ -172,7 +181,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
         </div>
 
         {/* Collateral. */}
-        <div className="ws-inset mt-3 p-4">
+        <div className={`ws-inset mt-3 p-4 ${collateralInvalid ? "ws-invalid" : ""}`}>
           <div className="mb-2 flex items-center justify-between text-xs font-normal text-white/55">
             <span>{t("yourePaying")}</span>
             <span className="flex items-center gap-2">
@@ -283,11 +292,14 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
                 {t("perpetualOf", { name: findAsset(baseSym)?.name ?? baseSym })}
               </div>
             </div>
-            <div className="ws-display tnum text-[19px]">
+            <FlashPrice value={priceNum} className="ws-display tnum block text-[19px]">
               {priceNum > 0 ? formatUsd(priceNum) : "—"}
-            </div>
+            </FlashPrice>
           </div>
-          <AssetChart coingeckoId={coingeckoId(baseSym)} allowCandles />
+          <TradingViewChart
+            symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
+            height={320}
+          />
         </div>
 
         <PerpPositions

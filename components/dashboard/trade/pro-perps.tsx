@@ -2,8 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AssetChart } from "@/components/ui/asset-chart";
 import { SearchIcon } from "@/components/ui/icons";
+import { TradingViewChart } from "@/components/ui/tradingview-chart";
+import { FlashPrice } from "@/components/dashboard/trade/flash-price";
 import { PerpOrders } from "@/components/dashboard/trade/perp-orders";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
 import { PerpPairIcon } from "@/components/dashboard/trade/perp-pair-icon";
@@ -14,8 +15,14 @@ import { usePerpOrders } from "@/hooks/use-perp-orders";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
-import { CATEGORY_ORDER, pairSymbol, validateOrder } from "@/lib/perp/logic";
-import { coingeckoId } from "@/lib/coingecko";
+import {
+  CATEGORY_ORDER,
+  isPositiveWireDecimal,
+  orderFieldValidity,
+  pairSymbol,
+  validateOrder,
+} from "@/lib/perp/logic";
+import { tradingViewFallbackSymbol, tradingViewSymbol } from "@/lib/perp/tradingview";
 import type { PerpCategory, PerpOrderType, PerpPair } from "@/lib/perp/types";
 
 // The full-control interface: every market Avantis lists across crypto, forex,
@@ -105,6 +112,18 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
   const needsTrigger = orderType !== "market";
   const triggerOk = !needsTrigger || num(limitPrice) > 0;
 
+  // Field-level invalid flags drive the red borders, judged live on every
+  // keystroke and independently per field (an over-max leverage is wrong even
+  // while collateral is still empty). A pristine field never reads as wrong.
+  const { collateralInvalid, leverageInvalid } = pair
+    ? orderFieldValidity(pair, collateral, leverage, usdcBalance.toFixed(6))
+    : { collateralInvalid: false, leverageInvalid: false };
+  const triggerInvalid = needsTrigger && limitPrice !== "" && !(num(limitPrice) > 0);
+  const tpInvalid = takeProfit !== "" && !isPositiveWireDecimal(takeProfit);
+  const slInvalid = stopLoss !== "" && !isPositiveWireDecimal(stopLoss);
+  const slippageInvalid = slippage !== "" && !isPositiveWireDecimal(slippage);
+  const fieldsOk = !tpInvalid && !slInvalid && !slippageInvalid;
+
   const leverageNum = num(leverage);
   const entryNum = needsTrigger ? num(limitPrice) : markNum;
   const liq = entryNum > 0 && leverageNum >= 1 ? liquidationPrice(entryNum, leverageNum, side) : 0;
@@ -115,7 +134,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
   };
 
   const submit = async () => {
-    if (!pair || !validation.ok || !triggerOk) return;
+    if (!pair || !validation.ok || !triggerOk || !fieldsOk) return;
     const openPrice = needsTrigger ? limitPrice : (markPrice ?? undefined);
     if (openPrice == null) return;
     const ok = await actions.openTrade({
@@ -224,9 +243,9 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                 </div>
               </div>
               <div className="text-right">
-                <div className="ws-display tnum text-[22px]">
+                <FlashPrice value={markNum} className="ws-display tnum block text-[22px]">
                   {markNum > 0 ? formatUsd(markNum) : "—"}
-                </div>
+                </FlashPrice>
                 {closed ? (
                   <div className="text-down text-[11.5px] font-medium">{t("marketClosedHint")}</div>
                 ) : null}
@@ -278,11 +297,11 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
             </div>
           </div>
 
-          {coingeckoId(baseSym) ? (
-            <div className="ws-card p-4 sm:p-5">
-              <AssetChart coingeckoId={coingeckoId(baseSym)} allowCandles />
-            </div>
-          ) : null}
+          <div className="ws-card overflow-hidden p-2 sm:p-3">
+            <TradingViewChart
+              symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
+            />
+          </div>
         </div>
 
         {/* Order panel. */}
@@ -324,7 +343,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
             ))}
           </div>
 
-          <div className="ws-inset mt-2.5 p-3.5">
+          <div className={`ws-inset mt-2.5 p-3.5 ${collateralInvalid ? "ws-invalid" : ""}`}>
             <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-normal text-white/55">
               <span>{t("collateral")}</span>
               <span className="flex items-center gap-2">
@@ -351,33 +370,51 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
             </div>
           </div>
 
-          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-            <div className="ws-inset p-3">
-              <div className="mb-1 text-[11px] font-normal text-white/50">
+          <div className={`ws-inset mt-2.5 p-3 ${leverageInvalid ? "ws-invalid" : ""}`}>
+            <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
+              <span>
                 {t("leverage")} {pair ? t("leverageMax", { max: pair.maxLeverage }) : ""}
-              </div>
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
               <input
                 value={leverage}
                 onChange={(e) => guard(setLeverage)(e.target.value)}
                 inputMode="decimal"
                 placeholder="10"
-                className="tnum w-full bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
+                className="tnum w-16 shrink-0 bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
               />
-            </div>
-            <div className="ws-inset p-3">
-              <div className="mb-1 text-[11px] font-normal text-white/50">{t("slippagePct")}</div>
+              {/* Slider and input drive the same state: dragging writes a whole
+                  number into the field, typing moves the thumb (clamped into
+                  range so a fractional or out-of-range entry cannot break it). */}
               <input
-                value={slippage}
-                onChange={(e) => guard(setSlippage)(e.target.value)}
-                inputMode="decimal"
-                placeholder="1"
-                className="tnum w-full bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
+                type="range"
+                min={1}
+                max={pair?.maxLeverage ?? 50}
+                step={1}
+                value={Math.min(
+                  Math.max(Math.round(num(leverage)) || 1, 1),
+                  pair?.maxLeverage ?? 50
+                )}
+                onChange={(e) => setLeverage(e.target.value)}
+                className="accent-accent h-1.5 min-w-0 flex-1 cursor-pointer"
               />
             </div>
           </div>
 
+          <div className={`ws-inset mt-2.5 p-3 ${slippageInvalid ? "ws-invalid" : ""}`}>
+            <div className="mb-1 text-[11px] font-normal text-white/50">{t("slippagePct")}</div>
+            <input
+              value={slippage}
+              onChange={(e) => guard(setSlippage)(e.target.value)}
+              inputMode="decimal"
+              placeholder="1"
+              className="tnum w-full bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
+            />
+          </div>
+
           {needsTrigger ? (
-            <div className="ws-inset mt-2.5 p-3">
+            <div className={`ws-inset mt-2.5 p-3 ${triggerInvalid ? "ws-invalid" : ""}`}>
               <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
                 <span>{orderType === "limit" ? t("limitPrice") : t("stopPrice")}</span>
                 {markNum > 0 ? (
@@ -400,7 +437,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
           ) : null}
 
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-            <div className="ws-inset p-3">
+            <div className={`ws-inset p-3 ${tpInvalid ? "ws-invalid" : ""}`}>
               <div className="mb-1 text-[11px] font-normal text-white/50">{t("takeProfit")}</div>
               <input
                 value={takeProfit}
@@ -410,7 +447,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                 className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
               />
             </div>
-            <div className="ws-inset p-3">
+            <div className={`ws-inset p-3 ${slInvalid ? "ws-invalid" : ""}`}>
               <div className="mb-1 text-[11px] font-normal text-white/50">{t("stopLoss")}</div>
               <input
                 value={stopLoss}
@@ -453,11 +490,11 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
 
           <button
             onClick={submit}
-            disabled={!live || actions.busy || !validation.ok || !triggerOk}
+            disabled={!live || actions.busy || !validation.ok || !triggerOk || !fieldsOk}
             className={`mt-3 w-full rounded-[14px] p-3.5 font-sans text-[14.5px] font-semibold transition-opacity ${
               side === "long" ? "bg-up text-up-ink" : "bg-down text-down-ink"
             } ${
-              !live || actions.busy || !validation.ok || !triggerOk
+              !live || actions.busy || !validation.ok || !triggerOk || !fieldsOk
                 ? "cursor-not-allowed opacity-50"
                 : "cursor-pointer hover:opacity-90"
             }`}

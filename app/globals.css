@@ -87,6 +87,13 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+/* Invalid-input state for ws-inset field containers. !important because
+   ws-inset sets border-color through its border shorthand and utility order
+   is not guaranteed to favour this one. */
+@utility ws-invalid {
+  border-color: rgba(246, 165, 165, 0.55) !important;
+}
+
 @utility ws-glass {
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(18px);
