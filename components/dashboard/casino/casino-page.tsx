@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
+import { useTranslations } from "next-intl";
 import { buildNav } from "@/components/dashboard/nav-items";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { ChevronLeftIcon } from "@/components/ui/icons";
@@ -13,7 +14,8 @@ import { loadInterest } from "@/lib/preferences";
 // with the Casino tab active. Any screen below the hub also gets a back link,
 // since the sidebar only points at the hub itself.
 export function CasinoPage({ children }: { children: React.ReactNode }) {
-  const nav = useMemo(() => buildNav(loadInterest()), []);
+  const tSections = useTranslations("sections");
+  const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const pathname = usePathname();
   const isHub = pathname === "/casino";
 

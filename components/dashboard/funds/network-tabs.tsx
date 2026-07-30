@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { CoinBadge } from "@/components/ui/coin-badge";
 import { SearchIcon } from "@/components/ui/icons";
 import { isSupportedOrigin, orderChains } from "@/lib/deposit-catalog";
@@ -57,6 +58,7 @@ export function NetworkTabs({
   error,
   onRetry,
 }: NetworkTabsProps) {
+  const t = useTranslations("fundsFlow");
   const [query, setQuery] = useState("");
 
   const list = useMemo(() => {
@@ -76,25 +78,25 @@ export function NetworkTabs({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search networks"
+          placeholder={t("searchNetworks")}
           className="w-full border-none bg-transparent text-[14px] text-white outline-none"
         />
       </div>
 
       {loading ? (
         <div className="py-6 text-center text-[13px] font-normal text-white/50">
-          Loading networks
+          {t("loadingNetworks")}
         </div>
       ) : error ? (
         <div className="py-6 text-center text-[13px] font-normal text-white/50">
-          Couldn&apos;t load networks.{" "}
+          {t("loadNetworksError")}{" "}
           <button onClick={onRetry} className="text-accent cursor-pointer">
-            Retry
+            {t("retry")}
           </button>
         </div>
       ) : list.length === 0 ? (
         <div className="py-6 text-center text-[13px] font-normal text-white/50">
-          No networks match your search.
+          {t("noNetworksMatch")}
         </div>
       ) : (
         <div className="mt-2 flex max-h-[190px] flex-wrap gap-2 overflow-y-auto pr-0.5">

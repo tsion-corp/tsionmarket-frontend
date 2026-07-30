@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FC } from "react";
+import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { RwaAssetList } from "@/components/dashboard/rwa/rwa-asset-list";
@@ -20,6 +21,7 @@ export interface RwaSectionProps {
 }
 
 export const RwaSection: FC<RwaSectionProps> = () => {
+  const t = useTranslations("rwa");
   const { assets, loading, error } = useRwaAssets();
 
   // The table owns the full view; a row opens the detail modal, and "Trade"
@@ -49,18 +51,17 @@ export const RwaSection: FC<RwaSectionProps> = () => {
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <Eyebrow>Real-world assets</Eyebrow>
+      <Eyebrow>{t("eyebrow")}</Eyebrow>
       <div className="mt-3.5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="ws-display text-[26px] tracking-[-0.01em]">Real-world assets</h2>
+          <h2 className="ws-display text-[26px] tracking-[-0.01em]">{t("heading")}</h2>
           <p className="mt-1 max-w-[52ch] text-[13.5px] font-normal text-white/55">
-            Tokenized treasuries, equities, credit and metals. Live prices, onchain settlement,
-            trade or access through the issuer.
+            {t("subheading")}
           </p>
         </div>
         <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/4 px-3 py-1.5 text-xs font-medium text-white/60">
           <span className="bg-up h-1.5 w-1.5 rounded-full" />
-          Live registry
+          {t("liveRegistry")}
         </span>
       </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
+import { useTranslations } from "next-intl";
 
 // The perps section ships two interfaces over the same data layer: "simple"
 // (guided, market orders only) and "pro" (full market list, order types,
@@ -82,9 +83,14 @@ export function usePerpMode() {
 // The visible switch: a two-option segmented control shown in the section
 // header, styled like the app's other inset toggles.
 export function PerpModeSwitch() {
+  const t = useTranslations("perps");
   const { mode, setMode } = usePerpMode();
   return (
-    <div className="ws-inset grid grid-cols-2 gap-1 p-1" role="group" aria-label="Interface mode">
+    <div
+      className="ws-inset grid grid-cols-2 gap-1 p-1"
+      role="group"
+      aria-label={t("interfaceMode")}
+    >
       {(["simple", "pro"] as const).map((m) => {
         const on = mode === m;
         return (
@@ -92,13 +98,13 @@ export function PerpModeSwitch() {
             key={m}
             onClick={() => setMode(m)}
             aria-pressed={on}
-            className={`cursor-pointer rounded-xl px-5 py-2 font-sans text-[13px] font-medium capitalize transition-colors ${
+            className={`cursor-pointer rounded-xl px-5 py-2 font-sans text-[13px] font-medium transition-colors ${
               on
                 ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
                 : "text-white/55 hover:text-white/80"
             }`}
           >
-            {m}
+            {m === "simple" ? t("modeSimple") : t("modePro")}
           </button>
         );
       })}

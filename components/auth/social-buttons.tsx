@@ -1,6 +1,7 @@
 "use client";
 
 import { useLoginWithOAuth, type OAuthProviderType } from "@privy-io/react-auth";
+import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 
 function GoogleLogo() {
@@ -42,6 +43,7 @@ const BUTTON =
   "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-[14px] border border-white/14 bg-white/6 p-3.5 font-sans text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60";
 
 export function SocialButtons() {
+  const t = useTranslations("auth");
   const { initOAuth, loading } = useLoginWithOAuth();
 
   const signIn = async (provider: OAuthProviderType) => {
@@ -49,7 +51,7 @@ export function SocialButtons() {
       await initOAuth({ provider });
     } catch (err) {
       console.error("OAuth login failed:", err);
-      toast.error("Sign-in didn't go through. Give it another try.");
+      toast.error(t("oauthError"));
     }
   };
 
@@ -57,11 +59,11 @@ export function SocialButtons() {
     <div className="flex flex-col gap-[11px]">
       <button className={BUTTON} disabled={loading} onClick={() => signIn("google")}>
         <GoogleLogo />
-        Continue with Google
+        {t("continueGoogle")}
       </button>
       <button className={BUTTON} disabled={loading} onClick={() => signIn("twitter")}>
         <XLogo />
-        Continue with X
+        {t("continueX")}
       </button>
     </div>
   );

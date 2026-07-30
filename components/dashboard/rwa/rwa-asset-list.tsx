@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -47,13 +48,19 @@ export function RwaAssetList({
   onOpen,
   onTrade,
 }: RwaAssetListProps) {
+  const t = useTranslations("rwa");
   const [tab, setTab] = useState("All");
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // "All" is a stable filter value; only its label is translated. Category
+  // names come from the backend and display as-is.
   const tabs = useMemo(
-    () => ["All", ...[...new Set(assets.map((a) => a.category))].sort()],
-    [assets]
+    () => [
+      { value: "All", label: t("allCategories") },
+      ...[...new Set(assets.map((a) => a.category))].sort().map((c) => ({ value: c, label: c })),
+    ],
+    [assets, t]
   );
   const data = useMemo(
     () => (tab === "All" ? assets : assets.filter((a) => a.category === tab)),
@@ -106,7 +113,7 @@ export function RwaAssetList({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search assets"
+            placeholder={t("searchPlaceholder")}
             className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] font-normal text-white outline-none"
           />
         </div>
@@ -114,25 +121,25 @@ export function RwaAssetList({
 
       <div className="ws-card mt-4 overflow-hidden">
         <div className="grid grid-cols-[1.6fr_1fr_auto] gap-3 px-4 py-4 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[1.7fr_0.8fr_1fr_auto] min-[820px]:grid-cols-[1.9fr_0.8fr_1fr_0.7fr_1fr_0.8fr] sm:px-6">
-          <span>Asset</span>
-          <span className="hidden min-[560px]:block">Network</span>
-          {sortHeader("price", "Price")}
-          {sortHeader("apy", "APY", "hidden min-[820px]:flex")}
-          {sortHeader("tvl", "TVL", "hidden min-[820px]:flex")}
+          <span>{t("asset")}</span>
+          <span className="hidden min-[560px]:block">{t("network")}</span>
+          {sortHeader("price", t("price"))}
+          {sortHeader("apy", t("apy"), "hidden min-[820px]:flex")}
+          {sortHeader("tvl", t("tvl"), "hidden min-[820px]:flex")}
           <span />
         </div>
 
         {error ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            The RWA registry is unavailable right now. Please try again shortly.
+            {t("registryUnavailable")}
           </div>
         ) : loading ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            Loading real-world assets…
+            {t("loadingAssets")}
           </div>
         ) : visible.length === 0 ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            {search.trim() ? "No assets match your search." : "No assets in this category."}
+            {search.trim() ? t("noSearchMatches") : t("noCategoryAssets")}
           </div>
         ) : (
           <>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { AssetChart } from "@/components/ui/asset-chart";
 import { SearchIcon } from "@/components/ui/icons";
@@ -11,7 +12,7 @@ import { usePerpActions } from "@/hooks/use-perp-actions";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
-import { CATEGORY_LABEL, CATEGORY_ORDER, pairSymbol, validateOrder } from "@/lib/perp/logic";
+import { CATEGORY_ORDER, pairSymbol, validateOrder } from "@/lib/perp/logic";
 import { coingeckoId } from "@/lib/coingecko";
 import { findAsset } from "@/lib/trade/assets";
 import type { PerpCategory, PerpOrderType, PerpPair } from "@/lib/perp/types";
@@ -29,11 +30,24 @@ interface ProPerpsProps {
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 
-const ORDER_TYPES: Array<{ id: PerpOrderType; label: string }> = [
-  { id: "market", label: "Market" },
-  { id: "limit", label: "Limit" },
-  { id: "stop_limit", label: "Stop" },
-];
+// Translation keys per order type; resolved with t at render.
+const ORDER_TYPE_KEY: Record<PerpOrderType, string> = {
+  market: "orderMarket",
+  market_zero_fee: "orderMarket",
+  limit: "orderLimit",
+  stop_limit: "orderStop",
+};
+
+const ORDER_TYPES: readonly PerpOrderType[] = ["market", "limit", "stop_limit"];
+
+// Translation keys per market category; the ids come from lib/perp/logic.
+const CATEGORY_KEY: Record<PerpCategory, string> = {
+  crypto: "categoryCrypto",
+  forex: "categoryForex",
+  commodities: "categoryCommodities",
+  equities: "categoryEquities",
+  other: "categoryOther",
+};
 
 function num(value: string | null | undefined): number {
   const n = value != null ? parseFloat(value) : NaN;
@@ -41,6 +55,7 @@ function num(value: string | null | undefined): number {
 }
 
 export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
+  const t = useTranslations("perps");
   const [category, setCategory] = useState<PerpCategory>("crypto");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState("ETH/USD");
@@ -84,7 +99,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
 
   const validation = pair
     ? validateOrder(pair, collateral, leverage, usdcBalance.toFixed(6))
-    : { ok: false as const, message: "Pick a market." };
+    : { ok: false as const, message: t("pickMarket") };
   const needsTrigger = orderType !== "market";
   const triggerOk = !needsTrigger || num(limitPrice) > 0;
 
@@ -116,14 +131,16 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
   };
 
   const cta = !live
-    ? "Live trading connects soon"
+    ? t("liveTradingConnectsSoon")
     : actions.busy
-      ? "Working…"
+      ? t("working")
       : !validation.ok && collateral !== ""
-        ? validation.message
+        ? validation.code
+          ? t(`v_${validation.code}`, validation.params)
+          : validation.message
         : !triggerOk
-          ? "Enter a trigger price"
-          : `${side === "long" ? "Long" : "Short"} ${baseSym} · ${leverage || "?"}x`;
+          ? t("enterTriggerPrice")
+          : t(side === "long" ? "ctaLong" : "ctaShort", { sym: baseSym, lev: leverage || "?" });
 
   const pairByIndex = useMemo(() => new Map(pairs.map((p) => [p.pairIndex, p])), [pairs]);
   const oi = market?.openInterest;
@@ -143,7 +160,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                   category === c ? "bg-accent/16 text-white" : "text-white/50 hover:text-white/80"
                 }`}
               >
-                {CATEGORY_LABEL[c]}
+                {t(CATEGORY_KEY[c])}
               </button>
             ))}
           </div>
@@ -152,14 +169,14 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search markets"
+              placeholder={t("searchMarkets")}
               className="w-full border-none bg-transparent text-[13px] font-normal text-white outline-none"
             />
           </div>
           <div className="mt-2 min-h-0 flex-1 overflow-y-auto pb-2">
             {filtered.length === 0 ? (
               <div className="px-4 py-6 text-center text-[12.5px] font-normal text-white/45">
-                {live ? "No markets match." : "Markets load when the service connects."}
+                {live ? t("noMarketsMatch") : t("marketsLoadWhenConnected")}
               </div>
             ) : (
               filtered.map((p) => {
@@ -178,7 +195,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                     <span className="min-w-0 flex-1">
                       <span className="block truncate font-sans text-[13px] font-medium">{s}</span>
                       <span className="block text-[11px] font-normal text-white/40">
-                        up to {p.maxLeverage}x
+                        {t("upToMax", { max: p.maxLeverage })}
                       </span>
                     </span>
                     <span className="tnum text-[12.5px] font-normal text-white/70">
@@ -199,7 +216,9 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
               <div className="min-w-0 flex-1">
                 <div className="font-sans text-[16px] font-semibold">{selected}</div>
                 <div className="text-xs font-normal text-white/50">
-                  {pair ? `${CATEGORY_LABEL[pair.category]} · up to ${pair.maxLeverage}x` : ""}
+                  {pair
+                    ? `${t(CATEGORY_KEY[pair.category])} · ${t("upToMax", { max: pair.maxLeverage })}`
+                    : ""}
                 </div>
               </div>
               <div className="text-right">
@@ -207,9 +226,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                   {markNum > 0 ? formatUsd(markNum) : "—"}
                 </div>
                 {closed ? (
-                  <div className="text-down text-[11.5px] font-medium">
-                    Market likely closed · orders wait for reopen
-                  </div>
+                  <div className="text-down text-[11.5px] font-medium">{t("marketClosedHint")}</div>
                 ) : null}
               </div>
             </div>
@@ -217,8 +234,12 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
             {oi && oiTotal > 0 ? (
               <div className="mt-3.5">
                 <div className="mb-1 flex justify-between text-[11.5px] font-normal text-white/45">
-                  <span className="tnum">Long {formatAmount(oi.long)} USDC</span>
-                  <span className="tnum">Short {formatAmount(oi.short)} USDC</span>
+                  <span className="tnum">
+                    {t("long")} {formatAmount(oi.long)} USDC
+                  </span>
+                  <span className="tnum">
+                    {t("short")} {formatAmount(oi.short)} USDC
+                  </span>
                 </div>
                 <div className="flex h-1.5 overflow-hidden rounded-full bg-white/8">
                   <div
@@ -235,13 +256,13 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
 
             <div className="mt-3 grid grid-cols-3 gap-2 text-center">
               {[
-                { k: "Skew", v: market?.skew != null ? formatAmount(market.skew) : "—" },
+                { k: t("skew"), v: market?.skew != null ? formatAmount(market.skew) : "—" },
                 {
-                  k: "Spread",
+                  k: t("spread"),
                   v: market?.spread != null ? `${(market.spread * 100).toFixed(3)}%` : "—",
                 },
                 {
-                  k: "Depth ±1%",
+                  k: t("depth"),
                   v: market?.depth ? formatAmount(market.depth.above + market.depth.below) : "—",
                 },
               ].map((s) => (
@@ -273,7 +294,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                   : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
               }`}
             >
-              Long
+              {t("long")}
             </button>
             <button
               onClick={() => setSide("short")}
@@ -283,29 +304,27 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                   : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
               }`}
             >
-              Short
+              {t("short")}
             </button>
           </div>
 
           <div className="ws-inset mt-2.5 grid grid-cols-3 gap-1 p-1">
-            {ORDER_TYPES.map((t) => (
+            {ORDER_TYPES.map((id) => (
               <button
-                key={t.id}
-                onClick={() => setOrderType(t.id)}
+                key={id}
+                onClick={() => setOrderType(id)}
                 className={`cursor-pointer rounded-lg py-1.5 text-[12.5px] font-medium transition-colors ${
-                  orderType === t.id
-                    ? "bg-accent/16 text-white"
-                    : "text-white/50 hover:text-white/80"
+                  orderType === id ? "bg-accent/16 text-white" : "text-white/50 hover:text-white/80"
                 }`}
               >
-                {t.label}
+                {t(ORDER_TYPE_KEY[id])}
               </button>
             ))}
           </div>
 
           <div className="ws-inset mt-2.5 p-3.5">
             <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-normal text-white/55">
-              <span>Collateral</span>
+              <span>{t("collateral")}</span>
               <span className="flex items-center gap-2">
                 <span className="tnum">{formatAmount(usdcBalance)} USDC</span>
                 {usdcBalance > 0 ? (
@@ -313,7 +332,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                     onClick={() => setCollateral(usdcBalance.toFixed(2))}
                     className="text-accent cursor-pointer font-medium hover:opacity-80"
                   >
-                    Max
+                    {t("max")}
                   </button>
                 ) : null}
               </span>
@@ -333,7 +352,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
             <div className="ws-inset p-3">
               <div className="mb-1 text-[11px] font-normal text-white/50">
-                Leverage {pair ? `(max ${pair.maxLeverage}x)` : ""}
+                {t("leverage")} {pair ? t("leverageMax", { max: pair.maxLeverage }) : ""}
               </div>
               <input
                 value={leverage}
@@ -344,7 +363,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
               />
             </div>
             <div className="ws-inset p-3">
-              <div className="mb-1 text-[11px] font-normal text-white/50">Slippage %</div>
+              <div className="mb-1 text-[11px] font-normal text-white/50">{t("slippagePct")}</div>
               <input
                 value={slippage}
                 onChange={(e) => guard(setSlippage)(e.target.value)}
@@ -358,13 +377,13 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
           {needsTrigger ? (
             <div className="ws-inset mt-2.5 p-3">
               <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
-                <span>{orderType === "limit" ? "Limit price" : "Stop price"}</span>
+                <span>{orderType === "limit" ? t("limitPrice") : t("stopPrice")}</span>
                 {markNum > 0 ? (
                   <button
                     onClick={() => setLimitPrice(String(markNum))}
                     className="text-accent cursor-pointer font-medium hover:opacity-80"
                   >
-                    Use market
+                    {t("useMarket")}
                   </button>
                 ) : null}
               </div>
@@ -380,22 +399,22 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
 
           <div className="mt-2.5 grid grid-cols-2 gap-2.5">
             <div className="ws-inset p-3">
-              <div className="mb-1 text-[11px] font-normal text-white/50">Take profit</div>
+              <div className="mb-1 text-[11px] font-normal text-white/50">{t("takeProfit")}</div>
               <input
                 value={takeProfit}
                 onChange={(e) => guard(setTakeProfit)(e.target.value)}
                 inputMode="decimal"
-                placeholder="None"
+                placeholder={t("none")}
                 className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
               />
             </div>
             <div className="ws-inset p-3">
-              <div className="mb-1 text-[11px] font-normal text-white/50">Stop loss</div>
+              <div className="mb-1 text-[11px] font-normal text-white/50">{t("stopLoss")}</div>
               <input
                 value={stopLoss}
                 onChange={(e) => guard(setStopLoss)(e.target.value)}
                 inputMode="decimal"
-                placeholder="None"
+                placeholder={t("none")}
                 className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
               />
             </div>
@@ -403,17 +422,17 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
 
           <div className="ws-inset mt-2.5 flex flex-col gap-1.5 p-3.5 text-[12px] font-normal">
             <div className="flex justify-between">
-              <span className="text-white/55">Position size</span>
+              <span className="text-white/55">{t("positionSize")}</span>
               <span className="tnum text-white">
                 {formatAmount((parseFloat(collateral) || 0) * (leverageNum || 0))} USDC
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/55">Est. liquidation</span>
+              <span className="text-white/55">{t("estLiquidation")}</span>
               <span className="tnum text-down">{liq > 0 ? formatUsd(liq) : "—"}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/55">Opening fee</span>
+              <span className="text-white/55">{t("openingFee")}</span>
               <span className="tnum text-white">
                 {quoteLoading
                   ? "…"
@@ -423,7 +442,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-white/55">Execution fee</span>
+              <span className="text-white/55">{t("executionFee")}</span>
               <span className="tnum text-white">
                 {quote ? `${quote.executionFeeEth} ETH` : "—"}
               </span>

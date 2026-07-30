@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { FlagIcon } from "@/components/ui/flag-icon";
 import { SearchIcon, CheckIcon, ChevronLeftIcon } from "@/components/ui/icons";
 import { countryCurrency, searchPayoutCountries, type PayoutCountry } from "@/lib/cross-border";
@@ -14,6 +15,7 @@ interface CountryPickerProps {
 // it is a searchable list of corridors. Kept self-contained so the destination
 // step stays focused on assembling the payout target.
 export function CountryPicker({ selected, onSelect }: CountryPickerProps) {
+  const t = useTranslations("remit");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const results = searchPayoutCountries(query);
@@ -27,7 +29,7 @@ export function CountryPicker({ selected, onSelect }: CountryPickerProps) {
               setOpen(false);
               setQuery("");
             }}
-            aria-label="Back"
+            aria-label={t("back")}
             className="grid h-7 w-7 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 hover:bg-white/8 hover:text-white"
           >
             <ChevronLeftIcon size={15} />
@@ -37,14 +39,14 @@ export function CountryPicker({ selected, onSelect }: CountryPickerProps) {
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search country"
+            placeholder={t("searchCountry")}
             className="w-full border-none bg-transparent text-[14px] font-normal text-white outline-none"
           />
         </div>
         <div className="max-h-[240px] overflow-y-auto">
           {results.length === 0 ? (
             <div className="px-4 py-6 text-center text-[13px] font-normal text-white/45">
-              No country matches “{query}”.
+              {t("noCountryMatches", { query })}
             </div>
           ) : (
             results.map((c) => {
@@ -95,7 +97,7 @@ export function CountryPicker({ selected, onSelect }: CountryPickerProps) {
               {selected.name}
             </span>
             <span className="block text-[12px] font-normal text-white/50">
-              Pays out in {selected.currency}
+              {t("paysOutIn", { currency: selected.currency })}
             </span>
           </span>
         </>
@@ -105,11 +107,11 @@ export function CountryPicker({ selected, onSelect }: CountryPickerProps) {
             <SearchIcon />
           </span>
           <span className="flex-1 font-sans text-[14.5px] font-normal text-white/55">
-            Select destination country
+            {t("selectDestinationCountry")}
           </span>
         </>
       )}
-      <span className="text-accent text-[12px] font-medium">Change</span>
+      <span className="text-accent text-[12px] font-medium">{t("change")}</span>
     </button>
   );
 }

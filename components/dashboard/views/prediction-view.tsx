@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { PredictionCard } from "@/components/dashboard/prediction/prediction-card";
@@ -18,6 +19,7 @@ import { toast } from "@/lib/toast";
 import type { Prediction } from "@/lib/types";
 
 export function PredictionView() {
+  const t = useTranslations("prediction");
   const [desktop, setDesktop] = useState(false);
   const [bet, setBet] = useState<{ p: Prediction; side: "yes" | "no" } | null>(null);
   const [slip, setSlip] = useState<PolymarketPosition | null>(null);
@@ -28,21 +30,21 @@ export function PredictionView() {
   const { data: live } = usePredictions();
 
   const onRedeem = async (conditionId: string) => {
-    const toastId = toast.loading("Claiming your winnings…");
+    const toastId = toast.loading(t("toastClaiming"));
     // 1) Claim: convert the winning shares to pUSD in the prediction account.
     try {
       await redeem.redeem(conditionId);
     } catch {
-      toast.error(redeem.error ?? "Could not claim your winnings.", { id: toastId });
+      toast.error(redeem.error ?? t("toastClaimFailed"), { id: toastId });
       return;
     }
     // 2) Move the winnings out to USDC on Base. If this leg fails, the claim
     // still succeeded and the funds are safe as pUSD, recoverable via Cash out.
     try {
       await settle.settleToBase();
-      toast.success("Winnings claimed and on their way to your USDC on Base.", { id: toastId });
+      toast.success(t("toastClaimSuccess"), { id: toastId });
     } catch {
-      toast.error("Claimed to your prediction balance. Use Cash out to move it to Base.", {
+      toast.error(t("toastClaimSettleFailed"), {
         id: toastId,
       });
     }
@@ -52,13 +54,13 @@ export function PredictionView() {
 
   const onCashOut = async () => {
     if (positions.cashable == null || positions.cashable <= 0) return;
-    const toastId = toast.loading("Cashing out…");
+    const toastId = toast.loading(t("toastCashingOut"));
     try {
       await settle.settleToBase();
-      toast.success("Cashing out. Your USDC will arrive on Base shortly.", { id: toastId });
+      toast.success(t("toastCashOutSuccess"), { id: toastId });
       positions.refresh();
     } catch {
-      toast.error(settle.error ?? "Couldn't cash out.", { id: toastId });
+      toast.error(settle.error ?? t("toastCashOutFailed"), { id: toastId });
     }
   };
 
@@ -78,15 +80,14 @@ export function PredictionView() {
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <Eyebrow>Prediction markets</Eyebrow>
-      <h2 className="ws-display mt-2.5 text-[30px] tracking-[-0.02em]">Trade your conviction</h2>
+      <Eyebrow>{t("eyebrow")}</Eyebrow>
+      <h2 className="ws-display mt-2.5 text-[30px] tracking-[-0.02em]">{t("heading")}</h2>
 
       {!access.allowed ? (
         <div className="ws-card mt-[18px] flex flex-col items-center gap-2 px-6 py-12 text-center">
-          <div className="ws-display text-[22px]">Not available in your region</div>
+          <div className="ws-display text-[22px]">{t("regionBlockedTitle")}</div>
           <p className="max-w-[360px] text-[13.5px] font-normal text-white/55">
-            Prediction markets aren&apos;t offered where you are right now. The rest of TSION stays
-            fully available.
+            {t("regionBlockedBody", { brand: "TSION" })}
           </p>
         </div>
       ) : (

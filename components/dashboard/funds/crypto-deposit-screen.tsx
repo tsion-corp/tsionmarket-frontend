@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
@@ -35,6 +36,7 @@ interface CryptoDepositScreenProps {
 const settle = SETTLE_CHAINS.base;
 
 export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
+  const t = useTranslations("fundsFlow");
   const { user } = usePrivy();
   const { refetch } = usePortfolio();
 
@@ -76,23 +78,25 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
     const minimum = depositMinimumUsd(originChain);
     return (
       <div>
-        <SheetNav title={`Fund with ${originToken.symbol}`} onBack={onBack} />
+        <SheetNav title={t("fundWithToken", { symbol: originToken.symbol })} onBack={onBack} />
 
         {/* Selected token + chain, with a one-tap way back to change it. */}
         <div className="mb-3 flex items-center justify-between gap-3">
           <span className="flex min-w-0 items-center gap-2.5">
             <AssetIcon sym={originToken.symbol} bg="#26262b" size={26} logo={originToken.logoUrl} />
             <span className="min-w-0 truncate text-[14px] font-medium text-white">
-              {originToken.symbol}
-              <span className="font-normal text-white/45"> on </span>
-              {originChain.name}
+              {t.rich("tokenOnChain", {
+                symbol: originToken.symbol,
+                chain: originChain.name,
+                muted: (chunks) => <span className="font-normal text-white/45">{chunks}</span>,
+              })}
             </span>
           </span>
           <button
             onClick={resetToken}
             className="text-accent shrink-0 cursor-pointer text-[13px] font-semibold hover:underline"
           >
-            Change
+            {t("change")}
           </button>
         </div>
 
@@ -108,24 +112,27 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
             ⚠️
           </span>
           <p className="text-[12.5px] leading-normal font-normal text-white/80">
-            Minimum deposit is about{" "}
-            <span className="tnum font-semibold text-white">${minimum}</span>.{" "}
-            <span className="text-white/55">Smaller amounts may not be credited.</span>
+            {t.rich("minimumDeposit", {
+              amount: minimum,
+              strong: (chunks) => <span className="tnum font-semibold text-white">{chunks}</span>,
+            })}{" "}
+            <span className="text-white/55">{t("minimumDepositNote")}</span>
           </p>
         </div>
 
         {/* Live pending indicator — the static address credits automatically. */}
         <div className="mt-3 flex items-center justify-center gap-2 text-[13px] font-normal text-white/55">
           <span className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full" />
-          Waiting for your deposit…
+          {t("waitingForDeposit")}
         </div>
 
         <div className="ws-inset mt-3 px-4 py-3">
           <p className="text-[12.5px] leading-normal font-normal text-white/70">
-            Send only <span className="font-semibold text-white">{originToken.symbol}</span> on{" "}
-            <span className="font-semibold text-white">{originChain.name}</span>. Your balance is
-            credited automatically as USDC — usually within a minute of the transfer confirming. You
-            can leave this screen; the balance updates when it lands.
+            {t.rich("depositNote", {
+              symbol: originToken.symbol,
+              chain: originChain.name,
+              strong: (chunks) => <span className="font-semibold text-white">{chunks}</span>,
+            })}
           </p>
         </div>
 
@@ -133,7 +140,7 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
           onClick={() => refetch()}
           className="mt-3 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
         >
-          Refresh balance
+          {t("refreshBalance")}
         </button>
       </div>
     );
@@ -143,14 +150,14 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
   return (
     <div>
       <SheetNav
-        title="Deposit crypto"
-        subtitle="Send from almost any chain. It arrives as USDC in your wallet."
+        title={t("depositCryptoTitle")}
+        subtitle={t("depositCryptoSubtitle")}
         onBack={onBack}
       />
 
       <div className="flex flex-col gap-4">
         <div>
-          <div className="mb-2 text-xs font-normal text-white/55">From network</div>
+          <div className="mb-2 text-xs font-normal text-white/55">{t("fromNetwork")}</div>
           <NetworkTabs
             chains={chains.data ?? []}
             eligibleChainIds={eligibleChains.data ?? new Set()}
@@ -170,7 +177,7 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
 
         {originChain ? (
           <div>
-            <div className="mb-2 text-xs font-normal text-white/55">Token to send</div>
+            <div className="mb-2 text-xs font-normal text-white/55">{t("tokenToSend")}</div>
             <TokenList
               tokens={tokens.data ?? []}
               selected={originToken}
@@ -184,23 +191,23 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
 
         {req && staticAddr.isPending ? (
           <div className="py-4 text-center text-[13px] font-normal text-white/55">
-            Creating your deposit address…
+            {t("creatingDepositAddress")}
           </div>
         ) : null}
 
         {req && staticAddr.isError ? (
           <div className="text-down text-[13px] font-normal">
-            {friendlyError(staticAddr.error, "We couldn't create a deposit address. Try again.")}{" "}
+            {friendlyError(staticAddr.error, t("depositAddressError"))}{" "}
             {isRetryableDextopusError(staticAddr.error) ? (
               <button
                 onClick={() => staticAddr.refetch()}
                 className="text-accent cursor-pointer underline"
               >
-                Try again
+                {t("tryAgain")}
               </button>
             ) : (
               <button onClick={resetToken} className="text-accent cursor-pointer underline">
-                Choose a different token
+                {t("chooseDifferentToken")}
               </button>
             )}
           </div>
@@ -208,14 +215,15 @@ export function CryptoDepositScreen({ onBack }: CryptoDepositScreenProps) {
 
         {originToken && !settlementAddress ? (
           <div className="border-down/25 bg-down/10 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/70">
-            You need a {settle.chainName} wallet to receive there. Pick another settlement network.
+            {t("needSettlementWallet", { chain: settle.chainName })}
           </div>
         ) : null}
 
         {originToken && settlementAddress && !refundTo ? (
           <div className="border-down/25 bg-down/10 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/70">
-            Deposits from {originChain?.name} need a {refundType === "solana" ? "Solana" : "wallet"}{" "}
-            address on your account for refunds. Pick another network to continue.
+            {refundType === "solana"
+              ? t("needRefundAddressSolana", { chain: originChain?.name ?? "" })
+              : t("needRefundAddressWallet", { chain: originChain?.name ?? "" })}
           </div>
         ) : null}
       </div>

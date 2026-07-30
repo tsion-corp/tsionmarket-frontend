@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { formatAmount } from "@/lib/trade/math";
@@ -46,17 +47,13 @@ interface HeldTokenSelectProps {
 // Picker for the token a user wants to send/withdraw. Shows each holding with its
 // network badge and balance, so any stablecoin, native, or other held asset can
 // be chosen.
-export function HeldTokenSelect({
-  options,
-  selected,
-  onSelect,
-  label = "Token",
-}: HeldTokenSelectProps) {
+export function HeldTokenSelect({ options, selected, onSelect, label }: HeldTokenSelectProps) {
+  const t = useTranslations("fundsFlow");
   const [open, setOpen] = useState(false);
 
   return (
     <div className="ws-inset p-[13px]">
-      <div className="mb-2 text-xs font-normal text-white/55">{label}</div>
+      <div className="mb-2 text-xs font-normal text-white/55">{label ?? t("token")}</div>
       <button
         onClick={() => setOpen((o) => !o)}
         className="flex w-full cursor-pointer items-center justify-between gap-3"
@@ -64,7 +61,7 @@ export function HeldTokenSelect({
         {selected ? (
           <TokenRow t={selected} />
         ) : (
-          <span className="text-[14px] font-normal text-white/45">Select a token</span>
+          <span className="text-[14px] font-normal text-white/45">{t("selectToken")}</span>
         )}
         <svg width="12" height="12" viewBox="0 0 24 24" className="shrink-0 text-white/40">
           <path
@@ -82,7 +79,7 @@ export function HeldTokenSelect({
         <div className="mt-2 flex max-h-[240px] flex-col gap-1 overflow-y-auto border-t border-white/8 pt-2">
           {options.length === 0 ? (
             <div className="py-3 text-center text-[13px] font-normal text-white/45">
-              No tokens to send.
+              {t("noTokensToSend")}
             </div>
           ) : (
             options.map((t) => (

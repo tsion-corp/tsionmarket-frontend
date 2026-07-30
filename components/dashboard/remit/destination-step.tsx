@@ -1,10 +1,10 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { CountryPicker } from "@/components/dashboard/remit/country-picker";
 import { WalletIcon, BankIcon } from "@/components/ui/icons";
 import {
   defaultMethod,
-  PAYOUT_METHOD_LABEL,
   type PayoutCountry,
   type PayoutMethodId,
   type MobileNetwork,
@@ -25,11 +25,6 @@ const METHOD_ICON: Record<PayoutMethodId, React.ReactNode> = {
   bank: <BankIcon size={18} />,
 };
 
-const METHOD_SUB: Record<PayoutMethodId, string> = {
-  mobile_money: "M-Pesa, MoMo and other wallets",
-  bank: "Direct to a local bank account",
-};
-
 // Step 1: pick the destination country, then the payout rail, then (for mobile
 // money) the network. Selecting a country auto-selects its default method so the
 // common path is one tap fewer.
@@ -42,6 +37,7 @@ export function DestinationStep({
   onNetwork,
   onNext,
 }: DestinationStepProps) {
+  const t = useTranslations("remit");
   const handleCountry = (c: PayoutCountry) => {
     onCountry(c);
     onMethod(defaultMethod(c));
@@ -52,15 +48,15 @@ export function DestinationStep({
 
   return (
     <div>
-      <div className="ws-display text-[24px] tracking-[-0.01em]">Send money</div>
+      <div className="ws-display text-[24px] tracking-[-0.01em]">{t("sendMoney")}</div>
       <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">
-        Pay someone abroad from your balance. They receive local currency.
+        {t("sendMoneySubtitle")}
       </p>
 
       <div className="mt-[18px] space-y-4">
         <div>
           <div className="mb-2 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-            Destination
+            {t("destination")}
           </div>
           <CountryPicker selected={country} onSelect={handleCountry} />
         </div>
@@ -68,7 +64,7 @@ export function DestinationStep({
         {country ? (
           <div>
             <div className="mb-2 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-              Payout method
+              {t("payoutMethod")}
             </div>
             <div className="flex flex-col gap-2">
               {country.methods.map((m) => {
@@ -92,10 +88,10 @@ export function DestinationStep({
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block font-sans text-[14px] font-medium text-white">
-                        {PAYOUT_METHOD_LABEL[m]}
+                        {t(`method_${m}`)}
                       </span>
                       <span className="block text-[12px] font-normal text-white/50">
-                        {METHOD_SUB[m]}
+                        {t(`methodSub_${m}`)}
                       </span>
                     </span>
                     <span
@@ -113,7 +109,7 @@ export function DestinationStep({
         {showNetworks ? (
           <div>
             <div className="mb-2 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-              Network
+              {t("network")}
             </div>
             <div className="flex flex-wrap gap-2">
               {country!.networks.map((n) => {
@@ -142,7 +138,7 @@ export function DestinationStep({
         disabled={!ready}
         className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Continue
+        {t("continue")}
       </button>
     </div>
   );

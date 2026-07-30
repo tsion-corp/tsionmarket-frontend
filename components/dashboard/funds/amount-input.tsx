@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { formatAmount } from "@/lib/trade/math";
 
@@ -15,17 +16,18 @@ const DECIMAL_INPUT = /^\d*\.?\d*$/;
 // USDC amount entry with the wallet balance and a max shortcut. Only accepts a
 // well-formed decimal string so downstream base-unit conversion stays exact.
 export function AmountInput({ value, onChange, balance, symbol }: AmountInputProps) {
+  const t = useTranslations("fundsFlow");
   const over = Number(value) > balance;
 
   return (
     <div className="ws-inset p-[15px]">
       <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
-        <span>Amount</span>
+        <span>{t("amount")}</span>
         <button
           onClick={() => onChange(String(balance))}
           className="cursor-pointer text-white/55 hover:text-white"
         >
-          Balance {formatAmount(balance)} {symbol}
+          {t("balanceMax", { amount: formatAmount(balance), symbol })}
         </button>
       </div>
       <div className="flex items-center justify-between gap-3">
@@ -45,9 +47,7 @@ export function AmountInput({ value, onChange, balance, symbol }: AmountInputPro
         </span>
       </div>
       {over ? (
-        <div className="text-down mt-2 text-[12px] font-normal">
-          That is more than your {symbol} balance.
-        </div>
+        <div className="text-down mt-2 text-[12px] font-normal">{t("overBalance", { symbol })}</div>
       ) : null}
     </div>
   );

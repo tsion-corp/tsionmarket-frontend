@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLoginWithEmail } from "@privy-io/react-auth";
+import { useTranslations } from "next-intl";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { OtpInput } from "@/components/auth/otp-input";
 
@@ -11,6 +12,7 @@ const INPUT =
   "w-full rounded-[14px] border border-white/14 bg-black/40 px-4 py-3.5 text-[15px] text-white outline-none focus:border-accent/50";
 
 export function EmailForm() {
+  const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
@@ -21,7 +23,7 @@ export function EmailForm() {
 
   const submitEmail = async () => {
     if (!email.includes("@")) {
-      setError("Enter a valid email address.");
+      setError(t("emailInvalid"));
       return;
     }
     setError(null);
@@ -30,7 +32,7 @@ export function EmailForm() {
       setStep("code");
     } catch (err) {
       console.error("Sending login code failed:", err);
-      setError("We couldn't send the code. Check the address and try again.");
+      setError(t("emailSendFailed"));
     }
   };
 
@@ -41,7 +43,7 @@ export function EmailForm() {
     } catch (err) {
       console.error("Code verification failed:", err);
       setCode("");
-      setError("That code didn't match. Check your inbox and try again.");
+      setError(t("codeMismatch"));
     }
   };
 
@@ -49,7 +51,9 @@ export function EmailForm() {
     return (
       <div className="flex flex-col gap-[11px]">
         <p className="text-sm text-white/72">
-          We sent a 6-digit code to <span className="font-medium text-white">{email}</span>.
+          {t.rich("codeSent", {
+            email: () => <span className="font-medium text-white">{email}</span>,
+          })}
         </p>
         <OtpInput value={code} onChange={setCode} onComplete={submitCode} disabled={busy} />
         <button
@@ -57,7 +61,7 @@ export function EmailForm() {
           disabled={busy || code.length !== 6}
           className={PRIMARY}
         >
-          {busy ? "Checking…" : "Verify & continue"}
+          {busy ? t("checking") : t("verifyContinue")}
           <ArrowRightIcon className="text-arrow" />
         </button>
         {error ? <p className="text-down text-[13px]">{error}</p> : null}
@@ -70,14 +74,14 @@ export function EmailForm() {
             }}
             className="cursor-pointer text-white/60 hover:text-white"
           >
-            Use a different email
+            {t("differentEmail")}
           </button>
           <button
             onClick={() => sendCode({ email })}
             disabled={busy}
             className="hover:text-accent cursor-pointer text-white/60"
           >
-            Resend code
+            {t("resendCode")}
           </button>
         </div>
       </div>
@@ -95,7 +99,7 @@ export function EmailForm() {
         className={INPUT}
       />
       <button onClick={submitEmail} disabled={busy} className={PRIMARY}>
-        {busy ? "Sending code…" : "Continue with email"}
+        {busy ? t("sendingCode") : t("continueEmail")}
         <ArrowRightIcon className="text-arrow" />
       </button>
       {error ? <p className="text-down text-[13px]">{error}</p> : null}

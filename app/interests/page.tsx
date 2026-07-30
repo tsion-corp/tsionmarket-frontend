@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { InterestCard } from "@/components/interests/interest-card";
@@ -19,6 +20,7 @@ function initialSelection(): string | null {
 // Renders only after AuthGuard passes, so the initializer runs client-side
 // and can read localStorage safely.
 function InterestPicker() {
+  const t = useTranslations("interests");
   const [selected, setSelected] = useState<string | null>(initialSelection);
   const router = useRouter();
 
@@ -41,25 +43,24 @@ function InterestPicker() {
             <span className="bg-accent h-1 w-[26px] rounded-full" />
             <span className="h-1 w-[26px] rounded-full bg-white/16" />
           </div>
-          <span className="text-[13px] font-normal text-white/55">Step 1 of 2</span>
+          <span className="text-[13px] font-normal text-white/55">{t("step")}</span>
         </div>
       </header>
 
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col items-center justify-center px-6 pt-6 pb-[140px]">
         <div className="max-w-[20ch] text-center">
-          <Eyebrow>Tailor your app</Eyebrow>
+          <Eyebrow>{t("eyebrow")}</Eyebrow>
           <h1 className="ws-display mt-3 text-[clamp(34px,5vw,60px)] leading-[1.02] tracking-[-0.03em]">
-            What are you here to <span className="text-accent">own?</span>
+            {t.rich("title", { accent: (chunks) => <span className="text-accent">{chunks}</span> })}
           </h1>
         </div>
         <p className="mt-4 max-w-[52ch] text-center text-base leading-[1.55] text-white/72">
-          Pick one thing to start with. We&apos;ll shape your dashboard, watchlists and alerts
-          around it. You can change it anytime.
+          {t("body")}
         </p>
 
         <div
           role="radiogroup"
-          aria-label="Choose an interest"
+          aria-label={t("ariaChoose")}
           className="mt-8 grid w-full grid-cols-1 gap-2.5 min-[430px]:grid-cols-2 sm:mt-11 sm:gap-3.5 lg:grid-cols-4"
         >
           {INTERESTS.map((it) => (
@@ -74,7 +75,7 @@ function InterestPicker() {
       </div>
 
       <ContinueBar
-        selectedTitle={chosen?.title ?? null}
+        selectedTitle={chosen ? t(`${chosen.key}Title`) : null}
         onContinue={handleContinue}
         onSkip={clearInterest}
       />

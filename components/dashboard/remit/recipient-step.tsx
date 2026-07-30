@@ -1,11 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import {
   isValidAccount,
   isValidMobile,
   isValidName,
-  PAYOUT_METHOD_LABEL,
   type PayoutCountry,
   type PayoutMethodId,
   type MobileNetwork,
@@ -53,31 +53,35 @@ export function RecipientStep({
   onBack,
   onNext,
 }: RecipientStepProps) {
+  const t = useTranslations("remit");
   const isMobile = method === "mobile_money";
   const numberOk = isMobile ? isValidMobile(accountNumber) : isValidAccount(accountNumber);
   const bankOk = isMobile ? true : bankName.trim().length >= 2;
   const ready = isValidName(recipientName) && numberOk && bankOk;
 
   const subtitle = isMobile
-    ? `${network ? network.name : "Mobile money"} in ${country.name}`
-    : `Bank account in ${country.name}`;
+    ? t("recipientSubtitleMobile", {
+        network: network ? network.name : t("method_mobile_money"),
+        country: country.name,
+      })
+    : t("recipientSubtitleBank", { country: country.name });
 
   return (
     <div>
-      <SheetNav title="Recipient" subtitle={subtitle} onBack={onBack} />
+      <SheetNav title={t("recipient")} subtitle={subtitle} onBack={onBack} />
 
       <div className="space-y-3.5">
-        <Field label="Recipient name">
+        <Field label={t("recipientName")}>
           <input
             value={recipientName}
             onChange={(e) => onField("recipientName", e.target.value)}
-            placeholder="Full name as registered"
+            placeholder={t("recipientNamePlaceholder")}
             className={INPUT_CLASS}
           />
         </Field>
 
         {isMobile ? (
-          <Field label="Mobile number">
+          <Field label={t("mobileNumber")}>
             <div className="flex items-stretch gap-2">
               <span className="flex shrink-0 items-center rounded-[13px] border border-white/10 bg-white/6 px-3 font-sans text-[14.5px] font-medium text-white/70">
                 {country.dialCode}
@@ -93,20 +97,20 @@ export function RecipientStep({
           </Field>
         ) : (
           <>
-            <Field label="Bank name">
+            <Field label={t("bankName")}>
               <input
                 value={bankName}
                 onChange={(e) => onField("bankName", e.target.value)}
-                placeholder="e.g. Equity Bank"
+                placeholder={t("bankNamePlaceholder")}
                 className={INPUT_CLASS}
               />
             </Field>
-            <Field label="Account number">
+            <Field label={t("accountNumber")}>
               <input
                 inputMode="numeric"
                 value={accountNumber}
                 onChange={(e) => onField("accountNumber", e.target.value)}
-                placeholder="Account number"
+                placeholder={t("accountNumber")}
                 className={INPUT_CLASS}
               />
             </Field>
@@ -115,8 +119,7 @@ export function RecipientStep({
       </div>
 
       <p className="mt-3 text-[12px] leading-[1.5] font-normal text-white/45">
-        Double-check the details. {PAYOUT_METHOD_LABEL[method]} payouts cannot be reversed once
-        sent.
+        {t("irreversibleWarning", { method: t(`method_${method}`) })}
       </p>
 
       <button
@@ -124,7 +127,7 @@ export function RecipientStep({
         disabled={!ready}
         className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Continue
+        {t("continue")}
       </button>
     </div>
   );

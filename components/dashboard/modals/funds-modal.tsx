@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { MethodTile } from "@/components/dashboard/funds/method-tile";
 import { CryptoDepositScreen } from "@/components/dashboard/funds/crypto-deposit-screen";
 import { FiatDepositScreen } from "@/components/dashboard/funds/fiat-deposit-screen";
@@ -14,6 +15,7 @@ type Step = "chooser" | "crypto" | "fiat";
 const USDC_BLUE = "#2775CA";
 
 export function FundsModal({ onClose }: { onClose: () => void }) {
+  const t = useTranslations("funds");
   const [step, setStep] = useState<Step>("chooser");
   const back = () => setStep("chooser");
 
@@ -22,10 +24,8 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div>
-      <div className="ws-display text-[24px] tracking-[-0.01em]">Add funds</div>
-      <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">
-        Choose how you want to fund your wallet.
-      </p>
+      <div className="ws-display text-[24px] tracking-[-0.01em]">{t("title")}</div>
+      <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">{t("subtitle")}</p>
       <div className="mt-[18px] flex flex-col gap-2">
         {/* Fund with crypto — a USDC-led row, since that's what deposits settle
             to. Any token on almost any chain arrives as USDC. */}
@@ -37,14 +37,14 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-2">
               <span className="font-sans text-[15px] font-semibold text-white">
-                Fund with crypto
+                {t("cryptoTitle")}
               </span>
               <span className="rounded-full border border-white/12 bg-white/6 px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] text-white/55 uppercase">
-                Popular
+                {t("popular")}
               </span>
             </span>
             <span className="mt-0.5 block text-[12.5px] leading-[1.4] font-normal text-white/55">
-              USDC, ETH, SOL · any chain
+              {t("cryptoSubtitle")}
             </span>
           </span>
           <span className="text-white/35">
@@ -53,9 +53,9 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
         </button>
         <MethodTile
           icon={<CardIcon size={22} />}
-          title="Card or bank"
-          subtitle="Fund in naira with a card or transfer."
-          badge="Soon"
+          title={t("fiatTitle")}
+          subtitle={t("fiatSubtitle")}
+          badge={t("soon")}
           onClick={() => setStep("fiat")}
         />
       </div>
@@ -63,7 +63,7 @@ export function FundsModal({ onClose }: { onClose: () => void }) {
         onClick={onClose}
         className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
       >
-        Close
+        {t("close")}
       </button>
     </div>
   );

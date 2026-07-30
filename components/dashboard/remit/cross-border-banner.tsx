@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { GlobeIcon, ArrowRightIcon } from "@/components/ui/icons";
 
 interface CrossBorderBannerProps {
@@ -10,6 +11,7 @@ interface CrossBorderBannerProps {
 // Tapping it opens the send-money flow. Deliberately tall and high-contrast so it
 // reads as a headline feature no one scrolls past, not another list row.
 export function CrossBorderBanner({ onClick }: CrossBorderBannerProps) {
+  const t = useTranslations("remitBanner");
   return (
     <button
       onClick={onClick}
@@ -26,14 +28,14 @@ export function CrossBorderBanner({ onClick }: CrossBorderBannerProps) {
       <span className="relative min-w-0 flex-1">
         <span className="flex flex-wrap items-center gap-2.5">
           <span className="font-sans text-[17px] font-semibold text-white sm:text-[19px]">
-            Send money across borders
+            {t("title")}
           </span>
           <span className="border-accent/30 bg-accent/14 text-accent rounded-full border px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] uppercase">
-            New
+            {t("badge")}
           </span>
         </span>
         <span className="mt-1.5 block text-[13.5px] leading-[1.5] font-normal text-white/65 sm:text-[14.5px]">
-          Pay vendors in Kenya, Ghana & more. They get local cash instantly.
+          {t("subtitle")}
         </span>
       </span>
       <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/14 bg-white/6 text-white/70 transition-all group-hover:translate-x-0.5 group-hover:bg-white/10 group-hover:text-white">

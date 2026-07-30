@@ -3,8 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
+import { useTranslations } from "next-intl";
 import { SearchIcon } from "@/components/ui/icons";
 import { TsionMark } from "@/components/ui/tsion-mark";
+import { LanguageSelect } from "@/components/ui/language-select";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Avatar } from "@/components/dashboard/avatar";
 import { useGlobalSearch, type SearchResult } from "@/hooks/use-global-search";
@@ -17,10 +19,13 @@ interface TopbarProps {
   onSelectSection: (id: string) => void;
 }
 
-const GROUPS: { key: "holdings" | "rwa" | "markets"; label: string }[] = [
-  { key: "holdings", label: "Your holdings" },
-  { key: "rwa", label: "Real-world assets" },
-  { key: "markets", label: "Markets" },
+const GROUPS: {
+  key: "holdings" | "rwa" | "markets";
+  labelKey: "groupHoldings" | "groupRwa" | "groupMarkets";
+}[] = [
+  { key: "holdings", labelKey: "groupHoldings" },
+  { key: "rwa", labelKey: "groupRwa" },
+  { key: "markets", labelKey: "groupMarkets" },
 ];
 
 // The search-data hooks (portfolio + RWA + markets, all polling) live here so
@@ -34,21 +39,22 @@ function SearchResults({
   onSelect: (r: SearchResult) => void;
 }) {
   const results = useGlobalSearch(query);
+  const t = useTranslations("topbar");
 
   return (
     <div className="bg-panel absolute top-[48px] right-0 left-0 z-[70] max-h-[360px] overflow-auto rounded-xl border border-white/12 p-1.5 shadow-[0_24px_60px_-24px_rgba(0,0,0,0.9)]">
       {results.total === 0 ? (
         <div className="px-3 py-4 text-center text-[13px] font-normal text-white/45">
-          No matches for “{query.trim()}”
+          {t("noMatches", { query: query.trim() })}
         </div>
       ) : (
-        GROUPS.map(({ key, label }) => {
+        GROUPS.map(({ key, labelKey }) => {
           const items = results[key];
           if (items.length === 0) return null;
           return (
             <div key={key} className="mb-1 last:mb-0">
               <div className="px-2.5 pt-2 pb-1 text-[11px] tracking-[0.04em] text-white/35 uppercase">
-                {label}
+                {t(labelKey)}
               </div>
               {items.map((r) => (
                 <button
@@ -80,6 +86,7 @@ function SearchResults({
 export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   const { user } = usePrivy();
   const profile = deriveProfile(user);
+  const t = useTranslations("topbar");
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
 
@@ -92,12 +99,12 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   };
 
   return (
-    <div className="flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
+    <div className="relative z-[2] flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
       <Link href="/dashboard" className="flex items-center text-white md:hidden">
-        <TsionMark size={34} />
+        <TsionMark size={42} />
       </Link>
 
-      <div className="relative max-w-[420px] flex-1">
+      <div className="relative max-w-[230px] flex-1 md:max-w-[420px]">
         <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
           <SearchIcon />
           <input
@@ -105,7 +112,7 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
-            placeholder="Search assets, markets, tickers"
+            placeholder={t("searchPlaceholder")}
             className="min-w-0 flex-1 border-none bg-transparent text-sm font-normal text-white outline-none"
           />
         </div>
@@ -113,13 +120,16 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
         {open ? <SearchResults query={query} onSelect={select} /> : null}
       </div>
 
-      <button
-        onClick={onOpenAccount}
-        aria-label="Account"
-        className="ml-auto cursor-pointer rounded-full border border-white/14 md:hidden"
-      >
-        <Avatar seed={profile.avatarSeed} size={34} />
-      </button>
+      <div className="ml-auto flex items-center gap-2">
+        <LanguageSelect />
+        <button
+          onClick={onOpenAccount}
+          aria-label={t("account")}
+          className="cursor-pointer rounded-full border border-white/14 md:hidden"
+        >
+          <Avatar seed={profile.avatarSeed} size={34} />
+        </button>
+      </div>
     </div>
   );
 }

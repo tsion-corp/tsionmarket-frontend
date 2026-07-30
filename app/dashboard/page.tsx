@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { buildNav } from "@/components/dashboard/nav-items";
 import { PortfolioView } from "@/components/dashboard/views/portfolio-view";
@@ -50,7 +51,8 @@ const Prediction = memo(PredictionView);
 
 export default function DashboardPage() {
   const [modal, setModal] = useState<DashboardModal>(null);
-  const nav = useMemo(() => buildNav(loadInterest()), []);
+  const tSections = useTranslations("sections");
+  const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const scrollSectionIds = useMemo(
     () => nav.map((n) => n.id).filter((id): id is ScrollSectionId => id !== "casino"),
     [nav]

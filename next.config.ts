@@ -1,5 +1,10 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 
-const nextConfig: NextConfig = {/* config options here */};
+// Links the next-intl request config (i18n/request.ts) into the build. The app
+// localizes via a cookie, not locale URLs, so routing is untouched.
+const withNextIntl = createNextIntlPlugin();
 
-export default nextConfig;
+const nextConfig: NextConfig = {};
+
+export default withNextIntl(nextConfig);

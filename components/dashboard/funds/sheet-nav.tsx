@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 
 interface SheetNavProps {
@@ -11,6 +12,7 @@ interface SheetNavProps {
 // Header for a sub-screen inside the funds and withdraw sheets. The back button
 // steps one screen back without closing the sheet.
 export function SheetNav({ title, subtitle, onBack }: SheetNavProps) {
+  const t = useTranslations("fundsFlow");
   return (
     <div className="mb-4">
       <button
@@ -18,7 +20,7 @@ export function SheetNav({ title, subtitle, onBack }: SheetNavProps) {
         className="mb-3 inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-normal text-white/60 hover:text-white"
       >
         <ChevronLeftIcon size={14} />
-        Back
+        {t("back")}
       </button>
       <div className="ws-display text-[24px] tracking-[-0.01em]">{title}</div>
       {subtitle ? (

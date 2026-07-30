@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -67,11 +68,12 @@ function tokenBg(symbol: string): string {
   return `linear-gradient(135deg, hsl(0 0% ${light}%), hsl(0 0% ${Math.max(28, light - 30)}%))`;
 }
 
-const KIND_LABEL: Record<TokenBalance["kind"], string> = {
-  coin: "Coin",
-  stablecoin: "Stablecoin",
-  rwa: "RWA",
-  token: "Token",
+// Message keys in the portfolio catalog; the kind ids themselves never change.
+const KIND_LABEL_KEY: Record<TokenBalance["kind"], string> = {
+  coin: "kindCoin",
+  stablecoin: "kindStablecoin",
+  rwa: "kindRwa",
+  token: "kindToken",
 };
 
 const KIND_STYLE: Record<TokenBalance["kind"], string> = {
@@ -83,11 +85,12 @@ const KIND_STYLE: Record<TokenBalance["kind"], string> = {
 
 // The asset-type pill shown in the holdings "Type" column.
 function TypeChip({ kind }: { kind: TokenBalance["kind"] }) {
+  const t = useTranslations("portfolio");
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${KIND_STYLE[kind]}`}
     >
-      {KIND_LABEL[kind]}
+      {t(KIND_LABEL_KEY[kind])}
     </span>
   );
 }
@@ -110,6 +113,7 @@ export function PortfolioView({
 }: PortfolioViewProps) {
   const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
+  const t = useTranslations("portfolio");
   // Distinguish "we couldn't load it" from "you have nothing". A failed request
   // with no cached tokens is an error, not an empty wallet; if a cached balance
   // survives (persisted), keep showing it rather than an error.
@@ -162,79 +166,85 @@ export function PortfolioView({
     );
   };
 
-  const openToken = (t: TokenBalance) => {
+  const openToken = (token: TokenBalance) => {
     // RWA tokens trade through the RWA service (quote + build), never Dextopus,
     // which cannot source or deliver them. Route both buy and sell to the RWA
     // panel. `address` is always set for an RWA (it is never a native balance).
-    const isRwa = t.kind === "rwa" && t.address !== null;
+    const isRwa = token.kind === "rwa" && token.address !== null;
     // Otherwise offer "Sell" only for assets Dextopus can take as an origin;
     // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
-    const sellable = canSellAsset(t.network, t.address);
+    const sellable = canSellAsset(token.network, token.address);
 
     const buyAction = isRwa
       ? () =>
           onOpenRwaTrade({
-            network: t.network,
-            address: t.address as string,
-            symbol: t.symbol,
+            network: token.network,
+            address: token.address as string,
+            symbol: token.symbol,
             mode: "buy",
           })
-      : () => onOpenBuy({ symbol: t.symbol, name: t.name, priceUsd: t.priceUsd, logo: t.logo });
+      : () =>
+          onOpenBuy({
+            symbol: token.symbol,
+            name: token.name,
+            priceUsd: token.priceUsd,
+            logo: token.logo,
+          });
 
     const sellAction = isRwa
       ? {
-          cta2: `Sell ${t.name}`,
+          cta2: t("sell", { name: token.name }),
           onCta2: () =>
             onOpenRwaTrade({
-              network: t.network,
-              address: t.address as string,
-              symbol: t.symbol,
+              network: token.network,
+              address: token.address as string,
+              symbol: token.symbol,
               mode: "sell",
             }),
         }
       : sellable
         ? {
-            cta2: `Sell ${t.name}`,
+            cta2: t("sell", { name: token.name }),
             onCta2: () =>
               onOpenSell({
-                symbol: t.symbol,
-                name: t.name,
-                network: t.network,
-                address: t.address,
-                decimals: t.decimals,
-                balance: t.balance,
-                rawBalance: t.rawBalance,
-                priceUsd: t.priceUsd,
-                logo: t.logo,
+                symbol: token.symbol,
+                name: token.name,
+                network: token.network,
+                address: token.address,
+                decimals: token.decimals,
+                balance: token.balance,
+                rawBalance: token.rawBalance,
+                priceUsd: token.priceUsd,
+                logo: token.logo,
               }),
           }
         : {};
 
     onOpenDetail({
-      sym: t.symbol,
-      name: t.name,
-      sub: `${formatQty(t.balance)} ${t.symbol}`,
-      price: money.format(t.priceUsd),
+      sym: token.symbol,
+      name: token.name,
+      sub: `${formatQty(token.balance)} ${token.symbol}`,
+      price: money.format(token.priceUsd),
       chg: "",
-      bg: tokenBg(t.symbol),
+      bg: tokenBg(token.symbol),
       stats: [
-        { k: "Holdings", v: `${formatQty(t.balance)} ${t.symbol}` },
-        { k: "Market price", v: money.format(t.priceUsd) },
-        { k: "Network", v: networkLabel(t.network) },
-        { k: "Position value", v: money.format(t.valueUsd) },
+        { k: t("holdings"), v: `${formatQty(token.balance)} ${token.symbol}` },
+        { k: t("marketPrice"), v: money.format(token.priceUsd) },
+        { k: t("network"), v: networkLabel(token.network) },
+        { k: t("positionValue"), v: money.format(token.valueUsd) },
       ],
-      cta: `Buy more ${t.name}`,
+      cta: t("buyMore", { name: token.name }),
       onCta: buyAction,
       ...sellAction,
-      coingeckoId: coingeckoId(t.symbol) ?? undefined,
+      coingeckoId: coingeckoId(token.symbol) ?? undefined,
       up: true,
-      logo: t.logo,
+      logo: token.logo,
     });
   };
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <Eyebrow>Portfolio</Eyebrow>
+      <Eyebrow>{t("eyebrow")}</Eyebrow>
 
       <div className="mt-3.5">
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
@@ -249,15 +259,13 @@ export function PortfolioView({
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
             <WalletIcon size={22} />
           </div>
-          <div className="ws-display text-[22px]">Couldn&apos;t load your portfolio</div>
-          <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">
-            We couldn&apos;t reach your balances just now. Your funds are safe. Please try again.
-          </p>
+          <div className="ws-display text-[22px]">{t("errorTitle")}</div>
+          <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">{t("errorBody")}</p>
           <button
             onClick={() => refetch()}
             className="text-ink mt-1 cursor-pointer rounded-xl bg-white px-5 py-2.5 font-sans text-[13px] font-semibold hover:opacity-90"
           >
-            Try again
+            {t("tryAgain")}
           </button>
         </div>
       ) : isEmpty ? (
@@ -265,24 +273,22 @@ export function PortfolioView({
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
             <WalletIcon size={22} />
           </div>
-          <div className="ws-display text-[22px]">Your portfolio is empty</div>
-          <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">
-            Add funds to get started. Tokens across your wallets show up here automatically.
-          </p>
+          <div className="ws-display text-[22px]">{t("emptyTitle")}</div>
+          <p className="max-w-[320px] text-[13.5px] font-normal text-white/55">{t("emptyBody")}</p>
           <button
             onClick={onOpenFunds}
             className="text-ink mt-1 cursor-pointer rounded-xl bg-white px-5 py-2.5 font-sans text-[13px] font-semibold hover:opacity-90"
           >
-            Add funds
+            {t("addFunds")}
           </button>
         </div>
       ) : (
         <div className="ws-card mt-[18px] overflow-hidden">
           <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
-            <span className="ws-display text-[22px]">Your holdings</span>
+            <span className="ws-display text-[22px]">{t("yourHoldings")}</span>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60">
-                <span>Hide zero value</span>
+                <span>{t("hideZeroValue")}</span>
                 <Switch
                   size="sm"
                   checked={hideZero}
@@ -294,18 +300,18 @@ export function PortfolioView({
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search"
+                  placeholder={t("searchPlaceholder")}
                   className="w-[130px] min-w-0 border-none bg-transparent text-[13px] font-normal text-white outline-none"
                 />
               </div>
             </div>
           </div>
           <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6">
-            <span>Asset</span>
-            <span className="hidden min-[560px]:block">Type</span>
-            {sortBtn("price", "Price", "hidden justify-end text-right min-[560px]:flex")}
-            <span className="hidden text-right min-[560px]:block">Network</span>
-            {sortBtn("value", "Value", "justify-end text-right")}
+            <span>{t("asset")}</span>
+            <span className="hidden min-[560px]:block">{t("type")}</span>
+            {sortBtn("price", t("price"), "hidden justify-end text-right min-[560px]:flex")}
+            <span className="hidden text-right min-[560px]:block">{t("network")}</span>
+            {sortBtn("value", t("value"), "justify-end text-right")}
           </div>
 
           {loading ? (
@@ -322,10 +328,10 @@ export function PortfolioView({
           ) : holdingRows.length === 0 ? (
             <div className="border-t border-white/6 px-6 py-8 text-center text-[13px] font-normal text-white/45">
               {search
-                ? "No holdings match your search."
+                ? t("noSearchMatches")
                 : hideZero
-                  ? "No assets with a balance yet. Turn off “Hide zero value” to see every supported asset."
-                  : "No holdings yet."}
+                  ? t("noZeroHiddenAssets")
+                  : t("noHoldingsYet")}
             </div>
           ) : (
             <>
@@ -377,7 +383,7 @@ export function PortfolioView({
               {holdingsPages > 1 ? (
                 <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
                   <span className="text-[12.5px] font-normal text-white/45">
-                    Page {holdingsPage} of {holdingsPages}
+                    {t("pageOfPages", { page: holdingsPage, pages: holdingsPages })}
                   </span>
                   <div className="flex gap-2">
                     <button
@@ -385,14 +391,14 @@ export function PortfolioView({
                       disabled={!table.getCanPreviousPage()}
                       className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Prev
+                      {t("prev")}
                     </button>
                     <button
                       onClick={() => table.nextPage()}
                       disabled={!table.getCanNextPage()}
                       className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Next
+                      {t("next")}
                     </button>
                   </div>
                 </div>

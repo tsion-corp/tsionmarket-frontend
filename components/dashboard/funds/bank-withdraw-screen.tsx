@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { ComingSoon } from "@/components/dashboard/funds/coming-soon";
 
@@ -13,18 +14,19 @@ interface BankWithdrawScreenProps {
 // Bank off-ramp. The form is real so users see the flow, but payouts stay
 // disabled until MoonPay verification clears.
 export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
+  const t = useTranslations("fundsFlow");
   const [amount, setAmount] = useState("");
 
   return (
     <div>
       <SheetNav
-        title="Withdraw to bank"
-        subtitle="Cash out USDC to your Nigerian bank account."
+        title={t("withdrawToBankTitle")}
+        subtitle={t("withdrawToBankSubtitle")}
         onBack={onBack}
       />
 
       <div className="ws-inset p-[15px]">
-        <div className="mb-[9px] text-xs font-normal text-white/55">You withdraw</div>
+        <div className="mb-[9px] text-xs font-normal text-white/55">{t("youWithdraw")}</div>
         <div className="flex items-center justify-between gap-3">
           <input
             inputMode="decimal"
@@ -40,16 +42,13 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         </div>
       </div>
 
-      <ComingSoon title="Almost ready">
-        Bank payouts are being finished with our payments partner. Withdraw to a crypto wallet in
-        the meantime.
-      </ComingSoon>
+      <ComingSoon title={t("almostReady")}>{t("bankComingSoonBody")}</ComingSoon>
 
       <button
         disabled
         className="text-ink mt-4 w-full cursor-not-allowed rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold opacity-50"
       >
-        Coming soon
+        {t("comingSoon")}
       </button>
     </div>
   );

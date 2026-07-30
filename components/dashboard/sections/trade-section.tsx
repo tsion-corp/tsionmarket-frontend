@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { PerpModeSwitch, usePerpMode } from "@/components/dashboard/trade/perp-mode";
 import { SimplePerps } from "@/components/dashboard/trade/simple-perps";
@@ -38,6 +39,7 @@ const FALLBACK_PAIRS: PerpPair[] = [
 }));
 
 export function TradeSection() {
+  const t = useTranslations("perps");
   const { mode } = usePerpMode();
   const { pairs, unavailable, loading } = usePerpPairs();
   const live = !unavailable && pairs.length > 0;
@@ -78,8 +80,8 @@ export function TradeSection() {
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Eyebrow>Perpetuals</Eyebrow>
-          <h2 className="ws-display mt-3.5 text-[32px] tracking-[-0.01em]">Perpetuals</h2>
+          <Eyebrow>{t("eyebrow")}</Eyebrow>
+          <h2 className="ws-display mt-3.5 text-[32px] tracking-[-0.01em]">{t("title")}</h2>
         </div>
         <PerpModeSwitch />
       </div>

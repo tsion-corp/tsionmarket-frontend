@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import type { Interest } from "@/lib/types";
 import { INTEREST_ICONS } from "@/components/ui/icons";
 
@@ -11,6 +12,7 @@ interface InterestCardProps {
 }
 
 export function InterestCard({ interest, selected, onToggle }: InterestCardProps) {
+  const t = useTranslations("interests");
   const Icon = INTEREST_ICONS[interest.icon];
   return (
     <motion.button
@@ -42,10 +44,10 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
         {Icon ? <Icon size={24} /> : null}
       </span>
       <span className="ws-display mt-4 block text-lg tracking-[-0.01em] sm:text-[22px]">
-        {interest.title}
+        {t(`${interest.key}Title`)}
       </span>
       <span className="mt-1.5 block text-[13.5px] leading-[1.45] font-normal text-white/65">
-        {interest.desc}
+        {t(`${interest.key}Desc`)}
       </span>
     </motion.button>
   );

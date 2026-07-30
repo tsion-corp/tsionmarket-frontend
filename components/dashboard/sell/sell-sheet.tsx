@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
@@ -36,14 +37,15 @@ const CHAIN_LABEL: Record<string, string> = {
   "solana-mainnet": "Solana",
 };
 
-// Plain-language order status, no bridging jargon.
-const STAGE_COPY: Record<DepositStage, string> = {
-  waiting: "Placing your order",
-  detected: "Sale received",
-  processing: "Almost there",
-  settled: "All done",
-  refunded: "Asset returned to your wallet",
-  failed: "Your sale didn't go through",
+// Plain-language order status, no bridging jargon. Values are message keys in
+// the buySell namespace.
+const STAGE_KEY: Record<DepositStage, string> = {
+  waiting: "stagePlacingOrder",
+  detected: "stageSaleReceived",
+  processing: "stageAlmostThere",
+  settled: "stageAllDone",
+  refunded: "stageAssetReturned",
+  failed: "stageSaleFailed",
 };
 
 interface SellSheetProps {
@@ -52,6 +54,7 @@ interface SellSheetProps {
 }
 
 export function SellSheet({ payload, onClose }: SellSheetProps) {
+  const t = useTranslations("buySell");
   const portfolio = usePortfolio();
   const [amount, setAmount] = useState("");
   const sell = useSell();
@@ -93,16 +96,16 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
     if (settledRef.current) return;
     if (stage === "settled") {
       settledRef.current = true;
-      toast.success(`Sold ${payload.symbol}`, { id: toastRef.current });
+      toast.success(t("soldToast", { symbol: payload.symbol }), { id: toastRef.current });
       void portfolio.refetch();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
-      toast.error("The sale didn't complete — you were refunded.", { id: toastRef.current });
+      toast.error(t("saleRefundedToast"), { id: toastRef.current });
     }
-  }, [stage, payload.symbol, portfolio]);
+  }, [stage, payload.symbol, portfolio, t]);
 
   const confirm = async () => {
-    toastRef.current = toast.loading(`Selling ${payload.symbol}…`);
+    toastRef.current = toast.loading(t("sellingToast", { symbol: payload.symbol }));
     try {
       // Clamp to the exact on-chain balance so a "max" never sends more than the
       // wallet holds (the displayed balance is a rounded float).
@@ -119,7 +122,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       setRequestId(result.requestId);
     } catch {
       // The detailed message is surfaced from sell.error below; resolve the toast.
-      toast.error(`Couldn't sell ${payload.symbol}. Try again.`, { id: toastRef.current });
+      toast.error(t("sellFailedToast", { symbol: payload.symbol }), { id: toastRef.current });
     }
   };
 
@@ -129,7 +132,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
     const color = failed ? "#f6a5a5" : done ? "#7ce7b0" : "#d4d4d8";
     return (
       <div>
-        <Eyebrow>{done ? "All done" : "Selling"}</Eyebrow>
+        <Eyebrow>{done ? t("allDone") : t("selling")}</Eyebrow>
         <div className="mt-3 flex items-center gap-[13px]">
           <AssetIcon sym={payload.symbol} bg="#26262b" size={44} logo={payload.logo} />
           <div className="min-w-0 flex-1">
@@ -139,20 +142,19 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         </div>
 
         <div className="ws-inset mt-4 p-4">
-          <div className="mb-2.5 text-[13px] font-medium text-white">{STAGE_COPY[stage]}</div>
+          <div className="mb-2.5 text-[13px] font-medium text-white">{t(STAGE_KEY[stage])}</div>
           <ProgressBar pct={progress.pct} color={color} />
           {done ? (
             <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
-              {proceeds ? `$${proceeds} ` : ""}
-              was added to your balance.
+              {proceeds ? t("proceedsAdded", { amount: proceeds }) : t("proceedsAddedFallback")}
             </p>
           ) : failed ? (
             <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
-              We couldn&apos;t complete your sale. Your {payload.symbol} stays in your wallet.
+              {t("saleFailedBody", { symbol: payload.symbol })}
             </p>
           ) : (
             <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/60">
-              This usually takes a moment. You can close this and it&apos;ll keep going.
+              {t("takesAMoment")}
             </p>
           )}
         </div>
@@ -161,7 +163,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
           onClick={onClose}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >
-          Done
+          {t("done")}
         </button>
       </div>
     );
@@ -169,7 +171,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
 
   return (
     <div>
-      <Eyebrow>Sell</Eyebrow>
+      <Eyebrow>{t("sell")}</Eyebrow>
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={payload.symbol} bg="#26262b" size={44} logo={payload.logo} />
         <div className="min-w-0 flex-1">
@@ -182,12 +184,12 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
 
       <div className="ws-inset mt-4 p-[15px]">
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
-          <span>Amount to sell</span>
+          <span>{t("amountToSell")}</span>
           <button
             onClick={() => setAmount(String(payload.balance))}
             className="tnum cursor-pointer text-white/55 hover:text-white"
           >
-            Balance {formatAmount(payload.balance)} {payload.symbol}
+            {t("balanceToken", { amount: formatAmount(payload.balance), symbol: payload.symbol })}
           </button>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -204,7 +206,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         </div>
         {overBalance ? (
           <div className="text-down mt-1.5 text-[12px] font-normal">
-            More than your {payload.symbol} balance
+            {t("overBalance", { symbol: payload.symbol })}
           </div>
         ) : null}
       </div>
@@ -216,29 +218,28 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
             onClick={() => setAmount(String((payload.balance * p) / 100))}
             className="flex-1 cursor-pointer rounded-[12px] border border-white/10 bg-white/4 py-2 font-sans text-[13px] font-medium text-white/75 transition-colors hover:bg-white/8"
           >
-            {p === 100 ? "Max" : `${p}%`}
+            {p === 100 ? t("max") : `${p}%`}
           </button>
         ))}
       </div>
 
       <div className="mt-3 flex items-center justify-between text-[13.5px] font-normal">
-        <span className="text-white/55">You get about</span>
+        <span className="text-white/55">{t("youGetAbout")}</span>
         <span className="tnum text-white">{value > 0 ? formatUsd(proceedsUsd) : "—"}</span>
       </div>
 
       <p className="mt-2 text-[12px] leading-[1.5] font-normal text-white/45">
-        Settles to your USDC balance on Base.
+        {t("settlesToUsdc")}
       </p>
 
       {noFee ? (
         <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-white/55">
-          You&apos;ll need a little {nativeSym} on {chainLabel} to cover the network fee. Add some,
-          then try again.
+          {t("needGasFee", { symbol: nativeSym, network: chainLabel })}
         </p>
       ) : null}
       {sell.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
-          {friendlyError(sell.error, "We couldn't complete your sale. Please try again.")}
+          {friendlyError(sell.error, t("saleFailedFallback"))}
         </p>
       ) : null}
 
@@ -248,12 +249,12 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {value <= 0
-          ? "Enter an amount"
+          ? t("enterAmount")
           : overBalance
-            ? "Not enough balance"
+            ? t("notEnoughBalance")
             : sell.isPending
-              ? "Confirming…"
-              : `Sell ${payload.name}`}
+              ? t("confirming")
+              : t("sellToken", { name: payload.name })}
       </button>
     </div>
   );

@@ -23,10 +23,15 @@ export interface NavItem {
   icon: (props: { size?: number }) => React.ReactNode;
 }
 
-export function buildNav(interest: string | null): NavItem[] {
+// `translate` localizes the labels (a next-intl t scoped to "sections");
+// without it the English SECTION_LABEL stands in.
+export function buildNav(
+  interest: string | null,
+  translate?: (id: SectionId) => string
+): NavItem[] {
   return orderedSections(interest).map((id) => ({
     id,
-    label: SECTION_LABEL[id],
+    label: translate ? translate(id) : SECTION_LABEL[id],
     icon: SECTION_ICONS[id],
   }));
 }

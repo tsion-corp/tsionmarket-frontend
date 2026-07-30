@@ -1,14 +1,25 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { CheckIcon } from "@/components/ui/icons";
 import { depositProgress, type DepositStage } from "@/lib/deposit";
 
-const STEPS: { stage: DepositStage; label: string }[] = [
-  { stage: "detected", label: "Detected" },
-  { stage: "processing", label: "Bridging" },
-  { stage: "settled", label: "Settled" },
+const STEPS: { stage: DepositStage; labelKey: string }[] = [
+  { stage: "detected", labelKey: "stageDetected" },
+  { stage: "processing", labelKey: "stageBridging" },
+  { stage: "settled", labelKey: "stageSettled" },
 ];
+
+// Localized headline per stage. Mirrors the stages depositProgress can return.
+const STATUS_KEY: Record<DepositStage, string> = {
+  waiting: "statusWaiting",
+  detected: "statusDetected",
+  processing: "statusProcessing",
+  settled: "statusSettled",
+  refunded: "statusRefunded",
+  failed: "statusFailed",
+};
 
 const RANK: Record<DepositStage, number> = {
   waiting: 0,
@@ -35,6 +46,7 @@ export function DepositStatus({
   isError = false,
   onRetry,
 }: DepositStatusProps) {
+  const t = useTranslations("fundsFlow");
   const progress = depositProgress(status, executionStatus);
   const failed = progress.stage === "failed" || progress.stage === "refunded";
   const current = RANK[progress.stage];
@@ -43,11 +55,11 @@ export function DepositStatus({
   return (
     <div className="ws-inset mt-4 p-4">
       <div className="mb-2.5 flex items-center justify-between">
-        <span className="text-[13px] font-medium text-white">{progress.label}</span>
+        <span className="text-[13px] font-medium text-white">{t(STATUS_KEY[progress.stage])}</span>
         {!progress.terminal ? (
           <span className="text-accent inline-flex items-center gap-1.5 text-[11.5px] font-normal">
             <span className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full" />
-            Live
+            {t("live")}
           </span>
         ) : null}
       </div>
@@ -68,7 +80,7 @@ export function DepositStatus({
                 <span
                   className={`text-[11.5px] font-normal ${done ? "text-white/80" : "text-white/40"}`}
                 >
-                  {step.label}
+                  {t(step.labelKey)}
                 </span>
               </span>
             );
@@ -76,19 +88,17 @@ export function DepositStatus({
         </div>
       ) : (
         <p className="mt-2 text-[12px] leading-normal font-normal text-white/60">
-          {progress.stage === "refunded"
-            ? "The deposit was refunded to the sending wallet."
-            : "The deposit could not be completed. Any funds are refunded to the sender."}
+          {progress.stage === "refunded" ? t("depositRefundedNote") : t("depositFailedNote")}
         </p>
       )}
       {isError ? (
         <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/8 pt-2.5">
-          <span className="text-down text-[12px] font-normal">Couldn&apos;t check status</span>
+          <span className="text-down text-[12px] font-normal">{t("statusCheckFailed")}</span>
           <button
             onClick={onRetry}
             className="text-accent cursor-pointer text-[12px] font-medium hover:underline"
           >
-            Retry
+            {t("retry")}
           </button>
         </div>
       ) : null}

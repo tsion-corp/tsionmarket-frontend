@@ -1,17 +1,12 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { ComingSoon } from "@/components/dashboard/funds/coming-soon";
 import { FlagIcon } from "@/components/ui/flag-icon";
 import { useFx } from "@/hooks/use-fx";
 import { formatAmount } from "@/lib/trade/math";
-import {
-  feeUsd,
-  maskNumber,
-  PAYOUT_METHOD_LABEL,
-  recipientReceives,
-  totalDebitUsd,
-} from "@/lib/cross-border";
+import { feeUsd, maskNumber, recipientReceives, totalDebitUsd } from "@/lib/cross-border";
 import type { RemitForm } from "@/components/dashboard/remit/remit-types";
 
 interface ReviewStepProps {
@@ -33,6 +28,7 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 // connected to a provider, so we present the real flow and are honest that the
 // send itself is coming, exactly as the bank off-ramp does.
 export function ReviewStep({ form, onBack }: ReviewStepProps) {
+  const t = useTranslations("remit");
   const { rate } = useFx();
   const { country, method, network, recipientName, accountNumber, bankName, amountUsd } = form;
 
@@ -44,22 +40,18 @@ export function ReviewStep({ form, onBack }: ReviewStepProps) {
   const receives = recipientReceives(amount, country, localRate);
   const destinationLabel =
     method === "mobile_money"
-      ? `${network ? network.name : "Mobile money"} ${maskNumber(accountNumber)}`
+      ? `${network ? network.name : t("method_mobile_money")} ${maskNumber(accountNumber)}`
       : `${bankName} ${maskNumber(accountNumber)}`;
 
   return (
     <div>
-      <SheetNav
-        title="Review payment"
-        subtitle="Confirm the details before sending."
-        onBack={onBack}
-      />
+      <SheetNav title={t("reviewPayment")} subtitle={t("reviewSubtitle")} onBack={onBack} />
 
       <div className="ws-inset px-[15px] py-1.5">
-        <Row label="Recipient" value={recipientName} />
+        <Row label={t("recipient")} value={recipientName} />
         <div className="border-t border-white/6" />
         <Row
-          label="Destination"
+          label={t("destination")}
           value={
             <span className="flex items-center justify-end gap-2">
               <FlagIcon code={country.currency} symbol={country.currency} size={18} />
@@ -68,14 +60,17 @@ export function ReviewStep({ form, onBack }: ReviewStepProps) {
           }
         />
         <div className="border-t border-white/6" />
-        <Row label={PAYOUT_METHOD_LABEL[method]} value={destinationLabel} />
-        <div className="border-t border-white/6" />
-        <Row label="They receive" value={<span className="text-accent">{receives ?? "—"}</span>} />
-        <div className="border-t border-white/6" />
-        <Row label="Fee (1%)" value={`$${formatAmount(feeUsd(amount))}`} />
+        <Row label={t(`method_${method}`)} value={destinationLabel} />
         <div className="border-t border-white/6" />
         <Row
-          label="You pay"
+          label={t("theyReceive")}
+          value={<span className="text-accent">{receives ?? "—"}</span>}
+        />
+        <div className="border-t border-white/6" />
+        <Row label={t("fee")} value={`$${formatAmount(feeUsd(amount))}`} />
+        <div className="border-t border-white/6" />
+        <Row
+          label={t("youPay")}
           value={
             <span className="text-[15px] font-semibold">
               ${formatAmount(totalDebitUsd(amount))}
@@ -84,16 +79,15 @@ export function ReviewStep({ form, onBack }: ReviewStepProps) {
         />
       </div>
 
-      <ComingSoon title="Payouts almost ready">
-        Instant payouts to {country.name} are being finished with our payments partner. Your
-        recipient details are saved for when it goes live.
+      <ComingSoon title={t("payoutsAlmostReady")}>
+        {t("payoutsAlmostReadyBody", { country: country.name })}
       </ComingSoon>
 
       <button
         disabled
         className="text-ink mt-4 w-full cursor-not-allowed rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold opacity-50"
       >
-        Send payment
+        {t("sendPayment")}
       </button>
     </div>
   );

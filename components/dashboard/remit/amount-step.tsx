@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { useFx } from "@/hooks/use-fx";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -39,6 +40,7 @@ function Line({ label, value, strong }: { label: string; value: string; strong?:
 // balance comes from the portfolio total; the fee is a display estimate until
 // the payout provider returns a real quote.
 export function AmountStep({ country, amountUsd, onAmount, onBack, onNext }: AmountStepProps) {
+  const t = useTranslations("remit");
   const { totalUsd } = usePortfolio();
   const { rate } = useFx();
   const localRate = rate(country.currency);
@@ -53,19 +55,19 @@ export function AmountStep({ country, amountUsd, onAmount, onBack, onNext }: Amo
   return (
     <div>
       <SheetNav
-        title="Amount"
-        subtitle={`How much should ${country.name} receive?`}
+        title={t("amount")}
+        subtitle={t("amountSubtitle", { country: country.name })}
         onBack={onBack}
       />
 
       <div className="ws-inset p-[15px]">
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
-          <span>You send</span>
+          <span>{t("youSend")}</span>
           <button
             onClick={() => onAmount(String(Math.max(0, Math.floor(totalUsd * 100) / 100)))}
             className="cursor-pointer text-white/55 hover:text-white"
           >
-            Balance ${formatAmount(totalUsd)}
+            {t("balance", { amount: `$${formatAmount(totalUsd)}` })}
           </button>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -82,23 +84,25 @@ export function AmountStep({ country, amountUsd, onAmount, onBack, onNext }: Amo
           <span className="font-sans text-[15px] font-medium text-white/70">USD</span>
         </div>
         {over ? (
-          <div className="text-down mt-2 text-[12px] font-normal">
-            That is more than your balance after the fee.
-          </div>
+          <div className="text-down mt-2 text-[12px] font-normal">{t("overBalance")}</div>
         ) : null}
       </div>
 
       <div className="ws-inset mt-3 space-y-2.5 p-[15px]">
-        <Line label={`Recipient gets (${country.currency})`} value={receives ?? "—"} strong />
-        <Line label="Fee (1%)" value={valid ? `$${formatAmount(feeUsd(amount))}` : "—"} />
+        <Line
+          label={t("recipientGets", { currency: country.currency })}
+          value={receives ?? "—"}
+          strong
+        />
+        <Line label={t("fee")} value={valid ? `$${formatAmount(feeUsd(amount))}` : "—"} />
         <div className="border-t border-white/8 pt-2.5">
-          <Line label="Total to pay" value={valid ? `$${formatAmount(debit)}` : "—"} strong />
+          <Line label={t("totalToPay")} value={valid ? `$${formatAmount(debit)}` : "—"} strong />
         </div>
       </div>
 
       {localRate == null ? (
         <p className="mt-3 text-[12px] font-normal text-white/45">
-          Fetching the latest {country.currency} rate…
+          {t("fetchingRate", { currency: country.currency })}
         </p>
       ) : null}
 
@@ -107,7 +111,7 @@ export function AmountStep({ country, amountUsd, onAmount, onBack, onNext }: Amo
         disabled={!ready}
         className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Review payment
+        {t("reviewPayment")}
       </button>
     </div>
   );

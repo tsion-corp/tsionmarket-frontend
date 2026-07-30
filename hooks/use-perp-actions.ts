@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { readUsdcAllowance } from "@/lib/perp/allowance";
@@ -34,6 +35,7 @@ import type { BuildResult, OpenPosition, OpenTradeRequest } from "@/lib/perp/typ
 export type PerpPhase = "idle" | "building" | "signing" | "settling";
 
 export function usePerpActions() {
+  const t = useTranslations("perps");
   const sendBatch = useEvmSendBatch();
   const { positions, waitForChange, refetch, trader } = usePerpPositions();
   const [phase, setPhase] = useState<PerpPhase>("idle");
@@ -41,10 +43,10 @@ export function usePerpActions() {
   const openTrade = useCallback(
     async (req: Omit<OpenTradeRequest, "trader">): Promise<boolean> => {
       if (!trader) {
-        toast.error("No wallet is connected.");
+        toast.error(t("noWalletConnected"));
         return false;
       }
-      const toastId = toast.loading("Preparing your trade…");
+      const toastId = toast.loading(t("preparingTrade"));
       setPhase("building");
       try {
         const before = new Set(positions.map((p) => `${p.pairIndex}:${p.index}`));
@@ -59,47 +61,42 @@ export function usePerpActions() {
         builds.push(await buildOpenTrade({ ...req, trader }));
 
         setPhase("signing");
-        toast.loading("Confirming on Base…", { id: toastId });
+        toast.loading(t("confirmingOnBase"), { id: toastId });
         await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
 
         setPhase("settling");
-        toast.loading("Order placed. Waiting for the fill…", { id: toastId });
+        toast.loading(t("orderPlacedWaitingFill"), { id: toastId });
         const filled = await waitForChange((fresh) =>
           fresh.some((p) => !before.has(`${p.pairIndex}:${p.index}`))
         );
         if (filled) {
-          toast.success(`${req.isLong ? "Long" : "Short"} ${req.pair} is open.`, { id: toastId });
+          toast.success(t(req.isLong ? "longOpen" : "shortOpen", { pair: req.pair }), {
+            id: toastId,
+          });
         } else if (req.orderType === "market" || req.orderType === "market_zero_fee") {
           // The tx confirmed but the keeper has not filled inside our window;
           // for market orders that usually means a closed market or a stale
           // price. Say what actually happened rather than claiming a fill.
-          toast.info(
-            "Order registered. The fill is taking longer than usual; check back shortly.",
-            {
-              id: toastId,
-            }
-          );
+          toast.info(t("fillTakingLonger"), { id: toastId });
         } else {
           // Limit and stop orders rest until their trigger; not appearing in
           // open positions is the expected outcome.
-          toast.success(`${req.pair} order placed. It fills when your price is reached.`, {
-            id: toastId,
-          });
+          toast.success(t("orderRestsUntilTrigger", { pair: req.pair }), { id: toastId });
         }
         return true;
       } catch (error) {
-        toast.error(friendlyError(error, "The trade could not be opened."), { id: toastId });
+        toast.error(friendlyError(error, t("tradeOpenFailed")), { id: toastId });
         return false;
       } finally {
         setPhase("idle");
       }
     },
-    [trader, positions, sendBatch, waitForChange]
+    [trader, positions, sendBatch, waitForChange, t]
   );
 
   const closeTrade = useCallback(
     async (position: OpenPosition, collateralUsdc: string): Promise<boolean> => {
-      const toastId = toast.loading("Closing your position…");
+      const toastId = toast.loading(t("closingPosition"));
       setPhase("building");
       try {
         const key = `${position.pairIndex}:${position.index}`;
@@ -110,11 +107,11 @@ export function usePerpActions() {
         });
 
         setPhase("signing");
-        toast.loading("Confirming on Base…", { id: toastId });
+        toast.loading(t("confirmingOnBase"), { id: toastId });
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
 
         setPhase("settling");
-        toast.loading("Waiting for the close to settle…", { id: toastId });
+        toast.loading(t("waitingCloseSettle"), { id: toastId });
         const cleared = await waitForChange((fresh) => {
           const still = fresh.find((p) => `${p.pairIndex}:${p.index}` === key);
           if (!still) return true;
@@ -122,24 +119,24 @@ export function usePerpActions() {
           return still.initialCollateralUsdc !== position.initialCollateralUsdc;
         });
         if (cleared) {
-          toast.success("Position closed. Funds return to your USDC balance.", { id: toastId });
+          toast.success(t("positionClosed"), { id: toastId });
         } else {
-          toast.info("Close registered. Settlement is taking longer than usual.", { id: toastId });
+          toast.info(t("closeTakingLonger"), { id: toastId });
         }
         return true;
       } catch (error) {
-        toast.error(friendlyError(error, "The position could not be closed."), { id: toastId });
+        toast.error(friendlyError(error, t("closeFailed")), { id: toastId });
         return false;
       } finally {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange]
+    [sendBatch, waitForChange, t]
   );
 
   const updateTpSl = useCallback(
     async (position: OpenPosition, takeProfit: string, stopLoss: string): Promise<boolean> => {
-      const toastId = toast.loading("Updating take profit and stop loss…");
+      const toastId = toast.loading(t("updatingTpSl"));
       try {
         const build = await buildUpdateTpSl({
           pairIndex: position.pairIndex,
@@ -148,15 +145,15 @@ export function usePerpActions() {
           stopLoss,
         });
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
-        toast.success("Take profit and stop loss updated.", { id: toastId });
+        toast.success(t("tpSlUpdated"), { id: toastId });
         void refetch();
         return true;
       } catch (error) {
-        toast.error(friendlyError(error, "The update did not go through."), { id: toastId });
+        toast.error(friendlyError(error, t("updateFailed")), { id: toastId });
         return false;
       }
     },
-    [sendBatch, refetch]
+    [sendBatch, refetch, t]
   );
 
   const updateMargin = useCallback(
@@ -165,9 +162,7 @@ export function usePerpActions() {
       marginUsdc: string,
       direction: "deposit" | "withdraw"
     ): Promise<boolean> => {
-      const toastId = toast.loading(
-        direction === "deposit" ? "Adding margin…" : "Removing margin…"
-      );
+      const toastId = toast.loading(t(direction === "deposit" ? "addingMargin" : "removingMargin"));
       try {
         const build = await buildUpdateMargin({
           pairIndex: position.pairIndex,
@@ -176,15 +171,15 @@ export function usePerpActions() {
           direction,
         });
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
-        toast.success("Margin updated.", { id: toastId });
+        toast.success(t("marginUpdated"), { id: toastId });
         void refetch();
         return true;
       } catch (error) {
-        toast.error(friendlyError(error, "The margin change did not go through."), { id: toastId });
+        toast.error(friendlyError(error, t("marginChangeFailed")), { id: toastId });
         return false;
       }
     },
-    [sendBatch, refetch]
+    [sendBatch, refetch, t]
   );
 
   return { openTrade, closeTrade, updateTpSl, updateMargin, phase, busy: phase !== "idle" };

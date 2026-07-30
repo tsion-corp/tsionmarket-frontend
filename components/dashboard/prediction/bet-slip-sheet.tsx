@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import {
@@ -23,29 +24,42 @@ interface BetSlipSheetProps {
 // value, payout if it wins, profit or loss, and resolution date. Redeemable
 // positions can be claimed straight from here.
 export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps) {
+  const t = useTranslations("prediction");
   const slip = betSlip(position);
   const yes = slip.outcome.toLowerCase() === "yes";
   const outcomeColor = yes ? "#7CE7B0" : slip.outcome === "—" ? "#FFFFFF" : "#F6A5A5";
 
   const rows: StatLine[] = [
-    { k: "Amount staked", v: formatMoney(slip.staked) },
-    { k: "Shares", v: slip.shares.toFixed(2) },
-    { k: "Avg price", v: priceCents(slip.avgPrice) },
-    { k: "Current value", v: formatMoney(slip.currentValue) },
-    { k: "Payout if it wins", v: formatMoney(slip.payoutIfWins), c: "#7CE7B0" },
+    { k: t("amountStaked"), v: formatMoney(slip.staked) },
+    { k: t("shares"), v: slip.shares.toFixed(2) },
+    { k: t("avgPrice"), v: priceCents(slip.avgPrice) },
+    { k: t("currentValue"), v: formatMoney(slip.currentValue) },
+    { k: t("payoutIfWins"), v: formatMoney(slip.payoutIfWins), c: "#7CE7B0" },
     {
-      k: "Profit / loss",
+      k: t("profitLoss"),
       v: `${formatSignedMoney(slip.pnl)} (${slip.pnl >= 0 ? "+" : ""}${slip.pnlPct.toFixed(1)}%)`,
       c: slip.pnl >= 0 ? "#7CE7B0" : "#F6A5A5",
     },
   ];
   const claimable = isClaimable(slip.redeemable, slip.currentValue);
   const resolution = resolutionInfo(slip.redeemable, slip.resolvesAt, undefined, claimable);
-  if (resolution) rows.push(resolution);
+  if (resolution) {
+    // resolutionInfo returns English k/v pairs from pure, tested logic. Map the
+    // known strings to translations here; a date value passes through as is.
+    const statusValues: Record<string, string> = {
+      "Resolved · you won": t("resolvedYouWon"),
+      "Resolved · no win": t("resolvedNoWin"),
+      "Awaiting result": t("awaitingResult"),
+    };
+    rows.push({
+      k: resolution.k === "Status" ? t("statusLabel") : t("estResolutionLabel"),
+      v: statusValues[resolution.v] ?? resolution.v,
+    });
+  }
 
   return (
     <div>
-      <Eyebrow>Bet slip</Eyebrow>
+      <Eyebrow>{t("betSlip")}</Eyebrow>
 
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={slip.outcome} bg="#26262b" size={40} logo={slip.icon} />
@@ -55,7 +69,10 @@ export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps)
             <span style={{ color: outcomeColor }} className="font-medium">
               {slip.outcome}
             </span>
-            <span className="text-white/45"> · {priceCents(slip.avgPrice)} avg</span>
+            <span className="text-white/45">
+              {" "}
+              · {t("avgShort", { price: priceCents(slip.avgPrice) })}
+            </span>
           </div>
         </div>
       </div>
@@ -77,13 +94,11 @@ export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps)
           disabled={claiming}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {claiming ? "Claiming…" : `Claim ${formatMoney(slip.currentValue)}`}
+          {claiming ? t("claiming") : t("claimAmount", { amount: formatMoney(slip.currentValue) })}
         </button>
       ) : (
         <p className="mt-5 text-center text-xs font-normal text-white/45">
-          {slip.redeemable
-            ? "This market has resolved. There's nothing to claim on this position."
-            : "Settles on Polymarket when the market resolves."}
+          {slip.redeemable ? t("resolvedNothingToClaim") : t("settlesOnPolymarket")}
         </p>
       )}
     </div>

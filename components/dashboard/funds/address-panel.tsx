@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { CopyButton } from "@/components/ui/copy-button";
 import { QrCode } from "@/components/dashboard/funds/qr-code";
 import { truncateAddress } from "@/lib/format";
@@ -13,6 +14,7 @@ interface AddressPanelProps {
 // Deposit address with a QR, a copyable address, and a warning about what is
 // safe to send.
 export function AddressPanel({ address, tokenSymbol, chainName }: AddressPanelProps) {
+  const t = useTranslations("fundsFlow");
   return (
     <div>
       <div className="flex justify-center pt-1">
@@ -26,9 +28,11 @@ export function AddressPanel({ address, tokenSymbol, chainName }: AddressPanelPr
       </div>
       <div className="border-accent/25 bg-accent/10 mt-3 rounded-[14px] border px-4 py-3">
         <p className="text-[12.5px] leading-normal font-normal text-white/80">
-          Send only <span className="font-semibold text-white">{tokenSymbol}</span> on{" "}
-          <span className="font-semibold text-white">{chainName}</span> to this address. Anything
-          else may be lost.
+          {t.rich("sendOnlyWarning", {
+            symbol: tokenSymbol,
+            chain: chainName,
+            strong: (chunks) => <span className="font-semibold text-white">{chunks}</span>,
+          })}
         </p>
       </div>
     </div>

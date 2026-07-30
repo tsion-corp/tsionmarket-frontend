@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { PriceChart } from "@/components/ui/price-chart";
@@ -27,6 +28,7 @@ function Stat({ k, v }: { k: string; v: string }) {
 }
 
 export function RwaDetailSheet({ asset, onTrade }: RwaDetailSheetProps) {
+  const t = useTranslations("rwa");
   const yieldBearing = (asset.yieldApyBps ?? 0) > 0;
   const { points, loading, error } = useRwaYieldHistory(yieldBearing ? asset.id : null);
 
@@ -74,24 +76,24 @@ export function RwaDetailSheet({ asset, onTrade }: RwaDetailSheetProps) {
       ) : null}
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <Stat k="Price" v={price != null ? formatUsd(price) : "—"} />
-        <Stat k="APY" v={apy ?? "—"} />
-        <Stat k="TVL" v={formatCompactUsd(assetTvlUsd(asset))} />
-        <Stat k="Network" v={asset.chain} />
+        <Stat k={t("price")} v={price != null ? formatUsd(price) : "—"} />
+        <Stat k={t("apy")} v={apy ?? "—"} />
+        <Stat k={t("tvl")} v={formatCompactUsd(assetTvlUsd(asset))} />
+        <Stat k={t("network")} v={asset.chain} />
       </div>
 
       {yieldBearing ? (
         <div className="mt-4">
           <div className="mb-2 text-[12px] font-medium tracking-[0.02em] text-white/50 uppercase">
-            Yield history
+            {t("yieldHistory")}
           </div>
           {loading ? (
             <div className="ws-inset grid h-[200px] place-items-center text-[13px] font-normal text-white/45">
-              Loading yield history…
+              {t("loadingYieldHistory")}
             </div>
           ) : error || chartPoints.length === 0 ? (
             <div className="ws-inset grid h-[200px] place-items-center text-[13px] font-normal text-white/45">
-              No yield history yet.
+              {t("noYieldHistory")}
             </div>
           ) : (
             <PriceChart points={chartPoints} height={200} up={up} />
@@ -104,7 +106,7 @@ export function RwaDetailSheet({ asset, onTrade }: RwaDetailSheetProps) {
           onClick={() => onTrade(asset)}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-[15px] font-sans text-[15px] font-semibold hover:opacity-90"
         >
-          Buy {asset.symbol}
+          {t("buySymbol", { symbol: asset.symbol })}
         </button>
       ) : asset.issuerUrl ? (
         <a
@@ -113,7 +115,7 @@ export function RwaDetailSheet({ asset, onTrade }: RwaDetailSheetProps) {
           rel="noopener noreferrer"
           className="text-ink mt-5 flex w-full items-center justify-center gap-2 rounded-[14px] bg-white p-[15px] font-sans text-[15px] font-semibold hover:opacity-90"
         >
-          Open issuer
+          {t("openIssuer")}
           <ArrowUpRightIcon />
         </a>
       ) : null}

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { ArrowRightIcon } from "@/components/ui/icons";
 
 interface ContinueBarProps {
@@ -10,12 +11,13 @@ interface ContinueBarProps {
 }
 
 export function ContinueBar({ selectedTitle, onContinue, onSkip }: ContinueBarProps) {
+  const t = useTranslations("interests");
   const enabled = selectedTitle !== null;
   return (
     <div className="fixed right-0 bottom-0 left-0 z-50 flex justify-center bg-[linear-gradient(180deg,rgba(0,0,0,0)_0%,rgba(0,0,0,0.85)_40%,#000_100%)] px-6 pt-4 pb-[22px]">
       <div className="ws-glass flex w-[min(760px,100%)] items-center justify-between gap-[18px] rounded-full py-3 pr-3 pl-[22px]">
         <span className="text-sm font-normal text-white/85">
-          {selectedTitle === null ? "Pick one to continue" : `${selectedTitle} selected`}
+          {selectedTitle === null ? t("pickOne") : t("selectedLabel", { title: selectedTitle })}
         </span>
         <div className="flex items-center gap-2">
           <Link
@@ -23,7 +25,7 @@ export function ContinueBar({ selectedTitle, onContinue, onSkip }: ContinueBarPr
             onClick={onSkip}
             className="rounded-full px-4 py-3 font-sans text-sm font-medium text-white/70 hover:text-white"
           >
-            Skip
+            {t("skip")}
           </Link>
           <button
             onClick={onContinue}
@@ -32,7 +34,7 @@ export function ContinueBar({ selectedTitle, onContinue, onSkip }: ContinueBarPr
               enabled ? "cursor-pointer hover:opacity-90" : "cursor-not-allowed opacity-40"
             }`}
           >
-            Continue
+            {t("continue")}
             <ArrowRightIcon className="text-arrow" />
           </button>
         </div>

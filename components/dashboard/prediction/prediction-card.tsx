@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import type { Prediction } from "@/lib/types";
 
@@ -7,6 +8,7 @@ interface PredictionCardProps {
 }
 
 export function PredictionCard({ prediction: p, onBuy }: PredictionCardProps) {
+  const t = useTranslations("prediction");
   return (
     <div className="ws-beam ws-card relative flex h-full flex-col overflow-hidden rounded-[20px]">
       {p.image ? (
@@ -39,7 +41,7 @@ export function PredictionCard({ prediction: p, onBuy }: PredictionCardProps) {
         <div className="flex-1 font-sans text-[17px] leading-[1.3] font-medium">{p.q}</div>
         <div className="mt-2 flex items-center gap-2.5">
           <span className="ws-display text-accent text-[30px]">{p.yes}</span>
-          <span className="text-[13px] font-normal text-white/50">Yes</span>
+          <span className="text-[13px] font-normal text-white/50">{t("yesLabel")}</span>
         </div>
         <div className="mt-1.5">
           <ProgressBar pct={p.pct} />
@@ -49,13 +51,13 @@ export function PredictionCard({ prediction: p, onBuy }: PredictionCardProps) {
             onClick={() => onBuy(true)}
             className="border-up/35 bg-up/16 text-up hover:bg-up/22 cursor-pointer rounded-[11px] border p-[11px] font-sans text-[13.5px] font-semibold whitespace-nowrap"
           >
-            Buy Yes · {p.yes}
+            {t("buyYes", { price: p.yes })}
           </button>
           <button
             onClick={() => onBuy(false)}
             className="border-down/30 bg-down/12 text-down hover:bg-down/18 cursor-pointer rounded-[11px] border p-[11px] font-sans text-[13.5px] font-semibold whitespace-nowrap"
           >
-            Buy No · {p.no}
+            {t("buyNo", { price: p.no })}
           </button>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { SearchIcon } from "@/components/ui/icons";
 import type { DepositToken } from "@/lib/deposit";
@@ -25,6 +26,7 @@ function tokenKey(t: { chainId: number; address: string }): string {
 // Token picker for the chosen origin network. A flat, searchable list — no
 // dropdown — so the token is one tap from the network selection.
 export function TokenList({ tokens, selected, onSelect, loading, error, onRetry }: TokenListProps) {
+  const t = useTranslations("fundsFlow");
   const selectedKey = selected ? tokenKey(selected) : null;
   const [query, setQuery] = useState("");
 
@@ -46,23 +48,25 @@ export function TokenList({ tokens, selected, onSelect, loading, error, onRetry 
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search tokens"
+          placeholder={t("searchTokens")}
           className="w-full border-none bg-transparent text-[14px] text-white outline-none"
         />
       </div>
 
       {loading ? (
-        <div className="py-6 text-center text-[13px] font-normal text-white/50">Loading tokens</div>
+        <div className="py-6 text-center text-[13px] font-normal text-white/50">
+          {t("loadingTokens")}
+        </div>
       ) : error ? (
         <div className="py-6 text-center text-[13px] font-normal text-white/50">
-          Couldn&apos;t load tokens.{" "}
+          {t("loadTokensError")}{" "}
           <button onClick={onRetry} className="text-accent cursor-pointer">
-            Retry
+            {t("retry")}
           </button>
         </div>
       ) : list.length === 0 ? (
         <div className="py-6 text-center text-[13px] font-normal text-white/50">
-          No tokens match your search.
+          {t("noTokensMatch")}
         </div>
       ) : (
         <div className="mt-2 flex max-h-[46vh] flex-col gap-1 overflow-y-auto pr-0.5">

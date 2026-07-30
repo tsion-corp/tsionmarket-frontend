@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -46,6 +47,7 @@ const columns = [
 ];
 
 export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
+  const t = useTranslations("markets");
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "mcap", desc: true }]);
   const { data: tokens = [], isLoading, isError } = useMarketTokens("popular");
@@ -82,25 +84,30 @@ export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
   const { pageIndex } = table.getState().pagination;
   const pageCount = table.getPageCount();
 
-  const openToken = (t: MarketToken) =>
+  const openToken = (token: MarketToken) =>
     onOpenDetail({
-      sym: t.symbol,
-      name: t.name,
-      sub: t.symbol,
-      price: formatUsd(t.priceUsd),
-      chg: changeLabel(t.change24h),
+      sym: token.symbol,
+      name: token.name,
+      sub: token.symbol,
+      price: formatUsd(token.priceUsd),
+      chg: changeLabel(token.change24h),
       bg: ICON_BG,
-      coingeckoId: t.id,
-      up: t.change24h >= 0,
-      logo: t.logo,
+      coingeckoId: token.id,
+      up: token.change24h >= 0,
+      logo: token.logo,
       stats: [
-        { k: "Price", v: formatUsd(t.priceUsd) },
-        { k: "24h change", v: changeLabel(t.change24h) },
-        { k: "Market cap", v: compactUsd(t.marketCap) },
+        { k: t("price"), v: formatUsd(token.priceUsd) },
+        { k: t("change24hFull"), v: changeLabel(token.change24h) },
+        { k: t("marketCap"), v: compactUsd(token.marketCap) },
       ],
-      cta: `Buy ${t.name}`,
+      cta: t("buyToken", { name: token.name }),
       onCta: () =>
-        onOpenBuy({ symbol: t.symbol, name: t.name, priceUsd: t.priceUsd, logo: t.logo }),
+        onOpenBuy({
+          symbol: token.symbol,
+          name: token.name,
+          priceUsd: token.priceUsd,
+          logo: token.logo,
+        }),
     });
 
   const sortHeader = (id: string, label: string, className: string) => {
@@ -121,14 +128,14 @@ export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <Eyebrow>Markets</Eyebrow>
+      <Eyebrow>{t("title")}</Eyebrow>
       <div className="mt-3.5 flex justify-start">
         <div className="flex w-full max-w-[340px] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
           <SearchIcon />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tokens"
+            placeholder={t("searchPlaceholder")}
             className="min-w-0 flex-1 border-none bg-transparent text-[13.5px] font-normal text-white outline-none"
           />
         </div>
@@ -136,50 +143,54 @@ export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
 
       <div className="ws-card mt-4 overflow-hidden">
         <div className="grid grid-cols-[1.6fr_1fr] gap-3.5 px-4 py-4 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr] sm:px-6">
-          <span>Asset</span>
-          {sortHeader("price", "Price", "justify-end")}
-          {sortHeader("change", "24h", "hidden justify-end min-[560px]:flex")}
-          {sortHeader("mcap", "Market cap", "hidden justify-end min-[560px]:flex")}
+          <span>{t("asset")}</span>
+          {sortHeader("price", t("price"), "justify-end")}
+          {sortHeader("change", t("change24h"), "hidden justify-end min-[560px]:flex")}
+          {sortHeader("mcap", t("marketCap"), "hidden justify-end min-[560px]:flex")}
         </div>
 
         {loading ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            Loading markets…
+            {t("loadingMarkets")}
           </div>
         ) : isError ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            Live market prices are unavailable right now. Please try again shortly.
+            {t("marketsUnavailable")}
           </div>
         ) : rows.length === 0 ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
-            No tokens match your search.
+            {t("noResults")}
           </div>
         ) : (
           rows.map((row) => {
-            const t = row.original;
+            const token = row.original;
             return (
               <div
-                key={t.id}
-                onClick={() => openToken(t)}
+                key={token.id}
+                onClick={() => openToken(token)}
                 className="grid cursor-pointer grid-cols-[1.6fr_1fr] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr] sm:px-6"
               >
                 <div className="flex min-w-0 items-center gap-3">
-                  <AssetIcon sym={t.symbol} bg={ICON_BG} logo={t.logo} />
+                  <AssetIcon sym={token.symbol} bg={ICON_BG} logo={token.logo} />
                   <div className="min-w-0">
-                    <div className="truncate font-sans text-[14.5px] font-medium">{t.symbol}</div>
-                    <div className="truncate text-xs font-normal text-white/50">{t.name}</div>
+                    <div className="truncate font-sans text-[14.5px] font-medium">
+                      {token.symbol}
+                    </div>
+                    <div className="truncate text-xs font-normal text-white/50">{token.name}</div>
                   </div>
                 </div>
-                <span className="tnum text-right text-sm font-normal">{formatUsd(t.priceUsd)}</span>
+                <span className="tnum text-right text-sm font-normal">
+                  {formatUsd(token.priceUsd)}
+                </span>
                 <span
                   className={`tnum hidden text-right text-[13.5px] font-normal min-[560px]:block ${
-                    t.change24h >= 0 ? "text-up" : "text-down"
+                    token.change24h >= 0 ? "text-up" : "text-down"
                   }`}
                 >
-                  {changeLabel(t.change24h)}
+                  {changeLabel(token.change24h)}
                 </span>
                 <span className="tnum hidden text-right text-[13px] font-normal text-white/60 min-[560px]:block">
-                  {compactUsd(t.marketCap)}
+                  {compactUsd(token.marketCap)}
                 </span>
               </div>
             );
@@ -189,7 +200,7 @@ export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
         {!loading && !isError && rows.length > 0 ? (
           <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
             <span className="text-[12.5px] font-normal text-white/45">
-              Page {pageIndex + 1} of {pageCount}
+              {t("pageOf", { page: pageIndex + 1, pages: pageCount })}
             </span>
             <div className="flex gap-2">
               <button
@@ -197,14 +208,14 @@ export function MarketsView({ onOpenDetail, onOpenBuy }: MarketsViewProps) {
                 disabled={!table.getCanPreviousPage()}
                 className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Prev
+                {t("prev")}
               </button>
               <button
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
                 className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Next
+                {t("next")}
               </button>
             </div>
           </div>

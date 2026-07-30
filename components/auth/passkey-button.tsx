@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLoginWithPasskey } from "@privy-io/react-auth";
+import { useTranslations } from "next-intl";
 import { hasPasskeyDevice, markPasskeyDevice } from "@/lib/preferences";
 import { toast } from "@/lib/toast";
 
@@ -28,12 +29,13 @@ function PasskeyIcon() {
 }
 
 export function PasskeyButton() {
+  const t = useTranslations("auth");
   const [visible] = useState(hasPasskeyDevice);
   const { loginWithPasskey, state } = useLoginWithPasskey({
     onComplete: () => markPasskeyDevice(),
     onError: (err) => {
       console.error("Passkey login failed:", err);
-      toast.error("Passkey sign-in didn't work. Use your usual sign-in instead.");
+      toast.error(t("passkeyError"));
     },
   });
 
@@ -51,11 +53,9 @@ export function PasskeyButton() {
         <span className="text-accent">
           <PasskeyIcon />
         </span>
-        {busy ? "Waiting for your passkey…" : "Sign in with a passkey"}
+        {busy ? t("passkeyWaiting") : t("passkeySignIn")}
       </button>
-      <p className="text-xs font-normal text-white/40">
-        Welcome back. Your passkey is the fastest way in.
-      </p>
+      <p className="text-xs font-normal text-white/40">{t("passkeyHint")}</p>
     </div>
   );
 }

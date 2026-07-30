@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { TsionMark } from "@/components/ui/tsion-mark";
 
 interface DashboardFooterProps {
@@ -13,6 +14,7 @@ interface DashboardFooterProps {
 // Footer for the authenticated dashboard. The copy stays honest about the
 // self-custody, at-your-own-risk nature of the app.
 export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
+  const t = useTranslations("dashFooter");
   const year = new Date().getFullYear();
 
   return (
@@ -25,7 +27,7 @@ export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
               <span className="ws-display text-[17px]">TSION</span>
             </div>
             <p className="mt-3 text-[13px] leading-[1.6] font-normal text-white/55">
-              Self-custody markets for everyone. Your keys, your money, your call.
+              {t("tagline")}
             </p>
           </div>
 
@@ -44,12 +46,9 @@ export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 pt-6">
           <span className="text-[13px] font-normal text-white/40">
-            © {year} TSION. All rights reserved.
+            {t("rights", { year, brand: "TSION" })}
           </span>
-          <span className="max-w-[62ch] text-xs font-normal text-white/35">
-            Crypto, tokenized assets, and prediction markets carry risk, including loss of
-            principal. Nothing here is financial advice.
-          </span>
+          <span className="max-w-[62ch] text-xs font-normal text-white/35">{t("disclaimer")}</span>
         </div>
       </div>
     </footer>

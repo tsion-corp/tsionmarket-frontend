@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { CheckIcon, CopyIcon } from "@/components/ui/icons";
@@ -13,6 +14,7 @@ interface CopyButtonProps {
 }
 
 export function CopyButton({ value }: CopyButtonProps) {
+  const t = useTranslations("common");
   const [copied, setCopied] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -28,7 +30,7 @@ export function CopyButton({ value }: CopyButtonProps) {
       toast.error("Couldn't copy. Long-press the address instead.");
       return;
     }
-    toast.success("Address copied");
+    toast.success(t("addressCopied"));
     setCopied(true);
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setCopied(false), RESET_MS);
@@ -37,7 +39,7 @@ export function CopyButton({ value }: CopyButtonProps) {
   return (
     <button
       onClick={copy}
-      aria-label={copied ? "Copied" : "Copy"}
+      aria-label={copied ? t("copied") : t("copy")}
       className="grid h-[30px] w-[30px] shrink-0 cursor-pointer place-items-center rounded-full border border-white/12 bg-white/6 text-white/60 transition-colors hover:bg-white/10 hover:text-white"
     >
       <AnimatePresence mode="wait" initial={false}>

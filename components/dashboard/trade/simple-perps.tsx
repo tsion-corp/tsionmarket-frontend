@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { AssetChart } from "@/components/ui/asset-chart";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
@@ -34,6 +35,7 @@ const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const LEVERAGE_MARKS = [2, 5, 10, 20];
 
 export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
+  const t = useTranslations("perps");
   const simplePairs = useMemo(
     () =>
       SIMPLE_SYMBOLS.map((s) => pairs.find((p) => pairSymbol(p) === s)).filter(
@@ -75,7 +77,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
 
   const validation = pair
     ? validateOrder(pair, collateral, String(clampedLeverage), usdcBalance.toFixed(6))
-    : { ok: false as const, message: "Market unavailable." };
+    : { ok: false as const, message: t("marketUnavailable") };
 
   const collateralNum = parseFloat(collateral) || 0;
   const size = collateralNum * clampedLeverage;
@@ -101,14 +103,16 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
   };
 
   const cta = !live
-    ? "Live trading connects soon"
+    ? t("liveTradingConnectsSoon")
     : actions.busy
-      ? "Working…"
+      ? t("working")
       : collateral === ""
-        ? "Enter an amount"
+        ? t("enterAmount")
         : !validation.ok
-          ? validation.message
-          : `${side === "long" ? "Long" : "Short"} ${baseSym} · ${clampedLeverage}x`;
+          ? validation.code
+            ? t(`v_${validation.code}`, validation.params)
+            : validation.message
+          : t(side === "long" ? "ctaLong" : "ctaShort", { sym: baseSym, lev: clampedLeverage });
 
   const pairByIndex = useMemo(() => new Map(pairs.map((p) => [p.pairIndex, p])), [pairs]);
 
@@ -153,7 +157,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
                 : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
             }`}
           >
-            Long ↑
+            {t("long")} ↑
           </button>
           <button
             onClick={() => setSide("short")}
@@ -163,22 +167,24 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
                 : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
             }`}
           >
-            Short ↓
+            {t("short")} ↓
           </button>
         </div>
 
         {/* Collateral. */}
         <div className="ws-inset mt-3 p-4">
           <div className="mb-2 flex items-center justify-between text-xs font-normal text-white/55">
-            <span>You&apos;re paying</span>
+            <span>{t("yourePaying")}</span>
             <span className="flex items-center gap-2">
-              <span className="tnum">Balance {formatAmount(usdcBalance)} USDC</span>
+              <span className="tnum">
+                {t("balance")} {formatAmount(usdcBalance)} USDC
+              </span>
               {usdcBalance > 0 ? (
                 <button
                   onClick={() => setCollateral(usdcBalance.toFixed(2))}
                   className="text-accent cursor-pointer font-medium hover:opacity-80"
                 >
-                  Max
+                  {t("max")}
                 </button>
               ) : null}
             </span>
@@ -198,7 +204,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
         {/* Leverage. */}
         <div className="ws-inset mt-3 p-4">
           <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-normal text-white/55">Leverage</span>
+            <span className="text-xs font-normal text-white/55">{t("leverage")}</span>
             <span className="text-accent font-sans text-sm font-semibold">{clampedLeverage}x</span>
           </div>
           <input
@@ -226,19 +232,19 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
         {/* Trade summary. Backend figures where quoted, local estimates otherwise. */}
         <div className="ws-inset mt-3 flex flex-col gap-2 p-4 text-[12.5px] font-normal">
           <div className="flex justify-between">
-            <span className="text-white/55">Position size</span>
+            <span className="text-white/55">{t("positionSize")}</span>
             <span className="tnum text-white">{formatAmount(size)} USDC</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-white/55">Entry price</span>
+            <span className="text-white/55">{t("entryPrice")}</span>
             <span className="tnum text-white">{priceNum > 0 ? formatUsd(priceNum) : "—"}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-white/55">Est. liquidation</span>
+            <span className="text-white/55">{t("estLiquidation")}</span>
             <span className="tnum text-down">{liq > 0 ? formatUsd(liq) : "—"}</span>
           </div>
           <div className="flex justify-between">
-            <span className="text-white/55">Opening fee</span>
+            <span className="text-white/55">{t("openingFee")}</span>
             <span className="tnum text-white">
               {quoteLoading
                 ? "…"
@@ -248,7 +254,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
             </span>
           </div>
           <div className="flex justify-between">
-            <span className="text-white/55">Execution fee</span>
+            <span className="text-white/55">{t("executionFee")}</span>
             <span className="tnum text-white">{quote ? `${quote.executionFeeEth} ETH` : "—"}</span>
           </div>
         </div>
@@ -263,9 +269,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
           {cta}
         </button>
         {live && !hasBaseEth ? (
-          <p className="mt-2 text-center text-xs font-normal text-white/45">
-            Opening needs a little ETH on Base for the execution fee (~0.00035 ETH).
-          </p>
+          <p className="mt-2 text-center text-xs font-normal text-white/45">{t("ethFeeHint")}</p>
         ) : null}
       </div>
 
@@ -276,7 +280,7 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
             <div className="min-w-0 flex-1">
               <div className="font-sans text-[15px] font-semibold">{symbol}</div>
               <div className="text-xs font-normal text-white/50">
-                {findAsset(baseSym)?.name ?? baseSym} perpetual
+                {t("perpetualOf", { name: findAsset(baseSym)?.name ?? baseSym })}
               </div>
             </div>
             <div className="ws-display tnum text-[19px]">

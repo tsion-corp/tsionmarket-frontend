@@ -67,8 +67,17 @@ export function minPositionBaseUnits(category: PerpCategory): bigint {
 
 export interface OrderValidation {
   ok: boolean;
-  // User-facing reason when not ok.
+  // User-facing reason when not ok. English fallback; `code` lets the UI
+  // render the same reason in the active language.
   message?: string;
+  code?:
+    | "enterCollateral"
+    | "enterLeverage"
+    | "overMaxLeverage"
+    | "underMinLeverage"
+    | "underMinPosition"
+    | "overBalance";
+  params?: Record<string, string | number>;
 }
 
 // Validates an order before any build call, so a trade that would revert
@@ -80,27 +89,37 @@ export function validateOrder(
   balanceUsdc?: string
 ): OrderValidation {
   if (!isPositiveWireDecimal(collateralUsdc)) {
-    return { ok: false, message: "Enter a collateral amount." };
+    return { ok: false, message: "Enter a collateral amount.", code: "enterCollateral" };
   }
   if (!isPositiveWireDecimal(leverage)) {
-    return { ok: false, message: "Enter a leverage." };
+    return { ok: false, message: "Enter a leverage.", code: "enterLeverage" };
   }
   const leverageHundredths = toBaseUnits(leverage, 2);
   if (leverageHundredths > BigInt(pair.maxLeverage) * 100n) {
-    return { ok: false, message: `Max leverage for this market is ${pair.maxLeverage}x.` };
+    return {
+      ok: false,
+      message: `Max leverage for this market is ${pair.maxLeverage}x.`,
+      code: "overMaxLeverage",
+      params: { max: pair.maxLeverage },
+    };
   }
   if (leverageHundredths < 100n) {
-    return { ok: false, message: "Leverage must be at least 1x." };
+    return { ok: false, message: "Leverage must be at least 1x.", code: "underMinLeverage" };
   }
   const size = positionSizeBaseUnits(collateralUsdc, leverage);
   const min = minPositionBaseUnits(pair.category);
   if (size < min) {
     const minUsd = Number(min / 10n ** 6n);
-    return { ok: false, message: `Minimum position for this market is about $${minUsd}.` };
+    return {
+      ok: false,
+      message: `Minimum position for this market is about $${minUsd}.`,
+      code: "underMinPosition",
+      params: { min: minUsd },
+    };
   }
   if (balanceUsdc != null && isWireDecimal(balanceUsdc)) {
     if (collateralBaseUnits(collateralUsdc) > collateralBaseUnits(balanceUsdc)) {
-      return { ok: false, message: "That is more than your USDC balance." };
+      return { ok: false, message: "That is more than your USDC balance.", code: "overBalance" };
     }
   }
   return { ok: true };

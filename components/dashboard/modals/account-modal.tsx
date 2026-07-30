@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
 import { Avatar } from "@/components/dashboard/avatar";
 import { WalletList } from "@/components/dashboard/wallet-list";
@@ -36,6 +37,7 @@ function PasskeyIcon({ size = 20 }: { size?: number }) {
 }
 
 export function AccountModal({ onClose }: AccountModalProps) {
+  const t = useTranslations("account");
   const { user } = usePrivy();
   const router = useRouter();
   const { logout } = useLogout({
@@ -44,11 +46,11 @@ export function AccountModal({ onClose }: AccountModalProps) {
   const { linkWithPasskey } = useLinkWithPasskey({
     onSuccess: () => {
       markPasskeyDevice();
-      toast.success("Passkey added. Use it next time you sign in.");
+      toast.success(t("passkeyAdded"));
     },
     onError: (err) => {
       console.error("Passkey linking failed:", err);
-      toast.error("Couldn't add a passkey. Try again.");
+      toast.error(t("passkeyFailed"));
     },
   });
   const profile = deriveProfile(user);
@@ -73,16 +75,16 @@ export function AccountModal({ onClose }: AccountModalProps) {
             <span className="text-accent">
               <PasskeyIcon />
             </span>
-            Add a passkey for faster sign-in
+            {t("addPasskey")}
           </button>
         ) : null}
         <button onClick={onClose} className={`${item} text-white`}>
           <HelpIcon size={20} />
-          Help &amp; support
+          {t("helpSupport")}
         </button>
         <button onClick={() => logout()} className={`${item} text-down`}>
           <SignOutIcon size={20} />
-          Sign out
+          {t("signOut")}
         </button>
       </div>
     </div>

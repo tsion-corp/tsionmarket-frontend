@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import useEmblaCarousel from "embla-carousel-react";
 import { PredictionCard } from "@/components/dashboard/prediction/prediction-card";
 import type { Prediction } from "@/lib/types";
@@ -11,6 +12,7 @@ interface PredictionSliderProps {
 }
 
 export function PredictionSlider({ predictions, onBuy }: PredictionSliderProps) {
+  const t = useTranslations("prediction");
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", dragFree: false, loop: false });
   const [selected, setSelected] = useState(0);
 
@@ -41,7 +43,7 @@ export function PredictionSlider({ predictions, onBuy }: PredictionSliderProps) 
           <button
             key={p.q}
             onClick={() => emblaApi?.scrollTo(i)}
-            aria-label={`Go to prediction ${i + 1}`}
+            aria-label={t("goToPrediction", { number: i + 1 })}
             className={`h-1.5 rounded-full transition-all ${
               i === selected ? "bg-accent w-5" : "w-1.5 bg-white/25"
             }`}
