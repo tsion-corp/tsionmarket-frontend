@@ -5,6 +5,7 @@ import type {
   BuildResult,
   OpenPosition,
   OpenTradeRequest,
+  PerpOrder,
   PerpPair,
   PerpPairMarket,
   PerpPrice,
@@ -74,6 +75,14 @@ export async function fetchPerpPositions(trader: string): Promise<OpenPosition[]
   );
 }
 
+// Pending (unfilled) limit and stop orders; they rest here until the keeper
+// fills them at their trigger price, or the user cancels.
+export async function fetchPerpOrders(trader: string): Promise<PerpOrder[]> {
+  return unwrap<PerpOrder[]>(
+    await apiFetch(`/api/perp/orders?trader=${encodeURIComponent(trader)}`)
+  );
+}
+
 export interface QuoteRequest {
   pair: string;
   isLong: boolean;
@@ -131,4 +140,11 @@ export async function buildUpdateTpSl(req: {
   stopLoss?: string;
 }): Promise<BuildResult> {
   return post<BuildResult>("/api/perp/build/update-tp-sl", req);
+}
+
+export async function buildCancelOrder(req: {
+  pairIndex: number;
+  orderIndex: number;
+}): Promise<BuildResult> {
+  return post<BuildResult>("/api/perp/build/cancel-order", req);
 }

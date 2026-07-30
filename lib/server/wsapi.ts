@@ -23,7 +23,7 @@ export function rwaRevalidate(path: string): number | undefined {
 // The perp surface: reads plus the quote and the non-custodial build calls that
 // return unsigned transaction steps. Nothing else is forwarded.
 const PERP_ALLOWED =
-  /^(health|pairs|market|prices|snapshot|trades|quote|build\/(approve-usdc|open-trade|close-trade|update-margin|update-tp-sl|cancel-order))$/;
+  /^(health|pairs|market|prices|snapshot|trades|orders|quote|build\/(approve-usdc|open-trade|close-trade|update-margin|update-tp-sl|cancel-order))$/;
 
 export function isAllowedPerpPath(path: string): boolean {
   return PERP_ALLOWED.test(path);
@@ -31,8 +31,8 @@ export function isAllowedPerpPath(path: string): boolean {
 
 // Pair config barely changes; live prices and per-market metrics turn over in
 // seconds, so a short shared cache collapses concurrent users into one upstream
-// call without serving stale marks. Trades are polled after keeper-executed
-// fills and must always be fresh.
+// call without serving stale marks. Trades and pending orders are polled after
+// keeper-executed fills and cancels, so they must always be fresh.
 export function perpRevalidate(path: string): number | undefined {
   if (path === "pairs") return 300;
   if (path === "prices" || path === "market") return 3;

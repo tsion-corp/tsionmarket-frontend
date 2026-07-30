@@ -18,6 +18,10 @@ import type { PerpPair, PerpPairMarket, PerpPrice } from "@/lib/perp/types";
 // hiding real failures behind it.
 
 const PRICE_POLL_MS = 5_000;
+// When the WebSocket stream is delivering (see use-perp-price-stream), REST
+// becomes the first-paint seed and a safety net, per the gateway's "do not
+// poll for live updates" guidance — so it drops to a slow background cadence.
+const PRICE_POLL_SLOW_MS = 30_000;
 const MARKET_POLL_MS = 5_000;
 const PAIRS_STALE_MS = 5 * 60 * 1000;
 
@@ -44,13 +48,14 @@ export function usePerpPairs() {
   };
 }
 
-export function usePerpPrices(enabled: boolean) {
+export function usePerpPrices(enabled: boolean, streaming = false) {
+  const pollMs = streaming ? PRICE_POLL_SLOW_MS : PRICE_POLL_MS;
   const query = useQuery<PerpPrice[]>({
     queryKey: ["perp-prices"],
     queryFn: fetchPerpPrices,
     enabled,
-    refetchInterval: PRICE_POLL_MS,
-    staleTime: PRICE_POLL_MS,
+    refetchInterval: pollMs,
+    staleTime: pollMs,
     retry: retryUnlessUnavailable,
   });
   // Keyed by pair symbol for O(1) lookups from the pair list rows.

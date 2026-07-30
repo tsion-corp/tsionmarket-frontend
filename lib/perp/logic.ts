@@ -49,11 +49,11 @@ export function positionSizeBaseUnits(collateralUsdc: string, leverage: string):
   return (collateral * leverageHundredths) / 100n;
 }
 
-// Minimum position sizes per category, in USDC. The API does not expose a
-// per-pair minimum yet, so these follow the backend guidance: crypto majors
-// about $100, everything else about $300. Replace with pair.minPositionUsdc
-// once the API adds it.
-const MIN_POSITION_USDC: Record<PerpCategory, bigint> = {
+// Fallback minimum position sizes per category, in USDC, for pairs that do
+// not carry minPositionUsdc (the synthesized preview pairs, or an older
+// gateway). The live gateway serves a per-pair value that varies from $10 to
+// $300, so the pair's own figure always wins.
+const FALLBACK_MIN_POSITION_USDC: Record<PerpCategory, bigint> = {
   crypto: 100n * 10n ** 6n,
   forex: 300n * 10n ** 6n,
   commodities: 300n * 10n ** 6n,
@@ -61,8 +61,10 @@ const MIN_POSITION_USDC: Record<PerpCategory, bigint> = {
   other: 300n * 10n ** 6n,
 };
 
-export function minPositionBaseUnits(category: PerpCategory): bigint {
-  return MIN_POSITION_USDC[category];
+export function minPositionBaseUnits(pair: PerpPair): bigint {
+  const min = pair.minPositionUsdc;
+  if (min != null && WIRE_DECIMAL.test(min)) return toBaseUnits(min, USDC_DECIMALS);
+  return FALLBACK_MIN_POSITION_USDC[pair.category];
 }
 
 export interface OrderValidation {
@@ -107,12 +109,12 @@ export function validateOrder(
     return { ok: false, message: "Leverage must be at least 1x.", code: "underMinLeverage" };
   }
   const size = positionSizeBaseUnits(collateralUsdc, leverage);
-  const min = minPositionBaseUnits(pair.category);
+  const min = minPositionBaseUnits(pair);
   if (size < min) {
-    const minUsd = Number(min / 10n ** 6n);
+    const minUsd = Number(min) / 10 ** USDC_DECIMALS;
     return {
       ok: false,
-      message: `Minimum position for this market is about $${minUsd}.`,
+      message: `Minimum position for this market is $${minUsd}.`,
       code: "underMinPosition",
       params: { min: minUsd },
     };

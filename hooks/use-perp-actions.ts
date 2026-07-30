@@ -3,10 +3,12 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
+import { usePerpOrders } from "@/hooks/use-perp-orders";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { readUsdcAllowance } from "@/lib/perp/allowance";
 import {
   buildApproveUsdc,
+  buildCancelOrder,
   buildCloseTrade,
   buildOpenTrade,
   buildUpdateMargin,
@@ -16,7 +18,7 @@ import { LARGE_APPROVAL_USDC, PERP_CHAIN_ID, needsApproval } from "@/lib/perp/lo
 import { toSignableCalls } from "@/lib/perp/steps";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
-import type { BuildResult, OpenPosition, OpenTradeRequest } from "@/lib/perp/types";
+import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/lib/perp/types";
 
 // Orchestrates the non-custodial perp flows end to end. The backend only ever
 // returns unsigned steps; everything here is signed by the user's embedded
@@ -38,6 +40,7 @@ export function usePerpActions() {
   const t = useTranslations("perps");
   const sendBatch = useEvmSendBatch();
   const { positions, waitForChange, refetch, trader } = usePerpPositions();
+  const { waitForChange: waitForOrdersChange, refetch: refetchOrders } = usePerpOrders();
   const [phase, setPhase] = useState<PerpPhase>("idle");
 
   const openTrade = useCallback(
@@ -80,7 +83,9 @@ export function usePerpActions() {
           toast.info(t("fillTakingLonger"), { id: toastId });
         } else {
           // Limit and stop orders rest until their trigger; not appearing in
-          // open positions is the expected outcome.
+          // open positions is the expected outcome. Refresh the pending list
+          // so the new order shows in the open-orders panel right away.
+          void refetchOrders();
           toast.success(t("orderRestsUntilTrigger", { pair: req.pair }), { id: toastId });
         }
         return true;
@@ -91,7 +96,42 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [trader, positions, sendBatch, waitForChange, t]
+    [trader, positions, sendBatch, waitForChange, refetchOrders, t]
+  );
+
+  const cancelOrder = useCallback(
+    async (order: PerpOrder): Promise<boolean> => {
+      const toastId = toast.loading(t("cancellingOrder"));
+      setPhase("building");
+      try {
+        const key = `${order.pairIndex}:${order.index}`;
+        const build = await buildCancelOrder({
+          pairIndex: order.pairIndex,
+          orderIndex: order.index,
+        });
+
+        setPhase("signing");
+        toast.loading(t("confirmingOnBase"), { id: toastId });
+        await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
+
+        setPhase("settling");
+        const cleared = await waitForOrdersChange(
+          (fresh) => !fresh.some((o) => `${o.pairIndex}:${o.index}` === key)
+        );
+        if (cleared) {
+          toast.success(t("orderCancelled"), { id: toastId });
+        } else {
+          toast.info(t("cancelTakingLonger"), { id: toastId });
+        }
+        return true;
+      } catch (error) {
+        toast.error(friendlyError(error, t("cancelFailed")), { id: toastId });
+        return false;
+      } finally {
+        setPhase("idle");
+      }
+    },
+    [sendBatch, waitForOrdersChange, t]
   );
 
   const closeTrade = useCallback(
@@ -182,5 +222,13 @@ export function usePerpActions() {
     [sendBatch, refetch, t]
   );
 
-  return { openTrade, closeTrade, updateTpSl, updateMargin, phase, busy: phase !== "idle" };
+  return {
+    openTrade,
+    closeTrade,
+    cancelOrder,
+    updateTpSl,
+    updateMargin,
+    phase,
+    busy: phase !== "idle",
+  };
 }

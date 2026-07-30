@@ -34,6 +34,21 @@ function pnlEstimate(p: OpenPosition, mark: string | null): number | null {
   return collateral * leverage * move * (p.isLong ? 1 : -1);
 }
 
+// The gateway computes unrealized PnL net of funding per position; that value
+// wins whenever present, with the local mark-price estimate as the fallback
+// for older gateway responses. Signed decimal strings parse fine here.
+function pnlValue(p: OpenPosition, mark: string | null): number | null {
+  const fromApi = p.unrealizedPnlUsdc != null ? parseFloat(p.unrealizedPnlUsdc) : NaN;
+  if (Number.isFinite(fromApi)) return fromApi;
+  return pnlEstimate(p, mark);
+}
+
+// PnL as a percent of collateral, only when the gateway provides the fraction.
+function pnlPercent(p: OpenPosition): number | null {
+  const fraction = p.unrealizedPnlPct != null ? parseFloat(p.unrealizedPnlPct) : NaN;
+  return Number.isFinite(fraction) ? fraction * 100 : null;
+}
+
 // One open position row. Expansion (pro) reveals TP/SL and margin editing.
 function PositionRow({
   position: p,
@@ -61,7 +76,9 @@ function PositionRow({
 
   const symbol = pair ? pairSymbol(pair) : `#${p.pairIndex}`;
   const baseSym = pair?.from ?? "?";
-  const pnl = pnlEstimate(p, mark);
+  const pnl = pnlValue(p, mark);
+  const pnlPct = pnlPercent(p);
+  const liq = p.liquidationPrice != null ? parseFloat(p.liquidationPrice) : NaN;
   const manageable = onUpdateTpSl != null || onUpdateMargin != null;
 
   // Display gate only: a partial close must stay below the full collateral.
@@ -102,6 +119,7 @@ function PositionRow({
             {!isUnsetLevel(p.stopLoss)
               ? ` · ${t("slAt", { price: formatUsd(parseFloat(p.stopLoss)) })}`
               : ""}
+            {Number.isFinite(liq) && liq > 0 ? ` · ${t("liqAt", { price: formatUsd(liq) })}` : ""}
           </div>
         </div>
         {pnl != null ? (
@@ -112,6 +130,12 @@ function PositionRow({
           >
             {pnl >= 0 ? "+" : "-"}
             {formatUsd(Math.abs(pnl))}
+            {pnlPct != null ? (
+              <span className="block text-[11px] font-medium opacity-80">
+                {pnlPct >= 0 ? "+" : ""}
+                {pnlPct.toFixed(1)}%
+              </span>
+            ) : null}
           </span>
         ) : null}
         {manageable ? (

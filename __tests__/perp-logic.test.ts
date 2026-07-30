@@ -22,6 +22,7 @@ function pair(overrides: Partial<PerpPair> = {}): PerpPair {
     category: "crypto",
     feeIndex: 0,
     maxLeverage: 75,
+    minPositionUsdc: "100",
     spread: { min: 0, max: 0.001 },
     maxLongOiP: 100,
     maxShortOiP: 100,
@@ -87,14 +88,29 @@ describe("validateOrder", () => {
     expect(validateOrder(pair(), "100", "0.5").ok).toBe(false);
   });
 
-  it("enforces the category minimum position size", () => {
-    // Crypto: $100 minimum. 10 x 9 = 90 fails, 10 x 10 = 100 passes.
+  it("enforces the pair's own minimum position size", () => {
+    // $100 minimum: 10 x 9 = 90 fails, 10 x 10 = 100 passes.
     expect(validateOrder(pair(), "10", "9").ok).toBe(false);
     expect(validateOrder(pair(), "10", "10").ok).toBe(true);
-    // Forex: $300 minimum. 10 x 30 = 300 passes, 10 x 29 fails.
-    const fx = pair({ category: "forex", maxLeverage: 100 });
+    // The live gateway serves per-pair minimums as low as $10: 5 x 2 = 10.
+    const cheap = pair({ minPositionUsdc: "10" });
+    expect(validateOrder(cheap, "5", "2").ok).toBe(true);
+    expect(validateOrder(cheap, "4", "2").ok).toBe(false);
+    // $300 forex-style minimum. 10 x 30 = 300 passes, 10 x 29 fails.
+    const fx = pair({ category: "forex", maxLeverage: 100, minPositionUsdc: "300" });
     expect(validateOrder(fx, "10", "29").ok).toBe(false);
     expect(validateOrder(fx, "10", "30").ok).toBe(true);
+    // The reported minimum comes from the pair, not a category table.
+    const v = validateOrder(cheap, "1", "2");
+    expect(v.code).toBe("underMinPosition");
+    expect(v.params?.min).toBe(10);
+  });
+
+  it("falls back to category minimums when the pair carries none", () => {
+    // The synthesized preview pairs predate minPositionUsdc on the wire.
+    const legacy = pair({ minPositionUsdc: undefined as unknown as string, category: "forex" });
+    expect(validateOrder(legacy, "10", "29").ok).toBe(false);
+    expect(validateOrder(legacy, "10", "30").ok).toBe(true);
   });
 
   it("rejects collateral above the balance, compared exactly", () => {

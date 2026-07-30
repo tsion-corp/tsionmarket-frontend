@@ -4,11 +4,13 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetChart } from "@/components/ui/asset-chart";
 import { SearchIcon } from "@/components/ui/icons";
+import { PerpOrders } from "@/components/dashboard/trade/perp-orders";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
 import { PerpPairIcon } from "@/components/dashboard/trade/perp-pair-icon";
 import { usePerpMarket } from "@/hooks/use-perp-markets";
 import { usePerpQuote } from "@/hooks/use-perp-quote";
 import { usePerpActions } from "@/hooks/use-perp-actions";
+import { usePerpOrders } from "@/hooks/use-perp-orders";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
@@ -68,6 +70,7 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
   const [slippage, setSlippage] = useState("1");
 
   const { positions, loading: positionsLoading } = usePerpPositions(live);
+  const { orders } = usePerpOrders(live);
   const actions = usePerpActions();
   const portfolio = usePortfolio();
   const { market, closed } = usePerpMarket(live ? selected : null);
@@ -463,6 +466,13 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
           </button>
         </div>
       </div>
+
+      <PerpOrders
+        orders={orders}
+        pairByIndex={pairByIndex}
+        onCancel={(o) => void actions.cancelOrder(o)}
+        busy={actions.busy}
+      />
 
       <PerpPositions
         positions={positions}
