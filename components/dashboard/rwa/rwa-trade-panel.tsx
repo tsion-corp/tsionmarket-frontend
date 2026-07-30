@@ -13,6 +13,7 @@ import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
 import {
   assetPriceUsd,
   rwaLogoUrl,
+  USDC_BY_CHAIN,
   type RwaApiAsset,
   type RwaQuote,
   type RwaQuoteRequest,
@@ -27,6 +28,7 @@ import {
   errorCode,
   estimateReceiveTokens,
   estimateReceiveUsdc,
+  exceedsBalance,
   findRwaHolding,
   gasSymbolForChain,
   gradientFor,
@@ -35,7 +37,10 @@ import {
   isSellableChain,
   isTransientRwaError,
   minReceiveTokens,
+  pctOfRawBalance,
   priceImpactPercent,
+  quoteReceiveTokens,
+  requiresNativeGas,
   routeLabel,
   rwaErrorInfo,
   sellQuoteRequest,
@@ -45,7 +50,8 @@ type Mode = "buy" | "sell";
 type Phase = "idle" | "quoting" | "quoted" | "confirming" | "done";
 
 interface Notice {
-  kind: "error" | "gas";
+  // "error" renders red; "gas" and "info" render as an amber advisory.
+  kind: "error" | "gas" | "info";
   message: string;
 }
 
@@ -57,6 +63,10 @@ interface SignStep {
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const SLIPPAGE_BPS = 50;
+
+// A quote older than this is not a price to execute against. Confirm refreshes
+// it and asks the user to confirm again on the new numbers.
+const QUOTE_TTL_MS = 60_000;
 
 // Backoff schedule for transparently retrying a transient read (quote/build).
 // These calls never submit a transaction, so a retry is safe and spares the user
@@ -103,6 +113,8 @@ export function RwaTradePanel({
   initialAmount = "",
 }: RwaTradePanelProps) {
   const t = useTranslations("rwa");
+  // Only for the shared over-balance label; the rwa namespace has no such key.
+  const tBuySell = useTranslations("buySell");
   const { user } = usePrivy();
   const portfolio = usePortfolio();
   const { mutateAsync: quoteAsync } = useRwaQuote();
@@ -149,6 +161,19 @@ export function RwaTradePanel({
   const recvLogo = isBuy ? logo : undefined;
   const canPickPay = isBuy && payOptions.length > 1;
 
+  // Exact base-unit balance of the spend side, for sizing percent buttons and
+  // the over-balance gate without float loss. A buy whose pay option shows no
+  // balance (the injected USDC default) is not gated; we cannot tell "empty"
+  // from "unindexed" there.
+  const spendRaw = isBuy ? (payOption?.rawBalance ?? null) : (holding?.rawBalance ?? null);
+  const spendDecimals = isBuy ? (payOption?.input.decimals ?? null) : (holding?.decimals ?? null);
+  const overBalance =
+    payValue > 0 &&
+    spendBalance > 0 &&
+    spendRaw != null &&
+    spendDecimals != null &&
+    exceedsBalance(amount, spendRaw, spendDecimals);
+
   // The quote/build request for the active direction, or null when the side is
   // not ready to quote (no pay token, or nothing held to sell).
   const buildReq = useCallback(
@@ -161,24 +186,36 @@ export function RwaTradePanel({
     [isBuy, payInput, holding, asset]
   );
 
+  // Monotonic id for quote requests. A response only lands if it is still the
+  // newest request; editing the amount also bumps it, so a slow response for a
+  // superseded amount is discarded instead of overwriting the live quote.
+  const quoteSeqRef = useRef(0);
+  // When the live quote landed, for the pre-execute staleness check. A ref
+  // because it is written inside the async handler and never rendered.
+  const quotedAtRef = useRef(0);
+
   const runQuote = useCallback(
     async (value: string) => {
       const num = Number.parseFloat(value);
       const req = buildReq(value);
       if (!(num > 0) || !req) return;
+      const seq = ++quoteSeqRef.current;
       setPhase("quoting");
       setNotice(null);
       try {
         const res = await withTransientRetry(() => quoteAsync(req));
+        if (seq !== quoteSeqRef.current) return;
         if (!res.best) {
           setQuote(null);
           setPhase("idle");
           setNotice({ kind: "error", message: rwaErrorInfo("NO_ROUTE").message });
           return;
         }
+        quotedAtRef.current = Date.now();
         setQuote(res.best);
         setPhase("quoted");
       } catch (e) {
+        if (seq !== quoteSeqRef.current) return;
         const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
         setQuote(null);
         setPhase("idle");
@@ -220,6 +257,8 @@ export function RwaTradePanel({
 
   const onInput = (value: string) => {
     if (!DECIMAL_INPUT.test(value)) return;
+    // Any in-flight quote priced the amount being replaced; drop its response.
+    quoteSeqRef.current++;
     setAmount(value);
     const num = Number.parseFloat(value);
     if (num > 0) {
@@ -232,6 +271,7 @@ export function RwaTradePanel({
   };
 
   const switchMode = (next: Mode) => {
+    quoteSeqRef.current++;
     setMode(next);
     setAmount("");
     setPhase("idle");
@@ -242,6 +282,7 @@ export function RwaTradePanel({
   };
 
   const reset = () => {
+    quoteSeqRef.current++;
     setAmount("");
     setPhase("idle");
     setQuote(null);
@@ -251,7 +292,14 @@ export function RwaTradePanel({
 
   const setPct = (pct: number) => {
     if (spendBalance <= 0) return;
-    onInput(String(spendBalance * pct));
+    // Size from the exact base-unit balance so a Max sell stages exactly what
+    // the wallet holds. The fallback clamps to a fixed-decimal string; a raw
+    // float String() can emit exponent notation the input regex rejects.
+    const exact =
+      spendRaw != null && spendDecimals != null
+        ? pctOfRawBalance(spendRaw, spendDecimals, Math.round(pct * 100))
+        : null;
+    onInput(exact ?? (spendBalance * pct).toFixed(6));
   };
 
   const selectPay = (key: string) => {
@@ -261,13 +309,24 @@ export function RwaTradePanel({
   };
 
   const confirmTrade = async () => {
-    if (!quote) return;
+    if (!quote || overBalance) return;
     const req = buildReq(amount);
     if (!req) return;
 
+    // Never execute against stale numbers. Refresh the quote and require a
+    // second confirm; the notice is set after runQuote's synchronous start so
+    // its setNotice(null) does not wipe it.
+    if (Date.now() - quotedAtRef.current > QUOTE_TTL_MS) {
+      void runQuote(amount);
+      setNotice({ kind: "info", message: rwaErrorInfo("QUOTE_EXPIRED").message });
+      return;
+    }
+
+    // Base trades are gas-sponsored, so the native-gas check only applies to
+    // the chains where the wallet really pays its own fee.
     const gas = hasNativeGas(portfolio.tokens, asset.chain);
     const gasKnown = !portfolio.loading && !portfolio.error;
-    if (gasKnown && gas === false) {
+    if (requiresNativeGas(asset.chain) && gasKnown && gas === false) {
       setNotice({
         kind: "gas",
         message: t("gasNeeded", { symbol: gasSymbolForChain(asset.chain) }),
@@ -293,7 +352,7 @@ export function RwaTradePanel({
     );
     try {
       const action = await withTransientRetry(() => buildAsync({ ...req, taker, simulate: true }));
-      await execute(action, (index, step) => {
+      await execute(action, asset.chain, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });
       toast.success(
@@ -320,13 +379,18 @@ export function RwaTradePanel({
   }
 
   const usdValue = payValue * (isBuy ? payPrice : (price ?? 0));
-  const receiveEst = isBuy
-    ? estimateReceiveTokens(usdValue, price)
-    : estimateReceiveUsdc(payValue, price);
+  // Once a quote exists, show its actual output rather than registry price
+  // math. Output decimals are known for a sell (USDC) and for a buy of an asset
+  // already held; otherwise fall back to the price-derived preview.
+  const recvDecimals = isBuy ? (holding?.decimals ?? null) : USDC_BY_CHAIN[asset.chain].decimals;
+  const quoteReceive = quoteReceiveTokens(quote, recvDecimals);
+  const receiveEst =
+    quoteReceive ??
+    (isBuy ? estimateReceiveTokens(usdValue, price) : estimateReceiveUsdc(payValue, price));
   const minReceive = minReceiveTokens(receiveEst, quote);
   const impact = priceImpactPercent(quote?.priceImpactBps ?? null);
   const confirming = phase === "confirming";
-  const canConfirm = phase === "quoted" && quote != null && !confirming;
+  const canConfirm = phase === "quoted" && quote != null && !confirming && !overBalance;
 
   const sellBlockedMessage = !sellable
     ? t("sellChains")
@@ -502,9 +566,9 @@ export function RwaTradePanel({
           {notice ? (
             <div
               className={`mt-3.5 rounded-[12px] border p-3 text-[12.5px] font-medium ${
-                notice.kind === "gas"
-                  ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-                  : "border-down/30 bg-down/10 text-down"
+                notice.kind === "error"
+                  ? "border-down/30 bg-down/10 text-down"
+                  : "border-amber-400/30 bg-amber-400/10 text-amber-200"
               }`}
             >
               {notice.message}
@@ -524,13 +588,15 @@ export function RwaTradePanel({
               ? signStep
                 ? t("signingStep", { current: signStep.index + 1, total: signStep.total })
                 : t("buildingOrder")
-              : phase === "quoting"
-                ? t("fetchingBestPrice")
-                : quote
-                  ? isBuy
-                    ? t("buySymbol", { symbol: asset.symbol })
-                    : t("sellSymbol", { symbol: asset.symbol })
-                  : t("enterAmount")}
+              : overBalance
+                ? tBuySell("notEnoughBalance")
+                : phase === "quoting"
+                  ? t("fetchingBestPrice")
+                  : quote
+                    ? isBuy
+                      ? t("buySymbol", { symbol: asset.symbol })
+                      : t("sellSymbol", { symbol: asset.symbol })
+                    : t("enterAmount")}
           </button>
 
           {confirming && signStep ? (

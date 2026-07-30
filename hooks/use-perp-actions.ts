@@ -13,9 +13,11 @@ import {
   buildOpenTrade,
   buildUpdateMargin,
   buildUpdateTpSl,
+  fetchPerpPositions,
 } from "@/lib/perp/api";
+import { usePortfolio } from "@/hooks/use-portfolio";
 import { LARGE_APPROVAL_USDC, PERP_CHAIN_ID, needsApproval } from "@/lib/perp/logic";
-import { toSignableCalls } from "@/lib/perp/steps";
+import { stepsTotalValueWei, toSignableCalls } from "@/lib/perp/steps";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/lib/perp/types";
@@ -40,8 +42,28 @@ export function usePerpActions() {
   const t = useTranslations("perps");
   const sendBatch = useEvmSendBatch();
   const { positions, waitForChange, refetch, trader } = usePerpPositions();
-  const { waitForChange: waitForOrdersChange, refetch: refetchOrders } = usePerpOrders();
+  const { orders, waitForChange: waitForOrdersChange } = usePerpOrders();
+  const portfolio = usePortfolio();
   const [phase, setPhase] = useState<PerpPhase>("idle");
+
+  // Gas is sponsored, but the keeper execution fee on open/close is msg.value
+  // from the user's own Base ETH. Checking before signing turns a cryptic
+  // bundler failure into a plain "you need a little ETH" message. The
+  // portfolio balance is a display float, so the compare allows a hair of
+  // slack rather than blocking on rounding.
+  const ensureExecutionFee = useCallback(
+    (builds: BuildResult[]): string | null => {
+      const totalWei = stepsTotalValueWei(builds);
+      if (totalWei === 0n || portfolio.loading) return null;
+      const needEth = Number(totalWei) / 1e18;
+      const held = portfolio.tokens
+        .filter((tok) => tok.network === "base-mainnet" && tok.symbol.toUpperCase() === "ETH")
+        .reduce((sum, tok) => sum + tok.balance, 0);
+      if (held + 1e-9 >= needEth) return null;
+      return t("needExecutionFee", { amount: needEth.toFixed(5) });
+    },
+    [portfolio.loading, portfolio.tokens, t]
+  );
 
   const openTrade = useCallback(
     async (req: Omit<OpenTradeRequest, "trader">): Promise<boolean> => {
@@ -52,7 +74,14 @@ export function usePerpActions() {
       const toastId = toast.loading(t("preparingTrade"));
       setPhase("building");
       try {
-        const before = new Set(positions.map((p) => `${p.pairIndex}:${p.index}`));
+        // The before-set must come from a fresh snapshot: the hook's cached
+        // positions can be empty on a cold cache, and an empty set would make
+        // any pre-existing position read as "new" — a false fill toast.
+        const before = new Set(
+          (await fetchPerpPositions(trader).catch(() => positions)).map(
+            (p) => `${p.pairIndex}:${p.index}`
+          )
+        );
 
         // One allowance read decides whether the approve rides along. The
         // approve is large so the next open goes straight through.
@@ -63,11 +92,31 @@ export function usePerpActions() {
         }
         builds.push(await buildOpenTrade({ ...req, trader }));
 
+        const feeShortfall = ensureExecutionFee(builds);
+        if (feeShortfall) {
+          toast.error(feeShortfall, { id: toastId });
+          return false;
+        }
+
         setPhase("signing");
         toast.loading(t("confirmingOnBase"), { id: toastId });
         await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
 
         setPhase("settling");
+        const resting = req.orderType === "limit" || req.orderType === "stop_limit";
+        if (resting) {
+          // A limit/stop order rests in /orders until its trigger — polling
+          // positions for it would just burn the whole settle window. Confirm
+          // the order itself appeared instead.
+          const beforeOrders = new Set(orders.map((o) => `${o.pairIndex}:${o.index}`));
+          toast.loading(t("confirmingOnBase"), { id: toastId });
+          await waitForOrdersChange((fresh) =>
+            fresh.some((o) => !beforeOrders.has(`${o.pairIndex}:${o.index}`))
+          );
+          toast.success(t("orderRestsUntilTrigger", { pair: req.pair }), { id: toastId });
+          return true;
+        }
+
         toast.loading(t("orderPlacedWaitingFill"), { id: toastId });
         const filled = await waitForChange((fresh) =>
           fresh.some((p) => !before.has(`${p.pairIndex}:${p.index}`))
@@ -76,17 +125,11 @@ export function usePerpActions() {
           toast.success(t(req.isLong ? "longOpen" : "shortOpen", { pair: req.pair }), {
             id: toastId,
           });
-        } else if (req.orderType === "market" || req.orderType === "market_zero_fee") {
+        } else {
           // The tx confirmed but the keeper has not filled inside our window;
           // for market orders that usually means a closed market or a stale
           // price. Say what actually happened rather than claiming a fill.
           toast.info(t("fillTakingLonger"), { id: toastId });
-        } else {
-          // Limit and stop orders rest until their trigger; not appearing in
-          // open positions is the expected outcome. Refresh the pending list
-          // so the new order shows in the open-orders panel right away.
-          void refetchOrders();
-          toast.success(t("orderRestsUntilTrigger", { pair: req.pair }), { id: toastId });
         }
         return true;
       } catch (error) {
@@ -96,7 +139,16 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [trader, positions, sendBatch, waitForChange, refetchOrders, t]
+    [
+      trader,
+      positions,
+      orders,
+      sendBatch,
+      waitForChange,
+      waitForOrdersChange,
+      ensureExecutionFee,
+      t,
+    ]
   );
 
   const cancelOrder = useCallback(
@@ -105,6 +157,14 @@ export function usePerpActions() {
       setPhase("building");
       try {
         const key = `${order.pairIndex}:${order.index}`;
+        // An order vanishing from /orders is also what a keeper fill at the
+        // trigger looks like; the before-set of positions lets the outcome be
+        // reported honestly when the cancel loses that race.
+        const positionsBefore = new Set(
+          (await fetchPerpPositions(trader ?? "").catch(() => positions)).map(
+            (p) => `${p.pairIndex}:${p.index}`
+          )
+        );
         const build = await buildCancelOrder({
           pairIndex: order.pairIndex,
           orderIndex: order.index,
@@ -119,7 +179,16 @@ export function usePerpActions() {
           (fresh) => !fresh.some((o) => `${o.pairIndex}:${o.index}` === key)
         );
         if (cleared) {
-          toast.success(t("orderCancelled"), { id: toastId });
+          const now = trader ? await fetchPerpPositions(trader).catch(() => []) : [];
+          const filledInstead = now.some(
+            (p) =>
+              p.pairIndex === order.pairIndex && !positionsBefore.has(`${p.pairIndex}:${p.index}`)
+          );
+          if (filledInstead) {
+            toast.info(t("orderFilledInstead", { pair: `#${order.pairIndex}` }), { id: toastId });
+          } else {
+            toast.success(t("orderCancelled"), { id: toastId });
+          }
         } else {
           toast.info(t("cancelTakingLonger"), { id: toastId });
         }
@@ -131,7 +200,7 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForOrdersChange, t]
+    [trader, positions, sendBatch, waitForOrdersChange, t]
   );
 
   const closeTrade = useCallback(
@@ -145,6 +214,12 @@ export function usePerpActions() {
           tradeIndex: position.index,
           collateralUsdc,
         });
+
+        const feeShortfall = ensureExecutionFee([build]);
+        if (feeShortfall) {
+          toast.error(feeShortfall, { id: toastId });
+          return false;
+        }
 
         setPhase("signing");
         toast.loading(t("confirmingOnBase"), { id: toastId });
@@ -171,12 +246,17 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, t]
+    [sendBatch, waitForChange, ensureExecutionFee, t]
   );
 
+  // Both updates move money, so they take the same phase lifecycle as every
+  // other action: without it `busy` stayed false for their whole flight and a
+  // double-click could sign two silent sponsored userOps (margin deposited or
+  // withdrawn twice).
   const updateTpSl = useCallback(
     async (position: OpenPosition, takeProfit: string, stopLoss: string): Promise<boolean> => {
       const toastId = toast.loading(t("updatingTpSl"));
+      setPhase("building");
       try {
         const build = await buildUpdateTpSl({
           pairIndex: position.pairIndex,
@@ -184,6 +264,7 @@ export function usePerpActions() {
           takeProfit,
           stopLoss,
         });
+        setPhase("signing");
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
         toast.success(t("tpSlUpdated"), { id: toastId });
         void refetch();
@@ -191,6 +272,8 @@ export function usePerpActions() {
       } catch (error) {
         toast.error(friendlyError(error, t("updateFailed")), { id: toastId });
         return false;
+      } finally {
+        setPhase("idle");
       }
     },
     [sendBatch, refetch, t]
@@ -203,6 +286,7 @@ export function usePerpActions() {
       direction: "deposit" | "withdraw"
     ): Promise<boolean> => {
       const toastId = toast.loading(t(direction === "deposit" ? "addingMargin" : "removingMargin"));
+      setPhase("building");
       try {
         const build = await buildUpdateMargin({
           pairIndex: position.pairIndex,
@@ -210,6 +294,7 @@ export function usePerpActions() {
           marginUsdc,
           direction,
         });
+        setPhase("signing");
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
         toast.success(t("marginUpdated"), { id: toastId });
         void refetch();
@@ -217,6 +302,8 @@ export function usePerpActions() {
       } catch (error) {
         toast.error(friendlyError(error, t("marginChangeFailed")), { id: toastId });
         return false;
+      } finally {
+        setPhase("idle");
       }
     },
     [sendBatch, refetch, t]

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatEther } from "viem";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -85,6 +86,7 @@ function useCountdown(serverSeconds: number, active: boolean): number {
 }
 
 export function LastStandingSection() {
+  const t = useTranslations("casino.lastStanding");
   const { user } = usePrivy();
   const money = useMoney();
   const { mask } = useBalanceVisibility();
@@ -295,14 +297,14 @@ export function LastStandingSection() {
   // in pendingWinnings until then. Guarded so it never fires an empty claim.
   const onClaim = async () => {
     if (pendingWei <= 0n || claiming) return;
-    const id = toast.loading("Claiming your winnings…");
+    const id = toast.loading(t("toastClaiming"));
     try {
       await claim();
-      toast.success("Winnings claimed — added to your balance.", { id });
+      toast.success(t("toastClaimed"), { id });
       void refetchWinnings();
       void refetchPortfolio();
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't claim right now. Try again."), { id });
+      toast.error(friendlyError(e, t("toastClaimFailed")), { id });
     }
   };
 
@@ -333,14 +335,14 @@ export function LastStandingSection() {
     // One processing toast that resolves in place. Signing is headless (no Privy
     // modal), so this toast plus the button's "Placing your play…" state is the
     // only feedback the player sees while the gasless wager settles.
-    const toastId = toast.loading("Placing your play…");
+    const toastId = toast.loading(t("ctaPlacing"));
     try {
       await wager();
-      toast.success("You're in — last one standing takes the pot.", { id: toastId });
+      toast.success(t("toastYoureIn"), { id: toastId });
       setPlayEntering(true);
       void refetchPortfolio();
     } catch (e) {
-      toast.error(friendlyError(e, "That didn't go through."), { id: toastId });
+      toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
     }
   };
 
@@ -362,13 +364,12 @@ export function LastStandingSection() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Eyebrow>Casino · Winner takes all</Eyebrow>
+          <Eyebrow>{t("eyebrow")}</Eyebrow>
           <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
-            Last Man Standing
+            {t("title")}
           </h2>
           <p className="mt-1.5 max-w-[54ch] text-[13.5px] font-normal text-white/55">
-            Play to become the last one standing. When the timer runs out, the last player to play
-            takes the whole pot.
+            {t("intro")}
           </p>
         </div>
         <span
@@ -379,7 +380,7 @@ export function LastStandingSection() {
           <span
             className={`h-1.5 w-1.5 rounded-full ${gameActive ? "bg-up animate-pulse" : "bg-white/25"}`}
           />
-          {gameActive ? "Live" : "Offline"}
+          {gameActive ? t("live") : t("offline")}
         </span>
       </div>
 
@@ -397,9 +398,9 @@ export function LastStandingSection() {
               🏆
             </span>
             <div>
-              <div className="text-[14px] font-bold text-white">You won! Claim your winnings</div>
+              <div className="text-[14px] font-bold text-white">{t("claimTitle")}</div>
               <div className="tnum text-[13px] font-normal text-[#d8d8dc]">
-                {weiToMoney(pendingWei.toString())} waiting in the vault
+                {t("claimWaiting", { amount: weiToMoney(pendingWei.toString()) })}
               </div>
             </div>
           </div>
@@ -408,7 +409,7 @@ export function LastStandingSection() {
             disabled={claiming}
             className="shadow-[0_12px_30px_-10px_rgba(216, 216, 220, 0.9)] shrink-0 cursor-pointer rounded-xl bg-[linear-gradient(180deg,#f0f0f2,#d8d8dc,#b0b0b6)] px-6 py-2.5 font-sans text-[14px] font-bold text-[#1a1a1a] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {claiming ? "Claiming…" : "Claim now"}
+            {claiming ? t("claiming") : t("claimNow")}
           </button>
         </motion.div>
       ) : null}
@@ -452,7 +453,7 @@ export function LastStandingSection() {
           ) : null}
           <div className="relative">
             <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
-              Prize pool
+              {t("prizePool")}
             </div>
             {statusLoading || !status ? (
               <div className="mt-2 h-[62px] w-52 animate-pulse rounded-xl bg-white/8" />
@@ -473,9 +474,7 @@ export function LastStandingSection() {
                 <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
               </div>
             )}
-            <div className="mt-2 text-[13px] font-normal text-white/50">
-              The whole pot goes to the last player standing.
-            </div>
+            <div className="mt-2 text-[13px] font-normal text-white/50">{t("potNote")}</div>
 
             {/* Live tension: when this wallet is last to play, it's winning. The
                 banner ramps up in the final seconds. */}
@@ -505,12 +504,10 @@ export function LastStandingSection() {
                   </motion.span>
                   <div className="min-w-0">
                     <div className="text-[13.5px] font-bold text-[#d8d8dc]">
-                      {urgent ? "Hold on — you're about to win!" : "You're last standing"}
+                      {urgent ? t("standingTitleUrgent") : t("standingTitle")}
                     </div>
                     <div className="text-[12px] font-normal text-white/70">
-                      {urgent
-                        ? "Take the whole pot when the clock hits zero."
-                        : "You win the pot if the clock hits zero. Don't let anyone overtake you."}
+                      {urgent ? t("standingBodyUrgent") : t("standingBody")}
                     </div>
                   </div>
                 </div>
@@ -529,7 +526,7 @@ export function LastStandingSection() {
             >
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold tracking-[0.14em] text-white/45 uppercase">
-                  Time remaining
+                  {t("timeRemaining")}
                 </span>
                 <span
                   className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
@@ -551,11 +548,11 @@ export function LastStandingSection() {
                   />
                   {gameActive
                     ? urgent
-                      ? "Ending"
-                      : "Live round"
+                      ? t("statusEnding")
+                      : t("statusLiveRound")
                     : status?.isGameStarted
-                      ? "Round ended"
-                      : "Idle"}
+                      ? t("statusRoundEnded")
+                      : t("statusIdle")}
                 </span>
               </div>
               <div
@@ -579,10 +576,10 @@ export function LastStandingSection() {
               </div>
               <div className="mt-3 text-center text-[12px] font-normal text-white/50">
                 {gameActive
-                  ? "Be the last to play when the clock hits zero to take the pot."
+                  ? t("hintActive")
                   : status?.isGameStarted
-                    ? "Round ended — the next play starts the clock."
-                    : "Be the first to play and start the clock."}
+                    ? t("hintEnded")
+                    : t("hintIdle")}
               </div>
             </div>
 
@@ -590,15 +587,15 @@ export function LastStandingSection() {
             <div className="mt-4 grid grid-cols-2 gap-3">
               <div className="ws-inset px-4 py-3.5">
                 <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  Last player
+                  {t("lastPlayer")}
                 </div>
                 <div className="tnum mt-1 text-[13.5px] font-semibold text-white/85">
-                  {status?.lastPlayer ? truncateAddress(status.lastPlayer) : "None yet"}
+                  {status?.lastPlayer ? truncateAddress(status.lastPlayer) : t("noneYet")}
                 </div>
               </div>
               <div className="ws-inset px-4 py-3.5">
                 <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  Cost to play
+                  {t("costToPlay")}
                 </div>
                 <div className="tnum mt-1 text-[13.5px] font-semibold text-white/85">
                   {status ? money.format(entryFeeUsd) : "—"}
@@ -652,12 +649,12 @@ export function LastStandingSection() {
                     </span>
                   ) : null}
                   {wagering
-                    ? "Placing your play…"
+                    ? t("ctaPlacing")
                     : !status
-                      ? "Loading…"
+                      ? t("loading")
                       : canPlay
-                        ? `Play · ${money.format(entryFeeUsd)}`
-                        : "Add money to play"}
+                        ? t("ctaPlay", { amount: money.format(entryFeeUsd) })
+                        : t("ctaAddMoney")}
                 </span>
               </motion.button>
             </div>
@@ -666,7 +663,7 @@ export function LastStandingSection() {
             <div className="ws-inset mt-3 flex items-center justify-between gap-3 px-4 py-3.5">
               <div className="min-w-0">
                 <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  Your balance
+                  {t("yourBalance")}
                 </div>
                 <div className="tnum mt-0.5 text-[16px] font-bold text-white/90">
                   {mask(money.format(balanceUsd))}
@@ -680,7 +677,7 @@ export function LastStandingSection() {
                   onClick={() => setFundOpen(true)}
                   className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
                 >
-                  Add money
+                  {t("addMoney")}
                 </button>
               ) : null}
             </div>
@@ -688,11 +685,9 @@ export function LastStandingSection() {
             {/* You won — auto-credited, no claim needed. */}
             {recentWinUsd !== null ? (
               <div className="border-up/40 bg-up/10 mt-3 rounded-[16px] border px-4 py-3.5 shadow-[0_0_28px_-10px_rgba(124,231,176,0.6)]">
-                <div className="text-[13.5px] font-bold text-white">
-                  You won a round, your money will be added to your balance 🎉
-                </div>
+                <div className="text-[13.5px] font-bold text-white">{t("wonBannerTitle")}</div>
                 <div className="tnum mt-0.5 text-[12.5px] font-normal text-white/60">
-                  {money.format(recentWinUsd)} — updating your balance now
+                  {t("wonBannerDetail", { amount: money.format(recentWinUsd) })}
                 </div>
               </div>
             ) : null}
@@ -703,14 +698,14 @@ export function LastStandingSection() {
         <div className="flex flex-col gap-4">
           <div className="ws-glass rounded-[22px] p-5">
             <div className="flex items-center justify-between">
-              <span className="text-[13px] font-semibold text-white/80">Recent activity</span>
+              <span className="text-[13px] font-semibold text-white/80">{t("recentActivity")}</span>
               <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10.5px] font-medium text-white/40">
-                Live feed
+                {t("liveFeed")}
               </span>
             </div>
             {activities.length === 0 ? (
               <div className="grid place-items-center py-10 text-center text-[13px] font-normal text-white/40">
-                No plays yet
+                {t("noPlays")}
               </div>
             ) : (
               <div className="mt-3 flex flex-col gap-1">
@@ -732,7 +727,7 @@ export function LastStandingSection() {
                       </span>
                       <span className="min-w-0 truncate">
                         <span className="tnum">{truncateAddress(a.address)}</span>{" "}
-                        {a.action === "won" ? "won" : "played"}
+                        {a.action === "won" ? t("actionWon") : t("actionPlayed")}
                       </span>
                     </span>
                     <span className="tnum shrink-0 text-[12.5px] font-semibold text-white/65">
@@ -768,15 +763,13 @@ export function LastStandingSection() {
           <div className="flex items-center gap-2.5">
             <span className="text-[30px]">👑</span>
             <div>
-              <div className="text-[14px] font-semibold text-white/90">Hall of Winners</div>
-              <div className="text-[11.5px] font-normal text-white/45">
-                Past rounds — newest first
-              </div>
+              <div className="text-[14px] font-semibold text-white/90">{t("hallTitle")}</div>
+              <div className="text-[11.5px] font-normal text-white/45">{t("hallSubtitle")}</div>
             </div>
           </div>
           {winners.length > 0 ? (
             <span className="tnum rounded-full bg-[#d8d8dc]/12 px-2.5 py-1 text-[11px] font-semibold text-[#d8d8dc]/80 ring-1 ring-[#d8d8dc]/20">
-              {winners.length} settled
+              {t("settledCount", { count: winners.length })}
             </span>
           ) : null}
         </div>
@@ -789,7 +782,7 @@ export function LastStandingSection() {
           </div>
         ) : winners.length === 0 ? (
           <div className="grid place-items-center py-12 text-center text-[13px] font-normal text-white/40">
-            No rounds settled yet — be the first to take a pot.
+            {t("hallEmpty")}
           </div>
         ) : (
           <>
@@ -838,7 +831,7 @@ export function LastStandingSection() {
                         {/* Historical rounds don't always carry a player count;
                             only show it when it's real so we never read "0 players". */}
                         {w.playerCount > 0
-                          ? `${w.playerCount} ${w.playerCount === 1 ? "player" : "players"} · `
+                          ? `${t("playersCount", { count: w.playerCount })} · `
                           : ""}
                         {timeAgo(w.endedAt)}
                       </span>
@@ -849,7 +842,7 @@ export function LastStandingSection() {
                       </span>
                       {isLatest ? (
                         <span className="block text-[9.5px] font-semibold tracking-[0.12em] text-[#d8d8dc]/70 uppercase">
-                          Latest
+                          {t("latest")}
                         </span>
                       ) : null}
                     </span>
@@ -866,7 +859,7 @@ export function LastStandingSection() {
                 canNext={pagedWinners.canNext}
                 onPrev={pagedWinners.goPrev}
                 onNext={pagedWinners.goNext}
-                label="winners"
+                label={t("pagerWinners")}
               />
             ) : null}
           </>

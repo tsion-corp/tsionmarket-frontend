@@ -3,23 +3,25 @@ import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 
 // Link labels come from the landing.footer catalog; social names stay literal
-// (product names are never translated).
+// (product names are never translated). A link with a waypoint index scrolls
+// the film landing when onNavigate is provided; links without one (careers)
+// always stay plain anchors.
 const COLUMNS = [
   {
     titleKey: "productTitle",
     links: [
-      { href: "#markets", key: "markets" },
-      { href: "#naira", key: "funding" },
-      { href: "#how", key: "how" },
-      { href: "#early", key: "getStarted" },
+      { href: "#markets", key: "markets", waypoint: 3 },
+      { href: "#naira", key: "funding", waypoint: 4 },
+      { href: "#how", key: "how", waypoint: 5 },
+      { href: "#early", key: "getStarted", waypoint: 8 },
     ],
   },
   {
     titleKey: "companyTitle",
     links: [
-      { href: "#values", key: "security" },
+      { href: "#values", key: "security", waypoint: 2 },
       { href: "#", key: "careers" },
-      { href: "#faq", key: "faq" },
+      { href: "#faq", key: "faq", waypoint: 7 },
     ],
   },
 ] as const;
@@ -30,8 +32,16 @@ const SOCIALS = [
   { href: "#", label: "Discord" },
 ] as const;
 
-export function Footer() {
+interface FooterProps {
+  // When set, the film landing owns navigation: waypoint links scroll to
+  // waypoint indices instead of anchor targets. When absent, anchors work
+  // as before.
+  onNavigate?: (waypoint: number) => void;
+}
+
+export function Footer({ onNavigate }: FooterProps) {
   const t = useTranslations("landing.footer");
+  const tJourney = useTranslations("landing.journey");
   return (
     <footer className="relative z-[2] border-t border-white/8 bg-black">
       <div className="mx-auto grid max-w-[1120px] grid-cols-2 gap-8 px-6 pt-14 pb-9 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
@@ -40,16 +50,30 @@ export function Footer() {
           <p className="mt-4 max-w-[32ch] text-sm leading-[1.6] font-normal text-white/60">
             {t("tagline")}
           </p>
+          <p className="mt-3.5 text-[11px] font-normal tracking-[0.2em] text-[#7a7a7a] uppercase">
+            {tJourney("poweredBy", { name: "Tsion" })}
+          </p>
         </div>
         {COLUMNS.map((col) => (
           <div key={col.titleKey}>
             <div className="ws-display mb-3.5 text-base">{t(col.titleKey)}</div>
             <div className="flex flex-col gap-2.5 text-sm font-normal">
-              {col.links.map((l) => (
-                <a key={l.key} href={l.href} className="hover:text-accent text-white/60">
-                  {t(l.key)}
-                </a>
-              ))}
+              {col.links.map((l) =>
+                onNavigate && "waypoint" in l ? (
+                  <button
+                    key={l.key}
+                    type="button"
+                    onClick={() => onNavigate(l.waypoint)}
+                    className="hover:text-accent cursor-pointer text-left text-white/60"
+                  >
+                    {t(l.key)}
+                  </button>
+                ) : (
+                  <a key={l.key} href={l.href} className="hover:text-accent text-white/60">
+                    {t(l.key)}
+                  </a>
+                )
+              )}
             </div>
           </div>
         ))}

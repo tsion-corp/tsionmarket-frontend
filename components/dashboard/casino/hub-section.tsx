@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
@@ -18,7 +19,19 @@ import {
   type GameCategoryFilter,
 } from "@/lib/casino/games";
 
+// Catalogue filter values mapped to their label keys in "casino.hub".
+const CATEGORY_KEY: Record<GameCategoryFilter, string> = {
+  "All games": "categoryAll",
+  Skill: "categorySkill",
+  Cards: "categoryCards",
+  Draws: "categoryDraws",
+  Racing: "categoryRacing",
+  New: "categoryNew",
+  "Coming soon": "categoryComingSoon",
+};
+
 export function HubSection() {
+  const t = useTranslations("casino.hub");
   const wallet = useCasinoWallet();
   const { mask } = useBalanceVisibility();
   const { recentWins, presence, error } = useCasinoHub();
@@ -26,7 +39,11 @@ export function HubSection() {
   const [search, setSearch] = useState("");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
-  const games = useMemo(() => filterGames(CASINO_GAMES, category, search), [category, search]);
+  // Search matches the names the player actually sees, i.e. the localized ones.
+  const games = useMemo(
+    () => filterGames(CASINO_GAMES, category, search, (g) => t(`games.${g.id}.name`)),
+    [category, search, t]
+  );
   const presenceById = useMemo(
     () => new Map(presence.map((p) => [p.game as string, p])),
     [presence]
@@ -45,13 +62,13 @@ export function HubSection() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Eyebrow>Casino · Skill and chance</Eyebrow>
+          <Eyebrow>{t("eyebrow")}</Eyebrow>
           <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,44px)] tracking-[-0.02em] text-transparent">
-            Casino
+            {t("title")}
           </h2>
           <p className="mt-1.5 flex items-center gap-2.5 text-[13.5px] font-normal text-white/55">
             <span aria-hidden className="bg-grey-300 inline-block h-px w-[22px]" />
-            Skill and chance. Real stakes.
+            {t("tagline")}
           </p>
         </div>
 
@@ -60,7 +77,7 @@ export function HubSection() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="ws-inset px-4 py-2.5">
             <div className="text-[10.5px] font-normal tracking-[0.08em] text-white/45 uppercase">
-              Your balance
+              {t("yourBalance")}
             </div>
             <div className="ws-display tnum text-grey-100 text-[19px]">
               {wallet.isLoading ? "—" : mask(wallet.format(wallet.balanceUsd))}
@@ -70,7 +87,7 @@ export function HubSection() {
             onClick={() => setWithdrawOpen(true)}
             className="cursor-pointer rounded-full border border-white/15 px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"
           >
-            Withdraw
+            {t("withdraw")}
           </button>
         </div>
       </div>
@@ -82,11 +99,13 @@ export function HubSection() {
       ) : null}
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-4">
-        <div className="font-sans text-[20px] font-bold text-white">{category}</div>
+        <div className="font-sans text-[20px] font-bold text-white">
+          {t(CATEGORY_KEY[category])}
+        </div>
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search for your favourite game"
+          placeholder={t("searchPlaceholder")}
           className="ws-inset focus:border-accent/50 w-[280px] max-w-full rounded-full px-4 py-2.5 font-sans text-[13px] text-white outline-none"
         />
       </div>
@@ -104,7 +123,7 @@ export function HubSection() {
                   : "border-white/10 text-white/55 hover:text-white"
               }`}
             >
-              {c}
+              {t(CATEGORY_KEY[c])}
             </button>
           );
         })}
@@ -114,13 +133,13 @@ export function HubSection() {
           browsable even when the presence service is down. */}
       {error ? (
         <div className="mt-5">
-          <CasinoError error={error} subject="live game activity" />
+          <CasinoError error={error} subject={t("liveActivitySubject")} />
         </div>
       ) : null}
 
       {games.length === 0 ? (
         <div className="py-16 text-center text-[13.5px] font-normal text-white/50">
-          No game found for that search.
+          {t("noGamesFound")}
         </div>
       ) : (
         <div className="mt-5 grid [grid-auto-flow:dense] grid-cols-6 gap-4">

@@ -10,6 +10,7 @@ import { useDepositStatus } from "@/hooks/use-deposit";
 import { useSell } from "@/hooks/use-sell";
 import { depositProgress, type DepositStage } from "@/lib/deposit";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
+import { maxSellable } from "@/lib/trade/gas-buffer";
 import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
 import type { SellPayload } from "@/components/dashboard/modal-types";
@@ -65,17 +66,35 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const nativeSym = NATIVE_SYMBOL[payload.network] ?? "";
   const chainLabel = CHAIN_LABEL[payload.network] ?? payload.network;
 
-  // Sending the asset needs a little of the chain's native token for the fee.
+  // Sending the asset needs a little of the chain's native token for the fee —
+  // except on Base, where every send is gas-sponsored (EIP-7702 through our
+  // bundler) and no ETH is ever required.
+  const sponsored = payload.network === "base-mainnet";
   const hasGas = useMemo(
     () =>
+      sponsored ||
       portfolio.tokens.some(
         (t) => t.network === payload.network && t.symbol === nativeSym && t.balance > 0
       ),
-    [portfolio.tokens, payload.network, nativeSym]
+    [sponsored, portfolio.tokens, payload.network, nativeSym]
   );
 
+  // Selling the chain's own gas token can't spend the whole balance: the fee
+  // comes out of the same asset, so a full-balance send always fails. maxSell
+  // holds back a small per-chain buffer for that case (Base keeps the full
+  // balance, its sends are sponsored) and the max/percent fills stay under it.
+  const maxSell = maxSellable(payload.network, payload.address, payload.balance);
+
+  // Plain decimal string for the amount input. String() renders very small
+  // numbers in scientific notation, which the input regex and base-unit
+  // conversion both reject.
+  const fillAmount = (n: number) => {
+    const fixed = n.toFixed(payload.decimals);
+    return fixed.includes(".") ? fixed.replace(/\.?0+$/, "") || "0" : fixed;
+  };
+
   const value = Number(amount) || 0;
-  const overBalance = value > payload.balance;
+  const overBalance = value > maxSell;
   const proceedsUsd = value * payload.priceUsd;
   const noFee = !portfolio.loading && !hasGas;
   const canSell = value > 0 && !overBalance && !noFee && !portfolio.loading && !sell.isPending;
@@ -97,12 +116,25 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
     if (stage === "settled") {
       settledRef.current = true;
       toast.success(t("soldToast", { symbol: payload.symbol }), { id: toastRef.current });
+      toastRef.current = undefined;
       void portfolio.refetch();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       toast.error(t("saleRefundedToast"), { id: toastRef.current });
+      toastRef.current = undefined;
     }
   }, [stage, payload.symbol, portfolio, t]);
+
+  // A loading toast never times out, and closing the sheet unmounts the settle
+  // effect that would resolve it, leaving it spinning forever. Every resolution
+  // path clears the ref, so on unmount anything still in it is an orphan to
+  // dismiss.
+  useEffect(
+    () => () => {
+      if (toastRef.current !== undefined) toast.dismiss(toastRef.current);
+    },
+    []
+  );
 
   const confirm = async () => {
     toastRef.current = toast.loading(t("sellingToast", { symbol: payload.symbol }));
@@ -123,6 +155,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
     } catch {
       // The detailed message is surfaced from sell.error below; resolve the toast.
       toast.error(t("sellFailedToast", { symbol: payload.symbol }), { id: toastRef.current });
+      toastRef.current = undefined;
     }
   };
 
@@ -186,7 +219,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
           <span>{t("amountToSell")}</span>
           <button
-            onClick={() => setAmount(String(payload.balance))}
+            onClick={() => setAmount(fillAmount(maxSell))}
             className="tnum cursor-pointer text-white/55 hover:text-white"
           >
             {t("balanceToken", { amount: formatAmount(payload.balance), symbol: payload.symbol })}
@@ -215,7 +248,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         {PRESETS.map((p) => (
           <button
             key={p}
-            onClick={() => setAmount(String((payload.balance * p) / 100))}
+            onClick={() => setAmount(fillAmount(Math.min((payload.balance * p) / 100, maxSell)))}
             className="flex-1 cursor-pointer rounded-[12px] border border-white/10 bg-white/4 py-2 font-sans text-[13px] font-medium text-white/75 transition-colors hover:bg-white/8"
           >
             {p === 100 ? t("max") : `${p}%`}

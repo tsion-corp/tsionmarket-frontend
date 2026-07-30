@@ -65,16 +65,24 @@ vi.mock("@/lib/toast", () => ({
   toast: { loading: vi.fn(() => "t"), success: vi.fn(), error: vi.fn() },
 }));
 
+import { NextIntlClientProvider } from "next-intl";
 import { LobbySection } from "@/components/dashboard/casino/chess/lobby-section";
 import { PlaySection } from "@/components/dashboard/casino/chess/play-section";
 import { CreateSection } from "@/components/dashboard/casino/chess/create-section";
 import { DrawSection } from "@/components/dashboard/casino/draw/draw-section";
+import messages from "@/messages/en.json";
 
+// The screens read their copy through next-intl, so the wrapper provides the
+// English catalog; assertions below match the en.json strings.
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+  return (
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </NextIntlClientProvider>
+  );
 }
 
 const money = (usd: number, symbol = "ETH") => ({

@@ -38,6 +38,9 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
   useEffect(() => {
     if (!enabled || symbolsKey === "") return;
     const topics = symbolsKey.split(",");
+    // Pairs no longer on screen are pruned at the next flush, so a delisted
+    // pair's frozen mark cannot keep beating REST forever.
+    const wanted = new Set(topics);
 
     let ws: WebSocket | null = null;
     let disposed = false;
@@ -45,10 +48,19 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
     let pingTimer: ReturnType<typeof setInterval> | null = null;
     const buffer = new Map<string, StreamPrice>();
     let lastFrameAt = 0;
+    // Exponential backoff so a downed gateway is not hammered by every open
+    // tab in lockstep; a delivered frame resets it.
+    let reconnectDelay = STREAM_RECONNECT_MS;
 
     const open = () => {
       if (disposed) return;
-      ws = new WebSocket(WS_URL);
+      try {
+        ws = new WebSocket(WS_URL);
+      } catch {
+        // A malformed URL throws synchronously; without the stream the REST
+        // fallback carries prices, so fail quiet and don't retry a bad URL.
+        return;
+      }
       ws.onopen = () => {
         ws?.send(subscribeMessage(topics));
         pingTimer = setInterval(() => {
@@ -59,12 +71,21 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
         const update = parsePriceFrame(event.data);
         if (update == null) return;
         lastFrameAt = Date.now();
-        buffer.set(update.pair, update);
+        reconnectDelay = STREAM_RECONNECT_MS;
+        // After a reconnect, frames can arrive out of order; never let an
+        // older publish overwrite a newer mark.
+        const held = buffer.get(update.pair);
+        if (held == null || update.publishTime >= held.publishTime) {
+          buffer.set(update.pair, update);
+        }
       };
       ws.onclose = () => {
         if (pingTimer != null) clearInterval(pingTimer);
         pingTimer = null;
-        if (!disposed) reconnectTimer = setTimeout(open, STREAM_RECONNECT_MS);
+        if (!disposed) {
+          reconnectTimer = setTimeout(open, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+        }
       };
       // onclose fires after onerror; reconnect handling lives there alone.
       ws.onerror = () => {};
@@ -79,8 +100,16 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
       const updates = new Map(buffer);
       buffer.clear();
       setPrices((prev) => {
-        const next = new Map(prev);
-        for (const [pair, update] of updates) next.set(pair, update);
+        const next = new Map<string, StreamPrice>();
+        for (const [pair, held] of prev) {
+          if (wanted.has(pair)) next.set(pair, held);
+        }
+        for (const [pair, update] of updates) {
+          const current = next.get(pair);
+          if (current == null || update.publishTime >= current.publishTime) {
+            next.set(pair, update);
+          }
+        }
         return next;
       });
     }, FLUSH_MS);

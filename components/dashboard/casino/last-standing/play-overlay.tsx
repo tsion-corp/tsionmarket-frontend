@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useTranslations } from "next-intl";
 import confetti from "canvas-confetti";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 
@@ -37,6 +38,7 @@ export function PlayOverlay({
   secondsToSurvive,
   onClose,
 }: PlayOverlayProps) {
+  const t = useTranslations("casino.lastStanding");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -127,7 +129,7 @@ export function PlayOverlay({
                 transition={{ delay: 0.28, type: "spring", stiffness: 420, damping: 18 }}
                 className="ws-display drop-shadow-[0_4px_30px_rgba(216, 216, 220, 0.55)] mt-6 bg-[linear-gradient(180deg,#ffffff,#d8d8dc,#a8a8ae)] bg-clip-text text-[clamp(44px,11vw,76px)] leading-[0.95] tracking-[-0.02em] text-transparent"
               >
-                YOU&apos;RE IN!
+                {t("overlayYoureIn")}
               </motion.div>
 
               <motion.div
@@ -137,7 +139,7 @@ export function PlayOverlay({
                 className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#d8d8dc]/40 bg-[#d8d8dc]/12 px-4 py-1.5 text-[13px] font-bold tracking-[0.18em] text-[#d8d8dc] uppercase"
               >
                 <span className="bg-up h-1.5 w-1.5 animate-pulse rounded-full" />
-                Last standing
+                {t("overlayLastStanding")}
               </motion.div>
 
               <motion.div
@@ -146,7 +148,7 @@ export function PlayOverlay({
                 transition={{ delay: 0.62 }}
                 className="mt-6 text-[13.5px] font-normal text-white/60"
               >
-                Chasing a pot of
+                {t("overlayChasing")}
               </motion.div>
               <div className="ws-display tnum drop-shadow-[0_0_28px_rgba(216, 216, 220, 0.4)] text-[clamp(40px,10vw,60px)] leading-none text-white">
                 <MoneyTicker value={potValue} format={formatMoney} delay={0.62} />
@@ -158,7 +160,7 @@ export function PlayOverlay({
                 transition={{ delay: 0.9 }}
                 className="mt-5 text-[14px] font-semibold text-white/85"
               >
-                Survive the clock to take it all
+                {t("overlaySurvive")}
                 <span className="tnum ml-2 rounded-md bg-white/10 px-2 py-0.5 text-white">
                   {pad(secondsToSurvive)}
                 </span>
@@ -168,7 +170,7 @@ export function PlayOverlay({
                 onClick={onClose}
                 className="shadow-[0_16px_42px_-12px_rgba(216, 216, 220, 0.95)] mt-8 cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#f0f0f2,#d8d8dc,#b0b0b6)] px-10 py-3.5 font-sans text-[15px] font-bold text-[#1a1a1a] transition-transform hover:-translate-y-0.5 active:translate-y-0"
               >
-                Let&apos;s go
+                {t("overlayLetsGo")}
               </button>
             </motion.div>
           </div>

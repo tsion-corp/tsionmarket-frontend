@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useMatchmakingTicket } from "@/hooks/use-casino-chess";
 import { CasinoError, CasinoLoading } from "@/components/dashboard/casino/casino-state";
 import { toast } from "@/lib/toast";
 
 export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
+  const t = useTranslations("casino.chess.matchmaking");
   const router = useRouter();
   const { ticket, isLoading, error, cancel } = useMatchmakingTicket(ticketId);
 
@@ -26,16 +28,13 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
         <div className="ws-glass rounded-2xl p-9 text-center">
-          <div className="ws-display mb-1.5 text-[19px]">No game waiting</div>
-          <div className="mb-5 text-[12.5px] font-normal text-white/55">
-            Start a quick match from the lobby and we&apos;ll sit you down against whoever is
-            around.
-          </div>
+          <div className="ws-display mb-1.5 text-[19px]">{t("noTicketTitle")}</div>
+          <div className="mb-5 text-[12.5px] font-normal text-white/55">{t("noTicketNote")}</div>
           <Link
             href="/casino/chess"
             className="text-ink inline-block cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-bold"
           >
-            Back to the lobby
+            {t("backToLobby")}
           </Link>
         </div>
       </div>
@@ -44,14 +43,14 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
   if (error) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20">
-        <CasinoError error={error} subject="matchmaking" />
+        <CasinoError error={error} subject={t("subject")} />
       </div>
     );
   }
   if (isLoading || !ticket) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20">
-        <CasinoLoading label="Joining the queue" rows={3} />
+        <CasinoLoading label={t("loading")} rows={3} />
       </div>
     );
   }
@@ -59,10 +58,10 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
   const onCancel = async () => {
     try {
       await cancel();
-      toast.success("Game closed.");
+      toast.success(t("toastClosed"));
       router.push("/casino/chess");
     } catch {
-      toast.error("Couldn't close that game.");
+      toast.error(t("toastCloseFailed"));
     }
   };
 
@@ -70,10 +69,8 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20">
         <div className="ws-glass rounded-2xl p-9 text-center">
-          <div className="ws-display mb-1.5 text-[19px]">That game is no longer open</div>
-          <div className="text-[12.5px] font-normal text-white/55">
-            It was closed before anyone joined. Start another, or create an invite link instead.
-          </div>
+          <div className="ws-display mb-1.5 text-[19px]">{t("expiredTitle")}</div>
+          <div className="text-[12.5px] font-normal text-white/55">{t("expiredNote")}</div>
         </div>
       </div>
     );
@@ -83,18 +80,14 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
       <div className="ws-glass rounded-2xl p-9 text-center">
         <div className="border-accent/30 border-t-accent mx-auto mb-5 h-11 w-11 animate-spin rounded-full border-2" />
-        <div className="ws-display mb-1.5 text-[19px]">Waiting for an opponent</div>
-        <div className="mb-4.5 text-[12.5px] font-normal text-white/55">
-          Your game is open in the lobby. It starts the moment somebody takes the other side.
-        </div>
-        <div className="mb-5 text-[11.5px] font-normal text-white/40">
-          You can leave this page. The game stays open until you close it.
-        </div>
+        <div className="ws-display mb-1.5 text-[19px]">{t("waitingTitle")}</div>
+        <div className="mb-4.5 text-[12.5px] font-normal text-white/55">{t("waitingNote")}</div>
+        <div className="mb-5 text-[11.5px] font-normal text-white/40">{t("leaveNote")}</div>
         <button
           onClick={() => void onCancel()}
           className="cursor-pointer rounded-full border border-white/15 px-4 py-2 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"
         >
-          Close game
+          {t("closeGame")}
         </button>
       </div>
     </div>

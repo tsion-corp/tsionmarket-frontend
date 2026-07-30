@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // The casino service is a separate Node package with its own tooling.
     "casino-service/**",
+    // Design handoff bundles are reference material, not code we lint.
+    "design_handoff_*/**",
   ]),
 ]);
 

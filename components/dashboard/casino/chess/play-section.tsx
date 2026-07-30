@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-casino-chess";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import {
@@ -19,20 +20,36 @@ function formatClock(totalSeconds: number): string {
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function resultLine(match: ChessMatch, you: ChessColor | null): string {
+type Translator = ReturnType<typeof useTranslations>;
+
+const DRAW_REASON_KEYS = {
+  stalemate: "reasonStalemate",
+  agreement: "reasonAgreement",
+  repetition: "reasonRepetition",
+  insufficient: "reasonInsufficient",
+} as const;
+
+function resultLine(t: Translator, match: ChessMatch, you: ChessColor | null): string {
   const r = match.result;
-  if (!r) return match.state === "cancelled" ? "Game aborted" : "";
-  if (r.kind === "draw") return `Draw · ${r.reason}`;
+  if (!r) return match.state === "cancelled" ? t("resultAborted") : "";
+  if (r.kind === "draw") return t("resultDraw", { reason: t(DRAW_REASON_KEYS[r.reason]) });
   const how =
-    r.kind === "checkmate" ? "Checkmate" : r.kind === "resignation" ? "Resignation" : "Flag fall";
-  if (you === null) return `${how} · ${r.winner === "w" ? "White" : "Black"} won`;
-  return `${how} · You ${r.winner === you ? "won" : "lost"}`;
+    r.kind === "checkmate"
+      ? t("howCheckmate")
+      : r.kind === "resignation"
+        ? t("howResignation")
+        : t("howTimeout");
+  if (you === null) {
+    return r.winner === "w" ? t("resultWhiteWon", { how }) : t("resultBlackWon", { how });
+  }
+  return r.winner === you ? t("resultYouWon", { how }) : t("resultYouLost", { how });
 }
 
 const actionButton =
   "cursor-pointer rounded-full border border-white/15 px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50";
 
 export function PlaySection({ matchId }: { matchId: string | null }) {
+  const t = useTranslations("casino.chess.play");
   const router = useRouter();
   const {
     match,
@@ -84,21 +101,21 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   if (!matchId) {
     return (
       <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
-        <CasinoEmpty>No game selected. Pick one from the lobby to start playing.</CasinoEmpty>
+        <CasinoEmpty>{t("noMatch")}</CasinoEmpty>
       </div>
     );
   }
   if (error) {
     return (
       <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
-        <CasinoError error={error} subject="this game" />
+        <CasinoError error={error} subject={t("subject")} />
       </div>
     );
   }
   if (isLoading || !match || !position) {
     return (
       <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
-        <CasinoLoading label="Loading the game" rows={5} />
+        <CasinoLoading label={t("loading")} rows={5} />
       </div>
     );
   }
@@ -118,7 +135,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       try {
         await submitMove(uci);
       } catch (e) {
-        toast.error(friendlyError(e, "That move didn't go through."));
+        toast.error(friendlyError(e, t("toastMoveFailed")));
       }
       return;
     }
@@ -129,64 +146,64 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   const onOfferDraw = async () => {
     try {
       await offerDraw();
-      toast.success("Draw offered.");
+      toast.success(t("toastDrawOffered"));
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't offer a draw."));
+      toast.error(friendlyError(e, t("toastDrawOfferFailed")));
     }
   };
 
   const onAnswerDraw = async (accept: boolean) => {
     try {
       await respondToDraw(accept);
-      toast.success(accept ? "Draw agreed." : "Draw declined.");
+      toast.success(accept ? t("toastDrawAgreed") : t("toastDrawDeclined"));
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't answer that draw offer."));
+      toast.error(friendlyError(e, t("toastDrawAnswerFailed")));
     }
   };
 
   const onResign = async () => {
-    const id = toast.loading("Resigning…");
+    const id = toast.loading(t("toastResigning"));
     try {
       await resign();
-      toast.success("Game resigned.", { id });
+      toast.success(t("toastResigned"), { id });
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't resign."), { id });
+      toast.error(friendlyError(e, t("toastResignFailed")), { id });
     }
   };
 
   const onAbort = async () => {
-    const id = toast.loading("Aborting…");
+    const id = toast.loading(t("toastAborting"));
     try {
       await abort();
-      toast.success("Game aborted.", { id });
+      toast.success(t("toastAborted"), { id });
       router.push("/casino/chess");
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't abort that game."), { id });
+      toast.error(friendlyError(e, t("toastAbortFailed")), { id });
     }
   };
 
   // Opening a rematch seats only this player, so it lands on a board that waits
   // for the opponent to accept.
   const onRematch = async () => {
-    const id = toast.loading("Opening a rematch…");
+    const id = toast.loading(t("toastRematchOpening"));
     try {
       const next = await rematch();
-      toast.success("Rematch opened, colours swapped. Waiting for your opponent.", { id });
+      toast.success(t("toastRematchOpened"), { id });
       router.push(`/casino/chess/play?match=${next.id}`);
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't start a rematch."), { id });
+      toast.error(friendlyError(e, t("toastRematchFailed")), { id });
     }
   };
 
   const onAcceptRematch = async () => {
     if (!rematchOffered) return;
-    const id = toast.loading("Joining the rematch…");
+    const id = toast.loading(t("toastRematchJoining"));
     try {
       const next = await acceptRematch.mutateAsync(rematchOffered);
-      toast.success("Rematch on. Good luck.", { id });
+      toast.success(t("toastRematchOn"), { id });
       router.push(`/casino/chess/play?match=${next.id}`);
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't join that rematch."), { id });
+      toast.error(friendlyError(e, t("toastRematchJoinFailed")), { id });
     }
   };
 
@@ -197,7 +214,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
 
   const moveList =
     match.moves.length === 0
-      ? "No moves yet"
+      ? t("noMoves")
       : match.moves
           .reduce<string[]>((acc, san, i) => {
             if (i % 2 === 0) acc.push(`${i / 2 + 1}. ${san}`);
@@ -207,29 +224,29 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
           .join("  ");
 
   const turnLabel = over
-    ? resultLine(match, you)
+    ? resultLine(t, match, you)
     : claimingTimeout
-      ? "Clock ran out, ending the game…"
+      ? t("statusClaiming")
       : waiting
-        ? "Waiting for an opponent"
+        ? t("statusWaiting")
         : yourTurn
           ? moving
-            ? "Sending your move…"
-            : "Your move"
+            ? t("statusSending")
+            : t("statusYourMove")
           : you === null
-            ? "Spectating"
+            ? t("statusSpectating")
             : offerToAnswer
-              ? "Draw offered to you"
+              ? t("statusDrawToYou")
               : offerPending
-                ? "Draw offer sent"
-                : "Opponent thinking…";
+                ? t("statusDrawSent")
+                : t("statusOpponentThinking");
 
   return (
     <div className="relative mx-auto w-full max-w-[560px] px-4 pt-7 pb-20 sm:px-6">
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
           <span className="h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 bg-white/8" />
-          <span className="truncate">{opponent ? opponent.username : "Waiting for opponent"}</span>
+          <span className="truncate">{opponent ? opponent.username : t("waitingForOpponent")}</span>
         </div>
         <div className="tnum shrink-0 rounded-lg border border-transparent bg-white/4 px-3.5 py-1.5 text-[20px]">
           {formatClock(clocks?.[opponentColor] ?? 0)}
@@ -247,7 +264,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       <div className="mt-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
           <span className="border-accent h-[26px] w-[26px] shrink-0 rounded-full border bg-white/8" />
-          <span className="truncate">{self ? self.username : "You"}</span>
+          <span className="truncate">{self ? self.username : t("you")}</span>
         </div>
         <div
           className={`tnum shrink-0 rounded-lg border px-3.5 py-1.5 text-[20px] ${
@@ -267,7 +284,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
         {you !== null && !over ? (
           waiting ? (
             <button onClick={() => void onAbort()} disabled={aborting} className={actionButton}>
-              {aborting ? "…" : "Abort"}
+              {aborting ? "…" : t("abort")}
             </button>
           ) : offerToAnswer ? (
             <>
@@ -276,14 +293,14 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 disabled={respondingToDraw}
                 className={actionButton}
               >
-                {respondingToDraw ? "…" : "Accept draw"}
+                {respondingToDraw ? "…" : t("acceptDraw")}
               </button>
               <button
                 onClick={() => void onAnswerDraw(false)}
                 disabled={respondingToDraw}
                 className={actionButton}
               >
-                Decline
+                {t("declineDraw")}
               </button>
             </>
           ) : (
@@ -293,14 +310,14 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 disabled={offeringDraw || offerPending}
                 className={actionButton}
               >
-                {offeringDraw ? "…" : offerPending ? "Draw offered" : "Offer draw"}
+                {offeringDraw ? "…" : offerPending ? t("drawOffered") : t("offerDraw")}
               </button>
               <button
                 onClick={() => void onResign()}
                 disabled={resigning}
                 className="border-down/40 text-down cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap disabled:opacity-50"
               >
-                {resigning ? "…" : "Resign"}
+                {resigning ? "…" : t("resign")}
               </button>
             </>
           )
@@ -311,20 +328,20 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[10px] bg-black/60 backdrop-blur-md">
           <div className="ws-glass w-[320px] rounded-2xl px-8 py-9 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
             <div className="text-[12px] font-semibold tracking-[0.06em] text-white/70 uppercase">
-              {resultLine(match, you)}
+              {resultLine(t, match, you)}
             </div>
             {you !== null ? (
               rematchOffered ? (
                 <>
                   <div className="mt-4 text-[12.5px] font-normal text-white/70">
-                    Your opponent wants a rematch.
+                    {t("opponentWantsRematch")}
                   </div>
                   <button
                     onClick={() => void onAcceptRematch()}
                     disabled={acceptRematch.isPending}
                     className="text-ink mt-2.5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
                   >
-                    {acceptRematch.isPending ? "Joining…" : "Accept rematch"}
+                    {acceptRematch.isPending ? t("joining") : t("acceptRematch")}
                   </button>
                 </>
               ) : (
@@ -333,7 +350,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                   disabled={requestingRematch}
                   className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
                 >
-                  {requestingRematch ? "Opening…" : "Rematch"}
+                  {requestingRematch ? t("opening") : t("rematch")}
                 </button>
               )
             ) : null}
@@ -341,7 +358,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
               onClick={() => router.push("/casino/chess")}
               className="mt-2.5 w-full cursor-pointer rounded-full border border-white/15 p-3 font-sans text-[13px] font-semibold text-white/70 transition-colors hover:border-white/35 hover:text-white"
             >
-              Back to lobby
+              {t("backToLobby")}
             </button>
           </div>
         </div>

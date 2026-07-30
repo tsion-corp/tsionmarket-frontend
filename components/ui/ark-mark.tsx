@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { BRAND } from "@/lib/brand";
 
 interface ArkMarkProps {
@@ -5,11 +6,14 @@ interface ArkMarkProps {
   // keeps its aspect ratio, unlike the old square icon.
   height?: number;
   className?: string;
+  // Overrides the computed size, e.g. a fluid width with height auto for the
+  // landing film's large lockup.
+  style?: CSSProperties;
 }
 
 // The Ark brand mark. A plain img from public/ so the SVG needs no inlining
 // and can repeat on a page without id collisions.
-export function ArkMark({ height = 22, className }: ArkMarkProps) {
+export function ArkMark({ height = 22, className, style }: ArkMarkProps) {
   const width = Math.round(height * (186 / 37));
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -19,7 +23,7 @@ export function ArkMark({ height = 22, className }: ArkMarkProps) {
       width={width}
       height={height}
       className={className}
-      style={{ width, height }}
+      style={{ width, height, ...style }}
     />
   );
 }

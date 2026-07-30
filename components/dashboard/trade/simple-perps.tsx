@@ -190,7 +190,9 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
               </span>
               {usdcBalance > 0 ? (
                 <button
-                  onClick={() => setCollateral(usdcBalance.toFixed(2))}
+                  // Floor, not round: toFixed rounds 25.999 to "26.00", which
+                  // then trips the over-balance check and Max invalidates itself.
+                  onClick={() => setCollateral((Math.floor(usdcBalance * 100) / 100).toFixed(2))}
                   className="text-accent cursor-pointer font-medium hover:opacity-80"
                 >
                   {t("max")}

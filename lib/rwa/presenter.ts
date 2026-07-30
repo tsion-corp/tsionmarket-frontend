@@ -2,7 +2,7 @@
 // so every branch here is unit tested. Anything that sizes a trade uses the
 // exact base-unit helpers from lib/trade/math and never floating point.
 
-import { toBaseUnits } from "@/lib/trade/math";
+import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { USDC_BY_CHAIN, type RwaApiAsset, type RwaChain, type RwaQuote } from "@/lib/rwa-api";
 import type { TokenBalance } from "@/hooks/use-portfolio";
 
@@ -121,6 +121,13 @@ export function hasNativeGas(tokens: TokenBalance[], chain: RwaChain): boolean |
   return tokens.some(
     (t) => t.network === network && t.symbol.toUpperCase() === symbol && t.balance > 0
   );
+}
+
+// Base transactions are gas-sponsored end to end (EIP-7702 through our
+// bundler), so only the other chains require the wallet to hold native gas
+// before a trade can go through.
+export function requiresNativeGas(chain: RwaChain): boolean {
+  return chain !== "base";
 }
 
 // A sell can only be sized from a holding we can actually see, and the holding
@@ -296,6 +303,52 @@ export function minReceiveTokens(estReceive: number | null, quote: RwaQuote | nu
   return estReceive * (amountMin / amount);
 }
 
+// Base-unit balance strings are non-negative integers. Anything else is not a
+// balance we can do exact math on.
+const RAW_BALANCE = /^\d+$/;
+
+// Human amount for a whole percent of an exact base-unit balance. The pct is
+// taken in bigint (multiply, then divide by 100) so a 100% sell stages exactly
+// the on-chain balance, never a float round-trip that the input regex rejects
+// or that rounds above what the wallet holds. Null when the balance string is
+// not usable or the slice is zero.
+export function pctOfRawBalance(
+  rawBalance: string,
+  decimals: number,
+  percent: number
+): string | null {
+  if (!RAW_BALANCE.test(rawBalance)) return null;
+  if (!Number.isInteger(percent) || percent <= 0 || percent > 100) return null;
+  if (!Number.isInteger(decimals) || decimals < 0) return null;
+  const part = (BigInt(rawBalance) * BigInt(percent)) / 100n;
+  if (part <= 0n) return null;
+  return fromBaseUnits(part, decimals);
+}
+
+// True when a typed human amount exceeds an exact base-unit balance. Both sides
+// compare in base units so a Max amount staged from the same balance never
+// reads as over it.
+export function exceedsBalance(humanAmount: string, rawBalance: string, decimals: number): boolean {
+  if (!RAW_BALANCE.test(rawBalance)) return false;
+  return toBaseUnits(humanAmount, decimals) > BigInt(rawBalance);
+}
+
+// Tokens received according to the live quote, converted at the known output
+// decimals. Null when the quote is missing, the decimals are unknown, or the
+// amount is not a base-unit integer, letting the caller fall back to the
+// price-derived preview.
+export function quoteReceiveTokens(
+  quote: RwaQuote | null,
+  outputDecimals: number | null
+): number | null {
+  if (!quote || outputDecimals == null || !Number.isInteger(outputDecimals) || outputDecimals < 0) {
+    return null;
+  }
+  if (!RAW_BALANCE.test(quote.output.amount)) return null;
+  const n = Number(fromBaseUnits(BigInt(quote.output.amount), outputDecimals));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 export function priceImpactPercent(bps: number | null): number | null {
   if (bps == null || !Number.isFinite(bps)) return null;
   return bps / 100;
@@ -385,6 +438,9 @@ export interface PayOption {
   input: PayToken;
   priceUsd: number;
   balance: number;
+  // Exact base-unit balance at the input token's decimals, for sizing percent
+  // buttons and the over-balance check without float loss.
+  rawBalance: string;
 }
 
 export function buildPayOptions(tokens: TokenBalance[], asset: RwaApiAsset): PayOption[] {
@@ -401,6 +457,7 @@ export function buildPayOptions(tokens: TokenBalance[], asset: RwaApiAsset): Pay
       input,
       priceUsd: t.priceUsd,
       balance: t.balance,
+      rawBalance: t.rawBalance,
     });
   }
   const hasUsdc = options.some((o) => o.key.toLowerCase() === usdc.address.toLowerCase());
@@ -412,6 +469,7 @@ export function buildPayOptions(tokens: TokenBalance[], asset: RwaApiAsset): Pay
       input: { address: usdc.address, decimals: usdc.decimals },
       priceUsd: 1,
       balance: 0,
+      rawBalance: "0",
     });
   }
   // USDC first, then by held USD value.

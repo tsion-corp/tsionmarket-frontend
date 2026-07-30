@@ -108,10 +108,13 @@ export const CASINO_GAMES: CasinoGame[] = [
 ];
 
 // Category filter plus name search, mirroring the hub's chips and search box.
+// `nameOf` lets the hub search against localized game names; without it the
+// catalogue's English names stand in.
 export function filterGames(
   games: CasinoGame[],
   category: GameCategoryFilter,
-  search: string
+  search: string,
+  nameOf: (game: CasinoGame) => string = (game) => game.name
 ): CasinoGame[] {
   const q = search.trim().toLowerCase();
   return games.filter((g) => {
@@ -119,6 +122,6 @@ export function filterGames(
       category === "All games" ||
       category === g.category ||
       (category === "Coming soon" && g.comingSoon);
-    return inCategory && (!q || g.name.toLowerCase().includes(q));
+    return inCategory && (!q || nameOf(g).toLowerCase().includes(q));
   });
 }

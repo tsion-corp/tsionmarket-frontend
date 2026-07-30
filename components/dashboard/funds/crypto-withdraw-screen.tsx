@@ -28,7 +28,7 @@ import {
   type DepositToken,
   type WithdrawDestination,
 } from "@/lib/deposit";
-import { detectAddressKind } from "@/lib/wallet-address";
+import { DETECTABLE_ADDRESS_KINDS, detectAddressKind } from "@/lib/wallet-address";
 import { friendlyError } from "@/lib/errors";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
@@ -92,16 +92,19 @@ function SelectedRow({
   glyph,
   title,
   onChange,
+  disabled,
 }: {
   glyph: React.ReactNode;
   title: string;
   onChange: () => void;
+  disabled?: boolean;
 }) {
   const t = useTranslations("fundsFlow");
   return (
     <button
       onClick={onChange}
-      className="ws-inset flex w-full cursor-pointer items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white/4"
+      disabled={disabled}
+      className="ws-inset flex w-full cursor-pointer items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white/4 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {glyph}
       <span className="min-w-0 flex-1 truncate font-sans text-[14.5px] font-medium text-white">
@@ -163,9 +166,13 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
   // Dextopus's destinations plus a Base-USDC row (which the solver omits), so
   // Base is offered for the plain same-chain send. Deduped in case the solver
-  // ever starts returning it.
+  // ever starts returning it. Destinations whose address family
+  // detectAddressKind can't verify are dropped: offering one would dead-end
+  // the user at the address field with a mismatch no address can clear.
   const allDestinations = useMemo(() => {
-    const solver = destinations.data ?? [];
+    const solver = (destinations.data ?? []).filter((d) =>
+      DETECTABLE_ADDRESS_KINDS.has(d.addressKind)
+    );
     const hasBaseUsdc = solver.some(
       (d) =>
         d.destinationChainId === BASE_CHAIN_ID &&
@@ -441,12 +448,16 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
             }
             title={destSymbol}
             onChange={() => setTokenOpen(true)}
+            disabled={submitting}
           />
         ) : (
           <TokenList
             tokens={symbolOptions}
             selected={selectedSymbolOption}
             onSelect={(t) => {
+              // A picker can sit open while a submit runs; changing the
+              // destination mid-send would diverge from the quoted route.
+              if (submitting) return;
               setDestSymbol(t.symbol);
               setDestChainId(null);
               setTokenOpen(false);
@@ -487,6 +498,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               }
               title={destChainLabel}
               onChange={() => setNetworkOpen(true)}
+              disabled={submitting}
             />
           ) : (
             <NetworkTabs
@@ -495,6 +507,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               filterOrigin={false}
               selectedId={destChainId}
               onSelect={(c) => {
+                if (submitting) return;
                 setDestChainId(c.chainId);
                 setNetworkOpen(false);
               }}
@@ -518,7 +531,8 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
             onChange={(e) => setTo(e.target.value)}
             placeholder={t("pasteAddress")}
             spellCheck={false}
-            className="tnum w-full border-none bg-transparent text-[14px] break-all text-white outline-none"
+            disabled={submitting}
+            className="tnum w-full border-none bg-transparent text-[14px] break-all text-white outline-none disabled:opacity-50"
           />
           {to.trim().length > 0 ? (
             <div className="mt-1.5 text-[11px] font-normal text-white/45">
@@ -545,8 +559,14 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
             <span>{t("amount")}</span>
             <button
-              onClick={() => setAmount(String(balance))}
-              className="tnum cursor-pointer text-white/55 hover:text-white"
+              // Fill from the exact base-unit balance: `balance` is a lossy
+              // display float, and a max built from it can round above what
+              // the wallet actually holds.
+              onClick={() =>
+                setAmount(usdc ? fromBaseUnits(BigInt(usdc.rawBalance), usdc.decimals) : "0")
+              }
+              disabled={submitting}
+              className="tnum cursor-pointer text-white/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
             >
               {t("maxBalance", { amount: formatAmount(balance) })}
             </button>
@@ -557,7 +577,8 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               placeholder="0"
               value={amount}
               onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
-              className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+              disabled={submitting}
+              className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30 disabled:opacity-50"
             />
             <span className="shrink-0 font-sans text-[14px] font-medium text-white/70">USDC</span>
           </div>

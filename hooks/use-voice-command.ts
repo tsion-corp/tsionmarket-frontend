@@ -175,7 +175,6 @@ export function useVoiceCommand(): UseVoiceCommand {
       // resolves with the terminal frame for this turn.
       const { frame } = await send(audio);
       const intent = vividToIntent(frame);
-      console.log("[voice] dispatching intent:", intent.action, JSON.stringify(intent));
       dispatch(intent, toastId);
     } catch (err) {
       console.error("[voice] turn failed:", err);

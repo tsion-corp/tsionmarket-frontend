@@ -7,6 +7,7 @@ import {
   errorCode,
   estimateReceiveTokens,
   estimateReceiveUsdc,
+  exceedsBalance,
   findRwaAsset,
   findRwaHolding,
   formatApy,
@@ -14,6 +15,7 @@ import {
   gasSymbolForChain,
   gradientFor,
   hasNativeGas,
+  requiresNativeGas,
   isIssuerAccess,
   isRateLimitError,
   isSellableChain,
@@ -24,7 +26,9 @@ import {
   networkToRwaChain,
   pageCount,
   pageSlice,
+  pctOfRawBalance,
   priceImpactPercent,
+  quoteReceiveTokens,
   routeLabel,
   rwaErrorInfo,
   sellQuoteRequest,
@@ -187,6 +191,13 @@ describe("hasNativeGas", () => {
 
   it("returns null when the chain is not covered by the portfolio source", () => {
     expect(hasNativeGas([token({ symbol: "BNB", balance: 1 })], "bsc")).toBeNull();
+  });
+
+  it("never requires native gas on Base, where sends are sponsored", () => {
+    expect(requiresNativeGas("base")).toBe(false);
+    expect(requiresNativeGas("solana")).toBe(true);
+    expect(requiresNativeGas("polygon")).toBe(true);
+    expect(requiresNativeGas("arbitrum")).toBe(true);
   });
 });
 
@@ -438,5 +449,73 @@ describe("gradientFor", () => {
   it("is deterministic for the same seed", () => {
     expect(gradientFor("OUSG")).toBe(gradientFor("OUSG"));
     expect(gradientFor("OUSG")).toMatch(/^linear-gradient/);
+  });
+});
+
+describe("pctOfRawBalance", () => {
+  it("returns the exact balance for 100 percent", () => {
+    // A float round-trip of this value would not survive; the bigint path must.
+    expect(pctOfRawBalance("123456789012345678", 18, 100)).toBe("0.123456789012345678");
+  });
+
+  it("takes the percent in base units, flooring the remainder", () => {
+    expect(pctOfRawBalance("1000001", 6, 50)).toBe("0.5");
+    expect(pctOfRawBalance("3", 6, 50)).toBe("0.000001");
+  });
+
+  it("never emits exponent notation for tiny balances", () => {
+    expect(pctOfRawBalance("1", 18, 100)).toBe("0.000000000000000001");
+  });
+
+  it("is null for a zero slice or bad input", () => {
+    expect(pctOfRawBalance("1", 6, 25)).toBeNull();
+    expect(pctOfRawBalance("0", 6, 100)).toBeNull();
+    expect(pctOfRawBalance("1.5", 6, 100)).toBeNull();
+    expect(pctOfRawBalance("abc", 6, 100)).toBeNull();
+    expect(pctOfRawBalance("100", 6, 0)).toBeNull();
+    expect(pctOfRawBalance("100", 6, 101)).toBeNull();
+  });
+});
+
+describe("exceedsBalance", () => {
+  it("compares the typed amount against the balance in base units", () => {
+    expect(exceedsBalance("1.000001", "1000000", 6)).toBe(true);
+    expect(exceedsBalance("1", "1000000", 6)).toBe(false);
+    expect(exceedsBalance("0.999999", "1000000", 6)).toBe(false);
+  });
+
+  it("never flags a Max amount staged from the same balance", () => {
+    const raw = "123456789012345678";
+    const max = pctOfRawBalance(raw, 18, 100);
+    expect(max).not.toBeNull();
+    expect(exceedsBalance(max as string, raw, 18)).toBe(false);
+  });
+
+  it("does not gate on an unusable balance string", () => {
+    expect(exceedsBalance("5", "n/a", 6)).toBe(false);
+  });
+});
+
+describe("quoteReceiveTokens", () => {
+  const quote = (amount: string): RwaQuote => ({
+    provider: "jupiter",
+    input: { chain: "solana", address: "usdc", amount: "500000000" },
+    output: { chain: "solana", address: "asset", amount },
+    priceImpactBps: 12,
+  });
+
+  it("converts the quote output at the known decimals", () => {
+    expect(quoteReceiveTokens(quote("2500000"), 6)).toBe(2.5);
+    expect(quoteReceiveTokens(quote("1000000000000000000"), 18)).toBe(1);
+  });
+
+  it("is null without a quote or known decimals, so the preview falls back", () => {
+    expect(quoteReceiveTokens(null, 6)).toBeNull();
+    expect(quoteReceiveTokens(quote("2500000"), null)).toBeNull();
+  });
+
+  it("is null for a non-integer or non-positive output amount", () => {
+    expect(quoteReceiveTokens(quote("2.5"), 6)).toBeNull();
+    expect(quoteReceiveTokens(quote("0"), 6)).toBeNull();
   });
 });

@@ -10,6 +10,19 @@
 
 import type { AddressKind } from "@/lib/deposit";
 
+// The address families detectAddressKind can positively identify. A
+// destination outside this set can never pass address validation, so pickers
+// must not offer it: the user would paste a valid address and still be
+// blocked with a mismatch error.
+export const DETECTABLE_ADDRESS_KINDS: ReadonlySet<AddressKind> = new Set<AddressKind>([
+  "evm",
+  "tron",
+  "xrp",
+  "ton",
+  "bitcoin",
+  "solana",
+]);
+
 const EVM = /^0x[0-9a-fA-F]{40}$/;
 const TRON = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 const XRP = /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/;

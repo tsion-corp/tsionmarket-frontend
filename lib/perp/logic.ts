@@ -35,14 +35,24 @@ export function isPositiveWireDecimal(value: string): boolean {
   return WIRE_DECIMAL.test(value) && /[1-9]/.test(value);
 }
 
+// A positive wire decimal within a precision the venue can represent (USDC has
+// 6 decimals, leverage is quoted in hundredths). Deeper precision would be
+// silently truncated by our bigint math while the raw string went to the
+// gateway at full length — two different amounts for one order.
+export function isWireAmount(value: string, maxDecimals: number): boolean {
+  if (!isPositiveWireDecimal(value)) return false;
+  const dot = value.indexOf(".");
+  return dot === -1 || value.length - dot - 1 <= maxDecimals;
+}
+
 // Collateral in USDC base units (6 decimals), for the exact allowance compare.
 export function collateralBaseUnits(collateralUsdc: string): bigint {
   return toBaseUnits(collateralUsdc, USDC_DECIMALS);
 }
 
 // Position size (collateral x leverage) in USDC base units, computed exactly.
-// Leverage supports up to 2 decimal places ("10", "7.5"); more precision than
-// that is not a real leverage input and is rejected by validateOrder.
+// Leverage supports up to 2 decimal places ("10", "7.5"); deeper precision is
+// rejected by validateOrder and orderFieldValidity via isWireAmount.
 export function positionSizeBaseUnits(collateralUsdc: string, leverage: string): bigint {
   const collateral = toBaseUnits(collateralUsdc, USDC_DECIMALS);
   const leverageHundredths = toBaseUnits(leverage, 2);
@@ -90,10 +100,10 @@ export function validateOrder(
   leverage: string,
   balanceUsdc?: string
 ): OrderValidation {
-  if (!isPositiveWireDecimal(collateralUsdc)) {
+  if (!isWireAmount(collateralUsdc, USDC_DECIMALS)) {
     return { ok: false, message: "Enter a collateral amount.", code: "enterCollateral" };
   }
-  if (!isPositiveWireDecimal(leverage)) {
+  if (!isWireAmount(leverage, 2)) {
     return { ok: false, message: "Enter a leverage.", code: "enterLeverage" };
   }
   const leverageHundredths = toBaseUnits(leverage, 2);
@@ -146,8 +156,8 @@ export function orderFieldValidity(
   let collateralInvalid = false;
   let leverageInvalid = false;
 
-  const collateralOk = isPositiveWireDecimal(collateralUsdc);
-  const leverageOk = isPositiveWireDecimal(leverage);
+  const collateralOk = isWireAmount(collateralUsdc, USDC_DECIMALS);
+  const leverageOk = isWireAmount(leverage, 2);
 
   if (collateralUsdc !== "") {
     if (!collateralOk) {

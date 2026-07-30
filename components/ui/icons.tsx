@@ -412,6 +412,34 @@ export function CollectiblesIcon({ size = 22, className }: IconProps) {
   );
 }
 
+export function FlagIcon({ size = 22, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M6 21V4m0 0h11l-3 3.5 3 3.5H6"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function GameArrowsIcon({ size = 22, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M12 3v18M12 3 9.5 5.5M12 3l2.5 2.5M12 21l-2.5-2.5m2.5 2.5 2.5-2.5M3 12h18M3 12l2.5-2.5M3 12l2.5 2.5M21 12l-2.5-2.5m2.5 2.5-2.5 2.5"
+        stroke={stroke}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function MicIcon({ size = 20, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useClaimDrawPrize, useMyDrawEntries } from "@/hooks/use-casino-draw";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import {
@@ -13,30 +14,31 @@ import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
 export function EntriesSection() {
+  const t = useTranslations("casino.entries");
   const wallet = useCasinoWallet();
   const { entries, isLoading, error } = useMyDrawEntries();
   const claim = useClaimDrawPrize();
 
   const onClaim = async (entryId: string) => {
-    const id = toast.loading("Claiming your prize…");
+    const id = toast.loading(t("toastClaiming"));
     try {
       await claim.mutateAsync(entryId);
-      toast.success("Prize claimed — added to your balance.", { id });
+      toast.success(t("toastClaimed"), { id });
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't claim that prize."), { id });
+      toast.error(friendlyError(e, t("toastClaimFailed")), { id });
     }
   };
 
   return (
     <div className="mx-auto w-full max-w-[640px] px-4 pt-8 pb-20 sm:px-6">
-      <div className="ws-display mb-5 text-[24px]">My entries</div>
+      <div className="ws-display mb-5 text-[24px]">{t("title")}</div>
 
       {error ? (
-        <CasinoError error={error} subject="your entries" />
+        <CasinoError error={error} subject={t("subject")} />
       ) : isLoading ? (
-        <CasinoLoading label="Loading your entries" rows={3} />
+        <CasinoLoading label={t("loading")} rows={3} />
       ) : entries.length === 0 ? (
-        <CasinoEmpty>No entries yet. Pick your numbers in the draw to enter.</CasinoEmpty>
+        <CasinoEmpty>{t("empty")}</CasinoEmpty>
       ) : (
         entries.map((e) => {
           const matched = e.matchedNumbers ?? [];
@@ -46,10 +48,10 @@ export function EntriesSection() {
               <div className="mb-2.5 flex items-center justify-between gap-3">
                 <div className="text-[12px] font-normal text-white/50">
                   {e.state === "open"
-                    ? "This draw · entry locked in"
+                    ? t("openEntry")
                     : e.state === "won"
-                      ? `Won · ${matched.length} matched${e.bonusMatched ? " + bonus" : ""}`
-                      : "No match this time"}
+                      ? t(e.bonusMatched ? "wonWithBonus" : "won", { count: matched.length })
+                      : t("noMatch")}
                 </div>
                 {e.state === "won" && e.prize ? (
                   <div className="ws-display tnum text-grey-100 text-[18px]">
@@ -73,7 +75,7 @@ export function EntriesSection() {
                   disabled={claim.isPending}
                   className="text-ink mt-3 cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[12.5px] font-bold disabled:opacity-50"
                 >
-                  {claim.isPending ? "Claiming…" : "Claim prize"}
+                  {claim.isPending ? t("claiming") : t("claimPrize")}
                 </button>
               ) : null}
             </div>

@@ -190,7 +190,7 @@ function PositionRow({
                 />
                 <button
                   onClick={() => onUpdateTpSl(p, tp || "0", sl || "0")}
-                  disabled={busy}
+                  disabled={busy || tpInvalid || slInvalid}
                   className="text-ink shrink-0 cursor-pointer rounded-lg bg-white px-3 py-2 text-[12.5px] font-semibold hover:opacity-90 disabled:opacity-50"
                 >
                   {t("set")}

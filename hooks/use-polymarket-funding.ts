@@ -62,6 +62,9 @@ export function usePolymarketFunding() {
       setFunding(true);
       setError(null);
       try {
+        if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+          throw new Error("Enter an amount greater than zero");
+        }
         const client = await ensureReady();
         const res = await apiFetch("/api/polymarket/deposit-address", {
           method: "POST",
@@ -73,10 +76,12 @@ export function usePolymarketFunding() {
         const bridge = pickEvmAddress(data);
         if (!bridge) throw new Error("No deposit address returned");
 
+        // toFixed keeps the amount in plain decimal form. String() can emit
+        // scientific notation for small numbers, which toBaseUnits reads as 0.
         return await sendUsdc({
           chainType: "ethereum",
           to: bridge,
-          amount: toBaseUnits(String(amountUsd), 6),
+          amount: toBaseUnits(amountUsd.toFixed(6), 6),
           settle: FUNDING_SETTLE,
         });
       } catch (e) {

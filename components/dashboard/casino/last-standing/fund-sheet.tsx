@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { DepositStatus } from "@/components/dashboard/funds/deposit-status";
@@ -37,6 +38,7 @@ interface FundSheetProps {
 }
 
 export function FundSheet({ onClose }: FundSheetProps) {
+  const t = useTranslations("casino.fund");
   const { user } = usePrivy();
   const money = useMoney();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
@@ -92,9 +94,9 @@ export function FundSheet({ onClose }: FundSheetProps) {
     status.data,
     depositRequestId,
     {
-      settled: "Money added to your balance",
-      failed: "Couldn't add money — you were refunded",
-      refunded: "Refunded to your balance",
+      settled: t("toastSettled"),
+      failed: t("toastFailed"),
+      refunded: t("toastRefunded"),
     },
     () => void refetchPortfolio()
   );
@@ -108,11 +110,11 @@ export function FundSheet({ onClose }: FundSheetProps) {
     setSubmitting(true);
     // Processing toast for the gasless send; the terminal "Money added" toast
     // (useTerminalToast) confirms separately once it settles.
-    const toastId = toast.loading(`Adding ${money.format(value)} to your balance…`);
+    const toastId = toast.loading(t("toastAdding", { amount: money.format(value) }));
     try {
       const fresh = await quote.refetch();
       if (fresh.isError || !fresh.data) {
-        setError(friendlyError(fresh.error, "Couldn't do that right now. Try again."));
+        setError(friendlyError(fresh.error, t("errorQuote")));
         toast.dismiss(toastId);
         return;
       }
@@ -125,13 +127,11 @@ export function FundSheet({ onClose }: FundSheetProps) {
       });
       setDepositRequestId(fresh.data.depositRequestId);
       setSent(true);
-      toast.success(`Adding ${money.format(value)} — it lands in your balance shortly.`, {
-        id: toastId,
-      });
+      toast.success(t("toastAdded", { amount: money.format(value) }), { id: toastId });
       void refetchPortfolio();
     } catch (e) {
-      setError(friendlyError(e, "That didn't go through. Please try again."));
-      toast.error(friendlyError(e, "That didn't go through. Please try again."), { id: toastId });
+      setError(friendlyError(e, t("errorSend")));
+      toast.error(friendlyError(e, t("errorSend")), { id: toastId });
     } finally {
       setSubmitting(false);
     }
@@ -141,12 +141,12 @@ export function FundSheet({ onClose }: FundSheetProps) {
     return (
       <div>
         <SheetNav
-          title="Adding money"
-          subtitle={`${money.format(value)} to your balance`}
+          title={t("addingTitle")}
+          subtitle={t("addingSubtitle", { amount: money.format(value) })}
           onBack={onClose}
         />
         <div className="border-accent/25 bg-accent/10 mt-1 rounded-[14px] border px-4 py-4 text-[13px] leading-normal font-normal text-white/80">
-          We&apos;re moving the money into your game balance. This usually lands within a minute.
+          {t("movingNote")}
         </div>
         {depositRequestId ? (
           <DepositStatus
@@ -160,7 +160,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
           onClick={onClose}
           className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
         >
-          Done
+          {t("done")}
         </button>
       </div>
     );
@@ -168,21 +168,21 @@ export function FundSheet({ onClose }: FundSheetProps) {
 
   return (
     <div>
-      <SheetNav title="Add money" subtitle="Move money into your game balance." onBack={onClose} />
+      <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onClose} />
 
       <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
-        <span className="text-[13px] font-normal text-white/55">Available to add</span>
+        <span className="text-[13px] font-normal text-white/55">{t("availableToAdd")}</span>
         <span className="ws-display tnum text-[18px] text-white">{money.format(balance)}</span>
       </div>
 
       <div className="ws-inset mt-2 p-[15px]">
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
-          <span>Amount</span>
+          <span>{t("amount")}</span>
           <button
             onClick={() => setAmount(String(balance))}
             className="tnum cursor-pointer text-white/55 hover:text-white"
           >
-            Max {money.format(balance)}
+            {t("max", { amount: money.format(balance) })}
           </button>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -196,17 +196,17 @@ export function FundSheet({ onClose }: FundSheetProps) {
           />
         </div>
         {overBalance ? (
-          <div className="text-down mt-1.5 text-[12px] font-normal">More than you have to add</div>
+          <div className="text-down mt-1.5 text-[12px] font-normal">{t("overBalance")}</div>
         ) : null}
       </div>
 
       {value > 0 && !overBalance ? (
         <div className="ws-inset mt-2 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
-          <span className="text-white/55">Added to your balance</span>
+          <span className="text-white/55">{t("addedToBalance")}</span>
           {quote.isError ? (
-            <span className="text-down">Unavailable</span>
+            <span className="text-down">{t("unavailable")}</span>
           ) : quote.isFetching || !quote.data || addedUsd === null ? (
-            <span className="text-white/45">Checking…</span>
+            <span className="text-white/45">{t("checking")}</span>
           ) : (
             <span className="tnum text-accent">≈ {money.format(addedUsd)}</span>
           )}
@@ -220,7 +220,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
         disabled={!ready || submitting}
         className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        {submitting ? "Adding…" : quoteInput && quote.isFetching ? "Checking…" : "Add money"}
+        {submitting ? t("adding") : quoteInput && quote.isFetching ? t("checking") : t("addMoney")}
       </button>
     </div>
   );

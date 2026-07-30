@@ -1,8 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import type { CasinoGame, TileSize } from "@/lib/casino/games";
 import type { GamePresence } from "@/lib/casino/api/types";
+
+// A next-intl t scoped to "casino.hub", passed into the label helpers.
+type HubTranslate = (key: string, values?: Record<string, string | number>) => string;
 
 // Tailwind needs static class strings, so each tile footprint maps to a
 // literal span/height combo on the hub's 6-column grid.
@@ -38,6 +42,7 @@ interface GameTileProps {
 // Turns live presence into the small status line on the tile. A game with
 // nobody in it says so honestly rather than inventing activity.
 function presenceLine(
+  t: HubTranslate,
   game: CasinoGame,
   presence?: GamePresence
 ): { dot: string; text: string; label: string } | null {
@@ -47,30 +52,32 @@ function presenceLine(
     return {
       dot: "bg-up",
       text: "text-up",
-      label: `${presence.playersOnline.toLocaleString()} playing`,
+      label: t("presencePlaying", { count: presence.playersOnline.toLocaleString() }),
     };
   }
   if (presence.inQueue > 0) {
     return {
       dot: "bg-grey-300",
       text: "text-grey-300",
-      label: `${presence.inQueue.toLocaleString()} in queue`,
+      label: t("presenceQueue", { count: presence.inQueue.toLocaleString() }),
     };
   }
-  return { dot: "bg-white/40", text: "text-white/50", label: "Be the first" };
+  return { dot: "bg-white/40", text: "text-white/50", label: t("presenceBeFirst") };
 }
 
-function badgeFor(game: CasinoGame, presence?: GamePresence) {
-  if (game.comingSoon) return { text: "COMING SOON", className: "bg-white/12 text-white/70" };
+function badgeFor(t: HubTranslate, game: CasinoGame, presence?: GamePresence) {
+  if (game.comingSoon)
+    return { text: t("badgeComingSoon"), className: "bg-white/12 text-white/70" };
   if (presence && presence.playersOnline > 0)
-    return { text: "POPULAR", className: "bg-accent text-ink" };
-  if (game.category === "New") return { text: "NEW", className: "bg-grey-100 text-ink" };
+    return { text: t("badgePopular"), className: "bg-accent text-ink" };
+  if (game.category === "New") return { text: t("badgeNew"), className: "bg-grey-100 text-ink" };
   return null;
 }
 
 export function GameTile({ game, presence, headline }: GameTileProps) {
-  const badge = badgeFor(game, presence);
-  const line = presenceLine(game, presence);
+  const t = useTranslations("casino.hub");
+  const badge = badgeFor(t, game, presence);
+  const line = presenceLine(t, game, presence);
   const hasArrow = !game.comingSoon && (game.size === "hero" || game.size === "tall");
 
   const body = (
@@ -115,14 +122,14 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
               game.comingSoon ? "text-white/50" : "text-white"
             }`}
           >
-            {game.name}
+            {t(`games.${game.id}.name`)}
           </span>
           {headline ? (
             <span className="ws-display tnum text-grey-100 mt-1 block text-[25px]">{headline}</span>
           ) : null}
           {game.note ? (
             <span className="mt-1 block truncate text-[11.5px] font-normal text-white/60">
-              {game.note}
+              {t(`games.${game.id}.note`)}
             </span>
           ) : null}
         </span>

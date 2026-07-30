@@ -6,7 +6,6 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { useGasStatus } from "@/hooks/use-withdraw";
 import { useDepositChains, useDepositStatus } from "@/hooks/use-deposit";
 import { useBuyDestinations } from "@/hooks/use-buy-catalog";
 import { useBuy } from "@/hooks/use-buy";
@@ -44,7 +43,6 @@ interface BuySheetProps {
 export function BuySheet({ payload, onClose }: BuySheetProps) {
   const t = useTranslations("buySell");
   const portfolio = usePortfolio();
-  const gas = useGasStatus("ethereum");
   const destinations = useBuyDestinations();
 
   const routes = useMemo(
@@ -86,11 +84,14 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   );
 
   const value = Number(amount) || 0;
-  const notEnough = balance > 0 && value > balance;
+  // Only flag a shortfall once the balance has actually loaded; until then we
+  // don't know it, and a zero must block like any other insufficient balance.
+  const notEnough = !portfolio.loading && value > balance;
   const belowMin = value > 0 && value < MIN_USD;
-  const noFee = !gas.loading && !gas.hasGas;
+  // A buy is always a USDC send on Base, and every Base send is gas-sponsored
+  // (EIP-7702 through our bundler), so no native ETH is ever required here.
   const canBuy =
-    Boolean(route) && value >= MIN_USD && !notEnough && !noFee && !gas.loading && !buy.isPending;
+    Boolean(route) && value >= MIN_USD && !portfolio.loading && value <= balance && !buy.isPending;
 
   // Instant estimate from market price: dollars spent divided by the asset's
   // unit price. This is a preview; the exact amount is quoted at buy time and
@@ -116,12 +117,25 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     if (stage === "settled") {
       settledRef.current = true;
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
+      toastRef.current = undefined;
       void portfolio.refetch();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       toast.error(t("purchaseRefundedToast"), { id: toastRef.current });
+      toastRef.current = undefined;
     }
   }, [stage, payload.name, portfolio, t]);
+
+  // A loading toast never times out, and closing the sheet unmounts the settle
+  // effect that would resolve it, leaving it spinning forever. Every resolution
+  // path clears the ref, so on unmount anything still in it is an orphan to
+  // dismiss.
+  useEffect(
+    () => () => {
+      if (toastRef.current !== undefined) toast.dismiss(toastRef.current);
+    },
+    []
+  );
 
   const confirm = async () => {
     if (!route) return;
@@ -137,6 +151,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     } catch {
       // The detailed message is surfaced from buy.error below; resolve the toast.
       toast.error(t("buyFailedToast", { name: payload.name }), { id: toastRef.current });
+      toastRef.current = undefined;
     }
   };
 
@@ -262,11 +277,6 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
         </div>
       ) : null}
 
-      {noFee ? (
-        <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-white/55">
-          {t("needGasFee", { symbol: "ETH", network: "Base" })}
-        </p>
-      ) : null}
       {buy.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
           {friendlyError(buy.error, t("purchaseFailedFallback"))}

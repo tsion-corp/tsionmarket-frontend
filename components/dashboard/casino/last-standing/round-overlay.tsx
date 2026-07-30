@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useTranslations } from "next-intl";
 import confetti from "canvas-confetti";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 
@@ -44,6 +45,7 @@ export function RoundOverlay({
   formatMoney,
   onClose,
 }: RoundOverlayProps) {
+  const t = useTranslations("casino.lastStanding");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
@@ -199,10 +201,10 @@ export function RoundOverlay({
                       </motion.div>
                     </div>
                     <div className="mt-5 text-[13px] font-bold tracking-[0.24em] text-[#d8d8dc] uppercase">
-                      Jackpot
+                      {t("revealJackpot")}
                     </div>
                     <div className="ws-display mt-1 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[40px] leading-none text-transparent">
-                      You won!
+                      {t("revealYouWon")}
                     </div>
                     <div className="ws-display tnum drop-shadow-[0_0_32px_rgba(216, 216, 220, 0.5)] mt-4 text-[clamp(48px,13vw,72px)] leading-none text-white">
                       {canTick ? (
@@ -214,17 +216,17 @@ export function RoundOverlay({
                     {winnerLabel ? (
                       <div className="tnum mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#d8d8dc]/25 bg-[#d8d8dc]/10 px-3 py-1 text-[12px] font-semibold text-[#d8d8dc]">
                         <span aria-hidden>✦</span>
-                        Credited to {winnerLabel}
+                        {t("revealCredited", { winner: winnerLabel })}
                       </div>
                     ) : null}
                     <div className="mt-3 text-[13.5px] font-normal text-white/60">
-                      The whole pot has been added to your balance.
+                      {t("revealPotAdded")}
                     </div>
                     <button
                       onClick={onClose}
                       className="shadow-[0_16px_42px_-12px_rgba(255, 255, 255, 0.9)] mt-7 w-full cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)] p-4 font-sans text-[16px] font-bold text-white transition-transform hover:-translate-y-0.5 active:translate-y-0"
                     >
-                      Nice!
+                      {t("revealNice")}
                     </button>
                   </div>
                 </motion.div>
@@ -253,13 +255,13 @@ export function RoundOverlay({
                       👑
                     </motion.div>
                     <div className="text-accent mt-5 text-[13px] font-bold tracking-[0.24em] uppercase">
-                      We have a winner
+                      {t("revealWeHaveWinner")}
                     </div>
                     <div className="ws-display tnum mt-2 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(34px,10vw,52px)] leading-none tracking-[0.02em] text-transparent">
-                      {winnerLabel ?? "A player"}
+                      {winnerLabel ?? t("revealAPlayer")}
                     </div>
                     <div className="mt-4 text-[14px] font-normal text-white/60">
-                      took the whole pot of{" "}
+                      {t("revealTookPot")}{" "}
                       <span className="tnum text-accent font-semibold">
                         {canTick ? (
                           <MoneyTicker value={prizeValue} format={formatMoney} delay={0.25} />
@@ -269,13 +271,13 @@ export function RoundOverlay({
                       </span>
                     </div>
                     <div className="mt-1.5 text-[13px] font-normal text-white/45">
-                      Better luck next round — a fresh pot is building now.
+                      {t("revealBetterLuck")}
                     </div>
                     <button
                       onClick={onClose}
                       className="mt-7 w-full cursor-pointer rounded-2xl bg-white/10 p-4 font-sans text-[16px] font-bold text-white ring-1 ring-white/15 transition-transform hover:-translate-y-0.5 active:translate-y-0"
                     >
-                      Got it
+                      {t("revealGotIt")}
                     </button>
                   </div>
                 </motion.div>
@@ -321,13 +323,13 @@ export function RoundOverlay({
                     </div>
 
                     <div className="ws-display mt-6 text-[26px] leading-tight text-white">
-                      Calculating the winner…
+                      {t("calcTitle")}
                     </div>
                     <div className="mt-2 text-[13px] font-normal text-white/55">
-                      Deciding who takes the pot. Hold tight.
+                      {t("calcBody")}
                     </div>
                     <div className="tnum text-accent mt-4 text-[15px] font-semibold">
-                      {prizeLabel} on the line
+                      {t("calcOnTheLine", { amount: prizeLabel })}
                     </div>
 
                     {/* Suspense progress that fills across the wait. */}

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useTranslations } from "next-intl";
 import { useBuyDrawEntries, useDrawRound } from "@/hooks/use-casino-draw";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import {
@@ -34,6 +35,7 @@ function formatCountdown(total: number): string {
 }
 
 export function DrawSection() {
+  const t = useTranslations("casino.draw");
   const wallet = useCasinoWallet();
   const { round, pastResults, isLoading, error } = useDrawRound();
   const buy = useBuyDrawEntries();
@@ -47,14 +49,14 @@ export function DrawSection() {
   if (error) {
     return (
       <div className="mx-auto w-full max-w-[900px] px-4 pt-10 pb-20">
-        <CasinoError error={error} subject="the draw" />
+        <CasinoError error={error} subject={t("subject")} />
       </div>
     );
   }
   if (isLoading || !round) {
     return (
       <div className="mx-auto w-full max-w-[900px] px-4 pt-10 pb-20">
-        <CasinoLoading label="Loading the draw" rows={5} />
+        <CasinoLoading label={t("loading")} rows={5} />
       </div>
     );
   }
@@ -84,11 +86,11 @@ export function DrawSection() {
 
   const onBuy = async () => {
     if (!wallet.connected) {
-      toast.error("Connect your wallet to enter the draw.");
+      toast.error(t("toastConnect"));
       return;
     }
     if (!canBuy || bonusNumber === null) return;
-    const id = toast.loading("Buying your entries…");
+    const id = toast.loading(t("toastBuying"));
     try {
       await buy.mutateAsync({
         roundId: round.id,
@@ -96,12 +98,12 @@ export function DrawSection() {
         bonusNumber,
         quantity,
       });
-      toast.success("You're in this draw. Good luck.", { id });
+      toast.success(t("toastIn"), { id });
       setMainNumbers([]);
       setBonusNumber(null);
       setQuantity(1);
     } catch (e) {
-      toast.error(friendlyError(e, "Couldn't buy those entries."), { id });
+      toast.error(friendlyError(e, t("toastBuyFailed")), { id });
     }
   };
 
@@ -130,7 +132,7 @@ export function DrawSection() {
           className="pointer-events-none absolute -top-36 left-1/2 h-[280px] w-[480px] -translate-x-1/2 bg-[radial-gradient(ellipse,rgba(212,212,216,0.13),transparent_70%)]"
         />
         <div className="mb-2.5 text-[11px] font-normal tracking-[0.06em] text-white/50 uppercase">
-          Jackpot
+          {t("jackpot")}
         </div>
         <div className="ws-display tnum text-grey-100 mb-2.5 text-[clamp(38px,7vw,56px)] leading-none">
           {wallet.format(amountUsd(round.jackpot, wallet.unitPriceUsd))}
@@ -138,11 +140,11 @@ export function DrawSection() {
         <div className="tnum text-[15px]">
           {open ? (
             <>
-              Next draw in <span className="text-down">{formatCountdown(secondsLeft)}</span>
+              {t("nextDrawIn")} <span className="text-down">{formatCountdown(secondsLeft)}</span>
             </>
           ) : (
             <span className="text-white/55">
-              {round.state === "drawing" ? "Drawing now…" : "This round has closed"}
+              {round.state === "drawing" ? t("drawingNow") : t("roundClosedNote")}
             </span>
           )}
         </div>
@@ -152,14 +154,14 @@ export function DrawSection() {
         <div className="ws-glass rounded-2xl p-5.5">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-[13px] font-normal text-white/55">
-              Pick {round.mainPicks} numbers (1–{round.mainPool})
+              {t("pickNumbers", { count: round.mainPicks, max: round.mainPool })}
             </div>
             <button
               onClick={quickPick}
               disabled={!open}
               className="text-accent cursor-pointer rounded-full border border-white/15 px-3.5 py-1.5 font-sans text-[12px] disabled:opacity-50"
             >
-              Quick pick
+              {t("quickPick")}
             </button>
           </div>
           <div className="mb-4 grid grid-cols-7 gap-1.5">
@@ -168,7 +170,7 @@ export function DrawSection() {
             )}
           </div>
           <div className="mb-2 text-[13px] font-normal text-white/55">
-            Bonus number (1–{round.bonusPool})
+            {t("bonusNumber", { max: round.bonusPool })}
           </div>
           <div className="grid grid-cols-10 gap-1.5">
             {Array.from({ length: round.bonusPool }, (_, i) => i + 1).map((num) =>
@@ -180,8 +182,10 @@ export function DrawSection() {
         <div className="flex flex-col gap-4">
           <div className="ws-glass rounded-2xl p-5">
             <div className="mb-2.5 flex items-center justify-between text-[13px] font-normal text-white/55">
-              <span>Entries</span>
-              <span className="tnum">Balance {wallet.format(wallet.balanceUsd)}</span>
+              <span>{t("entries")}</span>
+              <span className="tnum">
+                {t("balance", { amount: wallet.format(wallet.balanceUsd) })}
+              </span>
             </div>
             <div className="mb-3 flex items-center gap-3.5">
               <button
@@ -190,9 +194,7 @@ export function DrawSection() {
               >
                 −
               </button>
-              <div className="tnum text-[16px]">
-                {quantity} {quantity === 1 ? "entry" : "entries"}
-              </div>
+              <div className="tnum text-[16px]">{t("entryCount", { count: quantity })}</div>
               <button
                 onClick={() => setQuantity((n) => Math.min(20, n + 1))}
                 className="h-8 w-8 cursor-pointer rounded-lg border border-white/15 text-[16px] text-white"
@@ -213,27 +215,27 @@ export function DrawSection() {
               }`}
             >
               {buy.isPending
-                ? "Buying…"
+                ? t("buying")
                 : !open
-                  ? "Round closed"
+                  ? t("roundClosed")
                   : mainNumbers.length < round.mainPicks
-                    ? `Pick ${round.mainPicks - mainNumbers.length} more`
+                    ? t("pickMore", { count: round.mainPicks - mainNumbers.length })
                     : bonusNumber === null
-                      ? "Pick a bonus number"
+                      ? t("pickBonus")
                       : !affordable
-                        ? "Not enough balance"
-                        : "Confirm entry"}
+                        ? t("notEnoughBalance")
+                        : t("confirmEntry")}
             </button>
             <Link
               href="/casino/draw/entries"
               className="text-accent mt-2.5 block text-center text-[12px]"
             >
-              My entries
+              {t("myEntries")}
             </Link>
           </div>
 
           <div className="ws-glass rounded-2xl p-5">
-            <div className="mb-2.5 text-[13px] font-normal text-white/55">Prize tiers</div>
+            <div className="mb-2.5 text-[13px] font-normal text-white/55">{t("prizeTiers")}</div>
             {round.prizeTiers.map((t) => (
               <div
                 key={t.label}
@@ -249,9 +251,9 @@ export function DrawSection() {
         </div>
       </div>
 
-      <div className="mb-2.5 text-[13px] font-normal text-white/55">Past draws</div>
+      <div className="mb-2.5 text-[13px] font-normal text-white/55">{t("pastDraws")}</div>
       {pastResults.length === 0 ? (
-        <CasinoEmpty>No draws have been settled yet.</CasinoEmpty>
+        <CasinoEmpty>{t("noDrawsSettled")}</CasinoEmpty>
       ) : (
         <div className="flex gap-3.5 overflow-x-auto pb-1">
           {pastResults.map((d) => (

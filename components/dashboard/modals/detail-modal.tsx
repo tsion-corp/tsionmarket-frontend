@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { AssetChart } from "@/components/ui/asset-chart";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -8,9 +9,10 @@ import { isUp } from "@/lib/format";
 import type { DetailPayload } from "@/components/dashboard/modal-types";
 
 export function DetailModal({ detail }: { detail: DetailPayload }) {
+  const t = useTranslations("portfolio");
   return (
     <div>
-      <Eyebrow>Asset details</Eyebrow>
+      <Eyebrow>{t("assetDetails")}</Eyebrow>
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={detail.sym} bg={detail.bg} size={44} logo={detail.logo} />
         <div className="min-w-0 flex-1">

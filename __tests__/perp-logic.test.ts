@@ -120,6 +120,20 @@ describe("validateOrder", () => {
   });
 });
 
+describe("isWireAmount precision caps", () => {
+  it("caps collateral at 6 decimals and leverage at 2", () => {
+    expect(validateOrder(pair(), "10.123456", "10").ok).toBe(true);
+    expect(validateOrder(pair(), "10.1234567", "10").code).toBe("enterCollateral");
+    expect(validateOrder(pair(), "100", "7.5").ok).toBe(true);
+    expect(validateOrder(pair(), "100", "7.555").code).toBe("enterLeverage");
+  });
+
+  it("flags over-precision live in the field validity too", () => {
+    expect(orderFieldValidity(pair(), "10.1234567", "").collateralInvalid).toBe(true);
+    expect(orderFieldValidity(pair(), "", "7.555").leverageInvalid).toBe(true);
+  });
+});
+
 describe("orderFieldValidity (live per-field feedback)", () => {
   it("flags an over-max leverage even while collateral is still empty", () => {
     const v = orderFieldValidity(pair({ maxLeverage: 10 }), "", "26");

@@ -35,7 +35,23 @@ export function useExecuteRwa() {
   const { wallets: solanaWallets } = useWallets();
 
   return useCallback(
-    async (action: RwaAction, onStep?: (index: number, step: RwaStep) => void) => {
+    async (
+      action: RwaAction,
+      expectedChain: RwaChain,
+      onStep?: (index: number, step: RwaStep) => void
+    ) => {
+      // Never sign a step on a chain the caller did not ask for. The backend
+      // builds these steps, so a bad or compromised response could otherwise
+      // direct the wallet to sign on any chain. Checked before any signing.
+      if (action.chain !== expectedChain) {
+        throw new Error("This trade's transactions don't match its chain.");
+      }
+      for (const step of action.steps) {
+        if (step.chain !== expectedChain) {
+          throw new Error("This trade's transactions don't match its chain.");
+        }
+      }
+
       // The last step moves the balance (approve precedes it, ordered by nonce).
       // Track it so we can wait for it to settle before returning, which lets the
       // caller's portfolio refetch reflect the trade instead of the old balance.
@@ -67,6 +83,9 @@ export function useExecuteRwa() {
           const hash = await evmSend({
             to: step.tx.to as `0x${string}`,
             data: step.tx.data as `0x${string}` | undefined,
+            // A native value leg is legitimate (paying with ETH). Its size is
+            // only as trustworthy as the simulate-gated build that produced it;
+            // there is no client-side bound on it beyond the chain check above.
             value: step.tx.value ? BigInt(step.tx.value) : undefined,
             chainId,
           });

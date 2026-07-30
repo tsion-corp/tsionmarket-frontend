@@ -26,7 +26,6 @@ import {
   getTransferCheckedInstruction,
 } from "@solana-program/token";
 import { getTransferSolInstruction } from "@solana-program/system";
-import { usePortfolio } from "@/hooks/use-portfolio";
 import { useCreateQuote } from "@/hooks/use-deposit";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { getWalletAddress } from "@/lib/user";
@@ -41,31 +40,6 @@ import {
 // Public Solana mainnet RPC, the same endpoint Dextopus lists for the chain.
 const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 
-// The native asset that pays the network fee on each settlement chain, keyed by
-// the Alchemy portfolio network so we can find the balance.
-const GAS_ASSET: Record<WalletChainType, { symbol: string; network: string }> = {
-  ethereum: { symbol: "ETH", network: "base-mainnet" },
-  solana: { symbol: "SOL", network: "solana-mainnet" },
-};
-
-export interface GasStatus {
-  hasGas: boolean;
-  nativeSymbol: string;
-  loading: boolean;
-}
-
-// Sponsorship is off, so a send needs the wallet to hold a little of the chain's
-// native asset. This reads the portfolio for that balance so the UI can warn and
-// block before a send fails on-chain.
-export function useGasStatus(chainType: WalletChainType): GasStatus {
-  const { tokens, loading } = usePortfolio();
-  const gas = GAS_ASSET[chainType];
-  const held = tokens.some(
-    (t) => t.symbol === gas.symbol && t.network === gas.network && t.balance > 0
-  );
-  return { hasGas: held, nativeSymbol: gas.symbol, loading };
-}
-
 export interface SendUsdcParams {
   chainType: WalletChainType;
   to: string;
@@ -74,7 +48,28 @@ export interface SendUsdcParams {
   settle?: SettleChain;
 }
 
-async function buildSolanaUsdcTransfer(
+// Token-2022, the successor token program some newer mints (e.g. PYUSD) run
+// on. Mints owned by it derive different ATAs and need the transfer executed
+// by this program instead of the classic Token program.
+const TOKEN_2022_PROGRAM_ADDRESS = address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+
+// A mint account's owner is the token program that manages it. Deriving ATAs
+// or building a transfer with the wrong program targets accounts that don't
+// exist, so every SPL transfer resolves the program from the mint first.
+async function getMintTokenProgram(
+  rpc: ReturnType<typeof createSolanaRpc>,
+  mint: ReturnType<typeof address>
+) {
+  const { value } = await rpc.getAccountInfo(mint, { encoding: "base64" }).send();
+  if (!value) throw new Error("This token's mint account was not found on Solana");
+  const owner = value.owner;
+  if (owner !== TOKEN_PROGRAM_ADDRESS && owner !== TOKEN_2022_PROGRAM_ADDRESS) {
+    throw new Error("Sending this token isn't supported yet");
+  }
+  return owner;
+}
+
+async function buildSolanaTokenTransfer(
   from: string,
   to: string,
   amount: bigint,
@@ -87,15 +82,16 @@ async function buildSolanaUsdcTransfer(
   const destinationOwner = address(to);
   const signer = createNoopSigner(owner);
 
+  const tokenProgram = await getMintTokenProgram(rpc, mint);
   const [source] = await findAssociatedTokenPda({
     owner,
     mint,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram,
   });
   const [destination] = await findAssociatedTokenPda({
     owner: destinationOwner,
     mint,
-    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+    tokenProgram,
   });
 
   const createDestination = getCreateAssociatedTokenIdempotentInstruction({
@@ -103,15 +99,19 @@ async function buildSolanaUsdcTransfer(
     ata: destination,
     owner: destinationOwner,
     mint,
+    tokenProgram,
   });
-  const transfer = getTransferCheckedInstruction({
-    source,
-    mint,
-    destination,
-    authority: signer,
-    amount,
-    decimals,
-  });
+  const transfer = getTransferCheckedInstruction(
+    {
+      source,
+      mint,
+      destination,
+      authority: signer,
+      amount,
+      decimals,
+    },
+    { programAddress: tokenProgram }
+  );
 
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
   const message = pipe(
@@ -156,7 +156,7 @@ export function useSendUsdc() {
         const wallet = solanaWallets.find((w) => w.address === from);
         if (!wallet) throw new Error("Solana wallet is not ready");
         const solana = settlementFor("solana");
-        const transaction = await buildSolanaUsdcTransfer(
+        const transaction = await buildSolanaTokenTransfer(
           from,
           to,
           amount,
@@ -253,7 +253,7 @@ export function useSendToken() {
         const transaction =
           tokenAddress === null
             ? await buildSolanaSolTransfer(from, to, amount)
-            : await buildSolanaUsdcTransfer(from, to, amount, tokenAddress, decimals);
+            : await buildSolanaTokenTransfer(from, to, amount, tokenAddress, decimals);
         const { signature } = await signAndSendTransaction({ transaction, wallet });
         return getBase58Decoder().decode(signature);
       } finally {

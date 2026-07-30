@@ -110,7 +110,10 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
     ? validateOrder(pair, collateral, leverage, usdcBalance.toFixed(6))
     : { ok: false as const, message: t("pickMarket") };
   const needsTrigger = orderType !== "market";
-  const triggerOk = !needsTrigger || num(limitPrice) > 0;
+  // The trigger price goes on the wire as openPrice, so it must satisfy the
+  // API's decimal-string contract — parseFloat alone would pass "3000." and
+  // fail server-side.
+  const triggerOk = !needsTrigger || isPositiveWireDecimal(limitPrice);
 
   // Field-level invalid flags drive the red borders, judged live on every
   // keystroke and independently per field (an over-max leverage is wrong even
@@ -118,10 +121,13 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
   const { collateralInvalid, leverageInvalid } = pair
     ? orderFieldValidity(pair, collateral, leverage, usdcBalance.toFixed(6))
     : { collateralInvalid: false, leverageInvalid: false };
-  const triggerInvalid = needsTrigger && limitPrice !== "" && !(num(limitPrice) > 0);
+  const triggerInvalid = needsTrigger && limitPrice !== "" && !isPositiveWireDecimal(limitPrice);
   const tpInvalid = takeProfit !== "" && !isPositiveWireDecimal(takeProfit);
   const slInvalid = stopLoss !== "" && !isPositiveWireDecimal(stopLoss);
-  const slippageInvalid = slippage !== "" && !isPositiveWireDecimal(slippage);
+  // Slippage above 50% is never a real intent; cap it so a typo cannot
+  // authorize a fill at half the displayed price.
+  const slippageInvalid =
+    slippage !== "" && (!isPositiveWireDecimal(slippage) || num(slippage) > 50);
   const fieldsOk = !tpInvalid && !slInvalid && !slippageInvalid;
 
   const leverageNum = num(leverage);
@@ -350,7 +356,9 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                 <span className="tnum">{formatAmount(usdcBalance)} USDC</span>
                 {usdcBalance > 0 ? (
                   <button
-                    onClick={() => setCollateral(usdcBalance.toFixed(2))}
+                    // Floor, not round: toFixed rounds 25.999 to "26.00", which
+                    // then trips the over-balance check and Max invalidates itself.
+                    onClick={() => setCollateral((Math.floor(usdcBalance * 100) / 100).toFixed(2))}
                     className="text-accent cursor-pointer font-medium hover:opacity-80"
                   >
                     {t("max")}
@@ -419,7 +427,10 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
                 <span>{orderType === "limit" ? t("limitPrice") : t("stopPrice")}</span>
                 {markNum > 0 ? (
                   <button
-                    onClick={() => setLimitPrice(String(markNum))}
+                    // The source string, never String(parseFloat(...)): a float
+                    // round-trip can emit exponent notation for sub-micro pairs,
+                    // which the wire contract rejects.
+                    onClick={() => setLimitPrice(markPrice ?? "")}
                     className="text-accent cursor-pointer font-medium hover:opacity-80"
                   >
                     {t("useMarket")}

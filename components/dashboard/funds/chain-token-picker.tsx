@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { CoinBadge } from "@/components/ui/coin-badge";
 import { SearchIcon, ChevronLeftIcon, ArrowRightIcon } from "@/components/ui/icons";
@@ -79,6 +80,7 @@ function SearchList({
   onBack: () => void;
   children: React.ReactNode;
 }) {
+  const t = useTranslations("fundsFlow");
   return (
     <div>
       <button
@@ -94,7 +96,7 @@ function SearchList({
           autoFocus
           value={query}
           onChange={(e) => onQuery(e.target.value)}
-          placeholder="Search"
+          placeholder={t("searchPlaceholder")}
           className="w-full border-none bg-transparent text-[14px] text-white outline-none"
         />
       </div>
@@ -113,6 +115,7 @@ export function ChainTokenPicker({
   onChain,
   onToken,
 }: ChainTokenPickerProps) {
+  const t = useTranslations("fundsFlow");
   const [open, setOpen] = useState<"chain" | "token" | null>(null);
   const [query, setQuery] = useState("");
 
@@ -133,13 +136,13 @@ export function ChainTokenPicker({
       <SearchList title={chainLabel} query={query} onQuery={setQuery} onBack={() => setOpen(null)}>
         {chains.isPending ? (
           <div className="py-6 text-center text-[13px] font-normal text-white/50">
-            Loading networks
+            {t("loadingNetworks")}
           </div>
         ) : chains.isError ? (
           <div className="py-6 text-center text-[13px] font-normal text-white/50">
-            Couldn&apos;t load networks.{" "}
+            {t("networksError")}{" "}
             <button onClick={() => chains.refetch()} className="text-accent cursor-pointer">
-              Retry
+              {t("retry")}
             </button>
           </div>
         ) : (
@@ -164,16 +167,16 @@ export function ChainTokenPicker({
 
   if (open === "token") {
     return (
-      <SearchList title="Token" query={query} onQuery={setQuery} onBack={() => setOpen(null)}>
+      <SearchList title={t("token")} query={query} onQuery={setQuery} onBack={() => setOpen(null)}>
         {tokens.isPending ? (
           <div className="py-6 text-center text-[13px] font-normal text-white/50">
-            Loading tokens
+            {t("loadingTokens")}
           </div>
         ) : tokens.isError ? (
           <div className="py-6 text-center text-[13px] font-normal text-white/50">
-            Couldn&apos;t load tokens.{" "}
+            {t("tokensError")}{" "}
             <button onClick={() => tokens.refetch()} className="text-accent cursor-pointer">
-              Retry
+              {t("retry")}
             </button>
           </div>
         ) : (
@@ -208,7 +211,7 @@ export function ChainTokenPicker({
       <Row
         glyph={chain ? <ChainGlyph chain={chain} /> : <CoinBadge sym="?" bg="#26262b" size={30} />}
         subtitle={chainLabel}
-        title={chain ? chain.name : "Select network"}
+        title={chain ? chain.name : t("selectNetwork")}
         onClick={() => {
           setQuery("");
           setOpen("chain");
@@ -222,13 +225,13 @@ export function ChainTokenPicker({
             <CoinBadge sym="?" bg="#26262b" size={30} />
           )
         }
-        subtitle="Token"
+        subtitle={t("token")}
         title={
           token
             ? `${token.symbol} · ${token.name}`
             : chain
-              ? "Select token"
-              : "Pick a network first"
+              ? t("selectToken")
+              : t("pickNetworkFirst")
         }
         onClick={() => {
           if (!chain) return;

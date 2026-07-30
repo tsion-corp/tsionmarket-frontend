@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { amountUsd } from "@/lib/casino/money";
 import { timeAgo } from "@/lib/format";
@@ -12,6 +13,7 @@ import type { RecentWin } from "@/lib/casino/api/types";
 const MIN_FOR_MARQUEE = 4;
 
 export function WinsTicker({ wins }: { wins: RecentWin[] }) {
+  const t = useTranslations("casino.hub");
   const wallet = useCasinoWallet();
   if (wins.length === 0) return null;
 
@@ -21,7 +23,7 @@ export function WinsTicker({ wins }: { wins: RecentWin[] }) {
   return (
     <div>
       <div className="mb-2.5 text-[12px] font-semibold tracking-[0.06em] text-white/50 uppercase">
-        Recent wins
+        {t("recentWins")}
       </div>
       <div className="ws-inset overflow-hidden rounded-[16px] py-3.5 whitespace-nowrap">
         <div

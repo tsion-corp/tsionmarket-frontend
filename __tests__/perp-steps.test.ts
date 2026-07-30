@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+// Hardening added after the reliability audit: approve steps must target the
+// real USDC contract, calldata must be hex, and per-step native value is
+// capped near the keeper fee.
 import { stepsTotalValueWei, toSignableCalls } from "@/lib/perp/steps";
 import type { BuildResult } from "@/lib/perp/types";
 
@@ -38,6 +41,37 @@ describe("toSignableCalls", () => {
   it("rejects a step with an invalid target address", () => {
     expect(() => toSignableCalls([build([{ value: "0", to: "not-an-address" }])])).toThrow(
       "invalid target"
+    );
+  });
+
+  it("rejects an approve step that targets anything but the real USDC", () => {
+    const usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const approveData = `0x095ea7b3${"0".repeat(128)}`;
+    const lookalike: BuildResult = {
+      chainId: 8453,
+      steps: [{ to: TO, data: approveData, value: "0", label: "approve" }],
+    };
+    expect(() => toSignableCalls([lookalike])).toThrow("unexpected token");
+    const genuine: BuildResult = {
+      chainId: 8453,
+      steps: [{ to: usdc, data: approveData, value: "0", label: "approve" }],
+    };
+    expect(toSignableCalls([genuine])).toHaveLength(1);
+  });
+
+  it("rejects non-hex calldata", () => {
+    const bad: BuildResult = {
+      chainId: 8453,
+      steps: [{ to: TO, data: "javascript:alert(1)", value: "0", label: "x" }],
+    };
+    expect(() => toSignableCalls([bad])).toThrow("invalid calldata");
+  });
+
+  it("caps per-step native value near the keeper fee", () => {
+    // 0.00035 ETH keeper fee passes; 0.1 ETH is not a perp trade.
+    expect(toSignableCalls([build([{ value: "350000000000000" }])])).toHaveLength(1);
+    expect(() => toSignableCalls([build([{ value: "100000000000000000" }])])).toThrow(
+      "unexpected amount of ETH"
     );
   });
 });
