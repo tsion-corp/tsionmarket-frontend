@@ -71,3 +71,41 @@ export function useEvmSend() {
     [sendTransaction, signAuthorization, wallets]
   );
 }
+
+export interface EvmBatchCall {
+  to: `0x${string}`;
+  data?: `0x${string}`;
+  value?: bigint;
+}
+
+// Sends several calls as ONE atomic sponsored operation on Base. Used where a
+// flow would otherwise need sequential dependent transactions (approve, then a
+// transferFrom-consuming action): batching removes the in-between state, so an
+// allowance can never be observed stale between the two, and the user signs
+// once. Base-only by design; other chains have no batch primitive here.
+export function useEvmSendBatch() {
+  const { signAuthorization } = useSign7702Authorization();
+  const { wallets } = useWallets();
+
+  return useCallback(
+    async (calls: EvmBatchCall[], chainId: number): Promise<`0x${string}`> => {
+      if (chainId !== base.id) {
+        throw new Error("Batched transactions are only supported on Base.");
+      }
+      if (calls.length === 0) throw new Error("Nothing to send.");
+      const wallet = wallets.find((w) => w.walletClientType === "privy");
+      if (!wallet) throw new Error("No EVM wallet is connected.");
+      const accessToken = await getAccessToken();
+      if (!accessToken) throw new Error("Your session expired. Sign in again.");
+      const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
+      return sendSponsoredBaseCalls({
+        address: wallet.address as `0x${string}`,
+        provider,
+        signAuthorization,
+        accessToken,
+        calls,
+      });
+    },
+    [signAuthorization, wallets]
+  );
+}
