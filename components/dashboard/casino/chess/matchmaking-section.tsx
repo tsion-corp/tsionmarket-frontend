@@ -1,13 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMatchmakingTicket } from "@/hooks/use-casino-chess";
-import {
-  CasinoEmpty,
-  CasinoError,
-  CasinoLoading,
-} from "@/components/dashboard/casino/casino-state";
+import { CasinoError, CasinoLoading } from "@/components/dashboard/casino/casino-state";
 import { toast } from "@/lib/toast";
 
 export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
@@ -22,12 +19,24 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
     }
   }, [ticket, router]);
 
+  // Reached by opening this page directly, or after a search ended. There is
+  // nothing to show without one, so send the player back to where a search
+  // actually starts rather than leaving them on an empty screen.
   if (!ticketId) {
     return (
-      <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20">
-        <CasinoEmpty>
-          No search in progress. Start one from Create staked game, or join an open challenge.
-        </CasinoEmpty>
+      <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
+        <div className="ws-glass rounded-2xl p-9 text-center">
+          <div className="ws-display mb-1.5 text-[19px]">No search in progress</div>
+          <div className="mb-5 text-[12.5px] font-normal text-white/55">
+            Set a stake on the lobby and we&apos;ll pair you with someone at the same one.
+          </div>
+          <Link
+            href="/casino/chess"
+            className="text-ink inline-block cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-bold"
+          >
+            Back to the lobby
+          </Link>
+        </div>
       </div>
     );
   }

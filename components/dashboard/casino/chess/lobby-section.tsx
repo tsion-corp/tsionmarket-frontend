@@ -1,28 +1,66 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAcceptChallenge, useChessLobby } from "@/hooks/use-casino-chess";
+import { useAcceptChallenge, useChessLobby, useCreateChallenge } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import {
   CasinoEmpty,
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
-import { amountUsd } from "@/lib/casino/money";
+import { amountUsd, usdToWei } from "@/lib/casino/money";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
-import type { ChessChallenge } from "@/lib/casino/api/types";
+import type { ChessChallenge, ChessTimeControl } from "@/lib/casino/api/types";
 
 function timeControlLabel(tc: string): string {
   return tc === "3+2" || tc === "5+3" ? `${tc} Blitz` : `${tc} Rapid`;
 }
+
+// Quick match pairs players at the same stake and time control, so it settles
+// on one time control rather than asking. Anyone who wants a different one
+// uses Create staked game.
+const QUICK_MATCH_TIME_CONTROL: ChessTimeControl = "5+3";
 
 export function LobbySection() {
   const router = useRouter();
   const { challenges, liveMatches, isLoading, error, refetch } = useChessLobby();
   const wallet = useCasinoWallet();
   const accept = useAcceptChallenge();
+  const create = useCreateChallenge();
+  const [quickStake, setQuickStake] = useState("");
+
+  const quickStakeUsd = Number(quickStake) || 0;
+  const quickStakeWei = usdToWei(quickStakeUsd, wallet.unitPriceUsd);
+  const quickAffordable = quickStakeWei > 0n && wallet.canAfford(quickStakeWei);
+
+  // Quick match escrows the stake and enters the queue in one step, then
+  // follows the search. Without a stake there is nothing to pair on, which is
+  // why the amount is asked for here rather than on the search screen.
+  const onQuickMatch = async () => {
+    if (!wallet.connected) {
+      toast.error("Connect your wallet to play.");
+      return;
+    }
+    if (!quickAffordable) return;
+    const id = toast.loading("Locking your stake…");
+    try {
+      const { ticket } = await create.mutateAsync({
+        stakeWei: quickStakeWei.toString(),
+        timeControl: QUICK_MATCH_TIME_CONTROL,
+        mode: "auto",
+      });
+      if (!ticket) throw new Error("The queue didn't give us a search to follow.");
+      toast.success("Stake locked. Finding you an opponent.", { id });
+      // A search that paired instantly still goes through this screen, which
+      // sends the player straight on into the match.
+      router.push(`/casino/chess/matchmaking?ticket=${ticket.id}`);
+    } catch (e) {
+      toast.error(friendlyError(e, "Couldn't start a quick match."), { id });
+    }
+  };
 
   // Joining escrows the joiner's stake, so it is blocked when the balance
   // can't cover it. The wallet is the platform's, so topping up is the same
@@ -58,15 +96,38 @@ export function LobbySection() {
             Set your stake and time control
           </div>
         </Link>
-        <Link
-          href="/casino/chess/matchmaking"
-          className="ws-glass min-w-[260px] flex-1 cursor-pointer rounded-2xl px-6 py-5 text-left text-white transition-transform hover:-translate-y-0.5"
-        >
+        <div className="ws-glass min-w-[260px] flex-1 rounded-2xl px-6 py-5 text-white">
           <div className="ws-display mb-1 text-[20px]">Quick match</div>
-          <div className="text-[12.5px] font-normal text-white/55">
-            We&apos;ll pair you with someone now
+          <div className="mb-3 text-[12.5px] font-normal text-white/55">
+            Set a stake and we&apos;ll pair you with someone at the same one ·{" "}
+            {timeControlLabel(QUICK_MATCH_TIME_CONTROL)}
           </div>
-        </Link>
+          <div className="flex gap-2">
+            <input
+              value={quickStake}
+              onChange={(e) => setQuickStake(e.target.value.replace(/[^0-9.]/g, ""))}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void onQuickMatch();
+              }}
+              inputMode="decimal"
+              placeholder="Stake"
+              aria-label="Quick match stake"
+              className="ws-inset tnum focus:border-accent/50 min-w-0 flex-1 rounded-lg px-3 py-2 font-sans text-[14px] text-white outline-none"
+            />
+            <button
+              onClick={() => void onQuickMatch()}
+              disabled={!quickAffordable || create.isPending}
+              className="text-ink shrink-0 cursor-pointer rounded-lg bg-white px-4 font-sans text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
+            >
+              {create.isPending ? "Starting…" : "Find opponent"}
+            </button>
+          </div>
+          {quickStakeUsd > 0 && !quickAffordable ? (
+            <div className="mt-2 text-[11.5px] font-normal text-white/50">
+              Not enough balance for that stake.
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {error ? (

@@ -318,3 +318,45 @@ describe("a drawn game", () => {
     expect(await screen.findByRole("button", { name: "Accept draw" })).toBeInTheDocument();
   });
 });
+
+describe("quick match", () => {
+  it("won't start a search without a stake", async () => {
+    render(<LobbySection />, { wrapper });
+    const find = await screen.findByRole("button", { name: "Find opponent" });
+    expect(find).toBeDisabled();
+    fireEvent.click(find);
+    expect(chessApi.createChallenge).not.toHaveBeenCalled();
+  });
+
+  it("escrows the stake, enters the queue and follows the search", async () => {
+    chessApi.createChallenge.mockResolvedValue({
+      challenge: challenge(),
+      ticket: { id: "t7", state: "searching", matchId: null },
+    });
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.change(await screen.findByLabelText("Quick match stake"), {
+      target: { value: "100" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Find opponent" }));
+
+    await waitFor(() => expect(chessApi.createChallenge).toHaveBeenCalled());
+    const sent = chessApi.createChallenge.mock.calls[0][0];
+    expect(sent.mode).toBe("auto");
+    // The exact wei amount, not a rounded dollar figure.
+    expect(sent.stakeWei).toBe((5n * 10n ** 16n).toString());
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/matchmaking?ticket=t7"));
+  });
+
+  it("blocks a stake the balance can't cover and says so", async () => {
+    wallet.balance = 0.001;
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.change(await screen.findByLabelText("Quick match stake"), {
+      target: { value: "100" },
+    });
+    expect(screen.getByText(/Not enough balance for that stake/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Find opponent" })).toBeDisabled();
+    expect(chessApi.createChallenge).not.toHaveBeenCalled();
+  });
+});
