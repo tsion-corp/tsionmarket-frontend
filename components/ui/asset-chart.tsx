@@ -12,6 +12,7 @@ interface AssetChartProps {
   up?: boolean;
   height?: number;
   allowCandles?: boolean;
+  defaultType?: "area" | "candles";
 }
 
 export function AssetChart({
@@ -19,9 +20,10 @@ export function AssetChart({
   up = true,
   height = 260,
   allowCandles = true,
+  defaultType = "area",
 }: AssetChartProps) {
   const [range, setRange] = useState<ChartRange>("1M");
-  const [type, setType] = useState<"area" | "candles">("area");
+  const [type, setType] = useState<"area" | "candles">(defaultType);
   const { points, loading, error } = useChart(coingeckoId, range, type);
 
   return (

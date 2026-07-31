@@ -25,6 +25,7 @@ function route(overrides: Partial<BuyRoute>): BuyRoute {
     asset: "0xtoken",
     symbol: "ETH",
     decimals: 18,
+    logoUrl: null,
     ...overrides,
   };
 }

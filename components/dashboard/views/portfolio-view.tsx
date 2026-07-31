@@ -15,6 +15,7 @@ import { BalanceCard } from "@/components/dashboard/balance-card";
 import { CrossBorderBanner } from "@/components/dashboard/remit/cross-border-banner";
 import { Switch } from "@/components/ui/switch";
 import { AssetIcon } from "@/components/ui/asset-icon";
+import { tokenBg } from "@/lib/trade/assets";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -52,20 +53,6 @@ const NETWORK_LABELS: Record<string, string> = {
 
 function networkLabel(network: string): string {
   return NETWORK_LABELS[network] ?? network;
-}
-
-// Stable greyscale gradient per symbol so tokens without a built-in icon stay
-// visually distinct. Ark is monochrome, so the seed varies lightness only, not
-// hue.
-function tokenBg(symbol: string): string {
-  let seed = 0;
-  for (let i = 0; i < symbol.length; i++) {
-    seed = (seed * 31 + symbol.charCodeAt(i)) % 360;
-  }
-  // Map the seed to a light step in 58–80% so the badge reads on black, with a
-  // consistently darker foot.
-  const light = 58 + (seed % 22);
-  return `linear-gradient(135deg, hsl(0 0% ${light}%), hsl(0 0% ${Math.max(28, light - 30)}%))`;
 }
 
 // Message keys in the portfolio catalog; the kind ids themselves never change.

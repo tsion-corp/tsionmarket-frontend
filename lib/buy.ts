@@ -27,6 +27,8 @@ export interface BuyRoute {
   asset: string;
   symbol: string;
   decimals: number;
+  // Dextopus's own token icon, when the destinations catalog carries one.
+  logoUrl: string | null;
 }
 
 // The chains we settle buys on and can display in holdings. A bought asset lands
@@ -115,6 +117,19 @@ export function buyableSymbols(destinations: BuyRoute[]): Set<string> {
     if (!isOfferable(d)) continue;
     const up = d.symbol.toUpperCase();
     out.add(DISPLAY_ALIAS[up] ?? up);
+  }
+  return out;
+}
+
+// Display symbol -> Dextopus token icon url, for markets the price feed doesn't
+// cover. Keyed by the same display ticker as buyableSymbols; the first offerable
+// route with a logo wins.
+export function buyableLogos(destinations: BuyRoute[]): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const d of destinations) {
+    if (!isOfferable(d) || !d.logoUrl) continue;
+    const sym = DISPLAY_ALIAS[d.symbol.toUpperCase()] ?? d.symbol.toUpperCase();
+    if (!out.has(sym)) out.set(sym, d.logoUrl);
   }
   return out;
 }

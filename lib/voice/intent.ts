@@ -62,7 +62,6 @@ export type Intent =
 export const NAV_TARGETS: readonly SectionId[] = [
   "portfolio",
   "trade",
-  "markets",
   "rwa",
   "prediction",
   "casino",

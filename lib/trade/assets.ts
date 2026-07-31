@@ -221,3 +221,17 @@ export function isEvmRoutable(pay: TradeAsset, receive: TradeAsset): boolean {
     receive.evmChainId === pay.evmChainId
   );
 }
+
+// Stable greyscale gradient per symbol so tokens without a built-in icon stay
+// visually distinct. Ark is monochrome, so the seed varies lightness only, not
+// hue.
+export function tokenBg(symbol: string): string {
+  let seed = 0;
+  for (let i = 0; i < symbol.length; i++) {
+    seed = (seed * 31 + symbol.charCodeAt(i)) % 360;
+  }
+  // Map the seed to a light step in 58–80% so the badge reads on black, with a
+  // consistently darker foot.
+  const light = 58 + (seed % 22);
+  return `linear-gradient(135deg, hsl(0 0% ${light}%), hsl(0 0% ${Math.max(28, light - 30)}%))`;
+}

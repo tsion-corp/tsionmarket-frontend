@@ -8,6 +8,7 @@ const ETH_ARBITRUM: BuyRoute = {
   asset: "0xeeee",
   symbol: "ETH",
   decimals: 18,
+  logoUrl: null,
 };
 
 describe("buildBuyQuoteBody", () => {

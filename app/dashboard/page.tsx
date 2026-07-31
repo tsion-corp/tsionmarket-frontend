@@ -7,7 +7,6 @@ import { buildNav } from "@/components/dashboard/nav-items";
 import { PortfolioView } from "@/components/dashboard/views/portfolio-view";
 import { TradeSection } from "@/components/dashboard/sections/trade-section";
 import { RwaSection } from "@/components/dashboard/sections/rwa-section";
-import { MarketsView } from "@/components/dashboard/views/markets-view";
 import { PredictionView } from "@/components/dashboard/views/prediction-view";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
@@ -47,7 +46,6 @@ type ScrollSectionId = Exclude<SectionId, "casino">;
 // on its own data.
 const Portfolio = memo(PortfolioView);
 const Trade = memo(TradeSection);
-const Markets = memo(MarketsView);
 const Rwa = memo(RwaSection);
 const Prediction = memo(PredictionView);
 
@@ -110,7 +108,6 @@ export default function DashboardPage() {
       />
     ),
     trade: <Trade />,
-    markets: <Markets onOpenDetail={openDetail} onOpenBuy={openBuy} />,
     rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
     prediction: <Prediction />,
   };

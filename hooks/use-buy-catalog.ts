@@ -26,6 +26,7 @@ interface RawDestination {
   currency?: string;
   symbol?: string;
   decimals?: number;
+  logoUrl?: string;
 }
 
 // Origin is fixed to USDC on Base, so the buyable set is the destinations
@@ -62,6 +63,7 @@ export async function fetchBuyDestinations(): Promise<BuyRoute[]> {
       asset: d.currency,
       symbol: d.symbol,
       decimals: d.decimals ?? 18,
+      logoUrl: d.logoUrl ?? null,
     }));
 }
 
