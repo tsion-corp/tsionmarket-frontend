@@ -1,0 +1,411 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ReactNode } from "react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowseSection } from "@/components/dashboard/earn/browse-section";
+import { ListingDetailSection } from "@/components/dashboard/earn/listing-detail-section";
+import { SponsorOnboardingSection } from "@/components/dashboard/earn/sponsor/sponsor-onboarding-section";
+import { SubmissionReviewList } from "@/components/dashboard/earn/sponsor/submission-review-list";
+import { parseRewardInput, rewardFrom } from "@/lib/earn/reward";
+import type { Listing, ListingSummary, Submission } from "@/lib/earn/api/types";
+
+// The screens are mocked at the API-client seam, not inside the components, so
+// these exercise the real hooks, real query wiring and real render paths.
+
+const listingsApi = vi.hoisted(() => ({
+  fetchListings: vi.fn(),
+  fetchListingCount: vi.fn(),
+  fetchListingDetail: vi.fn(),
+}));
+const sponsorsApi = vi.hoisted(() => ({
+  fetchCurrentSponsor: vi.fn(),
+  checkSponsorName: vi.fn(),
+  checkSponsorSlug: vi.fn(),
+  createSponsor: vi.fn(),
+  saveSponsorProfile: vi.fn(),
+}));
+const submissionsApi = vi.hoisted(() => ({
+  checkSubmission: vi.fn(),
+  fetchMySubmission: vi.fn(),
+  createSubmission: vi.fn(),
+}));
+const dashboardApi = vi.hoisted(() => ({
+  fetchIsCreateAllowed: vi.fn(),
+  fetchSponsorListing: vi.fn(),
+  fetchSponsorSubmissions: vi.fn(),
+  saveListingDraft: vi.fn(),
+  publishListing: vi.fn(),
+  updateListing: vi.fn(),
+  rejectSubmissions: vi.fn(),
+  toggleWinners: vi.fn(),
+}));
+const imagesApi = vi.hoisted(() => ({
+  ACCEPTED_IMAGE_TYPES: ["image/png", "image/jpeg", "image/webp"] as const,
+  MAX_IMAGE_BYTES: 5 * 1024 * 1024,
+  imageRejectionReason: vi.fn(() => null),
+  signImageUpload: vi.fn(),
+  putSignedUpload: vi.fn(),
+  completeImageUpload: vi.fn(),
+}));
+
+vi.mock("@/lib/earn/api/listings", () => listingsApi);
+vi.mock("@/lib/earn/api/sponsors", () => sponsorsApi);
+vi.mock("@/lib/earn/api/submissions", () => submissionsApi);
+vi.mock("@/lib/earn/api/sponsor-dashboard", () => dashboardApi);
+vi.mock("@/lib/earn/api/images", () => imagesApi);
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push, replace: vi.fn() }),
+  usePathname: () => "/earn",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+vi.mock("@/lib/toast", () => ({
+  toast: {
+    loading: vi.fn(() => "toast-id"),
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+    dismiss: vi.fn(),
+  },
+}));
+
+function wrapper({ children }: { children: ReactNode }) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+function usdc(amount: string) {
+  return rewardFrom(parseRewardInput(amount, "USDC"), "USDC");
+}
+
+function summary(over: Partial<ListingSummary> = {}): ListingSummary {
+  return {
+    id: "listing_1",
+    slug: "test-listing",
+    title: "Build a trading dashboard",
+    type: "bounty",
+    status: "open",
+    region: "Global",
+    deadline: "2099-12-31T23:59:59.000Z",
+    reward: usdc("1000"),
+    compensationType: "fixed",
+    isPrivate: false,
+    isPro: false,
+    winnersAnnounced: false,
+    submissionCount: 3,
+    sponsor: { id: "sponsor_1", name: "Test Sponsor", slug: "test-sponsor", logo: null },
+    ...over,
+  };
+}
+
+function detail(over: Partial<Listing> = {}): Listing {
+  return {
+    ...summary(),
+    description: "Build something useful",
+    commitmentDate: "2100-01-02T23:59:59.000Z",
+    pocSocials: "https://t.me/testowner",
+    skills: [{ skill: "Frontend", subskills: ["React"] }],
+    rewards: [{ position: 1, amount: usdc("1000") }],
+    isFndnPaying: false,
+    agentAccess: "HUMAN_ONLY",
+    eligibility: [],
+    isPublished: true,
+    ...over,
+  };
+}
+
+function entry(over: Partial<Submission> = {}): Submission {
+  return {
+    id: "submission_1",
+    listingId: "listing_1",
+    link: "https://github.com/example/submission",
+    tweet: null,
+    otherInfo: null,
+    telegram: null,
+    status: "pending",
+    winnerPosition: null,
+    createdAt: "2026-07-30T10:00:00.000Z",
+    eligibilityAnswers: [],
+    applicant: { id: "user_1", username: "testsubmitter", photo: null, telegram: null },
+    ...over,
+  };
+}
+
+const apiFailure = () => Object.assign(new Error("boom"), { code: "UPSTREAM_ERROR", status: 502 });
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  // Each test opts into its own data.
+  listingsApi.fetchListings.mockResolvedValue([]);
+  listingsApi.fetchListingCount.mockResolvedValue(0);
+  listingsApi.fetchListingDetail.mockResolvedValue(detail());
+  sponsorsApi.fetchCurrentSponsor.mockResolvedValue(null);
+  sponsorsApi.checkSponsorName.mockResolvedValue(true);
+  sponsorsApi.checkSponsorSlug.mockResolvedValue(true);
+  sponsorsApi.createSponsor.mockResolvedValue(null);
+  submissionsApi.checkSubmission.mockResolvedValue({
+    hasSubmitted: false,
+    submissionId: null,
+    isWinner: false,
+    winnerPosition: null,
+    winnersAnnounced: false,
+    kycVerified: false,
+    isPaid: false,
+  });
+  dashboardApi.fetchSponsorSubmissions.mockResolvedValue([]);
+  dashboardApi.rejectSubmissions.mockResolvedValue(undefined);
+  dashboardApi.toggleWinners.mockResolvedValue(undefined);
+});
+
+describe("browse feed", () => {
+  it("says so when nothing matches the filters", async () => {
+    render(<BrowseSection />, { wrapper });
+    expect(await screen.findByText(/nothing open under these filters/i)).toBeInTheDocument();
+  });
+
+  it("lists what came back, with its reward", async () => {
+    listingsApi.fetchListings.mockResolvedValue([summary()]);
+    listingsApi.fetchListingCount.mockResolvedValue(1);
+
+    render(<BrowseSection />, { wrapper });
+
+    expect(await screen.findByText("Build a trading dashboard")).toBeInTheDocument();
+    expect(screen.getByText("1,000 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Test Sponsor")).toBeInTheDocument();
+  });
+
+  it("shows the failure rather than an empty page when the feed errors", async () => {
+    listingsApi.fetchListings.mockRejectedValue(apiFailure());
+
+    render(<BrowseSection />, { wrapper });
+
+    expect(await screen.findByText(/couldn't load listings/i)).toBeInTheDocument();
+    expect(screen.queryByText(/nothing open under these filters/i)).not.toBeInTheDocument();
+  });
+
+  it("reads as not-available-yet when the service is not configured", async () => {
+    listingsApi.fetchListings.mockRejectedValue(
+      Object.assign(new Error("nope"), { code: "NOT_CONFIGURED", status: 503 })
+    );
+
+    render(<BrowseSection />, { wrapper });
+
+    expect(await screen.findByText(/listings isn't available yet/i)).toBeInTheDocument();
+    // A service that is off is not something the user can retry away.
+    expect(screen.queryByRole("button", { name: /try again/i })).not.toBeInTheDocument();
+  });
+
+  it("refetches against the chosen filter", async () => {
+    render(<BrowseSection />, { wrapper });
+    await screen.findByText(/nothing open under these filters/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bounties" }));
+
+    await waitFor(() =>
+      expect(listingsApi.fetchListings).toHaveBeenCalledWith(
+        expect.objectContaining({ tab: "bounties" })
+      )
+    );
+  });
+});
+
+describe("listing detail", () => {
+  it("shows the listing and offers to submit", async () => {
+    render(<ListingDetailSection slug="test-listing" />, { wrapper });
+
+    expect(
+      await screen.findByRole("heading", { name: "Build a trading dashboard" })
+    ).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Submit work" })).toBeEnabled();
+  });
+
+  it("refuses a second entry once the user has already submitted", async () => {
+    submissionsApi.checkSubmission.mockResolvedValue({
+      hasSubmitted: true,
+      submissionId: "submission_1",
+      isWinner: false,
+      winnerPosition: null,
+      winnersAnnounced: false,
+      kycVerified: false,
+      isPaid: false,
+    });
+
+    render(<ListingDetailSection slug="test-listing" />, { wrapper });
+
+    const button = await screen.findByRole("button", { name: /already submitted/i });
+    expect(button).toBeDisabled();
+    expect(await screen.findByText(/entry received/i)).toBeInTheDocument();
+  });
+
+  it("tells a winner what is holding up their payment", async () => {
+    submissionsApi.checkSubmission.mockResolvedValue({
+      hasSubmitted: true,
+      submissionId: "submission_1",
+      isWinner: true,
+      winnerPosition: 1,
+      winnersAnnounced: true,
+      kycVerified: false,
+      isPaid: false,
+    });
+
+    render(<ListingDetailSection slug="test-listing" />, { wrapper });
+
+    expect(await screen.findByText(/you won 1st place/i)).toBeInTheDocument();
+    expect(screen.getByText(/identity verification/i)).toBeInTheDocument();
+  });
+
+  it("closes submissions once the deadline has passed", async () => {
+    listingsApi.fetchListingDetail.mockResolvedValue(
+      detail({ deadline: "2020-01-01T00:00:00.000Z" })
+    );
+
+    render(<ListingDetailSection slug="test-listing" />, { wrapper });
+
+    expect(await screen.findByRole("button", { name: "Closed" })).toBeDisabled();
+  });
+
+  it("surfaces a failed load", async () => {
+    listingsApi.fetchListingDetail.mockRejectedValue(apiFailure());
+
+    render(<ListingDetailSection slug="test-listing" />, { wrapper });
+
+    expect(await screen.findByText(/couldn't load this listing/i)).toBeInTheDocument();
+  });
+});
+
+describe("sponsor onboarding", () => {
+  it("holds the form until the required fields are filled", async () => {
+    render(<SponsorOnboardingSection />, { wrapper });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create company" }));
+
+    expect(await screen.findByText("Give your company a name.")).toBeInTheDocument();
+    expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();
+  });
+
+  it("refuses a company name the service says is taken", async () => {
+    sponsorsApi.checkSponsorName.mockResolvedValue(false);
+
+    render(<SponsorOnboardingSection />, { wrapper });
+    fireEvent.change(screen.getByLabelText(/company name/i), {
+      target: { value: "Taken Co" },
+    });
+
+    // The check is debounced, so wait for the answer before submitting.
+    await waitFor(() => expect(sponsorsApi.checkSponsorName).toHaveBeenCalledWith("Taken Co"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create company" }));
+
+    expect(await screen.findByText("That name is taken.")).toBeInTheDocument();
+    expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();
+  });
+
+  it("derives a slug from the name until the slug is edited by hand", () => {
+    render(<SponsorOnboardingSection />, { wrapper });
+
+    fireEvent.change(screen.getByLabelText(/company name/i), {
+      target: { value: "Test Sponsor" },
+    });
+    expect(screen.getByLabelText(/page slug/i)).toHaveValue("test-sponsor");
+
+    fireEvent.change(screen.getByLabelText(/page slug/i), { target: { value: "custom" } });
+    fireEvent.change(screen.getByLabelText(/company name/i), {
+      target: { value: "Test Sponsor Inc" },
+    });
+
+    expect(screen.getByLabelText(/page slug/i)).toHaveValue("custom");
+  });
+});
+
+describe("submission review", () => {
+  it("says so when nobody has entered", async () => {
+    render(<SubmissionReviewList slug="test-listing" rewards={[]} />, { wrapper });
+    expect(await screen.findByText("No entries yet.")).toBeInTheDocument();
+  });
+
+  it("rejects an entry", async () => {
+    dashboardApi.fetchSponsorSubmissions.mockResolvedValue([entry()]);
+
+    render(<SubmissionReviewList slug="test-listing" rewards={[]} />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Reject" }));
+
+    await waitFor(() =>
+      expect(dashboardApi.rejectSubmissions).toHaveBeenCalledWith(["submission_1"])
+    );
+  });
+
+  it("assigns a winner to a paying position", async () => {
+    dashboardApi.fetchSponsorSubmissions.mockResolvedValue([entry()]);
+
+    render(
+      <SubmissionReviewList
+        slug="test-listing"
+        rewards={[{ position: 1, amount: usdc("1000") }]}
+      />,
+      { wrapper }
+    );
+
+    const picker = await screen.findByLabelText(/winner for 1st place/i);
+    fireEvent.change(picker, { target: { value: "submission_1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save winners" }));
+
+    await waitFor(() =>
+      expect(dashboardApi.toggleWinners).toHaveBeenCalledWith([
+        { id: "submission_1", isWinner: true, winnerPosition: 1 },
+      ])
+    );
+  });
+
+  it("unsets the previous winner when a position is cleared", async () => {
+    dashboardApi.fetchSponsorSubmissions.mockResolvedValue([
+      entry({ status: "winner", winnerPosition: 1 }),
+    ]);
+
+    render(
+      <SubmissionReviewList
+        slug="test-listing"
+        rewards={[{ position: 1, amount: usdc("1000") }]}
+      />,
+      { wrapper }
+    );
+
+    const picker = await screen.findByLabelText(/winner for 1st place/i);
+    fireEvent.change(picker, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save winners" }));
+
+    // Leaving the old winner set would pay somebody the sponsor just removed.
+    await waitFor(() =>
+      expect(dashboardApi.toggleWinners).toHaveBeenCalledWith([
+        { id: "submission_1", isWinner: false, winnerPosition: null },
+      ])
+    );
+  });
+
+  it("keeps the save button inert until something changes", async () => {
+    dashboardApi.fetchSponsorSubmissions.mockResolvedValue([entry()]);
+
+    render(
+      <SubmissionReviewList
+        slug="test-listing"
+        rewards={[{ position: 1, amount: usdc("1000") }]}
+      />,
+      { wrapper }
+    );
+
+    expect(await screen.findByRole("button", { name: "Save winners" })).toBeDisabled();
+  });
+
+  it("surfaces a failed load", async () => {
+    dashboardApi.fetchSponsorSubmissions.mockRejectedValue(apiFailure());
+
+    render(<SubmissionReviewList slug="test-listing" rewards={[]} />, { wrapper });
+
+    expect(await screen.findByText(/couldn't load the entries/i)).toBeInTheDocument();
+  });
+});

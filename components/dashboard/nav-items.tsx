@@ -1,4 +1,11 @@
-import { BulbIcon, DiceIcon, GridIcon, HouseIcon, TrendIcon } from "@/components/ui/icons";
+import {
+  BriefcaseIcon,
+  BulbIcon,
+  DiceIcon,
+  GridIcon,
+  HouseIcon,
+  TrendIcon,
+} from "@/components/ui/icons";
 import { SECTION_LABEL, orderedSections, type SectionId } from "@/lib/sections";
 
 export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => React.ReactNode> = {
@@ -6,6 +13,7 @@ export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => Reac
   trade: TrendIcon,
   rwa: HouseIcon,
   prediction: BulbIcon,
+  earn: BriefcaseIcon,
   casino: DiceIcon,
 };
 

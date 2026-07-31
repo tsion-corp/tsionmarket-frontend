@@ -228,6 +228,22 @@ export function squareName(r: number, c: number): string {
   return "abcdefgh"[c] + String(8 - r);
 }
 
+// The inverse of toUci, for a move the server described rather than one the
+// player just made. Returns null on anything that is not a pair of squares, so
+// an unreadable move simply goes unhighlighted.
+export function fromUci(uci: string): Move | null {
+  if (uci.length < 4) return null;
+  const square = (file: string, rank: string): Square | null => {
+    const c = "abcdefgh".indexOf(file);
+    const r = 8 - Number(rank);
+    if (c < 0 || !Number.isInteger(r) || r < 0 || r > 7) return null;
+    return { r, c };
+  };
+  const from = square(uci[0], uci[1]);
+  const to = square(uci[2], uci[3]);
+  return from && to ? { from, to } : null;
+}
+
 // ----- Server interop -----
 //
 // The casino server owns the position: it sends FEN and we render it. The

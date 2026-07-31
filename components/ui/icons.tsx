@@ -270,6 +270,21 @@ export function DiceIcon({ size = 20, className }: IconProps) {
   );
 }
 
+export function BriefcaseIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <rect x="3" y="7" width="18" height="13" rx="3" stroke={stroke} strokeWidth="1.8" />
+      <path
+        d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <path d="M3 12h18" stroke={stroke} strokeWidth="1.8" />
+    </svg>
+  );
+}
+
 export function WalletIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>

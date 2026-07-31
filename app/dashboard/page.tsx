@@ -36,9 +36,15 @@ import { AccountModal } from "@/components/dashboard/modals/account-modal";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
-// The scroll-spy sections mounted inline on this page. Casino lives on its
-// own route (/casino) and is never one of these.
-type ScrollSectionId = Exclude<SectionId, "casino">;
+// The scroll-spy sections mounted inline on this page. Earn and casino live on
+// their own routes and are never one of these.
+const ROUTED_SECTIONS = ["casino", "earn"] as const;
+type RoutedSectionId = (typeof ROUTED_SECTIONS)[number];
+type ScrollSectionId = Exclude<SectionId, RoutedSectionId>;
+
+function isScrollSection(id: SectionId): id is ScrollSectionId {
+  return !(ROUTED_SECTIONS as readonly SectionId[]).includes(id);
+}
 
 // The five scroll-spy sections stay mounted at once, so memoize them: with
 // stable handler props they skip re-rendering when the page re-renders for a
@@ -53,10 +59,7 @@ export default function DashboardPage() {
   const [modal, setModal] = useState<DashboardModal>(null);
   const tSections = useTranslations("sections");
   const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
-  const scrollSectionIds = useMemo(
-    () => nav.map((n) => n.id).filter((id): id is ScrollSectionId => id !== "casino"),
-    [nav]
-  );
+  const scrollSectionIds = useMemo(() => nav.map((n) => n.id).filter(isScrollSection), [nav]);
   const activeSection = useScrollSpy(scrollSectionIds);
 
   // A spoken deposit ("deposit USDC on Solana") lands here as URL params: open

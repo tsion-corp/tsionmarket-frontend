@@ -74,12 +74,14 @@ export type Intent =
 
 // Where a spoken navigation command can go. Every value is a SectionId, so the
 // dispatcher can hand it straight to use-app-navigate, which already knows how
-// to route each one (casino is a real page, the rest are dashboard sections).
+// to route each one (earn and casino are real pages, the rest are dashboard
+// sections).
 export const NAV_TARGETS: readonly SectionId[] = [
   "portfolio",
   "trade",
   "rwa",
   "prediction",
+  "earn",
   "casino",
 ];
 

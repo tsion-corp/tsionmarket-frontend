@@ -136,6 +136,103 @@ body {
   }
 }
 
+/* Voice control: a slow breathing pulse while it waits to be tapped. Animates
+   the standalone `scale` property rather than `transform`, because Motion drives
+   `transform` on the same element to morph the circle into the listening pill,
+   and the two would fight over it. */
+@keyframes ws-voice-breathe {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.04;
+  }
+}
+
+.ws-voice-breathe {
+  animation: ws-voice-breathe 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-voice-breathe {
+    animation: none;
+  }
+}
+
+/* Voice orb: the listening indicator. A soft sphere shading from blue at the
+   top to near-white at the bottom, with two blurred cloud layers drifting inside
+   it at different speeds so the surface keeps moving without ever repeating
+   obviously. Built from gradients rather than an image so it stays crisp at any
+   size and can be recoloured from one place. */
+.ws-orb {
+  position: relative;
+  overflow: hidden;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #7b9bfb 0%, #a5bafd 36%, #dbe3ff 72%, #f5f7ff 100%);
+  /* The edge stays crisp, as in the reference: just enough outer light to read
+     as active against a dark page, with the inset shading doing the work of
+     making it look spherical rather than flat. */
+  box-shadow:
+    0 0 22px 2px rgba(123, 155, 251, 0.35),
+    inset 0 -8px 18px rgba(255, 255, 255, 0.65),
+    inset 0 6px 16px rgba(90, 125, 240, 0.35);
+}
+
+/* The clouds. Oversized and blurred so only their soft middles ever show
+   through the orb's circular clip. */
+.ws-orb::before,
+.ws-orb::after {
+  content: "";
+  position: absolute;
+  inset: -40%;
+  border-radius: 9999px;
+  will-change: transform;
+}
+
+.ws-orb::before {
+  background: radial-gradient(closest-side, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0) 70%);
+  filter: blur(6px);
+  animation: ws-orb-drift-a 9s ease-in-out infinite;
+}
+
+.ws-orb::after {
+  background: radial-gradient(closest-side, rgba(104, 138, 248, 0.9), rgba(104, 138, 248, 0) 70%);
+  filter: blur(8px);
+  animation: ws-orb-drift-b 13s ease-in-out infinite;
+}
+
+@keyframes ws-orb-drift-a {
+  0% {
+    transform: translate(-14%, -8%) rotate(0deg) scale(1.05);
+  }
+  50% {
+    transform: translate(12%, 10%) rotate(180deg) scale(1.3);
+  }
+  100% {
+    transform: translate(-14%, -8%) rotate(360deg) scale(1.05);
+  }
+}
+
+@keyframes ws-orb-drift-b {
+  0% {
+    transform: translate(10%, 12%) rotate(0deg) scale(1.25);
+  }
+  50% {
+    transform: translate(-12%, -10%) rotate(-180deg) scale(1);
+  }
+  100% {
+    transform: translate(10%, 12%) rotate(-360deg) scale(1.25);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-orb::before,
+  .ws-orb::after {
+    animation: none;
+  }
+}
+
 /* Border beam: a light that travels around a card's rounded border, in the
    MagicUI "border beam" style but monochrome to match the brand. Applied via the
    ws-beam class. The animated custom property is registered so the angle can be
@@ -183,6 +280,172 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .ws-beam::before {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Vivid assistant surface: the full-screen voice mode.
+
+   A large soft orb of moving colour, the way the big assistants render a live
+   voice session. Built from stacked blurred gradients rather than canvas or an
+   image: it stays crisp at any size, costs nothing to render, and can be
+   recoloured from one place.
+
+   The orb is three layers. A base sphere gives it body and its outer bloom; two
+   oversized blurred blobs drift inside on different clocks so the colour keeps
+   moving without ever repeating obviously. Phase classes change only speed and
+   scale, so listening, thinking and speaking read differently without swapping
+   the artwork.
+--------------------------------------------------------------------------- */
+.ws-ai-orb {
+  position: relative;
+  border-radius: 9999px;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 32% 28%, rgba(167, 139, 250, 0.95), transparent 58%),
+    radial-gradient(circle at 70% 34%, rgba(56, 189, 248, 0.85), transparent 56%),
+    radial-gradient(circle at 50% 78%, rgba(232, 121, 249, 0.85), transparent 60%),
+    linear-gradient(160deg, #6d28d9 0%, #4c1d95 55%, #1e1b4b 100%);
+  box-shadow:
+    0 0 90px 18px rgba(139, 92, 246, 0.42),
+    0 0 180px 60px rgba(56, 189, 248, 0.16),
+    inset 0 -18px 44px rgba(255, 255, 255, 0.22),
+    inset 0 16px 40px rgba(76, 29, 149, 0.55);
+  animation: ws-ai-orb-breathe 4.2s ease-in-out infinite;
+}
+
+/* The drifting colour inside. Oversized and heavily blurred so only their soft
+   middles ever show through the circular clip. */
+.ws-ai-orb::before,
+.ws-ai-orb::after {
+  content: "";
+  position: absolute;
+  inset: -35%;
+  border-radius: 9999px;
+  will-change: transform;
+  z-index: -1;
+}
+
+.ws-ai-orb::before {
+  background: radial-gradient(closest-side, rgba(56, 189, 248, 0.9), transparent 70%);
+  filter: blur(26px);
+  animation: ws-ai-drift-a 11s ease-in-out infinite;
+}
+
+.ws-ai-orb::after {
+  background: radial-gradient(closest-side, rgba(232, 121, 249, 0.85), transparent 70%);
+  filter: blur(30px);
+  animation: ws-ai-drift-b 15s ease-in-out infinite;
+}
+
+/* Listening: the user is talking, so the orb waits, wide and calm.
+   Thinking: it works, so the colour churns faster and it draws in slightly.
+   Speaking: it talks, so it pulses in time with its own voice. */
+.ws-ai-orb-listening {
+  animation-duration: 3s;
+}
+.ws-ai-orb-thinking {
+  animation-duration: 1.5s;
+}
+.ws-ai-orb-thinking::before,
+.ws-ai-orb-thinking::after {
+  animation-duration: 3.5s;
+}
+.ws-ai-orb-speaking {
+  animation-duration: 1.1s;
+}
+.ws-ai-orb-speaking::before,
+.ws-ai-orb-speaking::after {
+  animation-duration: 5s;
+}
+
+@keyframes ws-ai-orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.045);
+  }
+}
+
+@keyframes ws-ai-drift-a {
+  0% {
+    transform: translate(-12%, -10%) rotate(0deg) scale(1.05);
+  }
+  50% {
+    transform: translate(14%, 12%) rotate(180deg) scale(1.35);
+  }
+  100% {
+    transform: translate(-12%, -10%) rotate(360deg) scale(1.05);
+  }
+}
+
+@keyframes ws-ai-drift-b {
+  0% {
+    transform: translate(14%, 8%) rotate(0deg) scale(1.25);
+  }
+  50% {
+    transform: translate(-12%, -14%) rotate(-180deg) scale(1);
+  }
+  100% {
+    transform: translate(14%, 8%) rotate(-360deg) scale(1.25);
+  }
+}
+
+/* The orb is the whole point of the screen, so it keeps its colour under
+   reduced motion; only the movement stops. */
+@media (prefers-reduced-motion: reduce) {
+  .ws-ai-orb,
+  .ws-ai-orb::before,
+  .ws-ai-orb::after {
+    animation: none;
+  }
+}
+
+/* Voice activity glow: a soft light around the edge of the screen while a voice
+   session is open, so the state is visible wherever the user is looking rather
+   than only in the corner the control sits in.
+
+   The light is drawn as layered inset shadows plus an edge gradient on a fixed,
+   click-through overlay. Opacity is left entirely to Motion: a CSS animation on
+   the same property would fight the mount transition and win, which is why the
+   pulse animates the shadow's own colour stop instead. */
+.ws-voice-glow {
+  position: fixed;
+  inset: 0;
+  z-index: 190;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 26px 0 rgba(167, 139, 250, 0.3),
+    inset 0 0 70px 0 rgba(139, 92, 246, 0.2),
+    inset 0 0 150px 0 rgba(139, 92, 246, 0.1);
+  animation: ws-voice-glow-breathe 2.8s ease-in-out infinite;
+}
+
+/* Listening is the state that matters most, so it burns a little brighter and
+   picks up a cooler edge. */
+.ws-voice-glow-listening {
+  box-shadow:
+    inset 0 0 30px 0 rgba(196, 181, 253, 0.38),
+    inset 0 0 84px 0 rgba(139, 92, 246, 0.26),
+    inset 0 0 165px 0 rgba(56, 189, 248, 0.12);
+  animation-duration: 2.2s;
+}
+
+@keyframes ws-voice-glow-breathe {
+  0%,
+  100% {
+    filter: brightness(0.85);
+  }
+  50% {
+    filter: brightness(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-voice-glow {
     animation: none;
   }
 }

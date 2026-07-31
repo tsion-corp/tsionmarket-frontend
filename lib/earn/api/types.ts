@@ -1,0 +1,202 @@
+// Domain types for the earn service. These are our types, not the wire format:
+// every response passes through a normalizer in wire.ts before a component
+// sees it.
+//
+// Reward amounts follow the platform rule that money is exact. The earn API
+// sends and receives them as JSON numbers, so the float lives at the wire
+// boundary and nowhere else: inside the app a reward is an integer count of
+// the token's smallest unit.
+
+export interface RewardAmount {
+  // Exact amount in the token's smallest unit, as a decimal string. Never
+  // parsed into a float for arithmetic.
+  minor: string;
+  token: string;
+  decimals: number;
+}
+
+export type ListingType = "bounty" | "project" | "hackathon" | "grant";
+
+export type ListingStatus = "open" | "review" | "completed" | "closed";
+
+export type CompensationType = "fixed" | "range" | "variable";
+
+// Whether an AI agent may work the listing. The service spells these in caps.
+export type AgentAccess = "HUMAN_ONLY" | "AGENT_ALLOWED" | "AGENT_ONLY";
+
+export interface SkillGroup {
+  skill: string;
+  subskills: string[];
+}
+
+// One payout position. `position` is 1-based, matching the service's rewards
+// map where the key "1" is first place.
+export interface RewardTier {
+  position: number;
+  amount: RewardAmount;
+}
+
+export interface SponsorRef {
+  id: string;
+  name: string;
+  slug: string;
+  logo: string | null;
+}
+
+export interface Sponsor extends SponsorRef {
+  bio: string;
+  industry: string;
+  url: string | null;
+  twitter: string | null;
+  entityName: string | null;
+}
+
+export interface SponsorProfile {
+  firstName: string;
+  lastName: string;
+  username: string;
+  photo: string | null;
+  telegram: string | null;
+}
+
+// A question the sponsor requires an answer to before a submission counts.
+export interface EligibilityQuestion {
+  id: string;
+  question: string;
+  type: "text" | "link";
+  optional: boolean;
+}
+
+// The shape the browse feed returns. Enough to render a card, not the full
+// listing body.
+export interface ListingSummary {
+  id: string;
+  slug: string;
+  title: string;
+  type: ListingType;
+  status: ListingStatus;
+  region: string;
+  deadline: string | null;
+  reward: RewardAmount | null;
+  compensationType: CompensationType;
+  isPrivate: boolean;
+  isPro: boolean;
+  winnersAnnounced: boolean;
+  submissionCount: number;
+  sponsor: SponsorRef | null;
+}
+
+export interface Listing extends ListingSummary {
+  description: string;
+  commitmentDate: string | null;
+  pocSocials: string | null;
+  skills: SkillGroup[];
+  rewards: RewardTier[];
+  isFndnPaying: boolean;
+  agentAccess: AgentAccess;
+  eligibility: EligibilityQuestion[];
+  isPublished: boolean;
+}
+
+export type SubmissionStatus = "pending" | "rejected" | "winner";
+
+export interface Submission {
+  id: string;
+  listingId: string;
+  link: string | null;
+  tweet: string | null;
+  otherInfo: string | null;
+  telegram: string | null;
+  status: SubmissionStatus;
+  winnerPosition: number | null;
+  createdAt: string | null;
+  eligibilityAnswers: EligibilityAnswer[];
+  // Present on the sponsor-facing feed only. The talent feed never carries
+  // another applicant's identity.
+  applicant: SubmissionApplicant | null;
+}
+
+export interface EligibilityAnswer {
+  question: string;
+  answer: string;
+}
+
+export interface SubmissionApplicant {
+  id: string;
+  username: string;
+  photo: string | null;
+  telegram: string | null;
+}
+
+// What GET /submission/check answers: whether this user already submitted, and
+// once winners are out, how their entry did and what is holding up payment.
+export interface SubmissionCheck {
+  hasSubmitted: boolean;
+  submissionId: string | null;
+  isWinner: boolean;
+  winnerPosition: number | null;
+  winnersAnnounced: boolean;
+  kycVerified: boolean;
+  isPaid: boolean;
+}
+
+// ----- Requests -----
+
+export type BrowseContext = "all" | "home" | "region";
+export type BrowseTab = "all" | "bounties" | "projects" | "grants";
+export type BrowseSort = "Date" | "Prize" | "Submissions";
+export type BrowseOrder = "asc" | "desc";
+
+export interface BrowseQuery {
+  context: BrowseContext;
+  tab: BrowseTab;
+  category: string;
+  status: ListingStatus;
+  sortBy: BrowseSort;
+  order: BrowseOrder;
+}
+
+export const DEFAULT_BROWSE_QUERY: BrowseQuery = {
+  context: "all",
+  tab: "all",
+  category: "All",
+  status: "open",
+  sortBy: "Date",
+  order: "asc",
+};
+
+export interface CreateSponsorInput {
+  name: string;
+  slug: string;
+  bio: string;
+  logo: string;
+  industry: string;
+  url: string;
+  twitter: string;
+  entityName: string;
+}
+
+export interface SponsorProfileInput {
+  firstName: string;
+  lastName: string;
+  username: string;
+  photo: string;
+  telegram: string;
+}
+
+export interface CreateSubmissionInput {
+  listingId: string;
+  link: string;
+  otherInfo: string;
+  telegram: string;
+  eligibilityAnswers: EligibilityAnswer[];
+  // Only sent when the user has a verified X handle linked. The service
+  // rejects the field otherwise.
+  tweet?: string;
+}
+
+export interface WinnerSelection {
+  id: string;
+  isWinner: boolean;
+  winnerPosition: number | null;
+}
