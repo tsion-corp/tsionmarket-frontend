@@ -48,7 +48,7 @@ function InterestPicker() {
       </header>
 
       <div className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col items-center justify-center px-6 pt-6 pb-[140px]">
-        <div className="max-w-[20ch] text-center">
+        <div className="w-full text-center">
           <Eyebrow>{t("eyebrow")}</Eyebrow>
           <h1 className="ws-display mt-3 text-[clamp(34px,5vw,60px)] leading-[1.02] tracking-[-0.03em]">
             {t.rich("title", { accent: (chunks) => <span className="text-accent">{chunks}</span> })}
