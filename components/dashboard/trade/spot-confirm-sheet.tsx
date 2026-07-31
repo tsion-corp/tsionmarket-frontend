@@ -78,7 +78,13 @@ export function SpotConfirmSheet({
             <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
 
             <div className="flex items-center gap-3">
-              <AssetIcon sym={base || "?"} bg={tokenBg(base || "?")} logo={logo} size={34} />
+              <AssetIcon
+                sym={base || "?"}
+                bg={tokenBg(base || "?")}
+                logo={logo}
+                size={34}
+                fallback="gradient"
+              />
               <div className="min-w-0">
                 <div className="ws-display text-[18px]">
                   {done

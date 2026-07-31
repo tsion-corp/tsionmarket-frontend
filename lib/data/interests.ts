@@ -32,10 +32,10 @@ export const INTERESTS: Interest[] = [
     icon: "bulb",
   },
   {
-    key: "yield",
-    title: "Yield & savings",
-    desc: "Earn onchain yield on idle balances.",
-    icon: "yield",
+    key: "casino",
+    title: "Casino & games",
+    desc: "Last Man Standing, staked chess and more.",
+    icon: "dice",
   },
   {
     key: "realestate",

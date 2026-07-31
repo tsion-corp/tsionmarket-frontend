@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GradientCoin } from "@/components/ui/gradient-coin";
 import TokenBTC from "@web3icons/react/icons/tokens/TokenBTC";
 import TokenETH from "@web3icons/react/icons/tokens/TokenETH";
 import TokenSOL from "@web3icons/react/icons/tokens/TokenSOL";
@@ -129,9 +130,14 @@ interface AssetIconProps {
   bg: string;
   size?: number;
   logo?: string | null;
+  // What to render when there is no built-in icon and no working logo image:
+  // the lettered badge (default), or the perps-style identicon gradient. The
+  // gradient never collides with labels at chip sizes, so dense surfaces like
+  // the spot terminal opt into it.
+  fallback?: "badge" | "gradient";
 }
 
-export function AssetIcon({ sym, bg, size = 36, logo }: AssetIconProps) {
+export function AssetIcon({ sym, bg, size = 36, logo, fallback = "badge" }: AssetIconProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const Icon = CRYPTO_ICONS[sym] ?? CRYPTO_ICONS[sym.toUpperCase()];
   const round = size > 24 ? 11 : 999;
@@ -164,5 +170,6 @@ export function AssetIcon({ sym, bg, size = 36, logo }: AssetIconProps) {
     );
   }
 
+  if (fallback === "gradient") return <GradientCoin sym={sym} size={size} />;
   return <CoinBadge sym={sym} bg={bg} size={size} />;
 }

@@ -37,7 +37,14 @@ interface SpotMarket {
 }
 
 // The markets pinned as one-tap chips in the simple interface, biggest first.
-const SIMPLE_CHIP_COUNT = 6;
+const SIMPLE_CHIP_COUNT = 8;
+
+// A market's badge: built-in icon or real logo when one loads, and the same
+// identicon gradient the perps desk uses for everything else — including a
+// logo URL that 404s, which the old text badge turned into label soup.
+function SpotCoin({ sym, logo, size }: { sym: string; logo: string | null; size: number }) {
+  return <AssetIcon sym={sym} bg={tokenBg(sym)} logo={logo} size={size} fallback="gradient" />;
+}
 
 function changeLabel(chg: number): string {
   const v = Number.isFinite(chg) ? chg : 0;
@@ -161,13 +168,13 @@ export function MarketsView() {
   };
 
   const simple = mode !== "pro";
-  const chartHeight = simple ? 240 : 360;
+  const chartHeight = simple ? 420 : 360;
 
   // Pair header with the searchable market picker; shared by both interfaces.
   const pairHeader = (
     <div className="ws-card relative p-4 sm:p-5">
       <div className="flex items-center gap-3">
-        <AssetIcon sym={base || "?"} bg={tokenBg(base || "?")} logo={token?.logo} size={34} />
+        <SpotCoin sym={base || "?"} logo={token?.logo ?? null} size={34} />
         <button
           onClick={() => setPickerOpen((v) => !v)}
           disabled={markets.length === 0}
@@ -221,7 +228,7 @@ export function MarketsView() {
                   onClick={() => pick(t)}
                   className="flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-white/6"
                 >
-                  <AssetIcon sym={t.symbol} bg={tokenBg(t.symbol)} logo={t.logo} size={26} />
+                  <SpotCoin sym={t.symbol} logo={t.logo} size={26} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-sans text-[13.5px] font-medium">
                       {t.symbol}/USDC
@@ -301,12 +308,13 @@ export function MarketsView() {
   );
 
   if (simple) {
-    // The guided interface: the biggest markets as one-tap chips, a compact
-    // chart and the ticket in a single column — the spot mirror of the simple
-    // perps desk. The full list stays reachable through the pair picker.
+    // The guided interface: the biggest markets as one-tap chips across the
+    // top, then the chart beside the ticket on desktop, stacked on mobile.
+    // Same full-width footprint as the pro terminal — just fewer moving
+    // parts. The full list stays reachable through the pair picker.
     const chips = markets.slice(0, SIMPLE_CHIP_COUNT);
     return (
-      <div className="mx-auto flex w-full max-w-[560px] flex-col gap-4">
+      <div className="flex w-full flex-col gap-4">
         {chips.length > 1 ? (
           <div className="flex gap-2 overflow-x-auto pb-1">
             {chips.map((m) => {
@@ -321,16 +329,20 @@ export function MarketsView() {
                       : "border-white/10 bg-white/4 text-white/60 hover:text-white/85"
                   }`}
                 >
-                  <AssetIcon sym={m.symbol} bg={tokenBg(m.symbol)} logo={m.logo} size={18} />
+                  <SpotCoin sym={m.symbol} logo={m.logo} size={18} />
                   {m.symbol}
                 </button>
               );
             })}
           </div>
         ) : null}
-        {pairHeader}
-        {chartCard}
-        {ticket}
+        <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-2">
+          <div className="flex min-w-0 flex-col gap-4">
+            {pairHeader}
+            {chartCard}
+          </div>
+          {ticket}
+        </div>
       </div>
     );
   }
@@ -356,7 +368,7 @@ export function MarketsView() {
           {heldToken && heldBalance > 0 ? (
             <div className="mt-3 flex items-center justify-between">
               <span className="flex items-center gap-2.5">
-                <AssetIcon sym={base} bg={tokenBg(base)} logo={heldToken.logo} size={26} />
+                <SpotCoin sym={base} logo={heldToken.logo} size={26} />
                 <span className="tnum text-[14px] font-medium">
                   {heldBalance.toLocaleString(undefined, { maximumFractionDigits: 6 })} {base}
                 </span>

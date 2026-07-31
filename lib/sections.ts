@@ -23,6 +23,7 @@ const INTEREST_TO_SECTION: Record<string, SectionId> = {
   crypto: "trade",
   perps: "trade",
   prediction: "prediction",
+  casino: "casino",
   yield: "rwa",
   realestate: "rwa",
   treasuries: "rwa",

@@ -469,6 +469,7 @@ export const INTEREST_ICONS: Record<string, (props: IconProps) => React.ReactNod
   trend: TrendIcon,
   bulb: BulbIcon,
   yield: YieldIcon,
+  dice: DiceIcon,
   house: HouseIcon,
   bond: BondIcon,
 };

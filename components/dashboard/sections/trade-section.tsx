@@ -28,33 +28,31 @@ export function TradeSection() {
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <Eyebrow>{tSections("trade")}</Eyebrow>
-          <div
-            className="ws-inset mt-3.5 inline-grid grid-cols-2 gap-1 p-1"
-            role="tablist"
-            aria-label={t("tabsLabel")}
-          >
-            {tabs.map(({ id, label }) => {
-              const on = id === tab;
-              return (
-                <button
-                  key={id}
-                  role="tab"
-                  aria-selected={on}
-                  onClick={() => setTab(id)}
-                  className={`cursor-pointer rounded-xl px-6 py-2 font-sans text-[13.5px] font-semibold transition-colors ${
-                    on
-                      ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
-                      : "text-white/55 hover:text-white/80"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
+      <Eyebrow>{tSections("trade")}</Eyebrow>
+      <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
+        <div
+          className="ws-inset inline-grid grid-cols-2 gap-1 p-1"
+          role="tablist"
+          aria-label={t("tabsLabel")}
+        >
+          {tabs.map(({ id, label }) => {
+            const on = id === tab;
+            return (
+              <button
+                key={id}
+                role="tab"
+                aria-selected={on}
+                onClick={() => setTab(id)}
+                className={`cursor-pointer rounded-xl px-6 py-2 font-sans text-[13.5px] font-semibold transition-colors ${
+                  on
+                    ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
+                    : "text-white/55 hover:text-white/80"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
         </div>
         {onPerps ? <PerpModeSwitch /> : <SpotModeSwitch />}
       </div>
