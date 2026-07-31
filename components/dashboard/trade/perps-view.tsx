@@ -4,6 +4,7 @@ import { useCallback, useMemo } from "react";
 import { SimplePerps } from "@/components/dashboard/trade/simple-perps";
 import { ProPerps } from "@/components/dashboard/trade/pro-perps";
 import { usePerpMode } from "@/components/dashboard/trade/perp-mode";
+import { usePerpPrefill } from "@/hooks/use-perp-prefill";
 import { usePerpPairs, usePerpPrices } from "@/hooks/use-perp-markets";
 import { usePerpPriceStream } from "@/hooks/use-perp-price-stream";
 import { usePrices } from "@/hooks/use-prices";
@@ -41,6 +42,11 @@ const FALLBACK_PAIRS: PerpPair[] = [
 
 export function PerpsView() {
   const { mode } = usePerpMode();
+  // Voice perps: a spoken "long $2 of bitcoin 30x" lands as URL params, is passed
+  // into whichever interface is showing, which STAGES the visible form and then
+  // auto-fires its own submit (usePerpFormAutostage) — the user watches the order
+  // fill in and place itself.
+  const perpPrefill = usePerpPrefill();
   const { pairs, unavailable, loading } = usePerpPairs();
   const live = !unavailable && pairs.length > 0;
   // Live marks are pushed over the ws-gateway socket; REST /prices seeds the
@@ -81,8 +87,8 @@ export function PerpsView() {
   }
 
   return mode === "pro" ? (
-    <ProPerps pairs={effectivePairs} priceOf={priceOf} live={live} />
+    <ProPerps pairs={effectivePairs} priceOf={priceOf} live={live} voicePrefill={perpPrefill} />
   ) : (
-    <SimplePerps pairs={effectivePairs} priceOf={priceOf} live={live} />
+    <SimplePerps pairs={effectivePairs} priceOf={priceOf} live={live} voicePrefill={perpPrefill} />
   );
 }

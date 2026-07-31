@@ -94,11 +94,19 @@ export function useVividSocket(): UseVividSocket {
         const CHUNK_BYTES = 16 * 1024;
 
         const sendAudio = () => {
+          console.log("[voice] CHUNKED sendAudio", {
+            settled,
+            readyState: ws.readyState,
+            bytes: audioBuffer.byteLength,
+          });
           if (settled || ws.readyState !== WebSocket.OPEN) return;
 
+          let count = 0;
           for (let offset = 0; offset < audioBuffer.byteLength; offset += CHUNK_BYTES) {
             ws.send(audioBuffer.slice(offset, offset + CHUNK_BYTES));
+            count++;
           }
+          console.log("[voice] chunks queued", { count, buffered: ws.bufferedAmount });
 
           // Emit `endpoint` only once the audio has flushed. Polling bufferedAmount
           // keeps us from ending the turn before the backend has the full clip.
@@ -109,17 +117,26 @@ export function useVividSocket(): UseVividSocket {
               return;
             }
             ws.send(JSON.stringify({ type: "endpoint" }));
+            console.log("[voice] endpoint sent, all audio flushed");
           };
           flushThenEndpoint();
         };
+
+        console.log("[voice] socket created", {
+          url,
+          readyState: ws.readyState,
+          bytes: audioBuffer.byteLength,
+        });
 
         // The socket can already be OPEN by the time we attach this (a cached
         // token + a local backend open on the same tick), in which case `onopen`
         // would never fire. Handle both: fire now if already open, else on open.
         if (ws.readyState === WebSocket.OPEN) {
+          console.log("[voice] socket already OPEN, sending now");
           sendAudio();
         } else {
           ws.onopen = () => {
+            console.log("[voice] onopen fired");
             sendAudio();
           };
         }
@@ -131,6 +148,7 @@ export function useVividSocket(): UseVividSocket {
           } catch {
             return;
           }
+          console.log("[voice] frame:", frame.type, JSON.stringify(frame).slice(0, 200));
           if (frame.type === "transcript") {
             if (frame.isFinal) transcript = frame.text;
             return;
@@ -141,10 +159,16 @@ export function useVividSocket(): UseVividSocket {
           }
         };
 
-        ws.onerror = () => {
+        ws.onerror = (e) => {
+          console.log("[voice] ws.onerror", e);
           finish(() => reject(new Error("Voice connection failed")));
         };
-        ws.onclose = () => {
+        ws.onclose = (e) => {
+          console.log("[voice] ws.onclose", {
+            code: e.code,
+            reason: e.reason,
+            wasClean: e.wasClean,
+          });
           finish(() => reject(new Error("Voice connection closed")));
         };
       })();

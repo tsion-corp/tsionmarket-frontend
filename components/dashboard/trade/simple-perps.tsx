@@ -15,7 +15,9 @@ import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
 import { orderFieldValidity, pairSymbol, validateOrder } from "@/lib/perp/logic";
 import { tradingViewFallbackSymbol, tradingViewSymbol } from "@/lib/perp/tradingview";
 import { findAsset } from "@/lib/trade/assets";
+import { usePerpFormAutostage } from "@/hooks/use-perp-form-autostage";
 import type { OpenPosition, PerpPair } from "@/lib/perp/types";
+import type { PerpPrefill } from "@/lib/voice/intent";
 
 // The guided interface: pick a major market, long or short, an amount and a
 // leverage, one tap to trade. Market orders only; TP/SL, limit orders and the
@@ -28,6 +30,9 @@ interface SimplePerpsProps {
   // False while the gateway is not deployed: the form renders with live-ish
   // preview prices but the trade action is disabled honestly.
   live: boolean;
+  // A voice-staged long/short ("long $2 of bitcoin 30x"): the form fills in and
+  // auto-fires. Null when there's no pending voice command.
+  voicePrefill?: PerpPrefill | null;
 }
 
 // The curated market set for the simple view, in display order.
@@ -36,16 +41,21 @@ const SIMPLE_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"];
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const LEVERAGE_MARKS = [2, 5, 10, 20];
 
-export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
+export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsProps) {
   const t = useTranslations("perps");
-  const simplePairs = useMemo(
-    () =>
-      SIMPLE_SYMBOLS.map((s) => pairs.find((p) => pairSymbol(p) === s)).filter(
-        (p): p is PerpPair => p != null
-      ),
-    [pairs]
-  );
   const [selected, setSelected] = useState<string>(SIMPLE_SYMBOLS[1]);
+  const simplePairs = useMemo(() => {
+    const majors = SIMPLE_SYMBOLS.map((s) => pairs.find((p) => pairSymbol(p) === s)).filter(
+      (p): p is PerpPair => p != null
+    );
+    // A voice command may target a non-major (gold, tesla); include the currently
+    // selected pair so the simple form can display and trade it too.
+    if (!majors.some((p) => pairSymbol(p) === selected)) {
+      const extra = pairs.find((p) => pairSymbol(p) === selected);
+      if (extra) return [...majors, extra];
+    }
+    return majors;
+  }, [pairs, selected]);
   const pair = simplePairs.find((p) => pairSymbol(p) === selected) ?? simplePairs[0] ?? null;
   const symbol = pair ? pairSymbol(pair) : selected;
   const baseSym = symbol.split("/")[0];
@@ -110,6 +120,19 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
     if (!pair || !validation.ok || price == null) return;
     setConfirm({ kind: "open" });
   };
+
+  // Voice: stage this form from a spoken command, then auto-fire submit() after a
+  // visible beat. `canSubmit` mirrors the CTA's own enabled condition.
+  usePerpFormAutostage({
+    prefill: voicePrefill ?? null,
+    pairs,
+    setSelected,
+    setSide,
+    setCollateral,
+    setLeverage: (lev) => setLeverage(Number(lev)),
+    submit,
+    canSubmit: live && validation.ok && price != null && !actions.busy,
+  });
 
   const runConfirmed = async () => {
     if (!confirm) return;

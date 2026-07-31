@@ -1,4 +1,9 @@
-import { isDepositChain, type DepositPrefill, type TradePrefill } from "@/lib/voice/intent";
+import {
+  isDepositChain,
+  type DepositPrefill,
+  type PerpPrefill,
+  type TradePrefill,
+} from "@/lib/voice/intent";
 
 // A voice buy/sell is carried to the target section as URL query params, so the
 // section opens its trade form staged and the user confirms there. This module
@@ -74,6 +79,42 @@ export function readDepositPrefill(params: URLSearchParams): DepositPrefill | nu
   return { chain, ...(token ? { token } : {}) };
 }
 
+// --- Perps prefill (opens the perps page and AUTO-EXECUTES a long/short) ---
+// Shape: ?perp=<symbol>&perpSide=<long|short>&perpAmount=<decimal>&perpLev=<int>
+
+const PERP_PARAM = "perp";
+const PERP_SIDE_PARAM = "perpSide";
+const PERP_AMOUNT_PARAM = "perpAmount";
+const PERP_LEV_PARAM = "perpLev";
+
+/** Encodes a perp prefill into a query string (no leading "?"). */
+export function perpToQuery(prefill: PerpPrefill): string {
+  return new URLSearchParams({
+    [PERP_PARAM]: prefill.symbol,
+    [PERP_SIDE_PARAM]: prefill.side,
+    [PERP_AMOUNT_PARAM]: prefill.amount,
+    [PERP_LEV_PARAM]: prefill.leverage,
+  }).toString();
+}
+
+/** Reads a perp prefill back from URL params, or null when absent/malformed. */
+export function readPerpPrefill(params: URLSearchParams): PerpPrefill | null {
+  const symbol = params.get(PERP_PARAM);
+  const side = params.get(PERP_SIDE_PARAM);
+  const amount = params.get(PERP_AMOUNT_PARAM);
+  const leverage = params.get(PERP_LEV_PARAM);
+  if (!symbol || (side !== "long" && side !== "short")) {
+    return null;
+  }
+  if (!amount || !/^\d+(\.\d+)?$/.test(amount)) {
+    return null;
+  }
+  if (!leverage || !/^\d{1,3}$/.test(leverage)) {
+    return null;
+  }
+  return { symbol, side, amount, leverage };
+}
+
 /** The query-param keys this module owns — for clearing them after consumption. */
 export const PREFILL_PARAMS = [
   SYMBOL_PARAM,
@@ -82,4 +123,8 @@ export const PREFILL_PARAMS = [
   FUNDS_PARAM,
   DEPOSIT_CHAIN_PARAM,
   DEPOSIT_TOKEN_PARAM,
+  PERP_PARAM,
+  PERP_SIDE_PARAM,
+  PERP_AMOUNT_PARAM,
+  PERP_LEV_PARAM,
 ] as const;

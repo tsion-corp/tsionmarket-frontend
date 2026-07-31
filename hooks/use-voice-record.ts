@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { vlog } from "@/lib/voice/log";
 
 // Picks a recording container the browser actually supports. Chrome/Firefox
 // give webm/opus; Safari gives mp4. Gemini accepts all of these, so we just
@@ -17,9 +18,11 @@ type CaptureOutcome =
   { blob: Blob; reason: "silence" | "maxDuration" } | { blob: null; reason: "empty" };
 
 // One spoken command is short. Auto-stop after this much silence, and never
-// listen longer than the hard cap even if the room stays noisy.
-const SILENCE_MS = 900;
-const MAX_MS = 8000;
+// listen longer than the hard cap even if the room stays noisy. SILENCE_MS is
+// generous so a natural mid-sentence pause ("Vivid… what's my balance") is NOT
+// mistaken for the end of the utterance and cut off.
+const SILENCE_MS = 1500;
+const MAX_MS = 15000;
 // Below this normalized RMS level we treat the mic as silent. Set above typical
 // mic hiss / room tone so a genuine pause is detected; speech sits well above
 // it. Raised from an earlier value that mistook ambient noise for speech and so
@@ -28,7 +31,9 @@ const SILENCE_LEVEL = 0.03;
 // How often we sample the mic level while deciding if speech has stopped.
 const POLL_MS = 100;
 // While tuning, log the live level so the threshold can be set from real data.
-const DEBUG_LEVELS = false;
+// On while we debug the cut-off: prints the live mic RMS level each poll so we
+// can SEE whether a mid-word dip below SILENCE_LEVEL is triggering an early stop.
+const DEBUG_LEVELS = true;
 
 interface UseVoiceRecord {
   recording: boolean;
@@ -67,7 +72,19 @@ export function useVoiceRecord(): UseVoiceRecord {
   }, []);
 
   const capture = useCallback(async (): Promise<CaptureOutcome> => {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    vlog("capture", "requesting mic");
+    // Echo cancellation + noise suppression are ESSENTIAL for a hands-free loop:
+    // without them Vivid's own spoken answer leaks back into the mic, gets
+    // captured as "speech", and the loop answers its own tail forever. These ask
+    // the browser's audio stack to subtract the played-back audio and room noise.
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    vlog("capture", "mic granted");
     streamRef.current = stream;
     const chunks: Blob[] = [];
 
@@ -105,13 +122,22 @@ export function useVoiceRecord(): UseVoiceRecord {
           pollRef.current = null;
         }
         const type = recorder.mimeType || "audio/webm";
+        const totalBytes = chunks.reduce((sum, c) => sum + c.size, 0);
+        const durationMs = Date.now() - startedAt;
         cleanup();
         // Send any captured audio and let the server decide. We only treat it as
         // "empty" when no audio was recorded at all, so a mis-tuned silence
         // threshold can never silently swallow a real command.
         if (!chunks.length) {
+          vlog("capture", "stopped → EMPTY (no audio)", { reason, durationMs });
           resolve({ blob: null, reason: "empty" });
         } else {
+          vlog("capture", `stopped → ${reason}`, {
+            durationMs,
+            bytes: totalBytes,
+            chunks: chunks.length,
+            heardSpeech,
+          });
           resolve({ blob: new Blob(chunks, { type }), reason });
         }
       };
@@ -128,18 +154,24 @@ export function useVoiceRecord(): UseVoiceRecord {
         const now = Date.now();
 
         if (DEBUG_LEVELS) {
-          console.log(
-            `[voice] level ${level.toFixed(3)} ${level > SILENCE_LEVEL ? "(speech)" : "(quiet)"}`
+          vlog(
+            "capture",
+            `level ${level.toFixed(3)} ${level > SILENCE_LEVEL ? "SPEECH" : "quiet"}`
           );
         }
 
         if (level > SILENCE_LEVEL) {
+          if (!heardSpeech) vlog("capture", "first speech detected", { level: +level.toFixed(3) });
           heardSpeech = true;
           quietSince = 0;
         } else if (heardSpeech) {
-          if (quietSince === 0) quietSince = now;
+          if (quietSince === 0) {
+            quietSince = now;
+            vlog("capture", `pause started (need ${SILENCE_MS}ms of quiet to stop)`);
+          }
           if (now - quietSince >= SILENCE_MS) {
             reason = "silence";
+            vlog("capture", "silence threshold reached → stopping");
             recorder.stop();
             return;
           }
@@ -147,6 +179,7 @@ export function useVoiceRecord(): UseVoiceRecord {
 
         if (now - startedAt >= MAX_MS) {
           reason = "maxDuration";
+          vlog("capture", `max duration ${MAX_MS}ms reached → stopping`);
           recorder.stop();
         }
       }, POLL_MS);

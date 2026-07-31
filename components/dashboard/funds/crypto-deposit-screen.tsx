@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
@@ -53,22 +53,13 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 
   // Resolve the spoken chain NAME against Dextopus's live chain list (any chain
   // the user said — never a hardcoded subset). null when it doesn't match one we
-  // offer, in which case we just leave the picker for the user.
-  const prefillChain = initialDeposit ? matchDepositChain(initialDeposit.chain, chains.data) : null;
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    console.log("[deposit-prefill] state", {
-      initialDeposit,
-      chainsLoaded: Boolean(chains.data),
-      chainCount: chains.data?.length ?? 0,
-      chainNames: (chains.data ?? []).map((c) => c.name),
-      matchedChain: prefillChain?.name ?? null,
-      originChain: originChain?.name ?? null,
-      tokensLoaded: Boolean(tokens.data),
-      tokenSymbols: (tokens.data ?? []).map((t) => t.symbol),
-    });
-  });
+  // offer, in which case we just leave the picker for the user. MEMOIZED so it is
+  // a STABLE reference across renders — otherwise the prefill effect below re-ran
+  // every render (a new object each time) and thrashed the component.
+  const prefillChain = useMemo(
+    () => (initialDeposit ? matchDepositChain(initialDeposit.chain, chains.data) : null),
+    [initialDeposit, chains.data]
+  );
 
   // Apply the voice prefill once the async lists arrive: select the matched
   // chain, then its token. A legitimate external-sync effect (URL/data → local

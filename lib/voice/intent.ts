@@ -14,6 +14,21 @@ export interface TradePrefill {
   mode: "buy" | "sell";
 }
 
+// A pre-filled PERPS position from a Vivid `perp.long` / `perp.short` command
+// ("long $2 of bitcoin with 30x leverage"). Unlike TradePrefill (spot RWA, which
+// only stages), a perp prefill carries the leverage and the long/short side, and
+// the perps section AUTO-EXECUTES it: navigate to the trade page, stage the form
+// (asset, side, collateral, leverage), and fire the order — no manual tap.
+export interface PerpPrefill {
+  symbol: string;
+  side: "long" | "short";
+  // Collateral (margin) in USD as a decimal string. Position = amount × leverage.
+  amount: string;
+  // Leverage multiplier as a whole-number string (e.g. "30"). Clamped to the
+  // pair's maxLeverage by the perps form before submit.
+  leverage: string;
+}
+
 // A spoken origin-chain name — free text, NOT a fixed set. Dextopus offers a
 // large, dynamic list of deposit chains; the deposit screen resolves whatever
 // the user said ("solana", "arbitrum", "polygon", …) against the live list, so
@@ -48,6 +63,7 @@ export function isDepositChain(value: string): value is DepositChain {
 //   non-understanding.
 export type Intent =
   | { action: "navigate"; target: SectionId; prefill?: TradePrefill }
+  | { action: "perp"; prefill: PerpPrefill }
   | { action: "deposit"; prefill: DepositPrefill }
   | { action: "speak"; message: string }
   | { action: "getBalance" }

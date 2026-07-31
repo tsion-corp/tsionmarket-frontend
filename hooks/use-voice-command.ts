@@ -9,12 +9,13 @@ import { getWalletAddress } from "@/lib/user";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import { useVoiceRecord } from "@/hooks/use-voice-record";
 import { useVividSocket } from "@/hooks/use-vivid-socket";
+import { useSpeech } from "@/hooks/use-speech";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { SECTION_LABEL } from "@/lib/sections";
 import { vividToIntent } from "@/lib/voice/vivid-intent";
-import { depositToQuery } from "@/lib/voice/prefill";
+import { depositToQuery, perpToQuery } from "@/lib/voice/prefill";
 import type { ChainType, Intent } from "@/lib/voice/intent";
 
 // How each deposit chain reads in a toast.
@@ -59,6 +60,7 @@ export function useVoiceCommand(): UseVoiceCommand {
   const navigate = useAppNavigate();
   const { recording, supported, capture } = useVoiceRecord();
   const { configured, send } = useVividSocket();
+  const { speak, stop: stopSpeech } = useSpeech();
   const { totalUsd, refetch } = usePortfolio();
   const money = useMoney();
   const { hidden } = useBalanceVisibility();
@@ -74,8 +76,11 @@ export function useVoiceCommand(): UseVoiceCommand {
           if (intent.prefill) {
             const { symbol, mode } = intent.prefill;
             toast.success(`Opening ${symbol} to ${mode}`, { id: toastId });
+            void speak(`Opening ${symbol} to ${mode}.`);
           } else {
-            toast.success(`Opening ${SECTION_LABEL[intent.target]}`, { id: toastId });
+            const label = SECTION_LABEL[intent.target];
+            toast.success(`Opening ${label}`, { id: toastId });
+            void speak(`Opening ${label}.`);
           }
           navigate(intent.target, intent.prefill);
           return;
@@ -86,65 +91,102 @@ export function useVoiceCommand(): UseVoiceCommand {
           // dashboard reads these params and opens the funds modal.
           const { chain, token } = intent.prefill;
           const label = DEPOSIT_CHAIN_LABEL[chain] ?? chain;
-          toast.success(token ? `Add ${token} on ${label}` : `Add funds on ${label}`, {
-            id: toastId,
-          });
+          const msg = token ? `Add ${token} on ${label}` : `Add funds on ${label}`;
+          toast.success(msg, { id: toastId });
+          void speak(
+            token
+              ? `Here's your ${token} deposit address on ${label}.`
+              : `Opening add funds on ${label}.`
+          );
           router.push(`/dashboard?${depositToQuery(intent.prefill)}`);
+          return;
+        }
+
+        case "perp": {
+          // A leveraged long/short. Navigate to the perps page with the position
+          // encoded in the URL; the trade section stages the form AND fires the
+          // order (auto-execute — the only voice path that does).
+          const { symbol, side, amount, leverage } = intent.prefill;
+          const verb = side === "short" ? "Shorting" : "Longing";
+          toast.success(`${verb} ${symbol} at ${leverage}x`, { id: toastId });
+          void speak(
+            `${verb} ${symbol} with ${amount} dollars at ${leverage} times leverage. Placing your order now.`
+          );
+          router.push(`/dashboard?${perpToQuery(intent.prefill)}#trade`);
           return;
         }
 
         case "speak":
           // A spoken read result (price, list) or a clarify/reject message.
           toast.success(intent.message, { id: toastId });
+          void speak(intent.message);
           return;
 
         case "getBalance":
           // Respect the app-wide hide-balances toggle: don't read a hidden
-          // number out loud in a toast.
+          // number out loud.
           if (hidden) {
-            toast.info("Balances are hidden. Unhide them to check.", { id: toastId });
+            const m = "Your balances are hidden. Unhide them to check.";
+            toast.info(m, { id: toastId });
+            void speak(m);
           } else {
-            toast.success(`Your balance is ${money.format(totalUsd)}`, { id: toastId });
+            const m = `Your total balance is ${money.format(totalUsd)}.`;
+            toast.success(m, { id: toastId });
+            void speak(m);
           }
           return;
 
         case "getWalletAddress": {
           const address = getWalletAddress(user, intent.chain);
+          const chainLabel = CHAIN_LABEL[intent.chain];
           if (!address) {
-            toast.error(`No ${CHAIN_LABEL[intent.chain]} wallet found.`, { id: toastId });
+            const m = `I couldn't find a ${chainLabel} wallet on your account.`;
+            toast.error(m, { id: toastId });
+            void speak(m);
             return;
           }
           // Copy so the user can paste it straight away; show a shortened form.
           void copyText(address);
-          toast.success(`${CHAIN_LABEL[intent.chain]}: ${shortenAddress(address)} (copied)`, {
-            id: toastId,
-          });
+          toast.success(`${chainLabel}: ${shortenAddress(address)} (copied)`, { id: toastId });
+          void speak(`I've copied your ${chainLabel} address to the clipboard.`);
           return;
         }
 
-        case "refresh":
-          toast.success("Refreshing balances", { id: toastId });
+        case "refresh": {
+          const m = "Refreshing your balances.";
+          toast.success(m, { id: toastId });
+          void speak(m);
           void refetch();
           return;
+        }
 
-        case "unsupported":
+        case "unsupported": {
           // Understood, but this action isn't voice-enabled yet. Say so plainly
           // rather than pretending we didn't understand.
-          toast.info(`${capitalize(intent.what)} by voice is coming soon.`, { id: toastId });
+          const m = `${capitalize(intent.what)} by voice is coming soon.`;
+          toast.info(m, { id: toastId });
+          void speak(m);
           return;
+        }
 
         case "unknown": {
           const heard = intent.transcript ? `Heard "${intent.transcript}"` : "Didn't catch that";
           toast.error(`${heard}. Try "what's my balance" or "go to markets".`, { id: toastId });
+          void speak(
+            `Sorry, I didn't catch that. Try asking for your balance, or to open markets.`
+          );
           return;
         }
       }
     },
-    [navigate, router, hidden, money, totalUsd, user, refetch]
+    [navigate, router, hidden, money, totalUsd, user, refetch, speak]
   );
 
   const run = useCallback(async () => {
     if (busy || recording) return;
+
+    // Barge-in: a new command silences whatever Vivid is currently saying.
+    stopSpeech();
 
     const toastId = toast.loading("Listening…");
     let audio: Blob | null = null;
@@ -175,6 +217,7 @@ export function useVoiceCommand(): UseVoiceCommand {
       // resolves with the terminal frame for this turn.
       const { frame } = await send(audio);
       const intent = vividToIntent(frame);
+      console.log("[voice] dispatching intent:", intent.action, JSON.stringify(intent));
       dispatch(intent, toastId);
     } catch (err) {
       console.error("[voice] turn failed:", err);
@@ -182,7 +225,7 @@ export function useVoiceCommand(): UseVoiceCommand {
     } finally {
       setBusy(false);
     }
-  }, [busy, recording, capture, configured, send, dispatch]);
+  }, [busy, recording, capture, configured, send, dispatch, stopSpeech]);
 
   return { recording, busy, supported, run };
 }
