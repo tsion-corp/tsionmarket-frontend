@@ -96,10 +96,8 @@ export function useVividSocket(): UseVividSocket {
         const sendAudio = () => {
           if (settled || ws.readyState !== WebSocket.OPEN) return;
 
-          let count = 0;
           for (let offset = 0; offset < audioBuffer.byteLength; offset += CHUNK_BYTES) {
             ws.send(audioBuffer.slice(offset, offset + CHUNK_BYTES));
-            count++;
           }
 
           // Emit `endpoint` only once the audio has flushed. Polling bufferedAmount
@@ -143,10 +141,10 @@ export function useVividSocket(): UseVividSocket {
           }
         };
 
-        ws.onerror = (e) => {
+        ws.onerror = () => {
           finish(() => reject(new Error("Voice connection failed")));
         };
-        ws.onclose = (e) => {
+        ws.onclose = () => {
           finish(() => reject(new Error("Voice connection closed")));
         };
       })();

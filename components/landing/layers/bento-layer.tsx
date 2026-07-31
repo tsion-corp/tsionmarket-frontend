@@ -11,7 +11,7 @@ import {
 import { CopyLayer, RevealItem } from "@/components/landing/layers/reveal-item";
 
 const CARD =
-  "rounded-[24px] border border-white/12 bg-white/5 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-[14px]";
+  "rounded-[24px] border border-white/18 bg-[rgba(16,16,18,0.62)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_18px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-[14px]";
 const PILL =
   "rounded-full border border-white/12 bg-white/7 px-[11px] py-[5px] text-[12px] font-normal text-white/90";
 const TILE = "grid h-11 w-11 place-items-center rounded-xl border";

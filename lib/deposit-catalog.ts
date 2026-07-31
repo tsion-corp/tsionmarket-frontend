@@ -25,20 +25,29 @@ export function originFamily(chainId: number): OriginFamily {
 }
 
 // The embedded-wallet chain type that can refund an origin of this family, or
-// null when we hold no wallet on that family and so cannot offer the origin. A
-// static deposit address requires a refundTo on the origin's own family, so an
-// origin we cannot refund cannot be offered.
+// null when we hold no wallet on that family. A static deposit address wants a
+// refundTo on the origin's own family; where we cannot supply one the request
+// omits it and Dextopus falls back to the account's default refund address.
 export function refundChainType(family: OriginFamily): WalletChainType | null {
   if (family === "evm") return "ethereum";
   if (family === "svm") return "solana";
   return null;
 }
 
-// An origin is offerable only when a failed deposit can be refunded, i.e. its
-// family maps to one of our embedded wallets. Bitcoin and Tron are gated out
-// until a default refund address is configured in the Dextopus dashboard.
+// Families we offer without a per-user refundTo: the deposit request omits the
+// field and refunds go to the default refund address configured in the
+// Dextopus dashboard (Settings > Integrations > Default Refund Addresses).
+// Bitcoin is enabled; Tron stays gated until its default is configured too.
+export function isRefundOptional(family: OriginFamily): boolean {
+  return family === "bitcoin";
+}
+
+// An origin is offerable when a failed deposit can be refunded — either to one
+// of our embedded wallets, or to the dashboard's default refund address for
+// families where the per-request refund is optional.
 export function isSupportedOrigin(chainId: number): boolean {
-  return refundChainType(originFamily(chainId)) !== null;
+  const family = originFamily(chainId);
+  return refundChainType(family) !== null || isRefundOptional(family);
 }
 
 // Dextopus chain ids for the networks we promote to the front of the picker
@@ -48,6 +57,7 @@ export const POPULAR_CHAIN_IDS: readonly number[] = [
   8453, // Base
   42161, // Arbitrum
   792703809, // Solana
+  8253038, // Bitcoin
   137, // Polygon
   10, // Optimism
   56, // BNB Chain

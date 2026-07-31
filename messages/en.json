@@ -631,7 +631,17 @@
     "orderLimit": "Limit",
     "orderStop": "Stop",
     "needExecutionFee": "You need about {amount} ETH on Base for the execution fee. Add some and try again.",
-    "orderFilledInstead": "The order filled at its trigger before the cancel landed. Check your positions."
+    "orderFilledInstead": "The order filled at its trigger before the cancel landed. Check your positions.",
+    "confirmOpenTitle": "Review your trade",
+    "confirmCloseTitle": "Close this position?",
+    "confirmMarket": "Market",
+    "confirmSide": "Side",
+    "confirmCloseAmount": "Closing",
+    "confirmCloseFull": "Entire position",
+    "confirmRiskOpen": "Leveraged trades can lose value fast, and fills happen at market. Continue only if this looks right.",
+    "confirmRiskClose": "The close fills at the current market price. This can't be undone.",
+    "confirmCancel": "Cancel",
+    "confirmContinue": "Continue"
   },
   "fundsFlow": {
     "back": "Back",

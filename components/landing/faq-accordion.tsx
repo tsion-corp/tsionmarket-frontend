@@ -24,7 +24,7 @@ export function FaqAccordion() {
         return (
           <div
             key={f.q}
-            className="rounded-2xl border border-white/10 bg-white/4 px-[22px] backdrop-blur-[14px]"
+            className="rounded-2xl border border-white/18 bg-[rgba(16,16,18,0.62)] px-[22px] shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_18px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-[14px]"
           >
             <button
               type="button"

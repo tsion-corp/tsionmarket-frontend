@@ -631,7 +631,17 @@
     "orderLimit": "Limite",
     "orderStop": "Stop",
     "needExecutionFee": "Il vous faut environ {amount} ETH sur Base pour les frais d'exécution. Ajoutez-en et réessayez.",
-    "orderFilledInstead": "L'ordre a été exécuté à son seuil avant l'annulation. Vérifiez vos positions."
+    "orderFilledInstead": "L'ordre a été exécuté à son seuil avant l'annulation. Vérifiez vos positions.",
+    "confirmOpenTitle": "Vérifiez votre trade",
+    "confirmCloseTitle": "Fermer cette position ?",
+    "confirmMarket": "Marché",
+    "confirmSide": "Sens",
+    "confirmCloseAmount": "Fermeture",
+    "confirmCloseFull": "Position entière",
+    "confirmRiskOpen": "Les trades à effet de levier peuvent perdre de la valeur rapidement, et l'exécution se fait au prix du marché. Ne continuez que si tout est correct.",
+    "confirmRiskClose": "La fermeture s'exécute au prix actuel du marché. Cette action est irréversible.",
+    "confirmCancel": "Annuler",
+    "confirmContinue": "Continuer"
   },
   "fundsFlow": {
     "back": "Retour",

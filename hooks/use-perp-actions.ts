@@ -26,6 +26,13 @@ import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/l
 // returns unsigned steps; everything here is signed by the user's embedded
 // wallet through the app's single EVM send path.
 //
+// Account identity: the perp doc warns that under ERC-4337 the `trader` must
+// be the smart-account address, not the EOA. Our gasless path is EIP-7702 —
+// the embedded EOA is upgraded IN PLACE at the same address (see
+// lib/trade/base-sponsor.ts) — so `trader` here and the sponsored sender are
+// the same address by construction. Do not "fix" this to a separate
+// smart-account address.
+//
 // Opening batches the (optional) USDC approval and the open into ONE atomic
 // sponsored operation on Base. The doc's allowance race (an open sent right
 // after an approve reverting on a stale RPC read) cannot happen in a batch:

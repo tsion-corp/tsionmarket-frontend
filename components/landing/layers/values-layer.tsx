@@ -26,7 +26,7 @@ export function ValuesLayer() {
           {VALUES.map((v) => (
             <RevealItem
               key={v.k}
-              className="flex min-h-[284px] flex-col rounded-[22px] border border-white/12 bg-white/5 p-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-[14px]"
+              className="flex min-h-[284px] flex-col rounded-[22px] border border-white/18 bg-[rgba(16,16,18,0.62)] p-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_18px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-[14px]"
             >
               <div className="flex items-start justify-between gap-3">
                 <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-white/12 bg-white/6 text-white">

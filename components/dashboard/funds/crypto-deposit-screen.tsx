@@ -18,7 +18,7 @@ import {
 } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
-import { originFamily, refundChainType } from "@/lib/deposit-catalog";
+import { isRefundOptional, originFamily, refundChainType } from "@/lib/deposit-catalog";
 import {
   depositMinimumUsd,
   SETTLE_CHAINS,
@@ -95,15 +95,17 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 
   const settlementAddress = getWalletAddress(user, settle.chainType);
 
-  // A static address needs a refund address on the origin's own VM family. The
-  // network picker already hides families we cannot refund, so this resolves for
-  // every offerable origin.
+  // A static address wants a refund address on the origin's own VM family.
+  // Where we hold a wallet on that family it is sent; for refund-optional
+  // families (Bitcoin) the field is omitted and Dextopus refunds to the
+  // account's dashboard-configured default address instead.
   const family = originChain ? originFamily(originChain.chainId) : null;
   const refundType = family ? refundChainType(family) : null;
   const refundTo = refundType ? getWalletAddress(user, refundType) : null;
+  const refundReady = family != null && (refundTo != null || isRefundOptional(family));
 
   const req: StaticAddressRequest | null =
-    user?.id && originChain && originToken && settlementAddress && refundTo
+    user?.id && originChain && originToken && settlementAddress && refundReady
       ? {
           userId: user.id,
           originChainId: originChain.chainId,
@@ -111,7 +113,7 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
           settlementChainId: settle.chainId,
           settlementAsset: settle.usdc,
           settlementAddress,
-          refundTo,
+          ...(refundTo ? { refundTo } : {}),
         }
       : null;
 
@@ -265,7 +267,7 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
           </div>
         ) : null}
 
-        {originToken && settlementAddress && !refundTo ? (
+        {originToken && settlementAddress && !refundReady ? (
           <div className="border-down/25 bg-down/10 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/70">
             {refundType === "solana"
               ? t("needRefundAddressSolana", { chain: originChain?.name ?? "" })

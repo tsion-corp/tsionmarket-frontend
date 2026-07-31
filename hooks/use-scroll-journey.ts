@@ -32,8 +32,8 @@ export function useScrollJourney(rootRef: RefObject<HTMLDivElement | null>) {
 
   // Smooth-scrolls to a waypoint's hold; used by the navbar, rail and footer.
   const go = useCallback((i: number) => {
-    const unit = (metricsRef.current ?? journeyMetrics(window.innerHeight)).unit;
-    window.scrollTo({ top: i * unit + 8, behavior: "smooth" });
+    const starts = (metricsRef.current ?? journeyMetrics(window.innerHeight)).starts;
+    window.scrollTo({ top: (starts[i] ?? 0) + 8, behavior: "smooth" });
   }, []);
 
   useEffect(() => {

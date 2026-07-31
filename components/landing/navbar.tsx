@@ -65,12 +65,6 @@ export function Navbar({ onNavigate }: NavbarProps) {
         <LanguageSelect />
         <Link
           href="/auth"
-          className="hover:text-accent hidden rounded-full px-2.5 py-[11px] text-[13px] font-medium whitespace-nowrap text-white/90 min-[400px]:block min-[400px]:px-3 min-[400px]:text-sm"
-        >
-          {t("login")}
-        </Link>
-        <Link
-          href="/auth"
           className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-3.5 py-[11px] text-[13px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-sm sm:px-5"
         >
           {t("getStarted")}

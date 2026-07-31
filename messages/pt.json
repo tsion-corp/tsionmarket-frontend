@@ -631,7 +631,17 @@
     "orderLimit": "Limite",
     "orderStop": "Stop",
     "needExecutionFee": "Você precisa de cerca de {amount} ETH na Base para a taxa de execução. Adicione um pouco e tente novamente.",
-    "orderFilledInstead": "A ordem foi executada no gatilho antes do cancelamento. Verifique suas posições."
+    "orderFilledInstead": "A ordem foi executada no gatilho antes do cancelamento. Verifique suas posições.",
+    "confirmOpenTitle": "Revise sua operação",
+    "confirmCloseTitle": "Fechar esta posição?",
+    "confirmMarket": "Mercado",
+    "confirmSide": "Direção",
+    "confirmCloseAmount": "Fechando",
+    "confirmCloseFull": "Posição inteira",
+    "confirmRiskOpen": "Operações alavancadas podem perder valor rapidamente, e a execução acontece a preço de mercado. Continue apenas se estiver tudo certo.",
+    "confirmRiskClose": "O fechamento é executado ao preço de mercado atual. Isso não pode ser desfeito.",
+    "confirmCancel": "Cancelar",
+    "confirmContinue": "Continuar"
   },
   "fundsFlow": {
     "back": "Voltar",

@@ -631,7 +631,17 @@
     "orderLimit": "Limit",
     "orderStop": "Stop",
     "needExecutionFee": "Sie benötigen etwa {amount} ETH auf Base für die Ausführungsgebühr. Fügen Sie etwas hinzu und versuchen Sie es erneut.",
-    "orderFilledInstead": "Die Order wurde vor der Stornierung am Auslöser ausgeführt. Prüfen Sie Ihre Positionen."
+    "orderFilledInstead": "Die Order wurde vor der Stornierung am Auslöser ausgeführt. Prüfen Sie Ihre Positionen.",
+    "confirmOpenTitle": "Trade überprüfen",
+    "confirmCloseTitle": "Diese Position schließen?",
+    "confirmMarket": "Markt",
+    "confirmSide": "Richtung",
+    "confirmCloseAmount": "Schließung",
+    "confirmCloseFull": "Gesamte Position",
+    "confirmRiskOpen": "Gehebelte Trades können schnell an Wert verlieren, die Ausführung erfolgt zum Marktpreis. Fahren Sie nur fort, wenn alles stimmt.",
+    "confirmRiskClose": "Die Schließung erfolgt zum aktuellen Marktpreis. Dies kann nicht rückgängig gemacht werden.",
+    "confirmCancel": "Abbrechen",
+    "confirmContinue": "Fortfahren"
   },
   "fundsFlow": {
     "back": "Zurück",

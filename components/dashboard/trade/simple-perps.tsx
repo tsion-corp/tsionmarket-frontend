@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/components/dashboard/trade/flash-price";
+import { PerpConfirmModal, type ConfirmRow } from "@/components/dashboard/trade/perp-confirm-modal";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
 import { usePerpQuote } from "@/hooks/use-perp-quote";
 import { usePerpActions } from "@/hooks/use-perp-actions";
@@ -14,7 +15,7 @@ import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
 import { orderFieldValidity, pairSymbol, validateOrder } from "@/lib/perp/logic";
 import { tradingViewFallbackSymbol, tradingViewSymbol } from "@/lib/perp/tradingview";
 import { findAsset } from "@/lib/trade/assets";
-import type { PerpPair } from "@/lib/perp/types";
+import type { OpenPosition, PerpPair } from "@/lib/perp/types";
 
 // The guided interface: pick a major market, long or short, an amount and a
 // leverage, one tap to trade. Market orders only; TP/SL, limit orders and the
@@ -50,6 +51,12 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
   const baseSym = symbol.split("/")[0];
 
   const [side, setSide] = useState<"long" | "short">("long");
+  // The confirm step before money moves; null = no dialog.
+  const [confirm, setConfirm] = useState<
+    | { kind: "open" }
+    | { kind: "close"; position: OpenPosition; amount: string; full: boolean }
+    | null
+  >(null);
   const [collateral, setCollateral] = useState("");
   const [leverage, setLeverage] = useState(10);
 
@@ -97,19 +104,60 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
     if (next === "" || DECIMAL_INPUT.test(next)) setCollateral(next);
   };
 
-  const submit = async () => {
+  const pairByIndex = useMemo(() => new Map(pairs.map((p) => [p.pairIndex, p])), [pairs]);
+
+  const submit = () => {
     if (!pair || !validation.ok || price == null) return;
-    const ok = await actions.openTrade({
-      pair: symbol,
-      isLong: side === "long",
-      collateralUsdc: collateral,
-      leverage: String(clampedLeverage),
-      orderType: "market",
-      openPrice: price,
-      slippagePct: "1",
-    });
-    if (ok) setCollateral("");
+    setConfirm({ kind: "open" });
   };
+
+  const runConfirmed = async () => {
+    if (!confirm) return;
+    const staged = confirm;
+    setConfirm(null);
+    if (staged.kind === "open") {
+      if (price == null) return;
+      const ok = await actions.openTrade({
+        pair: symbol,
+        isLong: side === "long",
+        collateralUsdc: collateral,
+        leverage: String(clampedLeverage),
+        orderType: "market",
+        openPrice: price,
+        slippagePct: "1",
+      });
+      if (ok) setCollateral("");
+    } else {
+      await actions.closeTrade(staged.position, staged.amount);
+    }
+  };
+
+  const confirmRows: ConfirmRow[] =
+    confirm?.kind === "open"
+      ? [
+          { label: t("confirmMarket"), value: symbol },
+          {
+            label: t("confirmSide"),
+            value: `${t(side)} ${clampedLeverage}x`,
+            tone: side === "long" ? ("up" as const) : ("down" as const),
+          },
+          { label: t("collateral"), value: `${collateral} USDC` },
+          { label: t("positionSize"), value: `${formatAmount(size)} USDC` },
+        ]
+      : confirm?.kind === "close"
+        ? [
+            {
+              label: t("confirmMarket"),
+              value: pairByIndex.get(confirm.position.pairIndex)
+                ? pairSymbol(pairByIndex.get(confirm.position.pairIndex) as PerpPair)
+                : `#${confirm.position.pairIndex}`,
+            },
+            {
+              label: t("confirmCloseAmount"),
+              value: confirm.full ? t("confirmCloseFull") : `${confirm.amount} USDC`,
+            },
+          ]
+        : [];
 
   const cta = !live
     ? t("liveTradingConnectsSoon")
@@ -122,8 +170,6 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
             ? t(`v_${validation.code}`, validation.params)
             : validation.message
           : t(side === "long" ? "ctaLong" : "ctaShort", { sym: baseSym, lev: clampedLeverage });
-
-  const pairByIndex = useMemo(() => new Map(pairs.map((p) => [p.pairIndex, p])), [pairs]);
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,420px)_1fr]">
@@ -309,10 +355,29 @@ export function SimplePerps({ pairs, priceOf, live }: SimplePerpsProps) {
           loading={positionsLoading}
           pairByIndex={pairByIndex}
           priceOf={priceOf}
-          onClose={(p, c) => void actions.closeTrade(p, c)}
+          onClose={(p, c) =>
+            setConfirm({
+              kind: "close",
+              position: p,
+              amount: c,
+              full: c === p.initialCollateralUsdc,
+            })
+          }
           busy={actions.busy}
         />
       </div>
+
+      {confirm ? (
+        <PerpConfirmModal
+          title={confirm.kind === "open" ? t("confirmOpenTitle") : t("confirmCloseTitle")}
+          rows={confirmRows}
+          warning={confirm.kind === "open" ? t("confirmRiskOpen") : t("confirmRiskClose")}
+          cancelLabel={t("confirmCancel")}
+          continueLabel={t("confirmContinue")}
+          onCancel={() => setConfirm(null)}
+          onContinue={() => void runConfirmed()}
+        />
+      ) : null}
     </div>
   );
 }

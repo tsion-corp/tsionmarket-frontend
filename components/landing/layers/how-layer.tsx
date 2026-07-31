@@ -24,7 +24,7 @@ export function HowLayer() {
           {STEPS.map((s) => (
             <RevealItem
               key={s.k}
-              className="rounded-[22px] border border-white/12 bg-white/5 p-[30px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)] backdrop-blur-[14px]"
+              className="rounded-[22px] border border-white/18 bg-[rgba(16,16,18,0.62)] p-[30px] shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_18px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-[14px]"
             >
               <div className="ws-display text-[44px] leading-[0.8] text-[#d4d4d8]">{s.num}</div>
               <h3 className="ws-display mt-5 text-[24px]">{t(`${s.k}Title`)}</h3>

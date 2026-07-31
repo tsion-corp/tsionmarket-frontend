@@ -13,16 +13,23 @@ import {
 const m = journeyMetrics(1000);
 
 describe("journeyMetrics", () => {
-  it("derives hold, transit and track from the viewport", () => {
-    expect(m.hold).toBe(1100);
+  it("derives holds, transit and track from the viewport", () => {
+    // Waypoint 0 is a held composition with nothing to reveal, so its hold is
+    // a short beat; every later waypoint gets the full hold.
+    expect(m.holds[0]).toBeCloseTo(385);
+    expect(m.holds[1]).toBe(1100);
+    expect(m.holds[8]).toBe(1100);
     expect(m.transit).toBeCloseTo(902);
-    expect(m.unit).toBeCloseTo(2002);
-    expect(m.trackHeight).toBeCloseTo(2002 * 8 + 1100 + 1500);
+    expect(m.starts[0]).toBe(0);
+    expect(m.starts[1]).toBeCloseTo(385 + 902);
+    expect(m.starts[2]).toBeCloseTo(385 + 902 + 1100 + 902);
+    expect(m.trackHeight).toBeCloseTo(m.starts[8] + 1100 + 1500);
   });
 
-  it("floors both distances on tiny viewports", () => {
+  it("floors the distances on tiny viewports", () => {
     const tiny = journeyMetrics(300);
-    expect(tiny.hold).toBe(420);
+    expect(tiny.holds[0]).toBe(180);
+    expect(tiny.holds[1]).toBe(420);
     expect(tiny.transit).toBe(360);
   });
 });
@@ -32,16 +39,17 @@ describe("journeyFrame", () => {
     expect(journeyFrame(0, m)).toEqual({ i: 0, inHold: true, p: 0 });
   });
 
-  it("moves into the transit after the hold distance", () => {
-    const f = journeyFrame(m.hold + m.transit / 2, m);
+  it("moves into the transit after the enter hold's short beat", () => {
+    const f = journeyFrame(m.holds[0] + m.transit / 2, m);
     expect(f.i).toBe(0);
     expect(f.inHold).toBe(false);
     expect(f.p).toBeCloseTo(0.5);
   });
 
-  it("advances a waypoint per unit and clamps at the last", () => {
-    expect(journeyFrame(m.unit * 3 + 10, m).i).toBe(3);
-    const end = journeyFrame(m.unit * 40, m);
+  it("advances per waypoint start and clamps at the last", () => {
+    expect(journeyFrame(m.starts[3] + 10, m).i).toBe(3);
+    expect(journeyFrame(m.starts[3] - 1, m).i).toBe(2);
+    const end = journeyFrame(m.trackHeight * 3, m);
     expect(end.i).toBe(WAYPOINTS - 1);
     // The last waypoint holds forever.
     expect(end.inHold).toBe(true);

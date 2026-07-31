@@ -42,13 +42,6 @@ export default function AuthPage() {
         </div>
 
         <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center py-9 sm:py-12">
-          <div className="mb-[26px] inline-flex items-center gap-[9px] self-start rounded-full border border-white/14 bg-white/6 py-[5px] pr-3.5 pl-1.5">
-            <span className="text-ink rounded-full bg-white px-2.5 py-[3px] text-[11px] font-semibold">
-              {t("beta")}
-            </span>
-            <span className="pr-1 text-[13px] text-white/90">{t("earlyAccess")}</span>
-          </div>
-
           <h1 className="ws-display text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
             {t("welcome")} <span className="text-accent">{BRAND}</span>
           </h1>

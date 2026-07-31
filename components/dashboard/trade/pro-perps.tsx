@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { SearchIcon } from "@/components/ui/icons";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/components/dashboard/trade/flash-price";
+import { PerpConfirmModal, type ConfirmRow } from "@/components/dashboard/trade/perp-confirm-modal";
 import { PerpOrders } from "@/components/dashboard/trade/perp-orders";
 import { PerpPositions } from "@/components/dashboard/trade/perp-positions";
 import { PerpPairIcon } from "@/components/dashboard/trade/perp-pair-icon";
@@ -14,6 +15,7 @@ import { usePerpActions } from "@/hooks/use-perp-actions";
 import { usePerpOrders } from "@/hooks/use-perp-orders";
 import { usePerpPositions } from "@/hooks/use-perp-positions";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import type { OpenTradeRequest } from "@/lib/perp/types";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
 import {
   CATEGORY_ORDER,
@@ -23,7 +25,7 @@ import {
   validateOrder,
 } from "@/lib/perp/logic";
 import { tradingViewFallbackSymbol, tradingViewSymbol } from "@/lib/perp/tradingview";
-import type { PerpCategory, PerpOrderType, PerpPair } from "@/lib/perp/types";
+import type { OpenPosition, PerpCategory, PerpOrderType, PerpPair } from "@/lib/perp/types";
 
 // The full-control interface: every market Avantis lists across crypto, forex,
 // commodities and equities, with order types, TP/SL, slippage, and position
@@ -75,6 +77,13 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
   const [takeProfit, setTakeProfit] = useState("");
   const [stopLoss, setStopLoss] = useState("");
   const [slippage, setSlippage] = useState("1");
+  // The confirm step before money moves: an open staged from the form, or a
+  // close staged from a position row. null = no dialog.
+  const [confirm, setConfirm] = useState<
+    | { kind: "open"; req: Omit<OpenTradeRequest, "trader"> }
+    | { kind: "close"; position: OpenPosition; amount: string; full: boolean }
+    | null
+  >(null);
 
   const { positions, loading: positionsLoading } = usePerpPositions(live);
   const { orders } = usePerpOrders(live);
@@ -139,23 +148,72 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
     if (next === "" || DECIMAL_INPUT.test(next)) set(next);
   };
 
-  const submit = async () => {
+  const pairByIndex = useMemo(() => new Map(pairs.map((p) => [p.pairIndex, p])), [pairs]);
+
+  const submit = () => {
     if (!pair || !validation.ok || !triggerOk || !fieldsOk) return;
     const openPrice = needsTrigger ? limitPrice : (markPrice ?? undefined);
     if (openPrice == null) return;
-    const ok = await actions.openTrade({
-      pair: selected,
-      isLong: side === "long",
-      collateralUsdc: collateral,
-      leverage,
-      orderType,
-      openPrice,
-      takeProfit: takeProfit || "0",
-      stopLoss: stopLoss || "0",
-      slippagePct: slippage || "1",
+    setConfirm({
+      kind: "open",
+      req: {
+        pair: selected,
+        isLong: side === "long",
+        collateralUsdc: collateral,
+        leverage,
+        orderType,
+        openPrice,
+        takeProfit: takeProfit || "0",
+        stopLoss: stopLoss || "0",
+        slippagePct: slippage || "1",
+      },
     });
-    if (ok) setCollateral("");
   };
+
+  const runConfirmed = async () => {
+    if (!confirm) return;
+    const staged = confirm;
+    setConfirm(null);
+    if (staged.kind === "open") {
+      const ok = await actions.openTrade(staged.req);
+      if (ok) setCollateral("");
+    } else {
+      await actions.closeTrade(staged.position, staged.amount);
+    }
+  };
+
+  const confirmRows: ConfirmRow[] =
+    confirm?.kind === "open"
+      ? [
+          { label: t("confirmMarket"), value: confirm.req.pair },
+          {
+            label: t("confirmSide"),
+            value: `${t(confirm.req.isLong ? "long" : "short")} ${confirm.req.leverage}x`,
+            tone: confirm.req.isLong ? ("up" as const) : ("down" as const),
+          },
+          { label: t("collateral"), value: `${confirm.req.collateralUsdc} USDC` },
+          {
+            label: t("positionSize"),
+            value: `${formatAmount(
+              (parseFloat(confirm.req.collateralUsdc) || 0) *
+                (parseFloat(confirm.req.leverage) || 0)
+            )} USDC`,
+          },
+        ]
+      : confirm?.kind === "close"
+        ? [
+            {
+              label: t("confirmMarket"),
+              value: pairByIndex.get(confirm.position.pairIndex)
+                ? pairSymbol(pairByIndex.get(confirm.position.pairIndex) as PerpPair)
+                : `#${confirm.position.pairIndex}`,
+            },
+            {
+              label: t("confirmCloseAmount"),
+              value: confirm.full ? t("confirmCloseFull") : `${confirm.amount} USDC`,
+            },
+          ]
+        : [];
 
   const cta = !live
     ? t("liveTradingConnectsSoon")
@@ -169,7 +227,6 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
           ? t("enterTriggerPrice")
           : t(side === "long" ? "ctaLong" : "ctaShort", { sym: baseSym, lev: leverage || "?" });
 
-  const pairByIndex = useMemo(() => new Map(pairs.map((p) => [p.pairIndex, p])), [pairs]);
   const oi = market?.openInterest;
   const oiTotal = oi ? oi.long + oi.short : 0;
 
@@ -527,11 +584,25 @@ export function ProPerps({ pairs, priceOf, live }: ProPerpsProps) {
         loading={positionsLoading}
         pairByIndex={pairByIndex}
         priceOf={priceOf}
-        onClose={(p, c) => void actions.closeTrade(p, c)}
+        onClose={(p, c) =>
+          setConfirm({ kind: "close", position: p, amount: c, full: c === p.initialCollateralUsdc })
+        }
         onUpdateTpSl={(p, tp, sl) => void actions.updateTpSl(p, tp, sl)}
         onUpdateMargin={(p, amt, dir) => void actions.updateMargin(p, amt, dir)}
         busy={actions.busy}
       />
+
+      {confirm ? (
+        <PerpConfirmModal
+          title={confirm.kind === "open" ? t("confirmOpenTitle") : t("confirmCloseTitle")}
+          rows={confirmRows}
+          warning={confirm.kind === "open" ? t("confirmRiskOpen") : t("confirmRiskClose")}
+          cancelLabel={t("confirmCancel")}
+          continueLabel={t("confirmContinue")}
+          onCancel={() => setConfirm(null)}
+          onContinue={() => void runConfirmed()}
+        />
+      ) : null}
     </div>
   );
 }

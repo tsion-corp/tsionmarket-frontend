@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isRefundOptional,
   isSupportedOrigin,
   orderChains,
   originFamily,
@@ -46,9 +47,15 @@ describe("isSupportedOrigin", () => {
     expect(isSupportedOrigin(9286185)).toBe(true);
   });
 
-  it("gates out Bitcoin and Tron", () => {
-    expect(isSupportedOrigin(8253038)).toBe(false);
+  it("offers Bitcoin via the dashboard's default refund address", () => {
+    expect(isSupportedOrigin(8253038)).toBe(true);
+    expect(isRefundOptional("bitcoin")).toBe(true);
+  });
+
+  it("still gates out Tron until its default refund is configured", () => {
     expect(isSupportedOrigin(728126428)).toBe(false);
+    expect(isRefundOptional("tron")).toBe(false);
+    expect(isRefundOptional("evm")).toBe(false);
   });
 });
 

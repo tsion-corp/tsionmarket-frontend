@@ -88,12 +88,13 @@ function FilmJourney() {
         {/* Empty by design: its height is the entire scroll budget. The inline
             vh height only covers the server render — without it the footer sits
             at the top of the first paint until the engine measures; measure()
-            replaces it with the exact px figure. 1862vh = unit(2.002vh) x 8
-            transits + hold(1.1vh) + 1.5vh tail. */}
+            replaces it with the exact px figure. ~1790vh = short enter hold
+            (0.385vh) + 7 holds (1.1vh) + 8 transits (0.902vh) + final hold +
+            1.5vh tail. */}
         <div
           data-track=""
           className="pointer-events-none relative z-[10]"
-          style={{ height: "1862vh" }}
+          style={{ height: "1790vh" }}
         />
 
         <JourneyRail onNavigate={go} />

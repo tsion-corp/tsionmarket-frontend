@@ -19,6 +19,11 @@ const TRANSIT_RATIO = 0.82;
 // Tail room so the closing waypoint finishes its hold before the footer
 // scrolls up into the frame.
 const TAIL_VIEWPORTS = 1.5;
+// Waypoint 0 is a held composition shown whole from the first paint — there
+// is no reveal cadence to pace, so its hold is just a beat before the camera
+// moves. The full-length hold read as dead scroll between Enter and the hero.
+const ENTER_HOLD_RATIO = 0.35;
+const MIN_ENTER_HOLD = 180;
 
 // Legibility: flat black veil over the film, and the scrim gradient strength.
 // These are what keep light frames from washing out the white type.
@@ -41,18 +46,25 @@ export const SCRUB_DEADBAND_S = 0.03;
 export const SCRUB_END_CLAMP_S = 0.05;
 
 export interface JourneyMetrics {
-  hold: number;
+  // Hold distance per waypoint (waypoint 0 is shorter — see ENTER_HOLD_RATIO).
+  holds: number[];
   transit: number;
-  unit: number;
+  // Scroll offset where each waypoint's hold begins; starts[i+1] - starts[i]
+  // is that waypoint's hold + transit.
+  starts: number[];
   trackHeight: number;
 }
 
 export function journeyMetrics(viewportHeight: number, waypoints = WAYPOINTS): JourneyMetrics {
   const hold = Math.max(MIN_HOLD, viewportHeight * SCROLL_DEPTH);
+  const enterHold = Math.max(MIN_ENTER_HOLD, viewportHeight * SCROLL_DEPTH * ENTER_HOLD_RATIO);
   const transit = Math.max(MIN_TRANSIT, viewportHeight * SCROLL_DEPTH * TRANSIT_RATIO);
-  const unit = hold + transit;
-  const trackHeight = unit * (waypoints - 1) + hold + viewportHeight * TAIL_VIEWPORTS;
-  return { hold, transit, unit, trackHeight };
+  const holds = Array.from({ length: waypoints }, (_, i) => (i === 0 ? enterHold : hold));
+  const starts: number[] = [0];
+  for (let i = 1; i < waypoints; i++) starts.push(starts[i - 1] + holds[i - 1] + transit);
+  const trackHeight =
+    starts[waypoints - 1] + holds[waypoints - 1] + viewportHeight * TAIL_VIEWPORTS;
+  return { holds, transit, starts, trackHeight };
 }
 
 export interface JourneyFrame {
@@ -69,14 +81,19 @@ export function journeyFrame(
   metrics: JourneyMetrics,
   waypoints = WAYPOINTS
 ): JourneyFrame {
-  const { hold, transit, unit } = metrics;
-  let i = Math.floor(scrollY / unit);
-  if (i < 0) i = 0;
-  if (i > waypoints - 1) i = waypoints - 1;
-  const local = scrollY - i * unit;
+  const { holds, transit, starts } = metrics;
+  const y = Math.max(0, scrollY);
+  let i = waypoints - 1;
+  for (let k = 1; k < waypoints; k++) {
+    if (y < starts[k]) {
+      i = k - 1;
+      break;
+    }
+  }
+  const local = y - starts[i];
   // The last waypoint holds forever — there is no transit out of it.
-  const inHold = i === waypoints - 1 || local < hold;
-  const raw = inHold ? local / hold : (local - hold) / transit;
+  const inHold = i === waypoints - 1 || local < holds[i];
+  const raw = inHold ? local / holds[i] : (local - holds[i]) / transit;
   const p = Math.min(1, Math.max(0, raw));
   return { i, inHold, p };
 }

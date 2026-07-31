@@ -16,7 +16,7 @@ export function StatsLayer() {
         {stats.map((s) => (
           <RevealItem
             key={s.label}
-            className="rounded-[20px] border border-white/10 bg-white/4 px-[26px] py-[30px] text-center backdrop-blur-[14px]"
+            className="rounded-[20px] border border-white/18 bg-[rgba(16,16,18,0.62)] px-[26px] py-[30px] text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.25),0_18px_50px_-20px_rgba(0,0,0,0.9)] backdrop-blur-[14px]"
           >
             <div className="ws-display text-[clamp(30px,3.4vw,44px)] leading-[0.85] text-[#d4d4d8]">
               {s.figure}
