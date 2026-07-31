@@ -184,12 +184,12 @@ describe("create a game", () => {
       ticket: null,
     });
     render(<CreateSection />, { wrapper });
-    fireEvent.click(screen.getByRole("button", { name: "10+0" }));
+    fireEvent.click(screen.getByRole("button", { name: "1m" }));
     fireEvent.click(screen.getByRole("button", { name: /Create game & get invite link/ }));
 
     await waitFor(() => expect(chessApi.createChallenge).toHaveBeenCalled());
     const sent = chessApi.createChallenge.mock.calls[0][0];
-    expect(sent.timeControl).toBe("10+0");
+    expect(sent.timeControl).toBe("1m");
     expect(sent.mode).toBe("invite");
     expect(sent.creator).toBe("0xabc");
   });

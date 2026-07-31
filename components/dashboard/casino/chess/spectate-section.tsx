@@ -6,16 +6,17 @@ import { useChessMatch } from "@/hooks/use-casino-chess";
 import { useMatchMarket, usePlaceBet } from "@/hooks/use-casino-betting";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import {
   CasinoEmpty,
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
-import { parseFen } from "@/lib/casino/chess/engine";
+import { capturedFromBoard, parseFen } from "@/lib/casino/chess/engine";
 import { amountUsd, usdToWei } from "@/lib/casino/money";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
-import type { BetSelection } from "@/lib/casino/api/types";
+import type { BetSelection, ChessColor } from "@/lib/casino/api/types";
 
 // The selection ids double as keys in the common chess namespace, which
 // carries the localized side names.
@@ -65,6 +66,16 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
   } catch {
     board = null;
   }
+
+  // Captured pieces and material lead for each side, read off the board.
+  const captured = board ? capturedFromBoard(board) : null;
+  const capturedFor = (colour: ChessColor) =>
+    captured ? (colour === "w" ? captured.b : captured.w) : [];
+  const leadFor = (colour: ChessColor) => {
+    if (!captured) return 0;
+    const advantage = colour === "w" ? captured.advantage : -captured.advantage;
+    return advantage > 0 ? advantage : 0;
+  };
 
   const stakeUsd = Number(stakeInput) || 0;
   const stakeWei = usdToWei(stakeUsd, wallet.unitPriceUsd);
@@ -141,9 +152,14 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
           <div className="mb-2.5 flex max-w-[520px] items-center justify-between text-[13.5px]">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="h-[26px] w-[26px] shrink-0 rounded-full bg-white/8" />
-              <span className="truncate">
-                {match.black ? `${match.black.username} (${match.black.rating})` : tCommon("black")}
-              </span>
+              <div className="min-w-0">
+                <span className="block truncate">
+                  {match.black
+                    ? `${match.black.username} (${match.black.rating})`
+                    : tCommon("black")}
+                </span>
+                <CapturedRow pieces={capturedFor("b")} lead={leadFor("b")} />
+              </div>
             </div>
             <div className="tnum ws-inset rounded-lg px-3 py-1 text-[16px]">
               {formatClock(clocks?.b ?? 0)}
@@ -157,9 +173,14 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
           <div className="mt-2.5 flex max-w-[520px] items-center justify-between text-[13.5px]">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="h-[26px] w-[26px] shrink-0 rounded-full bg-white/8" />
-              <span className="truncate">
-                {match.white ? `${match.white.username} (${match.white.rating})` : tCommon("white")}
-              </span>
+              <div className="min-w-0">
+                <span className="block truncate">
+                  {match.white
+                    ? `${match.white.username} (${match.white.rating})`
+                    : tCommon("white")}
+                </span>
+                <CapturedRow pieces={capturedFor("w")} lead={leadFor("w")} />
+              </div>
             </div>
             <div className="tnum ws-inset rounded-lg px-3 py-1 text-[16px]">
               {formatClock(clocks?.w ?? 0)}

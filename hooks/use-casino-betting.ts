@@ -5,8 +5,10 @@ import { fetchMarketOdds, fetchMyBets, fetchOddsHistory, placeBet } from "@/lib/
 import type { PlaceBetInput } from "@/lib/casino/api/types";
 
 // Odds are priced by the server and move with the game, so they are polled
-// briskly. History moves with them but is cheaper to refresh slowly.
-const ODDS_POLL_MS = 3_000;
+// fairly often — but not so fast that a spectator alone exhausts the gateway's
+// per-IP budget (the match already streams over the socket). History moves with
+// them but is cheaper to refresh slowly.
+const ODDS_POLL_MS = 6_000;
 const HISTORY_POLL_MS = 15_000;
 
 export const BETTING_KEYS = {

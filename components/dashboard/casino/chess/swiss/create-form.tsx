@@ -18,7 +18,9 @@ import type { ChessTimeControl } from "@/lib/casino/api/types";
 
 // Local copy of the create screen's presets. Copied, not imported: the create
 // section is its own module and this form must not couple to its internals.
-const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["3+2", "5+3", "10+0", "15+10"];
+// Per-move budgets, matching the 1-v-1 create screen (mapped to base +
+// increment on the service).
+const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["15s", "30s", "1m", "2m"];
 
 const ROUND_PRESETS = [3, 5, 7] as const;
 
@@ -31,8 +33,9 @@ export function SwissCreateForm() {
   const [name, setName] = useState("");
   const [rounds, setRounds] = useState<number>(5);
   const [customRounds, setCustomRounds] = useState(false);
-  const [timeControl, setTimeControl] = useState<ChessTimeControl>("5+3");
+  const [timeControl, setTimeControl] = useState<ChessTimeControl>("30s");
   const [password, setPassword] = useState("");
+  const [forbidden, setForbidden] = useState("");
   const [touched, setTouched] = useState(false);
 
   const nameError = tournamentNameError(name);
@@ -52,6 +55,7 @@ export function SwissCreateForm() {
         nbRounds: rounds,
         timeControl,
         password: password || undefined,
+        forbiddenPairings: forbidden || undefined,
       });
       toast.success(t("toastCreated"), { id });
       router.push(`/casino/chess/swiss/${tournament.id}`);
@@ -148,6 +152,18 @@ export function SwissCreateForm() {
           className={inputClass}
         />
         <div className="mt-1.5 text-[11.5px] font-normal text-white/50">{t("passwordNote")}</div>
+      </div>
+
+      <div className="mb-5">
+        <div className={labelClass}>{t("forbiddenLabel")}</div>
+        <textarea
+          value={forbidden}
+          onChange={(e) => setForbidden(e.target.value)}
+          placeholder={t("forbiddenPlaceholder")}
+          rows={3}
+          className={`${inputClass} resize-y font-mono`}
+        />
+        <div className="mt-1.5 text-[11.5px] font-normal text-white/50">{t("forbiddenNote")}</div>
       </div>
 
       <button

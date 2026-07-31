@@ -27,7 +27,7 @@ export function CreateSection() {
   const create = useCreateChallenge();
 
   const [mode, setMode] = useState<"invite" | "auto">("invite");
-  const [timeControl, setTimeControl] = useState<ChessTimeControl>("5+3");
+  const [timeControl, setTimeControl] = useState<ChessTimeControl>("30s");
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [stake, setStake] = useState("");
 

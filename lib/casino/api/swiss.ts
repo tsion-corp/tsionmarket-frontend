@@ -299,12 +299,16 @@ export interface CreateSwissInput {
   initialSeconds: number;
   incrementSeconds: number;
   password?: string;
+  // Optional newline-separated "A B" lines the service must never pair; passed
+  // through to the bbpPairings TRF as forbidden pairings.
+  forbiddenPairings?: string;
 }
 
 // Paid tournaments exist in the contract but the cashier behind them is not
 // configured on the service yet (creates answer CONFLICT), so entryFeeUsdc is
 // deliberately never sent and every tournament created here is free.
 export async function createSwiss(input: CreateSwissInput): Promise<SwissSummary> {
+  const forbidden = input.forbiddenPairings?.trim();
   const wire = await chessPost<SwissSummaryWire>("/swiss", {
     organizer: input.organizer,
     name: input.name.trim(),
@@ -312,6 +316,7 @@ export async function createSwiss(input: CreateSwissInput): Promise<SwissSummary
     initial_seconds: input.initialSeconds,
     increment_seconds: input.incrementSeconds,
     ...(input.password ? { password: input.password } : {}),
+    ...(forbidden ? { forbiddenPairings: forbidden } : {}),
   });
   return toSwissSummary(wire);
 }
@@ -349,9 +354,18 @@ export async function withdrawSwiss(id: string, input: WithdrawSwissInput): Prom
 // Only the organizer can start a round. The service pairs automatically and
 // answers 409 while boards are still in play or fewer than two players are
 // registered; those messages are worth showing as-is.
-export async function startNextSwissRound(id: string, organizer: string): Promise<SwissDetail> {
+export async function startNextSwissRound(
+  id: string,
+  organizer: string,
+  // Optional override: newline-separated "white black" (or "player 1" for a bye)
+  // lines. When present the service uses them verbatim instead of the bundled
+  // pairing engine — the fallback for a deployment without bbpPairings.
+  manualPairings?: string
+): Promise<SwissDetail> {
+  const manual = manualPairings?.trim();
   const wire = await chessPost<SwissDetailWire>(`/swiss/${requireSwissId(id)}/rounds/next`, {
     organizer,
+    ...(manual ? { manualPairings: manual } : {}),
   });
   return toSwissDetail(wire);
 }

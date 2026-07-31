@@ -6,12 +6,19 @@ import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-casino-chess";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import {
   CasinoEmpty,
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
-import { legalMovesForPiece, parseFen, toUci, type Square } from "@/lib/casino/chess/engine";
+import {
+  capturedFromBoard,
+  legalMovesForPiece,
+  parseFen,
+  toUci,
+  type Square,
+} from "@/lib/casino/chess/engine";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { ChessColor, ChessMatch } from "@/lib/casino/api/types";
@@ -127,6 +134,13 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   }
 
   const board = position.board;
+  // Captured pieces and material lead, read straight off the board each render.
+  const captured = capturedFromBoard(board);
+  const capturedByColor = (colour: ChessColor) => (colour === "w" ? captured.b : captured.w);
+  const leadFor = (colour: ChessColor) => {
+    const advantage = colour === "w" ? captured.advantage : -captured.advantage;
+    return advantage > 0 ? advantage : 0;
+  };
   const over = match.state === "settled" || match.state === "cancelled";
   const waiting = match.state === "awaiting_opponent";
   // An offer from the other side is the one this player can answer.
@@ -281,7 +295,12 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
           <span className="h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 bg-white/8" />
-          <span className="truncate">{opponent ? opponent.username : t("waitingForOpponent")}</span>
+          <div className="min-w-0">
+            <span className="block truncate">
+              {opponent ? opponent.username : t("waitingForOpponent")}
+            </span>
+            <CapturedRow pieces={capturedByColor(opponentColor)} lead={leadFor(opponentColor)} />
+          </div>
         </div>
         <div className="tnum shrink-0 rounded-lg border border-transparent bg-white/4 px-3.5 py-1.5 text-[20px]">
           {formatClock(clocks?.[opponentColor] ?? 0)}
@@ -299,7 +318,10 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       <div className="mt-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
           <span className="border-accent h-[26px] w-[26px] shrink-0 rounded-full border bg-white/8" />
-          <span className="truncate">{self ? self.username : t("you")}</span>
+          <div className="min-w-0">
+            <span className="block truncate">{self ? self.username : t("you")}</span>
+            <CapturedRow pieces={capturedByColor(selfColor)} lead={leadFor(selfColor)} />
+          </div>
         </div>
         <div
           className={`tnum shrink-0 rounded-lg border px-3.5 py-1.5 text-[20px] ${

@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useChessHistory } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { fetchPgn } from "@/lib/casino/api/chess";
+import { parseTimeControl } from "@/lib/casino/api/chess-wire";
 import {
   CasinoEmpty,
   CasinoError,
@@ -85,7 +86,7 @@ export function HistorySection() {
                 >
                   <div className="min-w-0">
                     <Link
-                      href={`/casino/chess/play?match=${m.id}`}
+                      href={`/casino/chess/${finished ? "review" : "play"}?match=${m.id}`}
                       className="block truncate text-white hover:underline"
                     >
                       {opponent ?? t("waiting")}
@@ -101,7 +102,10 @@ export function HistorySection() {
                     </div>
                   </div>
                   <div className="font-normal text-white/50">
-                    {m.timeControl === "3+2" || m.timeControl === "5+3"
+                    {/* Classify by the move budget in seconds so both per-move
+                        controls ("30s") and legacy "min+inc" labels read right;
+                        a short budget is Blitz, a longer one Rapid. */}
+                    {parseTimeControl(m.timeControl).initialSeconds <= 30
                       ? t("blitz", { tc: m.timeControl })
                       : t("rapid", { tc: m.timeControl })}
                   </div>

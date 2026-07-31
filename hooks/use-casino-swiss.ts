@@ -81,6 +81,7 @@ export interface CreateSwissFormInput {
   nbRounds: number;
   timeControl: ChessTimeControl;
   password?: string;
+  forbiddenPairings?: string;
 }
 
 export function useCreateSwiss() {
@@ -98,6 +99,7 @@ export function useCreateSwiss() {
         initialSeconds,
         incrementSeconds,
         password: input.password,
+        forbiddenPairings: input.forbiddenPairings,
       });
     },
     onSuccess: () => {
@@ -163,8 +165,14 @@ export function useSwissTournament(tournamentId: string | null) {
   });
 
   const nextRound = useMutation({
-    mutationFn: () =>
-      startNextSwissRound(tournamentId as string, (detail as SwissDetail).organizer),
+    // manualPairings is an optional organizer override; omitted, the service
+    // pairs automatically with the bundled engine.
+    mutationFn: (manualPairings?: string) =>
+      startNextSwissRound(
+        tournamentId as string,
+        (detail as SwissDetail).organizer,
+        manualPairings
+      ),
     onSuccess: applyDetail,
   });
 

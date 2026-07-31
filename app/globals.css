@@ -1,4 +1,15 @@
-@import "tailwindcss";
+/* source(none) disables Tailwind's automatic content detection, which otherwise
+   walks up to a mis-inferred workspace root (the stray ~/package-lock.json makes
+   Next/Tailwind treat all of $HOME as the root) and scans foreign trees — the
+   standalone earn app and its binary build artifacts. That produced thousands of
+   garbage arbitrary-value utilities from non-UTF-8 bytes and made the PostCSS
+   step time out, hanging `next dev` and panicking `next build`. Scan only this
+   app's own source instead. */
+@import "tailwindcss" source(none);
+@source "../app";
+@source "../components";
+@source "../lib";
+@source "../hooks";
 
 @theme inline {
   --font-sans: var(--font-body);

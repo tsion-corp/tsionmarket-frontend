@@ -23,13 +23,22 @@ import {
   fetchPlayerMatches,
 } from "@/lib/casino/api/chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import {
+  applyPositionFrame,
+  applyStateFrame,
+  type ChessMatchWire,
+  type ChessPositionFrame,
+} from "@/lib/casino/api/chess-wire";
+import { subscribeChessTopic } from "@/lib/casino/chess/live-socket";
 import type { ChessColor, ChessMatch, CreateChessChallengeInput } from "@/lib/casino/api/types";
 
-// The chess service has no socket, so these polls are the live path. They run
-// faster than the vault's: a board that is two seconds behind is visibly wrong.
+// The socket is the live path; the poll is only a safety net. Before the first
+// live frame (or if the socket falls silent) the match polls fast, because a
+// board two seconds behind is visibly wrong. Once frames are flowing it backs
+// off to a slow reconcile that merely repairs a missed frame — this keeps a
+// spectator from hammering the gateway, which rate-limits per IP.
 const MATCH_POLL_MS = 2_000;
-// The shared ws-gateway carrying every service's live frames.
-const CHESS_WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL ?? "wss://ws.worldstreetwebservices.com";
+const MATCH_POLL_LIVE_MS = 20_000;
 const LOBBY_POLL_MS = 10_000;
 const TICKET_POLL_MS = 3_000;
 
@@ -113,77 +122,65 @@ export function useChessMatch(matchId: string | null) {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
 
+  // The match id whose live socket has delivered a frame. Deriving "is the
+  // socket live?" from it (rather than a bare boolean) means a change of match
+  // resets it for free — no setState in the socket effect. While live the poll
+  // backs off; it speeds back up if the socket drops or the match changes.
+  const [liveMatchId, setLiveMatchId] = useState<string | null>(null);
+  const socketLive = matchId != null && liveMatchId === matchId;
+
   const query = useQuery({
     queryKey: CHESS_KEYS.match(matchId ?? "none"),
     queryFn: () => fetchMatch(matchId as string),
     enabled: !!matchId,
-    refetchInterval: (q) =>
-      q.state.data && q.state.data.state !== "in_progress" ? false : MATCH_POLL_MS,
+    refetchInterval: (q) => {
+      if (q.state.data && q.state.data.state !== "in_progress") return false;
+      return socketLive ? MATCH_POLL_LIVE_MS : MATCH_POLL_MS;
+    },
   });
 
   const match = query.data;
   const clocks = useTickingClocks(match);
 
-  // Live-frame accelerator: the service publishes state/position/gameOver
-  // frames to the ws-gateway on the match's liveTopic. When a frame arrives
-  // the match refetches immediately instead of waiting for the next poll —
-  // and the poll stays as the fallback, because the relay is not publishing
-  // in production yet (verified: subscribe acks, zero frames). This is silent
-  // until the backend wires it, then moves become realtime with no change.
+  // Live path: the service publishes state/position/gameOver frames to the
+  // ws-gateway on the match's liveTopic. We subscribe through the shared client
+  // socket (one per browser, never one per match) and apply each frame straight
+  // to the cache so moves render the instant they arrive; the first frame marks
+  // the socket live so the poll (above) backs off to a slow safety net.
   const liveTopic = match?.liveTopic ?? null;
   const inProgress = match?.state === "in_progress";
   useEffect(() => {
     if (!liveTopic || !inProgress || !matchId) return;
-    let ws: WebSocket | null = null;
-    let disposed = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let pingTimer: ReturnType<typeof setInterval> | null = null;
-    let reconnectDelay = 2_000;
-
-    const open = () => {
-      if (disposed) return;
-      try {
-        ws = new WebSocket(CHESS_WS_URL);
-      } catch {
-        // A malformed URL throws synchronously; the poll carries the game.
+    return subscribeChessTopic(liveTopic, (frame) => {
+      const { type, data } = frame;
+      // The socket dropped: speed the poll back up until it reconnects.
+      if (type === "__closed") {
+        setLiveMatchId((current) => (current === matchId ? null : current));
         return;
       }
-      ws.onopen = () => {
-        ws?.send(JSON.stringify({ type: "subscribe", topics: [liveTopic] }));
-        pingTimer = setInterval(() => {
-          if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
-        }, 25_000);
-      };
-      ws.onmessage = (event) => {
-        let frame: { type?: string };
-        try {
-          frame = JSON.parse(String(event.data));
-        } catch {
-          return;
-        }
-        if (frame.type === "state" || frame.type === "position" || frame.type === "gameOver") {
-          reconnectDelay = 2_000;
-          void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
-        }
-      };
-      ws.onclose = () => {
-        if (pingTimer != null) clearInterval(pingTimer);
-        pingTimer = null;
-        if (!disposed) {
-          reconnectTimer = setTimeout(open, reconnectDelay);
-          reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
-        }
-      };
-      ws.onerror = () => {};
-    };
+      if (type !== "state" && type !== "position" && type !== "gameOver") return;
+      // The shared socket already routed this frame here by its topic, so it is
+      // this match's. A frame proves the relay is live: let the match poll drop
+      // to its slow safety-net interval.
+      setLiveMatchId(matchId);
 
-    open();
-    return () => {
-      disposed = true;
-      if (reconnectTimer != null) clearTimeout(reconnectTimer);
-      if (pingTimer != null) clearInterval(pingTimer);
-      ws?.close();
-    };
+      // Apply the pushed payload straight to the cache so the move renders the
+      // instant the gateway relays it — no refetch round-trip. gameOver (and any
+      // frame missing its payload) still reconciles from the source, because the
+      // final result reason and clocks are worth one authoritative read. The poll
+      // remains as a safety net that repairs any missed frame.
+      if (type === "position" && data) {
+        queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
+          prev ? applyPositionFrame(prev, data as ChessPositionFrame) : prev
+        );
+      } else if (type === "state" && data) {
+        queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
+          prev ? applyStateFrame(prev, data as ChessMatchWire) : prev
+        );
+      } else {
+        void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+      }
+    });
   }, [liveTopic, inProgress, matchId, queryClient]);
 
   const applyMatch = useCallback(

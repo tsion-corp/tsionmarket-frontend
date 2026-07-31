@@ -93,25 +93,50 @@ export function toColor(side: ChessSideWire): ChessColor {
   return side === "white" ? "w" : "b";
 }
 
-// "3+2" from 180 seconds and a 2 second increment. Controls that are not a
-// whole number of minutes keep their seconds, so an unusual one from the
-// service still reads correctly instead of rounding to a wrong label.
+// A per-move budget of `seconds` shown as a single chip: "30s", or "2m" for a
+// whole number of minutes. The seconds form is kept below a minute so a 45s
+// budget doesn't render as "0.75m".
+function formatPerMove(seconds: number): string {
+  return seconds >= 60 && seconds % 60 === 0 ? `${seconds / 60}m` : `${seconds}s`;
+}
+
+// The seconds behind a per-move chip: "30s" -> 30, "2m" -> 120, bare "90" -> 90.
+function parsePerMove(label: string): number {
+  const trimmed = label.trim();
+  const unit = trimmed.slice(-1);
+  const value = Number(unit === "s" || unit === "m" ? trimmed.slice(0, -1) : trimmed);
+  if (!Number.isFinite(value)) throw new Error(`Unrecognised time control: ${label}`);
+  return unit === "m" ? value * 60 : value;
+}
+
+// The chosen label a match's clocks read back as. Our own games use the per-move
+// model, where the service holds an equal base and Fischer increment, so an
+// `initialSeconds === incrementSeconds` pair is shown as one per-move budget.
+// A match made elsewhere with a distinct base and increment (standard chess)
+// still reads correctly as "5+3" rather than being forced into the per-move form.
 export function formatTimeControl(initialSeconds: number, incrementSeconds: number): string {
+  if (initialSeconds === incrementSeconds) return formatPerMove(initialSeconds);
   const minutes = initialSeconds / 60;
   const main = Number.isInteger(minutes) ? `${minutes}` : `${initialSeconds}s`;
   return `${main}+${incrementSeconds}`;
 }
 
-// Inverse of formatTimeControl, for turning a chip like "5+3" back into the
-// seconds the create endpoint wants.
+// Turn a chip back into the seconds the create endpoint wants. A per-move chip
+// ("30s", "2m") maps to an equal base and increment: every move restores that
+// budget, so the player always has about that long to move. A legacy "5+3" chip
+// still parses into a distinct base and increment.
 export function parseTimeControl(label: string): ChessTimeControlWire {
-  const [main = "", increment = "0"] = label.split("+");
-  const initialSeconds = main.endsWith("s") ? Number(main.slice(0, -1)) : Number(main) * 60;
-  const incrementSeconds = Number(increment);
-  if (!Number.isFinite(initialSeconds) || !Number.isFinite(incrementSeconds)) {
-    throw new Error(`Unrecognised time control: ${label}`);
+  if (label.includes("+")) {
+    const [main = "", increment = "0"] = label.split("+");
+    const initialSeconds = main.endsWith("s") ? Number(main.slice(0, -1)) : Number(main) * 60;
+    const incrementSeconds = Number(increment);
+    if (!Number.isFinite(initialSeconds) || !Number.isFinite(incrementSeconds)) {
+      throw new Error(`Unrecognised time control: ${label}`);
+    }
+    return { initialSeconds, incrementSeconds };
   }
-  return { initialSeconds, incrementSeconds };
+  const perMove = parsePerMove(label);
+  return { initialSeconds: perMove, incrementSeconds: perMove };
 }
 
 // The service reports a winner and a free-text reason separately, while our
@@ -201,6 +226,50 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
     liveTopic: wire.liveTopic ?? `chess:match:${wire.id}`,
     createdAt: wire.createdAt,
   };
+}
+
+// Live frames pushed by the WS gateway on chess:match:<id>. The gateway wraps
+// every frame in { type, data, timestamp }; these are the chess payloads inside
+// `data`. Applying them in place is what makes an opponent's move realtime — the
+// board is driven by the frame, never by a follow-up refetch.
+
+// A `position` frame: emitted the instant a move is applied server-side.
+export interface ChessPositionFrame {
+  fen: string;
+  turn: ChessSideWire;
+  ply: number;
+  lastMove?: { uci: string; san: string } | null;
+  clocks: ChessClocksWire;
+  status: ChessStatusWire;
+}
+
+// Fold a `position` frame into the cached match. The board (fen/turn/clocks)
+// always takes the frame's server-authoritative values immediately. The SAN
+// history only gains the move when the frame is exactly the next ply; a repeat
+// or a gap (a frame we missed) leaves the list for the reconciliation poll to
+// repair, so the move panel can never silently desync from the board.
+export function applyPositionFrame(prev: ChessMatch, frame: ChessPositionFrame): ChessMatch {
+  const san = frame.lastMove?.san;
+  const moves = san && frame.ply === prev.moves.length + 1 ? [...prev.moves, san] : prev.moves;
+  return {
+    ...prev,
+    fen: frame.fen,
+    turn: toColor(frame.turn),
+    state: STATE_BY_STATUS[frame.status],
+    clocks: { w: frame.clocks.whiteMs / 1000, b: frame.clocks.blackMs / 1000 },
+    // The frame reflects the clocks as of now, so now is the honest reference the
+    // local tick counts down from.
+    clockUpdatedAt: new Date().toISOString(),
+    moves,
+  };
+}
+
+// Fold a `state` frame (a full match snapshot: join, draw-offer changes, terminal
+// transitions) into the cached match. It carries no move list, so the existing
+// history is kept and the poll reconciles any gap.
+export function applyStateFrame(prev: ChessMatch, wire: ChessMatchWire): ChessMatch {
+  const next = toChessMatch(wire);
+  return { ...next, moves: prev.moves, clockUpdatedAt: new Date().toISOString() };
 }
 
 // A waiting match, presented as a joinable challenge. The creator is whichever

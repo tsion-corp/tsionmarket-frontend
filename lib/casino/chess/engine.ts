@@ -292,6 +292,51 @@ export function parseFen(fen: string): FenPosition {
   return { board, turn: side === "b" ? "b" : "w" };
 }
 
+// Starting count of each piece per side, and the pawn value used for the
+// material score. Kings never leave the board, so their value is 0.
+const STARTING_COUNTS: Record<PieceType, number> = { p: 8, n: 2, b: 2, r: 2, q: 1, k: 1 };
+const PIECE_VALUES: Record<PieceType, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
+// Heaviest first, so a captured line reads queen → pawn like a scoreboard.
+const CAPTURE_ORDER: readonly PieceType[] = ["q", "r", "b", "n", "p"];
+
+export interface CapturedMaterial {
+  // Pieces that have left the board. `w` are white pieces (captured by Black),
+  // `b` are black pieces (captured by White).
+  w: PieceType[];
+  b: PieceType[];
+  // Net material in pawns from White's point of view; positive means White is
+  // ahead.
+  advantage: number;
+}
+
+// What each side has captured, read off the board. `advantage` is computed from
+// the pieces standing, so it stays exact across promotions; the captured lists
+// are a diff against the starting array, which is right in every normal case and
+// only misattributes a piece after a promotion — fine for an at-a-glance line.
+export function capturedFromBoard(board: Board): CapturedMaterial {
+  const remaining: Record<PieceColor, Record<PieceType, number>> = {
+    w: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 },
+    b: { p: 0, n: 0, b: 0, r: 0, q: 0, k: 0 },
+  };
+  const material: Record<PieceColor, number> = { w: 0, b: 0 };
+  for (const row of board) {
+    for (const square of row) {
+      if (!square) continue;
+      remaining[square.color][square.type] += 1;
+      material[square.color] += PIECE_VALUES[square.type];
+    }
+  }
+  const capturedOf = (color: PieceColor): PieceType[] => {
+    const gone: PieceType[] = [];
+    for (const type of CAPTURE_ORDER) {
+      const count = Math.max(0, STARTING_COUNTS[type] - remaining[color][type]);
+      for (let i = 0; i < count; i += 1) gone.push(type);
+    }
+    return gone;
+  };
+  return { w: capturedOf("w"), b: capturedOf("b"), advantage: material.w - material.b };
+}
+
 // Encodes a move the way the server expects it: coordinate notation, with a
 // promotion piece appended when a pawn reaches the last rank ("e7e8q").
 export function toUci(board: Board, from: Square, to: Square): string {

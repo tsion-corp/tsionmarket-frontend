@@ -141,11 +141,14 @@ export function SwissDetailSection({ tournamentId }: { tournamentId: string }) {
     startingRound,
   } = useSwissTournament(tournamentId);
 
+  // Optional organizer override for the next round; empty means pair automatically.
+  const [manual, setManual] = useState("");
+
   const onStartRound = async () => {
     if (startingRound) return;
     const id = toast.loading(t("toastStartingRound"));
     try {
-      await startNextRound();
+      await startNextRound(manual.trim() || undefined);
       toast.success(t("toastRoundStarted"), { id });
     } catch (e) {
       // The service explains its refusals well (round still in play, too few
@@ -212,12 +215,24 @@ export function SwissDetailSection({ tournamentId }: { tournamentId: string }) {
       </div>
 
       {isOrganizer && detail.state !== "finished" ? (
-        <div className="ws-inset mb-8 flex flex-wrap items-center justify-between gap-3 rounded-[14px] px-4.5 py-3.5">
+        <div className="ws-inset mb-8 rounded-[14px] px-4.5 py-3.5">
           <div className="text-[12.5px] font-normal text-white/55">{t("organizerHint")}</div>
+          <div className="mt-3">
+            <div className="mb-1.5 text-[11px] font-normal tracking-[0.05em] text-white/45 uppercase">
+              {t("manualLabel")}
+            </div>
+            <textarea
+              value={manual}
+              onChange={(e) => setManual(e.target.value)}
+              placeholder={t("manualPlaceholder")}
+              rows={3}
+              className="ws-inset w-full resize-y rounded-lg px-3 py-2.5 font-mono text-[13px] text-white placeholder:text-white/30 focus:outline-none"
+            />
+          </div>
           <button
             onClick={() => void onStartRound()}
             disabled={startingRound}
-            className="text-ink cursor-pointer rounded-full bg-white px-5 py-2 font-sans text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
+            className="text-ink mt-3 w-full cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
           >
             {startingRound ? t("startingRound") : t("startRound")}
           </button>
