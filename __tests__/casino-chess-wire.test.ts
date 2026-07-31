@@ -160,12 +160,21 @@ describe("match", () => {
     expect(match.moves).toEqual(["e4", "c5", "Nf3"]);
   });
 
-  // The service runs games and settles nothing. A screen cannot show an amount
-  // it was never given, which is the point.
-  it("carries no money at all", () => {
-    const match = toChessMatch(wire());
-    expect(match).not.toHaveProperty("stake");
-    expect(match).not.toHaveProperty("pot");
+  // A free game carries no stake; a wager-backed one carries exactly the
+  // per-player USDC stake the cashier locked, nothing invented client-side.
+  it("reads the stake from the wager, null when played for free", () => {
+    expect(toChessMatch(wire()).stakeUsdc).toBeNull();
+    const staked = toChessMatch(
+      wire({
+        wager: {
+          stakeUsdc: "10",
+          feeBps: 500,
+          status: "active",
+          winnerPlayer: null,
+        },
+      })
+    );
+    expect(staked.stakeUsdc).toBe("10");
   });
 });
 
@@ -176,7 +185,12 @@ describe("challenge", () => {
     expect(c.inviteCode).toBe(c.id);
     expect(c.creator.walletAddress).toBe("0xwhite");
     expect(c.timeControl).toBe("5+3");
-    expect(c).not.toHaveProperty("stake");
+    expect(c.stakeUsdc).toBeNull();
+  });
+
+  it("prefers the service's own invite code when it sends one", () => {
+    const c = toChessChallenge(wire({ status: "waiting", inviteCode: "SHORT1" }));
+    expect(c.inviteCode).toBe("SHORT1");
   });
 
   it("takes the creator from whichever seat is filled", () => {

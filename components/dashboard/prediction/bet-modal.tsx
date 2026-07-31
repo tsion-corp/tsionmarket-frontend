@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { useMoney } from "@/components/ui/currency-select";
 import { useBet } from "@/hooks/use-bet";
 import { usePredictionConsent } from "@/hooks/use-prediction-consent";
 import { predictionPayout } from "@/lib/format";
@@ -23,6 +24,7 @@ interface BetModalProps {
 // the first bet and is surfaced as the button label.
 export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps) {
   const t = useTranslations("prediction");
+  const money = useMoney();
   const { accepted, accept } = usePredictionConsent();
   const { placeBet, phase, error, sessionStatus, usdcTotal, portfolioLoading } = useBet();
   const [amount, setAmount] = useState(10);
@@ -56,8 +58,8 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                 : phase === "placing"
                   ? t("placingBet")
                   : side === "yes"
-                    ? t("placeBetYes", { amount: `$${amount}` })
-                    : t("placeBetNo", { amount: `$${amount}` });
+                    ? t("placeBetYes", { amount: money.format(amount) })
+                    : t("placeBetNo", { amount: money.format(amount) });
 
   // One click: place, and if the account is short, move the stake from Base
   // USDC and retry until it lands.
@@ -68,8 +70,8 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
       await placeBet({ tokenId, amountUsd: amount });
       toast.success(
         side === "yes"
-          ? t("betPlacedYes", { amount: `$${amount}` })
-          : t("betPlacedNo", { amount: `$${amount}` }),
+          ? t("betPlacedYes", { amount: money.format(amount) })
+          : t("betPlacedNo", { amount: money.format(amount) }),
         { id: toastId }
       );
       onPlaced?.();
@@ -143,7 +145,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                           : "border-white/10 bg-white/4 text-white/70 hover:bg-white/8"
                       }`}
                     >
-                      ${a}
+                      {money.format(a)}
                     </button>
                   ))}
                 </div>
@@ -151,7 +153,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                 <div className="ws-inset flex items-center justify-between p-3.5 text-[13px] font-normal">
                   <span className="text-white/55">{t("payoutIfRight")}</span>
                   <span className="tnum text-accent font-medium">
-                    ${predictionPayout(amount, priceCents)}
+                    {money.format(Number(predictionPayout(amount, priceCents)))}
                   </span>
                 </div>
 
@@ -167,7 +169,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
 
                 <p className="text-center text-xs font-normal text-white/45">
                   {!portfolioLoading
-                    ? `${t("usdcOnBase", { amount: `$${usdcTotal.toFixed(2)}` })} `
+                    ? `${t("usdcOnBase", { amount: money.format(usdcTotal) })} `
                     : ""}
                   {t("betFundingNote")}
                 </p>

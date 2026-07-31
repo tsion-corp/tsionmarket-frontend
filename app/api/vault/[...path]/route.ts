@@ -10,7 +10,11 @@ const BASE = process.env.NEXT_PUBLIC_VAULT_API_URL;
 // The gateway rate-limits ~100 requests/min per IP, and every user's polls now
 // share this server's IP. A short cache collapses concurrent/near-simultaneous
 // requests for the same path into one upstream call so we stay well under it.
+// game/status is the hot path at round end — the pot and timer must converge
+// within a couple of seconds of settlement, so it gets a much shorter TTL
+// than the slower-moving feeds.
 const CACHE_TTL_MS = 4000;
+const STATUS_TTL_MS = 1000;
 const cache = new Map<string, { expires: number; body: string; status: number }>();
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
@@ -47,7 +51,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
       signal: AbortSignal.timeout(10_000),
     });
     const body = await res.text();
-    cache.set(url, { expires: Date.now() + CACHE_TTL_MS, body, status: res.status });
+    const ttl = joined === "game/status" ? STATUS_TTL_MS : CACHE_TTL_MS;
+    cache.set(url, { expires: Date.now() + ttl, body, status: res.status });
     return new NextResponse(body, {
       status: res.status,
       headers: { "content-type": "application/json" },

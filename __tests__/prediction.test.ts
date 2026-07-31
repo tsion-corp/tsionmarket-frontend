@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   betSlip,
+  sellFloorPrice,
+  isCashoutable,
   formatMoney,
   formatResolveDate,
   formatSignedMoney,
@@ -146,5 +148,38 @@ describe("resolutionInfo", () => {
   it("shows nothing when there is no date and it isn't redeemable", () => {
     expect(resolutionInfo(false, null, now)).toBeNull();
     expect(resolutionInfo(false, "not-a-date", now)).toBeNull();
+  });
+});
+
+describe("isCashoutable", () => {
+  it("allows selling a live position with shares and a known token", () => {
+    expect(isCashoutable(false, 20, "123")).toBe(true);
+    expect(isCashoutable(null, 5, "9")).toBe(true);
+  });
+
+  it("refuses resolved, empty, or unidentifiable positions", () => {
+    expect(isCashoutable(true, 20, "123")).toBe(false);
+    expect(isCashoutable(false, 0, "123")).toBe(false);
+    expect(isCashoutable(false, 20, null)).toBe(false);
+    expect(isCashoutable(false, 20, "")).toBe(false);
+  });
+});
+
+describe("sellFloorPrice", () => {
+  it("floors a small tolerance under the estimate on whole cents", () => {
+    expect(sellFloorPrice(0.5)).toBeCloseTo(0.48);
+    expect(sellFloorPrice(0.25)).toBeCloseTo(0.24);
+  });
+
+  it("clamps to valid tick bounds", () => {
+    expect(sellFloorPrice(0.01)).toBe(0.01);
+    expect(sellFloorPrice(1.5)).toBe(0.99);
+  });
+});
+
+describe("betSlip tokenId passthrough", () => {
+  it("carries the CLOB token needed to sell", () => {
+    expect(betSlip({ tokenId: "42", size: 3 }).tokenId).toBe("42");
+    expect(betSlip({}).tokenId).toBeNull();
   });
 });

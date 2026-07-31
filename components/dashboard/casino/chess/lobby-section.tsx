@@ -1,15 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessLobby, useQuickMatch } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import {
   CasinoEmpty,
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
+import { CashierSheet, type CashierMode } from "@/components/dashboard/casino/chess/cashier-sheet";
+import { ModalShell } from "@/components/ui/modal-shell";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { ChessChallenge, ChessTimeControl } from "@/lib/casino/api/types";
@@ -27,11 +31,16 @@ const QUICK_MATCH_TIME_CONTROL: ChessTimeControl = "5+3";
 export function LobbySection() {
   const t = useTranslations("casino.chess.lobby");
   const tCommon = useTranslations("casino.chess.common");
+  const tSwiss = useTranslations("casino.chess.swiss");
+  const tCashier = useTranslations("casino.chess.cashier");
   const router = useRouter();
   const { challenges, liveMatches, isLoading, error, refetch } = useChessLobby();
   const wallet = useCasinoWallet();
+  const cashier = useChessCashierStatus();
   const accept = useAcceptChallenge();
   const quickMatch = useQuickMatch();
+  // Null while closed; the open sheet starts on whichever action was pressed.
+  const [cashierMode, setCashierMode] = useState<CashierMode | null>(null);
 
   // Takes the oldest game nobody has joined, or opens one and waits when every
   // seat is taken.
@@ -83,6 +92,13 @@ export function LobbySection() {
           <div className="ws-display mb-1 text-[20px]">{t("createTitle")}</div>
           <div className="text-[12.5px] font-normal opacity-65">{t("createNote")}</div>
         </Link>
+        <Link
+          href="/casino/chess/swiss"
+          className="ws-glass min-w-[260px] flex-1 cursor-pointer rounded-2xl px-6 py-5 text-left text-white transition-transform hover:-translate-y-0.5"
+        >
+          <div className="ws-display mb-1 text-[20px]">{tSwiss("entryTitle")}</div>
+          <div className="text-[12.5px] font-normal text-white/55">{tSwiss("entryNote")}</div>
+        </Link>
         <div className="ws-glass min-w-[260px] flex-1 rounded-2xl px-6 py-5 text-white">
           <div className="ws-display mb-1 text-[20px]">{t("quickTitle")}</div>
           <div className="mb-3 text-[12.5px] font-normal text-white/55">
@@ -98,13 +114,49 @@ export function LobbySection() {
         </div>
       </div>
 
+      {cashier.configured ? (
+        <div className="ws-glass mb-8 flex flex-wrap items-center gap-x-4 gap-y-2.5 rounded-2xl px-5 py-3.5">
+          <div className="min-w-0">
+            <div className="text-[11px] font-normal tracking-[0.05em] text-white/50 uppercase">
+              {tCashier("title")}
+            </div>
+            <div className="tnum text-[16px] text-white">
+              {cashier.available} USDC{" "}
+              <span className="text-[12px] font-normal text-white/45">{tCashier("available")}</span>
+            </div>
+          </div>
+          <div className="ml-auto flex gap-2">
+            <button
+              onClick={() => setCashierMode("deposit")}
+              className="text-ink cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[12px] font-bold"
+            >
+              {tCashier("deposit")}
+            </button>
+            <button
+              onClick={() => setCashierMode("withdraw")}
+              className="cursor-pointer rounded-full border border-white/15 px-4 py-2 font-sans text-[12px] font-semibold text-white/70 transition-colors hover:border-white/35 hover:text-white"
+            >
+              {tCashier("withdraw")}
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       {error ? (
         <CasinoError error={error} subject={t("subject")} onRetry={refetch} />
       ) : isLoading ? (
         <CasinoLoading label={t("loading")} rows={4} />
       ) : (
         <>
-          <div className="ws-display mb-3 text-[18px]">{t("liveNow")}</div>
+          <div className="mb-3 flex items-baseline justify-between gap-3">
+            <div className="ws-display text-[18px]">{t("liveNow")}</div>
+            <Link
+              href="/casino/chess/history"
+              className="text-[12.5px] font-normal text-white/55 transition-colors hover:text-white"
+            >
+              {tCommon("historyTitle")} →
+            </Link>
+          </div>
           {liveMatches.length === 0 ? (
             <CasinoEmpty>{t("liveEmpty")}</CasinoEmpty>
           ) : (
@@ -144,7 +196,15 @@ export function LobbySection() {
                     key={c.id}
                     className="grid grid-cols-[2fr_1fr_90px] items-center border-t border-white/6 px-4.5 py-3 text-[13px]"
                   >
-                    <div className="truncate">{c.creator.username}</div>
+                    <div className="truncate">
+                      {c.creator.username}
+                      {c.stakeUsdc ? (
+                        <span className="text-white/60">
+                          {" · "}
+                          {tCommon("stakedFor", { amount: c.stakeUsdc })}
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="font-normal text-white/50">
                       {timeControlLabel(tCommon, c.timeControl)}
                     </div>
@@ -162,6 +222,14 @@ export function LobbySection() {
           )}
         </>
       )}
+
+      <ModalShell
+        open={cashierMode !== null}
+        onClose={() => setCashierMode(null)}
+        contentKey="chess-cashier"
+      >
+        <CashierSheet onClose={() => setCashierMode(null)} initialMode={cashierMode ?? "deposit"} />
+      </ModalShell>
     </div>
   );
 }

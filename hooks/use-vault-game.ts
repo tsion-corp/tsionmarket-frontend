@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchVaultActivities,
@@ -23,14 +23,13 @@ const WINNERS_KEY = ["vault-winners"] as const;
 const GAME_TOPIC = "vault:king-of-night";
 
 // The socket is the live path — the server pushes gameState roughly every 10s
-// and again after every wager/settle. REST is only a fallback while the socket
-// is down; the gateway rate-limits (~100/min shared), so keep it slow and only
-// poll when disconnected.
-const FALLBACK_POLL_MS = 15_000;
-// The feed (activities/winners) changes less often than status, so poll it
-// slower when the socket is down. Total disconnected REST load stays well
-// under the gateway's ~100/min shared budget.
-const FALLBACK_FEED_POLL_MS = 30_000;
+// and again after every wager/settle. REST carries the game while the socket
+// is down. The gateway rate-limits ~100/min shared, but our proxy caps
+// upstream calls with its own short cache (1s for status, 4s for feeds), so
+// these client cadences can be game-speed without multiplying upstream load:
+// a 15s status poll made an offline game feel frozen after every play.
+const FALLBACK_POLL_MS = 5_000;
+const FALLBACK_FEED_POLL_MS = 15_000;
 const RECONNECT_MS = 2_000;
 const PING_MS = 25_000;
 const MAX_ACTIVITIES = 30;
@@ -60,6 +59,16 @@ export function useVaultGame() {
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
   const [lastWinner, setLastWinner] = useState<LastWinner | null>(null);
+
+  // Forces a fresh REST read of the whole game state (status, feed, winners)
+  // regardless of the socket. The round-end sequence uses it to converge fast:
+  // the socket's ~10s gameState cadence is far too slow for the seconds right
+  // after the clock hits zero.
+  const resyncGame = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: STATUS_KEY });
+    void queryClient.invalidateQueries({ queryKey: ACTIVITIES_KEY });
+    void queryClient.invalidateQueries({ queryKey: WINNERS_KEY });
+  }, [queryClient]);
 
   const status = useQuery<VaultGameStatus>({
     queryKey: STATUS_KEY,
@@ -127,7 +136,16 @@ export function useVaultGame() {
         // Control acks (welcome/subscribed/unsubscribed/pong/error) carry no
         // game data; only the three game frames update state.
         if (frame.type === "gameState") {
-          queryClient.setQueryData<VaultGameStatus>(STATUS_KEY, frame.data as VaultGameStatus);
+          const incoming = frame.data as VaultGameStatus;
+          queryClient.setQueryData<VaultGameStatus>(STATUS_KEY, (prev) => {
+            // A push computed before settlement — "active" with a dead clock —
+            // must not overwrite a fresher settled snapshot, or the pot and
+            // timer snap back to the finished round until the next update.
+            if (prev && !prev.gameActive && incoming.gameActive && incoming.timeRemaining <= 0) {
+              return prev;
+            }
+            return incoming;
+          });
         } else if (frame.type === "playerActivity") {
           const incoming =
             (frame.data as { activities?: RawActivityFrame[] } | undefined)?.activities ?? [];
@@ -184,5 +202,6 @@ export function useVaultGame() {
     winnersLoading: winners.isPending,
     connected,
     lastWinner,
+    resyncGame,
   };
 }

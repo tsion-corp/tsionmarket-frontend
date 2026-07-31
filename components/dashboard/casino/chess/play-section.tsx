@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-casino-chess";
+import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import {
   CasinoEmpty,
@@ -50,7 +51,10 @@ const actionButton =
 
 export function PlaySection({ matchId }: { matchId: string | null }) {
   const t = useTranslations("casino.chess.play");
+  const tStake = useTranslations("casino.chess.stake");
   const router = useRouter();
+  // Only the fee percentage is read here, for the settled-wager line.
+  const { feePct } = useChessCashierStatus();
   const {
     match,
     clocks,
@@ -62,6 +66,8 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     resign,
     resigning,
     offerDraw,
+    claimDraw,
+    claimingDraw,
     offeringDraw,
     respondToDraw,
     respondingToDraw,
@@ -161,6 +167,17 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     }
   };
 
+  // Threefold repetition / fifty-move draws are claimed, not automatic. The
+  // server arbitrates; an unfounded claim comes back as a clear rejection.
+  const onClaimDraw = async () => {
+    try {
+      await claimDraw();
+      toast.success(t("toastDrawClaimed"));
+    } catch {
+      toast.error(t("toastNoClaimableDraw"));
+    }
+  };
+
   const onResign = async () => {
     const id = toast.loading(t("toastResigning"));
     try {
@@ -222,6 +239,24 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
             return acc;
           }, [])
           .join("  ");
+
+  // One quiet line for staked matches. During play both stakes sit locked; a
+  // draw or abort refunds them, a decisive result settles the pot to the
+  // winner. The service's wagerStatus is free text, so refunds are also read
+  // from the result itself and the fee line only shows once the fee is known.
+  const wagerRefunded =
+    match.state === "cancelled" ||
+    match.result?.kind === "draw" ||
+    (match.wagerStatus ?? "").toLowerCase().includes("refund");
+  const wagerLine = !match.stakeUsdc
+    ? null
+    : !over
+      ? tStake("wagerEach", { amount: match.stakeUsdc })
+      : wagerRefunded
+        ? tStake("wagerRefunded")
+        : feePct !== null
+          ? tStake("wagerSettled", { pct: feePct })
+          : tStake("wagerEach", { amount: match.stakeUsdc });
 
   const turnLabel = over
     ? resultLine(t, match, you)
@@ -313,6 +348,13 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 {offeringDraw ? "…" : offerPending ? t("drawOffered") : t("offerDraw")}
               </button>
               <button
+                onClick={() => void onClaimDraw()}
+                disabled={claimingDraw}
+                className={actionButton}
+              >
+                {claimingDraw ? "…" : t("claimDraw")}
+              </button>
+              <button
                 onClick={() => void onResign()}
                 disabled={resigning}
                 className="border-down/40 text-down cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap disabled:opacity-50"
@@ -323,6 +365,10 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
           )
         ) : null}
       </div>
+
+      {wagerLine ? (
+        <div className="mt-2 text-[11.5px] font-normal text-white/45">{wagerLine}</div>
+      ) : null}
 
       {over ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[10px] bg-black/60 backdrop-blur-md">

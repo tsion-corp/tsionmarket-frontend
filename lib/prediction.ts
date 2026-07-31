@@ -21,6 +21,9 @@ export interface RawPosition {
   percentPnl?: Num;
   redeemable?: boolean | null;
   conditionId?: Str;
+  // CLOB token of the held outcome (the SDK normalizes the raw `asset` field
+  // to this). Needed to sell the position back to the market.
+  tokenId?: Str;
   endDate?: Str;
   icon?: Str;
 }
@@ -44,6 +47,7 @@ export interface BetSlip {
   pnlPct: number;
   redeemable: boolean;
   conditionId: string | null;
+  tokenId: string | null;
   // Market resolution date as an ISO string, when known.
   resolvesAt: string | null;
   icon: string | null;
@@ -82,9 +86,32 @@ export function betSlip(raw: RawPosition): BetSlip {
     pnlPct,
     redeemable: raw.redeemable === true,
     conditionId: raw.conditionId ?? null,
+    tokenId: raw.tokenId ?? null,
     resolvesAt: raw.endDate ?? null,
     icon: raw.icon ?? null,
   };
+}
+
+// Whether a position can be sold back to the market before resolution: the
+// market is still live (not redeemable), there are shares to sell, and we
+// know which CLOB token to sell.
+export function isCashoutable(
+  redeemable: boolean | null | undefined,
+  shares: number,
+  tokenId: string | null
+): boolean {
+  return redeemable !== true && shares > 0 && tokenId != null && tokenId !== "";
+}
+
+// The lowest fill price a market SELL accepts, from the estimated crossing
+// price: a small tolerance below the estimate so a normal book move between
+// estimate and placement still fills, but the shares are never dumped far
+// under it. Clamped to valid whole-cent ticks.
+const SELL_SLIPPAGE = 0.03;
+
+export function sellFloorPrice(estimate: number): number {
+  const floored = Math.floor(estimate * (1 - SELL_SLIPPAGE) * 100) / 100;
+  return Math.min(Math.max(floored, 0.01), 0.99);
 }
 
 // Whether a position actually has winnings to claim. A market resolving marks

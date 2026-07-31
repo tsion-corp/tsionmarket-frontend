@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useMoney } from "@/components/ui/currency-select";
 import { ChevronLeftIcon, ChartBarsIcon } from "@/components/ui/icons";
 import { isClaimable } from "@/lib/prediction";
 import type { PolymarketPosition } from "@/hooks/use-polymarket-positions";
@@ -51,6 +52,7 @@ export function PositionsPanel({
   cashingOut,
 }: PositionsPanelProps) {
   const t = useTranslations("prediction");
+  const money = useMoney();
   return (
     <div className="ws-card relative mt-7 overflow-hidden sm:mt-9">
       {/* Accent wash across the header so this section reads as a distinct
@@ -68,7 +70,7 @@ export function PositionsPanel({
             <span className="ws-display text-[21px] tracking-[-0.01em]">{t("positionsTitle")}</span>
             <div className="tnum mt-0.5 text-[13px] font-normal text-white/60">
               {available != null
-                ? t("availableToBet", { amount: `$${available.toFixed(2)}` })
+                ? t("availableToBet", { amount: money.format(available) })
                 : t("positionsSubtitle")}
             </div>
           </div>
@@ -137,7 +139,7 @@ export function PositionsPanel({
                 </span>
               ) : (
                 <span className="tnum text-right font-sans text-sm font-medium">
-                  ${num(p.currentValue).toFixed(2)}
+                  {money.format(num(p.currentValue))}
                 </span>
               )}
             </div>
@@ -148,7 +150,7 @@ export function PositionsPanel({
       {loaded && cashable != null && cashable > 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6">
           <span className="text-[12.5px] font-normal text-white/55">
-            {t("cashOutTo", { amount: `$${cashable.toFixed(2)}` })}
+            {t("cashOutTo", { amount: money.format(cashable) })}
           </span>
           <button
             onClick={onCashOut}

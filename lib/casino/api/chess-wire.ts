@@ -30,8 +30,22 @@ export interface ChessTimeControlWire {
   incrementSeconds: number;
 }
 
+// A wager attached to a staked match. Stakes lock at create/join, draws and
+// aborts refund, decisive results settle to the winner minus the platform fee.
+export interface ChessWagerWire {
+  stakeUsdc: string;
+  feeBps: number;
+  status: string;
+  winnerPlayer?: string | null;
+}
+
 export interface ChessMatchWire {
   id: string;
+  // The service currently sets this to the match id; carried so a future
+  // short-code scheme works without a client change.
+  inviteCode?: string;
+  // WS-gateway topic for live frames, once the backend's relay publishes.
+  liveTopic?: string;
   status: ChessStatusWire;
   fen: string;
   turn: ChessSideWire;
@@ -43,6 +57,7 @@ export interface ChessMatchWire {
   drawOfferBy: string | null;
   result: ChessResultWire | null;
   resultReason: string | null;
+  wager?: ChessWagerWire | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -178,6 +193,12 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
     turn: toColor(wire.turn),
     result: toResult(wire.result, wire.resultReason),
     drawOffered: drawOfferSide,
+    // A staked match carries its per-player USDC stake; null = played for free.
+    stakeUsdc: wire.wager?.stakeUsdc ?? null,
+    wagerStatus: wire.wager?.status ?? null,
+    // The doc says to take the topic from the response, never recompute it;
+    // the fallback only covers an older service that predates the field.
+    liveTopic: wire.liveTopic ?? `chess:match:${wire.id}`,
     createdAt: wire.createdAt,
   };
 }
@@ -199,6 +220,9 @@ export function toChessChallenge(wire: ChessMatchWire): ChessChallenge {
       wire.timeControl.incrementSeconds
     ),
     createdAt: wire.createdAt,
-    inviteCode: wire.id,
+    // The service's invite code is the match id today; prefer its own field so
+    // a future short-code scheme needs no client change.
+    inviteCode: wire.inviteCode ?? wire.id,
+    stakeUsdc: wire.wager?.stakeUsdc ?? null,
   };
 }

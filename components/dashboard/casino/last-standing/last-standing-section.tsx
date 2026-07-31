@@ -31,11 +31,12 @@ import { toast } from "@/lib/toast";
 
 const EXPLORER_TX_URL = "https://basescan.org/tx/";
 const EXPLORER_ADDRESS_URL = "https://basescan.org/address/";
-// How long to keep re-checking the balance after a win, and how often. The
-// portfolio is cached ~15s server-side, so a 5s cadence catches the credited
-// winnings shortly after the cache turns over without hammering the API.
+// How long to keep re-checking after a win, and how often. The settle window
+// drives BOTH the game resync (status/winners/pot — so the table, pool and
+// timer converge seconds after the clock dies, not on the socket's ~10s
+// cadence) and the balance re-check for the credited winnings.
 const WIN_POLL_WINDOW_MS = 30_000;
-const WIN_POLL_INTERVAL_MS = 5_000;
+const WIN_POLL_INTERVAL_MS = 2_500;
 // Suspense window shown to everyone the moment a round ends, before revealing
 // whether this wallet won. Builds anticipation and covers the brief gap while
 // the result settles.
@@ -91,7 +92,7 @@ export function LastStandingSection() {
   const money = useMoney();
   const { mask } = useBalanceVisibility();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
-  const { status, statusLoading, activities, winners, winnersLoading } = useVaultGame();
+  const { status, statusLoading, activities, winners, winnersLoading, resyncGame } = useVaultGame();
   const { wager, wagering, claim, claiming } = useVaultActions();
   const [fundOpen, setFundOpen] = useState(false);
   // Shows the "you're in!" arcade takeover the moment a play confirms.
@@ -196,6 +197,15 @@ export function LastStandingSection() {
   const prevActiveRef = useRef(false);
   const lastPotRef = useRef(0);
   const winnerAtEndRef = useRef<string | null>(null);
+  // One round-end sequence per round: set when the sequence starts, cleared
+  // when a fresh round goes live, so a dismissed overlay can't re-fire from
+  // the server's late active->inactive flip.
+  const roundEndedRef = useRef(false);
+  // Freshest status for the reveal timeout to consult without re-arming it.
+  const statusRef = useRef(status);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
   // Newest winner id we've already reacted to, so the winners feed (when it
   // works) reveals a fresh win without re-firing on load or on repeat polls.
   const seenWinnerIdRef = useRef<string | null>(null);
@@ -203,10 +213,14 @@ export function LastStandingSection() {
 
   // Starts the end-of-round sequence: suspense now, winner reveal after it.
   const beginRoundEnd = (winnerAddress: string | null, prizeUsd: number) => {
+    roundEndedRef.current = true;
     winnerAtEndRef.current = winnerAddress;
     setRoundPrizeUsd(prizeUsd);
     setPhase("calculating");
     setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
+    // Converge immediately: fresh status (pot/timer reset), winners table and
+    // feed, plus the balance — not whenever the next socket push arrives.
+    resyncGame();
     void refetchPortfolio();
   };
 
@@ -216,12 +230,25 @@ export function LastStandingSection() {
 
     const wasActive = prevActiveRef.current;
     prevActiveRef.current = gameActive;
+    // A fresh round going live re-arms the round-end sequence.
+    if (gameActive) roundEndedRef.current = false;
     // A live round just ended (active -> inactive). Only start once per round.
-    if (wasActive && !gameActive && phase === null) {
+    if (wasActive && !gameActive && phase === null && !roundEndedRef.current) {
       beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameActive]);
+
+  // The client's own clock reaching zero IS the round-end signal — the server
+  // confirmation (socket push or poll) can be ~10s behind, which is exactly
+  // the dead air the user sits through at 00:00. Start the suspense right at
+  // zero; if a buzzer-beater wager actually continued the round, the reveal
+  // below notices and quietly backs out.
+  useEffect(() => {
+    if (!gameActive || countdown > 0 || phase !== null || roundEndedRef.current) return;
+    beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown, gameActive, phase]);
 
   // Reveal after the suspense: everyone sees who won. If a winner is known we
   // announce them by truncated address; the winning wallet gets the personal
@@ -229,6 +256,15 @@ export function LastStandingSection() {
   useEffect(() => {
     if (phase !== "calculating") return;
     const id = setTimeout(() => {
+      // Backed out: a wager landed at the buzzer and the round continued —
+      // the server now reports a live clock, so nobody actually won yet.
+      const fresh = statusRef.current;
+      if (fresh?.gameActive && fresh.timeRemaining > 3) {
+        winnerAtEndRef.current = null;
+        roundEndedRef.current = false;
+        setPhase(null);
+        return;
+      }
       const winner = winnerAtEndRef.current;
       if (!winner) {
         setPhase(null);
@@ -281,10 +317,11 @@ export function LastStandingSection() {
         clearInterval(id);
         return;
       }
+      resyncGame();
       void refetchPortfolio();
     }, WIN_POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [pollUntil, refetchPortfolio]);
+  }, [pollUntil, refetchPortfolio, resyncGame]);
 
   // Auto-dismiss the "you won" banner after the balance has had time to update.
   useEffect(() => {
@@ -340,6 +377,12 @@ export function LastStandingSection() {
       await wager();
       toast.success(t("toastYoureIn"), { id: toastId });
       setPlayEntering(true);
+      // The wager just landed on-chain, but the backend indexes it a moment
+      // later — resync now and keep the fast settle-poll running briefly so
+      // the pot, timer and last-player reflect this play within seconds
+      // (the socket push alone can be ~10s away, or absent when offline).
+      resyncGame();
+      setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
       void refetchPortfolio();
     } catch (e) {
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });

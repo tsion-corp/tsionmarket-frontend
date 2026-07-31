@@ -44,9 +44,9 @@ export type ChessResult =
   | { kind: "timeout"; winner: ChessColor }
   | { kind: "draw"; reason: "stalemate" | "agreement" | "repetition" | "insufficient" };
 
-// Chess is played for nothing at the moment: the service runs games, and has no
-// concept of a stake, an escrow or a pot. Nothing here carries an amount, so no
-// screen can imply money is at risk.
+// A match is free unless it carries a stake: staked games settle server-side
+// through the chess cashier, so the client renders amounts but never moves
+// money itself.
 export interface ChessMatch {
   id: string;
   state: ChessMatchState;
@@ -67,6 +67,14 @@ export interface ChessMatch {
   result: ChessResult | null;
   // The colour with an outstanding draw offer, if any.
   drawOffered: ChessColor | null;
+  // Per-player USDC stake for a wager-backed match, null when played for free.
+  // Stakes settle server-side through the chess cashier.
+  stakeUsdc: string | null;
+  // The wager lifecycle as the service reports it (e.g. active, settled,
+  // refunded); null for free games.
+  wagerStatus: string | null;
+  // WS-gateway topic carrying this match's live frames.
+  liveTopic: string;
   createdAt: string;
 }
 
@@ -78,6 +86,8 @@ export interface ChessChallenge {
   createdAt: string;
   // The match id, which is what an invite link carries.
   inviteCode: string | null;
+  // Per-player USDC stake, null for a free game.
+  stakeUsdc: string | null;
 }
 
 export interface CreateChessChallengeInput {

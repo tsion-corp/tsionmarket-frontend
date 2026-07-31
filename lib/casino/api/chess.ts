@@ -99,8 +99,13 @@ export async function fetchChallengeByInvite(inviteCode: string): Promise<ChessC
 // Opens a game and returns it as a challenge to share. "auto" mode also returns
 // a ticket so the matchmaking screen has something to follow; there is no queue
 // on this service, so the ticket is the match itself waiting to be joined.
+//
+// A stake makes it a wager-backed match: the cashier locks that much of the
+// creator's available USDC immediately, and the joiner's on join. Omitted for
+// a free game, so the request stays byte-identical to what an unstaked create
+// always sent.
 export async function createChallenge(
-  input: CreateChessChallengeInput & { creator: string }
+  input: CreateChessChallengeInput & { creator: string; stakeUsdc?: string | null }
 ): Promise<{ challenge: ChessChallenge; ticket: MatchmakingTicket | null }> {
   const { initialSeconds, incrementSeconds } = parseTimeControl(input.timeControl);
   const wire = await chessPost<ChessMatchWire>("/matches", {
@@ -108,6 +113,7 @@ export async function createChallenge(
     color: "random",
     initial_seconds: initialSeconds,
     increment_seconds: incrementSeconds,
+    ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
   });
 
   return {

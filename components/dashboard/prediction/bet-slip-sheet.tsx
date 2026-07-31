@@ -1,12 +1,14 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { useMoney } from "@/components/ui/currency-select";
+import { PerpConfirmModal, type ConfirmRow } from "@/components/dashboard/trade/perp-confirm-modal";
 import {
   betSlip,
-  formatMoney,
-  formatSignedMoney,
+  isCashoutable,
   isClaimable,
   priceCents,
   resolutionInfo,
@@ -18,30 +20,43 @@ interface BetSlipSheetProps {
   position: RawPosition;
   onClaim: (conditionId: string) => void;
   claiming: boolean;
+  // Sells the position back to the market before resolution.
+  onSell: (position: RawPosition) => void;
+  selling: boolean;
 }
 
 // The detail view of a placed bet: the market, side, stake, shares, current
 // value, payout if it wins, profit or loss, and resolution date. Redeemable
 // positions can be claimed straight from here.
-export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps) {
+export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: BetSlipSheetProps) {
   const t = useTranslations("prediction");
+  // Every dollar figure renders in the user's selected display currency.
+  const money = useMoney();
+  const signedMoney = (usd: number) => `${usd < 0 ? "-" : "+"}${money.format(Math.abs(usd))}`;
+  const [confirming, setConfirming] = useState(false);
   const slip = betSlip(position);
   const yes = slip.outcome.toLowerCase() === "yes";
   const outcomeColor = yes ? "#7CE7B0" : slip.outcome === "—" ? "#FFFFFF" : "#F6A5A5";
 
   const rows: StatLine[] = [
-    { k: t("amountStaked"), v: formatMoney(slip.staked) },
+    { k: t("amountStaked"), v: money.format(slip.staked) },
     { k: t("shares"), v: slip.shares.toFixed(2) },
     { k: t("avgPrice"), v: priceCents(slip.avgPrice) },
-    { k: t("currentValue"), v: formatMoney(slip.currentValue) },
-    { k: t("payoutIfWins"), v: formatMoney(slip.payoutIfWins), c: "#7CE7B0" },
+    { k: t("currentValue"), v: money.format(slip.currentValue) },
+    { k: t("payoutIfWins"), v: money.format(slip.payoutIfWins), c: "#7CE7B0" },
     {
       k: t("profitLoss"),
-      v: `${formatSignedMoney(slip.pnl)} (${slip.pnl >= 0 ? "+" : ""}${slip.pnlPct.toFixed(1)}%)`,
+      v: `${signedMoney(slip.pnl)} (${slip.pnl >= 0 ? "+" : ""}${slip.pnlPct.toFixed(1)}%)`,
       c: slip.pnl >= 0 ? "#7CE7B0" : "#F6A5A5",
     },
   ];
   const claimable = isClaimable(slip.redeemable, slip.currentValue);
+  const cashoutable = isCashoutable(slip.redeemable, slip.shares, slip.tokenId);
+  const confirmRows: ConfirmRow[] = [
+    { label: t("marketLabel"), value: slip.market },
+    { label: t("shares"), value: slip.shares.toFixed(2) },
+    { label: t("currentValue"), value: money.format(slip.currentValue) },
+  ];
   const resolution = resolutionInfo(slip.redeemable, slip.resolvesAt, undefined, claimable);
   if (resolution) {
     // resolutionInfo returns English k/v pairs from pure, tested logic. Map the
@@ -94,13 +109,41 @@ export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps)
           disabled={claiming}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {claiming ? t("claiming") : t("claimAmount", { amount: formatMoney(slip.currentValue) })}
+          {claiming ? t("claiming") : t("claimAmount", { amount: money.format(slip.currentValue) })}
         </button>
+      ) : cashoutable ? (
+        <>
+          <button
+            onClick={() => setConfirming(true)}
+            disabled={selling}
+            className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {selling
+              ? t("cashingOutPosition")
+              : t("cashOutFor", { amount: money.format(slip.currentValue) })}
+          </button>
+          <p className="mt-2 text-center text-xs font-normal text-white/45">{t("cashOutNote")}</p>
+        </>
       ) : (
         <p className="mt-5 text-center text-xs font-normal text-white/45">
           {slip.redeemable ? t("resolvedNothingToClaim") : t("settlesOnPolymarket")}
         </p>
       )}
+
+      {confirming ? (
+        <PerpConfirmModal
+          title={t("confirmSellTitle")}
+          rows={confirmRows}
+          warning={t("confirmSellWarning")}
+          cancelLabel={t("confirmCancel")}
+          continueLabel={t("confirmContinue")}
+          onCancel={() => setConfirming(false)}
+          onContinue={() => {
+            setConfirming(false);
+            onSell(position);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

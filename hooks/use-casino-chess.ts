@@ -14,11 +14,13 @@ import {
   fetchMatchmakingTicket,
   fetchOpenChallenges,
   fetchWaitingMatches,
+  claimDraw,
   offerDraw,
   requestRematch,
   resignMatch,
   respondToDraw,
   submitMove,
+  fetchPlayerMatches,
 } from "@/lib/casino/api/chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import type { ChessColor, ChessMatch, CreateChessChallengeInput } from "@/lib/casino/api/types";
@@ -26,6 +28,8 @@ import type { ChessColor, ChessMatch, CreateChessChallengeInput } from "@/lib/ca
 // The chess service has no socket, so these polls are the live path. They run
 // faster than the vault's: a board that is two seconds behind is visibly wrong.
 const MATCH_POLL_MS = 2_000;
+// The shared ws-gateway carrying every service's live frames.
+const CHESS_WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL ?? "wss://ws.worldstreetwebservices.com";
 const LOBBY_POLL_MS = 10_000;
 const TICKET_POLL_MS = 3_000;
 
@@ -37,6 +41,7 @@ export const CHESS_KEYS = {
   challenges: ["casino", "chess", "challenges"] as const,
   liveMatches: ["casino", "chess", "live"] as const,
   match: (id: string) => ["casino", "chess", "match", id] as const,
+  history: (wallet: string) => ["casino", "chess", "history", wallet] as const,
   ticket: (id: string) => ["casino", "chess", "ticket", id] as const,
 };
 
@@ -119,6 +124,68 @@ export function useChessMatch(matchId: string | null) {
   const match = query.data;
   const clocks = useTickingClocks(match);
 
+  // Live-frame accelerator: the service publishes state/position/gameOver
+  // frames to the ws-gateway on the match's liveTopic. When a frame arrives
+  // the match refetches immediately instead of waiting for the next poll —
+  // and the poll stays as the fallback, because the relay is not publishing
+  // in production yet (verified: subscribe acks, zero frames). This is silent
+  // until the backend wires it, then moves become realtime with no change.
+  const liveTopic = match?.liveTopic ?? null;
+  const inProgress = match?.state === "in_progress";
+  useEffect(() => {
+    if (!liveTopic || !inProgress || !matchId) return;
+    let ws: WebSocket | null = null;
+    let disposed = false;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let pingTimer: ReturnType<typeof setInterval> | null = null;
+    let reconnectDelay = 2_000;
+
+    const open = () => {
+      if (disposed) return;
+      try {
+        ws = new WebSocket(CHESS_WS_URL);
+      } catch {
+        // A malformed URL throws synchronously; the poll carries the game.
+        return;
+      }
+      ws.onopen = () => {
+        ws?.send(JSON.stringify({ type: "subscribe", topics: [liveTopic] }));
+        pingTimer = setInterval(() => {
+          if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ping" }));
+        }, 25_000);
+      };
+      ws.onmessage = (event) => {
+        let frame: { type?: string };
+        try {
+          frame = JSON.parse(String(event.data));
+        } catch {
+          return;
+        }
+        if (frame.type === "state" || frame.type === "position" || frame.type === "gameOver") {
+          reconnectDelay = 2_000;
+          void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+        }
+      };
+      ws.onclose = () => {
+        if (pingTimer != null) clearInterval(pingTimer);
+        pingTimer = null;
+        if (!disposed) {
+          reconnectTimer = setTimeout(open, reconnectDelay);
+          reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+        }
+      };
+      ws.onerror = () => {};
+    };
+
+    open();
+    return () => {
+      disposed = true;
+      if (reconnectTimer != null) clearTimeout(reconnectTimer);
+      if (pingTimer != null) clearInterval(pingTimer);
+      ws?.close();
+    };
+  }, [liveTopic, inProgress, matchId, queryClient]);
+
   const applyMatch = useCallback(
     (next: ChessMatch) => queryClient.setQueryData(CHESS_KEYS.match(next.id), next),
     [queryClient]
@@ -156,6 +223,13 @@ export function useChessMatch(matchId: string | null) {
 
   const abort = useMutation({
     mutationFn: () => abortMatch(matchId as string, requireWallet(wallet.address)),
+    onSuccess: applyMatch,
+  });
+
+  // Threefold repetition and the fifty-move rule are claimed, never automatic;
+  // the service arbitrates the claim and rejects it when neither holds.
+  const drawClaim = useMutation({
+    mutationFn: () => claimDraw(matchId as string, requireWallet(wallet.address)),
     onSuccess: applyMatch,
   });
 
@@ -204,6 +278,8 @@ export function useChessMatch(matchId: string | null) {
     offeringDraw: proposeDraw.isPending,
     respondToDraw: answerDraw.mutateAsync,
     respondingToDraw: answerDraw.isPending,
+    claimDraw: drawClaim.mutateAsync,
+    claimingDraw: drawClaim.isPending,
     abort: abort.mutateAsync,
     aborting: abort.isPending,
     rematch: rematch.mutateAsync,
@@ -333,5 +409,28 @@ export function useMatchmakingTicket(ticketId: string | null) {
     error: query.error,
     cancel: () =>
       ticketId && wallet.address ? cancelMatchmaking(ticketId, wallet.address) : Promise.resolve(),
+  };
+}
+
+// Finished and ongoing games for one player, newest first. A settled game
+// never changes, so the list refetches on focus rather than on a clock.
+export function useChessHistory() {
+  const wallet = useCasinoWallet();
+  const query = useQuery({
+    queryKey: CHESS_KEYS.history(wallet.address ?? "none"),
+    queryFn: () => fetchPlayerMatches(wallet.address as string),
+    enabled: !!wallet.address,
+    staleTime: 30_000,
+    select: (matches) =>
+      [...matches].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      ),
+  });
+  return {
+    matches: query.data ?? [],
+    isLoading: query.isPending && !!wallet.address,
+    error: query.error,
+    refetch: query.refetch,
+    connected: wallet.connected,
   };
 }
