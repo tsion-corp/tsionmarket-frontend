@@ -23,7 +23,13 @@ export function VoiceGlow({ phase }: { phase: TurnPhase }) {
       // Fades in fast enough to feel like a response to the tap, and out slowly
       // enough not to snap off mid-thought.
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className={cn("ws-voice-glow", phase === "listening" && "ws-voice-glow-listening")}
+      className={cn(
+        "ws-voice-glow",
+        phase === "listening" && "ws-voice-glow-listening",
+        // Speaking gets its own pulse rather than the calm breathe, so the two
+        // halves of a turn never look the same.
+        phase === "speaking" && "ws-voice-glow-speaking"
+      )}
     />
   );
 }

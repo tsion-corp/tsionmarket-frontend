@@ -16,18 +16,9 @@ export function AssistantOrb({ phase, size = 224 }: { phase: TurnPhase; size?: n
       style={{ width: size, height: size }}
       aria-hidden="true"
     >
-      {/* A wide, very soft halo under the orb. It is what makes the orb read as
-          emitting light rather than sitting on top of the page. */}
-      <div
-        className="pointer-events-none absolute rounded-full opacity-70 blur-3xl"
-        style={{
-          width: size * 1.35,
-          height: size * 1.35,
-          background:
-            "radial-gradient(circle, rgba(139,92,246,0.55), rgba(56,189,248,0.22) 45%, transparent 70%)",
-        }}
-      />
-
+      {/* No halo here on purpose. The screen edge carries the glow while a
+          session is open, and a second one around the orb made the corner read
+          as a smudge rather than as a control. */}
       <div
         className={cn(
           "ws-ai-orb h-full w-full",

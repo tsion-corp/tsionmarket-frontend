@@ -43,6 +43,7 @@ export function TranscriptPanel({ active, phase, messages }: TranscriptPanelProp
 
   return (
     <motion.div
+      data-voice-ui
       initial={{ opacity: 0, y: 14, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 14, scale: 0.97 }}

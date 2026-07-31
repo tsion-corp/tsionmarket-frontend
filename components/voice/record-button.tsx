@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useVoiceSession } from "@/hooks/use-voice-session";
@@ -7,6 +8,7 @@ import { VoiceAvatar } from "@/components/voice/avatar";
 import { AssistantOrb } from "@/components/voice/assistant-orb";
 import { TranscriptPanel } from "@/components/voice/transcript-panel";
 import { VoiceGlow } from "@/components/voice/voice-glow";
+import { CloseIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
 const ANCHOR = "fixed right-5 bottom-24 z-[200]";
@@ -27,6 +29,25 @@ export function RecordButton() {
   const { ready, authenticated } = usePrivy();
   const reduceMotion = useReducedMotion();
   const { active, phase, messages, supported, start, stop } = useVoiceSession();
+
+  // Tapping anywhere else ends the session, the way any open overlay behaves.
+  // Without this the only way out is the X, and a user who has moved on to the
+  // page leaves the mic open behind them.
+  //
+  // Bound on pointerdown rather than click so it fires before the page reacts,
+  // and scoped by a data attribute so the orb, the X and the transcript are all
+  // treated as inside. The listener only exists while a session is open, so the
+  // tap that started it cannot immediately close it.
+  useEffect(() => {
+    if (!active) return;
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-voice-ui]")) return;
+      stop();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [active, stop]);
 
   // Match AuthGuard's gate: nothing renders until the session is known and
   // signed in. A browser without microphone support simply gets no button.
@@ -52,8 +73,33 @@ export function RecordButton() {
         {active ? <TranscriptPanel active={active} phase={phase} messages={messages} /> : null}
       </AnimatePresence>
 
+      {/* An explicit way out. Tapping the orb also ends the session, but that is
+          not discoverable: an orb that is visibly reacting to your voice reads
+          as a status light, not a button. */}
+      <AnimatePresence>
+        {active ? (
+          <motion.button
+            key="voice-stop"
+            type="button"
+            data-voice-ui
+            onClick={stop}
+            aria-label="End voice session"
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6, x: 12 }}
+            animate={{ opacity: 1, scale: 1, x: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.6, x: 12 }}
+            transition={{ type: "spring", stiffness: 320, damping: 26 }}
+            // Sits to the left of the orb, which keeps the orb in the spot the
+            // launcher occupied so nothing jumps when a session opens.
+            className="fixed right-24 bottom-[104px] z-[201] grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-white/25 bg-black/60 text-white/80 backdrop-blur transition-colors hover:border-white/50 hover:text-white"
+          >
+            <CloseIcon size={13} />
+          </motion.button>
+        ) : null}
+      </AnimatePresence>
+
       <motion.button
         type="button"
+        data-voice-ui
         aria-label={label}
         aria-pressed={active}
         onClick={() => (active ? stop() : void start())}
