@@ -1,12 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { TradingViewChart } from "@/components/ui/tradingview-chart";
+import { AssetChart } from "@/components/ui/asset-chart";
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
+import { coingeckoId } from "@/lib/coingecko";
 
 // Refresh the portfolio each new Base block, so a deposit, withdrawal or add-money
 // shows in the balance within ~2s instead of on the slow poll.
@@ -24,12 +25,11 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   const t = useTranslations("balance");
   useInvalidateOnBlock(PORTFOLIO_KEY);
 
-  // True portfolio value history is not stored, so the card carries the
-  // market's reference pair instead: ETH/USDC on the same TradingView embed
-  // the trade section uses. One stable, always-available chart beats guessing
-  // at a holding.
-  const BALANCE_CHART_SYMBOL = "BINANCE:ETHUSDC";
-  const BALANCE_CHART_LABEL = "ETH/USDC";
+  // True portfolio value history is not stored, so we chart the dominant
+  // holding's real price history and label it by the asset. Tokens arrive
+  // sorted by value, so the first one with a chart source is the largest.
+  const charted = tokens.find((t) => coingeckoId(t.symbol) != null);
+  const chartId = charted ? coingeckoId(charted.symbol) : null;
 
   return (
     <div className="ws-card p-5 sm:p-[26px]">
@@ -86,13 +86,17 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
         </div>
       </div>
 
-      <div className="mt-[22px]">
-        <div className="mb-1.5 flex items-center gap-2 text-[12px] font-normal text-white/45">
-          <span className="bg-accent h-1 w-1 rounded-full" />
-          {t("assetPrice", { name: BALANCE_CHART_LABEL })}
+      {charted && chartId ? (
+        <div className="mt-[22px]">
+          <div className="mb-1.5 flex items-center gap-2 text-[12px] font-normal text-white/45">
+            <span className="bg-accent h-1 w-1 rounded-full" />
+            {t("assetPrice", { name: charted.name })}
+          </div>
+          <div className="bg-[linear-gradient(180deg,rgba(255, 255, 255, 0.10),rgba(255, 255, 255, 0))] rounded-[14px] p-2">
+            <AssetChart coingeckoId={chartId} up height={150} allowCandles={false} />
+          </div>
         </div>
-        <TradingViewChart symbol={BALANCE_CHART_SYMBOL} height={230} />
-      </div>
+      ) : null}
     </div>
   );
 }
