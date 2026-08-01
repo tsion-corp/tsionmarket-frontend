@@ -107,43 +107,58 @@ export interface MatchmakingTicket {
   opponent: ChessPlayer | null;
 }
 
-// ----- Spectator betting -----
+// ----- Spectator betting (pari-mutuel) -----
+//
+// Stakes on an outcome form pools; when the match ends the winning pool splits
+// the losing pool minus a house rake, pro-rata by stake. Nothing is locked at
+// bet time: the price floats as money enters, so a bet's real payout is only
+// known at settlement. Money is USDC decimal strings, the same units the chess
+// cashier holds, never floats for arithmetic.
 
 export type BetSelection = "white" | "draw" | "black";
 
-export interface MarketOdds {
-  white: number;
-  draw: number;
-  black: number;
-  // Server's win probability for white, 0..100, used for the eval bar.
-  whiteWinProbability: number;
-  updatedAt: string;
+export type MarketStatus = "open" | "settled" | "voided";
+
+export type BetState = "active" | "won" | "lost" | "refunded";
+
+// One outcome's side of the market. `pool` is the USDC staked on it; `odds` is
+// the server's pari-mutuel price (total / pool), null when the pool is empty
+// and therefore has no price yet.
+export interface MarketOutcome {
+  pool: string;
+  odds: number | null;
 }
 
-export interface OddsPoint {
-  at: string;
-  white: number;
+// The live market for one match. `winningOutcome` and `voidReason` are set once
+// the match settles or voids (a one-sided pool or a nobody-backed winner
+// refunds every stake).
+export interface MarketOdds {
+  status: MarketStatus;
+  total: string;
+  outcomes: Record<BetSelection, MarketOutcome>;
+  winningOutcome: BetSelection | null;
+  voidReason: string | null;
 }
 
 export interface BetSlip {
   id: string;
   matchId: string;
   selection: BetSelection;
-  // Odds locked at placement; payouts settle against this, not the live price.
-  lockedOdds: number;
-  stake: TokenAmount;
-  potentialPayout: TokenAmount;
-  state: "pending" | "won" | "lost" | "void";
-  placedAt: string;
+  stakeUsdc: string;
+  state: BetState;
+  // Winnings once settled (stake + share of the losing pool) or the refunded
+  // stake; null while the bet is still active.
+  payoutUsdc: string | null;
+  placedAt: string | null;
 }
 
 export interface PlaceBetInput {
   matchId: string;
+  // The bettor's wallet. A player cannot bet on their own match; the service
+  // rejects that with FORBIDDEN.
+  bettor: string;
   selection: BetSelection;
-  stakeWei: string;
-  // The odds the user saw. The server rejects the bet if the price has moved
-  // beyond tolerance, rather than silently filling at a worse number.
-  expectedOdds: number;
+  stakeUsdc: string;
 }
 
 // ----- Draw -----

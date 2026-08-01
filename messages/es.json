@@ -1229,7 +1229,10 @@
         "notEnough": "Saldo insuficiente para esa apuesta.",
         "yourBets": "Tus apuestas",
         "betLine": "{selection} @ {odds}",
-        "oddsMovement": "Movimiento de cuotas"
+        "oddsMovement": "Movimiento de cuotas",
+        "marketSettled": "Market settled: {outcome} won",
+        "marketVoided": "Market voided, stakes refunded",
+        "noSelfBet": "You are playing this match, so you cannot bet on it."
       },
       "cashier": {
         "title": "Saldo de ajedrez",

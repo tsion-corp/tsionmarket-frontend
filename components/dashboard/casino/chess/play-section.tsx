@@ -1,12 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-casino-chess";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
+import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-theme-picker";
+import { useBoardTheme } from "@/lib/casino/chess/board-theme";
+import { identifyOpening } from "@/lib/casino/chess/openings";
+import { moveSoundFromSan, playGameEndSound, playMoveSound } from "@/lib/casino/chess/sound";
 import {
   CasinoEmpty,
   CasinoError,
@@ -14,6 +18,8 @@ import {
 } from "@/components/dashboard/casino/casino-state";
 import {
   capturedFromBoard,
+  isInCheck,
+  kingPos,
   legalMovesForPiece,
   parseFen,
   toUci,
@@ -26,6 +32,19 @@ import type { ChessColor, ChessMatch } from "@/lib/casino/api/types";
 function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// A small clock glyph next to the time, the way chess.com and lila mark the
+// side's clock.
+function ClockIcon() {
+  return (
+    <svg viewBox="0 0 20 20" className="h-[0.62em] w-[0.62em] shrink-0 opacity-55" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M10 0a10 10 0 100 20A10 10 0 0010 0zm0 2.4a7.6 7.6 0 110 15.2 7.6 7.6 0 010-15.2zM8.9 4.8v5.7l4.6 2.7.9-1.6-3.7-2.2V4.8z"
+      />
+    </svg>
+  );
 }
 
 type Translator = ReturnType<typeof useTranslations>;
@@ -59,6 +78,8 @@ const actionButton =
 export function PlaySection({ matchId }: { matchId: string | null }) {
   const t = useTranslations("casino.chess.play");
   const tStake = useTranslations("casino.chess.stake");
+  // The create screen owns the invite-link copy; the waiting board reuses it.
+  const tCreate = useTranslations("casino.chess.create");
   const router = useRouter();
   // Only the fee percentage is read here, for the settled-wager line.
   const { feePct } = useChessCashierStatus();
@@ -89,6 +110,43 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   // than opening a second one of their own.
   const rematchOffered = useRematchOffer(match, you);
   const acceptRematch = useAcceptChallenge();
+  const theme = useBoardTheme();
+
+  // A soft "thock" whenever the move count grows — the player's own move and the
+  // opponent's alike. The first render only records the starting count, so
+  // opening a mid-game board is silent.
+  const prevMoveCount = useRef<number | null>(null);
+  const moveCount = match?.moves.length ?? null;
+  const lastSan = moveCount ? (match?.moves[moveCount - 1] ?? "") : "";
+  useEffect(() => {
+    if (moveCount === null) return;
+    if (prevMoveCount.current !== null && moveCount > prevMoveCount.current) {
+      // The SAN carries the move's character — capture, check, castle, promote.
+      playMoveSound(moveSoundFromSan(lastSan));
+    }
+    prevMoveCount.current = moveCount;
+  }, [moveCount, lastSan]);
+
+  // A chime the first time the game resolves, from this player's side: rising
+  // for a win, falling for a loss or a draw. Only fires if we actually watched
+  // the game in progress, so opening an already-finished board stays silent.
+  const sawInProgress = useRef(false);
+  const sawResult = useRef(false);
+  const inProgress = match?.state === "in_progress";
+  const result = match?.result ?? null;
+  useEffect(() => {
+    if (inProgress) sawInProgress.current = true;
+  }, [inProgress]);
+  useEffect(() => {
+    if (!result) {
+      sawResult.current = false;
+      return;
+    }
+    if (sawResult.current || !sawInProgress.current) return;
+    sawResult.current = true;
+    const outcome = result.kind === "draw" ? "draw" : result.winner === you ? "win" : "loss";
+    playGameEndSound(outcome);
+  }, [result, you]);
 
   // The board is whatever the server says. A malformed FEN yields null rather
   // than a silently half-rendered position.
@@ -243,6 +301,12 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   const opponentColor: ChessColor = you === "w" ? "b" : "w";
   const selfColor: ChessColor = you ?? "w";
 
+  const opening = identifyOpening(match.moves);
+  // The king in check, if any — the side to move is the one that can be in
+  // check. Glowed on the board; also lit on a checkmate, where that side is
+  // still in check with no move.
+  const checkSquare =
+    position && isInCheck(position.board, match.turn) ? kingPos(position.board, match.turn) : null;
   const moveList =
     match.moves.length === 0
       ? t("noMoves")
@@ -299,10 +363,15 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
             <span className="block truncate">
               {opponent ? opponent.username : t("waitingForOpponent")}
             </span>
-            <CapturedRow pieces={capturedByColor(opponentColor)} lead={leadFor(opponentColor)} />
+            <CapturedRow
+              pieces={capturedByColor(opponentColor)}
+              lead={leadFor(opponentColor)}
+              color={selfColor}
+            />
           </div>
         </div>
-        <div className="tnum shrink-0 rounded-lg border border-transparent bg-white/4 px-3.5 py-1.5 text-[20px]">
+        <div className="tnum flex shrink-0 items-center gap-1.5 rounded-lg border border-transparent bg-white/4 px-3.5 py-1.5 text-[20px]">
+          <ClockIcon />
           {formatClock(clocks?.[opponentColor] ?? 0)}
         </div>
       </div>
@@ -311,23 +380,61 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
         board={board}
         selected={selected}
         legalTargets={legalTargets}
+        checkSquare={checkSquare}
         orientation={you ?? "w"}
+        theme={theme}
         onSquareClick={you !== null && !over ? (r, c) => void onSquareClick(r, c) : undefined}
       />
+
+      <div className="mt-2.5 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[12px] text-white/55">
+          {opening ? (
+            <>
+              <span className="tnum mr-1.5 text-white/40">{opening.eco}</span>
+              {opening.name}
+            </>
+          ) : null}
+        </span>
+        <BoardThemePicker className="shrink-0" />
+      </div>
+
+      {waiting && you !== null ? (
+        <div className="border-accent/35 mt-3 flex items-center gap-2 rounded-[12px] border bg-white/4 px-4 py-3">
+          <div className="min-w-0 flex-1 text-[12px] font-normal text-white/60">
+            {tCreate("inviteReady")}
+          </div>
+          <button
+            onClick={() => {
+              void navigator.clipboard.writeText(
+                `${window.location.origin}/casino/chess/invite?code=${match.id}`
+              );
+              toast.success(tCreate("linkCopied"));
+            }}
+            className="bg-accent text-ink shrink-0 cursor-pointer rounded-lg px-4 py-2 font-sans text-[12px] font-bold"
+          >
+            {tCreate("copy")}
+          </button>
+        </div>
+      ) : null}
 
       <div className="mt-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
           <span className="border-accent h-[26px] w-[26px] shrink-0 rounded-full border bg-white/8" />
           <div className="min-w-0">
             <span className="block truncate">{self ? self.username : t("you")}</span>
-            <CapturedRow pieces={capturedByColor(selfColor)} lead={leadFor(selfColor)} />
+            <CapturedRow
+              pieces={capturedByColor(selfColor)}
+              lead={leadFor(selfColor)}
+              color={opponentColor}
+            />
           </div>
         </div>
         <div
-          className={`tnum shrink-0 rounded-lg border px-3.5 py-1.5 text-[20px] ${
+          className={`tnum flex shrink-0 items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-[20px] ${
             yourTurn ? "border-accent/50 bg-white/6" : "border-transparent bg-white/4"
           }`}
         >
+          <ClockIcon />
           {formatClock(clocks?.[selfColor] ?? 0)}
         </div>
       </div>

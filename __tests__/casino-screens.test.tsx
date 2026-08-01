@@ -200,7 +200,7 @@ describe("create a game", () => {
     expect(screen.queryByPlaceholderText("0.00")).not.toBeInTheDocument();
   });
 
-  it("shares the match itself as the invite link", async () => {
+  it("opens the created board straight away", async () => {
     chessApi.createChallenge.mockResolvedValue({
       challenge: challenge({ inviteCode: "c1" }),
       ticket: null,
@@ -208,7 +208,8 @@ describe("create a game", () => {
     render(<CreateSection />, { wrapper });
     fireEvent.click(screen.getByRole("button", { name: /Create game & get invite link/ }));
 
-    expect(await screen.findByText(/\/casino\/chess\/invite\?code=c1$/)).toBeInTheDocument();
+    // The creator lands on the board (id c1); the invite link is shared from there.
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=c1"));
   });
 });
 

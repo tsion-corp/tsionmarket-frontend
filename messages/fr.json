@@ -1229,7 +1229,10 @@
         "notEnough": "Solde insuffisant pour cette mise.",
         "yourBets": "Vos paris",
         "betLine": "{selection} @ {odds}",
-        "oddsMovement": "Évolution des cotes"
+        "oddsMovement": "Évolution des cotes",
+        "marketSettled": "Market settled: {outcome} won",
+        "marketVoided": "Market voided, stakes refunded",
+        "noSelfBet": "You are playing this match, so you cannot bet on it."
       },
       "cashier": {
         "title": "Solde échecs",

@@ -28,7 +28,6 @@ export function CreateSection() {
 
   const [mode, setMode] = useState<"invite" | "auto">("invite");
   const [timeControl, setTimeControl] = useState<ChessTimeControl>("30s");
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [stake, setStake] = useState("");
 
   // The stake only exists once the cashier is live. Empty or zero means a
@@ -60,11 +59,9 @@ export function CreateSection() {
         return;
       }
       toast.success(t("toastCreatedInvite"), { id });
-      setInviteUrl(
-        challenge.inviteCode
-          ? `${window.location.origin}/casino/chess/invite?code=${challenge.inviteCode}`
-          : null
-      );
+      // Open the board straight away — the creator waits on it while the invite
+      // link (shown there) brings the opponent in.
+      router.push(`/casino/chess/play?match=${challenge.id}`);
     } catch (e) {
       toast.error(friendlyError(e, t("toastCreateFailed")), { id });
     }
@@ -83,10 +80,7 @@ export function CreateSection() {
         {(["invite", "auto"] as const).map((m) => (
           <button
             key={m}
-            onClick={() => {
-              setMode(m);
-              setInviteUrl(null);
-            }}
+            onClick={() => setMode(m)}
             className={`flex-1 cursor-pointer rounded-full py-2.5 font-sans text-[13px] font-semibold transition-colors ${
               mode === m ? "text-ink bg-white" : "text-white/50"
             }`}
@@ -153,37 +147,13 @@ export function CreateSection() {
         </div>
       ) : null}
 
-      {inviteUrl ? (
-        <div className="border-accent/35 rounded-[14px] border bg-white/4 px-5 py-4.5">
-          <div className="mb-2 text-[12px] font-normal text-white/50">{t("inviteReady")}</div>
-          <div className="flex gap-2">
-            <div className="text-accent ws-inset min-w-0 flex-1 truncate rounded-lg px-3 py-2.5 text-[12px]">
-              {inviteUrl}
-            </div>
-            <button
-              onClick={() => {
-                void navigator.clipboard.writeText(inviteUrl);
-                toast.success(t("linkCopied"));
-              }}
-              className="bg-accent text-ink cursor-pointer rounded-lg px-4 font-sans text-[12px] font-bold"
-            >
-              {t("copy")}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          onClick={() => void onCreate()}
-          disabled={create.isPending || stakeOverBalance}
-          className="text-ink w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
-        >
-          {create.isPending
-            ? t("creating")
-            : mode === "invite"
-              ? t("submitInvite")
-              : t("submitAuto")}
-        </button>
-      )}
+      <button
+        onClick={() => void onCreate()}
+        disabled={create.isPending || stakeOverBalance}
+        className="text-ink w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+      >
+        {create.isPending ? t("creating") : mode === "invite" ? t("submitInvite") : t("submitAuto")}
+      </button>
     </div>
   );
 }

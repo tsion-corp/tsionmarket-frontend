@@ -1229,7 +1229,10 @@
         "notEnough": "Nicht genug Guthaben für diesen Einsatz.",
         "yourBets": "Ihre Wetten",
         "betLine": "{selection} @ {odds}",
-        "oddsMovement": "Quotenverlauf"
+        "oddsMovement": "Quotenverlauf",
+        "marketSettled": "Market settled: {outcome} won",
+        "marketVoided": "Market voided, stakes refunded",
+        "noSelfBet": "You are playing this match, so you cannot bet on it."
       },
       "cashier": {
         "title": "Schach-Guthaben",

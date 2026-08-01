@@ -5,13 +5,16 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-theme-picker";
 import {
   CasinoEmpty,
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
 import { fetchMatch, fetchMatchMoves, fetchPgn } from "@/lib/casino/api/chess";
-import { fromUci, parseFen, type Move } from "@/lib/casino/chess/engine";
+import { useBoardTheme } from "@/lib/casino/chess/board-theme";
+import { identifyOpening } from "@/lib/casino/chess/openings";
+import { fromUci, isInCheck, kingPos, parseFen, type Move } from "@/lib/casino/chess/engine";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { toast } from "@/lib/toast";
 import type { ChessMatch } from "@/lib/casino/api/types";
@@ -33,6 +36,7 @@ function resultScore(match: ChessMatch): string {
 export function ReviewSection({ matchId }: { matchId: string | null }) {
   const t = useTranslations("casino.chess.common");
   const wallet = useCasinoWallet();
+  const theme = useBoardTheme();
 
   const matchQuery = useQuery({
     queryKey: ["casino", "chess", "match", matchId ?? "none"],
@@ -85,6 +89,13 @@ export function ReviewSection({ matchId }: { matchId: string | null }) {
 
   const lastMove: Move | null = current > 0 ? fromUci(moves[current - 1].uci) : null;
 
+  // The opening named by the moves up to the position on screen, so the label
+  // grows as the viewer steps into the game the way it does on a live board.
+  const opening = useMemo(
+    () => identifyOpening(moves.slice(0, current).map((m) => m.san)),
+    [moves, current]
+  );
+
   if (!matchId) {
     return (
       <div className="mx-auto w-full max-w-[560px] px-4 pt-10 pb-20">
@@ -127,7 +138,29 @@ export function ReviewSection({ matchId }: { matchId: string | null }) {
         </div>
       </div>
 
-      <ChessBoard board={board} orientation={orientation} lastMove={lastMove} />
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <span className="min-w-0 truncate text-[12px] text-white/55">
+          {opening ? (
+            <>
+              <span className="tnum mr-1.5 text-white/40">{opening.eco}</span>
+              {opening.name}
+            </>
+          ) : null}
+        </span>
+        <BoardThemePicker className="shrink-0" />
+      </div>
+
+      <ChessBoard
+        board={board}
+        orientation={orientation}
+        lastMove={lastMove}
+        checkSquare={
+          isInCheck(board, current % 2 === 0 ? "w" : "b")
+            ? kingPos(board, current % 2 === 0 ? "w" : "b")
+            : null
+        }
+        theme={theme}
+      />
 
       <div className="mt-3 flex items-center justify-center gap-2">
         <button

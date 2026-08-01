@@ -1,0 +1,11 @@
+"Cburnett" chess piece images.
+
+By Colin M.L. Burnett, the classic set used by Wikipedia and lichess.
+Triple-licensed: GPLv2+, BSD, and CC-BY-SA 3.0 — free to use with this
+attribution. PNGs are Wikimedia Commons' own 150px renders of the SVGs
+(commons.wikimedia.org, files Chess_<piece><l|d>t45.svg).
+
+The board and captured-piece rows build their URLs as
+/piece/cburnett/<c><t>.png (c = w|b, t = p|n|b|r|q|k). To swap sets, drop
+another licensed set into a sibling folder under the same filenames and
+update the one path constant in chess-board.tsx / captured-row.tsx.

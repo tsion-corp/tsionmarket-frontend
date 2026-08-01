@@ -170,7 +170,7 @@ export function isSquareAttacked(board: Board, r: number, c: number, byColor: Pi
   return false;
 }
 
-function kingPos(board: Board, color: PieceColor): Square | null {
+export function kingPos(board: Board, color: PieceColor): Square | null {
   for (let r = 0; r < 8; r++) {
     for (let c = 0; c < 8; c++) {
       const piece = board[r][c];

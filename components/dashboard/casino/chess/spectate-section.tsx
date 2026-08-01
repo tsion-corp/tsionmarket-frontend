@@ -6,14 +6,17 @@ import { useChessMatch } from "@/hooks/use-casino-chess";
 import { useMatchMarket, usePlaceBet } from "@/hooks/use-casino-betting";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import {
   CasinoEmpty,
   CasinoError,
   CasinoLoading,
 } from "@/components/dashboard/casino/casino-state";
-import { capturedFromBoard, parseFen } from "@/lib/casino/chess/engine";
-import { amountUsd, usdToWei } from "@/lib/casino/money";
+import { capturedFromBoard, isInCheck, kingPos, parseFen } from "@/lib/casino/chess/engine";
+import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
+import { exceedsUsdcBalance, normalizeUsdcAmount, parseUsdcAmount } from "@/lib/casino/api/cashier";
+import { estimatePariMutuelReturn, impliedProbability } from "@/lib/casino/betting-math";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { BetSelection, ChessColor } from "@/lib/casino/api/types";
@@ -32,7 +35,9 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
   const tCommon = useTranslations("casino.chess.common");
   const wallet = useCasinoWallet();
   const { match, clocks, isLoading, error } = useChessMatch(matchId);
-  const { odds, history, myBets } = useMatchMarket(matchId);
+  const theme = useBoardTheme();
+  const { odds, myBets } = useMatchMarket(matchId, wallet.address ?? null);
+  const cashier = useChessCashierStatus();
   const placeBet = usePlaceBet();
 
   const [selection, setSelection] = useState<BetSelection | null>(null);
@@ -66,6 +71,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
   } catch {
     board = null;
   }
+  const checkSquare = board && isInCheck(board, match.turn) ? kingPos(board, match.turn) : null;
 
   // Captured pieces and material lead for each side, read off the board.
   const captured = board ? capturedFromBoard(board) : null;
@@ -77,46 +83,57 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
     return advantage > 0 ? advantage : 0;
   };
 
-  const stakeUsd = Number(stakeInput) || 0;
-  const stakeWei = usdToWei(stakeUsd, wallet.unitPriceUsd);
-  const selectedOdds =
-    odds && selection
-      ? selection === "white"
-        ? odds.white
-        : selection === "draw"
-          ? odds.draw
-          : odds.black
-      : 0;
-  const affordable = stakeWei > 0n && wallet.canAfford(stakeWei);
-  const canBet = !!selection && !!odds && affordable && !placeBet.isPending;
+  // Money here is USDC from the chess cashier, the same balance staked matches
+  // use, in exact decimal strings. A USDC figure formatted for display only.
+  const usd = (value: number) => `$${value.toFixed(2)}`;
+  const available = cashier.available;
+  const stakeUsdc = normalizeUsdcAmount(stakeInput); // canonical string, or null
+  const stakeValid = stakeUsdc !== null;
+  // A parseable amount that overdraws the balance, as opposed to an unparseable
+  // one, which is just not valid yet.
+  const overBalance =
+    parseUsdcAmount(stakeInput) !== null && exceedsUsdcBalance(stakeInput, available);
 
-  // Spectator stakes come from the same platform balance as playing does, and
-  // settle back into it. The odds shown are sent with the bet so the server
-  // can reject a fill at a materially worse price rather than silently taking
-  // it.
+  // Players cannot bet on their own match; the service rejects it, and the UI
+  // shouldn't offer it.
+  const addr = wallet.address?.toLowerCase() ?? null;
+  const isPlayer =
+    !!addr &&
+    (match.white?.walletAddress.toLowerCase() === addr ||
+      match.black?.walletAddress.toLowerCase() === addr);
+  const marketOpen = match.state === "in_progress" && (odds?.status ?? "open") === "open";
+
+  const rake = (cashier.config?.platformFeeBps ?? 500) / 10_000;
+  const selectedOdds = odds && selection ? odds.outcomes[selection].odds : null;
+  const estimatedReturn =
+    odds && selection && stakeValid
+      ? estimatePariMutuelReturn(Number(stakeUsdc), odds, selection, rake)
+      : 0;
+
+  const canBet =
+    !!selection &&
+    !!odds &&
+    marketOpen &&
+    !isPlayer &&
+    stakeValid &&
+    !overBalance &&
+    !placeBet.isPending;
+
   const onPlaceBet = async () => {
-    if (!selection || !odds || !matchId) return;
-    if (!wallet.connected) {
+    if (!selection || !matchId || !stakeUsdc) return;
+    if (!wallet.address) {
       toast.error(t("toastConnect"));
       return;
     }
-    if (!affordable) {
+    if (overBalance) {
       toast.error(t("toastNoBalance"));
       return;
     }
     const id = toast.loading(t("toastPlacing"));
     try {
-      const slip = await placeBet.mutateAsync({
-        matchId,
-        selection,
-        stakeWei: stakeWei.toString(),
-        expectedOdds: selectedOdds,
-      });
+      await placeBet.mutateAsync({ matchId, bettor: wallet.address, selection, stakeUsdc });
       toast.success(
-        t("toastPlaced", {
-          odds: slip.lockedOdds.toFixed(2),
-          payout: wallet.format(amountUsd(slip.potentialPayout, wallet.unitPriceUsd)),
-        }),
+        t("toastPlaced", { odds: (selectedOdds ?? 0).toFixed(2), payout: usd(estimatedReturn) }),
         { id }
       );
       setStakeInput("");
@@ -125,18 +142,6 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
       toast.error(friendlyError(e, t("toastPlaceFailed")), { id });
     }
   };
-
-  // Sparkline over the server's published odds history.
-  const points = history.length > 1 ? history : [];
-  const values = points.map((p) => p.white);
-  const min = values.length ? Math.min(...values) : 0;
-  const range = Math.max(0.01, (values.length ? Math.max(...values) : 1) - min);
-  const sparkPoints = points
-    .map(
-      (p, i) =>
-        `${((i / (points.length - 1)) * 240).toFixed(1)},${(52 - ((p.white - min) / range) * 42).toFixed(1)}`
-    )
-    .join(" ");
 
   return (
     <div className="mx-auto w-full max-w-[1160px] px-4 pt-6 pb-20 sm:px-6">
@@ -158,7 +163,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                     ? `${match.black.username} (${match.black.rating})`
                     : tCommon("black")}
                 </span>
-                <CapturedRow pieces={capturedFor("b")} lead={leadFor("b")} />
+                <CapturedRow pieces={capturedFor("b")} lead={leadFor("b")} color="w" />
               </div>
             </div>
             <div className="tnum ws-inset rounded-lg px-3 py-1 text-[16px]">
@@ -167,7 +172,11 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
           </div>
 
           <div className="max-w-[520px]">
-            {board ? <ChessBoard board={board} /> : <CasinoLoading rows={1} />}
+            {board ? (
+              <ChessBoard board={board} theme={theme} checkSquare={checkSquare} />
+            ) : (
+              <CasinoLoading rows={1} />
+            )}
           </div>
 
           <div className="mt-2.5 flex max-w-[520px] items-center justify-between text-[13.5px]">
@@ -179,7 +188,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                     ? `${match.white.username} (${match.white.rating})`
                     : tCommon("white")}
                 </span>
-                <CapturedRow pieces={capturedFor("w")} lead={leadFor("w")} />
+                <CapturedRow pieces={capturedFor("w")} lead={leadFor("w")} color="b" />
               </div>
             </div>
             <div className="tnum ws-inset rounded-lg px-3 py-1 text-[16px]">
@@ -196,22 +205,41 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
             <CasinoLoading label={t("loadingOdds")} rows={2} />
           ) : (
             <>
+              {odds.status === "settled" && odds.winningOutcome ? (
+                <div className="ws-inset mb-3.5 rounded-[10px] px-3 py-2 text-[12px] text-white/65">
+                  {t("marketSettled", { outcome: tCommon(odds.winningOutcome) })}
+                </div>
+              ) : odds.status === "voided" ? (
+                <div className="ws-inset mb-3.5 rounded-[10px] px-3 py-2 text-[12px] text-white/65">
+                  {t("marketVoided")}
+                </div>
+              ) : null}
+
               <div className="mb-3.5 grid grid-cols-3 gap-2">
                 {SELECTIONS.map((s) => {
-                  const price = s === "white" ? odds.white : s === "draw" ? odds.draw : odds.black;
+                  const outcome = odds.outcomes[s];
                   const active = selection === s;
+                  const won = odds.winningOutcome === s;
                   return (
                     <button
                       key={s}
                       onClick={() => setSelection(s)}
-                      className={`cursor-pointer rounded-[10px] border py-3 text-center transition-colors ${
+                      disabled={!marketOpen || isPlayer}
+                      className={`cursor-pointer rounded-[10px] border py-2.5 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
                         active
                           ? "text-ink border-white bg-white"
-                          : "border-white/10 bg-white/4 text-white hover:border-white/25"
+                          : won
+                            ? "border-up/50 bg-up/10 text-white"
+                            : "border-white/10 bg-white/4 text-white hover:border-white/25"
                       }`}
                     >
                       <span className="block text-[11px] opacity-70">{tCommon(s)}</span>
-                      <span className="tnum block text-[19px]">{price.toFixed(2)}</span>
+                      <span className="tnum block text-[18px]">
+                        {outcome.odds !== null ? outcome.odds.toFixed(2) : "—"}
+                      </span>
+                      <span className="tnum block text-[10px] opacity-45">
+                        {usd(Number(outcome.pool))}
+                      </span>
                     </button>
                   );
                 })}
@@ -220,55 +248,59 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
               <div className="mb-4">
                 <div className="mb-1.5 flex justify-between text-[11px] font-normal text-white/50">
                   <span>{t("whiteWinProbability")}</span>
-                  <span className="tnum">{odds.whiteWinProbability}%</span>
+                  <span className="tnum">{Math.round(impliedProbability(odds, "white"))}%</span>
                 </div>
                 <div className="flex h-[7px] overflow-hidden rounded-[4px] bg-white/10">
                   <div
                     className="h-full bg-white transition-[width] duration-500"
-                    style={{ width: `${odds.whiteWinProbability}%` }}
+                    style={{ width: `${impliedProbability(odds, "white")}%` }}
                   />
                 </div>
               </div>
 
-              <div className="mb-3.5 border-t border-white/8 pt-3.5">
-                <div className="mb-2 flex items-center justify-between text-[11px] font-normal text-white/50">
-                  <span>{t("placeABet")}</span>
-                  <span className="tnum">
-                    {t("balance", { amount: wallet.format(wallet.balanceUsd) })}
-                  </span>
+              {isPlayer ? (
+                <div className="ws-inset rounded-[10px] px-3 py-2.5 text-[11.5px] text-white/50">
+                  {t("noSelfBet")}
                 </div>
-                <div className="mb-2.5 flex gap-2">
-                  <input
-                    value={stakeInput}
-                    onChange={(e) => setStakeInput(e.target.value.replace(/[^0-9.]/g, ""))}
-                    inputMode="decimal"
-                    placeholder={t("stakePlaceholder")}
-                    className="ws-inset tnum focus:border-accent/50 min-w-0 flex-1 rounded-lg px-2.5 py-2 font-sans text-[13px] text-white outline-none"
-                  />
-                  <button
-                    onClick={() => void onPlaceBet()}
-                    disabled={!canBet}
-                    className="text-ink cursor-pointer rounded-lg bg-white px-4 font-sans text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
-                  >
-                    {placeBet.isPending ? "…" : t("placeBet")}
-                  </button>
-                </div>
-                {selection && stakeUsd > 0 ? (
-                  <div className="text-[11.5px] font-normal text-white/50">
-                    {affordable
-                      ? t("returns", {
-                          stake: wallet.format(stakeUsd),
-                          selection: tCommon(selection),
-                          odds: selectedOdds.toFixed(2),
-                          payout: wallet.format(stakeUsd * selectedOdds),
-                        })
-                      : t("notEnough")}
+              ) : (
+                <div className="mb-3.5 border-t border-white/8 pt-3.5">
+                  <div className="mb-2 flex items-center justify-between text-[11px] font-normal text-white/50">
+                    <span>{t("placeABet")}</span>
+                    <span className="tnum">{t("balance", { amount: usd(Number(available)) })}</span>
                   </div>
-                ) : null}
-              </div>
+                  <div className="mb-2.5 flex gap-2">
+                    <input
+                      value={stakeInput}
+                      onChange={(e) => setStakeInput(e.target.value.replace(/[^0-9.]/g, ""))}
+                      inputMode="decimal"
+                      placeholder={t("stakePlaceholder")}
+                      className="ws-inset tnum focus:border-accent/50 min-w-0 flex-1 rounded-lg px-2.5 py-2 font-sans text-[13px] text-white outline-none"
+                    />
+                    <button
+                      onClick={() => void onPlaceBet()}
+                      disabled={!canBet}
+                      className="text-ink cursor-pointer rounded-lg bg-white px-4 font-sans text-[12px] font-bold disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {placeBet.isPending ? "…" : t("placeBet")}
+                    </button>
+                  </div>
+                  {selection && stakeValid ? (
+                    <div className="text-[11.5px] font-normal text-white/50">
+                      {overBalance
+                        ? t("notEnough")
+                        : t("returns", {
+                            stake: usd(Number(stakeUsdc)),
+                            selection: tCommon(selection),
+                            odds: (selectedOdds ?? 0).toFixed(2),
+                            payout: usd(estimatedReturn),
+                          })}
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
               {myBets.length > 0 ? (
-                <div className="mb-3.5 border-t border-white/8 pt-3.5">
+                <div className="mt-3.5 border-t border-white/8 pt-3.5">
                   <div className="mb-2 text-[11px] font-normal text-white/50">{t("yourBets")}</div>
                   <div className="flex flex-col gap-1.5">
                     {myBets.map((b) => (
@@ -277,10 +309,10 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                         className="ws-inset flex items-center justify-between rounded-[10px] px-3 py-2 text-[12px]"
                       >
                         <span>
-                          {t("betLine", {
-                            selection: tCommon(b.selection),
-                            odds: b.lockedOdds.toFixed(2),
-                          })}
+                          {tCommon(b.selection)}
+                          <span className="tnum ml-1.5 text-white/45">
+                            {usd(Number(b.stakeUsdc))}
+                          </span>
                         </span>
                         <span
                           className={`tnum font-semibold ${
@@ -291,28 +323,13 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                                 : "text-grey-100"
                           }`}
                         >
-                          {wallet.format(amountUsd(b.potentialPayout, wallet.unitPriceUsd))}
+                          {b.state === "active" || b.payoutUsdc === null
+                            ? "—"
+                            : usd(Number(b.payoutUsdc))}
                         </span>
                       </div>
                     ))}
                   </div>
-                </div>
-              ) : null}
-
-              {points.length > 1 ? (
-                <div>
-                  <div className="mb-1.5 text-[11px] font-normal text-white/50">
-                    {t("oddsMovement")}
-                  </div>
-                  <svg viewBox="0 0 240 56" className="block h-[56px] w-full">
-                    <polyline
-                      points={sparkPoints}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      className="text-accent"
-                    />
-                  </svg>
                 </div>
               ) : null}
             </>

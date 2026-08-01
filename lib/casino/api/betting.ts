@@ -1,37 +1,47 @@
 "use client";
 
-import { casinoGet, casinoPost } from "@/lib/casino/api/client";
-import type { BetSlip, MarketOdds, OddsPoint, PlaceBetInput } from "@/lib/casino/api/types";
+// Pari-mutuel spectator betting on a live chess match. These endpoints live on
+// the chess service (alongside /matches and /cashier), so they go through the
+// chess client, not the generic casino one. Stakes are USDC reserved from the
+// caller's cashier balance and settle automatically when the match ends.
 
-// Spectator betting on a live match. Odds are priced by the server; the
-// client never computes a payout it then asks to be paid. A placed bet
-// escrows the stake and settles automatically when the match ends.
+import { chessGet, chessPost } from "@/lib/casino/api/chess-client";
+import {
+  toBetSlip,
+  toMarketOdds,
+  type BetSlipWire,
+  type MarketOddsWire,
+} from "@/lib/casino/api/betting-wire";
+import type { BetSlip, MarketOdds, PlaceBetInput } from "@/lib/casino/api/types";
 
 export async function fetchMarketOdds(matchId: string): Promise<MarketOdds> {
-  return casinoGet<MarketOdds>(`/betting/markets/${encodeURIComponent(matchId)}/odds`);
-}
-
-export async function fetchOddsHistory(matchId: string): Promise<OddsPoint[]> {
-  const data = await casinoGet<{ points: OddsPoint[] }>(
-    `/betting/markets/${encodeURIComponent(matchId)}/odds/history`
+  return toMarketOdds(
+    await chessGet<MarketOddsWire>(`/betting/markets/${encodeURIComponent(matchId)}/odds`)
   );
-  return data.points;
 }
 
-// Places a spectator bet. The server rejects with ODDS_MOVED if the price has
-// drifted past tolerance since `expectedOdds` was shown, and with
-// INSUFFICIENT_BALANCE if the stake exceeds the caller's balance, so the UI
-// can react precisely rather than showing a generic failure.
+// Places a spectator bet. The service reserves the stake from the bettor's
+// cashier balance. It rejects with FORBIDDEN if the bettor holds a side in the
+// match (players cannot bet on their own game) and CONFLICT once the match is
+// no longer active, so the UI can react precisely.
 export async function placeBet(input: PlaceBetInput): Promise<BetSlip> {
-  return casinoPost<BetSlip>("/betting/bets", input);
+  return toBetSlip(
+    await chessPost<BetSlipWire>("/betting/bets", {
+      matchId: input.matchId,
+      bettor: input.bettor,
+      // The wire field is `outcome`; our domain calls it `selection`.
+      outcome: input.selection,
+      stakeUsdc: input.stakeUsdc,
+    })
+  );
 }
 
-// The caller's own bets, newest first. Scoped to one match when a matchId is
-// given, otherwise across the platform.
-export async function fetchMyBets(matchId?: string): Promise<BetSlip[]> {
-  const data = await casinoGet<{ bets: BetSlip[] }>(
-    "/betting/bets",
-    matchId ? { matchId } : undefined
+// The caller's own bets on one match, with their settlement state and payout.
+export async function fetchMyBets(matchId: string, bettor: string): Promise<BetSlip[]> {
+  const data = await chessGet<{ bets?: BetSlipWire[] } | BetSlipWire[]>(
+    `/betting/markets/${encodeURIComponent(matchId)}/bets`,
+    { bettor }
   );
-  return data.bets;
+  const rows = Array.isArray(data) ? data : (data.bets ?? []);
+  return rows.map(toBetSlip);
 }

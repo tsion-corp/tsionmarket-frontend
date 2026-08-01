@@ -29,9 +29,16 @@ export const SOCKET_CLOSED_FRAME: GatewayFrame = { type: "__closed" };
 
 type Listener = (frame: GatewayFrame) => void;
 
+// The gateway rate-limits new connections per IP (and one is shared with other
+// services), so the socket is opened sparingly: it backs off on a drop that
+// delivered nothing, and stays warm for a moment after the last unsubscribe so a
+// remount or a quick navigation reuses it instead of reconnecting.
+const IDLE_KEEPALIVE_MS = 8_000;
+
 let socket: WebSocket | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let idleCloseTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 2_000;
 
 // topic → its listeners. The key set also drives what we (re)subscribe to on the
@@ -83,7 +90,6 @@ function open(): void {
     return;
   }
   socket.onopen = () => {
-    reconnectDelay = 2_000;
     const topics = [...listeners.keys()];
     if (topics.length > 0) send({ type: "subscribe", topics });
     pingTimer = setInterval(() => send({ type: "ping" }), 25_000);
@@ -94,6 +100,12 @@ function open(): void {
       frame = JSON.parse(String(event.data));
     } catch {
       return;
+    }
+    // Only a delivered game frame proves a healthy relay, so reset the backoff
+    // here (not on open): a socket that connects but flaps without delivering
+    // keeps backing off instead of reconnecting every couple of seconds.
+    if (frame.type === "state" || frame.type === "position" || frame.type === "gameOver") {
+      reconnectDelay = 2_000;
     }
     deliver(frame);
   };
@@ -115,6 +127,17 @@ function scheduleReconnect(): void {
     open();
   }, reconnectDelay);
   reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+}
+
+// Close the socket a short while after the last unsubscribe, so a remount (React
+// StrictMode, or navigating between two boards) reuses the warm socket instead
+// of spending one of the per-IP connection budget on an immediate reconnect.
+function scheduleIdleClose(): void {
+  if (idleCloseTimer != null) return;
+  idleCloseTimer = setTimeout(() => {
+    idleCloseTimer = null;
+    closeIfIdle();
+  }, IDLE_KEEPALIVE_MS);
 }
 
 function closeIfIdle(): void {
@@ -147,6 +170,11 @@ export function subscribeChessTopic(topic: string, listener: Listener): () => vo
   }
   set.add(listener);
 
+  // A new subscriber arrived — cancel any pending idle close and reuse the socket.
+  if (idleCloseTimer != null) {
+    clearTimeout(idleCloseTimer);
+    idleCloseTimer = null;
+  }
   open();
   // If the socket is already open, subscribe this new topic now; if it is still
   // connecting, onopen resubscribes every topic at once.
@@ -159,7 +187,7 @@ export function subscribeChessTopic(topic: string, listener: Listener): () => vo
     if (current.size === 0) {
       listeners.delete(topic);
       send({ type: "unsubscribe", topics: [topic] });
-      closeIfIdle();
+      scheduleIdleClose();
     }
   };
 }
