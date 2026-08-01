@@ -332,7 +332,12 @@ export function PortfolioView({
                   >
                     <span className="flex min-w-0 items-center gap-3">
                       <span className="relative shrink-0">
-                        <AssetIcon sym={t.symbol} bg={tokenBg(t.symbol)} logo={t.logo} />
+                        <AssetIcon
+                          sym={t.symbol}
+                          bg={tokenBg(t.symbol)}
+                          logo={t.logo}
+                          fallback="gradient"
+                        />
                         <span className="absolute -right-1 -bottom-1 grid place-items-center rounded-full bg-[#0d0d0f] p-[1.5px]">
                           <NetworkIcon network={t.network} size={14} />
                         </span>

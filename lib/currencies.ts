@@ -68,7 +68,13 @@ const NO_DECIMALS = new Set(["NGN", "UGX", "TZS", "XOF", "XAF", "RWF"]);
 
 export function formatMoney(amountUsd: number, currency: Currency, rate: number): string {
   const value = amountUsd * rate;
-  const fractionDigits = NO_DECIMALS.has(currency.code) ? 0 : 2;
+  const noDecimals = NO_DECIMALS.has(currency.code);
+  // A tiny non-zero price (memecoins trade far below a cent) must not flatten
+  // to zero — show its significant digits instead.
+  if (value > 0 && value < (noDecimals ? 1 : 0.01)) {
+    return `${currency.symbol}${value.toLocaleString(undefined, { maximumSignificantDigits: 4 })}`;
+  }
+  const fractionDigits = noDecimals ? 0 : 2;
   const formatted = value.toLocaleString(undefined, {
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,

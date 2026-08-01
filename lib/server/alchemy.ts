@@ -1,6 +1,10 @@
 import "server-only";
 import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
-import { fetchBuyableRegistry, type BuyableRegistry } from "@/lib/server/buyable-registry";
+import {
+  fetchBuyableRegistry,
+  type BuyableRegistry,
+  type MemeRegistry,
+} from "@/lib/server/buyable-registry";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -152,7 +156,8 @@ const NETWORK_ALIAS: Record<string, string> = { "matic-mainnet": "polygon-mainne
 function normalize(
   tokens: AlchemyToken[],
   rwa: RwaRegistry,
-  buyable: BuyableRegistry
+  buyable: BuyableRegistry,
+  meme: MemeRegistry
 ): TokenBalance[] {
   const out: TokenBalance[] = [];
   for (const t of tokens) {
@@ -174,9 +179,12 @@ function normalize(
     // returns without metadata.
     const symbol = native?.symbol ?? t.tokenMetadata?.symbol ?? rwaInfo?.symbol;
     if (!symbol) continue;
+    const memeInfo = address ? meme[network]?.get(address.toLowerCase()) : undefined;
     const usdPrice = t.tokenPrices?.find((p) => p.currency === "usd");
     let priceUsd = usdPrice ? parseFloat(usdPrice.value) : 0;
     if (priceUsd === 0 && rwaInfo) priceUsd = rwaInfo.priceUsd;
+    // Memecoins: Alchemy rarely prices them, but the trade catalog does.
+    if (priceUsd === 0 && memeInfo) priceUsd = memeInfo.priceUsd;
     // Alchemy sometimes returns an empty price array for a tracked stablecoin
     // (Polygon USDC has done this). They are dollar-pegged, so value a held
     // balance at $1 rather than $0, which would hide a real holding.
@@ -199,7 +207,7 @@ function normalize(
       rawBalance: rawUnits.toString(),
       priceUsd,
       valueUsd: balance * priceUsd,
-      logo: t.tokenMetadata?.logo ?? rwaInfo?.logo ?? null,
+      logo: t.tokenMetadata?.logo ?? rwaInfo?.logo ?? memeInfo?.logo ?? null,
     });
   }
   return out;
@@ -391,12 +399,12 @@ export async function fetchPortfolio(evm?: string, solana?: string): Promise<Por
         { method: "POST", headers: { "Content-Type": "application/json" }, body }
       );
 
-      const [data, rwa, buyable] = await Promise.all([
+      const [data, rwa, registries] = await Promise.all([
         res.json(),
         fetchRwaRegistry(),
         fetchBuyableRegistry(),
       ]);
-      const held = normalize(data?.data?.tokens ?? [], rwa, buyable);
+      const held = normalize(data?.data?.tokens ?? [], rwa, registries.buyable, registries.meme);
       // Only baseline the chains the user actually has a wallet on.
       const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
       const tokens = await withTrackedBaseline(held, networks);

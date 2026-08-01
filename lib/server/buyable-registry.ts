@@ -9,6 +9,14 @@ import { dextopusRequest } from "@/lib/server/dextopus";
 
 export type BuyableRegistry = Record<string, Set<string>>;
 
+// Display metadata for trade-catalog memecoins, keyed like the registry.
+// Alchemy has no logo and often no price for these, but the catalog does.
+export interface MemeTokenInfo {
+  logo: string | null;
+  priceUsd: number;
+}
+export type MemeRegistry = Record<string, Map<string, MemeTokenInfo>>;
+
 // Alchemy network id per Dextopus chain id, limited to the chains we display in
 // holdings. Keep in sync with SUPPORTED_CHAINS in lib/buy.ts.
 const CHAIN_TO_NETWORK: Record<number, string> = {
@@ -33,7 +41,7 @@ const TRADE_BASE = process.env.NEXT_PUBLIC_TRADE_API_URL;
 // Memecoins from the trade service's catalog: a bought token is a legitimate
 // holding the Dextopus catalog doesn't know about. Catalog entries persist
 // from searches and trades, so anything a user traded is here.
-async function addTradeCatalog(out: BuyableRegistry): Promise<void> {
+async function addTradeCatalog(out: BuyableRegistry, meta: MemeRegistry): Promise<void> {
   if (!TRADE_BASE) return;
   try {
     const res = await fetch(`${TRADE_BASE}/tokens?page=1&limit=100`, {
@@ -41,21 +49,34 @@ async function addTradeCatalog(out: BuyableRegistry): Promise<void> {
     });
     if (!res.ok) return;
     const data = await res.json();
-    const items: Array<{ chainId?: number; address?: string }> = Array.isArray(data?.data?.items)
-      ? data.data.items
-      : [];
+    const items: Array<{
+      chainId?: number;
+      address?: string;
+      logoUrl?: string | null;
+      priceUsd?: string | null;
+    }> = Array.isArray(data?.data?.items) ? data.data.items : [];
     for (const t of items) {
       if (t.chainId !== 8453 || typeof t.address !== "string") continue;
-      (out["base-mainnet"] ??= new Set()).add(t.address.toLowerCase());
+      const address = t.address.toLowerCase();
+      (out["base-mainnet"] ??= new Set()).add(address);
+      const priceUsd = t.priceUsd ? Number(t.priceUsd) : 0;
+      (meta["base-mainnet"] ??= new Map()).set(address, {
+        logo: t.logoUrl ?? null,
+        priceUsd: Number.isFinite(priceUsd) ? priceUsd : 0,
+      });
     }
   } catch {
     // A registry failure must never break the portfolio.
   }
 }
 
-export async function fetchBuyableRegistry(): Promise<BuyableRegistry> {
+export async function fetchBuyableRegistry(): Promise<{
+  buyable: BuyableRegistry;
+  meme: MemeRegistry;
+}> {
   const query = new URLSearchParams({ originChainId: "8453", originAddress: BASE_USDC });
   const out: BuyableRegistry = {};
+  const meme: MemeRegistry = {};
   try {
     const res = await dextopusRequest("deposit/destinations", {
       method: "GET",
@@ -78,6 +99,6 @@ export async function fetchBuyableRegistry(): Promise<BuyableRegistry> {
     // A registry failure must never break the portfolio; fall back to the static
     // allowlist plus whatever was collected.
   }
-  await addTradeCatalog(out);
-  return out;
+  await addTradeCatalog(out, meme);
+  return { buyable: out, meme };
 }

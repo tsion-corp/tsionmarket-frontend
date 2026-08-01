@@ -67,7 +67,10 @@
     "ctaSell": "Vender {symbol}",
     "riskDisclaimer": "Ninguna comprobación automática puede garantizar que un token sea seguro o siga siendo vendible.",
     "prev": "Ant.",
-    "next": "Sig."
+    "next": "Sig.",
+    "confirmingLong": "Aún verificando: Base está ocupada. Puedes cerrar esto; el resultado aparecerá en cuanto llegue.",
+    "closeAndNotify": "Cerrar — avisarme del resultado",
+    "orderFailed": "La operación no se completó."
   },
   "spot": {
     "balance": "Saldo {amount} {symbol}",

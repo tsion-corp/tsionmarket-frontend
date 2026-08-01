@@ -67,7 +67,10 @@
     "ctaSell": "Vendre {symbol}",
     "riskDisclaimer": "Aucune vérification automatique ne peut garantir qu'un token est sûr ou restera vendable.",
     "prev": "Préc.",
-    "next": "Suiv."
+    "next": "Suiv.",
+    "confirmingLong": "Vérification toujours en cours — Base est chargé. Vous pouvez fermer ; le résultat s'affichera dès qu'il arrive.",
+    "closeAndNotify": "Fermer — me prévenir du résultat",
+    "orderFailed": "L'échange n'a pas abouti."
   },
   "spot": {
     "balance": "Solde {amount} {symbol}",

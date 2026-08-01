@@ -137,6 +137,10 @@ interface AssetIconProps {
   fallback?: "badge" | "gradient";
 }
 
+// Icons whose set ships no "background" variant; requesting it logs a warning
+// on every render and draws nothing.
+const MONO_ONLY = new Set(["ARKM"]);
+
 export function AssetIcon({ sym, bg, size = 36, logo, fallback = "badge" }: AssetIconProps) {
   const [imgFailed, setImgFailed] = useState(false);
   const Icon = CRYPTO_ICONS[sym] ?? CRYPTO_ICONS[sym.toUpperCase()];
@@ -148,7 +152,7 @@ export function AssetIcon({ sym, bg, size = 36, logo, fallback = "badge" }: Asse
         className="grid shrink-0 place-items-center overflow-hidden"
         style={{ width: size, height: size, borderRadius: round }}
       >
-        <Icon variant="background" size={size} />
+        <Icon variant={MONO_ONLY.has(sym.toUpperCase()) ? "mono" : "background"} size={size} />
       </span>
     );
   }

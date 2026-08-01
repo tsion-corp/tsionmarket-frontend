@@ -67,7 +67,10 @@
     "ctaSell": "Sell {symbol}",
     "riskDisclaimer": "No automated check can guarantee a token is safe or will remain sellable.",
     "prev": "Prev",
-    "next": "Next"
+    "next": "Next",
+    "confirmingLong": "Still verifying — Base is busy. You can close this; we'll show the result the moment it lands.",
+    "closeAndNotify": "Close — notify me when done",
+    "orderFailed": "The trade didn't complete."
   },
   "spot": {
     "balance": "Balance {amount} {symbol}",

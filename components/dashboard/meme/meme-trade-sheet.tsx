@@ -86,6 +86,8 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
   const submitDisabled =
     busy || !amountValid || !sideEnabled || overBalance || !preview.data || !wallet;
 
+  // Toasts fire even after the sheet is dismissed mid-confirmation, so the
+  // terminal result always reaches the user.
   const onTrade = async () => {
     if (submitDisabled) return;
     try {
@@ -96,16 +98,31 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
           : t("toastSold", { symbol: token.symbol ?? "" })
       );
       void portfolio.refetch();
-    } catch {
-      // The sheet shows the phase + error inline; no duplicate toast.
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t("orderFailed"));
     }
   };
 
+  // Signing must not be interrupted, but backend verification can run without
+  // the sheet — the poll continues and the toast above delivers the outcome.
+  const locked = phase === "linking" || phase === "quoting" || phase === "signing";
   const closeSheet = () => {
-    if (busy) return;
-    reset();
+    if (locked) return;
+    if (phase !== "confirming") reset();
     onClose();
   };
+
+  // Verification usually lands in under a minute; past that, say so honestly
+  // and point at the door.
+  const [confirmingLong, setConfirmingLong] = useState(false);
+  useEffect(() => {
+    if (phase !== "confirming") return;
+    const id = setTimeout(() => setConfirmingLong(true), 90_000);
+    return () => {
+      clearTimeout(id);
+      setConfirmingLong(false);
+    };
+  }, [phase]);
 
   const phaseLabel: Record<string, string> = {
     linking: t("phaseLinking"),
@@ -122,7 +139,7 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        onClick={busy ? undefined : closeSheet}
+        onClick={locked ? undefined : closeSheet}
         className="fixed inset-0 z-[420] cursor-default bg-black/65 backdrop-blur-sm"
       />
       <motion.div
@@ -173,9 +190,21 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
                 <span className="text-[13.5px] font-medium">{phaseLabel[phase]}</span>
               </div>
               <p className="mt-2 text-[12.5px] leading-[1.5] font-normal text-white/55">
-                {phase === "confirming" ? t("confirmingNote") : t("workingNote")}
+                {phase !== "confirming"
+                  ? t("workingNote")
+                  : confirmingLong
+                    ? t("confirmingLong")
+                    : t("confirmingNote")}
               </p>
             </div>
+            {phase === "confirming" ? (
+              <button
+                onClick={closeSheet}
+                className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/14 bg-white/6 p-3.5 font-sans text-[15px] font-semibold text-white hover:bg-white/10"
+              >
+                {t("closeAndNotify")}
+              </button>
+            ) : null}
           </div>
         ) : (
           <>

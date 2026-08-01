@@ -67,7 +67,10 @@
     "ctaSell": "{symbol} verkaufen",
     "riskDisclaimer": "Keine automatische Prüfung kann garantieren, dass ein Token sicher ist oder verkäuflich bleibt.",
     "prev": "Zurück",
-    "next": "Weiter"
+    "next": "Weiter",
+    "confirmingLong": "Wird noch verifiziert — Base ist ausgelastet. Sie können dies schließen; das Ergebnis erscheint, sobald es vorliegt.",
+    "closeAndNotify": "Schließen — Ergebnis melden",
+    "orderFailed": "Der Handel wurde nicht abgeschlossen."
   },
   "spot": {
     "balance": "Guthaben {amount} {symbol}",
