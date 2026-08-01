@@ -8,7 +8,11 @@ const chessClient = vi.hoisted(() => ({
 
 vi.mock("@/lib/casino/api/chess-client", () => chessClient);
 
-import { fetchJoinableMatches, fetchOpenChallenges } from "@/lib/casino/api/chess";
+import {
+  fetchJoinableMatches,
+  fetchLobbyChallenges,
+  fetchOpenChallenges,
+} from "@/lib/casino/api/chess";
 
 function waitingMatch(
   id: string,
@@ -70,5 +74,26 @@ describe("chess waiting-match filters", () => {
     const joinable = await fetchJoinableMatches("0xAbC");
 
     expect(joinable.map((match) => match.id)).toEqual(["fresh"]);
+  });
+
+  it("keeps the caller's own waiting game resumable while hiding stale public seats", async () => {
+    chessClient.chessGet.mockResolvedValue({
+      items: [
+        waitingMatch("mine-stale", new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), {
+          white: "0xabc",
+        }),
+        waitingMatch("other-stale", new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), {
+          white: "0xdef",
+        }),
+        waitingMatch("other-fresh", new Date(Date.now() - 5 * 60 * 1000).toISOString(), {
+          white: "0xdef",
+        }),
+      ],
+    });
+
+    const lobby = await fetchLobbyChallenges("0xAbC");
+
+    expect(lobby.myOpenGames.map((challenge) => challenge.id)).toEqual(["mine-stale"]);
+    expect(lobby.challenges.map((challenge) => challenge.id)).toEqual(["other-fresh"]);
   });
 });

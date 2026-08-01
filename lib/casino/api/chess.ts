@@ -39,6 +39,11 @@ interface MoveResultWire {
   move: ChessMoveWire;
 }
 
+export interface LobbyChallenges {
+  challenges: ChessChallenge[];
+  myOpenGames: ChessChallenge[];
+}
+
 // The service has no server-side expiry for waiting matches, so the public
 // lobby and quick-match path hide seats that are old enough to read as
 // abandoned. Direct invite links still resolve by match id.
@@ -74,6 +79,8 @@ export async function fetchMatch(matchId: string): Promise<ChessMatch> {
   return toChessMatch(wire, { moves });
 }
 
+// Public open seats. Old waiting games read as abandoned in the lobby, so the
+// public list hides them even if the backend has not cleaned them up yet.
 export async function fetchOpenChallenges(): Promise<ChessChallenge[]> {
   const data = await chessGet<MatchListWire>("/matches", { status: "waiting", limit: "50" });
   return data.items.filter(isFreshWaitingMatch).map((wire) => toChessChallenge(wire));
@@ -88,6 +95,29 @@ export async function fetchLiveMatches(): Promise<ChessMatch[]> {
 export async function fetchWaitingMatches(): Promise<ChessMatchWire[]> {
   const data = await chessGet<MatchListWire>("/matches", { status: "waiting", limit: "50" });
   return data.items;
+}
+
+// The lobby treats the viewer's own open game differently from everybody
+// else's: it must stay resumable even if it is old, while stale public seats
+// stay hidden so the challenge list does not fill with abandoned games.
+export async function fetchLobbyChallenges(wallet: string | null): Promise<LobbyChallenges> {
+  const mine = wallet?.toLowerCase() ?? null;
+  const matches = await fetchWaitingMatches();
+  const challenges: ChessChallenge[] = [];
+  const myOpenGames: ChessChallenge[] = [];
+
+  for (const match of matches) {
+    const mineOnThisMatch =
+      !!mine && (match.white?.toLowerCase() === mine || match.black?.toLowerCase() === mine);
+    const challenge = toChessChallenge(match);
+    if (mineOnThisMatch) {
+      myOpenGames.push(challenge);
+    } else if (isFreshWaitingMatch(match)) {
+      challenges.push(challenge);
+    }
+  }
+
+  return { challenges, myOpenGames };
 }
 
 // Waiting games this player could join. Their own open games are excluded: the

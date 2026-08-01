@@ -40,7 +40,8 @@ export async function placeBet(input: PlaceBetInput): Promise<BetSlip> {
 export async function fetchMyBets(matchId: string, bettor: string): Promise<BetSlip[]> {
   const data = await chessGet<{ bets?: BetSlipWire[] } | BetSlipWire[]>(
     `/betting/markets/${encodeURIComponent(matchId)}/bets`,
-    { bettor }
+    { bettor },
+    { requireAuth: true }
   );
   const rows = Array.isArray(data) ? data : (data.bets ?? []);
   return rows.map(toBetSlip);

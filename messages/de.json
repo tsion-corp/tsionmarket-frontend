@@ -1155,11 +1155,15 @@
         "liveNow": "Jetzt live",
         "liveEmpty": "Noch keine laufenden Partien. Erstellen Sie eine und sie erscheint hier.",
         "vs": "vs",
+        "yourActiveGames": "Deine aktiven Spiele",
         "openChallenges": "Offene Herausforderungen",
         "challengesEmpty": "Keine offenen Herausforderungen. Erstellen Sie eine und andere Spieler können beitreten.",
         "colOpponent": "Gegner",
         "colTimeControl": "Bedenkzeit",
-        "join": "Beitreten"
+        "join": "Beitreten",
+        "yourOpenGames": "Deine offenen Spiele",
+        "awaitingOpponent": "Warten auf einen Gegner",
+        "resume": "Fortsetzen"
       },
       "create": {
         "title": "Partie erstellen",
@@ -1333,7 +1337,13 @@
         "joinLocks": "Beitreten sperrt {amount} USDC aus Ihrem Schach-Guthaben.",
         "wagerEach": "Einsatz · {amount} USDC pro Spieler",
         "wagerRefunded": "Einsätze an beide Spieler erstattet.",
-        "wagerSettled": "Pot an den Sieger ausgezahlt (nach der {pct}%-Gebühr)."
+        "wagerSettled": "Pot an den Sieger ausgezahlt (nach der {pct}%-Gebühr).",
+        "summaryStake": "Stake, each side",
+        "summaryYouLock": "You lock now",
+        "summaryAfter": "Balance after",
+        "summaryWinner": "Winner receives",
+        "summaryFee": "Platform fee ({pct}%)",
+        "available": "{amount} USDC available"
       },
       "swiss": {
         "entryTitle": "Schweizer Turniere",

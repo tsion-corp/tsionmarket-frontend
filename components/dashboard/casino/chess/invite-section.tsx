@@ -7,6 +7,9 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchChallengeByInvite } from "@/lib/casino/api/chess";
 import { useAcceptChallenge } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
+import { exceedsUsdcBalance } from "@/lib/casino/api/cashier";
+import { WagerSummary } from "@/components/dashboard/casino/chess/wager-summary";
 import {
   CasinoEmpty,
   CasinoError,
@@ -27,8 +30,10 @@ function timeControlLabel(t: ReturnType<typeof useTranslations>, tc: string): st
 export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
   const t = useTranslations("casino.chess.invite");
   const tCommon = useTranslations("casino.chess.common");
+  const tStake = useTranslations("casino.chess.stake");
   const router = useRouter();
   const wallet = useCasinoWallet();
+  const cashier = useChessCashierStatus();
   const accept = useAcceptChallenge();
 
   const {
@@ -51,9 +56,20 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
   if (error) return frame(<CasinoError error={error} subject={t("subject")} />);
   if (isLoading || !challenge) return frame(<CasinoLoading label={t("loading")} rows={4} />);
 
+  // A staked challenge locks the same amount from the joiner. Surface it before
+  // they take the seat rather than failing them at the server.
+  const staked =
+    challenge.stakeUsdc && Number(challenge.stakeUsdc) > 0 ? challenge.stakeUsdc : null;
+  const insufficient =
+    !!staked && cashier.configured && exceedsUsdcBalance(staked, cashier.available);
+
   const onAccept = async () => {
     if (!wallet.connected) {
       toast.error(t("toastSignIn"));
+      return;
+    }
+    if (insufficient && staked) {
+      toast.error(tStake("needsBalance", { amount: staked }));
       return;
     }
     const id = toast.loading(t("takingSeat"));
@@ -74,10 +90,25 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       <div className="mb-5 text-[12px] font-normal text-white/50">
         {timeControlLabel(tCommon, challenge.timeControl)}
       </div>
-      <div className="mb-6 text-[12.5px] font-normal text-white/55">{t("waitingNote")}</div>
+      {staked && cashier.configured ? (
+        <div className="mb-5 text-left">
+          <WagerSummary
+            stakeUsdc={staked}
+            availableUsdc={cashier.available}
+            feeBps={cashier.config?.platformFeeBps ?? 500}
+          />
+          <div className="mt-2 text-center text-[11.5px] font-normal text-white/50">
+            {insufficient
+              ? tStake("needsBalance", { amount: staked })
+              : tStake("joinLocks", { amount: staked })}
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6 text-[12.5px] font-normal text-white/55">{t("waitingNote")}</div>
+      )}
       <button
         onClick={() => void onAccept()}
-        disabled={accept.isPending}
+        disabled={accept.isPending || insufficient}
         className="text-ink mb-2.5 block w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
       >
         {accept.isPending ? t("takingSeat") : t("accept")}

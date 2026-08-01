@@ -3,9 +3,11 @@ import { apiError } from "@/lib/casino/api/envelope";
 import {
   exceedsUsdcBalance,
   feePctFromBps,
+  isCashierAccessDenied,
   isCashierUnavailable,
   normalizeUsdcAmount,
   parseUsdcAmount,
+  wagerBreakdown,
 } from "@/lib/casino/api/cashier";
 
 // Only the pure helpers are under test; the transport would drag Privy and
@@ -14,6 +16,43 @@ vi.mock("@/lib/casino/api/chess-client", () => ({
   chessGet: vi.fn(),
   chessPost: vi.fn(),
 }));
+
+describe("wagerBreakdown", () => {
+  it("computes a $5 stake on a $6 balance at 5%", () => {
+    const b = wagerBreakdown("5", "6", 500);
+    expect(b.youLock).toBe("5");
+    expect(b.balanceAfter).toBe("1");
+    expect(b.pot).toBe("10");
+    expect(b.fee).toBe("0.5");
+    expect(b.winnerReceives).toBe("9.5");
+    expect(b.sufficient).toBe(true);
+  });
+
+  it("computes the $1 vs $1 case at 5%", () => {
+    const b = wagerBreakdown("1", "1", 500);
+    expect(b.pot).toBe("2");
+    expect(b.fee).toBe("0.1");
+    expect(b.winnerReceives).toBe("1.9");
+    expect(b.balanceAfter).toBe("0");
+    expect(b.sufficient).toBe(true);
+  });
+
+  it("flags an overdraw and clamps balance-after to zero", () => {
+    const b = wagerBreakdown("10", "6", 500);
+    expect(b.sufficient).toBe(false);
+    expect(b.balanceAfter).toBe("0");
+    // The pot math still holds regardless of balance.
+    expect(b.winnerReceives).toBe("19");
+  });
+
+  it("floors the fee to micro-USDC like the service", () => {
+    // pot 0.02, 5% = 0.001 exactly, still representable at 6 decimals.
+    const b = wagerBreakdown("0.01", "1", 500);
+    expect(b.pot).toBe("0.02");
+    expect(b.fee).toBe("0.001");
+    expect(b.winnerReceives).toBe("0.019");
+  });
+});
 
 describe("isCashierUnavailable", () => {
   it("treats the service's not-configured answers as unavailable", () => {
@@ -33,6 +72,19 @@ describe("isCashierUnavailable", () => {
     expect(isCashierUnavailable(null)).toBe(false);
     expect(isCashierUnavailable(undefined)).toBe(false);
     expect(isCashierUnavailable("boom")).toBe(false);
+  });
+});
+
+describe("isCashierAccessDenied", () => {
+  it("treats auth and wallet identity failures as terminal", () => {
+    expect(isCashierAccessDenied(apiError("UNAUTHORIZED", "sign in", 401))).toBe(true);
+    expect(isCashierAccessDenied(apiError("NO_WALLET", "link a wallet", 400))).toBe(true);
+  });
+
+  it("does not confuse ordinary service faults with auth faults", () => {
+    expect(isCashierAccessDenied(apiError("CONFLICT", "not configured", 409))).toBe(false);
+    expect(isCashierAccessDenied(apiError("SERVICE_UNAVAILABLE", "gateway down", 502))).toBe(false);
+    expect(isCashierAccessDenied(new Error("network"))).toBe(false);
   });
 });
 

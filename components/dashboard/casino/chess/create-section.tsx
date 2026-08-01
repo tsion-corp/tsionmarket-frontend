@@ -7,6 +7,7 @@ import { useCreateChallenge } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { exceedsUsdcBalance, normalizeUsdcAmount } from "@/lib/casino/api/cashier";
+import { WagerSummary } from "@/components/dashboard/casino/chess/wager-summary";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import {
@@ -134,12 +135,26 @@ export function CreateSection() {
               <span className="shrink-0 text-[11px] font-normal text-white/45">USDC</span>
             </div>
           </div>
-          {stakeOverBalance ? (
-            <div className="text-down mt-2.5 text-[12px] font-normal">
-              {tStake("needsBalance", { amount: stakeUsdc ?? "0" })}
-            </div>
-          ) : null}
-          {cashier.feePct !== null ? (
+          <div className="tnum mt-3 text-[11.5px] font-normal text-white/45">
+            {tStake("available", { amount: cashier.available })}
+          </div>
+
+          {stakeUsdc !== undefined ? (
+            <>
+              <div className="mt-3">
+                <WagerSummary
+                  stakeUsdc={stakeUsdc}
+                  availableUsdc={cashier.available}
+                  feeBps={cashier.config?.platformFeeBps ?? 500}
+                />
+              </div>
+              {stakeOverBalance ? (
+                <div className="text-down mt-2.5 text-[12px] font-normal">
+                  {tStake("needsBalance", { amount: stakeUsdc })}
+                </div>
+              ) : null}
+            </>
+          ) : cashier.feePct !== null ? (
             <div className="mt-4 text-[11.5px] font-normal text-white/50">
               {tStake("note", { pct: cashier.feePct })}
             </div>

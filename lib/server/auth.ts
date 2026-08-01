@@ -36,12 +36,23 @@ export async function verifyRequest(req: NextRequest): Promise<AccessClaims | nu
 }
 
 // Resolves the full Privy user from an identity token, when the client sent
-// one. Requires identity tokens to be enabled in the Privy dashboard.
-export async function getRequestUser(req: NextRequest): Promise<User | null> {
+// one. When the identity token is missing or cold, fall back to the verified
+// user id so money-moving routes can still prove which wallet the session owns.
+export async function getRequestUser(
+  req: NextRequest,
+  claims: AccessClaims | null = null
+): Promise<User | null> {
   const idToken = req.headers.get("privy-id-token") ?? req.cookies.get("privy-id-token")?.value;
-  if (!idToken) return null;
+  if (idToken) {
+    try {
+      return await getPrivyClient().users().get({ id_token: idToken });
+    } catch {
+      // Fall through to the verified user id below.
+    }
+  }
+  if (!claims) return null;
   try {
-    return await getPrivyClient().users().get({ id_token: idToken });
+    return await getPrivyClient().users()._get(claims.userId);
   } catch {
     return null;
   }

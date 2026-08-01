@@ -1155,11 +1155,15 @@
         "liveNow": "Live now",
         "liveEmpty": "No games in play yet. Create one and it shows up here.",
         "vs": "vs",
+        "yourActiveGames": "Your active games",
         "openChallenges": "Open challenges",
         "challengesEmpty": "No open challenges. Create one and other players can join it.",
         "colOpponent": "Opponent",
         "colTimeControl": "Time control",
-        "join": "Join"
+        "join": "Join",
+        "yourOpenGames": "Your open games",
+        "awaitingOpponent": "Waiting for an opponent",
+        "resume": "Resume"
       },
       "create": {
         "title": "Create a game",
@@ -1333,7 +1337,13 @@
         "joinLocks": "Joining locks {amount} USDC from your chess balance.",
         "wagerEach": "Staked · {amount} USDC each",
         "wagerRefunded": "Stakes refunded to both players.",
-        "wagerSettled": "Pot settled to the winner (after the {pct}% fee)."
+        "wagerSettled": "Pot settled to the winner (after the {pct}% fee).",
+        "summaryStake": "Stake, each side",
+        "summaryYouLock": "You lock now",
+        "summaryAfter": "Balance after",
+        "summaryWinner": "Winner receives",
+        "summaryFee": "Platform fee ({pct}%)",
+        "available": "{amount} USDC available"
       },
       "swiss": {
         "entryTitle": "Swiss tournaments",

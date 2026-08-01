@@ -1155,11 +1155,15 @@
         "liveNow": "En vivo",
         "liveEmpty": "Aún no hay partidas en juego. Crea una y aparecerá aquí.",
         "vs": "vs",
+        "yourActiveGames": "Tus partidas activas",
         "openChallenges": "Desafíos abiertos",
         "challengesEmpty": "No hay desafíos abiertos. Crea uno y otros jugadores podrán unirse.",
         "colOpponent": "Rival",
         "colTimeControl": "Ritmo de juego",
-        "join": "Unirse"
+        "join": "Unirse",
+        "yourOpenGames": "Tus partidas abiertas",
+        "awaitingOpponent": "Esperando un rival",
+        "resume": "Reanudar"
       },
       "create": {
         "title": "Crear una partida",
@@ -1333,7 +1337,13 @@
         "joinLocks": "Unirte bloquea {amount} USDC de tu saldo de ajedrez.",
         "wagerEach": "Apuesta · {amount} USDC cada uno",
         "wagerRefunded": "Apuestas reembolsadas a ambos jugadores.",
-        "wagerSettled": "Pozo entregado al ganador (tras la comisión del {pct}%)."
+        "wagerSettled": "Pozo entregado al ganador (tras la comisión del {pct}%).",
+        "summaryStake": "Stake, each side",
+        "summaryYouLock": "You lock now",
+        "summaryAfter": "Balance after",
+        "summaryWinner": "Winner receives",
+        "summaryFee": "Platform fee ({pct}%)",
+        "available": "{amount} USDC available"
       },
       "swiss": {
         "entryTitle": "Torneos suizos",

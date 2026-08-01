@@ -9,6 +9,7 @@ import {
   feePctFromBps,
   fetchCashierConfig,
   fetchChessBalance,
+  isCashierAccessDenied,
   isCashierUnavailable,
   USDC_DECIMALS,
   type CashierWithdrawal,
@@ -62,7 +63,7 @@ export interface ChessDepositOutcome {
 // mount; it touches no wallet SDK, so it is safe on screens that never move
 // money.
 export function useChessCashierStatus() {
-  const { user } = usePrivy();
+  const { user, ready, authenticated } = usePrivy();
   const wallet = getWalletAddress(user, "ethereum");
 
   const config = useQuery({
@@ -75,12 +76,20 @@ export function useChessCashierStatus() {
   });
 
   const configured = config.isSuccess;
+  const enabled = configured && !!wallet && ready && authenticated;
 
   const balance = useQuery({
     queryKey: CASHIER_KEYS.balance(wallet ?? "none"),
     queryFn: () => fetchChessBalance(wallet as string),
-    enabled: configured && !!wallet,
-    refetchInterval: BALANCE_POLL_MS,
+    enabled,
+    // Private reads need the verified Privy session. If the session is cold,
+    // apiFetch throws before any request goes out; keep retrying that warm-up.
+    // A real 401/NO_WALLET from the proxy is terminal until the user signs in
+    // again or links the wallet, so stop there instead of hammering the route.
+    retry: (failureCount, error) =>
+      !isCashierAccessDenied(error) && !isCashierUnavailable(error) && failureCount < 4,
+    refetchInterval: (query) =>
+      isCashierAccessDenied(query.state.error) ? false : BALANCE_POLL_MS,
   });
 
   return {
@@ -91,7 +100,7 @@ export function useChessCashierStatus() {
     feePct: config.data ? feePctFromBps(config.data.platformFeeBps) : null,
     available: balance.data?.availableUsdc ?? "0",
     locked: balance.data?.lockedUsdc ?? "0",
-    balanceLoading: balance.isLoading,
+    balanceLoading: enabled && balance.isLoading,
   };
 }
 

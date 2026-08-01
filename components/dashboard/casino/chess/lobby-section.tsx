@@ -16,7 +16,7 @@ import { CashierSheet, type CashierMode } from "@/components/dashboard/casino/ch
 import { ModalShell } from "@/components/ui/modal-shell";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
-import type { ChessChallenge, ChessTimeControl } from "@/lib/casino/api/types";
+import type { ChessChallenge, ChessMatch, ChessTimeControl } from "@/lib/casino/api/types";
 
 // The common chess namespace names the speed after its preset, so the label
 // reads "5+3 Blitz" in every locale.
@@ -28,14 +28,30 @@ function timeControlLabel(t: ReturnType<typeof useTranslations>, tc: string): st
 // a different one uses Create a game.
 const QUICK_MATCH_TIME_CONTROL: ChessTimeControl = "5+3";
 
+function opponentName(
+  match: ChessMatch,
+  wallet: string | null,
+  t: ReturnType<typeof useTranslations>
+): string {
+  const mine = wallet?.toLowerCase();
+  if (match.white?.walletAddress?.toLowerCase() === mine) {
+    return match.black?.username ?? t("waiting");
+  }
+  if (match.black?.walletAddress?.toLowerCase() === mine) {
+    return match.white?.username ?? t("waiting");
+  }
+  return match.white?.username ?? match.black?.username ?? t("waiting");
+}
+
 export function LobbySection() {
   const t = useTranslations("casino.chess.lobby");
   const tCommon = useTranslations("casino.chess.common");
   const tSwiss = useTranslations("casino.chess.swiss");
   const tCashier = useTranslations("casino.chess.cashier");
   const router = useRouter();
-  const { challenges, liveMatches, isLoading, error, refetch } = useChessLobby();
   const wallet = useCasinoWallet();
+  const { challenges, myActiveGames, myOpenGames, liveMatches, isLoading, error, refetch } =
+    useChessLobby(wallet.address ?? null);
   const cashier = useChessCashierStatus();
   const accept = useAcceptChallenge();
   const quickMatch = useQuickMatch();
@@ -148,7 +164,46 @@ export function LobbySection() {
         <CasinoLoading label={t("loading")} rows={4} />
       ) : (
         <>
-          <div className="mb-3 flex items-baseline justify-between gap-3">
+          {myActiveGames.length > 0 ? (
+            <>
+              <div className="ws-display mb-3 text-[18px]">{t("yourActiveGames")}</div>
+              <div className="overflow-x-auto rounded-[14px] border border-white/8">
+                <div className="min-w-[640px]">
+                  {myActiveGames.map((m) => (
+                    <div
+                      key={m.id}
+                      className="grid grid-cols-[2fr_1fr_90px] items-center border-t border-white/6 px-4.5 py-3 text-[13px] first:border-t-0"
+                    >
+                      <div className="truncate">
+                        {opponentName(m, wallet.address ?? null, tCommon)}
+                        {m.stakeUsdc ? (
+                          <span className="text-white/60">
+                            {" · "}
+                            {tCommon("stakedFor", { amount: m.stakeUsdc })}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="font-normal text-white/50">
+                        {timeControlLabel(tCommon, m.timeControl)}
+                      </div>
+                      <button
+                        onClick={() => router.push(`/casino/chess/play?match=${m.id}`)}
+                        className="text-ink cursor-pointer rounded-full bg-white py-1.5 text-center font-sans text-[12px] font-bold"
+                      >
+                        {t("resume")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          <div
+            className={`mb-3 flex items-baseline justify-between gap-3 ${
+              myActiveGames.length > 0 ? "mt-9" : ""
+            }`}
+          >
             <div className="ws-display text-[18px]">{t("liveNow")}</div>
             <Link
               href="/casino/chess/history"
@@ -179,6 +234,41 @@ export function LobbySection() {
               ))}
             </div>
           )}
+
+          {myOpenGames.length > 0 ? (
+            <>
+              <div className="ws-display mt-9 mb-3 text-[18px]">{t("yourOpenGames")}</div>
+              <div className="overflow-x-auto rounded-[14px] border border-white/8">
+                <div className="min-w-[640px]">
+                  {myOpenGames.map((c) => (
+                    <div
+                      key={c.id}
+                      className="grid grid-cols-[2fr_1fr_90px] items-center border-t border-white/6 px-4.5 py-3 text-[13px] first:border-t-0"
+                    >
+                      <div className="truncate">
+                        {t("awaitingOpponent")}
+                        {c.stakeUsdc ? (
+                          <span className="text-white/60">
+                            {" · "}
+                            {tCommon("stakedFor", { amount: c.stakeUsdc })}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="font-normal text-white/50">
+                        {timeControlLabel(tCommon, c.timeControl)}
+                      </div>
+                      <button
+                        onClick={() => router.push(`/casino/chess/play?match=${c.id}`)}
+                        className="text-ink cursor-pointer rounded-full bg-white py-1.5 text-center font-sans text-[12px] font-bold"
+                      >
+                        {t("resume")}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : null}
 
           <div className="ws-display mt-9 mb-3 text-[18px]">{t("openChallenges")}</div>
           {challenges.length === 0 ? (

@@ -9,10 +9,11 @@ import {
   claimTimeout,
   createChallenge,
   fetchJoinableMatches,
+  fetchLobbyChallenges,
   fetchLiveMatches,
   fetchMatch,
   fetchMatchmakingTicket,
-  fetchOpenChallenges,
+  fetchPlayerMatches,
   fetchWaitingMatches,
   claimDraw,
   offerDraw,
@@ -20,7 +21,6 @@ import {
   resignMatch,
   respondToDraw,
   submitMove,
-  fetchPlayerMatches,
 } from "@/lib/casino/api/chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import {
@@ -107,10 +107,10 @@ function requireWallet(address: string | null): string {
   return address;
 }
 
-export function useChessLobby() {
+export function useChessLobby(wallet: string | null) {
   const challenges = useQuery({
-    queryKey: CHESS_KEYS.challenges,
-    queryFn: fetchOpenChallenges,
+    queryKey: [...CHESS_KEYS.challenges, wallet ?? "anon"],
+    queryFn: () => fetchLobbyChallenges(wallet),
     refetchInterval: LOBBY_POLL_MS,
   });
   const live = useQuery({
@@ -118,10 +118,23 @@ export function useChessLobby() {
     queryFn: fetchLiveMatches,
     refetchInterval: LOBBY_POLL_MS,
   });
-
+  const mine = wallet?.toLowerCase() ?? null;
+  const allLive =
+    live.data
+      ?.filter((match) => match.state === "in_progress")
+      .sort((a, b) => {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }) ?? [];
+  const isMine = (match: ChessMatch) =>
+    !!mine &&
+    (match.white?.walletAddress?.toLowerCase() === mine ||
+      match.black?.walletAddress?.toLowerCase() === mine);
+  const myActiveGames = mine ? allLive.filter(isMine) : [];
   return {
-    challenges: challenges.data ?? [],
-    liveMatches: live.data ?? [],
+    challenges: challenges.data?.challenges ?? [],
+    myActiveGames,
+    myOpenGames: challenges.data?.myOpenGames ?? [],
+    liveMatches: allLive.filter((match) => !isMine(match)),
     isLoading: challenges.isLoading || live.isLoading,
     error: challenges.error ?? live.error,
     refetch: () => {

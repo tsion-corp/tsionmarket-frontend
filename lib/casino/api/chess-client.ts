@@ -11,9 +11,17 @@ import { unwrap } from "@/lib/casino/api/envelope";
 const BASE_PATH = "/api/chess";
 const FALLBACK_MESSAGE = "Chess is unavailable right now.";
 
-export async function chessGet<T>(path: string, params?: Record<string, string>): Promise<T> {
+export async function chessGet<T>(
+  path: string,
+  params?: Record<string, string>,
+  opts: { requireAuth?: boolean } = {}
+): Promise<T> {
   const query = params ? `?${new URLSearchParams(params).toString()}` : "";
-  return unwrap<T>(await fetch(`${BASE_PATH}${path}${query}`), FALLBACK_MESSAGE);
+  const requestPath = `${BASE_PATH}${path}${query}`;
+  const res = opts.requireAuth
+    ? await apiFetch(requestPath, {}, { requireAuth: true })
+    : await fetch(requestPath);
+  return unwrap<T>(res, FALLBACK_MESSAGE);
 }
 
 // The body always exists on this service, even for an action as simple as
