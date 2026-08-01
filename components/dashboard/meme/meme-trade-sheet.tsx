@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/components/dashboard/meme/meme-bits";
 import { useMemeToken } from "@/hooks/use-meme-tokens";
 import { useMemePreview, useMemeTrade } from "@/hooks/use-meme-trade";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { isValidTradeAmount, type MemeToken } from "@/lib/meme/api";
+import { TradeApiError, isValidTradeAmount, type MemeToken } from "@/lib/meme/api";
 import { toast } from "@/lib/toast";
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
@@ -30,8 +30,9 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [amount, setAmount] = useState("");
   const [debouncedAmount, setDebouncedAmount] = useState("");
-  const { wallet, phase, error, trade, reset } = useMemeTrade();
+  const { wallet, phase, error, trade, reset, linkForPreview } = useMemeTrade();
   const portfolio = usePortfolio();
+  const linkTriedRef = useRef(false);
 
   useEffect(() => {
     const id = setTimeout(() => setDebouncedAmount(amount), PREVIEW_DEBOUNCE_MS);
@@ -63,6 +64,23 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
     [amountValid, sideEnabled, overBalance, wallet, side, token.address, debouncedAmount]
   );
   const preview = useMemePreview(previewInput);
+
+  // A first-ever preview 403s until the wallet is linked; link once (headless
+  // signature) and refetch. One attempt per sheet — a second mismatch is real.
+  const previewError = preview.error;
+  const previewRefetch = preview.refetch;
+  useEffect(() => {
+    if (
+      previewError instanceof TradeApiError &&
+      previewError.code === "WALLET_OWNERSHIP_MISMATCH" &&
+      !linkTriedRef.current
+    ) {
+      linkTriedRef.current = true;
+      void linkForPreview()
+        .then(() => previewRefetch())
+        .catch(() => {});
+    }
+  }, [previewError, linkForPreview, previewRefetch]);
 
   const busy = phase !== "idle" && phase !== "failed" && phase !== "confirmed";
   const submitDisabled =
@@ -99,6 +117,7 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
   return (
     <AnimatePresence>
       <motion.button
+        key="backdrop"
         aria-label={t("cancel")}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -107,6 +126,7 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
         className="fixed inset-0 z-[420] cursor-default bg-black/65 backdrop-blur-sm"
       />
       <motion.div
+        key="sheet"
         initial={{ y: "100%" }}
         animate={{ y: 0 }}
         exit={{ y: "100%" }}
@@ -246,8 +266,10 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
 
             {token.warnings.length > 0 ? (
               <div className="mt-3 flex flex-col gap-1">
-                {token.warnings.slice(0, 3).map((w) => (
-                  <div key={w.code} className="text-down/90 text-[11.5px] font-normal">
+                {/* Warning codes can repeat or arrive empty, so the key needs
+                    the index. */}
+                {token.warnings.slice(0, 3).map((w, i) => (
+                  <div key={`${w.code}-${i}`} className="text-down/90 text-[11.5px] font-normal">
                     {w.message}
                   </div>
                 ))}

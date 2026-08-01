@@ -9,6 +9,7 @@ import {
   TradeApiError,
   createWalletChallenge,
   fetchSwapStatus,
+  newIdempotencyKey,
   previewSwap,
   quoteSwap,
   registerSubmission,
@@ -70,6 +71,21 @@ export function useMemeTrade() {
     markLinked(key);
   }, [wallet, user, signMessage]);
 
+  // Standalone linking for the preview path: the backend requires the wallet
+  // to be linked before /swaps/preview too, so a never-linked wallet 403s on
+  // its very first preview. Runs the same flow, then returns the trade to
+  // idle so the form comes back.
+  const linkForPreview = useCallback(async () => {
+    try {
+      await ensureLinked();
+      setPhase("idle");
+    } catch (e) {
+      setPhase("failed");
+      setError(e instanceof Error ? e.message : "Couldn't verify your wallet.");
+      throw e;
+    }
+  }, [ensureLinked]);
+
   const trade = useCallback(
     async (input: Omit<SwapRequest, "walletAddress">): Promise<void> => {
       if (activeRef.current) return;
@@ -79,7 +95,7 @@ export function useMemeTrade() {
       setSwapId(null);
       try {
         const body: SwapRequest = { ...input, walletAddress: wallet };
-        const runQuote = () => quoteSwap(body, crypto.randomUUID());
+        const runQuote = () => quoteSwap(body, newIdempotencyKey());
 
         await ensureLinked();
         setPhase("quoting");
@@ -120,7 +136,7 @@ export function useMemeTrade() {
             value: BigInt(call.value),
             chainId: quote.chainId,
           });
-          await registerSubmission(quote.swapId, callIndex, wallet, hash, crypto.randomUUID());
+          await registerSubmission(quote.swapId, callIndex, wallet, hash, newIdempotencyKey());
         }
 
         // The backend worker verifies on-chain; poll until it says so.
@@ -153,7 +169,7 @@ export function useMemeTrade() {
     setSwapId(null);
   }, []);
 
-  return { wallet, phase, error, swapId, trade, reset };
+  return { wallet, phase, error, swapId, trade, reset, linkForPreview };
 }
 
 // Debounced-by-caller indicative preview; rate limited upstream (20/min).

@@ -40,6 +40,10 @@ async function forward(req: NextRequest, method: "GET" | "POST") {
   }
 
   const auth = req.headers.get("authorization");
+  // The client sends the key twice (canonical + x-fallback) because browser
+  // privacy extensions can strip nonstandard headers; upstream always gets
+  // the canonical form.
+  const idempotency = req.headers.get("idempotency-key") ?? req.headers.get("x-idem-key");
   const url = `${BASE}/${joined}${search}`;
 
   if (method === "GET" && cacheable(joined, !!auth)) {
@@ -54,7 +58,6 @@ async function forward(req: NextRequest, method: "GET" | "POST") {
 
   const headers: Record<string, string> = { accept: "application/json" };
   if (auth) headers.authorization = auth;
-  const idempotency = req.headers.get("idempotency-key");
   if (idempotency) headers["idempotency-key"] = idempotency;
   let body: string | undefined;
   if (method === "POST") {

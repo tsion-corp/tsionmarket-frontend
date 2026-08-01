@@ -28,6 +28,31 @@ interface RawDestination {
   currency?: string;
 }
 
+const TRADE_BASE = process.env.NEXT_PUBLIC_TRADE_API_URL;
+
+// Memecoins from the trade service's catalog: a bought token is a legitimate
+// holding the Dextopus catalog doesn't know about. Catalog entries persist
+// from searches and trades, so anything a user traded is here.
+async function addTradeCatalog(out: BuyableRegistry): Promise<void> {
+  if (!TRADE_BASE) return;
+  try {
+    const res = await fetch(`${TRADE_BASE}/tokens?page=1&limit=100`, {
+      next: { revalidate: 600 },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const items: Array<{ chainId?: number; address?: string }> = Array.isArray(data?.data?.items)
+      ? data.data.items
+      : [];
+    for (const t of items) {
+      if (t.chainId !== 8453 || typeof t.address !== "string") continue;
+      (out["base-mainnet"] ??= new Set()).add(t.address.toLowerCase());
+    }
+  } catch {
+    // A registry failure must never break the portfolio.
+  }
+}
+
 export async function fetchBuyableRegistry(): Promise<BuyableRegistry> {
   const query = new URLSearchParams({ originChainId: "8453", originAddress: BASE_USDC });
   const out: BuyableRegistry = {};
@@ -37,21 +62,22 @@ export async function fetchBuyableRegistry(): Promise<BuyableRegistry> {
       query,
       revalidate: 600,
     });
-    if (!res.ok) return out;
-    const data = await res.json();
-    const rows: RawDestination[] = Array.isArray(data?.destinations) ? data.destinations : [];
-    for (const r of rows) {
-      const network = CHAIN_TO_NETWORK[r.destinationChainId];
-      const address = r.currency?.toLowerCase();
-      // Native tokens are already allowed via the tracked-chain check, so skip the
-      // native sentinel; it is not a real ERC-20 address.
-      if (!network || !address || address === ZERO_ADDRESS) continue;
-      (out[network] ??= new Set()).add(address);
+    if (res.ok) {
+      const data = await res.json();
+      const rows: RawDestination[] = Array.isArray(data?.destinations) ? data.destinations : [];
+      for (const r of rows) {
+        const network = CHAIN_TO_NETWORK[r.destinationChainId];
+        const address = r.currency?.toLowerCase();
+        // Native tokens are already allowed via the tracked-chain check, so skip the
+        // native sentinel; it is not a real ERC-20 address.
+        if (!network || !address || address === ZERO_ADDRESS) continue;
+        (out[network] ??= new Set()).add(address);
+      }
     }
   } catch {
     // A registry failure must never break the portfolio; fall back to the static
-    // allowlist by returning whatever was collected (possibly empty).
-    return out;
+    // allowlist plus whatever was collected.
   }
+  await addTradeCatalog(out);
   return out;
 }

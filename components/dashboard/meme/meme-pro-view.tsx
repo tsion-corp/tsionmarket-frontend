@@ -183,8 +183,8 @@ export function MemeProView() {
               </div>
               {shown.warnings.length > 0 ? (
                 <div className="mt-3 flex flex-col gap-1">
-                  {shown.warnings.slice(0, 3).map((w) => (
-                    <div key={w.code} className="text-down/90 text-[11.5px] font-normal">
+                  {shown.warnings.slice(0, 3).map((w, i) => (
+                    <div key={`${w.code}-${i}`} className="text-down/90 text-[11.5px] font-normal">
                       {w.message}
                     </div>
                   ))}

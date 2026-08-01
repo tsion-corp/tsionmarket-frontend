@@ -161,7 +161,9 @@ function post<T>(path: string, payload: unknown, idempotencyKey?: string): Promi
     path,
     {
       method: "POST",
-      headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined,
+      headers: idempotencyKey
+        ? { "Idempotency-Key": idempotencyKey, "x-idem-key": idempotencyKey }
+        : undefined,
       body: JSON.stringify(payload),
     },
     { auth: true }
@@ -235,6 +237,18 @@ export function fetchSwapStatus(
 
 export function fetchSwapHistory(page = 1, limit = 20): Promise<Paged<SwapDetail>> {
   return request(`/swaps?page=${page}&limit=${limit}`, {}, { auth: true });
+}
+
+// UUID v4 for Idempotency-Key headers. crypto.randomUUID only exists in
+// secure contexts (https/localhost), so LAN-IP dev and phone testing fall
+// back to building one from getRandomValues.
+export function newIdempotencyKey(): string {
+  if (typeof crypto.randomUUID === "function") return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 // A positive plain-decimal amount the contract accepts ("12" or "12.5"), with
