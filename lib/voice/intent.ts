@@ -80,6 +80,7 @@ export const NAV_TARGETS: readonly SectionId[] = [
   "portfolio",
   "spot",
   "perps",
+  "meme",
   "rwa",
   "prediction",
   "earn",

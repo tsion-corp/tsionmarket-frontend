@@ -427,6 +427,20 @@ export function CollectiblesIcon({ size = 22, className }: IconProps) {
   );
 }
 
+export function FlameIcon({ size = 22, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M12 3c1 3-3.5 4.5-3.5 8.5a5.5 5.5 0 0011 0C19.5 7 14 6.5 12 3Zm0 18a3 3 0 01-3-3c0-2 3-2.5 3-4.5 1.5 1.5 3 2.5 3 4.5a3 3 0 01-3 3Z"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function FlagIcon({ size = 22, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
@@ -482,6 +496,7 @@ export const INTEREST_ICONS: Record<string, (props: IconProps) => React.ReactNod
   gold: GoldIcon,
   coin: CoinIcon,
   trend: TrendIcon,
+  flame: FlameIcon,
   bulb: BulbIcon,
   yield: YieldIcon,
   dice: DiceIcon,

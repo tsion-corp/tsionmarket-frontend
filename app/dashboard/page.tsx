@@ -7,6 +7,7 @@ import { buildNav } from "@/components/dashboard/nav-items";
 import { PortfolioView } from "@/components/dashboard/views/portfolio-view";
 import { SpotSection } from "@/components/dashboard/sections/spot-section";
 import { PerpsSection } from "@/components/dashboard/sections/perps-section";
+import { MemeSection } from "@/components/dashboard/sections/meme-section";
 import { ExploreBanners } from "@/components/dashboard/explore-banners";
 import { RwaSection } from "@/components/dashboard/sections/rwa-section";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -55,6 +56,7 @@ function isScrollSection(id: SectionId): id is ScrollSectionId {
 const Portfolio = memo(PortfolioView);
 const Spot = memo(SpotSection);
 const Perps = memo(PerpsSection);
+const Meme = memo(MemeSection);
 const Rwa = memo(RwaSection);
 
 export default function DashboardPage() {
@@ -114,6 +116,7 @@ export default function DashboardPage() {
     ),
     spot: <Spot onOpenDetail={openDetail} onOpenBuy={openBuy} />,
     perps: <Perps />,
+    meme: <Meme />,
     rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
   };
 

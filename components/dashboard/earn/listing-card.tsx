@@ -26,7 +26,7 @@ export function ListingCard({
   return (
     <Link
       href={`/earn/listing/${listing.slug}`}
-      className={`${featured ? "ws-beam" : ""}ws-card relative flex flex-col gap-3 overflow-hidden rounded-[20px] p-5 transition-colors hover:border-white/25`}
+      className={`ws-card relative flex flex-col gap-3 overflow-hidden rounded-[20px] p-5 transition-colors hover:border-white/25 ${featured ? "ws-beam" : ""}`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">

@@ -48,6 +48,17 @@ function Chip({
   );
 }
 
+// Two unlabeled chip rows read as one soup, so each group carries its name and
+// the status row uses the quieter treatment: type is the primary filter,
+// status refines it.
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="w-[52px] shrink-0 text-[10.5px] font-normal tracking-[0.08em] text-white/40 uppercase">
+      {children}
+    </span>
+  );
+}
+
 export function ListingFilters({
   query,
   onChange,
@@ -56,8 +67,9 @@ export function ListingFilters({
   onChange: (next: BrowseQuery) => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
+    <div className="flex flex-col gap-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <GroupLabel>Type</GroupLabel>
         {TABS.map((tab) => (
           <Chip
             key={tab.id}
@@ -67,19 +79,6 @@ export function ListingFilters({
             {tab.label}
           </Chip>
         ))}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {STATUSES.map((status) => (
-          <Chip
-            key={status.id}
-            active={query.status === status.id}
-            onClick={() => onChange({ ...query, status: status.id })}
-          >
-            {status.label}
-          </Chip>
-        ))}
-
         <span className="ml-auto flex items-center gap-2">
           <label htmlFor="earn-sort" className="font-sans text-[12px] font-normal text-white/45">
             Sort
@@ -97,6 +96,25 @@ export function ListingFilters({
             ))}
           </select>
         </span>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <GroupLabel>Status</GroupLabel>
+        {STATUSES.map((status) => (
+          <button
+            key={status.id}
+            type="button"
+            onClick={() => onChange({ ...query, status: status.id })}
+            aria-pressed={query.status === status.id}
+            className={`cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[12px] transition-colors ${
+              query.status === status.id
+                ? "border-white/35 bg-white/10 font-semibold text-white"
+                : "border-white/10 font-medium text-white/50 hover:text-white"
+            }`}
+          >
+            {status.label}
+          </button>
+        ))}
       </div>
     </div>
   );
