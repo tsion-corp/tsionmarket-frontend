@@ -15,7 +15,10 @@ const BASE = process.env.NEXT_PUBLIC_CHESS_API_URL;
 // poll runs at 2s, so anything longer would serve a cached board more often
 // than a fresh one.
 const CACHE_TTL_MS = 1000;
-const cache = new Map<string, { expires: number; body: string; status: number }>();
+const cache = new Map<
+  string,
+  { expires: number; body: string; status: number; contentType: string }
+>();
 
 function notConfigured() {
   return NextResponse.json(
@@ -98,12 +101,18 @@ async function forward(req: NextRequest, joined: string, method: "GET" | "POST",
       signal: AbortSignal.timeout(15_000),
     });
     const text = await res.text();
+    const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
     if (method === "GET") {
-      cache.set(url, { expires: Date.now() + CACHE_TTL_MS, body: text, status: res.status });
+      cache.set(url, {
+        expires: Date.now() + CACHE_TTL_MS,
+        body: text,
+        status: res.status,
+        contentType,
+      });
     }
     return new NextResponse(text, {
       status: res.status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": contentType },
     });
   } catch (error) {
     console.error("Chess proxy failed:", joined, error);
@@ -124,7 +133,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   if (hit && hit.expires > Date.now()) {
     return new NextResponse(hit.body, {
       status: hit.status,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": hit.contentType },
     });
   }
 

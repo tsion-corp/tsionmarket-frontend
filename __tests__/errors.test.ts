@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { apiError } from "@/lib/api/envelope";
 import { friendlyError } from "@/lib/errors";
 
 describe("friendlyError", () => {
@@ -36,6 +37,21 @@ describe("friendlyError", () => {
     );
     expect(friendlyError("No deposit quote available")).toMatch(/couldn't complete this/i);
     expect(friendlyError("Unsupported network")).toMatch(/couldn't complete this/i);
+  });
+
+  it("explains chess cashier balance failures precisely", () => {
+    expect(friendlyError(apiError("CONFLICT", "insufficient available balance", 409))).toMatch(
+      /chess balance/i
+    );
+  });
+
+  it("keeps safe gateway messages instead of flattening them to the fallback", () => {
+    expect(
+      friendlyError(apiError("BAD_REQUEST", "withdrawal amount must be greater than zero", 400))
+    ).toBe("withdrawal amount must be greater than zero");
+    expect(friendlyError(apiError("INTERNAL", "Internal server error", 500))).toBe(
+      "Internal server error"
+    );
   });
 
   it("uses the caller's fallback for unknown errors", () => {

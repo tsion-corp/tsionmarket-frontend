@@ -17,6 +17,23 @@ function text(e: unknown): string {
   return "";
 }
 
+function gatewayMeta(e: unknown): { code: string | null; status: number | null } {
+  if (!e || typeof e !== "object") return { code: null, status: null };
+  const maybe = e as { code?: unknown; status?: unknown };
+  return {
+    code: typeof maybe.code === "string" ? maybe.code : null,
+    status: typeof maybe.status === "number" ? maybe.status : null,
+  };
+}
+
+function looksSafeServerMessage(message: string): boolean {
+  const trimmed = message.trim();
+  if (!trimmed || trimmed.length > 160) return false;
+  return !/(\bwallet_[a-z]+|alchemy|json-rpc|rpc\b|stack trace|traceback|panic\b|sqlstate|select\s|insert\s|update\s|delete\s|<!doctype|<html)/i.test(
+    trimmed
+  );
+}
+
 // Map an error to a friendly message. Pass a `fallback` tailored to the action
 // (e.g. "We couldn't complete your purchase.") — it is used only when the error
 // isn't one of the known cases.
@@ -24,8 +41,10 @@ export function friendlyError(
   e: unknown,
   fallback = "Something went wrong. Please try again."
 ): string {
-  const m = text(e).toLowerCase();
+  const raw = text(e).trim();
+  const m = raw.toLowerCase();
   if (!m) return fallback;
+  const gateway = gatewayMeta(e);
 
   // The user dismissed the request in their wallet.
   if (
@@ -34,6 +53,11 @@ export function friendlyError(
     )
   ) {
     return "You cancelled the request, so nothing was sent.";
+  }
+  // The chess cashier has its own internal balance. Preserve that distinction
+  // so a withdrawal failure doesn't read like a wallet/allowance problem.
+  if (/insufficient available balance/.test(m)) {
+    return "You don't have enough in your chess balance for that. Deposit more USDC or withdraw a smaller amount.";
   }
   // Not enough of the specific asset being moved (e.g. an ERC-20 balance revert).
   if (/insufficient[- ]?balance|amount exceeds balance|exceeds allowance/.test(m)) {
@@ -62,6 +86,11 @@ export function friendlyError(
     )
   ) {
     return "We couldn't complete this right now. Try again, or a different amount or asset.";
+  }
+  // For typed server responses (like chess cashier failures), keep the message
+  // when it is already plain English and not obviously an infrastructure dump.
+  if (gateway.status !== null && gateway.status >= 400 && looksSafeServerMessage(raw)) {
+    return raw;
   }
   return fallback;
 }

@@ -24,19 +24,31 @@ export function apiError(
   return error;
 }
 
-// A non-JSON body means the gateway is down, or answered with an error page, or
-// rejected the URL before it reached the service. None of those are parseable,
-// so they become SERVICE_UNAVAILABLE rather than a parse crash.
+function parseBody(text: string): unknown | null {
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function fallbackCode(status: number): string {
+  if (status === 404) return "NOT_FOUND";
+  if (status >= 500) return "SERVICE_UNAVAILABLE";
+  return "BAD_RESPONSE";
+}
+
+// Preserve a plain-text upstream error when one exists. Some chess failures
+// still arrive as text, and collapsing them into SERVICE_UNAVAILABLE hides the
+// only clue the caller has about what actually failed.
 export async function unwrap<T>(res: Response, fallbackMessage: string): Promise<T> {
-  const body = await res.json().catch(() => null);
+  const text = await res.text();
+  const body = parseBody(text) as { success?: boolean; data?: T; error?: GatewayApiError } | null;
   if (res.ok && body && body.success === true) return body.data as T;
   const err = body?.error;
-  throw apiError(
-    err?.code ?? (res.status === 404 ? "NOT_FOUND" : "SERVICE_UNAVAILABLE"),
-    err?.message ?? fallbackMessage,
-    res.status,
-    err?.details
-  );
+  const message = err?.message ?? (text.trim() || fallbackMessage);
+  throw apiError(err?.code ?? fallbackCode(res.status), message, res.status, err?.details);
 }
 
 // True when a failure means "nothing configured yet" rather than a real outage,
