@@ -70,7 +70,8 @@ function badgeFor(t: HubTranslate, game: CasinoGame, presence?: GamePresence) {
     return { text: t("badgeComingSoon"), className: "bg-white/12 text-white/70" };
   if (presence && presence.playersOnline > 0)
     return { text: t("badgePopular"), className: "bg-accent text-ink" };
-  if (game.category === "New") return { text: t("badgeNew"), className: "bg-grey-100 text-ink" };
+  if (game.category === "New" || game.isNew)
+    return { text: t("badgeNew"), className: "bg-grey-100 text-ink" };
   return null;
 }
 
@@ -82,22 +83,48 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
 
   const body = (
     <>
-      {/* Oversized glyph motif floating behind the content. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(ellipse_at_70%_20%,rgba(212,212,216,0.08),transparent_60%)]"
-      >
-        <span
-          className={`ws-display -rotate-8 leading-none select-none ${MOTIF_SIZE[game.size]} ${
-            game.comingSoon ? "text-white/5" : "text-white/9"
-          }`}
-        >
-          {game.glyph}
+      {game.image ? (
+        // Cover art under a per-game tint and the legibility scrim.
+        <span aria-hidden className="pointer-events-none absolute inset-0">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={game.image}
+            alt=""
+            loading="lazy"
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+          />
+          {game.tintRgb ? (
+            <span
+              className="absolute inset-0"
+              style={{
+                background: `linear-gradient(135deg, rgb(${game.tintRgb} / 0.38), rgb(${game.tintRgb} / 0.08) 55%, transparent)`,
+                mixBlendMode: "hard-light",
+              }}
+            />
+          ) : null}
         </span>
-      </span>
+      ) : (
+        // Glyph motif for games with no artwork yet.
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-0 grid place-items-center bg-[radial-gradient(ellipse_at_70%_20%,rgba(212,212,216,0.08),transparent_60%)]"
+        >
+          <span
+            className={`ws-display -rotate-8 leading-none select-none ${MOTIF_SIZE[game.size]} ${
+              game.comingSoon ? "text-white/5" : "text-white/9"
+            }`}
+          >
+            {game.glyph}
+          </span>
+        </span>
+      )}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.16)_50%,transparent_75%)]"
+        className={`pointer-events-none absolute inset-0 ${
+          game.image
+            ? "bg-[linear-gradient(to_top,rgba(0,0,0,0.82)_0%,rgba(0,0,0,0.34)_46%,rgba(0,0,0,0.08)_75%)]"
+            : "bg-[linear-gradient(to_top,rgba(0,0,0,0.72)_0%,rgba(0,0,0,0.16)_50%,transparent_75%)]"
+        }`}
       />
 
       {badge ? (
@@ -142,7 +169,7 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
     </>
   );
 
-  const frame = `ws-glass relative overflow-hidden rounded-[18px] text-left transition-[transform,border-color] duration-150 ${SIZE_CLASS[game.size]}`;
+  const frame = `ws-glass group relative overflow-hidden rounded-[18px] text-left transition-[transform,border-color] duration-150 ${SIZE_CLASS[game.size]}`;
 
   if (game.comingSoon || !game.href) {
     return <div className={`${frame} opacity-60`}>{body}</div>;

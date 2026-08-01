@@ -8,7 +8,6 @@ import { SearchIcon } from "@/components/ui/icons";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/components/dashboard/trade/flash-price";
 import { SpotPanel } from "@/components/dashboard/trade/spot-panel";
-import { useSpotMode } from "@/components/dashboard/trade/spot-mode";
 import { useMarketTokens } from "@/hooks/use-market-tokens";
 import { useBuyDestinations } from "@/hooks/use-buy-catalog";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -37,8 +36,6 @@ interface SpotMarket {
 }
 
 // The markets pinned as one-tap chips in the simple interface, biggest first.
-const SIMPLE_CHIP_COUNT = 8;
-
 // A market's badge: built-in icon or real logo when one loads, and the same
 // identicon gradient the perps desk uses for everything else — including a
 // logo URL that 404s, which the old text badge turned into label soup.
@@ -51,17 +48,15 @@ function changeLabel(chg: number): string {
   return `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 }
 
-// The spot markets terminal. The tradable list is the set of tokens Dextopus can
-// actually deliver (its buyable destinations), so every market shown here can be
-// executed. Prices come from the app's by-symbol price feed (which covers the
-// whole set, not just the top coins); logos, 24h change and the chart id are
-// enriched from the market feed when present. Renders as a bare body; the trade
-// hub provides the header, tabs and the simple/pro switch. Simple is a single
-// guided column (chips, compact chart, ticket); pro is the full terminal with
-// candles and the position card.
+// The pro spot terminal: candles, the searchable pair picker, the order ticket
+// and the position card. The tradable list is the set of tokens Dextopus can
+// actually deliver (its buyable destinations), so every market shown here can
+// be executed. Prices come from the app's by-symbol price feed (which covers
+// the whole set, not just the top coins); logos, 24h change and the chart id
+// are enriched from the market feed when present. Renders as a bare body; the
+// spot section provides the header and the simple/pro switch.
 export function MarketsView() {
   const t = useTranslations("spot");
-  const { mode } = useSpotMode();
   const destinations = useBuyDestinations();
   const { data: feed = [] } = useMarketTokens("popular");
   const portfolio = usePortfolio();
@@ -167,10 +162,9 @@ export function MarketsView() {
     setSearch("");
   };
 
-  const simple = mode !== "pro";
-  const chartHeight = simple ? 420 : 360;
+  const chartHeight = 360;
 
-  // Pair header with the searchable market picker; shared by both interfaces.
+  // Pair header with the searchable market picker.
   const pairHeader = (
     <div className="ws-card relative p-4 sm:p-5">
       <div className="flex items-center gap-3">
@@ -280,7 +274,7 @@ export function MarketsView() {
         <AssetChart
           coingeckoId={chartId}
           allowCandles
-          defaultType={simple ? "area" : "candles"}
+          defaultType="candles"
           height={chartHeight - 36}
           up={(token?.change24h ?? 0) >= 0}
         />
@@ -306,46 +300,6 @@ export function MarketsView() {
       buyRoute={buyRoute}
     />
   );
-
-  if (simple) {
-    // The guided interface: the biggest markets as one-tap chips across the
-    // top, then the chart beside the ticket on desktop, stacked on mobile.
-    // Same full-width footprint as the pro terminal — just fewer moving
-    // parts. The full list stays reachable through the pair picker.
-    const chips = markets.slice(0, SIMPLE_CHIP_COUNT);
-    return (
-      <div className="flex w-full flex-col gap-4">
-        {chips.length > 1 ? (
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {chips.map((m) => {
-              const on = m.symbol === base;
-              return (
-                <button
-                  key={m.symbol}
-                  onClick={() => pick(m)}
-                  className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-full border px-3.5 py-2 font-sans text-[13px] font-medium transition-colors ${
-                    on
-                      ? "border-white/35 bg-white/10 text-white"
-                      : "border-white/10 bg-white/4 text-white/60 hover:text-white/85"
-                  }`}
-                >
-                  <SpotCoin sym={m.symbol} logo={m.logo} size={18} />
-                  {m.symbol}
-                </button>
-              );
-            })}
-          </div>
-        ) : null}
-        <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-2">
-          <div className="flex min-w-0 flex-col gap-4">
-            {pairHeader}
-            {chartCard}
-          </div>
-          {ticket}
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,420px)_1fr]">

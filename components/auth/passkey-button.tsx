@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useSyncExternalStore } from "react";
 import { useLoginWithPasskey } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
+
+const subscribeNever = () => () => {};
 
 function PasskeyIcon() {
   return (
@@ -29,14 +31,15 @@ function PasskeyIcon() {
 
 export function PasskeyButton() {
   const t = useTranslations("auth");
-  // Shown wherever the browser can do WebAuthn at all. This used to hinge on a
-  // localStorage hint marking "a passkey was used on this device" — but that
-  // hint dies with cleared site data while the credential itself lives on in
-  // the platform keychain, which locked real passkey holders out of their own
-  // sign-in method. A login method must never hide behind wipeable local
-  // state; someone without a passkey just gets the browser's empty-sheet
-  // cancel and the friendly error below.
-  const [visible] = useState(() => typeof window !== "undefined" && !!window.PublicKeyCredential);
+  // Shown wherever the browser can do WebAuthn; never gated on wipeable local
+  // state (clearing site data once hid a passkey holder's own login method).
+  // useSyncExternalStore keeps hydration clean: the server snapshot renders
+  // nothing, the client value takes over right after.
+  const visible = useSyncExternalStore(
+    subscribeNever,
+    () => !!window.PublicKeyCredential,
+    () => false
+  );
   const { loginWithPasskey, state } = useLoginWithPasskey({
     onError: (err) => {
       console.error("Passkey login failed:", err);

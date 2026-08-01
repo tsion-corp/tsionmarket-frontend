@@ -8,6 +8,7 @@ import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-theme-picker";
+import { VictoryConfetti } from "@/components/dashboard/casino/chess/victory-confetti";
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { identifyOpening } from "@/lib/casino/chess/openings";
 import { moveSoundFromSan, playGameEndSound, playMoveSound } from "@/lib/casino/chess/sound";
@@ -132,6 +133,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   // the game in progress, so opening an already-finished board stays silent.
   const sawInProgress = useRef(false);
   const sawResult = useRef(false);
+  const [celebrating, setCelebrating] = useState(false);
   const inProgress = match?.state === "in_progress";
   const result = match?.result ?? null;
   useEffect(() => {
@@ -146,7 +148,16 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     sawResult.current = true;
     const outcome = result.kind === "draw" ? "draw" : result.winner === you ? "win" : "loss";
     playGameEndSound(outcome);
+    if (outcome === "win") {
+      const id = setTimeout(() => setCelebrating(true), 0);
+      return () => clearTimeout(id);
+    }
   }, [result, you]);
+  useEffect(() => {
+    if (!celebrating) return;
+    const id = setTimeout(() => setCelebrating(false), 4500);
+    return () => clearTimeout(id);
+  }, [celebrating]);
 
   // The board is whatever the server says. A malformed FEN yields null rather
   // than a silently half-rendered position.
@@ -356,6 +367,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
 
   return (
     <div className="relative mx-auto w-full max-w-[560px] px-4 pt-7 pb-20 sm:px-6">
+      {celebrating ? <VictoryConfetti /> : null}
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
           <span className="h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 bg-white/8" />

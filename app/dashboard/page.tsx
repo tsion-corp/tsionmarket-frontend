@@ -5,9 +5,10 @@ import { useTranslations } from "next-intl";
 import { DashboardShell } from "@/components/dashboard/dashboard-shell";
 import { buildNav } from "@/components/dashboard/nav-items";
 import { PortfolioView } from "@/components/dashboard/views/portfolio-view";
-import { TradeSection } from "@/components/dashboard/sections/trade-section";
+import { SpotSection } from "@/components/dashboard/sections/spot-section";
+import { PerpsSection } from "@/components/dashboard/sections/perps-section";
+import { ExploreBanners } from "@/components/dashboard/explore-banners";
 import { RwaSection } from "@/components/dashboard/sections/rwa-section";
-import { PredictionView } from "@/components/dashboard/views/prediction-view";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { DetailModal } from "@/components/dashboard/modals/detail-modal";
@@ -36,9 +37,10 @@ import { AccountModal } from "@/components/dashboard/modals/account-modal";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
-// The scroll-spy sections mounted inline on this page. Earn and casino live on
-// their own routes and are never one of these.
-const ROUTED_SECTIONS = ["casino", "earn"] as const;
+// The scroll-spy sections mounted inline on this page. Prediction, earn and
+// casino live on their own routes and are never one of these — the dashboard
+// points at them through the explore banners instead.
+const ROUTED_SECTIONS = ["casino", "earn", "prediction"] as const;
 type RoutedSectionId = (typeof ROUTED_SECTIONS)[number];
 type ScrollSectionId = Exclude<SectionId, RoutedSectionId>;
 
@@ -51,9 +53,9 @@ function isScrollSection(id: SectionId): id is ScrollSectionId {
 // modal open/close or an active-section scroll change. Each still re-renders
 // on its own data.
 const Portfolio = memo(PortfolioView);
-const Trade = memo(TradeSection);
+const Spot = memo(SpotSection);
+const Perps = memo(PerpsSection);
 const Rwa = memo(RwaSection);
-const Prediction = memo(PredictionView);
 
 export default function DashboardPage() {
   const [modal, setModal] = useState<DashboardModal>(null);
@@ -110,9 +112,9 @@ export default function DashboardPage() {
         onOpenRwaTrade={openRwaTrade}
       />
     ),
-    trade: <Trade />,
+    spot: <Spot onOpenDetail={openDetail} onOpenBuy={openBuy} />,
+    perps: <Perps />,
     rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
-    prediction: <Prediction />,
   };
 
   return (
@@ -123,6 +125,9 @@ export default function DashboardPage() {
             {sections[id]}
           </section>
         ))}
+        {/* The routed destinations, pitched where the prediction section used
+            to scroll: one banner each for Prediction, Earn and Casino. */}
+        <ExploreBanners />
       </DashboardShell>
 
       <ModalShell open={modal !== null} onClose={close} contentKey={modal?.type ?? "none"}>

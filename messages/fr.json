@@ -1,12 +1,21 @@
 {
   "sections": {
     "portfolio": "Portefeuille",
-    "trade": "Trading",
-    "markets": "Marchés",
+    "spot": "Spot",
+    "perps": "Perpétuels",
     "rwa": "Actifs réels",
     "prediction": "Prédictions",
     "earn": "Gagner",
     "casino": "Casino"
+  },
+  "explore": {
+    "predictionTitle": "Marchés prédictifs",
+    "predictionBody": "Pariez sur la politique, le sport et l'actualité.",
+    "earnTitle": "Gagner",
+    "earnBody": "Des tâches réelles payées onchain.",
+    "casinoTitle": "Casino",
+    "casinoBody": "Échecs avec mise, Last Man Standing et plus.",
+    "cta": "Explorer"
   },
   "spot": {
     "balance": "Solde {amount} {symbol}",
@@ -50,9 +59,6 @@
     "stageRefunded": "Fonds retournés",
     "stageSettled": "Terminé",
     "stageWaiting": "Passage de votre ordre",
-    "tabPerps": "Perpétuels",
-    "tabSpot": "Spot",
-    "tabsLabel": "Type de marché",
     "toastBought": "{symbol} acheté",
     "toastSold": "{symbol} vendu",
     "unavailable": "Les marchés sont indisponibles pour le moment.",
@@ -305,6 +311,8 @@
     "stocksDesc": "Détenez des fractions d'Apple, Nvidia, S&P 500 et plus.",
     "goldTitle": "Or et matières premières",
     "goldDesc": "Or et métaux adossés au physique, tokenisés.",
+    "earnTitle": "Gagner & missions",
+    "earnDesc": "Des tâches réelles payées en crypto.",
     "cryptoTitle": "Crypto et jetons",
     "cryptoDesc": "BTC, ETH, SOL et échanges instantanés au meilleur prix.",
     "perpsTitle": "Perpétuels et levier",
@@ -880,7 +888,6 @@
       "recentWins": "Gains récents",
       "searchPlaceholder": "Cherchez votre jeu préféré",
       "noGamesFound": "Aucun jeu trouvé pour cette recherche.",
-      "liveActivitySubject": "l'activité en direct des jeux",
       "categoryAll": "Tous les jeux",
       "categorySkill": "Adresse",
       "categoryCards": "Cartes",

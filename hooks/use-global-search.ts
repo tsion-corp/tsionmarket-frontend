@@ -85,8 +85,7 @@ export function useGlobalSearch(query: string): SearchGroups {
         name: m.name,
         logo: m.logo,
         sub: "Markets",
-        // Spot markets live in the trade hub now (Spot tab).
-        sectionId: "trade",
+        sectionId: "spot",
       }));
 
     return {

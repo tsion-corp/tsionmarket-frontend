@@ -38,6 +38,12 @@ export const INTERESTS: Interest[] = [
     icon: "dice",
   },
   {
+    key: "earn",
+    title: "Earn & bounties",
+    desc: "Real tasks that pay out in crypto.",
+    icon: "yield",
+  },
+  {
     key: "realestate",
     title: "Real estate",
     desc: "Fractional property that pays rental income.",

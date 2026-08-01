@@ -1,12 +1,21 @@
 {
   "sections": {
     "portfolio": "Portfolio",
-    "trade": "Trade",
-    "markets": "Markets",
+    "spot": "Spot",
+    "perps": "Perpetuals",
     "rwa": "Real assets",
     "prediction": "Prediction",
     "earn": "Earn",
     "casino": "Casino"
+  },
+  "explore": {
+    "predictionTitle": "Prediction markets",
+    "predictionBody": "Trade politics, sports and world events.",
+    "earnTitle": "Earn",
+    "earnBody": "Real tasks that pay out onchain.",
+    "casinoTitle": "Casino",
+    "casinoBody": "Staked chess, Last Man Standing and more.",
+    "cta": "Explore"
   },
   "spot": {
     "balance": "Balance {amount} {symbol}",
@@ -50,9 +59,6 @@
     "stageRefunded": "Money returned",
     "stageSettled": "All done",
     "stageWaiting": "Placing your order",
-    "tabPerps": "Perpetuals",
-    "tabSpot": "Spot",
-    "tabsLabel": "Trade market type",
     "toastBought": "Bought {symbol}",
     "toastSold": "Sold {symbol}",
     "unavailable": "Markets are unavailable right now.",
@@ -305,6 +311,8 @@
     "stocksDesc": "Own fractional Apple, Nvidia, S&P 500 and more.",
     "goldTitle": "Gold & commodities",
     "goldDesc": "Physical-backed gold and metals, tokenized.",
+    "earnTitle": "Earn & bounties",
+    "earnDesc": "Real tasks that pay out in crypto.",
     "cryptoTitle": "Crypto & tokens",
     "cryptoDesc": "BTC, ETH, SOL and instant best-price swaps.",
     "perpsTitle": "Perps & leverage",
@@ -880,7 +888,6 @@
       "recentWins": "Recent wins",
       "searchPlaceholder": "Search for your favourite game",
       "noGamesFound": "No game found for that search.",
-      "liveActivitySubject": "live game activity",
       "categoryAll": "All games",
       "categorySkill": "Skill",
       "categoryCards": "Cards",

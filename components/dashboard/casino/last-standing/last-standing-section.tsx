@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
@@ -212,17 +212,22 @@ export function LastStandingSection() {
   const [pollUntil, setPollUntil] = useState(0);
 
   // Starts the end-of-round sequence: suspense now, winner reveal after it.
-  const beginRoundEnd = (winnerAddress: string | null, prizeUsd: number) => {
-    roundEndedRef.current = true;
-    winnerAtEndRef.current = winnerAddress;
-    setRoundPrizeUsd(prizeUsd);
-    setPhase("calculating");
-    setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
-    // Converge immediately: fresh status (pot/timer reset), winners table and
-    // feed, plus the balance — not whenever the next socket push arrives.
-    resyncGame();
-    void refetchPortfolio();
-  };
+  // Stable so the effects below can depend on their real inputs without
+  // re-arming on every render.
+  const beginRoundEnd = useCallback(
+    (winnerAddress: string | null, prizeUsd: number) => {
+      roundEndedRef.current = true;
+      winnerAtEndRef.current = winnerAddress;
+      setRoundPrizeUsd(prizeUsd);
+      setPhase("calculating");
+      setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
+      // Converge immediately: fresh status (pot/timer reset), winners table and
+      // feed, plus the balance — not whenever the next socket push arrives.
+      resyncGame();
+      void refetchPortfolio();
+    },
+    [resyncGame, refetchPortfolio]
+  );
 
   useEffect(() => {
     // Remember the pot while the round is live; it resets to 0 once paid out.
@@ -291,6 +296,10 @@ export function LastStandingSection() {
     }
     if (seenWinnerIdRef.current === latest.id) return;
     seenWinnerIdRef.current = latest.id;
+    // The live sequence already celebrated this round here; the lagging feed
+    // row is the same win, not a new one — without this it re-fired the
+    // overlay after dismissal.
+    if (roundEndedRef.current) return;
     const me = address?.toLowerCase();
     if (!(me && latest.winnerAddress.toLowerCase() === me && phase === null)) return;
     const winnerAddress = latest.winnerAddress;

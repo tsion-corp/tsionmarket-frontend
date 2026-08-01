@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import {
   fetchVaultActivities,
   fetchVaultStatus,
@@ -15,6 +16,10 @@ import {
 const STATUS_KEY = ["vault-status"] as const;
 const ACTIVITIES_KEY = ["vault-activities"] as const;
 const WINNERS_KEY = ["vault-winners"] as const;
+// The game mirrors the vault contract on Base, so refreshing on each new block
+// syncs every device within ~a block of any play; the proxy's 1s/4s caches cap
+// the upstream cost.
+const BLOCK_WATCH_KEYS = [STATUS_KEY, ACTIVITIES_KEY, WINNERS_KEY] as const;
 
 // The realtime hub is a generic pub/sub gateway: open one socket at the root
 // and subscribe to this game's topic. It does not replay state on subscribe,
@@ -59,6 +64,7 @@ export function useVaultGame() {
   const queryClient = useQueryClient();
   const [connected, setConnected] = useState(false);
   const [lastWinner, setLastWinner] = useState<LastWinner | null>(null);
+  useInvalidateOnBlock(BLOCK_WATCH_KEYS);
 
   // Forces a fresh REST read of the whole game state (status, feed, winners)
   // regardless of the socket. The round-end sequence uses it to converge fast:

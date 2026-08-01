@@ -1,12 +1,21 @@
 {
   "sections": {
     "portfolio": "Portfólio",
-    "trade": "Negociar",
-    "markets": "Mercados",
+    "spot": "Spot",
+    "perps": "Perpétuos",
     "rwa": "Ativos reais",
     "prediction": "Previsão",
     "earn": "Ganhar",
     "casino": "Casino"
+  },
+  "explore": {
+    "predictionTitle": "Mercados de previsão",
+    "predictionBody": "Negocie política, esportes e eventos mundiais.",
+    "earnTitle": "Ganhar",
+    "earnBody": "Tarefas reais pagas onchain.",
+    "casinoTitle": "Casino",
+    "casinoBody": "Xadrez com apostas, Last Man Standing e mais.",
+    "cta": "Explorar"
   },
   "spot": {
     "balance": "Saldo {amount} {symbol}",
@@ -50,9 +59,6 @@
     "stageRefunded": "Dinheiro devolvido",
     "stageSettled": "Tudo pronto",
     "stageWaiting": "Colocando sua ordem",
-    "tabPerps": "Perpétuos",
-    "tabSpot": "Spot",
-    "tabsLabel": "Tipo de mercado",
     "toastBought": "{symbol} comprado",
     "toastSold": "{symbol} vendido",
     "unavailable": "Os mercados estão indisponíveis no momento.",
@@ -305,6 +311,8 @@
     "stocksDesc": "Possua frações de Apple, Nvidia, S&P 500 e mais.",
     "goldTitle": "Ouro e matérias-primas",
     "goldDesc": "Ouro e metais com lastro físico, tokenizados.",
+    "earnTitle": "Ganhar e recompensas",
+    "earnDesc": "Tarefas reais pagas em cripto.",
     "cryptoTitle": "Cripto e tokens",
     "cryptoDesc": "BTC, ETH, SOL e swaps instantâneos ao melhor preço.",
     "perpsTitle": "Perpétuos e alavancagem",
@@ -880,7 +888,6 @@
       "recentWins": "Ganhos recentes",
       "searchPlaceholder": "Busque seu jogo favorito",
       "noGamesFound": "Nenhum jogo encontrado para essa busca.",
-      "liveActivitySubject": "a atividade ao vivo dos jogos",
       "categoryAll": "Todos os jogos",
       "categorySkill": "Habilidade",
       "categoryCards": "Cartas",

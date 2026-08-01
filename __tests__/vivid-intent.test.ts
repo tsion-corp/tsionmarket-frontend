@@ -6,8 +6,8 @@ import { vividToIntent, type TerminalFrame } from "@/lib/voice/vivid-intent";
 // (never auto-execute), reads → speak, and safe fallbacks.
 describe("vividToIntent", () => {
   it("maps a navigate frame to a section navigate", () => {
-    const frame: TerminalFrame = { type: "navigate", data: { page: "trade", speech: "" } };
-    expect(vividToIntent(frame)).toEqual({ action: "navigate", target: "trade" });
+    const frame: TerminalFrame = { type: "navigate", data: { page: "spot", speech: "" } };
+    expect(vividToIntent(frame)).toEqual({ action: "navigate", target: "spot" });
   });
 
   it("maps an unknown page to unknown (safe no-op)", () => {

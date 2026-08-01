@@ -26,8 +26,14 @@ export interface CasinoGame {
   name: string;
   category: GameCategory;
   size: TileSize;
-  // Oversized text motif rendered behind the tile content.
+  // Oversized text motif; the fallback look when a game has no artwork.
   glyph: string;
+  // Cover artwork (remote URL) and its accent as an rgb triplet ("52 211 153"),
+  // composed into tint gradients at varying alphas by the tile.
+  image?: string;
+  tintRgb?: string;
+  // Shows the "New" badge regardless of category.
+  isNew?: boolean;
   href: string | null;
   // Static one-liner describing the game itself, not its current state.
   note?: string;
@@ -41,6 +47,10 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "Skill",
     size: "hero",
     glyph: "♞",
+    image:
+      "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=1600&q=80&auto=format&fit=crop",
+    tintRgb: "52 211 153",
+    isNew: true,
     href: "/casino/chess",
     note: "Staked head-to-head, invite or quick match",
     comingSoon: false,
@@ -53,6 +63,9 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "New",
     size: "tall",
     glyph: "⌛",
+    image:
+      "https://images.unsplash.com/photo-1518281420975-50db6e5d0a97?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "251 191 36",
     href: "/casino/last-standing",
     note: "Outlast everyone, winner takes the pot",
     comingSoon: false,
@@ -63,9 +76,12 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "Draws",
     size: "tall",
     glyph: "✦",
-    href: "/casino/draw",
+    image:
+      "https://images.unsplash.com/photo-1518688248740-7c31f1a945c4?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "167 139 250",
+    href: null,
     note: "Pick 5 numbers and a bonus",
-    comingSoon: false,
+    comingSoon: true,
   },
   {
     id: "checkers",
@@ -73,6 +89,9 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "Skill",
     size: "medium",
     glyph: "⛃",
+    image:
+      "https://images.unsplash.com/photo-1580541832626-2a7131ee809f?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "148 163 184",
     href: null,
     note: "Fast staked matches",
     comingSoon: true,
@@ -83,6 +102,9 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "New",
     size: "medium",
     glyph: "◉",
+    image:
+      "https://images.unsplash.com/photo-1585504198199-20277593b94f?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "251 146 60",
     href: null,
     note: "Staked mancala, head-to-head",
     comingSoon: true,
@@ -93,6 +115,9 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "Cards",
     size: "wide",
     glyph: "♠",
+    image:
+      "https://images.unsplash.com/photo-1541278107931-e006523892df?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "96 165 250",
     href: null,
     comingSoon: true,
   },
@@ -102,6 +127,9 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "Racing",
     size: "wide",
     glyph: "⚑",
+    image:
+      "https://images.unsplash.com/photo-1541348263662-e068662d82af?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "248 113 113",
     href: null,
     comingSoon: true,
   },

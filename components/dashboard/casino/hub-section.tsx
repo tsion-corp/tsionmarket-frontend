@@ -10,7 +10,6 @@ import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useCasinoHub } from "@/hooks/use-casino-hub";
 import { WinsTicker } from "@/components/dashboard/casino/wins-ticker";
 import { GameTile } from "@/components/dashboard/casino/game-tile";
-import { CasinoError } from "@/components/dashboard/casino/casino-state";
 import { amountUsd } from "@/lib/casino/money";
 import {
   CASINO_GAMES,
@@ -34,7 +33,7 @@ export function HubSection() {
   const t = useTranslations("casino.hub");
   const wallet = useCasinoWallet();
   const { mask } = useBalanceVisibility();
-  const { recentWins, presence, error } = useCasinoHub();
+  const { recentWins, presence } = useCasinoHub();
   const [category, setCategory] = useState<GameCategoryFilter>("All games");
   const [search, setSearch] = useState("");
   const [withdrawOpen, setWithdrawOpen] = useState(false);
@@ -66,10 +65,7 @@ export function HubSection() {
           <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,44px)] tracking-[-0.02em] text-transparent">
             {t("title")}
           </h2>
-          <p className="mt-1.5 flex items-center gap-2.5 text-[13.5px] font-normal text-white/55">
-            <span aria-hidden className="bg-grey-300 inline-block h-px w-[22px]" />
-            {t("tagline")}
-          </p>
+          <p className="mt-1.5 text-[13.5px] font-normal text-white/55">{t("tagline")}</p>
         </div>
 
         {/* The same balance the rest of the platform shows: games spend from it
@@ -128,14 +124,6 @@ export function HubSection() {
           );
         })}
       </div>
-
-      {/* A hub with no live figures still lists every game, so the casino is
-          browsable even when the presence service is down. */}
-      {error ? (
-        <div className="mt-5">
-          <CasinoError error={error} subject={t("liveActivitySubject")} />
-        </div>
-      ) : null}
 
       {games.length === 0 ? (
         <div className="py-16 text-center text-[13.5px] font-normal text-white/50">
