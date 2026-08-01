@@ -12,7 +12,7 @@ import { ordinal } from "@/lib/earn/ordinal";
 import { formatReward } from "@/lib/earn/reward";
 import type { Listing } from "@/lib/earn/api/types";
 
-const PAGE = "mx-auto w-full max-w-[1100px] px-4 pt-6 pb-20 sm:px-6 lg:px-8";
+const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-6 pb-20 sm:px-6 lg:px-8";
 
 const UNCONFIGURED_DETAIL = "Bounties go live once the earn service is switched on.";
 

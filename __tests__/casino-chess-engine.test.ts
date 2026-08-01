@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyUciToFen,
   parseFen,
   toUci,
   initialBoard,
   applyMove,
   legalMovesForPiece,
+  legalMovesForSquare,
   allLegalMoves,
   gameStatus,
   isInCheck,
@@ -142,10 +144,10 @@ describe("server interop", () => {
   });
 
   it("rejects a malformed FEN rather than rendering a partial board", () => {
-    expect(() => parseFen("not-a-fen")).toThrow();
-    expect(() => parseFen("rnbqkbnr/pppppppp/8/8 w")).toThrow(/8 ranks/);
+    expect(() => parseFen("not-a-fen")).toThrow(/Malformed FEN/);
+    expect(() => parseFen("rnbqkbnr/pppppppp/8/8 w")).toThrow(/Malformed FEN/);
     expect(() => parseFen("xnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w")).toThrow(
-      /unknown piece/
+      /Malformed FEN/
     );
   });
 
@@ -161,5 +163,41 @@ describe("server interop", () => {
   it("round-trips a position through FEN into legal move generation", () => {
     const { board } = parseFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
     expect(allLegalMoves(board, "w")).toHaveLength(20);
+  });
+
+  it("preserves castling rights when legal moves come from FEN", () => {
+    const position = parseFen("r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
+    expect(legalMovesForSquare(position, 7, 4)).toEqual(
+      expect.arrayContaining([
+        { from: { r: 7, c: 4 }, to: { r: 7, c: 6 } },
+        { from: { r: 7, c: 4 }, to: { r: 7, c: 2 } },
+      ])
+    );
+  });
+
+  it("preserves en passant from FEN in legal moves and optimistic application", () => {
+    const position = parseFen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1");
+    expect(legalMovesForSquare(position, 3, 4)).toEqual(
+      expect.arrayContaining([{ from: { r: 3, c: 4 }, to: { r: 2, c: 3 } }])
+    );
+
+    const next = applyUciToFen(position.fen, "e5d6");
+    expect(next?.board[2][3]).toEqual({ type: "p", color: "w" });
+    expect(next?.board[3][3]).toBeNull();
+  });
+
+  it("offers all promotion choices and applies underpromotion exactly", () => {
+    const position = parseFen("4k3/P7/8/8/8/8/8/4K3 w - - 0 1");
+    const promotions = legalMovesForSquare(position, 1, 0)
+      .map((move) => move.promotion)
+      .filter(Boolean)
+      .sort();
+
+    expect(promotions).toEqual(["b", "n", "q", "r"]);
+    expect(toUci(position, { r: 1, c: 0 }, { r: 0, c: 0 }, "n")).toBe("a7a8n");
+    expect(applyUciToFen(position.fen, "a7a8n")?.board[0][0]).toEqual({
+      type: "n",
+      color: "w",
+    });
   });
 });

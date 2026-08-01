@@ -89,8 +89,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     category: "Skill",
     size: "medium",
     glyph: "⛃",
-    image:
-      "https://images.unsplash.com/photo-1580541832626-2a7131ee809f?w=900&q=80&auto=format&fit=crop",
+    image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
     tintRgb: "148 163 184",
     href: null,
     note: "Fast staked matches",

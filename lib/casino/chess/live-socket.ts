@@ -26,6 +26,9 @@ export interface GatewayFrame {
 // A synthetic frame the manager delivers when the socket drops, so subscribers
 // can fall back to polling until it reconnects. It never comes from the gateway.
 export const SOCKET_CLOSED_FRAME: GatewayFrame = { type: "__closed" };
+// A synthetic frame delivered when the shared socket is open for subscriptions,
+// so a board can treat the live path as warm before the next chess move lands.
+export const SOCKET_OPEN_FRAME: GatewayFrame = { type: "__open" };
 
 type Listener = (frame: GatewayFrame) => void;
 
@@ -93,6 +96,7 @@ function open(): void {
     const topics = [...listeners.keys()];
     if (topics.length > 0) send({ type: "subscribe", topics });
     pingTimer = setInterval(() => send({ type: "ping" }), 25_000);
+    broadcastToAll(SOCKET_OPEN_FRAME);
   };
   socket.onmessage = (event) => {
     let frame: GatewayFrame;
@@ -179,6 +183,7 @@ export function subscribeChessTopic(topic: string, listener: Listener): () => vo
   // If the socket is already open, subscribe this new topic now; if it is still
   // connecting, onopen resubscribes every topic at once.
   if (isFirstForTopic) send({ type: "subscribe", topics: [topic] });
+  if (socket?.readyState === WebSocket.OPEN) listener(SOCKET_OPEN_FRAME);
 
   return () => {
     const current = listeners.get(topic);

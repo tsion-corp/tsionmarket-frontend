@@ -39,6 +39,16 @@ interface MoveResultWire {
   move: ChessMoveWire;
 }
 
+// The service has no server-side expiry for waiting matches, so the public
+// lobby and quick-match path hide seats that are old enough to read as
+// abandoned. Direct invite links still resolve by match id.
+const STALE_WAITING_MATCH_MAX_AGE_MS = 60 * 60 * 1000;
+
+function isFreshWaitingMatch(wire: Pick<ChessMatchWire, "createdAt">): boolean {
+  const created = Date.parse(wire.createdAt);
+  return !Number.isFinite(created) || Date.now() - created <= STALE_WAITING_MATCH_MAX_AGE_MS;
+}
+
 function requireMatchId(matchId: string): string {
   if (!isMatchId(matchId)) {
     throw apiError("NOT_FOUND", "That game doesn't exist.", 404);
@@ -66,7 +76,7 @@ export async function fetchMatch(matchId: string): Promise<ChessMatch> {
 
 export async function fetchOpenChallenges(): Promise<ChessChallenge[]> {
   const data = await chessGet<MatchListWire>("/matches", { status: "waiting", limit: "50" });
-  return data.items.map((wire) => toChessChallenge(wire));
+  return data.items.filter(isFreshWaitingMatch).map((wire) => toChessChallenge(wire));
 }
 
 export async function fetchLiveMatches(): Promise<ChessMatch[]> {
@@ -85,7 +95,8 @@ export async function fetchWaitingMatches(): Promise<ChessMatchWire[]> {
 export async function fetchJoinableMatches(wallet: string): Promise<ChessMatchWire[]> {
   const mine = wallet.toLowerCase();
   return (await fetchWaitingMatches()).filter(
-    (m) => m.white?.toLowerCase() !== mine && m.black?.toLowerCase() !== mine
+    (m) =>
+      isFreshWaitingMatch(m) && m.white?.toLowerCase() !== mine && m.black?.toLowerCase() !== mine
   );
 }
 

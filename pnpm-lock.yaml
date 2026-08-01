@@ -50,6 +50,9 @@ importers:
       canvas-confetti:
         specifier: ^1.9.4
         version: 1.9.4
+      chess.js:
+        specifier: ^1.4.0
+        version: 1.4.0
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
@@ -3141,6 +3144,9 @@ packages:
 
   charenc@0.0.2:
     resolution: {integrity: sha512-yrLQ/yVUFXkzg7EDQsPieE/53+0RlaWTs+wBrvW36cyilJ2SaDWfl4Yj7MtLTXleV9uEKefbAGUPv2/iWSooRA==}
+
+  chess.js@1.4.0:
+    resolution: {integrity: sha512-BBJgrrtKQOzFLonR0l+k64A98NLemPwNsCskwb+29bRwobUa4iTm51E1kwGPbWXAcfdDa18nad6vpPPKPWarqw==}
 
   chokidar@5.0.0:
     resolution: {integrity: sha512-TQMmc3w+5AxjpL8iIiwebF73dRDF4fBIieAqGn9RGCWaEVwQ6Fb2cGe31Yns0RRIzii5goJ1Y7xbMwo1TxMplw==}
@@ -10499,6 +10505,8 @@ snapshots:
   chalk@5.6.2: {}
 
   charenc@0.0.2: {}
+
+  chess.js@1.4.0: {}
 
   chokidar@5.0.0:
     dependencies:

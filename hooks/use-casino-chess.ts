@@ -26,10 +26,12 @@ import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import {
   applyPositionFrame,
   applyStateFrame,
+  parseTimeControl,
   type ChessMatchWire,
   type ChessPositionFrame,
 } from "@/lib/casino/api/chess-wire";
 import { subscribeChessTopic } from "@/lib/casino/chess/live-socket";
+import { applyUciToFen } from "@/lib/casino/chess/engine";
 import type { ChessColor, ChessMatch, CreateChessChallengeInput } from "@/lib/casino/api/types";
 
 // The socket is the live path; the poll is only a safety net. Before the first
@@ -38,9 +40,10 @@ import type { ChessColor, ChessMatch, CreateChessChallengeInput } from "@/lib/ca
 // off to a slow reconcile that merely repairs a missed frame — this keeps a
 // spectator from hammering the gateway, which rate-limits per IP.
 const MATCH_POLL_MS = 2_000;
-const MATCH_POLL_LIVE_MS = 20_000;
+const MATCH_POLL_LIVE_MS = 5_000;
 const LOBBY_POLL_MS = 10_000;
 const TICKET_POLL_MS = 3_000;
+const OPTIMISTIC_RECONCILE_MS = 1_500;
 
 // How often the displayed clock is recomputed. Four times a second keeps the
 // seconds digit honest without re-rendering the board on every frame.
@@ -53,6 +56,49 @@ export const CHESS_KEYS = {
   history: (wallet: string) => ["casino", "chess", "history", wallet] as const,
   ticket: (id: string) => ["casino", "chess", "ticket", id] as const,
 };
+
+interface OptimisticMatchState {
+  baseFen: string;
+  baseMoveCount: number;
+  match: ChessMatch;
+}
+
+function incrementSeconds(timeControl: string): number {
+  try {
+    return parseTimeControl(timeControl).incrementSeconds;
+  } catch {
+    return 0;
+  }
+}
+
+function optimisticMove(base: ChessMatch, uci: string): OptimisticMatchState | null {
+  if (base.state !== "in_progress") return null;
+  const nextPosition = applyUciToFen(base.fen, uci);
+  if (!nextPosition) {
+    return null;
+  }
+  const now = Date.now();
+  const since = Date.parse(base.clockUpdatedAt);
+  const elapsed = Number.isFinite(since) ? Math.max(0, (now - since) / 1000) : 0;
+  const bonus = incrementSeconds(base.timeControl);
+  const nextClocks = {
+    ...base.clocks,
+    [base.turn]: Math.max(0, base.clocks[base.turn] - elapsed) + bonus,
+  };
+
+  return {
+    baseFen: base.fen,
+    baseMoveCount: base.moves.length,
+    match: {
+      ...base,
+      fen: nextPosition.fen,
+      turn: nextPosition.turn,
+      clocks: nextClocks,
+      clockUpdatedAt: new Date(now).toISOString(),
+      drawOffered: null,
+    },
+  };
+}
 
 // Every write names the player acting, so an action taken before the wallet is
 // known would be rejected with a confusing message from the service.
@@ -85,18 +131,51 @@ export function useChessLobby() {
   };
 }
 
-// The clock of whoever is to move, counted down from the last moment the server
-// vouched for it.
+// The clock of whoever is to move, counted down only while this client is
+// actively watching the current server snapshot.
 //
-// The service reports the time each side has banked but does not charge the
-// mover while they think, so polling returns the same pair of numbers between
-// moves. Counting down from `clockUpdatedAt` rather than resetting to the
-// server value on each frame is what makes the clock move at all; the server
-// stays the authority, because every move resets both the value and the
-// reference point, and a flag fall is only real once the service says so.
+// The service reports the banked time snapshot, not a per-frame countdown. So
+// the UI has to tick locally between frames, but it must not back-charge time
+// the player did not actually watch: leaving the page, backgrounding the tab,
+// then coming back to an old snapshot must not instantly flag the mover.
 function useTickingClocks(match: ChessMatch | undefined) {
   const [now, setNow] = useState(() => Date.now());
-  const running = match?.state === "in_progress";
+  const [visible, setVisible] = useState(
+    () => typeof document === "undefined" || document.visibilityState === "visible"
+  );
+  const [observed, setObserved] = useState<{ key: string | null; at: number }>({
+    key: null,
+    at: 0,
+  });
+  const wasVisibleRef = useRef(visible);
+  const running = match?.state === "in_progress" && visible;
+
+  const snapshotKey = useMemo(() => {
+    if (!match) return null;
+    return [
+      match.id,
+      match.state,
+      match.turn,
+      match.clockUpdatedAt,
+      match.clocks.w,
+      match.clocks.b,
+    ].join("|");
+  }, [match]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const update = () => setVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, []);
+
+  useEffect(() => {
+    const becameVisible = visible && !wasVisibleRef.current;
+    wasVisibleRef.current = visible;
+    if (snapshotKey && (becameVisible || observed.key !== snapshotKey)) {
+      setObserved({ key: snapshotKey, at: Date.now() });
+    }
+  }, [observed, snapshotKey, visible]);
 
   useEffect(() => {
     if (!running) return;
@@ -107,13 +186,13 @@ function useTickingClocks(match: ChessMatch | undefined) {
   return useMemo(() => {
     if (!match) return null;
     if (match.state !== "in_progress") return match.clocks;
-    const since = Date.parse(match.clockUpdatedAt);
-    const elapsed = Number.isFinite(since) ? Math.max(0, (now - since) / 1000) : 0;
+    const elapsed =
+      visible && observed.key === snapshotKey ? Math.max(0, (now - observed.at) / 1000) : 0;
     return {
       ...match.clocks,
       [match.turn]: Math.max(0, match.clocks[match.turn] - elapsed),
     } as Record<ChessColor, number>;
-  }, [match, now]);
+  }, [match, now, observed, snapshotKey, visible]);
 }
 
 // One live match. The board, clocks and result all come from the server; the
@@ -121,6 +200,7 @@ function useTickingClocks(match: ChessMatch | undefined) {
 export function useChessMatch(matchId: string | null) {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
+  const [optimistic, setOptimistic] = useState<OptimisticMatchState | null>(null);
 
   // The match id whose live socket has delivered a frame. Deriving "is the
   // socket live?" from it (rather than a bare boolean) means a change of match
@@ -139,20 +219,39 @@ export function useChessMatch(matchId: string | null) {
     },
   });
 
-  const match = query.data;
+  const baseMatch = query.data;
+  const match =
+    optimistic &&
+    baseMatch &&
+    optimistic.match.id === baseMatch.id &&
+    optimistic.baseFen === baseMatch.fen &&
+    optimistic.baseMoveCount === baseMatch.moves.length
+      ? optimistic.match
+      : baseMatch;
   const clocks = useTickingClocks(match);
 
   // Live path: the service publishes state/position/gameOver frames to the
   // ws-gateway on the match's liveTopic. We subscribe through the shared client
   // socket (one per browser, never one per match) and apply each frame straight
-  // to the cache so moves render the instant they arrive; the first frame marks
-  // the socket live so the poll (above) backs off to a slow safety net.
+  // to the cache so moves render the instant they arrive; only a real chess
+  // frame marks the relay live, because a bare socket open does not prove this
+  // topic is flowing and a false "live" state would stretch a broken relay into
+  // a five-second poll delay for the opponent's move.
   const liveTopic = match?.liveTopic ?? null;
   const inProgress = match?.state === "in_progress";
   useEffect(() => {
     if (!liveTopic || !inProgress || !matchId) return;
     return subscribeChessTopic(liveTopic, (frame) => {
       const { type, data } = frame;
+      if (type === "__open") {
+        // The gateway does not replay state on subscribe, so every open or
+        // reconnect forces one fresh snapshot from REST. Do not mark the relay
+        // live yet: if this topic never starts flowing, the fast poll is the
+        // only thing keeping the opponent's move from appearing five seconds
+        // late.
+        void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+        return;
+      }
       // The socket dropped: speed the poll back up until it reconnects.
       if (type === "__closed") {
         setLiveMatchId((current) => (current === matchId ? null : current));
@@ -183,8 +282,19 @@ export function useChessMatch(matchId: string | null) {
     });
   }, [liveTopic, inProgress, matchId, queryClient]);
 
+  useEffect(() => {
+    if (!optimistic || !matchId) return;
+    const id = setTimeout(() => {
+      void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+    }, OPTIMISTIC_RECONCILE_MS);
+    return () => clearTimeout(id);
+  }, [matchId, optimistic, queryClient]);
+
   const applyMatch = useCallback(
-    (next: ChessMatch) => queryClient.setQueryData(CHESS_KEYS.match(next.id), next),
+    (next: ChessMatch) => {
+      setOptimistic(null);
+      queryClient.setQueryData(CHESS_KEYS.match(next.id), next);
+    },
     [queryClient]
   );
 
@@ -198,7 +308,18 @@ export function useChessMatch(matchId: string | null) {
 
   const move = useMutation({
     mutationFn: (uci: string) =>
-      submitMove(matchId as string, uci, requireWallet(wallet.address), match?.moves ?? []),
+      submitMove(matchId as string, uci, requireWallet(wallet.address), baseMatch?.moves ?? []),
+    onMutate: (uci) => {
+      if (!matchId) return;
+      const current = queryClient.getQueryData<ChessMatch>(CHESS_KEYS.match(matchId));
+      if (!current) return;
+      const next = optimisticMove(current, uci);
+      if (next) {
+        setOptimistic(next);
+        setLiveMatchId(matchId);
+      }
+    },
+    onError: () => setOptimistic(null),
     onSuccess: applyMatch,
   });
 

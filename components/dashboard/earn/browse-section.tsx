@@ -8,8 +8,9 @@ import { ListingFilters } from "@/components/dashboard/earn/listing-filters";
 import { useListingFeed } from "@/hooks/use-earn-listings";
 import { useCurrentSponsor } from "@/hooks/use-earn-sponsor";
 import { DEFAULT_BROWSE_QUERY, type BrowseQuery } from "@/lib/earn/api/types";
+import { BRAND } from "@/lib/brand";
 
-const PAGE = "mx-auto w-full max-w-[1100px] px-4 pt-8 pb-20 sm:px-6 lg:px-8";
+const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-8 pb-20 sm:px-6 lg:px-8";
 
 const UNCONFIGURED_DETAIL = "Bounties go live once the earn service is switched on.";
 
@@ -31,8 +32,7 @@ export function BrowseSection() {
             Earn
           </h1>
           <p className="mt-1.5 max-w-[52ch] font-sans text-[13.5px] font-normal text-white/55">
-            Paid work posted by companies building on Worldstreet. Pick something, ship it, get
-            paid.
+            Paid work posted by companies building on {BRAND}. Pick something, ship it, get paid.
           </p>
         </div>
 
@@ -62,7 +62,7 @@ export function BrowseSection() {
                 {count} {count === 1 ? "listing" : "listings"}
               </div>
             ) : null}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 min-[1280px]:grid-cols-4 sm:grid-cols-2 lg:grid-cols-3">
               {listings.map((listing, index) => (
                 <ListingCard key={listing.id} listing={listing} featured={index === 0} />
               ))}

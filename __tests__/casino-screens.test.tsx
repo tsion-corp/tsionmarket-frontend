@@ -438,6 +438,22 @@ describe("a drawn game", () => {
     await screen.findByText(/Your move|Opponent thinking/);
     expect(chessApi.claimTimeout).not.toHaveBeenCalled();
   });
+
+  it("does not claim a flag fall just because an old snapshot was reopened", async () => {
+    chessApi.fetchMatch.mockResolvedValue(
+      drawnMatch({
+        state: "in_progress",
+        result: null,
+        turn: "b",
+        clocks: { w: 300, b: 30 },
+        clockUpdatedAt: new Date(Date.now() - 86_400_000).toISOString(),
+      })
+    );
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    await screen.findByText(/Your move|Opponent thinking/);
+    expect(chessApi.claimTimeout).not.toHaveBeenCalled();
+  });
 });
 
 // There is no queue on the service, so quick match is a read of the lobby

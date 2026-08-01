@@ -37,7 +37,7 @@ function BackLink({ pathname }: { pathname: string }) {
   const { href, label } = parentRoute(pathname);
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pt-5 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1520px] px-4 pt-5 sm:px-6 lg:px-8">
       <Link
         href={href}
         className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12.5px] font-medium text-white/60 transition-colors hover:border-white/25 hover:text-white"

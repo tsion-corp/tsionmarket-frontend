@@ -3,14 +3,14 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { ModalShell } from "@/components/ui/modal-shell";
-import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useCasinoHub } from "@/hooks/use-casino-hub";
+import { usePortfolio } from "@/hooks/use-portfolio";
 import { WinsTicker } from "@/components/dashboard/casino/wins-ticker";
 import { GameTile } from "@/components/dashboard/casino/game-tile";
 import { amountUsd } from "@/lib/casino/money";
+import { formatQty } from "@/lib/format";
 import {
   CASINO_GAMES,
   GAME_CATEGORIES,
@@ -34,9 +34,12 @@ export function HubSection() {
   const wallet = useCasinoWallet();
   const { mask } = useBalanceVisibility();
   const { recentWins, presence } = useCasinoHub();
+  const portfolio = usePortfolio();
+  const usdcBalance =
+    portfolio.tokens.find((t) => t.network === "base-mainnet" && t.symbol.toUpperCase() === "USDC")
+      ?.balance ?? 0;
   const [category, setCategory] = useState<GameCategoryFilter>("All games");
   const [search, setSearch] = useState("");
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   // Search matches the names the player actually sees, i.e. the localized ones.
   const games = useMemo(
@@ -68,23 +71,21 @@ export function HubSection() {
           <p className="mt-1.5 text-[13.5px] font-normal text-white/55">{t("tagline")}</p>
         </div>
 
-        {/* The same balance the rest of the platform shows: games spend from it
-            directly, so there is no separate casino float to top up. */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="ws-inset px-4 py-2.5">
-            <div className="text-[10.5px] font-normal tracking-[0.08em] text-white/45 uppercase">
-              {t("yourBalance")}
-            </div>
-            <div className="ws-display tnum text-grey-100 text-[19px]">
-              {wallet.isLoading ? "—" : mask(wallet.format(wallet.balanceUsd))}
-            </div>
+        {/* The same balances the rest of the platform shows: games spend from
+            them directly, so there is no separate casino float to top up. */}
+        <div className="ws-inset px-4 py-2.5">
+          <div className="text-[10.5px] font-normal tracking-[0.08em] text-white/45 uppercase">
+            {t("yourBalance")}
           </div>
-          <button
-            onClick={() => setWithdrawOpen(true)}
-            className="cursor-pointer rounded-full border border-white/15 px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"
-          >
-            {t("withdraw")}
-          </button>
+          <div className="ws-display tnum text-grey-100 text-[17px]">
+            {wallet.isLoading ? "—" : mask(`${formatQty(wallet.balance)} ETH`)}
+            <span className="ml-1.5 text-[12px] font-normal text-white/45">
+              {wallet.isLoading ? "" : mask(wallet.format(wallet.balanceUsd))}
+            </span>
+          </div>
+          <div className="tnum text-[13px] font-normal text-white/60">
+            {mask(`${formatQty(usdcBalance)} USDC`)}
+          </div>
         </div>
       </div>
 
@@ -148,14 +149,6 @@ export function HubSection() {
           })}
         </div>
       )}
-
-      <ModalShell
-        open={withdrawOpen}
-        onClose={() => setWithdrawOpen(false)}
-        contentKey="casino-withdraw"
-      >
-        <WithdrawModal onClose={() => setWithdrawOpen(false)} />
-      </ModalShell>
     </div>
   );
 }

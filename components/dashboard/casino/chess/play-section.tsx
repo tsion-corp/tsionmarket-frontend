@@ -21,7 +21,7 @@ import {
   capturedFromBoard,
   isInCheck,
   kingPos,
-  legalMovesForPiece,
+  legalMovesForSquare,
   parseFen,
   toUci,
   type Square,
@@ -76,6 +76,25 @@ function resultLine(t: Translator, match: ChessMatch, you: ChessColor | null): s
 const actionButton =
   "cursor-pointer rounded-full border border-white/15 px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50";
 
+type PromotionOption = "q" | "r" | "b" | "n";
+
+const PROMOTION_LABEL: Record<PromotionOption, string> = {
+  q: "Q",
+  r: "R",
+  b: "B",
+  n: "N",
+};
+
+const PROMOTION_TEXT_KEY: Record<
+  PromotionOption,
+  "promotionQ" | "promotionR" | "promotionB" | "promotionN"
+> = {
+  q: "promotionQ",
+  r: "promotionR",
+  b: "promotionB",
+  n: "promotionN",
+};
+
 export function PlaySection({ matchId }: { matchId: string | null }) {
   const t = useTranslations("casino.chess.play");
   const tStake = useTranslations("casino.chess.stake");
@@ -107,6 +126,12 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     claimingTimeout,
   } = useChessMatch(matchId);
   const [selected, setSelected] = useState<Square | null>(null);
+  const [pendingPromotion, setPendingPromotion] = useState<{
+    fen: string;
+    from: Square;
+    to: Square;
+    options: PromotionOption[];
+  } | null>(null);
   // A rematch the opponent has already opened, which this player joins rather
   // than opening a second one of their own.
   const rematchOffered = useRematchOffer(match, you);
@@ -170,15 +195,28 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     }
   }, [match]);
 
-  const yourTurn = !!match && match.state === "in_progress" && you !== null && match.turn === you;
-
   // Highlights are computed locally only so the board feels responsive. The
   // server revalidates every move, so a wrong hint can never become a wrong
   // result.
   const legalTargets = useMemo(() => {
+    const yourTurn = !!match && match.state === "in_progress" && you !== null && match.turn === you;
     if (!position || !selected || !yourTurn) return [];
-    return legalMovesForPiece(position.board, selected.r, selected.c);
-  }, [position, selected, yourTurn]);
+    return legalMovesForSquare(position, selected.r, selected.c);
+  }, [match, position, selected, you]);
+
+  const targetSquares = useMemo(() => {
+    const seen = new Set<string>();
+    const squares: Square[] = [];
+    for (const move of legalTargets) {
+      const key = `${move.to.r}:${move.to.c}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      squares.push(move.to);
+    }
+    return squares;
+  }, [legalTargets]);
+  const activePendingPromotion =
+    pendingPromotion && match && pendingPromotion.fen === match.fen ? pendingPromotion : null;
 
   if (!matchId) {
     return (
@@ -202,6 +240,8 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     );
   }
 
+  const displayTurn = match.turn;
+  const yourTurn = match.state === "in_progress" && you !== null && displayTurn === you;
   const board = position.board;
   // Captured pieces and material lead, read straight off the board each render.
   const captured = capturedFromBoard(board);
@@ -218,8 +258,24 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
 
   const onSquareClick = async (r: number, c: number) => {
     if (!yourTurn || moving) return;
-    if (selected && legalTargets.some((t) => t.r === r && t.c === c)) {
-      const uci = toUci(board, selected, { r, c });
+    if (selected && targetSquares.some((t) => t.r === r && t.c === c)) {
+      const matching = legalTargets.filter((move) => move.to.r === r && move.to.c === c);
+      const promotions = Array.from(
+        new Set(
+          matching
+            .map((move) => move.promotion)
+            .filter(
+              (value): value is PromotionOption =>
+                value === "q" || value === "r" || value === "b" || value === "n"
+            )
+        )
+      );
+      if (promotions.length > 0) {
+        setPendingPromotion({ fen: match.fen, from: selected, to: { r, c }, options: promotions });
+        return;
+      }
+      const uci = toUci(position, selected, { r, c });
+      setPendingPromotion(null);
       setSelected(null);
       try {
         await submitMove(uci);
@@ -229,7 +285,20 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       return;
     }
     const piece = board[r][c];
+    setPendingPromotion(null);
     setSelected(piece && piece.color === you ? { r, c } : null);
+  };
+
+  const onPromotionChoice = async (promotion: PromotionOption) => {
+    if (!activePendingPromotion) return;
+    const uci = toUci(position, activePendingPromotion.from, activePendingPromotion.to, promotion);
+    setPendingPromotion(null);
+    setSelected(null);
+    try {
+      await submitMove(uci);
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastMoveFailed")));
+    }
   };
 
   const onOfferDraw = async () => {
@@ -316,8 +385,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   // The king in check, if any — the side to move is the one that can be in
   // check. Glowed on the board; also lit on a checkmate, where that side is
   // still in check with no move.
-  const checkSquare =
-    position && isInCheck(position.board, match.turn) ? kingPos(position.board, match.turn) : null;
+  const checkSquare = isInCheck(board, displayTurn) ? kingPos(board, displayTurn) : null;
   const moveList =
     match.moves.length === 0
       ? t("noMoves")
@@ -353,17 +421,17 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       ? t("statusClaiming")
       : waiting
         ? t("statusWaiting")
-        : yourTurn
-          ? moving
-            ? t("statusSending")
-            : t("statusYourMove")
-          : you === null
-            ? t("statusSpectating")
-            : offerToAnswer
-              ? t("statusDrawToYou")
-              : offerPending
-                ? t("statusDrawSent")
-                : t("statusOpponentThinking");
+        : moving
+          ? t("statusSending")
+          : yourTurn
+            ? t("statusYourMove")
+            : you === null
+              ? t("statusSpectating")
+              : offerToAnswer
+                ? t("statusDrawToYou")
+                : offerPending
+                  ? t("statusDrawSent")
+                  : t("statusOpponentThinking");
 
   return (
     <div className="relative mx-auto w-full max-w-[560px] px-4 pt-7 pb-20 sm:px-6">
@@ -391,12 +459,39 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       <ChessBoard
         board={board}
         selected={selected}
-        legalTargets={legalTargets}
+        legalTargets={targetSquares}
         checkSquare={checkSquare}
         orientation={you ?? "w"}
         theme={theme}
         onSquareClick={you !== null && !over ? (r, c) => void onSquareClick(r, c) : undefined}
       />
+
+      {activePendingPromotion ? (
+        <div className="mt-2.5 rounded-[12px] border border-white/10 bg-white/4 px-3.5 py-3">
+          <div className="mb-2 text-[11.5px] font-semibold tracking-[0.04em] text-white/65 uppercase">
+            {t("promotionTitle")}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {activePendingPromotion.options.map((piece) => (
+              <button
+                key={piece}
+                onClick={() => void onPromotionChoice(piece)}
+                disabled={moving}
+                className="cursor-pointer rounded-full border border-white/15 px-3 py-1.5 font-sans text-[12px] font-semibold text-white/75 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50"
+              >
+                {PROMOTION_LABEL[piece]} {t(PROMOTION_TEXT_KEY[piece])}
+              </button>
+            ))}
+            <button
+              onClick={() => setPendingPromotion(null)}
+              disabled={moving}
+              className="cursor-pointer rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12px] font-semibold text-white/50 transition-colors hover:border-white/25 hover:text-white/80 disabled:opacity-50"
+            >
+              {t("promotionCancel")}
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mt-2.5 flex items-center justify-between gap-3">
         <span className="min-w-0 truncate text-[12px] text-white/55">
