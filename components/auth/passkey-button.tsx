@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useLoginWithPasskey } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
-import { hasPasskeyDevice, markPasskeyDevice } from "@/lib/preferences";
 import { toast } from "@/lib/toast";
 
 function PasskeyIcon() {
@@ -30,9 +29,15 @@ function PasskeyIcon() {
 
 export function PasskeyButton() {
   const t = useTranslations("auth");
-  const [visible] = useState(hasPasskeyDevice);
+  // Shown wherever the browser can do WebAuthn at all. This used to hinge on a
+  // localStorage hint marking "a passkey was used on this device" — but that
+  // hint dies with cleared site data while the credential itself lives on in
+  // the platform keychain, which locked real passkey holders out of their own
+  // sign-in method. A login method must never hide behind wipeable local
+  // state; someone without a passkey just gets the browser's empty-sheet
+  // cancel and the friendly error below.
+  const [visible] = useState(() => typeof window !== "undefined" && !!window.PublicKeyCredential);
   const { loginWithPasskey, state } = useLoginWithPasskey({
-    onComplete: () => markPasskeyDevice(),
     onError: (err) => {
       console.error("Passkey login failed:", err);
       toast.error(t("passkeyError"));

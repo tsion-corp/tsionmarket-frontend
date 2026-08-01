@@ -7,7 +7,6 @@ import { Avatar } from "@/components/dashboard/avatar";
 import { WalletList } from "@/components/dashboard/wallet-list";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
-import { markPasskeyDevice } from "@/lib/preferences";
 import { toast } from "@/lib/toast";
 
 interface AccountModalProps {
@@ -45,7 +44,6 @@ export function AccountModal({ onClose }: AccountModalProps) {
   });
   const { linkWithPasskey } = useLinkWithPasskey({
     onSuccess: () => {
-      markPasskeyDevice();
       toast.success(t("passkeyAdded"));
     },
     onError: (err) => {

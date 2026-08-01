@@ -30,26 +30,3 @@ export function clearInterest(): void {
     // Nothing to do: if storage is unavailable there is nothing stored.
   }
 }
-
-// Remembers that a passkey was created or used on this device. The auth page
-// only offers passkey sign-in when this is set, so first-time visitors never
-// hit an empty passkey picker.
-const PASSKEY_DEVICE_KEY = "ws.passkeyDevice.v1";
-
-export function markPasskeyDevice(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(PASSKEY_DEVICE_KEY, "1");
-  } catch {
-    // Losing the hint only means the passkey button stays hidden here.
-  }
-}
-
-export function hasPasskeyDevice(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(PASSKEY_DEVICE_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
