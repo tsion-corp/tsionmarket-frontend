@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Space_Grotesk } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -43,6 +44,18 @@ export default async function RootLayout({
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>{children}</Providers>
         </NextIntlClientProvider>
+        {/*
+          The Vivid widget reads its key from document.currentScript, which is
+          null for scripts next/script injects dynamically. Configure it via the
+          window global it also supports so the key survives that injection.
+        */}
+        <Script id="vivid-config" strategy="beforeInteractive">
+          {`window.__VIVID_CONFIG = { key: "pk_live_xARDqkZFFwSnUPE4rN_cNU5d", api: "https://platformvivid.worldstreetgold.com" };`}
+        </Script>
+        <Script
+          src="https://platformvivid.worldstreetgold.com/widget.js"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
