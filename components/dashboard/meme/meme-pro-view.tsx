@@ -115,32 +115,32 @@ export function MemeProView() {
               })
             )}
           </div>
-        </div>
 
-        {!searchState.active && pageCount > 1 ? (
-          <div className="mt-3 flex items-center justify-between">
-            <span className="tnum text-[12.5px] font-normal text-white/45">
-              {page} / {pageCount}
-              {isFetching ? " …" : ""}
-            </span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1 || isFetching}
-                className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("prev")}
-              </button>
-              <button
-                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                disabled={page >= pageCount || isFetching}
-                className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("next")}
-              </button>
+          {!searchState.active && pageCount > 1 ? (
+            <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
+              <span className="tnum text-[12.5px] font-normal text-white/45">
+                {page} / {pageCount}
+                {isFetching ? " …" : ""}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1 || isFetching}
+                  className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t("prev")}
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  disabled={page >= pageCount || isFetching}
+                  className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t("next")}
+                </button>
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </div>
 
       <div className="flex flex-col gap-4">

@@ -66,8 +66,7 @@ function presenceLine(
 }
 
 function badgeFor(t: HubTranslate, game: CasinoGame, presence?: GamePresence) {
-  if (game.comingSoon)
-    return { text: t("badgeComingSoon"), className: "bg-white/12 text-white/70" };
+  if (game.comingSoon) return { text: t("badgeComingSoon"), className: "bg-white/90 text-ink" };
   if (presence && presence.playersOnline > 0)
     return { text: t("badgePopular"), className: "bg-accent text-ink" };
   if (game.category === "New" || game.isNew)
@@ -91,7 +90,9 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
             src={game.image}
             alt=""
             loading="lazy"
-            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04]"
+            className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04] ${
+              game.comingSoon ? "opacity-50 grayscale" : ""
+            }`}
           />
           {game.tintRgb ? (
             <span
@@ -146,7 +147,7 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
         <span className="min-w-0">
           <span
             className={`ws-display block leading-[1.1] ${TITLE_SIZE[game.size]} ${
-              game.comingSoon ? "text-white/50" : "text-white"
+              game.comingSoon ? "text-white/75" : "text-white"
             }`}
           >
             {t(`games.${game.id}.name`)}
@@ -172,7 +173,9 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
   const frame = `ws-glass group relative overflow-hidden rounded-[18px] text-left transition-[transform,border-color] duration-150 ${SIZE_CLASS[game.size]}`;
 
   if (game.comingSoon || !game.href) {
-    return <div className={`${frame} opacity-60`}>{body}</div>;
+    // Only the artwork dims (grayscale above); the badge and title stay crisp
+    // so "Coming soon" actually reads.
+    return <div className={frame}>{body}</div>;
   }
   return (
     <Link
