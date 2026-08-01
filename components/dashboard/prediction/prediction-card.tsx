@@ -47,15 +47,18 @@ export function PredictionCard({ prediction: p, onBuy }: PredictionCardProps) {
           <ProgressBar pct={p.pct} />
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2">
+          {/* No nowrap: at iPad two-up card widths the longer locales
+              ("Acheter Non · 62¢") would clip; a rare graceful wrap beats a
+              cut-off price. */}
           <button
             onClick={() => onBuy(true)}
-            className="border-up/35 bg-up/16 text-up hover:bg-up/22 cursor-pointer rounded-[11px] border p-[11px] font-sans text-[13.5px] font-semibold whitespace-nowrap"
+            className="border-up/35 bg-up/16 text-up hover:bg-up/22 cursor-pointer rounded-[11px] border p-[11px] font-sans text-[13px] leading-tight font-semibold"
           >
             {t("buyYes", { price: p.yes })}
           </button>
           <button
             onClick={() => onBuy(false)}
-            className="border-down/30 bg-down/12 text-down hover:bg-down/18 cursor-pointer rounded-[11px] border p-[11px] font-sans text-[13.5px] font-semibold whitespace-nowrap"
+            className="border-down/30 bg-down/12 text-down hover:bg-down/18 cursor-pointer rounded-[11px] border p-[11px] font-sans text-[13px] leading-tight font-semibold"
           >
             {t("buyNo", { price: p.no })}
           </button>

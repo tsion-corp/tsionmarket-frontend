@@ -119,12 +119,17 @@ export function PredictionView() {
       ) : (
         <div className="mt-[18px]">
           {desktop ? (
-            // Non-mobile: a fixed 2 rows x 4 columns grid (up to 8 markets).
-            // Generous gaps on both axes so the cards read as distinct tiles.
-            <div className="grid grid-cols-4 gap-6 lg:gap-7">
-              {predictions.slice(0, 8).map((p) => (
-                <PredictionCard key={p.q} prediction={p} onBuy={(yes) => openBet(p, yes)} />
-              ))}
+            // Non-mobile: up to 8 markets in a grid whose column count follows
+            // the CONTENT width, not the viewport — with the sidebar open an
+            // iPad's 768-1024px viewport leaves ~520-780px of content, where a
+            // fixed four-up crushed every card. Two columns is the floor;
+            // three and four step in as the container genuinely fits them.
+            <div className="@container">
+              <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-3 @min-[900px]:gap-6 @min-[1240px]:grid-cols-4 @min-[1240px]:gap-7">
+                {predictions.slice(0, 8).map((p) => (
+                  <PredictionCard key={p.q} prediction={p} onBuy={(yes) => openBet(p, yes)} />
+                ))}
+              </div>
             </div>
           ) : (
             <PredictionSlider predictions={predictions} onBuy={openBet} />
