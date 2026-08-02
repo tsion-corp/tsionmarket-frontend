@@ -52,6 +52,11 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         },
         appearance: {
           walletChainType: "ethereum-and-solana",
+          // Login modal only — tx signing stays headless (showWalletUIs: false).
+          theme: "#0c0c0e",
+          accentColor: "#d4d4d8",
+          logo:
+            typeof window !== "undefined" ? `${window.location.origin}/ark-logo.svg` : undefined,
         },
       }}
     >

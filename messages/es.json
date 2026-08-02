@@ -1493,5 +1493,19 @@
         "watch": "Ver"
       }
     }
+  },
+  "kash": {
+    "bannerTitle": "Compra Kash y gana más Kash con tus actividades",
+    "bannerSub": "Opera, juega y refiere — cada actividad te recompensa en Kash.",
+    "bannerCta": "Comprar Kash",
+    "balanceTitle": "Saldo de Kash",
+    "buy": "Comprar",
+    "sell": "Vender",
+    "activityTitle": "Recompensas por actividad",
+    "activityTrading": "Trading",
+    "activityGames": "Juegos",
+    "activityReferrals": "Referidos",
+    "activityHint": "Las recompensas Kash se acumulan con tu actividad en la aplicación y llegan aquí.",
+    "comingSoon": "Kash llega pronto. La compra y venta abren en breve."
   }
 }

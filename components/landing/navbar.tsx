@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { Wordmark } from "@/components/ui/wordmark";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { LanguageSelect } from "@/components/ui/language-select";
@@ -16,6 +15,17 @@ const LINKS = [
 ] as const;
 
 const LINK_CLASS = "hover:text-accent rounded-full px-3.5 py-2 text-sm font-medium text-white/90";
+
+// Undefined width/height drop ArkMark's inline sizing so the responsive
+// classes can shrink the logo on mobile.
+function NavLogo() {
+  return (
+    <ArkMark
+      className="h-[17px] w-auto sm:h-[22px]"
+      style={{ width: undefined, height: undefined }}
+    />
+  );
+}
 
 interface NavbarProps {
   // When set, the film landing owns navigation: links scroll to waypoint
@@ -35,10 +45,12 @@ export function Navbar({ onNavigate }: NavbarProps) {
           onClick={() => onNavigate(0)}
           className="flex cursor-pointer items-center gap-2 text-white"
         >
-          <ArkMark height={22} />
+          <NavLogo />
         </button>
       ) : (
-        <Wordmark />
+        <Link href="/" className="flex items-center gap-2 text-white">
+          <NavLogo />
+        </Link>
       )}
       {/* Absolutely centered so the pill stays in the true middle of the nav
           regardless of how wide the side clusters are; justify-between alone
@@ -65,7 +77,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
         <LanguageSelect />
         <Link
           href="/auth"
-          className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-3.5 py-[11px] text-[13px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-sm sm:px-5"
+          className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-3 py-2 text-[12px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-[13px] sm:px-5 sm:py-[11px] sm:text-sm"
         >
           {t("getStarted")}
           <ArrowUpRightIcon className="text-arrow hidden min-[400px]:block" />

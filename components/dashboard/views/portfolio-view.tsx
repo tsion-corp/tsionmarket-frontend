@@ -11,7 +11,10 @@ import {
   useReactTable,
   type SortingState,
 } from "@tanstack/react-table";
+import { toast } from "@/lib/toast";
 import { BalanceCard } from "@/components/dashboard/balance-card";
+import { KashBanner } from "@/components/dashboard/kash/kash-banner";
+import { KashCard } from "@/components/dashboard/kash/kash-card";
 import { CrossBorderBanner } from "@/components/dashboard/remit/cross-border-banner";
 import { Switch } from "@/components/ui/switch";
 import { AssetIcon } from "@/components/ui/asset-icon";
@@ -101,6 +104,7 @@ export function PortfolioView({
   const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
   const t = useTranslations("portfolio");
+  const tKash = useTranslations("kash");
   // Distinguish "we couldn't load it" from "you have nothing". A failed request
   // with no cached tokens is an error, not an empty wallet; if a cached balance
   // survives (persisted), keep showing it rather than an error.
@@ -229,12 +233,19 @@ export function PortfolioView({
     });
   };
 
+  const comingSoon = () => toast.info(tKash("comingSoon"));
+
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+      <div className="mb-4">
+        <KashBanner onBuy={comingSoon} />
+      </div>
+
       <Eyebrow>{t("eyebrow")}</Eyebrow>
 
-      <div className="mt-3.5">
+      <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
+        <KashCard />
       </div>
 
       <div className="mt-3">

@@ -1493,5 +1493,19 @@
         "watch": "Zuschauen"
       }
     }
+  },
+  "kash": {
+    "bannerTitle": "Kaufen Sie Kash und verdienen Sie mehr Kash durch Ihre Aktivitäten",
+    "bannerSub": "Handeln, spielen, empfehlen — jede Aktivität zahlt sich in Kash aus.",
+    "bannerCta": "Kash kaufen",
+    "balanceTitle": "Kash-Guthaben",
+    "buy": "Kaufen",
+    "sell": "Verkaufen",
+    "activityTitle": "Aktivitätsprämien",
+    "activityTrading": "Trading",
+    "activityGames": "Spiele",
+    "activityReferrals": "Empfehlungen",
+    "activityHint": "Kash-Prämien sammeln sich durch Ihre Aktivität in der App und landen hier.",
+    "comingSoon": "Kash kommt bald. Kauf und Verkauf öffnen in Kürze."
   }
 }

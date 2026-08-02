@@ -1493,5 +1493,19 @@
         "watch": "Watch"
       }
     }
+  },
+  "kash": {
+    "bannerTitle": "Buy Kash to earn more Kash by your activities",
+    "bannerSub": "Trade, play and refer — every activity pays you back in Kash.",
+    "bannerCta": "Buy Kash",
+    "balanceTitle": "Kash balance",
+    "buy": "Buy",
+    "sell": "Sell",
+    "activityTitle": "Activity rewards",
+    "activityTrading": "Trading",
+    "activityGames": "Games",
+    "activityReferrals": "Referrals",
+    "activityHint": "Kash rewards accrue from your activity across the app and land here.",
+    "comingSoon": "Kash is almost here. Buying and selling open soon."
   }
 }
