@@ -1543,6 +1543,8 @@
     "yesterday": "Gestern",
     "unknownDate": "Früher",
     "recentEyebrow": "Letzte Aktivität",
-    "viewAll": "Gesamte Aktivität ansehen"
+    "viewAll": "Gesamte Aktivität ansehen",
+    "toastReceived": "{amount} {symbol} auf {network} erhalten",
+    "toastSent": "{amount} {symbol} auf {network} gesendet"
   }
 }

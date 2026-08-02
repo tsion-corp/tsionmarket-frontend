@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { useActivityNotifications } from "@/hooks/use-activity-notifications";
 import { Topbar } from "@/components/dashboard/topbar";
 import { SectionChips } from "@/components/dashboard/section-chips";
 import { DashboardFooter } from "@/components/dashboard/dashboard-footer";
@@ -37,6 +38,9 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   usePrefetchDepositCatalog();
 
   const navigate = useAppNavigate();
+  // Announces transfers that land while the app is open, including deposits
+  // this app did not initiate.
+  useActivityNotifications();
 
   return (
     <div className="min-h-screen bg-black">

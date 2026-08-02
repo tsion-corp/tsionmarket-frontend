@@ -85,6 +85,7 @@ export const NAV_TARGETS: readonly SectionId[] = [
   "prediction",
   "earn",
   "casino",
+  "activity",
 ];
 
 export const CHAIN_TYPES: readonly ChainType[] = ["ethereum", "solana"];
