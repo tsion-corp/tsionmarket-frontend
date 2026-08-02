@@ -65,7 +65,6 @@ export function FundsModal({
           icon={<CardIcon size={22} />}
           title={t("fiatTitle")}
           subtitle={t("fiatSubtitle")}
-          badge={t("soon")}
           onClick={() => setStep("fiat")}
         />
       </div>

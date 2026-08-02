@@ -49,9 +49,7 @@ export function CrossBorderBanner({ onClick }: CrossBorderBannerProps) {
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2.5">
-            <span className="font-sans text-[17px] font-semibold text-white sm:text-[19px]">
-              {t("title")}
-            </span>
+            <span className="ws-display text-[18px] text-white sm:text-[20px]">{t("title")}</span>
             <span className="rounded-full border border-white/25 bg-white/12 px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] text-white uppercase backdrop-blur-sm">
               {t("badge")}
             </span>
