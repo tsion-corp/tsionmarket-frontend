@@ -892,7 +892,7 @@
     "youWithdraw": "Sie zahlen aus",
     "bankComingSoonBody": "Bankauszahlungen werden mit unserem Zahlungspartner fertiggestellt. Zahlen Sie in der Zwischenzeit auf eine Krypto-Wallet aus.",
     "fiatDepositTitle": "Mit Karte oder Bank aufladen",
-    "fiatDepositSubtitle": "Zahlen Sie mit Karte, Apple Pay oder Google Pay. Abgewickelt als USDC auf Base.",
+    "fiatDepositSubtitle": "Laden Sie Ihre Wallet in Naira auf. Wird in USDC abgewickelt.",
     "youPay": "Sie zahlen",
     "card": "Karte",
     "bankTransfer": "Überweisung",
@@ -901,12 +901,7 @@
     "pickNetworkFirst": "Wählen Sie zuerst ein Netzwerk",
     "networksError": "Netzwerke konnten nicht geladen werden.",
     "tokensError": "Tokens konnten nicht geladen werden.",
-    "fiatNote": "Die Zahlung wird sicher von Privy abgewickelt. Das Guthaben trifft meist wenige Minuten nach einem abgeschlossenen Kauf ein.",
-    "fiatWorking": "Warten auf die Zahlung…",
-    "fiatContinue": "Weiter — {amount} $",
-    "fiatMin": "Minimum ist {min} $",
-    "fiatSuccess": "Zahlung abgeschlossen. Ihre USDC sind unterwegs.",
-    "fiatFailed": "Die Zahlung wurde nicht abgeschlossen. Sie wurden nicht doppelt belastet — versuchen Sie es erneut."
+    "fiatComingSoonBody": "Wir schließen die Verifizierung mit unserem Zahlungspartner ab. Karten- und Bankaufladung starten in Kürze. Zahlen Sie in der Zwischenzeit Krypto ein."
   },
   "remit": {
     "sendMoney": "Geld senden",

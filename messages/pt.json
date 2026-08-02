@@ -892,7 +892,7 @@
     "youWithdraw": "Levanta",
     "bankComingSoonBody": "Os pagamentos bancários estão a ser finalizados com o nosso parceiro de pagamentos. Entretanto, levante para uma carteira cripto.",
     "fiatDepositTitle": "Adicionar com cartão ou banco",
-    "fiatDepositSubtitle": "Pague com cartão, Apple Pay ou Google Pay. Liquida como USDC na Base.",
+    "fiatDepositSubtitle": "Financie a sua carteira em nairas. Liquida em USDC.",
     "youPay": "Paga",
     "card": "Cartão",
     "bankTransfer": "Transferência bancária",
@@ -901,12 +901,7 @@
     "pickNetworkFirst": "Escolha uma rede primeiro",
     "networksError": "Não foi possível carregar as redes.",
     "tokensError": "Não foi possível carregar os tokens.",
-    "fiatNote": "O pagamento é processado com segurança pela Privy. Os fundos costumam chegar poucos minutos após a compra concluída.",
-    "fiatWorking": "Aguardando o pagamento…",
-    "fiatContinue": "Continuar — {amount} $",
-    "fiatMin": "O mínimo é {min} $",
-    "fiatSuccess": "Pagamento concluído. Seus USDC estão a caminho.",
-    "fiatFailed": "O pagamento não foi concluído. Você não foi cobrado duas vezes — tente novamente."
+    "fiatComingSoonBody": "Estamos a finalizar a verificação com o nosso parceiro de pagamentos. O financiamento por cartão e banco chega em breve. Entretanto, deposite cripto."
   },
   "remit": {
     "sendMoney": "Enviar dinheiro",
