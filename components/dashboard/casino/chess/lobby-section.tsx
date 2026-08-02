@@ -280,9 +280,9 @@ export function LobbySection() {
   return (
     <>
       <div className="mx-auto w-full max-w-[1520px] px-4 pb-8 sm:px-6 lg:px-8">
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,840px)_392px]">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,840px)_392px]">
           <section
-            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[88px] xl:self-start"
             style={{ background: SURFACE_BG }}
           >
             <div className="mx-auto w-full" style={{ maxWidth: LOBBY_BOARD_MAX_WIDTH }}>

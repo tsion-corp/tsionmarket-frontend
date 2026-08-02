@@ -19,7 +19,7 @@ import {
   isIssuerAccess,
   isRateLimitError,
   isSellableChain,
-  isBaseAsset,
+  isLiveChain,
   isTradable,
   isTransientRwaError,
   minReceiveTokens,
@@ -106,10 +106,11 @@ describe("access classification", () => {
     expect(isTradable(asset({ accessMode: "issuer", freelyTradable: true }))).toBe(false);
   });
 
-  it("is a Base asset only when the chain is base", () => {
-    expect(isBaseAsset(asset({ chain: "base" }))).toBe(true);
-    expect(isBaseAsset(asset({ chain: "ethereum" }))).toBe(false);
-    expect(isBaseAsset(asset({ chain: "arbitrum" }))).toBe(false);
+  it("trades on the live chains only", () => {
+    expect(isLiveChain(asset({ chain: "base" }))).toBe(true);
+    expect(isLiveChain(asset({ chain: "solana" }))).toBe(true);
+    expect(isLiveChain(asset({ chain: "ethereum" }))).toBe(false);
+    expect(isLiveChain(asset({ chain: "bsc" }))).toBe(false);
   });
 });
 

@@ -59,7 +59,7 @@ export const CASINO_GAMES: CasinoGame[] = [
   // columns, and "tall" is the two-column slot that pairs with it.
   {
     id: "last-standing",
-    name: "Last Man Standing",
+    name: "Last Man",
     category: "New",
     size: "tall",
     glyph: "⌛",

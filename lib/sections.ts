@@ -11,7 +11,7 @@ export const SECTION_LABEL: Record<SectionId, string> = {
   rwa: "Real assets",
   prediction: "Prediction",
   earn: "Earn",
-  casino: "Casino",
+  casino: "Arkade",
 };
 
 // Portfolio is always the account home. The rest follow, led by whatever the

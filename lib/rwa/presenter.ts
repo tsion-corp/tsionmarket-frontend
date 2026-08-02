@@ -34,9 +34,13 @@ export function isTradable(a: RwaApiAsset): boolean {
   return a.freelyTradable === true && a.accessMode !== "issuer";
 }
 
-// The table shows Base-network assets only.
-export function isBaseAsset(a: RwaApiAsset): boolean {
-  return a.chain === "base";
+// Chains the RWA table trades on. Quote and build route both live (verified
+// against the gateway: Jupiter on Solana, aggregators on Base); the catalog's
+// other chains stay hidden until their portfolio and gas support lands.
+export const LIVE_RWA_CHAINS: readonly RwaChain[] = ["base", "solana"];
+
+export function isLiveChain(a: RwaApiAsset): boolean {
+  return (LIVE_RWA_CHAINS as readonly string[]).includes(a.chain);
 }
 
 // Native gas token and portfolio network id per chain. The portfolio source

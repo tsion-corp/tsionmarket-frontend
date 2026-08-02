@@ -7,15 +7,15 @@
     "rwa": "Sachwerte",
     "prediction": "Prognosen",
     "earn": "Verdienen",
-    "casino": "Casino"
+    "casino": "Arkade"
   },
   "explore": {
     "predictionTitle": "Prognosemärkte",
     "predictionBody": "Handeln Sie Politik, Sport und Weltereignisse.",
     "earnTitle": "Verdienen",
     "earnBody": "Echte Aufgaben, onchain bezahlt.",
-    "casinoTitle": "Casino",
-    "casinoBody": "Schach um Einsätze, Last Man Standing und mehr.",
+    "casinoTitle": "Arkade",
+    "casinoBody": "Schach um Einsätze, Last Man und mehr.",
     "cta": "Entdecken"
   },
   "meme": {
@@ -381,8 +381,8 @@
     "perpsDesc": "Long oder Short mit bis zu 100x Hebel.",
     "predictionTitle": "Prognosemärkte",
     "predictionDesc": "Handeln Sie Politik, Sport und Weltereignisse.",
-    "casinoTitle": "Casino & Spiele",
-    "casinoDesc": "Last Man Standing, Schach um Einsätze und mehr.",
+    "casinoTitle": "Arkade & Spiele",
+    "casinoDesc": "Last Man, Schach um Einsätze und mehr.",
     "realestateTitle": "Immobilien",
     "realestateDesc": "Anteiliges Eigentum mit Mieteinnahmen.",
     "treasuriesTitle": "Staatsanleihen",
@@ -944,13 +944,13 @@
       "loading": "Wird geladen…",
       "tryAgain": "Erneut versuchen",
       "unavailableTitle": "{subject} ist noch nicht verfügbar.",
-      "unavailableDetail": "Dieses Spiel startet, sobald der Casino-Dienst aktiviert ist.",
+      "unavailableDetail": "Dieses Spiel startet, sobald der Arkade-Dienst aktiviert ist.",
       "loadFailedTitle": "{subject} konnte nicht geladen werden.",
       "loadFailedDetail": "Bei uns ist etwas schiefgelaufen."
     },
     "hub": {
-      "eyebrow": "Casino · Können und Glück",
-      "title": "Casino",
+      "eyebrow": "Arkade · Können und Glück",
+      "title": "Arkade",
       "tagline": "Können und Glück. Echte Einsätze.",
       "yourBalance": "Ihr Guthaben",
       "recentWins": "Letzte Gewinne",
@@ -975,7 +975,7 @@
           "note": "Duell mit Einsatz, per Einladung oder Schnellpartie"
         },
         "last-standing": {
-          "name": "Last Man Standing",
+          "name": "Last Man",
           "note": "Überdauern Sie alle, der Gewinner nimmt den Pot"
         },
         "draw": {
@@ -999,8 +999,8 @@
       }
     },
     "lastStanding": {
-      "eyebrow": "Casino · Der Gewinner bekommt alles",
-      "title": "Last Man Standing",
+      "eyebrow": "Arkade · Der Gewinner bekommt alles",
+      "title": "Last Man",
       "intro": "Spielen Sie, um als Letzter übrig zu bleiben. Läuft die Uhr ab, nimmt der letzte Spieler, der gespielt hat, den ganzen Pot.",
       "live": "Live",
       "offline": "Offline",

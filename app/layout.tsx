@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist } from "next/font/google";
-import localFont from "next/font/local";
+import { Geist, Mona_Sans } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import Providers from "./providers";
@@ -14,11 +13,10 @@ const geist = Geist({
   subsets: ["latin"],
 });
 
-// Headers. Clash Display (Fontshare/ITF, self-hosted variable font, license
-// alongside the file), used at bold by the ws-display utility.
-const clashDisplay = localFont({
-  src: "./fonts/ClashDisplay-Variable.woff2",
-  weight: "200 700",
+// Headers. Mona Sans, used at bold by the ws-display utility.
+const monaSans = Mona_Sans({
+  subsets: ["latin"],
+  weight: ["600", "700"],
   variable: "--font-display",
 });
 
@@ -41,7 +39,7 @@ export default async function RootLayout({
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className={`${geist.variable} ${clashDisplay.variable} h-full antialiased`}>
+    <html lang={locale} className={`${geist.variable} ${monaSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>{children}</Providers>

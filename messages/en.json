@@ -7,15 +7,15 @@
     "rwa": "Real assets",
     "prediction": "Prediction",
     "earn": "Earn",
-    "casino": "Casino"
+    "casino": "Arkade"
   },
   "explore": {
     "predictionTitle": "Prediction markets",
     "predictionBody": "Trade politics, sports and world events.",
     "earnTitle": "Earn",
     "earnBody": "Real tasks that pay out onchain.",
-    "casinoTitle": "Casino",
-    "casinoBody": "Staked chess, Last Man Standing and more.",
+    "casinoTitle": "Arkade",
+    "casinoBody": "Staked chess, Last Man and more.",
     "cta": "Explore"
   },
   "meme": {
@@ -381,8 +381,8 @@
     "perpsDesc": "Long or short with up to 100x leverage.",
     "predictionTitle": "Prediction markets",
     "predictionDesc": "Trade politics, sports and world events.",
-    "casinoTitle": "Casino & games",
-    "casinoDesc": "Last Man Standing, staked chess and more.",
+    "casinoTitle": "Arkade & games",
+    "casinoDesc": "Last Man, staked chess and more.",
     "realestateTitle": "Real estate",
     "realestateDesc": "Fractional property that pays rental income.",
     "treasuriesTitle": "Treasuries & bonds",
@@ -944,13 +944,13 @@
       "loading": "Loading…",
       "tryAgain": "Try again",
       "unavailableTitle": "{subject} isn't available yet.",
-      "unavailableDetail": "This game goes live once the casino service is switched on.",
+      "unavailableDetail": "This game goes live once the Arkade service is switched on.",
       "loadFailedTitle": "Couldn't load {subject}.",
       "loadFailedDetail": "Something went wrong on our side."
     },
     "hub": {
-      "eyebrow": "Casino · Skill and chance",
-      "title": "Casino",
+      "eyebrow": "Arkade · Skill and chance",
+      "title": "Arkade",
       "tagline": "Skill and chance. Real stakes.",
       "yourBalance": "Your balance",
       "recentWins": "Recent wins",
@@ -975,7 +975,7 @@
           "note": "Staked head-to-head, invite or quick match"
         },
         "last-standing": {
-          "name": "Last Man Standing",
+          "name": "Last Man",
           "note": "Outlast everyone, winner takes the pot"
         },
         "draw": {
@@ -999,8 +999,8 @@
       }
     },
     "lastStanding": {
-      "eyebrow": "Casino · Winner takes all",
-      "title": "Last Man Standing",
+      "eyebrow": "Arkade · Winner takes all",
+      "title": "Last Man",
       "intro": "Play to become the last one standing. When the timer runs out, the last player to play takes the whole pot.",
       "live": "Live",
       "offline": "Offline",

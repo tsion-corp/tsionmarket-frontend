@@ -7,15 +7,15 @@
     "rwa": "Actifs réels",
     "prediction": "Prédictions",
     "earn": "Gagner",
-    "casino": "Casino"
+    "casino": "Arkade"
   },
   "explore": {
     "predictionTitle": "Marchés prédictifs",
     "predictionBody": "Pariez sur la politique, le sport et l'actualité.",
     "earnTitle": "Gagner",
     "earnBody": "Des tâches réelles payées onchain.",
-    "casinoTitle": "Casino",
-    "casinoBody": "Échecs avec mise, Last Man Standing et plus.",
+    "casinoTitle": "Arkade",
+    "casinoBody": "Échecs avec mise, Last Man et plus.",
     "cta": "Explorer"
   },
   "meme": {
@@ -381,8 +381,8 @@
     "perpsDesc": "Long ou short avec un levier jusqu'à 100x.",
     "predictionTitle": "Marchés de prédiction",
     "predictionDesc": "Tradez la politique, le sport et l'actualité mondiale.",
-    "casinoTitle": "Casino & jeux",
-    "casinoDesc": "Last Man Standing, échecs avec mise et plus encore.",
+    "casinoTitle": "Arkade & jeux",
+    "casinoDesc": "Last Man, échecs avec mise et plus encore.",
     "realestateTitle": "Immobilier",
     "realestateDesc": "Propriété fractionnée qui verse des loyers.",
     "treasuriesTitle": "Bons du Trésor et obligations",
@@ -944,13 +944,13 @@
       "loading": "Chargement…",
       "tryAgain": "Réessayer",
       "unavailableTitle": "{subject} n'est pas encore disponible.",
-      "unavailableDetail": "Ce jeu sera lancé dès que le service casino sera activé.",
+      "unavailableDetail": "Ce jeu sera lancé dès que le service Arkade sera activé.",
       "loadFailedTitle": "Impossible de charger {subject}.",
       "loadFailedDetail": "Un problème est survenu de notre côté."
     },
     "hub": {
-      "eyebrow": "Casino · Adresse et hasard",
-      "title": "Casino",
+      "eyebrow": "Arkade · Adresse et hasard",
+      "title": "Arkade",
       "tagline": "Adresse et hasard. Des mises réelles.",
       "yourBalance": "Votre solde",
       "recentWins": "Gains récents",
@@ -975,7 +975,7 @@
           "note": "Face-à-face avec mise, sur invitation ou partie rapide"
         },
         "last-standing": {
-          "name": "Last Man Standing",
+          "name": "Last Man",
           "note": "Survivez à tous, le gagnant remporte le pot"
         },
         "draw": {
@@ -999,8 +999,8 @@
       }
     },
     "lastStanding": {
-      "eyebrow": "Casino · Le gagnant rafle tout",
-      "title": "Last Man Standing",
+      "eyebrow": "Arkade · Le gagnant rafle tout",
+      "title": "Last Man",
       "intro": "Jouez pour être le dernier en lice. Quand le chrono tombe à zéro, le dernier joueur à avoir joué remporte tout le pot.",
       "live": "En direct",
       "offline": "Hors ligne",
