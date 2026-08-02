@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 // CDN; the entropy crop keeps the coins in frame at any width.
 const BANNER_IMG =
   "https://images.unsplash.com/photo-1755369355222-8146801ccf90?q=70&w=1400&h=340&fit=crop&crop=entropy";
-const COIN = "https://commons.wikimedia.org/wiki/Special:FilePath/Noto_Emoji_v2.034_1fa99.svg";
+// The owner's Kash coin design, cropped to a medallion by the circle mask.
+const COIN = "/kash-coin.jpg";
 
 // Blinking sparkle positions and stagger, ad-style.
 const SPARKS = [
@@ -73,7 +74,7 @@ export function KashBanner({ onBuy }: { onBuy: () => void }) {
           <img
             src={COIN}
             alt=""
-            className="h-11 w-11 sm:h-13 sm:w-13"
+            className="h-12 w-12 rounded-full object-cover shadow-[0_0_14px_rgba(180,130,20,0.55)] sm:h-14 sm:w-14"
             style={{ animation: "kash-float 3.2s ease-in-out infinite" }}
           />
         </span>
