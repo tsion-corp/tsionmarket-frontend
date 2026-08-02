@@ -14,8 +14,8 @@
 @theme inline {
   --font-sans: var(--font-body);
   /* Header font. Kept under the --font-serif token (and the ws-display utility)
-     to avoid renaming 47 call sites, but it is now Space Grotesk, a sans display
-     face, not a serif. */
+     to avoid renaming 47 call sites, but it is now Clash Display, a sans
+     display face, not a serif. */
   --font-serif: var(--font-display);
 
   /* Ark brand is monochrome: no purple, no gold. The accent is silver, so
@@ -79,9 +79,9 @@ body {
 
 @utility ws-display {
   font-family: var(--font-serif), sans-serif;
-  /* Space Grotesk at medium weight, not the old italic serif. Component tracking
-     utilities still override the letter-spacing where a title needs it tighter. */
-  font-weight: 500;
+  /* Clash Display at bold, per the design team. Component tracking utilities
+     still override the letter-spacing where a title needs it tighter. */
+  font-weight: 700;
   letter-spacing: -0.01em;
 }
 

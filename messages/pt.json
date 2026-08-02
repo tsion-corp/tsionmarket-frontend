@@ -72,7 +72,8 @@
     "next": "Próx.",
     "confirmingLong": "Ainda verificando — a Base está ocupada. Você pode fechar; o resultado aparecerá assim que chegar.",
     "closeAndNotify": "Fechar — avisar quando concluir",
-    "orderFailed": "A negociação não foi concluída."
+    "orderFailed": "A negociação não foi concluída.",
+    "max": "Máx"
   },
   "spot": {
     "balance": "Saldo {amount} {symbol}",

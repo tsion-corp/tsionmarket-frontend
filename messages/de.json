@@ -72,7 +72,8 @@
     "next": "Weiter",
     "confirmingLong": "Wird noch verifiziert — Base ist ausgelastet. Sie können dies schließen; das Ergebnis erscheint, sobald es vorliegt.",
     "closeAndNotify": "Schließen — Ergebnis melden",
-    "orderFailed": "Der Handel wurde nicht abgeschlossen."
+    "orderFailed": "Der Handel wurde nicht abgeschlossen.",
+    "max": "Max"
   },
   "spot": {
     "balance": "Guthaben {amount} {symbol}",
