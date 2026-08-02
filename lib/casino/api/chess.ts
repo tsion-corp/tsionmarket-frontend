@@ -48,10 +48,30 @@ export interface LobbyChallenges {
 // lobby and quick-match path hide seats that are old enough to read as
 // abandoned. Direct invite links still resolve by match id.
 const STALE_WAITING_MATCH_MAX_AGE_MS = 60 * 60 * 1000;
+// A match marked `active` cannot legitimately outlive its total available
+// clock budget: both starting banks plus every increment that could have been
+// awarded across the moves already played. If it does, the backend left it
+// "live" after it should have timed out, so the lobby hides it.
+const STALE_ACTIVE_MATCH_GRACE_MS = 30 * 1000;
 
 function isFreshWaitingMatch(wire: Pick<ChessMatchWire, "createdAt">): boolean {
   const created = Date.parse(wire.createdAt);
   return !Number.isFinite(created) || Date.now() - created <= STALE_WAITING_MATCH_MAX_AGE_MS;
+}
+
+function isPlausiblyActiveMatch(
+  wire: Pick<ChessMatchWire, "createdAt" | "startedAt" | "timeControl" | "ply">
+): boolean {
+  const started = Date.parse(wire.startedAt ?? wire.createdAt);
+  if (!Number.isFinite(started)) return true;
+
+  const initial = wire.timeControl.initialSeconds;
+  const increment = wire.timeControl.incrementSeconds;
+  const ply = Math.max(0, wire.ply);
+  if (!Number.isFinite(initial) || !Number.isFinite(increment)) return true;
+
+  const maxLiveAgeMs = (initial * 2 + increment * ply) * 1000 + STALE_ACTIVE_MATCH_GRACE_MS;
+  return Date.now() - started <= maxLiveAgeMs;
 }
 
 function requireMatchId(matchId: string): string {
@@ -93,7 +113,7 @@ export async function fetchMatch(
       // When no new move landed, the last move timestamp we already have is
       // still the honest clock reference. A no-move poll must not restart the
       // displayed countdown.
-      clockUpdatedAt: previous.moves.length > 0 ? previous.clockUpdatedAt : undefined,
+      clockUpdatedAt: previous.clockUpdatedAt,
     });
   }
   if (wire.ply === 0) return toChessMatch(wire);
@@ -110,7 +130,7 @@ export async function fetchOpenChallenges(): Promise<ChessChallenge[]> {
 
 export async function fetchLiveMatches(): Promise<ChessMatch[]> {
   const data = await chessGet<MatchListWire>("/matches", { status: "active", limit: "50" });
-  return data.items.map((wire) => toChessMatch(wire));
+  return data.items.filter(isPlausiblyActiveMatch).map((wire) => toChessMatch(wire));
 }
 
 // Every game sitting open, as the service reports it.

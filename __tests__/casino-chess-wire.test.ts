@@ -124,6 +124,18 @@ describe("match", () => {
     expect(toChessMatch(wire()).clocks).toEqual({ w: 300, b: 297.5 });
   });
 
+  it("falls back to the starting bank when a fresh live snapshot carries zero clocks", () => {
+    expect(
+      toChessMatch(
+        wire({
+          ply: 0,
+          timeControl: { initialSeconds: 300, incrementSeconds: 0 },
+          clocks: { whiteMs: 0, blackMs: 0 },
+        })
+      ).clocks
+    ).toEqual({ w: 300, b: 300 });
+  });
+
   it("dates the clocks from the last move, so the countdown starts there", () => {
     const match = toChessMatch(wire(), { moves: [move(), move({ ply: 2, san: "e5" })] });
     expect(match.clockUpdatedAt).toBe("2026-07-30T09:01:30.000Z");
@@ -143,6 +155,12 @@ describe("match", () => {
     const match = toChessMatch(wire({ status: "waiting", black: null }));
     expect(match.black).toBeNull();
     expect(match.white).toMatchObject({ walletAddress: "0xwhite", rating: 0 });
+  });
+
+  it("keeps non-wallet seat names readable for managed tournament games", () => {
+    const match = toChessMatch(wire({ white: "0xDD0737-6C2E", black: "0x235e47-6278" }));
+    expect(match.white?.username).toBe("0xDD0737-6C2E");
+    expect(match.black?.username).toBe("0x235e47-6278");
   });
 
   it("resolves a draw offer to the side that made it", () => {

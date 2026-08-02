@@ -24,10 +24,9 @@ export type GameId = "chess" | "draw" | "last-standing";
 // game created elsewhere with an unusual control still has to display.
 export type ChessTimeControl = string;
 
-// The controls offered on the create screen.
-// Per-move time budgets: the value is how long you get for each move (mapped to
-// an equal base + Fischer increment on the service), not a whole-game clock.
-export const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["15s", "30s", "1m", "2m"];
+// The controls offered on the create screens.
+// These are whole-game clocks, not per-move resets.
+export const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["5+0", "10+0", "15+0"];
 
 export type ChessColor = "w" | "b";
 

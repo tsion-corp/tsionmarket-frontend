@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useCreateSwiss } from "@/hooks/use-casino-swiss";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import { CHESS_PRIMARY_BUTTON_CLASS } from "@/lib/casino/chess/ui";
 import {
   ROUNDS_MAX,
   ROUNDS_MIN,
@@ -18,13 +19,23 @@ import type { ChessTimeControl } from "@/lib/casino/api/types";
 
 // Local copy of the create screen's presets. Copied, not imported: the create
 // section is its own module and this form must not couple to its internals.
-// Per-move budgets, matching the 1-v-1 create screen (mapped to base +
-// increment on the service).
-const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["15s", "30s", "1m", "2m"];
+const TIME_CONTROL_PRESETS: ReadonlyArray<{
+  value: ChessTimeControl;
+  label: string;
+}> = [
+  { value: "5+0", label: "5 min" },
+  { value: "10+0", label: "10 min" },
+  { value: "15+0", label: "15 min" },
+];
 
 const ROUND_PRESETS = [3, 5, 7] as const;
 
-export function SwissCreateForm() {
+interface SwissCreateFormProps {
+  embedded?: boolean;
+  onCreated?: (tournamentId: string) => void;
+}
+
+export function SwissCreateForm({ embedded = false, onCreated }: SwissCreateFormProps) {
   const t = useTranslations("casino.chess.swiss");
   const router = useRouter();
   const wallet = useCasinoWallet();
@@ -33,7 +44,7 @@ export function SwissCreateForm() {
   const [name, setName] = useState("");
   const [rounds, setRounds] = useState<number>(5);
   const [customRounds, setCustomRounds] = useState(false);
-  const [timeControl, setTimeControl] = useState<ChessTimeControl>("30s");
+  const [timeControl, setTimeControl] = useState<ChessTimeControl>("10+0");
   const [password, setPassword] = useState("");
   const [forbidden, setForbidden] = useState("");
   const [touched, setTouched] = useState(false);
@@ -58,7 +69,8 @@ export function SwissCreateForm() {
         forbiddenPairings: forbidden || undefined,
       });
       toast.success(t("toastCreated"), { id });
-      router.push(`/casino/chess/swiss/${tournament.id}`);
+      onCreated?.(tournament.id);
+      router.push(`/casino/chess/swiss/${tournament.id}?created=1`);
     } catch (e) {
       toast.error(friendlyError(e, t("toastCreateFailed")), { id });
     }
@@ -66,16 +78,16 @@ export function SwissCreateForm() {
 
   const chipClass = (active: boolean) =>
     `cursor-pointer rounded-lg border border-white/10 px-3.5 py-2 font-sans text-[13px] transition-colors ${
-      active ? "bg-accent text-ink border-accent font-semibold" : "text-white hover:bg-white/6"
+      active ? "text-ink border-white bg-white font-semibold" : "text-white hover:bg-white/6"
     }`;
 
   const labelClass = "mb-2.5 text-[11px] font-normal tracking-[0.05em] text-white/50 uppercase";
   const inputClass =
     "ws-inset w-full rounded-lg px-3 py-2.5 font-sans text-[13px] text-white placeholder:text-white/30 focus:outline-none";
 
-  return (
-    <div className="ws-glass mb-8 rounded-2xl p-5.5">
-      <div className="ws-display mb-4 text-[20px]">{t("formTitle")}</div>
+  const content = (
+    <>
+      {!embedded ? <div className="ws-display mb-4 text-[20px]">{t("formTitle")}</div> : null}
 
       <div className="mb-4.5">
         <div className={labelClass}>{t("nameLabel")}</div>
@@ -133,11 +145,11 @@ export function SwissCreateForm() {
         <div className="flex flex-wrap gap-2">
           {TIME_CONTROL_PRESETS.map((tc) => (
             <button
-              key={tc}
-              onClick={() => setTimeControl(tc)}
-              className={chipClass(timeControl === tc)}
+              key={tc.value}
+              onClick={() => setTimeControl(tc.value)}
+              className={chipClass(timeControl === tc.value)}
             >
-              {tc}
+              {tc.label}
             </button>
           ))}
         </div>
@@ -169,13 +181,17 @@ export function SwissCreateForm() {
       <button
         onClick={() => void onCreate()}
         disabled={create.isPending}
-        className="text-ink w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+        className={`${CHESS_PRIMARY_BUTTON_CLASS} w-full p-3.5 font-sans text-[14px] font-bold`}
       >
         {create.isPending ? t("creating") : t("submit")}
       </button>
       <div className="mt-2.5 text-center text-[11.5px] font-normal text-white/50">
         {t("freeNote")}
       </div>
-    </div>
+    </>
   );
+
+  if (embedded) return <div>{content}</div>;
+
+  return <div className="ws-glass mb-8 rounded-2xl p-5.5">{content}</div>;
 }

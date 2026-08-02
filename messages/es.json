@@ -1326,7 +1326,9 @@
         "infoWhite": "Blancas",
         "infoBlack": "Negras",
         "controlsWaiting": "Controles de la partida",
-        "controlsActions": "Acciones"
+        "controlsActions": "Acciones",
+        "statusFlagged": "Se te acabó el tiempo",
+        "navPlay": "Jugar"
       },
       "spectate": {
         "subject": "este encuentro",

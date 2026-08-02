@@ -4,10 +4,9 @@ import { useMemo, useState } from "react";
 import type { Board, Move, PieceColor, PieceType, Square } from "@/lib/casino/chess/engine";
 import { DEFAULT_THEME, type BoardTheme } from "@/lib/casino/chess/board-theme";
 
-// The Cburnett piece set (public/piece/cburnett/). See its NOTICE.txt on
-// licensing and how to swap sets.
+// The neo piece set (public/piece/neo/). See its NOTICE.txt on licensing.
 function pieceSrc(color: PieceColor, type: PieceType): string {
-  return `/piece/cburnett/${color}${type}.png`;
+  return `/piece/neo/${color}${type}.png`;
 }
 
 // The dual drop-shadow is a thin light + dark halo so a piece of either colour

@@ -39,7 +39,7 @@ function PairingAction({ pairing, yourName }: { pairing: SwissPairing; yourName:
 
   return isSeated(pairing, yourName) ? (
     <Link
-      href={`/casino/chess/play?match=${pairing.matchId}`}
+      href={`/casino/chess/play?match=${pairing.matchId}&player=${encodeURIComponent(yourName ?? "")}`}
       className="bg-up text-up-ink rounded-full px-4 py-1.5 text-center font-sans text-[12px] font-bold"
     >
       {t("play")}

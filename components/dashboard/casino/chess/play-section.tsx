@@ -8,6 +8,8 @@ import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useChessEngine } from "@/hooks/use-chess-engine";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
+import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
+import { GridIcon } from "@/components/ui/icons";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-theme-picker";
@@ -15,6 +17,15 @@ import { VictoryConfetti } from "@/components/dashboard/casino/chess/victory-con
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { identifyOpening } from "@/lib/casino/chess/openings";
 import { formatEngineScore, pvToSan, uciToSan } from "@/lib/casino/chess/engine-analysis";
+import {
+  CHESS_CARD_BG,
+  CHESS_CARD_SHADOW,
+  CHESS_PAGE_BOARD_MAX_WIDTH,
+  CHESS_SHELL_BG,
+  CHESS_SHELL_SHADOW,
+  CHESS_SIDEBAR_BG,
+  CHESS_SURFACE_BG,
+} from "@/lib/casino/chess/ui";
 import { moveSoundFromSan, playGameEndSound, playMoveSound } from "@/lib/casino/chess/sound";
 import {
   CasinoEmpty,
@@ -53,14 +64,6 @@ function ClockIcon() {
     </svg>
   );
 }
-
-const SURFACE_BG = "#312E2B";
-const SHELL_BG = "rgba(0, 0, 0, 0.20)";
-const CARD_BG =
-  "linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)";
-const SHADOW = "0 .1rem .1rem 0 rgba(0, 0, 0, 0.20)";
-const CARD_SHADOW =
-  "inset 0 .1rem 0 0 rgba(255, 255, 255, 0.07), 0 .1rem .2rem 0 rgba(0, 0, 0, 0.20)";
 
 type Translator = ReturnType<typeof useTranslations>;
 
@@ -134,7 +137,45 @@ function playerName(
   return displayName(player.username, player.walletAddress) ?? fallback;
 }
 
-export function PlaySection({ matchId }: { matchId: string | null }) {
+// The rail's tab glyphs; the create screen draws the same set.
+function RailGlyph({ kind }: { kind: "play" | "new" | "games" | "players" }) {
+  if (kind === "new") {
+    return (
+      <span className="relative mb-2 block h-6 w-6" aria-hidden>
+        <span className="absolute inset-x-1 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-current" />
+        <span className="absolute inset-y-1 left-1/2 w-[3px] -translate-x-1/2 rounded-full bg-current" />
+      </span>
+    );
+  }
+  if (kind === "games") return <GridIcon size={24} className="mb-2" />;
+  if (kind === "players") {
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="mb-2" aria-hidden>
+        <circle cx="8.5" cy="9.25" r="2.75" fill="currentColor" />
+        <circle cx="15.75" cy="10" r="2.25" fill="currentColor" opacity="0.78" />
+        <path
+          d="M4.5 18.5c.8-2.4 2.8-3.7 5.5-3.7 2.7 0 4.7 1.3 5.5 3.7"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  }
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="mb-2" aria-hidden>
+      <path d="M8 5.5v13l10.5-6.5L8 5.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
+export function PlaySection({
+  matchId,
+  seatName = null,
+}: {
+  matchId: string | null;
+  seatName?: string | null;
+}) {
   const t = useTranslations("casino.chess.play");
   const tStake = useTranslations("casino.chess.stake");
   // The create screen owns the invite-link copy; the waiting board reuses it.
@@ -164,7 +205,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
     rematch,
     requestingRematch,
     claimingTimeout,
-  } = useChessMatch(matchId);
+  } = useChessMatch(matchId, seatName);
   const [selected, setSelected] = useState<Square | null>(null);
   const [pendingPromotion, setPendingPromotion] = useState<{
     fen: string;
@@ -177,7 +218,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   const rematchOffered = useRematchOffer(match, you);
   const acceptRematch = useAcceptChallenge();
   const theme = useBoardTheme();
-  const [railTab, setRailTab] = useState<"moves" | "chat" | "info">("moves");
+  const [railTab, setRailTab] = useState<"moves" | "info">("moves");
   const engine = useChessEngine(match?.fen ?? null);
 
   // A soft "thock" whenever the move count grows — the player's own move and the
@@ -242,9 +283,10 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   // result.
   const legalTargets = useMemo(() => {
     const yourTurn = !!match && match.state === "in_progress" && you !== null && match.turn === you;
-    if (!position || !selected || !yourTurn) return [];
+    const ownClock = yourTurn && you !== null ? (clocks?.[you] ?? 0) : 1;
+    if (!position || !selected || !yourTurn || ownClock <= 0) return [];
     return legalMovesForSquare(position, selected.r, selected.c);
-  }, [match, position, selected, you]);
+  }, [clocks, match, position, selected, you]);
 
   const targetSquares = useMemo(() => {
     const seen = new Set<string>();
@@ -284,6 +326,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
 
   const displayTurn = match.turn;
   const yourTurn = match.state === "in_progress" && you !== null && displayTurn === you;
+  const yourClockExpired = yourTurn && you !== null && (clocks?.[you] ?? 0) <= 0;
   const board = position.board;
   // Captured pieces and material lead, read straight off the board each render.
   const captured = capturedFromBoard(board);
@@ -299,7 +342,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   const offerPending = you !== null && match.drawOffered === you;
 
   const onSquareClick = async (r: number, c: number) => {
-    if (!yourTurn || moving) return;
+    if (!yourTurn || yourClockExpired || moving) return;
     if (selected && targetSquares.some((t) => t.r === r && t.c === c)) {
       const matching = legalTargets.filter((move) => move.to.r === r && move.to.c === c);
       const promotions = Array.from(
@@ -332,7 +375,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   };
 
   const onPromotionChoice = async (promotion: PromotionOption) => {
-    if (!activePendingPromotion) return;
+    if (!activePendingPromotion || yourClockExpired) return;
     const uci = toUci(position, activePendingPromotion.from, activePendingPromotion.to, promotion);
     setPendingPromotion(null);
     setSelected(null);
@@ -484,17 +527,19 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       ? t("statusClaiming")
       : waiting
         ? t("statusWaiting")
-        : moving
-          ? t("statusSending")
-          : yourTurn
-            ? t("statusYourMove")
-            : you === null
-              ? t("statusSpectating")
-              : offerToAnswer
-                ? t("statusDrawToYou")
-                : offerPending
-                  ? t("statusDrawSent")
-                  : t("statusOpponentThinking");
+        : yourClockExpired
+          ? t("statusFlagged")
+          : moving
+            ? t("statusSending")
+            : yourTurn
+              ? t("statusYourMove")
+              : you === null
+                ? t("statusSpectating")
+                : offerToAnswer
+                  ? t("statusDrawToYou")
+                  : offerPending
+                    ? t("statusDrawSent")
+                    : t("statusOpponentThinking");
   const inviteUrl =
     waiting && matchId
       ? typeof window === "undefined"
@@ -508,19 +553,19 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
         <section
           className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
-          style={{ background: SURFACE_BG }}
+          style={{ background: CHESS_SURFACE_BG }}
         >
-          <div className="mx-auto max-w-[944px]">
-            <div className="mb-4 flex items-center justify-between gap-4">
+          <div className="mx-auto w-full" style={{ maxWidth: CHESS_PAGE_BOARD_MAX_WIDTH }}>
+            <div className="mb-3 flex items-center justify-between gap-3">
               <div
-                className="flex min-w-0 items-center gap-4 rounded-[8px] px-3 py-3"
-                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+                className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
+                style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[1.1rem] font-bold text-white/30">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/10 font-sans text-[0.96rem] font-bold text-white/30">
                   P
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate font-sans text-[1.05rem] font-bold text-white">
+                  <div className="truncate font-sans text-[0.96rem] font-bold text-white">
                     {opponentDisplayName}
                   </div>
                   <CapturedRow
@@ -531,8 +576,8 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 </div>
               </div>
               <div
-                className="tnum flex min-w-[126px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-5 py-3 text-[1.15rem] font-semibold text-white/88"
-                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+                className="tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[1rem] font-semibold text-white/88"
+                style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
                 <ClockIcon />
                 {formatClock(clocks?.[opponentColor] ?? 0)}
@@ -548,7 +593,9 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 orientation={you ?? "w"}
                 theme={theme}
                 onSquareClick={
-                  you !== null && !over ? (r, c) => void onSquareClick(r, c) : undefined
+                  you !== null && !over && !yourClockExpired
+                    ? (r, c) => void onSquareClick(r, c)
+                    : undefined
                 }
               />
             </div>
@@ -556,7 +603,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
             {activePendingPromotion ? (
               <div
                 className="mt-4 rounded-[16px] border border-white/8 px-4 py-4"
-                style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
                 <div className="mb-2 text-[11.5px] font-semibold tracking-[0.04em] text-white/65 uppercase">
                   {t("promotionTitle")}
@@ -583,16 +630,16 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
               </div>
             ) : null}
 
-            <div className="mt-4 flex items-center justify-between gap-4">
+            <div className="mt-3 flex items-center justify-between gap-3">
               <div
-                className="flex min-w-0 items-center gap-4 rounded-[8px] px-3 py-3"
-                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+                className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
+                style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
-                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[1.1rem] font-bold text-white/30">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/10 font-sans text-[0.96rem] font-bold text-white/30">
                   P
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate font-sans text-[1.05rem] font-bold text-white">
+                  <div className="truncate font-sans text-[0.96rem] font-bold text-white">
                     {selfDisplayName}
                   </div>
                   <CapturedRow
@@ -603,10 +650,10 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 </div>
               </div>
               <div
-                className={`tnum flex min-w-[126px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-5 py-3 text-[1.15rem] font-semibold ${
-                  yourTurn ? "border border-[#81B64C]/45 text-white" : "text-white/88"
+                className={`tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[1rem] font-semibold ${
+                  yourTurn ? "border border-white/45 text-white" : "text-white/88"
                 }`}
-                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+                style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
                 <ClockIcon />
                 {formatClock(clocks?.[selfColor] ?? 0)}
@@ -630,41 +677,40 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
         </section>
 
         <aside
-          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
-          style={{ background: SHELL_BG }}
+          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+          style={{ background: CHESS_SIDEBAR_BG }}
         >
           <div className="grid grid-cols-4 border-b border-white/6 bg-black/10">
             <div className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white">
-              <span className="mb-2 block text-[1.1rem] font-bold">P</span>
-              <span className="font-sans text-[0.98rem] font-semibold">Play</span>
+              <RailGlyph kind="play" />
+              <span className="font-sans text-[0.98rem] font-semibold">{t("navPlay")}</span>
             </div>
             <Link
               href="/casino/chess/create"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">+</span>
+              <RailGlyph kind="new" />
               <span className="font-sans text-[0.98rem] font-semibold">{t("navNewGame")}</span>
             </Link>
             <Link
               href="/casino/chess/history"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">#</span>
+              <RailGlyph kind="games" />
               <span className="font-sans text-[0.98rem] font-semibold">{t("navGames")}</span>
             </Link>
             <Link
               href="/casino/chess"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">U</span>
+              <RailGlyph kind="players" />
               <span className="font-sans text-[0.98rem] font-semibold">{t("navPlayers")}</span>
             </Link>
           </div>
 
-          <div className="grid grid-cols-3 border-b border-white/6 bg-black/8">
-            {(["moves", "chat", "info"] as const).map((tab) => {
-              const label =
-                tab === "moves" ? t("railMoves") : tab === "chat" ? t("railChat") : t("railInfo");
+          <div className="grid grid-cols-2 border-b border-white/6 bg-black/8">
+            {(["moves", "info"] as const).map((tab) => {
+              const label = tab === "moves" ? t("railMoves") : "Info";
               const active = railTab === tab;
               return (
                 <button
@@ -689,11 +735,9 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                   {waiting && you !== null ? (
                     <div
                       className="rounded-[16px] border border-white/6 px-4 py-4"
-                      style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                      style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                     >
-                      <div className="mb-1 text-[1.2rem] font-extrabold text-white">
-                        {t("challengeLink")}
-                      </div>
+                      <div className="ws-display mb-1 text-[17px] text-white">Challenge Link</div>
                       <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
                         {tCreate("inviteReady")}
                       </div>
@@ -707,22 +751,25 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                             const copied = await copyText(inviteUrl);
                             if (copied) toast.success(tCreate("linkCopied"));
                           }}
-                          className="cursor-pointer rounded-[12px] bg-[#81B64C] px-4 py-3 font-sans text-[12px] font-bold text-white"
+                          className="text-ink cursor-pointer rounded-[12px] bg-white px-4 py-3 font-sans text-[12px] font-bold"
                         >
                           {tCreate("copy")}
                         </button>
                       </div>
-                      <div className="mt-3 text-[11.5px] text-white/44">{t("shareManually")}</div>
+                      <div className="mt-3 text-[11.5px] text-white/44">
+                        Share this link manually. The first player who opens it takes the other
+                        side.
+                      </div>
                     </div>
                   ) : null}
 
                   <div
                     className="rounded-[16px] border border-white/6 px-4 py-4"
-                    style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                    style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="text-[1.2rem] font-extrabold text-white">
-                        {waiting ? t("startGame") : t("movesTitle")}
+                      <div className="ws-display text-[17px] text-white">
+                        {waiting ? "Start Game" : "Moves"}
                       </div>
                       <div className="text-[12px] text-white/46">{turnLabel}</div>
                     </div>
@@ -740,36 +787,32 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
 
                   <div
                     className="rounded-[16px] border border-white/6 px-4 py-4"
-                    style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                    style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-1 flex items-center justify-between gap-3">
-                      <div className="text-[1.2rem] font-extrabold text-white">
-                        {t("engineTitle")}
-                      </div>
+                      <div className="ws-display text-[17px] text-white">Engine</div>
                       <div className="text-[12px] text-white/46">
-                        {engine.depth !== null
-                          ? t("engineDepth", { depth: engine.depth })
-                          : engine.label}
+                        {engine.depth !== null ? `Depth ${engine.depth}` : engine.label}
                       </div>
                     </div>
                     <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
-                      {t("engineAbout")}
+                      Local browser analysis via Stockfish WASM.
                     </div>
 
                     {engine.status === "unsupported" ? (
                       <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
-                        {t("engineUnsupported")}
+                        This browser cannot run the local engine.
                       </div>
                     ) : engine.status === "error" ? (
                       <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
-                        {engine.error ?? t("engineFailed")}
+                        {engine.error ?? "The engine could not start."}
                       </div>
                     ) : (
                       <div className="space-y-2.5">
                         <div className="grid grid-cols-3 gap-2.5">
                           <div className="rounded-[10px] bg-black/10 px-3 py-2">
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
-                              {t("engineScore")}
+                              Score
                             </div>
                             <div className="tnum text-[1rem] font-semibold text-white">
                               {formatEngineScore(engine.scoreCp, engine.scoreMate)}
@@ -785,14 +828,14 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                           </div>
                           <div className="rounded-[10px] bg-black/10 px-3 py-2">
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
-                              {t("engineStatus")}
+                              Status
                             </div>
                             <div className="text-[1rem] font-semibold text-white">
                               {engine.status === "loading"
-                                ? t("engineLoading")
+                                ? "Loading"
                                 : engine.status === "analyzing"
-                                  ? t("engineAnalyzing")
-                                  : t("engineReady")}
+                                  ? "Analyzing"
+                                  : "Ready"}
                             </div>
                           </div>
                         </div>
@@ -801,45 +844,35 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                             {t("enginePv")}
                           </div>
                           <div className="tnum text-[0.92rem] leading-6 break-words text-white/72">
-                            {enginePvSan.length > 0 ? enginePvSan.join(" ") : t("enginePvWaiting")}
+                            {enginePvSan.length > 0
+                              ? enginePvSan.join(" ")
+                              : "Waiting for engine line…"}
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
-              ) : railTab === "chat" ? (
-                <div
-                  className="rounded-[16px] border border-white/6 px-4 py-4"
-                  style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
-                >
-                  <div className="mb-2 text-[1.2rem] font-extrabold text-white">
-                    {t("chatTitle")}
-                  </div>
-                  <div className="text-[0.92rem] leading-6 text-white/56">
-                    {waiting ? t("chatWaiting") : t("chatUnavailable")}
-                  </div>
-                </div>
               ) : (
                 <div
                   className="space-y-3 rounded-[16px] border border-white/6 px-4 py-4"
-                  style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                  style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                 >
-                  <div className="text-[1.2rem] font-extrabold text-white">{t("infoTitle")}</div>
+                  <div className="ws-display text-[17px] text-white">Info</div>
                   <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">{t("infoStatus")}</span>
+                    <span className="text-white/55">Status</span>
                     <span className="text-white">{turnLabel}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">{t("infoTimeControl")}</span>
+                    <span className="text-white/55">Time Control</span>
                     <span className="text-white">{match.timeControl}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">{t("infoWhite")}</span>
+                    <span className="text-white/55">White</span>
                     <span className="truncate text-white">{whiteDisplayName}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">{t("infoBlack")}</span>
+                    <span className="text-white/55">Black</span>
                     <span className="truncate text-white">{blackDisplayName}</span>
                   </div>
                   {wagerLine ? (
@@ -854,7 +887,7 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
             {you !== null && !over ? (
               <div className="mt-4 shrink-0 border-t border-white/6 pt-4">
                 <div className="mb-3 text-[12px] text-white/48">
-                  {waiting ? t("controlsWaiting") : t("controlsActions")}
+                  {waiting ? "Game controls" : "Actions"}
                 </div>
                 <div className="flex flex-wrap gap-2.5">
                   {waiting ? (
@@ -916,6 +949,8 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 </button>
               </div>
             ) : null}
+
+            <ChessCashierLauncher compact className="mt-4 shrink-0" />
           </div>
         </aside>
       </div>

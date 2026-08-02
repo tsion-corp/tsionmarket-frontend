@@ -11,9 +11,9 @@ import {
   fetchJoinableMatches,
   fetchLobbyChallenges,
   fetchLiveMatches,
+  fetchPlayerMatches,
   fetchMatch,
   fetchMatchmakingTicket,
-  fetchPlayerMatches,
   fetchWaitingMatches,
   claimDraw,
   offerDraw,
@@ -33,6 +33,7 @@ import {
 } from "@/lib/casino/api/chess-wire";
 import { subscribeChessTopic } from "@/lib/casino/chess/live-socket";
 import { applyUciToFen } from "@/lib/casino/chess/engine";
+import { resolveViewerColor } from "@/lib/casino/chess/viewer";
 import type {
   ChessColor,
   ChessMatch,
@@ -164,47 +165,27 @@ export function useChessLobby(wallet: string | null) {
 // actively watching the current server snapshot.
 //
 // The service reports the banked time snapshot, not a per-frame countdown. So
-// the UI has to tick locally between frames, but it must not back-charge time
-// the player did not actually watch: leaving the page, backgrounding the tab,
-// then coming back to an old snapshot must not instantly flag the mover.
+// the UI has to tick locally between frames from the server's own clock anchor:
+// the game start when no move was played yet, or the last move when one has.
+// A tab switch simply pauses the repaint and catches up to that same anchor on
+// return.
 function useTickingClocks(match: ChessMatch | undefined) {
   const [now, setNow] = useState(() => Date.now());
   const [visible, setVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState === "visible"
   );
-  const [observed, setObserved] = useState<{ key: string | null; at: number }>({
-    key: null,
-    at: 0,
-  });
-  const wasVisibleRef = useRef(visible);
   const running = match?.state === "in_progress" && visible;
-
-  const snapshotKey = useMemo(() => {
-    if (!match) return null;
-    return [
-      match.id,
-      match.state,
-      match.turn,
-      match.clockUpdatedAt,
-      match.clocks.w,
-      match.clocks.b,
-    ].join("|");
-  }, [match]);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
-    const update = () => setVisible(document.visibilityState === "visible");
+    const update = () => {
+      const isVisible = document.visibilityState === "visible";
+      setVisible(isVisible);
+      if (isVisible) setNow(Date.now());
+    };
     document.addEventListener("visibilitychange", update);
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
-
-  useEffect(() => {
-    const becameVisible = visible && !wasVisibleRef.current;
-    wasVisibleRef.current = visible;
-    if (snapshotKey && (becameVisible || observed.key !== snapshotKey)) {
-      setObserved({ key: snapshotKey, at: Date.now() });
-    }
-  }, [observed, snapshotKey, visible]);
 
   useEffect(() => {
     if (!running) return;
@@ -215,18 +196,18 @@ function useTickingClocks(match: ChessMatch | undefined) {
   return useMemo(() => {
     if (!match) return null;
     if (match.state !== "in_progress") return match.clocks;
-    const elapsed =
-      visible && observed.key === snapshotKey ? Math.max(0, (now - observed.at) / 1000) : 0;
+    const since = Date.parse(match.clockUpdatedAt);
+    const elapsed = Number.isFinite(since) ? Math.max(0, (now - since) / 1000) : 0;
     return {
       ...match.clocks,
       [match.turn]: Math.max(0, match.clocks[match.turn] - elapsed),
     } as Record<ChessColor, number>;
-  }, [match, now, observed, snapshotKey, visible]);
+  }, [match, now]);
 }
 
 // One live match. The board, clocks and result all come from the server; the
 // client submits intended moves and renders whatever comes back.
-export function useChessMatch(matchId: string | null) {
+export function useChessMatch(matchId: string | null, seatName: string | null = null) {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
   const [optimistic, setOptimistic] = useState<OptimisticMatchState | null>(null);
@@ -336,13 +317,7 @@ export function useChessMatch(matchId: string | null) {
     [queryClient]
   );
 
-  const you: ChessColor | null = !match
-    ? null
-    : match.white?.walletAddress?.toLowerCase() === wallet.address?.toLowerCase()
-      ? "w"
-      : match.black?.walletAddress?.toLowerCase() === wallet.address?.toLowerCase()
-        ? "b"
-        : null;
+  const you = resolveViewerColor(match, wallet.address ?? null, seatName);
 
   const move = useMutation({
     mutationFn: (uci: string) =>

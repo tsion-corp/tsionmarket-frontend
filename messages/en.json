@@ -1189,8 +1189,8 @@
         "toastCreateFailed": "Couldn't create that game.",
         "modeInvite": "Invite by link",
         "modeAuto": "Match me automatically",
-        "timeControl": "Time per move",
-        "randomColourNote": "You get this long for each move. You take a random colour, and the clock starts when your opponent joins.",
+        "timeControl": "Time control",
+        "randomColourNote": "You play the whole game on this clock. You take a random colour, and the clock starts when your opponent joins.",
         "inviteReady": "Your game is open. Send this challenge link manually; the first person to open it takes the other side.",
         "copy": "Copy",
         "linkCopied": "Link copied.",
@@ -1267,6 +1267,7 @@
         "noMoves": "No moves yet",
         "statusClaiming": "Clock ran out, ending the game…",
         "statusWaiting": "Waiting for an opponent",
+        "statusFlagged": "Your time ran out",
         "statusSending": "Sending your move…",
         "statusYourMove": "Your move",
         "statusSpectating": "Spectating",
@@ -1326,7 +1327,8 @@
         "infoWhite": "White",
         "infoBlack": "Black",
         "controlsWaiting": "Game controls",
-        "controlsActions": "Actions"
+        "controlsActions": "Actions",
+        "navPlay": "Play"
       },
       "spectate": {
         "subject": "this match",

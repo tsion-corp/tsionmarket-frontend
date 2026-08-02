@@ -73,6 +73,8 @@ export interface ChessMoveWire {
   createdAt: string;
 }
 
+const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/;
+
 // Match ids are UUIDs. A malformed id makes the gateway answer with plain text
 // instead of the usual envelope, which surfaces as a confusing transport error,
 // so callers check the shape before spending a request on it.
@@ -173,7 +175,7 @@ export function toPlayer(wallet: string | null): ChessPlayer | null {
   if (!wallet) return null;
   return {
     id: wallet,
-    username: truncateAddress(wallet),
+    username: EVM_WALLET.test(wallet) ? truncateAddress(wallet) : wallet,
     rating: 0,
     walletAddress: wallet,
   };
@@ -183,6 +185,27 @@ export interface ToChessMatchOptions {
   moves?: ChessMoveWire[];
   moveSan?: string[];
   clockUpdatedAt?: string;
+}
+
+function normalizeClocks(wire: ChessMatchWire): Record<ChessColor, number> {
+  const openingSnapshotMissingClocks =
+    wire.status === "active" &&
+    wire.ply === 0 &&
+    wire.result === null &&
+    wire.clocks.whiteMs === 0 &&
+    wire.clocks.blackMs === 0;
+
+  if (openingSnapshotMissingClocks) {
+    return {
+      w: wire.timeControl.initialSeconds,
+      b: wire.timeControl.initialSeconds,
+    };
+  }
+
+  return {
+    w: wire.clocks.whiteMs / 1000,
+    b: wire.clocks.blackMs / 1000,
+  };
 }
 
 export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions = {}): ChessMatch {
@@ -219,7 +242,7 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
     ),
     fen: wire.fen,
     moves,
-    clocks: { w: wire.clocks.whiteMs / 1000, b: wire.clocks.blackMs / 1000 },
+    clocks: normalizeClocks(wire),
     clockUpdatedAt,
     turn: toColor(wire.turn),
     result: toResult(wire.result, wire.resultReason),

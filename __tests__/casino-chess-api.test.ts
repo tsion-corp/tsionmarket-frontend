@@ -13,6 +13,7 @@ import {
   fetchMatch,
   fetchJoinableMatches,
   fetchLobbyChallenges,
+  fetchLiveMatches,
   fetchOpenChallenges,
 } from "@/lib/casino/api/chess";
 
@@ -131,6 +132,29 @@ describe("chess waiting-match filters", () => {
 
     expect(lobby.myOpenGames.map((challenge) => challenge.id)).toEqual(["mine-stale"]);
     expect(lobby.challenges.map((challenge) => challenge.id)).toEqual(["other-fresh"]);
+  });
+});
+
+describe("chess live-match filters", () => {
+  it("drops active matches that have outlived their total clock budget", async () => {
+    chessClient.chessGet.mockResolvedValue({
+      items: [
+        activeMatch("fresh", {
+          ply: 8,
+          startedAt: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+          timeControl: { initialSeconds: 300, incrementSeconds: 3 },
+        }),
+        activeMatch("stale", {
+          ply: 8,
+          startedAt: new Date(Date.now() - 40 * 60 * 1000).toISOString(),
+          timeControl: { initialSeconds: 300, incrementSeconds: 3 },
+        }),
+      ],
+    });
+
+    const live = await fetchLiveMatches();
+
+    expect(live.map((match) => match.id)).toEqual(["fresh"]);
   });
 });
 

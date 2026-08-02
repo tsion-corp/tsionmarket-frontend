@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { useChessCashier } from "@/hooks/use-chess-cashier";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { CHESS_PRIMARY_BUTTON_CLASS, CHESS_SECONDARY_BUTTON_CLASS } from "@/lib/casino/chess/ui";
 import { exceedsUsdcBalance, hasPositiveUsdc, normalizeUsdcAmount } from "@/lib/casino/api/cashier";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -154,9 +155,11 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
           <button
             key={m}
             onClick={() => switchMode(m)}
-            className={`flex-1 cursor-pointer rounded-full py-2.5 font-sans text-[13px] font-semibold transition-colors ${
-              mode === m ? "text-ink bg-white" : "text-white/50"
-            }`}
+            className={
+              mode === m
+                ? `${CHESS_PRIMARY_BUTTON_CLASS} flex-1 py-2.5 font-sans text-[13px] font-semibold`
+                : `${CHESS_SECONDARY_BUTTON_CLASS} flex-1 py-2.5 font-sans text-[13px] font-semibold`
+            }
           >
             {m === "deposit" ? t("deposit") : t("withdraw")}
           </button>
@@ -203,7 +206,7 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
       <button
         onClick={() => void (isDeposit ? onDeposit() : onWithdraw())}
         disabled={!ready}
-        className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-[18px] w-full rounded-[14px] p-3.5 font-sans text-[15px] font-semibold`}
       >
         {submitLabel}
       </button>

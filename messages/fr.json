@@ -1326,7 +1326,9 @@
         "infoWhite": "Blancs",
         "infoBlack": "Noirs",
         "controlsWaiting": "Commandes de la partie",
-        "controlsActions": "Actions"
+        "controlsActions": "Actions",
+        "statusFlagged": "Votre temps est écoulé",
+        "navPlay": "Jouer"
       },
       "spectate": {
         "subject": "ce match",

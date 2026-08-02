@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { fetchChallengeByInvite } from "@/lib/casino/api/chess";
+import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
 import { useAcceptChallenge } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
@@ -106,6 +107,7 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       ) : (
         <div className="mb-6 text-[12.5px] font-normal text-white/55">{t("waitingNote")}</div>
       )}
+      <ChessCashierLauncher compact className="mb-5 text-left" />
       <button
         onClick={() => void onAccept()}
         disabled={accept.isPending || insufficient}

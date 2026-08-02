@@ -1,0 +1,13 @@
+"Neo" chess piece images.
+
+SOURCE: These PNGs originate from chess.com (theme asset path
+assets-themes.chess.com/image/ejgfv/150/). They are chess.com's proprietary
+artwork and are NOT open-licensed.
+
+STATUS: Included at the repo owner's request so the board matches the chess.com
+look. This is the board's only piece set. It MUST be replaced with an original
+or properly licensed piece set before any public/production deployment.
+
+The board and captured-piece rows build their URLs as /piece/neo/<c><t>.png
+(c = w|b, t = p|n|b|r|q|k). To swap sets, drop a licensed set into this folder
+under the same filenames — no code change needed.
