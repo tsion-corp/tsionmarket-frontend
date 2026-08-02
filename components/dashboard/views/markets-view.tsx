@@ -8,40 +8,18 @@ import { SearchIcon } from "@/components/ui/icons";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/components/dashboard/trade/flash-price";
 import { SpotPanel } from "@/components/dashboard/trade/spot-panel";
-import { useMarketTokens } from "@/hooks/use-market-tokens";
-import { useBuyDestinations } from "@/hooks/use-buy-catalog";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { usePrices } from "@/hooks/use-prices";
 import { useCoingeckoId } from "@/hooks/use-coingecko-id";
-import {
-  buyableLogos,
-  buyableSymbols,
-  defaultRouteForSymbol,
-  holdingMatchesSymbol,
-} from "@/lib/buy";
+import { useSpotMarkets, type SpotMarket } from "@/hooks/use-spot-markets";
+import { defaultRouteForSymbol, holdingMatchesSymbol } from "@/lib/buy";
 import { formatUsd } from "@/lib/trade/math";
 import { tokenBg } from "@/lib/trade/assets";
 import { coingeckoId, coingeckoPlatform } from "@/lib/coingecko";
-import { isSpotStable, spotChartSource } from "@/lib/spot-chart";
-import type { MarketToken } from "@/lib/market-catalog";
+import { spotChartSource } from "@/lib/spot-chart";
 import type { TokenBalance } from "@/lib/server/alchemy";
 
-// A spot market, driven by the Dextopus buyable catalog and enriched with market
-// data where we have it.
 const PORTFOLIO_KEY = [["portfolio"]] as const;
-
-interface SpotMarket {
-  symbol: string;
-  name: string;
-  priceUsd: number;
-  change24h: number;
-  logo: string | null;
-  // Real CoinGecko id when the asset is in the market feed, else null (no id
-  // means we chart via TradingView or not at all).
-  coingeckoId: string | null;
-  marketCap: number;
-}
 
 // The markets pinned as one-tap chips in the simple interface, biggest first.
 // A market's badge: built-in icon or real logo when one loads, and the same
@@ -65,60 +43,13 @@ function changeLabel(chg: number): string {
 // spot section provides the header and the simple/pro switch.
 export function MarketsView() {
   const t = useTranslations("spot");
-  const destinations = useBuyDestinations();
-  const { data: feed = [] } = useMarketTokens("popular");
+  const { markets, destinations, loading, error: marketsError } = useSpotMarkets();
   const portfolio = usePortfolio();
   useInvalidateOnBlock(PORTFOLIO_KEY);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
-
-  // Buyable display tickers from the Dextopus catalog, with stablecoins and the
-  // USDC quote removed (trading them against USDC is meaningless).
-  const buyableSyms = useMemo(() => {
-    if (!destinations.data) return [];
-    return [...buyableSymbols(destinations.data)].filter((s) => !isSpotStable(s));
-  }, [destinations.data]);
-
-  // One by-symbol price request for the whole buyable set.
-  const prices = usePrices(buyableSyms);
-
-  // Dextopus token icons, so markets outside the price feed still show a logo.
-  const dextopusLogos = useMemo(
-    () => (destinations.data ? buyableLogos(destinations.data) : new Map<string, string>()),
-    [destinations.data]
-  );
-
-  // Market-feed rows keyed by ticker, for enrichment.
-  const feedBySym = useMemo(() => {
-    const m = new Map<string, MarketToken>();
-    for (const t of feed) m.set(t.symbol.toUpperCase(), t);
-    return m;
-  }, [feed]);
-
-  const markets: SpotMarket[] = useMemo(() => {
-    const rows = buyableSyms.map((sym) => {
-      const f = feedBySym.get(sym.toUpperCase());
-      return {
-        symbol: sym,
-        name: f?.name ?? sym,
-        priceUsd: prices[sym] ?? f?.priceUsd ?? 0,
-        change24h: f?.change24h ?? 0,
-        // CoinGecko logo for the majors, Dextopus's own icon for everything else.
-        logo: f?.logo ?? dextopusLogos.get(sym) ?? null,
-        coingeckoId: f?.id ?? null,
-        marketCap: f?.marketCap ?? 0,
-      };
-    });
-    // Best-known assets first (market cap), then the rest alphabetically.
-    return rows.sort((a, b) => b.marketCap - a.marketCap || a.symbol.localeCompare(b.symbol));
-  }, [buyableSyms, feedBySym, prices, dextopusLogos]);
-
-  // The tradable list comes from the Dextopus catalog, so its load/error state
-  // drives the terminal; the market feed is enrichment only (logos, charts).
-  const loading = destinations.isLoading;
-  const marketsError = destinations.isError;
 
   const token: SpotMarket | null = markets.find((t) => t.symbol === selected) ?? markets[0] ?? null;
   const base = token?.symbol ?? "";

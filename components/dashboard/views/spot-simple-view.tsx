@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   createColumnHelper,
@@ -13,12 +13,8 @@ import {
 } from "@tanstack/react-table";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { SearchIcon } from "@/components/ui/icons";
-import { useMarketTokens } from "@/hooks/use-market-tokens";
-import { useBuyDestinations } from "@/hooks/use-buy-catalog";
-import { buyableSymbols } from "@/lib/buy";
-import { isSpotStable } from "@/lib/spot-chart";
+import { useSpotMarkets, type SpotMarket } from "@/hooks/use-spot-markets";
 import { tokenBg } from "@/lib/trade/assets";
-import type { MarketToken } from "@/lib/market-catalog";
 import { formatUsd } from "@/lib/trade/math";
 import type { BuyPayload, DetailPayload } from "@/components/dashboard/modal-types";
 
@@ -37,7 +33,7 @@ function compactUsd(n: number): string {
   return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n)}`;
 }
 
-const columnHelper = createColumnHelper<MarketToken>();
+const columnHelper = createColumnHelper<SpotMarket>();
 const columns = [
   columnHelper.accessor((r) => `${r.symbol} ${r.name}`, { id: "asset", enableSorting: false }),
   columnHelper.accessor("priceUsd", { id: "price" }),
@@ -45,39 +41,19 @@ const columns = [
   columnHelper.accessor("marketCap", { id: "mcap" }),
 ];
 
-// The simple spot interface: the market list as a searchable, sortable table.
-// Tapping a row opens the asset detail sheet with a Buy call-to-action — the
-// same guided flow the portfolio uses — so someone new to trading never sees
-// an order ticket. The pro terminal is one switch away for everyone else.
+// The simple spot interface: the tradable market list as a searchable, sortable
+// table. Same universe as the pro terminal (every Dextopus-buyable token, minus
+// stables), so anything bought here can be traded there. Tapping a row opens
+// the asset detail sheet with a Buy call-to-action — the guided flow — so
+// someone new to trading never sees an order ticket.
 export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps) {
   const t = useTranslations("markets");
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "mcap", desc: true }]);
-  const { data: tokens = [], isLoading, isError } = useMarketTokens("popular");
-  const destinations = useBuyDestinations();
-
-  // Show only assets a user can actually buy: intersect the market list with the
-  // Dextopus buyable set, matched by symbol, minus stablecoins — the same
-  // universe as the pro terminal, so nothing bought here is untradable there.
-  // While the catalog loads we hold the table in its loading state rather than
-  // flash rows that then disappear. A failed catalog is an error, not the full
-  // list: every row would lead to a dead buy sheet.
-  const buyable = useMemo(
-    () => (destinations.data ? buyableSymbols(destinations.data) : null),
-    [destinations.data]
-  );
-  const visibleTokens = useMemo(
-    () =>
-      buyable
-        ? tokens.filter((t) => buyable.has(t.symbol.toUpperCase()) && !isSpotStable(t.symbol))
-        : [],
-    [tokens, buyable]
-  );
-  const loading = isLoading || destinations.isLoading;
-  const errored = isError || destinations.isError;
+  const { markets, loading, error } = useSpotMarkets();
 
   const table = useReactTable({
-    data: visibleTokens,
+    data: markets,
     columns,
     state: { globalFilter: search, sorting },
     onGlobalFilterChange: setSearch,
@@ -93,19 +69,19 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
   const { pageIndex } = table.getState().pagination;
   const pageCount = table.getPageCount();
 
-  const openToken = (token: MarketToken) =>
+  const openToken = (token: SpotMarket) =>
     onOpenDetail({
       sym: token.symbol,
       name: token.name,
       sub: token.symbol,
-      price: formatUsd(token.priceUsd),
+      price: token.priceUsd > 0 ? formatUsd(token.priceUsd) : "—",
       chg: changeLabel(token.change24h),
       bg: tokenBg(token.symbol),
-      coingeckoId: token.id,
+      coingeckoId: token.coingeckoId ?? undefined,
       up: token.change24h >= 0,
       logo: token.logo,
       stats: [
-        { k: t("price"), v: formatUsd(token.priceUsd) },
+        { k: t("price"), v: token.priceUsd > 0 ? formatUsd(token.priceUsd) : "—" },
         { k: t("change24hFull"), v: changeLabel(token.change24h) },
         { k: t("marketCap"), v: compactUsd(token.marketCap) },
       ],
@@ -161,7 +137,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             {t("loadingMarkets")}
           </div>
-        ) : errored ? (
+        ) : error ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             {t("marketsUnavailable")}
           </div>
@@ -174,7 +150,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
             const token = row.original;
             return (
               <div
-                key={token.id}
+                key={token.symbol}
                 onClick={() => openToken(token)}
                 className="grid cursor-pointer grid-cols-[1.6fr_1fr] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1.2fr] sm:px-6"
               >
@@ -193,7 +169,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
                   </div>
                 </div>
                 <span className="tnum text-right text-sm font-normal">
-                  {formatUsd(token.priceUsd)}
+                  {token.priceUsd > 0 ? formatUsd(token.priceUsd) : "—"}
                 </span>
                 <span
                   className={`tnum hidden text-right text-[13.5px] font-normal min-[560px]:block ${
@@ -210,7 +186,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
           })
         )}
 
-        {!loading && !errored && rows.length > 0 ? (
+        {!loading && !error && rows.length > 0 ? (
           <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
             <span className="text-[12.5px] font-normal text-white/45">
               {t("pageOf", { page: pageIndex + 1, pages: pageCount })}

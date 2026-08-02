@@ -42,6 +42,9 @@ export interface TokenBalance {
   priceUsd: number;
   valueUsd: number;
   logo: string | null;
+  // In the trade-service meme catalog: sells route through the meme trade
+  // sheet, not Dextopus (which cannot quote these tokens).
+  meme?: boolean;
 }
 
 export interface Portfolio {
@@ -208,6 +211,7 @@ function normalize(
       priceUsd,
       valueUsd: balance * priceUsd,
       logo: t.tokenMetadata?.logo ?? rwaInfo?.logo ?? memeInfo?.logo ?? null,
+      meme: memeInfo != null,
     });
   }
   return out;

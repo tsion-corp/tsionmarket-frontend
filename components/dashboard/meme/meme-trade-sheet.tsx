@@ -16,18 +16,24 @@ const PREVIEW_DEBOUNCE_MS = 600;
 interface MemeTradeSheetProps {
   token: MemeToken;
   onClose: () => void;
+  // Opens on this side; a portfolio-initiated sell starts on SELL.
+  defaultSide?: "BUY" | "SELL";
 }
 
 // The whole trade flow in one sheet: side + amount → live indicative preview →
 // explicit confirm → firm quote, sponsored calls, submission registration and
 // status polling. Success is only ever the backend's CONFIRMED.
-export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) {
+export function MemeTradeSheet({
+  token: listed,
+  onClose,
+  defaultSide = "BUY",
+}: MemeTradeSheetProps) {
   const t = useTranslations("meme");
   // Fresh risk/tradability for the trade surface; the list row may be stale.
   const { token: fresh } = useMemeToken(listed.address);
   const token = fresh ?? listed;
 
-  const [side, setSide] = useState<"BUY" | "SELL">("BUY");
+  const [side, setSide] = useState<"BUY" | "SELL">(defaultSide);
   const [amount, setAmount] = useState("");
   const [debouncedAmount, setDebouncedAmount] = useState("");
   const { wallet, phase, error, received, trade, reset, linkForPreview } = useMemeTrade();

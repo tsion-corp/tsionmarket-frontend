@@ -24,8 +24,10 @@ import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
+import { MemeTradeSheet } from "@/components/dashboard/meme/meme-trade-sheet";
 import { selectHoldings } from "@/lib/holdings";
 import { canSellAsset } from "@/lib/sell";
+import type { MemeToken } from "@/lib/meme/api";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
 import type {
@@ -56,6 +58,31 @@ const NETWORK_LABELS: Record<string, string> = {
 
 function networkLabel(network: string): string {
   return NETWORK_LABELS[network] ?? network;
+}
+
+// A held meme balance as the trade sheet's listing shape; the sheet re-fetches
+// the fresh catalog entry (risk, tradability) by address itself.
+function toMemeToken(t: TokenBalance): MemeToken {
+  return {
+    chainId: 8453,
+    address: t.address as string,
+    name: t.name,
+    symbol: t.symbol,
+    decimals: t.decimals,
+    logoUrl: t.logo,
+    priceUsd: t.priceUsd > 0 ? String(t.priceUsd) : null,
+    liquidityUsd: null,
+    volume24hUsd: null,
+    priceChange24hPercent: null,
+    marketCapUsd: null,
+    fdvUsd: null,
+    pairAddress: null,
+    dexName: null,
+    riskLevel: "UNKNOWN",
+    buyEnabled: true,
+    sellEnabled: true,
+    warnings: [],
+  };
 }
 
 // Message keys in the portfolio catalog; the kind ids themselves never change.
@@ -113,6 +140,8 @@ export function PortfolioView({
 
   const [search, setSearch] = useState("");
   const [hideZero, setHideZero] = useState(true);
+  // A meme holding being sold through the meme trade sheet.
+  const [memeSell, setMemeSell] = useState<TokenBalance | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: "value", desc: true }]);
 
   // The table shows bought assets only, so drop the USDC-on-Base deposit float
@@ -162,6 +191,9 @@ export function PortfolioView({
     // which cannot source or deliver them. Route both buy and sell to the RWA
     // panel. `address` is always set for an RWA (it is never a native balance).
     const isRwa = token.kind === "rwa" && token.address !== null;
+    // Trade-catalog memecoins sell through the meme trade service; Dextopus
+    // cannot quote them, so its sell sheet always fails for these.
+    const isMeme = token.meme === true && token.address !== null;
     // Otherwise offer "Sell" only for assets Dextopus can take as an origin;
     // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
     const sellable = canSellAsset(token.network, token.address);
@@ -193,23 +225,28 @@ export function PortfolioView({
               mode: "sell",
             }),
         }
-      : sellable
+      : isMeme
         ? {
             cta2: t("sell", { name: token.name }),
-            onCta2: () =>
-              onOpenSell({
-                symbol: token.symbol,
-                name: token.name,
-                network: token.network,
-                address: token.address,
-                decimals: token.decimals,
-                balance: token.balance,
-                rawBalance: token.rawBalance,
-                priceUsd: token.priceUsd,
-                logo: token.logo,
-              }),
+            onCta2: () => setMemeSell(token),
           }
-        : {};
+        : sellable
+          ? {
+              cta2: t("sell", { name: token.name }),
+              onCta2: () =>
+                onOpenSell({
+                  symbol: token.symbol,
+                  name: token.name,
+                  network: token.network,
+                  address: token.address,
+                  decimals: token.decimals,
+                  balance: token.balance,
+                  rawBalance: token.rawBalance,
+                  priceUsd: token.priceUsd,
+                  logo: token.logo,
+                }),
+            }
+          : {};
 
     onOpenDetail({
       sym: token.symbol,
@@ -410,6 +447,14 @@ export function PortfolioView({
           )}
         </div>
       )}
+
+      {memeSell ? (
+        <MemeTradeSheet
+          token={toMemeToken(memeSell)}
+          defaultSide="SELL"
+          onClose={() => setMemeSell(null)}
+        />
+      ) : null}
     </div>
   );
 }
