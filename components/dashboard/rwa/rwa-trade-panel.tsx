@@ -19,6 +19,8 @@ import {
   type RwaQuoteRequest,
 } from "@/lib/rwa-api";
 import { getWalletAddress } from "@/lib/user";
+import { useSolanaFunding } from "@/hooks/use-solana-funding";
+import { planAffordable, planSolanaFunding } from "@/lib/rwa/funding";
 import { toast } from "@/lib/toast";
 import { formatAmount, formatUsd } from "@/lib/trade/math";
 import {
@@ -144,6 +146,28 @@ export function RwaTradePanel({
     [portfolio.tokens, asset]
   );
   const payOption = payOptions.find((o) => o.key === payKey) ?? payOptions[0] ?? null;
+
+  // A Solana buy needs USDC (and a little SOL for the fee) on Solana. When the
+  // wallet is short but holds Base USDC, the shortfall is bridgeable rather
+  // than a dead end — both legs execute on Base, so they cost the user no gas.
+  const funding = useSolanaFunding();
+  const solanaPlan = useMemo(() => {
+    if (asset.chain !== "solana" || !isBuy) return null;
+    const balanceOf = (network: string, symbol: string) =>
+      portfolio.tokens.find((t) => t.network === network && t.symbol.toUpperCase() === symbol)
+        ?.balance ?? 0;
+    return planSolanaFunding({
+      spendUsdc: payValue,
+      solanaUsdc: balanceOf("solana-mainnet", "USDC"),
+      solanaSol: balanceOf("solana-mainnet", "SOL"),
+      baseUsdc: balanceOf("base-mainnet", "USDC"),
+    });
+  }, [asset.chain, isBuy, payValue, portfolio.tokens]);
+  const baseUsdcBalance =
+    portfolio.tokens.find((t) => t.network === "base-mainnet" && t.symbol.toUpperCase() === "USDC")
+      ?.balance ?? 0;
+  const needsFunding = solanaPlan != null && payValue > 0;
+  const canFund = needsFunding && planAffordable(solanaPlan, baseUsdcBalance);
   const payInput = payOption?.input ?? null;
   const payPrice = payOption?.priceUsd ?? 1;
 
@@ -575,9 +599,40 @@ export function RwaTradePanel({
             </div>
           ) : null}
 
+          {needsFunding ? (
+            <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3">
+              <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
+                {t("fundSolanaTitle", {
+                  amount: formatUsd(solanaPlan.totalBaseUsdc),
+                })}
+              </div>
+              <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
+                {solanaPlan.topUpGas ? t("fundSolanaWithGas") : t("fundSolanaBody")}
+              </p>
+              {funding.error ? (
+                <p className="text-down mt-1.5 text-[11.5px] font-normal">{funding.error}</p>
+              ) : null}
+              <button
+                onClick={() => void funding.fund(solanaPlan)}
+                disabled={!canFund || funding.busy}
+                className={`mt-2.5 w-full rounded-[12px] p-2.5 font-sans text-[13.5px] font-semibold ${
+                  canFund && !funding.busy
+                    ? "text-ink cursor-pointer bg-white hover:opacity-90"
+                    : "cursor-not-allowed bg-white/10 text-white/40"
+                }`}
+              >
+                {funding.busy
+                  ? t("fundSolanaWorking")
+                  : canFund
+                    ? t("fundSolanaCta")
+                    : t("fundSolanaShort")}
+              </button>
+            </div>
+          ) : null}
+
           <button
             onClick={() => void confirmTrade()}
-            disabled={!canConfirm}
+            disabled={!canConfirm || needsFunding}
             className={`mt-4 w-full rounded-[14px] p-[15px] font-sans text-[15px] font-semibold whitespace-nowrap transition-opacity ${
               canConfirm
                 ? "text-ink cursor-pointer bg-white hover:opacity-90"

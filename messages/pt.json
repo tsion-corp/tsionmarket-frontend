@@ -15,7 +15,7 @@
     "earnTitle": "Ganhar",
     "earnBody": "Tarefas reais pagas onchain.",
     "casinoTitle": "Arkade",
-    "casinoBody": "Xadrez com apostas, Last Man e mais.",
+    "casinoBody": "Xadrez com apostas, The Last Man e mais.",
     "cta": "Explorar"
   },
   "meme": {
@@ -382,7 +382,7 @@
     "predictionTitle": "Mercados de previsão",
     "predictionDesc": "Negoceie política, desporto e eventos mundiais.",
     "casinoTitle": "Arkade e jogos",
-    "casinoDesc": "Last Man, xadrez com apostas e muito mais.",
+    "casinoDesc": "The Last Man, xadrez com apostas e muito mais.",
     "realestateTitle": "Imobiliário",
     "realestateDesc": "Propriedade fracionada que paga rendas.",
     "treasuriesTitle": "Títulos do Tesouro",
@@ -573,7 +573,13 @@
     "route": "Rota",
     "priceImpact": "Impacto no preço",
     "minReceived": "Mínimo recebido",
-    "maxSlippage": "Slippage máx"
+    "maxSlippage": "Slippage máx",
+    "fundSolanaTitle": "Primeiro mova {amount} para a Solana",
+    "fundSolanaBody": "Seus USDC estão na Base. Vamos transferi-los para a Solana — cerca de 30 segundos, sem taxa de gás.",
+    "fundSolanaWithGas": "Vamos transferir seus USDC para a Solana e comprar um pouco de SOL para a taxa de rede — cerca de 30 segundos, sem taxa de gás.",
+    "fundSolanaCta": "Mover fundos para a Solana",
+    "fundSolanaWorking": "Movendo fundos…",
+    "fundSolanaShort": "USDC insuficientes na Base"
   },
   "prediction": {
     "eyebrow": "Mercados de previsão",
@@ -975,7 +981,7 @@
           "note": "Um contra um com aposta, por convite ou partida rápida"
         },
         "last-standing": {
-          "name": "Last Man",
+          "name": "The Last Man",
           "note": "Sobreviva a todos, o vencedor leva o pote"
         },
         "draw": {
@@ -1000,7 +1006,7 @@
     },
     "lastStanding": {
       "eyebrow": "Arkade · O vencedor leva tudo",
-      "title": "Last Man",
+      "title": "The Last Man",
       "intro": "Jogue para ser o último de pé. Quando o tempo acaba, o último jogador a jogar leva o pote inteiro.",
       "live": "Ao vivo",
       "offline": "Offline",

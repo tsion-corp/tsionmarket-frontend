@@ -38,6 +38,9 @@ export interface LifiQuoteRequest {
   toToken: string;
   fromAmount: bigint;
   fromAddress: string;
+  // Recipient on the destination chain. Required when it differs from the
+  // sender, which is every cross-chain route into Solana.
+  toAddress?: string;
   // Maximum slippage as a decimal fraction, e.g. 0.005 for 0.5%.
   slippage: number;
   signal?: AbortSignal;
@@ -98,22 +101,41 @@ function normalize(raw: RawQuoteResponse): LifiQuote {
   };
 }
 
+// LI.FI matches its token list by exact string, so a checksummed EVM address
+// can 404 where the same address lowercased resolves (Polygon USDC is one).
+// EVM addresses are case-insensitive on-chain; Solana mints are base58 and
+// case-SENSITIVE, so only 0x addresses may be folded.
+function normalizeToken(token: string): string {
+  return token.startsWith("0x") ? token.toLowerCase() : token;
+}
+
+export type LifiTransferStatus = "PENDING" | "DONE" | "FAILED" | "NOT_FOUND";
+
+// Where a cross-chain transfer has got to. Same-chain swaps settle with the
+// receipt, so this is only polled for a bridge leg.
+export async function fetchLifiStatus(txHash: string): Promise<LifiTransferStatus> {
+  const res = await apiFetch(`/api/lifi/status?txHash=${encodeURIComponent(txHash)}`);
+  if (!res.ok) return "PENDING";
+  const data = (await res.json()) as { status?: string };
+  const status = data.status;
+  if (status === "DONE" || status === "FAILED" || status === "NOT_FOUND") return status;
+  return "PENDING";
+}
+
 // Fetch a LI.FI quote (through our /api/lifi proxy) for the given taker. The
 // returned quote carries both the UI preview data (toAmount, priceImpactPct) and
 // everything needed to execute the swap (approvalAddress, transactionRequest).
 export async function fetchLifiQuote(req: LifiQuoteRequest): Promise<LifiQuote> {
-  // LI.FI matches its token list by exact string, so a checksummed address can
-  // 404 where the same address lowercased resolves (Polygon USDC is one). EVM
-  // addresses are case-insensitive on-chain, so normalise to lowercase.
   const params = new URLSearchParams({
     fromChain: String(req.fromChain),
     toChain: String(req.toChain),
-    fromToken: req.fromToken.toLowerCase(),
-    toToken: req.toToken.toLowerCase(),
+    fromToken: normalizeToken(req.fromToken),
+    toToken: normalizeToken(req.toToken),
     fromAmount: req.fromAmount.toString(),
     fromAddress: req.fromAddress,
     slippage: String(req.slippage),
   });
+  if (req.toAddress) params.set("toAddress", req.toAddress);
   const res = await apiFetch(`${LIFI_QUOTE_PATH}?${params.toString()}`, { signal: req.signal });
   if (!res.ok) throw new Error(`LI.FI quote failed: ${res.status}`);
   return normalize(await res.json());

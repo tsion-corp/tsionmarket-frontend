@@ -15,7 +15,7 @@
     "earnTitle": "Verdienen",
     "earnBody": "Echte Aufgaben, onchain bezahlt.",
     "casinoTitle": "Arkade",
-    "casinoBody": "Schach um Einsätze, Last Man und mehr.",
+    "casinoBody": "Schach um Einsätze, The Last Man und mehr.",
     "cta": "Entdecken"
   },
   "meme": {
@@ -382,7 +382,7 @@
     "predictionTitle": "Prognosemärkte",
     "predictionDesc": "Handeln Sie Politik, Sport und Weltereignisse.",
     "casinoTitle": "Arkade & Spiele",
-    "casinoDesc": "Last Man, Schach um Einsätze und mehr.",
+    "casinoDesc": "The Last Man, Schach um Einsätze und mehr.",
     "realestateTitle": "Immobilien",
     "realestateDesc": "Anteiliges Eigentum mit Mieteinnahmen.",
     "treasuriesTitle": "Staatsanleihen",
@@ -573,7 +573,13 @@
     "route": "Route",
     "priceImpact": "Preisauswirkung",
     "minReceived": "Mindestens erhalten",
-    "maxSlippage": "Max. Slippage"
+    "maxSlippage": "Max. Slippage",
+    "fundSolanaTitle": "Zuerst {amount} nach Solana bewegen",
+    "fundSolanaBody": "Ihre USDC liegen auf Base. Wir überbrücken sie nach Solana — etwa 30 Sekunden, ohne Gasgebühr.",
+    "fundSolanaWithGas": "Wir überbrücken Ihre USDC nach Solana und kaufen etwas SOL für die Netzwerkgebühr — etwa 30 Sekunden, ohne Gasgebühr.",
+    "fundSolanaCta": "Mittel nach Solana bewegen",
+    "fundSolanaWorking": "Wird übertragen…",
+    "fundSolanaShort": "Nicht genug USDC auf Base"
   },
   "prediction": {
     "eyebrow": "Prognosemärkte",
@@ -975,7 +981,7 @@
           "note": "Duell mit Einsatz, per Einladung oder Schnellpartie"
         },
         "last-standing": {
-          "name": "Last Man",
+          "name": "The Last Man",
           "note": "Überdauern Sie alle, der Gewinner nimmt den Pot"
         },
         "draw": {
@@ -1000,7 +1006,7 @@
     },
     "lastStanding": {
       "eyebrow": "Arkade · Der Gewinner bekommt alles",
-      "title": "Last Man",
+      "title": "The Last Man",
       "intro": "Spielen Sie, um als Letzter übrig zu bleiben. Läuft die Uhr ab, nimmt der letzte Spieler, der gespielt hat, den ganzen Pot.",
       "live": "Live",
       "offline": "Offline",

@@ -15,7 +15,7 @@
     "earnTitle": "Gagner",
     "earnBody": "Des tâches réelles payées onchain.",
     "casinoTitle": "Arkade",
-    "casinoBody": "Échecs avec mise, Last Man et plus.",
+    "casinoBody": "Échecs avec mise, The Last Man et plus.",
     "cta": "Explorer"
   },
   "meme": {
@@ -382,7 +382,7 @@
     "predictionTitle": "Marchés de prédiction",
     "predictionDesc": "Tradez la politique, le sport et l'actualité mondiale.",
     "casinoTitle": "Arkade & jeux",
-    "casinoDesc": "Last Man, échecs avec mise et plus encore.",
+    "casinoDesc": "The Last Man, échecs avec mise et plus encore.",
     "realestateTitle": "Immobilier",
     "realestateDesc": "Propriété fractionnée qui verse des loyers.",
     "treasuriesTitle": "Bons du Trésor et obligations",
@@ -573,7 +573,13 @@
     "route": "Route",
     "priceImpact": "Impact sur le prix",
     "minReceived": "Minimum reçu",
-    "maxSlippage": "Slippage max"
+    "maxSlippage": "Slippage max",
+    "fundSolanaTitle": "Transférez d'abord {amount} vers Solana",
+    "fundSolanaBody": "Vos USDC sont sur Base. Nous les transférons vers Solana — environ 30 secondes, sans frais de gaz.",
+    "fundSolanaWithGas": "Nous transférons vos USDC vers Solana et achetons un peu de SOL pour les frais de réseau — environ 30 secondes, sans frais de gaz.",
+    "fundSolanaCta": "Transférer vers Solana",
+    "fundSolanaWorking": "Transfert en cours…",
+    "fundSolanaShort": "USDC insuffisants sur Base"
   },
   "prediction": {
     "eyebrow": "Marchés de prédiction",
@@ -975,7 +981,7 @@
           "note": "Face-à-face avec mise, sur invitation ou partie rapide"
         },
         "last-standing": {
-          "name": "Last Man",
+          "name": "The Last Man",
           "note": "Survivez à tous, le gagnant remporte le pot"
         },
         "draw": {
@@ -1000,7 +1006,7 @@
     },
     "lastStanding": {
       "eyebrow": "Arkade · Le gagnant rafle tout",
-      "title": "Last Man",
+      "title": "The Last Man",
       "intro": "Jouez pour être le dernier en lice. Quand le chrono tombe à zéro, le dernier joueur à avoir joué remporte tout le pot.",
       "live": "En direct",
       "offline": "Hors ligne",

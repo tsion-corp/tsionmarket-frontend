@@ -15,7 +15,7 @@
     "earnTitle": "Earn",
     "earnBody": "Real tasks that pay out onchain.",
     "casinoTitle": "Arkade",
-    "casinoBody": "Staked chess, Last Man and more.",
+    "casinoBody": "Staked chess, The Last Man and more.",
     "cta": "Explore"
   },
   "meme": {
@@ -382,7 +382,7 @@
     "predictionTitle": "Prediction markets",
     "predictionDesc": "Trade politics, sports and world events.",
     "casinoTitle": "Arkade & games",
-    "casinoDesc": "Last Man, staked chess and more.",
+    "casinoDesc": "The Last Man, staked chess and more.",
     "realestateTitle": "Real estate",
     "realestateDesc": "Fractional property that pays rental income.",
     "treasuriesTitle": "Treasuries & bonds",
@@ -573,7 +573,13 @@
     "route": "Route",
     "priceImpact": "Price impact",
     "minReceived": "Min received",
-    "maxSlippage": "Max slippage"
+    "maxSlippage": "Max slippage",
+    "fundSolanaTitle": "Move {amount} to Solana first",
+    "fundSolanaBody": "Your USDC is on Base. We'll bridge it to Solana — about 30 seconds, no gas fee.",
+    "fundSolanaWithGas": "We'll bridge your USDC to Solana and buy a little SOL for the network fee — about 30 seconds, no gas fee.",
+    "fundSolanaCta": "Move funds to Solana",
+    "fundSolanaWorking": "Moving funds…",
+    "fundSolanaShort": "Not enough USDC on Base"
   },
   "prediction": {
     "eyebrow": "Prediction markets",
@@ -975,7 +981,7 @@
           "note": "Staked head-to-head, invite or quick match"
         },
         "last-standing": {
-          "name": "Last Man",
+          "name": "The Last Man",
           "note": "Outlast everyone, winner takes the pot"
         },
         "draw": {
@@ -1000,7 +1006,7 @@
     },
     "lastStanding": {
       "eyebrow": "Arkade · Winner takes all",
-      "title": "Last Man",
+      "title": "The Last Man",
       "intro": "Play to become the last one standing. When the timer runs out, the last player to play takes the whole pot.",
       "live": "Live",
       "offline": "Offline",

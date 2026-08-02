@@ -15,7 +15,7 @@
     "earnTitle": "Ganar",
     "earnBody": "Tareas reales pagadas onchain.",
     "casinoTitle": "Arkade",
-    "casinoBody": "Ajedrez con apuestas, Last Man y más.",
+    "casinoBody": "Ajedrez con apuestas, The Last Man y más.",
     "cta": "Explorar"
   },
   "meme": {
@@ -382,7 +382,7 @@
     "predictionTitle": "Mercados de predicción",
     "predictionDesc": "Opera política, deportes y eventos mundiales.",
     "casinoTitle": "Arkade y juegos",
-    "casinoDesc": "Last Man, ajedrez con apuestas y más.",
+    "casinoDesc": "The Last Man, ajedrez con apuestas y más.",
     "realestateTitle": "Bienes raíces",
     "realestateDesc": "Propiedad fraccionada que paga renta.",
     "treasuriesTitle": "Bonos del Tesoro",
@@ -573,7 +573,13 @@
     "route": "Ruta",
     "priceImpact": "Impacto en el precio",
     "minReceived": "Mínimo recibido",
-    "maxSlippage": "Slippage máx"
+    "maxSlippage": "Slippage máx",
+    "fundSolanaTitle": "Primero mueve {amount} a Solana",
+    "fundSolanaBody": "Tus USDC están en Base. Los transferimos a Solana — unos 30 segundos, sin comisión de gas.",
+    "fundSolanaWithGas": "Transferimos tus USDC a Solana y compramos un poco de SOL para la comisión de red — unos 30 segundos, sin comisión de gas.",
+    "fundSolanaCta": "Mover fondos a Solana",
+    "fundSolanaWorking": "Moviendo fondos…",
+    "fundSolanaShort": "USDC insuficientes en Base"
   },
   "prediction": {
     "eyebrow": "Mercados de predicción",
@@ -975,7 +981,7 @@
           "note": "Uno contra uno con apuesta, por invitación o partida rápida"
         },
         "last-standing": {
-          "name": "Last Man",
+          "name": "The Last Man",
           "note": "Sobrevive a todos, el ganador se lleva el pozo"
         },
         "draw": {
@@ -1000,7 +1006,7 @@
     },
     "lastStanding": {
       "eyebrow": "Arkade · El ganador se lo lleva todo",
-      "title": "Last Man",
+      "title": "The Last Man",
       "intro": "Juega para ser el último en pie. Cuando el tiempo se agota, el último jugador en jugar se lleva todo el pozo.",
       "live": "En vivo",
       "offline": "Sin conexión",

@@ -40,7 +40,7 @@ export const INTERESTS: Interest[] = [
   {
     key: "casino",
     title: "Arkade & games",
-    desc: "Last Man, staked chess and more.",
+    desc: "The Last Man, staked chess and more.",
     icon: "dice",
   },
   {
