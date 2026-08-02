@@ -17,7 +17,7 @@ import { loadInterest } from "@/lib/preferences";
 // Names for the routes that are somewhere to go back to. Anything else falls
 // back to its own last path segment.
 const SECTION_LABEL: Record<string, string> = {
-  "/casino": "Casino",
+  "/casino": "Arkade",
   "/casino/chess": "Chess",
   "/casino/draw": "Draw",
   "/casino/last-standing": "Last Man",
@@ -32,7 +32,7 @@ function titleCase(segment: string): string {
 // the chess lobby it was started from instead of jumping past it.
 export function parentRoute(pathname: string): { href: string; label: string } {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts.length <= 1) return { href: "/casino", label: "Casino" };
+  if (parts.length <= 1) return { href: "/casino", label: "Arkade" };
   const href = `/${parts.slice(0, -1).join("/")}`;
   return { href, label: SECTION_LABEL[href] ?? titleCase(parts[parts.length - 2]) };
 }

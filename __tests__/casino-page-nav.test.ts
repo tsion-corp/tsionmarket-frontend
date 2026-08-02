@@ -16,12 +16,12 @@ describe("casino back link", () => {
   });
 
   it("returns the chess lobby itself to the hub", () => {
-    expect(parentRoute("/casino/chess")).toEqual({ href: "/casino", label: "Casino" });
+    expect(parentRoute("/casino/chess")).toEqual({ href: "/casino", label: "Arkade" });
   });
 
   it("works the same for the other games", () => {
     expect(parentRoute("/casino/draw/entries")).toEqual({ href: "/casino/draw", label: "Draw" });
-    expect(parentRoute("/casino/last-standing")).toEqual({ href: "/casino", label: "Casino" });
+    expect(parentRoute("/casino/last-standing")).toEqual({ href: "/casino", label: "Arkade" });
   });
 
   it("names an unlisted parent from its own path", () => {
@@ -32,6 +32,6 @@ describe("casino back link", () => {
   });
 
   it("cannot go above the hub", () => {
-    expect(parentRoute("/casino")).toEqual({ href: "/casino", label: "Casino" });
+    expect(parentRoute("/casino")).toEqual({ href: "/casino", label: "Arkade" });
   });
 });

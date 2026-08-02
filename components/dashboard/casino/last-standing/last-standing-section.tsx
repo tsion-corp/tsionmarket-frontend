@@ -676,7 +676,7 @@ export function LastStandingSection() {
                 }
                 className={`relative w-full cursor-pointer overflow-hidden rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
                   canPlay || luring
-                    ? "shadow-[0_18px_44px_-12px_rgba(255, 255, 255, 0.9),inset_0_1px_0_rgba(255,255,255,0.45)] bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)] text-white"
+                    ? "text-ink shadow-[0_18px_44px_-12px_rgba(255, 255, 255, 0.9),inset_0_1px_0_rgba(255,255,255,0.45)] bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)]"
                     : "text-ink bg-white shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)]"
                 }`}
               >
