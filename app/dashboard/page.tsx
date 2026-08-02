@@ -9,6 +9,7 @@ import { SpotSection } from "@/components/dashboard/sections/spot-section";
 import { PerpsSection } from "@/components/dashboard/sections/perps-section";
 import { MemeSection } from "@/components/dashboard/sections/meme-section";
 import { ExploreBanners } from "@/components/dashboard/explore-banners";
+import { RecentActivity } from "@/components/dashboard/activity/recent-activity";
 import { RwaSection } from "@/components/dashboard/sections/rwa-section";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
@@ -41,7 +42,7 @@ const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 // The scroll-spy sections mounted inline on this page. Prediction, earn and
 // casino live on their own routes and are never one of these — the dashboard
 // points at them through the explore banners instead.
-const ROUTED_SECTIONS = ["casino", "earn", "prediction"] as const;
+const ROUTED_SECTIONS = ["casino", "earn", "prediction", "activity"] as const;
 type RoutedSectionId = (typeof ROUTED_SECTIONS)[number];
 type ScrollSectionId = Exclude<SectionId, RoutedSectionId>;
 
@@ -131,6 +132,9 @@ export default function DashboardPage() {
         {/* The routed destinations, pitched where the prediction section used
             to scroll: one banner each for Prediction, Earn and Casino. */}
         <ExploreBanners />
+        {/* History closes the page: the last few transfers, then the way to
+            the full record. */}
+        <RecentActivity />
       </DashboardShell>
 
       <ModalShell open={modal !== null} onClose={close} contentKey={modal?.type ?? "none"}>

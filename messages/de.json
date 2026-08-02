@@ -7,7 +7,8 @@
     "rwa": "Sachwerte",
     "prediction": "Prognosen",
     "earn": "Verdienen",
-    "casino": "Arkade"
+    "casino": "Arkade",
+    "activity": "Aktivität"
   },
   "explore": {
     "predictionTitle": "Prognosemärkte",
@@ -1521,5 +1522,27 @@
     "activityReferrals": "Empfehlungen",
     "activityHint": "Kash-Prämien sammeln sich durch Ihre Aktivität in der App und landen hier.",
     "comingSoon": "Kash kommt bald. Kauf und Verkauf öffnen in Kürze."
+  },
+  "activity": {
+    "eyebrow": "Aktivität",
+    "subtitle": "Jeder Ein- und Ausgang Ihrer Wallets über alle unterstützten Chains. Tippen Sie auf eine Zeile, um sie im Explorer zu öffnen.",
+    "loading": "Aktivität wird geladen…",
+    "errorBody": "Ihre Aktivität konnte nicht geladen werden.",
+    "tryAgain": "Erneut versuchen",
+    "emptyTitle": "Noch nichts hier",
+    "emptyBody": "Einzahlungen, Trades und Auszahlungen erscheinen hier, sobald sie abgewickelt sind.",
+    "justNow": "Gerade eben",
+    "minutesAgo": "vor {n} Min.",
+    "hoursAgo": "vor {n} Std.",
+    "daysAgo": "vor {n} T.",
+    "receivedSymbol": "{symbol} erhalten",
+    "sentSymbol": "{symbol} gesendet",
+    "from": "von",
+    "to": "an",
+    "today": "Heute",
+    "yesterday": "Gestern",
+    "unknownDate": "Früher",
+    "recentEyebrow": "Letzte Aktivität",
+    "viewAll": "Gesamte Aktivität ansehen"
   }
 }

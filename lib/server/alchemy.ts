@@ -12,14 +12,14 @@ import {
 // The chains we read holdings on: the networks a buy can settle to, so a bought
 // asset shows on the chain it landed on. Keep in sync with SUPPORTED_CHAINS in
 // lib/buy.ts.
-const EVM_NETWORKS = [
+export const EVM_NETWORKS = [
   "base-mainnet",
   "eth-mainnet",
   "arb-mainnet",
   "opt-mainnet",
   "polygon-mainnet",
 ];
-const SOLANA_NETWORK = "solana-mainnet";
+export const SOLANA_NETWORK = "solana-mainnet";
 
 // How a holding is classified for display: a native coin (ETH/POL/SOL), a
 // stablecoin (USDC/USDT), a real-world asset (from the RWA registry), or any
@@ -133,7 +133,7 @@ type RwaRegistry = Record<string, Map<string, RwaTokenInfo>>;
 // stablecoins, recognized extras, and registered RWA tokens ever appear.
 // Everything else — airdrop spam and fake tokens with fabricated prices — is
 // hidden for every user.
-function isAllowedHolding(
+export function isAllowedHolding(
   network: string,
   address: string | null,
   isNative: boolean,

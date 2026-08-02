@@ -7,7 +7,8 @@
     "rwa": "Activos reales",
     "prediction": "Predicción",
     "earn": "Ganar",
-    "casino": "Arkade"
+    "casino": "Arkade",
+    "activity": "Actividad"
   },
   "explore": {
     "predictionTitle": "Mercados de predicción",
@@ -1521,5 +1522,27 @@
     "activityReferrals": "Referidos",
     "activityHint": "Las recompensas Kash se acumulan con tu actividad en la aplicación y llegan aquí.",
     "comingSoon": "Kash llega pronto. La compra y venta abren en breve."
+  },
+  "activity": {
+    "eyebrow": "Actividad",
+    "subtitle": "Cada transferencia de entrada y salida de tus billeteras, en todas las redes admitidas. Toca una fila para verla en el explorador.",
+    "loading": "Cargando tu actividad…",
+    "errorBody": "No pudimos cargar tu actividad.",
+    "tryAgain": "Reintentar",
+    "emptyTitle": "Aún no hay nada",
+    "emptyBody": "Los depósitos, operaciones y retiros aparecerán aquí cuando se liquiden.",
+    "justNow": "Ahora mismo",
+    "minutesAgo": "hace {n} min",
+    "hoursAgo": "hace {n} h",
+    "daysAgo": "hace {n} d",
+    "receivedSymbol": "{symbol} recibido",
+    "sentSymbol": "{symbol} enviado",
+    "from": "de",
+    "to": "a",
+    "today": "Hoy",
+    "yesterday": "Ayer",
+    "unknownDate": "Antes",
+    "recentEyebrow": "Actividad reciente",
+    "viewAll": "Ver toda la actividad"
   }
 }

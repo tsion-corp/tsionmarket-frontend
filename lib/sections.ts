@@ -1,7 +1,7 @@
 // Spot and perpetuals are separate sections with their own sidebar entries;
 // each carries its own simple/pro interface switch inside.
 export type SectionId =
-  "portfolio" | "spot" | "perps" | "meme" | "rwa" | "prediction" | "earn" | "casino";
+  "portfolio" | "spot" | "perps" | "meme" | "rwa" | "prediction" | "earn" | "casino" | "activity";
 
 export const SECTION_LABEL: Record<SectionId, string> = {
   portfolio: "Portfolio",
@@ -12,12 +12,22 @@ export const SECTION_LABEL: Record<SectionId, string> = {
   prediction: "Prediction",
   earn: "Earn",
   casino: "Arkade",
+  activity: "Activity",
 };
 
 // Portfolio is always the account home. The rest follow, led by whatever the
 // user picked during onboarding.
 const PINNED: SectionId = "portfolio";
-const REORDERABLE: SectionId[] = ["spot", "perps", "meme", "rwa", "prediction", "earn", "casino"];
+const REORDERABLE: SectionId[] = [
+  "spot",
+  "perps",
+  "meme",
+  "rwa",
+  "prediction",
+  "earn",
+  "casino",
+  "activity",
+];
 
 // Maps an onboarding interest to the section it should surface first.
 const INTEREST_TO_SECTION: Record<string, SectionId> = {

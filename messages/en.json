@@ -7,7 +7,8 @@
     "rwa": "Real assets",
     "prediction": "Prediction",
     "earn": "Earn",
-    "casino": "Arkade"
+    "casino": "Arkade",
+    "activity": "Activity"
   },
   "explore": {
     "predictionTitle": "Prediction markets",
@@ -1521,5 +1522,27 @@
     "activityReferrals": "Referrals",
     "activityHint": "Kash rewards accrue from your activity across the app and land here.",
     "comingSoon": "Kash is almost here. Buying and selling open soon."
+  },
+  "activity": {
+    "eyebrow": "Activity",
+    "subtitle": "Every transfer in and out of your wallets, across all supported chains. Tap a row to view it on the block explorer.",
+    "loading": "Loading your activity…",
+    "errorBody": "We couldn't load your activity.",
+    "tryAgain": "Try again",
+    "emptyTitle": "Nothing here yet",
+    "emptyBody": "Deposits, trades and withdrawals will appear here as they settle.",
+    "justNow": "Just now",
+    "minutesAgo": "{n}m ago",
+    "hoursAgo": "{n}h ago",
+    "daysAgo": "{n}d ago",
+    "receivedSymbol": "Received {symbol}",
+    "sentSymbol": "Sent {symbol}",
+    "from": "from",
+    "to": "to",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "unknownDate": "Earlier",
+    "recentEyebrow": "Recent activity",
+    "viewAll": "View all activity"
   }
 }

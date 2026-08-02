@@ -3,6 +3,7 @@ import {
   BulbIcon,
   ChartBarsIcon,
   DiceIcon,
+  ClockIcon,
   FlameIcon,
   GridIcon,
   HouseIcon,
@@ -19,6 +20,7 @@ export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => Reac
   prediction: BulbIcon,
   earn: BriefcaseIcon,
   casino: DiceIcon,
+  activity: ClockIcon,
 };
 
 export interface NavItem {
