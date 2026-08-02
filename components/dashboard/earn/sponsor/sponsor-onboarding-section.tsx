@@ -35,10 +35,10 @@ interface ProfileState {
   telegram: string;
 }
 
-// Two steps, because the service takes them as two calls: the company record
-// first, then the owner's own profile. The company step is what unlocks the
-// sponsor dashboard, so a user who drops out after step one still has a working
-// account and is sent back here to finish.
+// Two steps on screen, one call to the service: it takes the company and the
+// owner's profile together. Splitting the form keeps it readable, but nothing
+// is sent until both halves are filled, so a company can never exist without an
+// owner attached to it.
 export function SponsorOnboardingSection({
   startAt = "company",
 }: {
@@ -46,6 +46,7 @@ export function SponsorOnboardingSection({
 }) {
   const router = useRouter();
   const [step, setStep] = useState<"company" | "profile">(startAt);
+  const [company, setCompany] = useState<CompanyState | null>(null);
 
   return (
     <div className={PAGE}>
@@ -59,28 +60,41 @@ export function SponsorOnboardingSection({
       </p>
 
       <div className="mt-7">
-        {step === "company" ? (
-          <CompanyStep onDone={() => setStep("profile")} />
+        {step === "company" || !company ? (
+          <CompanyStep
+            initial={company}
+            onNext={(next) => {
+              setCompany(next);
+              setStep("profile");
+            }}
+          />
         ) : (
-          <ProfileStep onDone={() => router.push("/earn/sponsor")} />
+          <ProfileStep company={company} onDone={() => router.push("/earn/sponsor")} />
         )}
       </div>
     </div>
   );
 }
 
-function CompanyStep({ onDone }: { onDone: () => void }) {
-  const create = useCreateSponsor();
-  const [state, setState] = useState<CompanyState>({
-    name: "",
-    slug: "",
-    bio: "",
-    logo: "",
-    industry: "",
-    url: "",
-    twitter: "",
-    entityName: "",
-  });
+function CompanyStep({
+  initial,
+  onNext,
+}: {
+  initial: CompanyState | null;
+  onNext: (company: CompanyState) => void;
+}) {
+  const [state, setState] = useState<CompanyState>(
+    initial ?? {
+      name: "",
+      slug: "",
+      bio: "",
+      logo: "",
+      industry: "",
+      url: "",
+      twitter: "",
+      entityName: "",
+    }
+  );
   const [errors, setErrors] = useState<Partial<Record<keyof CompanyState, string>>>({});
   // Once the slug has been edited by hand it stops tracking the name, so a
   // deliberate slug is not overwritten by the next keystroke in the title.
@@ -109,27 +123,12 @@ function CompanyStep({ onDone }: { onDone: () => void }) {
     return Object.keys(next).length === 0;
   }
 
-  async function onSubmit(event: React.FormEvent) {
+  function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     if (!validate()) return;
-
-    const id = toast.loading("Creating your company…");
-    try {
-      await create.mutateAsync({
-        name: state.name.trim(),
-        slug: state.slug.trim(),
-        bio: state.bio.trim(),
-        logo: state.logo,
-        industry: state.industry.trim(),
-        url: state.url.trim(),
-        twitter: state.twitter.trim(),
-        entityName: state.entityName.trim() || state.name.trim(),
-      });
-      toast.success("Company created.", { id });
-      onDone();
-    } catch (error) {
-      toast.error(friendlyError(error, "Couldn't create that company."), { id });
-    }
+    // Nothing is sent yet: the service takes the company and the owner together,
+    // so this only carries the company forward to the second step.
+    onNext(state);
   }
 
   return (
@@ -216,17 +215,16 @@ function CompanyStep({ onDone }: { onDone: () => void }) {
 
       <button
         type="submit"
-        disabled={create.isPending}
-        className="bg-accent text-ink mt-2 cursor-pointer rounded-full px-5 py-3 font-sans text-[13px] font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        className="bg-accent text-ink mt-2 cursor-pointer rounded-full px-5 py-3 font-sans text-[13px] font-semibold"
       >
-        {create.isPending ? "Creating…" : "Create company"}
+        Continue
       </button>
     </form>
   );
 }
 
-function ProfileStep({ onDone }: { onDone: () => void }) {
-  const save = useSaveSponsorProfile();
+function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () => void }) {
+  const create = useCreateSponsor();
   const [state, setState] = useState<ProfileState>({
     firstName: "",
     lastName: "",
@@ -249,19 +247,33 @@ function ProfileStep({ onDone }: { onDone: () => void }) {
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    const id = toast.loading("Saving your details…");
+    // Both halves go up together, which is why the company is only created at
+    // the end of the second step rather than at the end of the first.
+    const id = toast.loading("Setting up your company…");
     try {
-      await save.mutateAsync({
-        firstName: state.firstName.trim(),
-        lastName: state.lastName.trim(),
-        username: state.username.trim(),
-        photo: state.photo,
-        telegram: state.telegram.trim(),
+      await create.mutateAsync({
+        company: {
+          name: company.name.trim(),
+          slug: company.slug.trim(),
+          bio: company.bio.trim(),
+          logo: company.logo,
+          industry: company.industry.trim(),
+          url: company.url.trim(),
+          twitter: company.twitter.trim(),
+          entityName: company.entityName.trim() || company.name.trim(),
+        },
+        owner: {
+          firstName: state.firstName.trim(),
+          lastName: state.lastName.trim(),
+          username: state.username.trim(),
+          photo: state.photo,
+          telegram: state.telegram.trim(),
+        },
       });
       toast.success("You're all set.", { id });
       onDone();
     } catch (error) {
-      toast.error(friendlyError(error, "Couldn't save those details."), { id });
+      toast.error(friendlyError(error, "Couldn't set up that company."), { id });
     }
   }
 
@@ -307,10 +319,10 @@ function ProfileStep({ onDone }: { onDone: () => void }) {
 
       <button
         type="submit"
-        disabled={save.isPending}
+        disabled={create.isPending}
         className="bg-accent text-ink mt-2 cursor-pointer rounded-full px-5 py-3 font-sans text-[13px] font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {save.isPending ? "Saving…" : "Finish"}
+        {create.isPending ? "Setting up…" : "Finish"}
       </button>
     </form>
   );

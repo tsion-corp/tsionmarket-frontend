@@ -24,9 +24,11 @@ import type {
 } from "@/lib/earn/api/types";
 import { rewardFromApi } from "@/lib/earn/reward";
 
-// Flip to false (or set NEXT_PUBLIC_EARN_FIXTURES=0) once the service has a
-// database again. That is the only change needed to go back to live data.
-export const USE_FIXTURES = process.env.NEXT_PUBLIC_EARN_FIXTURES !== "0";
+// Off by default: the earn service has its database back, so the screens talk
+// to it again. Set NEXT_PUBLIC_EARN_FIXTURES=1 to fall back to this sample data
+// if the service goes down again, which is why the fixtures are kept rather
+// than deleted.
+export const USE_FIXTURES = process.env.NEXT_PUBLIC_EARN_FIXTURES === "1";
 
 // Dates are built relative to now so a deadline never drifts into the past and
 // starts rendering every sample listing as closed.

@@ -3,7 +3,7 @@
 // Sponsor setup: availability checks while the sign-up form is being typed,
 // then creating the company and completing the owner's profile.
 
-import { earnGet, earnPost } from "@/lib/earn/api/client";
+import { earnAuthedGet, earnGet, earnPost } from "@/lib/earn/api/client";
 import { toSponsor, type SponsorWire } from "@/lib/earn/api/wire";
 import { FIXTURE_SPONSOR, USE_FIXTURES } from "@/lib/earn/api/fixtures";
 import type { CreateSponsorInput, Sponsor, SponsorProfileInput } from "@/lib/earn/api/types";
@@ -37,7 +37,7 @@ export async function checkSponsorSlug(slug: string): Promise<boolean> {
 export async function fetchCurrentSponsor(): Promise<Sponsor | null> {
   if (USE_FIXTURES) return FIXTURE_SPONSOR;
   try {
-    return toSponsor(await earnGet<SponsorWire>("/sponsors"));
+    return toSponsor(await earnAuthedGet<SponsorWire>("/companies"));
   } catch (error) {
     if (isNoSponsor(error)) return null;
     throw error;
@@ -49,11 +49,22 @@ function isNoSponsor(error: unknown): boolean {
   return code === "FORBIDDEN" || code === "NOT_FOUND";
 }
 
-export async function createSponsor(input: CreateSponsorInput): Promise<Sponsor | null> {
-  // Nothing is persisted while the service is down, so the form completes and
-  // the flow can be walked end to end without pretending an account exists.
+// Creates the company and completes the owner's profile in one call. The
+// service also still accepts the older split pair (/sponsors/create then
+// /sponsors/usersponsor-details), but doing it in one request means a failure
+// cannot leave a company with no owner attached to it.
+export async function createSponsor(
+  input: CreateSponsorInput,
+  owner: SponsorProfileInput
+): Promise<Sponsor | null> {
   if (USE_FIXTURES) return null;
-  return toSponsor(await earnPost<SponsorWire>("/sponsors/create", input));
+  const wire = await earnPost<{ company?: SponsorWire } | SponsorWire>("/companies/setup", {
+    company: input,
+    owner,
+  });
+  // The response has been seen both wrapped under `company` and bare.
+  const company = (wire as { company?: SponsorWire }).company ?? (wire as SponsorWire);
+  return toSponsor(company);
 }
 
 export async function saveSponsorProfile(input: SponsorProfileInput): Promise<void> {

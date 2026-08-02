@@ -9,7 +9,13 @@ import {
 } from "@/components/dashboard/earn/form-field";
 import { slugify } from "@/lib/earn/listing-form";
 import type { ListingFormErrors, ListingFormState } from "@/lib/earn/listing-form";
-import type { AgentAccess, CompensationType, ListingType } from "@/lib/earn/api/types";
+import {
+  SKILL_CATEGORIES,
+  type AgentAccess,
+  type CompensationType,
+  type ListingType,
+  type SkillCategory,
+} from "@/lib/earn/api/types";
 
 const TYPES: { value: ListingType; label: string }[] = [
   { value: "bounty", label: "Bounty" },
@@ -267,18 +273,6 @@ function RewardSplit({
   );
 }
 
-function parseSkills(text: string): ListingFormState["skills"] {
-  return text
-    .split(",")
-    .map((skill) => skill.trim())
-    .filter(Boolean)
-    .map((skill) => ({ skill, subskills: [] }));
-}
-
-function joinSkills(skills: ListingFormState["skills"]): string {
-  return skills.map((group) => group.skill).join(", ");
-}
-
 function SkillsField({
   state,
   error,
@@ -288,40 +282,21 @@ function SkillsField({
   error?: string;
   onChange: (skills: ListingFormState["skills"]) => void;
 }) {
-  // Skills are a free-text list rather than a picker: the service accepts any
-  // string, and hardcoding a taxonomy here would go stale against it.
-  //
-  // The raw text is held locally because the parsed list is not round-trippable:
-  // deriving the field's value from it would delete the comma the moment it was
-  // typed, and the sponsor could never reach the second skill.
-  const joined = joinSkills(state.skills);
-  const [text, setText] = useState(joined);
-  // Adjusted during render rather than in an effect, which is what React
-  // prescribes for state that follows a prop: an effect here would render the
-  // stale text once first and cascade a second render.
-  const [lastJoined, setLastJoined] = useState(joined);
-
-  // Only follows the form state when it changed from somewhere else, such as an
-  // existing listing being loaded in for editing. A change this field caused
-  // itself round-trips to the same string and is left alone, so the comma the
-  // sponsor just typed survives.
-  if (lastJoined !== joined) {
-    setLastJoined(joined);
-    if (joinSkills(parseSkills(text)) !== joined) setText(joined);
-  }
+  // A dropdown rather than a text field: the service takes one of a fixed set
+  // and rejects anything else, so free text only produced a validation error
+  // the sponsor could not act on.
+  const selected = (state.skills[0]?.skill ?? "") as SkillCategory | "";
 
   return (
-    <TextField
-      label="Skills"
-      required
-      value={text}
+    <SelectField
+      label="Skill"
+      value={selected}
       error={error}
-      placeholder="Frontend, Design"
-      hint="Comma separated."
-      onChange={(next) => {
-        setText(next);
-        onChange(parseSkills(next));
-      }}
+      options={[
+        { value: "" as SkillCategory | "", label: "Pick a skill" },
+        ...SKILL_CATEGORIES.map((skill) => ({ value: skill as SkillCategory | "", label: skill })),
+      ]}
+      onChange={(value) => onChange(value ? [{ skill: value, subskills: [] }] : [])}
     />
   );
 }

@@ -282,9 +282,27 @@ describe("sponsor onboarding", () => {
   it("holds the form until the required fields are filled", async () => {
     render(<SponsorOnboardingSection />, { wrapper });
 
-    fireEvent.click(screen.getByRole("button", { name: "Create company" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText("Give your company a name.")).toBeInTheDocument();
+    expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();
+  });
+
+  it("sends nothing until the owner's details are filled in too", async () => {
+    // The service takes the company and the owner in one call, so finishing the
+    // first step must not create anything on its own.
+    sponsorsApi.checkSponsorName.mockResolvedValue(true);
+    render(<SponsorOnboardingSection />, { wrapper });
+
+    fireEvent.change(screen.getByLabelText(/company name/i), { target: { value: "Acme" } });
+    fireEvent.change(screen.getByLabelText(/what your company does/i), {
+      target: { value: "We build things." },
+    });
+    fireEvent.change(screen.getByLabelText(/industry/i), { target: { value: "DeFi" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    // Blocked on the logo, which is still required before moving on.
+    expect(await screen.findByText("Upload a logo.")).toBeInTheDocument();
     expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();
   });
 
@@ -299,7 +317,7 @@ describe("sponsor onboarding", () => {
     // The check is debounced, so wait for the answer before submitting.
     await waitFor(() => expect(sponsorsApi.checkSponsorName).toHaveBeenCalledWith("Taken Co"));
 
-    fireEvent.click(screen.getByRole("button", { name: "Create company" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByText("That name is taken.")).toBeInTheDocument();
     expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();

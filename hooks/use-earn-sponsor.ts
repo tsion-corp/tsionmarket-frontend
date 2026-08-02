@@ -73,10 +73,13 @@ export function useSponsorSlugAvailable(slug: string) {
   return useAvailability(slug, SPONSOR_KEYS.slugAvailable, checkSponsorSlug);
 }
 
+// Company and owner profile go up together, because the service takes them in
+// one call and a half-finished company is not a state worth being able to reach.
 export function useCreateSponsor() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: CreateSponsorInput) => createSponsor(input),
+    mutationFn: ({ company, owner }: { company: CreateSponsorInput; owner: SponsorProfileInput }) =>
+      createSponsor(company, owner),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SPONSOR_KEYS.current });
     },

@@ -9,6 +9,7 @@
 // slug) is checked by the caller.
 
 import { rewardFromApi } from "@/lib/earn/reward";
+import { SKILL_CATEGORIES } from "@/lib/earn/api/types";
 import type {
   AgentAccess,
   CompensationType,
@@ -19,6 +20,7 @@ import type {
   ListingSummary,
   ListingType,
   RewardTier,
+  SkillCategory,
   SkillGroup,
   Sponsor,
   SponsorRef,
@@ -159,10 +161,16 @@ export function toSponsor(wire: SponsorWire): Sponsor | null {
   };
 }
 
+// Skills come back as one of a fixed set. A value outside it is dropped rather
+// than carried through: the form can only offer the known categories, so an
+// unknown one would be invisible in the editor and then silently deleted on the
+// next save.
 function toSkillGroups(wire: SkillWire[] | undefined): SkillGroup[] {
   if (!Array.isArray(wire)) return [];
   return wire
-    .filter((group): group is SkillWire & { skills: string } => typeof group?.skills === "string")
+    .filter((group): group is SkillWire & { skills: SkillCategory } =>
+      (SKILL_CATEGORIES as readonly string[]).includes(group?.skills ?? "")
+    )
     .map((group) => ({
       skill: group.skills,
       subskills: Array.isArray(group.subskills) ? group.subskills.filter(isNonEmptyString) : [],

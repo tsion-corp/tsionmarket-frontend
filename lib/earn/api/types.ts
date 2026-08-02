@@ -24,6 +24,22 @@ export type CompensationType = "fixed" | "range" | "variable";
 // Whether an AI agent may work the listing. The service spells these in caps.
 export type AgentAccess = "HUMAN_ONLY" | "AGENT_ALLOWED" | "AGENT_ONLY";
 
+// The service takes one of a fixed set and rejects anything else, so this is
+// the list the picker offers. Read off its validation error rather than guessed.
+export const SKILL_CATEGORIES = [
+  "Frontend",
+  "Backend",
+  "Blockchain",
+  "Mobile",
+  "Design",
+  "Community",
+  "Growth",
+  "Content",
+  "Other",
+] as const;
+
+export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
+
 export interface SkillGroup {
   skill: string;
   subskills: string[];

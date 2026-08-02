@@ -4,7 +4,7 @@
 // in. Every call here is forwarded with an `x-sponsor-id` that the proxy
 // resolved from the session, so nothing in this file names a sponsor.
 
-import { earnGet, earnPost } from "@/lib/earn/api/client";
+import { earnAuthedGet, earnPost } from "@/lib/earn/api/client";
 import {
   toListing,
   toSubmissions,
@@ -24,7 +24,7 @@ function submissionsOf(data: FeedResponse): SubmissionWire[] {
 
 export async function fetchIsCreateAllowed(): Promise<boolean> {
   if (USE_FIXTURES) return true;
-  const data = await earnGet<boolean | { allowed?: boolean; isCreateAllowed?: boolean }>(
+  const data = await earnAuthedGet<boolean | { allowed?: boolean; isCreateAllowed?: boolean }>(
     "/sponsor-dashboard/listings/is-create-allowed"
   );
   if (typeof data === "boolean") return data;
@@ -66,7 +66,7 @@ export async function updateListing(id: string, payload: ListingPayload): Promis
 
 export async function fetchSponsorListing(slug: string, type: ListingType): Promise<Listing> {
   if (USE_FIXTURES) return fixtureListing(slug);
-  const data = await earnGet<ListingWire>(
+  const data = await earnAuthedGet<ListingWire>(
     `/sponsor-dashboard/${encodeURIComponent(slug)}/listing`,
     { type }
   );
@@ -77,7 +77,7 @@ export async function fetchSponsorListing(slug: string, type: ListingType): Prom
 
 export async function fetchSponsorSubmissions(slug: string): Promise<Submission[]> {
   if (USE_FIXTURES) return FIXTURE_SUBMISSIONS;
-  const data = await earnGet<FeedResponse>(
+  const data = await earnAuthedGet<FeedResponse>(
     `/sponsor-dashboard/${encodeURIComponent(slug)}/submissions`
   );
   return toSubmissions(submissionsOf(data));
