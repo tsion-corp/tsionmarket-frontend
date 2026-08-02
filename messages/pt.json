@@ -59,6 +59,8 @@
     "confirmingNote": "O servidor está verificando a negociação na Base. Normalmente leva menos de um minuto.",
     "confirmedTitle": "Negociação confirmada",
     "confirmedBody": "Verificada on-chain. Seu saldo foi atualizado.",
+    "receivedTitle": "{amount} {symbol} recebidos",
+    "receivedBody": "Verificado on-chain na sua carteira. A confirmação final do servidor termina em segundo plano — você pode fechar.",
     "done": "Concluído",
     "cancel": "Cancelar",
     "sideDisabled": "As negociações estão pausadas para este token",

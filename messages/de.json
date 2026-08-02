@@ -59,6 +59,8 @@
     "confirmingNote": "Der Server verifiziert den Handel auf Base. Das dauert meist unter einer Minute.",
     "confirmedTitle": "Handel bestätigt",
     "confirmedBody": "On-chain verifiziert. Ihr Guthaben wurde aktualisiert.",
+    "receivedTitle": "{amount} {symbol} erhalten",
+    "receivedBody": "On-chain in Ihrer Wallet verifiziert. Die endgültige Serverbestätigung läuft im Hintergrund — Sie können dies schließen.",
     "done": "Fertig",
     "cancel": "Abbrechen",
     "sideDisabled": "Der Handel für diesen Token ist pausiert",

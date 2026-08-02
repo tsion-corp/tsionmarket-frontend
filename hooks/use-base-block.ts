@@ -2,13 +2,25 @@
 
 import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, erc20Abi, http } from "viem";
 import { base } from "viem/chains";
 
 // Reads go to Base's default public RPC. Block numbers and view calls don't
 // need the premium key (that stays server-side for writes/sponsorship), and a
 // public read is enough to know when to refresh on-chain-derived state.
 const client = createPublicClient({ chain: base, transport: http() });
+
+// One-shot ERC-20 balance read on Base, for flows that verify a delivery
+// on-chain themselves (e.g. a swap's received tokens) instead of waiting on a
+// server attestation.
+export function readBaseTokenBalance(token: `0x${string}`, owner: `0x${string}`): Promise<bigint> {
+  return client.readContract({
+    address: token,
+    abi: erc20Abi,
+    functionName: "balanceOf",
+    args: [owner],
+  });
+}
 
 // The Base chain tip, polled every ~4s. Consumers watch this to invalidate
 // queries that mirror on-chain state (balances, vault winnings) so they refresh

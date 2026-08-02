@@ -59,6 +59,8 @@
     "confirmingNote": "El servidor está verificando la operación en Base. Suele tardar menos de un minuto.",
     "confirmedTitle": "Operación confirmada",
     "confirmedBody": "Verificada on-chain. Tu saldo se ha actualizado.",
+    "receivedTitle": "{amount} {symbol} recibidos",
+    "receivedBody": "Verificado on-chain en tu billetera. La confirmación final del servidor termina en segundo plano — puedes cerrar esto.",
     "done": "Hecho",
     "cancel": "Cancelar",
     "sideDisabled": "El trading está en pausa para este token",

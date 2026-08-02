@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { usePrivy, useSignMessage } from "@privy-io/react-auth";
 import { useEvmSend } from "@/hooks/use-evm-send";
+import { readBaseTokenBalance } from "@/hooks/use-base-block";
 import { getWalletAddress } from "@/lib/user";
 import {
   TradeApiError,
@@ -55,6 +56,9 @@ export function useMemeTrade() {
   const [phase, setPhase] = useState<TradePhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [swapId, setSwapId] = useState<string | null>(null);
+  // The on-chain verified delivery ("142,244.11 FART"), set the moment the
+  // balanceOf delta confirms it — usually minutes before the server does.
+  const [received, setReceived] = useState<{ amount: string; symbol: string } | null>(null);
   const activeRef = useRef(false);
 
   // Challenge → exact-message signature → verify, cached per (user, wallet) so
@@ -93,6 +97,7 @@ export function useMemeTrade() {
       activeRef.current = true;
       setError(null);
       setSwapId(null);
+      setReceived(null);
       try {
         const body: SwapRequest = { ...input, walletAddress: wallet };
         const runQuote = () => quoteSwap(body, newIdempotencyKey());
@@ -119,6 +124,15 @@ export function useMemeTrade() {
         }
         setSwapId(quote.swapId);
 
+        // Snapshot the received asset's balance so delivery can be verified
+        // on-chain the moment the swap's receipt lands, independent of the
+        // server's slower attestation.
+        const receivedToken = quote.buyToken.address as `0x${string}`;
+        const balanceBefore = await readBaseTokenBalance(
+          receivedToken,
+          wallet as `0x${string}`
+        ).catch(() => null);
+
         // Execute every prepared call in order, exactly as returned: one
         // sponsored send per call (never batched — the backend verifies one
         // hash per callIndex), each hash registered before the next call.
@@ -137,6 +151,27 @@ export function useMemeTrade() {
             chainId: quote.chainId,
           });
           await registerSubmission(quote.swapId, callIndex, wallet, hash, newIdempotencyKey());
+        }
+
+        // The swap's receipt is in, so the tokens should already sit in the
+        // wallet — prove it with a balanceOf delta and say so, while the
+        // server's formal verification finishes in the background.
+        if (balanceBefore !== null) {
+          const balanceAfter = await readBaseTokenBalance(
+            receivedToken,
+            wallet as `0x${string}`
+          ).catch(() => null);
+          if (balanceAfter !== null && balanceAfter > balanceBefore) {
+            const decimals = quote.buyToken.decimals ?? 18;
+            const delta = balanceAfter - balanceBefore;
+            const whole = delta / 10n ** BigInt(decimals);
+            const frac = delta % 10n ** BigInt(decimals);
+            const fracStr = frac.toString().padStart(decimals, "0").slice(0, 4).replace(/0+$/, "");
+            setReceived({
+              amount: `${whole.toLocaleString()}${fracStr ? `.${fracStr}` : ""}`,
+              symbol: quote.buyToken.symbol ?? "",
+            });
+          }
         }
 
         // The backend worker verifies on-chain; poll until it says so.
@@ -167,9 +202,10 @@ export function useMemeTrade() {
     setPhase("idle");
     setError(null);
     setSwapId(null);
+    setReceived(null);
   }, []);
 
-  return { wallet, phase, error, swapId, trade, reset, linkForPreview };
+  return { wallet, phase, error, swapId, received, trade, reset, linkForPreview };
 }
 
 // Debounced-by-caller indicative preview; rate limited upstream (20/min).

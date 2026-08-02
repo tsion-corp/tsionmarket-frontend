@@ -59,6 +59,8 @@
     "confirmingNote": "Le serveur vérifie l'échange sur Base. Cela prend généralement moins d'une minute.",
     "confirmedTitle": "Échange confirmé",
     "confirmedBody": "Vérifié on-chain. Votre solde a été mis à jour.",
+    "receivedTitle": "{amount} {symbol} reçus",
+    "receivedBody": "Vérifié on-chain dans votre portefeuille. La confirmation finale du serveur se termine en arrière-plan — vous pouvez fermer.",
     "done": "Terminé",
     "cancel": "Annuler",
     "sideDisabled": "Le trading est en pause pour ce token",

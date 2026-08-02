@@ -59,6 +59,8 @@
     "confirmingNote": "The server is verifying the trade on Base. This usually takes under a minute.",
     "confirmedTitle": "Trade confirmed",
     "confirmedBody": "Verified on-chain. Your balance has been updated.",
+    "receivedTitle": "{amount} {symbol} received",
+    "receivedBody": "Verified on-chain in your wallet. The server's final confirmation is finishing in the background — you can close this.",
     "done": "Done",
     "cancel": "Cancel",
     "sideDisabled": "Trading is paused for this token",

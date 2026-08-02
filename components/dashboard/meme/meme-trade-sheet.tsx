@@ -30,7 +30,7 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [amount, setAmount] = useState("");
   const [debouncedAmount, setDebouncedAmount] = useState("");
-  const { wallet, phase, error, trade, reset, linkForPreview } = useMemeTrade();
+  const { wallet, phase, error, received, trade, reset, linkForPreview } = useMemeTrade();
   const portfolio = usePortfolio();
   const linkTriedRef = useRef(false);
 
@@ -174,6 +174,23 @@ export function MemeTradeSheet({ token: listed, onClose }: MemeTradeSheetProps) 
             <div className="ws-inset p-4 text-center">
               <div className="ws-display text-up text-[20px]">{t("confirmedTitle")}</div>
               <p className="mt-1 text-[13px] font-normal text-white/60">{t("confirmedBody")}</p>
+            </div>
+            <button
+              onClick={closeSheet}
+              className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+            >
+              {t("done")}
+            </button>
+          </div>
+        ) : phase === "confirming" && received ? (
+          // The balanceOf delta already proved the tokens landed, so lead with
+          // that; the server's formal confirmation finishes in the background.
+          <div className="mt-5">
+            <div className="ws-inset p-4 text-center">
+              <div className="ws-display text-up text-[20px]">
+                {t("receivedTitle", { amount: received.amount, symbol: received.symbol })}
+              </div>
+              <p className="mt-1 text-[13px] font-normal text-white/60">{t("receivedBody")}</p>
             </div>
             <button
               onClick={closeSheet}
