@@ -4,12 +4,20 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { PerpPairIcon } from "@/components/dashboard/trade/perp-pair-icon";
 import { formatUsd } from "@/lib/trade/math";
-import { isPositiveWireDecimal, isUnsetLevel, pairSymbol } from "@/lib/perp/logic";
+import {
+  USDC_DECIMALS,
+  isPositiveWireDecimal,
+  isUnsetLevel,
+  isWireAmount,
+  pairSymbol,
+} from "@/lib/perp/logic";
 import type { OpenPosition, PerpPair } from "@/lib/perp/types";
 
 interface PerpPositionsProps {
   positions: OpenPosition[];
   loading: boolean;
+  // A failed fetch must not render as "no open positions".
+  errored?: boolean;
   pairByIndex: Map<number, PerpPair>;
   // Live mark price per pair symbol (decimal string), for the PnL estimate.
   priceOf: (symbol: string) => string | null;
@@ -86,7 +94,7 @@ function PositionRow({
   // backend re-validates the amount either way.
   const fullCollateral = parseFloat(p.initialCollateralUsdc);
   const partialCloseValid =
-    isPositiveWireDecimal(closeAmt) && parseFloat(closeAmt) < fullCollateral;
+    isWireAmount(closeAmt, USDC_DECIMALS) && parseFloat(closeAmt) < fullCollateral;
 
   const guard = (value: string, set: (v: string) => void) => {
     const next = value.replace(/,/g, "");
@@ -97,7 +105,7 @@ function PositionRow({
   // fields stay neutral.
   const tpInvalid = tp !== "" && !isPositiveWireDecimal(tp);
   const slInvalid = sl !== "" && !isPositiveWireDecimal(sl);
-  const marginInvalid = marginAmt !== "" && !isPositiveWireDecimal(marginAmt);
+  const marginInvalid = marginAmt !== "" && !isWireAmount(marginAmt, USDC_DECIMALS);
   const closeInvalid = closeAmt !== "" && !partialCloseValid;
   const fieldClass = (invalid: boolean) =>
     `tnum w-full rounded-lg border bg-black/35 px-2.5 py-2 text-[13px] text-white outline-none placeholder:text-white/30 ${
@@ -213,14 +221,14 @@ function PositionRow({
                 />
                 <button
                   onClick={() => onUpdateMargin(p, marginAmt, "deposit")}
-                  disabled={busy || !isPositiveWireDecimal(marginAmt)}
+                  disabled={busy || !isWireAmount(marginAmt, USDC_DECIMALS)}
                   className="shrink-0 cursor-pointer rounded-lg border border-white/14 bg-white/8 px-3 py-2 text-[12.5px] font-medium text-white hover:bg-white/12 disabled:opacity-50"
                 >
                   {t("add")}
                 </button>
                 <button
                   onClick={() => onUpdateMargin(p, marginAmt, "withdraw")}
-                  disabled={busy || !isPositiveWireDecimal(marginAmt)}
+                  disabled={busy || !isWireAmount(marginAmt, USDC_DECIMALS)}
                   className="shrink-0 cursor-pointer rounded-lg border border-white/14 bg-white/8 px-3 py-2 text-[12.5px] font-medium text-white hover:bg-white/12 disabled:opacity-50"
                 >
                   {t("remove")}
@@ -260,7 +268,7 @@ function PositionRow({
 
 export function PerpPositions(props: PerpPositionsProps) {
   const t = useTranslations("perps");
-  const { positions, loading, pairByIndex, priceOf } = props;
+  const { positions, loading, errored, pairByIndex, priceOf } = props;
 
   return (
     <div className="ws-card overflow-hidden">
@@ -273,6 +281,10 @@ export function PerpPositions(props: PerpPositionsProps) {
       {loading ? (
         <div className="border-t border-white/6 px-5 py-5">
           <div className="h-4 w-40 animate-pulse rounded bg-white/8" />
+        </div>
+      ) : errored && positions.length === 0 ? (
+        <div className="text-down/90 border-t border-white/6 px-5 py-6 text-center text-[13px] font-normal">
+          {t("positionsUnavailable")}
         </div>
       ) : positions.length === 0 ? (
         <div className="border-t border-white/6 px-5 py-6 text-center text-[13px] font-normal text-white/45">

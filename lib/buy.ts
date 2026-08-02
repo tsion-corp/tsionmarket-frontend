@@ -139,3 +139,39 @@ export function isBuyable(destinations: BuyRoute[], symbol: string): boolean {
   const want = catalogSymbol(symbol);
   return destinations.some((d) => d.symbol.toUpperCase() === want && isOfferable(d));
 }
+
+// Dextopus blockchain label -> Alchemy portfolio network id, for matching a
+// route against a held balance.
+const CHAIN_NAME_TO_NETWORK: Record<string, string> = {
+  base: "base-mainnet",
+  ethereum: "eth-mainnet",
+  arbitrum: "arb-mainnet",
+  optimism: "opt-mainnet",
+  polygon: "polygon-mainnet",
+  solana: "solana-mainnet",
+};
+
+// Whether a held balance is the asset a market symbol trades: route-address
+// match first, then symbol through the catalog alias (held "cbBTC" matches
+// the "BTC" market).
+export function holdingMatchesSymbol(
+  held: { network: string; address: string | null; symbol: string },
+  destinations: BuyRoute[],
+  symbol: string
+): boolean {
+  if (held.address !== null) {
+    const addr = held.address.toLowerCase();
+    const routes = routesForSymbol(destinations, symbol);
+    if (
+      routes.some(
+        (r) =>
+          CHAIN_NAME_TO_NETWORK[r.chainName.toLowerCase()] === held.network &&
+          r.asset.toLowerCase() === addr
+      )
+    ) {
+      return true;
+    }
+  }
+  const heldSym = held.symbol.trim().toUpperCase();
+  return heldSym === symbol.trim().toUpperCase() || heldSym === catalogSymbol(symbol);
+}

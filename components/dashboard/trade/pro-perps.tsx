@@ -89,9 +89,9 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
     | null
   >(null);
 
-  const { positions, loading: positionsLoading } = usePerpPositions(live);
+  const { positions, loading: positionsLoading, error: positionsError } = usePerpPositions(live);
   const { orders } = usePerpOrders(live);
-  const actions = usePerpActions();
+  const actions = usePerpActions(live);
   const portfolio = usePortfolio();
   const { market, closed } = usePerpMarket(live ? selected : null);
 
@@ -198,7 +198,10 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
     const staged = confirm;
     setConfirm(null);
     if (staged.kind === "open") {
-      const ok = await actions.openTrade(staged.req);
+      const ok = await actions.openTrade(
+        staged.req,
+        pairs.find((p) => pairSymbol(p) === staged.req.pair)?.pairIndex
+      );
       if (ok) setCollateral("");
     } else {
       await actions.closeTrade(staged.position, staged.amount);
@@ -603,6 +606,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
       />
 
       <PerpPositions
+        errored={positionsError != null}
         positions={positions}
         loading={positionsLoading}
         pairByIndex={pairByIndex}

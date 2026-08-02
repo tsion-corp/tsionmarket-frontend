@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyRequest } from "@/lib/server/auth";
+import { getRequestUser, verifyRequest } from "@/lib/server/auth";
+import { walletOfUser } from "@/lib/casino/chess-identity";
 import { isAllowedPerpPath, perpRevalidate, wsapiPerpRequest } from "@/lib/server/wsapi";
 
 // Server-side proxy for the perp gateway (Avantis perpetuals on Base). Reads
@@ -25,6 +26,24 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
         { success: false, error: { code: "UNAUTHORIZED", message: "Sign in to trade." } },
         { status: 401 }
       );
+    }
+    // The trader in a build body must be the wallet the session owns.
+    if (body != null && typeof body === "object" && "trader" in body) {
+      const claimed = (body as { trader?: unknown }).trader;
+      const wallet = walletOfUser(await getRequestUser(req, claims));
+      if (
+        typeof claimed !== "string" ||
+        !wallet ||
+        claimed.toLowerCase() !== wallet.toLowerCase()
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: "FORBIDDEN", message: "Trader must be the signed-in wallet." },
+          },
+          { status: 403 }
+        );
+      }
     }
   }
 

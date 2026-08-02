@@ -70,8 +70,8 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
   const [collateral, setCollateral] = useState("");
   const [leverage, setLeverage] = useState(10);
 
-  const { positions, loading: positionsLoading } = usePerpPositions(live);
-  const actions = usePerpActions();
+  const { positions, loading: positionsLoading, error: positionsError } = usePerpPositions(live);
+  const actions = usePerpActions(live);
   const portfolio = usePortfolio();
 
   const usdcBalance =
@@ -140,15 +140,18 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
     setConfirm(null);
     if (staged.kind === "open") {
       if (price == null) return;
-      const ok = await actions.openTrade({
-        pair: symbol,
-        isLong: side === "long",
-        collateralUsdc: collateral,
-        leverage: String(clampedLeverage),
-        orderType: "market",
-        openPrice: price,
-        slippagePct: "1",
-      });
+      const ok = await actions.openTrade(
+        {
+          pair: symbol,
+          isLong: side === "long",
+          collateralUsdc: collateral,
+          leverage: String(clampedLeverage),
+          orderType: "market",
+          openPrice: price,
+          slippagePct: "1",
+        },
+        pair?.pairIndex
+      );
       if (ok) setCollateral("");
     } else {
       await actions.closeTrade(staged.position, staged.amount);
@@ -374,6 +377,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
         </div>
 
         <PerpPositions
+          errored={positionsError != null}
           positions={positions}
           loading={positionsLoading}
           pairByIndex={pairByIndex}

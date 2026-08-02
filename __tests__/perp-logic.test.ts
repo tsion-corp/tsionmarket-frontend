@@ -9,6 +9,7 @@ import {
   orderFieldValidity,
   parseStepValueWei,
   positionSizeBaseUnits,
+  toWirePrice,
   validateOrder,
 } from "@/lib/perp/logic";
 import type { PerpPair } from "@/lib/perp/types";
@@ -216,5 +217,20 @@ describe("allowance and steps", () => {
     expect(isUnsetLevel("0")).toBe(true);
     expect(isUnsetLevel("0.00")).toBe(true);
     expect(isUnsetLevel("3500.42")).toBe(false);
+  });
+});
+
+describe("toWirePrice", () => {
+  it("renders floats as plain decimals, never scientific notation", () => {
+    expect(toWirePrice(1e-7)).toBe("0.0000001");
+    expect(toWirePrice(64123.5)).toBe("64123.5");
+    expect(toWirePrice(2)).toBe("2");
+  });
+
+  it("returns null for values the wire cannot carry", () => {
+    expect(toWirePrice(0)).toBeNull();
+    expect(toWirePrice(-1)).toBeNull();
+    expect(toWirePrice(NaN)).toBeNull();
+    expect(toWirePrice(1e-9)).toBeNull();
   });
 });

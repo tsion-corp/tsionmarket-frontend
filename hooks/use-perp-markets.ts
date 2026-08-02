@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchPerpMarket,
@@ -58,9 +59,13 @@ export function usePerpPrices(enabled: boolean, streaming = false) {
     staleTime: pollMs,
     retry: retryUnlessUnavailable,
   });
-  // Keyed by pair symbol for O(1) lookups from the pair list rows.
-  const bySymbol = new Map<string, PerpPrice>();
-  for (const p of query.data ?? []) bySymbol.set(p.pair, p);
+  // Keyed by pair symbol; memoized so priceOf keeps a stable identity.
+  const data = query.data;
+  const bySymbol = useMemo(() => {
+    const m = new Map<string, PerpPrice>();
+    for (const p of data ?? []) m.set(p.pair, p);
+    return m;
+  }, [data]);
   return { prices: bySymbol, loading: query.isLoading };
 }
 

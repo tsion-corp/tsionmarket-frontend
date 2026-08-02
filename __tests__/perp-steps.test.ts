@@ -46,7 +46,9 @@ describe("toSignableCalls", () => {
 
   it("rejects an approve step that targets anything but the real USDC", () => {
     const usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    const approveData = `0x095ea7b3${"0".repeat(128)}`;
+    // approve(spender, amount): selector + padded TradingStorage + amount word.
+    const spenderWord = `${"0".repeat(24)}${TO.slice(2).toLowerCase()}`;
+    const approveData = `0x095ea7b3${spenderWord}${"0".repeat(64)}`;
     const lookalike: BuildResult = {
       chainId: 8453,
       steps: [{ to: TO, data: approveData, value: "0", label: "approve" }],
@@ -57,6 +59,23 @@ describe("toSignableCalls", () => {
       steps: [{ to: usdc, data: approveData, value: "0", label: "approve" }],
     };
     expect(toSignableCalls([genuine])).toHaveLength(1);
+  });
+
+  it("rejects an approve whose spender is not the TradingStorage contract", () => {
+    const usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    const attacker = "1111111111111111111111111111111111111111";
+    const badSpender: BuildResult = {
+      chainId: 8453,
+      steps: [
+        {
+          to: usdc,
+          data: `0x095ea7b3${"0".repeat(24)}${attacker}${"0".repeat(64)}`,
+          value: "0",
+          label: "approve",
+        },
+      ],
+    };
+    expect(() => toSignableCalls([badSpender])).toThrow("unexpected spender");
   });
 
   it("rejects non-hex calldata", () => {

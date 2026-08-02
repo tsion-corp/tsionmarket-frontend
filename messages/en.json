@@ -123,7 +123,9 @@
     "youPay": "You pay",
     "youReceive": "You receive",
     "youSell": "You're selling",
-    "youSellRow": "You sell"
+    "youSellRow": "You sell",
+    "ctaNotSellable": "{symbol} can't be sold from this wallet",
+    "ctaNeedsGas": "You need {symbol} on {chain} for the network fee"
   },
   "topbar": {
     "searchPlaceholder": "Search assets, markets, tickers",
@@ -774,7 +776,9 @@
     "confirmRiskOpen": "Leveraged trades can lose value fast, and fills happen at market. Continue only if this looks right.",
     "confirmRiskClose": "The close fills at the current market price. This can't be undone.",
     "confirmCancel": "Cancel",
-    "confirmContinue": "Continue"
+    "confirmContinue": "Continue",
+    "positionsUnavailable": "Couldn't load your positions. They are safe on-chain; retrying…",
+    "updateTakingLonger": "The change is confirmed and is taking a moment to settle."
   },
   "fundsFlow": {
     "back": "Back",

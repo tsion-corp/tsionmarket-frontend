@@ -123,7 +123,9 @@
     "youPay": "Você paga",
     "youReceive": "Você recebe",
     "youSell": "Você vende",
-    "youSellRow": "Você vende"
+    "youSellRow": "Você vende",
+    "ctaNotSellable": "{symbol} não pode ser vendido desta carteira",
+    "ctaNeedsGas": "Você precisa de {symbol} na {chain} para a taxa de rede"
   },
   "topbar": {
     "searchPlaceholder": "Pesquisar ativos, mercados, tickers",
@@ -774,7 +776,9 @@
     "confirmRiskOpen": "Operações alavancadas podem perder valor rapidamente, e a execução acontece a preço de mercado. Continue apenas se estiver tudo certo.",
     "confirmRiskClose": "O fechamento é executado ao preço de mercado atual. Isso não pode ser desfeito.",
     "confirmCancel": "Cancelar",
-    "confirmContinue": "Continuar"
+    "confirmContinue": "Continuar",
+    "positionsUnavailable": "Não foi possível carregar suas posições. Elas estão seguras on-chain; tentando novamente…",
+    "updateTakingLonger": "A mudança está confirmada e leva um momento para liquidar."
   },
   "fundsFlow": {
     "back": "Voltar",

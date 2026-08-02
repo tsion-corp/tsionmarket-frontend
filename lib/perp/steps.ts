@@ -4,7 +4,12 @@
 // reaching the wallet — signing is headless on Base, so nothing downstream
 // gives the user a checkpoint.
 
-import { PERP_CHAIN_ID, USDC_ADDRESS, parseStepValueWei } from "@/lib/perp/logic";
+import {
+  PERP_CHAIN_ID,
+  TRADING_STORAGE_ADDRESS,
+  USDC_ADDRESS,
+  parseStepValueWei,
+} from "@/lib/perp/logic";
 import type { BuildResult } from "@/lib/perp/types";
 
 export interface SignableCall {
@@ -38,11 +43,15 @@ export function toSignableCalls(results: BuildResult[]): SignableCall[] {
       if (step.data != null && !HEX_DATA.test(step.data)) {
         throw new Error("Transaction step has invalid calldata.");
       }
-      if (
-        step.data?.toLowerCase().startsWith(APPROVE_SELECTOR) &&
-        step.to.toLowerCase() !== USDC_ADDRESS.toLowerCase()
-      ) {
-        throw new Error("Transaction step approves an unexpected token.");
+      if (step.data?.toLowerCase().startsWith(APPROVE_SELECTOR)) {
+        if (step.to.toLowerCase() !== USDC_ADDRESS.toLowerCase()) {
+          throw new Error("Transaction step approves an unexpected token.");
+        }
+        // Only the venue's storage contract may receive spend rights.
+        const spender = `0x${step.data.slice(34, 74)}`.toLowerCase();
+        if (spender !== TRADING_STORAGE_ADDRESS.toLowerCase()) {
+          throw new Error("Transaction step approves an unexpected spender.");
+        }
       }
       const value = parseStepValueWei(step.value);
       if (value > MAX_STEP_VALUE_WEI) {

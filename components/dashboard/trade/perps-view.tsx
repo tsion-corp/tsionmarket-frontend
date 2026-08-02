@@ -8,7 +8,7 @@ import { usePerpPrefill } from "@/hooks/use-perp-prefill";
 import { usePerpPairs, usePerpPrices } from "@/hooks/use-perp-markets";
 import { usePerpPriceStream } from "@/hooks/use-perp-price-stream";
 import { usePrices } from "@/hooks/use-prices";
-import { pairSymbol } from "@/lib/perp/logic";
+import { pairSymbol, toWirePrice } from "@/lib/perp/logic";
 import { TRADE_PRICE_SYMBOLS } from "@/lib/trade/assets";
 import type { PerpPair } from "@/lib/perp/types";
 
@@ -73,7 +73,7 @@ export function PerpsView() {
       if (livePrice != null) return livePrice;
       const base = symbol.split("/")[0];
       const fallback = fallbackPrices[base];
-      return fallback != null && fallback > 0 ? String(fallback) : null;
+      return fallback != null ? toWirePrice(fallback) : null;
     },
     [stream, livePrices, fallbackPrices]
   );

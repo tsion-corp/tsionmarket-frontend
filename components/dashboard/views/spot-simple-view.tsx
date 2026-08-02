@@ -16,6 +16,7 @@ import { SearchIcon } from "@/components/ui/icons";
 import { useMarketTokens } from "@/hooks/use-market-tokens";
 import { useBuyDestinations } from "@/hooks/use-buy-catalog";
 import { buyableSymbols } from "@/lib/buy";
+import { isSpotStable } from "@/lib/spot-chart";
 import { tokenBg } from "@/lib/trade/assets";
 import type { MarketToken } from "@/lib/market-catalog";
 import { formatUsd } from "@/lib/trade/math";
@@ -56,18 +57,24 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
   const destinations = useBuyDestinations();
 
   // Show only assets a user can actually buy: intersect the market list with the
-  // Dextopus buyable set, matched by symbol. While the catalog loads we hold the
-  // table in its loading state rather than flash rows that then disappear. If the
-  // catalog fails, fall back to the full list so price discovery still works.
+  // Dextopus buyable set, matched by symbol, minus stablecoins — the same
+  // universe as the pro terminal, so nothing bought here is untradable there.
+  // While the catalog loads we hold the table in its loading state rather than
+  // flash rows that then disappear. A failed catalog is an error, not the full
+  // list: every row would lead to a dead buy sheet.
   const buyable = useMemo(
     () => (destinations.data ? buyableSymbols(destinations.data) : null),
     [destinations.data]
   );
   const visibleTokens = useMemo(
-    () => (buyable ? tokens.filter((t) => buyable.has(t.symbol.toUpperCase())) : tokens),
+    () =>
+      buyable
+        ? tokens.filter((t) => buyable.has(t.symbol.toUpperCase()) && !isSpotStable(t.symbol))
+        : [],
     [tokens, buyable]
   );
   const loading = isLoading || destinations.isLoading;
+  const errored = isError || destinations.isError;
 
   const table = useReactTable({
     data: visibleTokens,
@@ -154,7 +161,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             {t("loadingMarkets")}
           </div>
-        ) : isError ? (
+        ) : errored ? (
           <div className="border-t border-white/6 px-6 py-10 text-center text-[13.5px] font-normal text-white/45">
             {t("marketsUnavailable")}
           </div>
@@ -203,7 +210,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
           })
         )}
 
-        {!loading && !isError && rows.length > 0 ? (
+        {!loading && !errored && rows.length > 0 ? (
           <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
             <span className="text-[12.5px] font-normal text-white/45">
               {t("pageOf", { page: pageIndex + 1, pages: pageCount })}

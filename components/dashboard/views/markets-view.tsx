@@ -10,10 +10,16 @@ import { FlashPrice } from "@/components/dashboard/trade/flash-price";
 import { SpotPanel } from "@/components/dashboard/trade/spot-panel";
 import { useMarketTokens } from "@/hooks/use-market-tokens";
 import { useBuyDestinations } from "@/hooks/use-buy-catalog";
+import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePrices } from "@/hooks/use-prices";
 import { useCoingeckoId } from "@/hooks/use-coingecko-id";
-import { buyableLogos, buyableSymbols, defaultRouteForSymbol } from "@/lib/buy";
+import {
+  buyableLogos,
+  buyableSymbols,
+  defaultRouteForSymbol,
+  holdingMatchesSymbol,
+} from "@/lib/buy";
 import { formatUsd } from "@/lib/trade/math";
 import { tokenBg } from "@/lib/trade/assets";
 import { coingeckoId, coingeckoPlatform } from "@/lib/coingecko";
@@ -23,6 +29,8 @@ import type { TokenBalance } from "@/lib/server/alchemy";
 
 // A spot market, driven by the Dextopus buyable catalog and enriched with market
 // data where we have it.
+const PORTFOLIO_KEY = [["portfolio"]] as const;
+
 interface SpotMarket {
   symbol: string;
   name: string;
@@ -60,6 +68,7 @@ export function MarketsView() {
   const destinations = useBuyDestinations();
   const { data: feed = [] } = useMarketTokens("popular");
   const portfolio = usePortfolio();
+  useInvalidateOnBlock(PORTFOLIO_KEY);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -120,14 +129,20 @@ export function MarketsView() {
     portfolio.tokens.find((t) => t.network === "base-mainnet" && t.symbol.toUpperCase() === "USDC")
       ?.balance ?? 0;
 
-  // The held position a sell draws from: the largest balance in this symbol
-  // across chains, so selling sends from where the user actually holds it.
+  // The held position a sell draws from: the most valuable holding of this
+  // market's asset across chains, matched by route address and alias.
   const heldToken: TokenBalance | null = useMemo(() => {
     if (!base) return null;
-    const owned = portfolio.tokens.filter((t) => t.symbol.toUpperCase() === base.toUpperCase());
+    const owned = portfolio.tokens.filter((t) =>
+      holdingMatchesSymbol(t, destinations.data ?? [], base)
+    );
     if (owned.length === 0) return null;
-    return owned.reduce((best, t) => (t.balance > best.balance ? t : best));
-  }, [portfolio.tokens, base]);
+    return owned.reduce((best, t) =>
+      t.valueUsd > best.valueUsd || (t.valueUsd === best.valueUsd && t.balance > best.balance)
+        ? t
+        : best
+    );
+  }, [portfolio.tokens, destinations.data, base]);
   const heldBalance = heldToken?.balance ?? 0;
 
   // Every listed market is buyable by construction, so this resolves a route.

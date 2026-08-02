@@ -42,6 +42,8 @@ export function usePerpPositions(enabled = true) {
         await delay(SETTLE_POLL_MS);
         try {
           const fresh = await fetchPerpPositions(trader);
+          // Keep an older in-flight poll from overwriting this snapshot.
+          await queryClient.cancelQueries({ queryKey: ["perp-positions", trader] });
           queryClient.setQueryData(["perp-positions", trader], fresh);
           if (changed(fresh)) return true;
         } catch {

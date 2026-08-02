@@ -13,6 +13,7 @@ import {
   buildOpenTrade,
   buildUpdateMargin,
   buildUpdateTpSl,
+  fetchPerpOrders,
   fetchPerpPositions,
 } from "@/lib/perp/api";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -45,11 +46,11 @@ import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/l
 
 export type PerpPhase = "idle" | "building" | "signing" | "settling";
 
-export function usePerpActions() {
+export function usePerpActions(live = true) {
   const t = useTranslations("perps");
   const sendBatch = useEvmSendBatch();
-  const { positions, waitForChange, refetch, trader } = usePerpPositions();
-  const { orders, waitForChange: waitForOrdersChange } = usePerpOrders();
+  const { positions, waitForChange, trader } = usePerpPositions(live);
+  const { orders, waitForChange: waitForOrdersChange } = usePerpOrders(live);
   const portfolio = usePortfolio();
   const [phase, setPhase] = useState<PerpPhase>("idle");
 
@@ -73,7 +74,7 @@ export function usePerpActions() {
   );
 
   const openTrade = useCallback(
-    async (req: Omit<OpenTradeRequest, "trader">): Promise<boolean> => {
+    async (req: Omit<OpenTradeRequest, "trader">, pairIndex?: number): Promise<boolean> => {
       if (!trader) {
         toast.error(t("noWalletConnected"));
         return false;
@@ -81,14 +82,21 @@ export function usePerpActions() {
       const toastId = toast.loading(t("preparingTrade"));
       setPhase("building");
       try {
-        // The before-set must come from a fresh snapshot: the hook's cached
-        // positions can be empty on a cold cache, and an empty set would make
-        // any pre-existing position read as "new" — a false fill toast.
+        // Fresh snapshots before the tx: a cold cache would make any
+        // pre-existing entry read as "new".
+        const resting = req.orderType === "limit" || req.orderType === "stop_limit";
         const before = new Set(
           (await fetchPerpPositions(trader).catch(() => positions)).map(
             (p) => `${p.pairIndex}:${p.index}`
           )
         );
+        const beforeOrders = resting
+          ? new Set(
+              (await fetchPerpOrders(trader).catch(() => orders)).map(
+                (o) => `${o.pairIndex}:${o.index}`
+              )
+            )
+          : new Set<string>();
 
         // One allowance read decides whether the approve rides along. The
         // approve is large so the next open goes straight through.
@@ -109,16 +117,19 @@ export function usePerpActions() {
         toast.loading(t("confirmingOnBase"), { id: toastId });
         await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
 
+        void portfolio.refetch();
+
         setPhase("settling");
-        const resting = req.orderType === "limit" || req.orderType === "stop_limit";
+        // Only a matching pair counts as this order's fill.
+        const isOurs = (candidatePairIndex: number) =>
+          pairIndex == null || candidatePairIndex === pairIndex;
         if (resting) {
           // A limit/stop order rests in /orders until its trigger — polling
           // positions for it would just burn the whole settle window. Confirm
-          // the order itself appeared instead.
-          const beforeOrders = new Set(orders.map((o) => `${o.pairIndex}:${o.index}`));
+          // the order itself appeared.
           toast.loading(t("confirmingOnBase"), { id: toastId });
           await waitForOrdersChange((fresh) =>
-            fresh.some((o) => !beforeOrders.has(`${o.pairIndex}:${o.index}`))
+            fresh.some((o) => !beforeOrders.has(`${o.pairIndex}:${o.index}`) && isOurs(o.pairIndex))
           );
           toast.success(t("orderRestsUntilTrigger", { pair: req.pair }), { id: toastId });
           return true;
@@ -126,7 +137,7 @@ export function usePerpActions() {
 
         toast.loading(t("orderPlacedWaitingFill"), { id: toastId });
         const filled = await waitForChange((fresh) =>
-          fresh.some((p) => !before.has(`${p.pairIndex}:${p.index}`))
+          fresh.some((p) => !before.has(`${p.pairIndex}:${p.index}`) && isOurs(p.pairIndex))
         );
         if (filled) {
           toast.success(t(req.isLong ? "longOpen" : "shortOpen", { pair: req.pair }), {
@@ -150,6 +161,7 @@ export function usePerpActions() {
       trader,
       positions,
       orders,
+      portfolio,
       sendBatch,
       waitForChange,
       waitForOrdersChange,
@@ -160,6 +172,10 @@ export function usePerpActions() {
 
   const cancelOrder = useCallback(
     async (order: PerpOrder): Promise<boolean> => {
+      if (!trader) {
+        toast.error(t("noWalletConnected"));
+        return false;
+      }
       const toastId = toast.loading(t("cancellingOrder"));
       setPhase("building");
       try {
@@ -168,7 +184,7 @@ export function usePerpActions() {
         // trigger looks like; the before-set of positions lets the outcome be
         // reported honestly when the cancel loses that race.
         const positionsBefore = new Set(
-          (await fetchPerpPositions(trader ?? "").catch(() => positions)).map(
+          (await fetchPerpPositions(trader).catch(() => positions)).map(
             (p) => `${p.pairIndex}:${p.index}`
           )
         );
@@ -176,6 +192,12 @@ export function usePerpActions() {
           pairIndex: order.pairIndex,
           orderIndex: order.index,
         });
+
+        const feeShortfall = ensureExecutionFee([build]);
+        if (feeShortfall) {
+          toast.error(feeShortfall, { id: toastId });
+          return false;
+        }
 
         setPhase("signing");
         toast.loading(t("confirmingOnBase"), { id: toastId });
@@ -207,7 +229,7 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [trader, positions, sendBatch, waitForOrdersChange, t]
+    [trader, positions, sendBatch, waitForOrdersChange, ensureExecutionFee, t]
   );
 
   const closeTrade = useCallback(
@@ -240,6 +262,7 @@ export function usePerpActions() {
           // A partial close shows as reduced collateral on the same trade.
           return still.initialCollateralUsdc !== position.initialCollateralUsdc;
         });
+        void portfolio.refetch();
         if (cleared) {
           toast.success(t("positionClosed"), { id: toastId });
         } else {
@@ -253,7 +276,7 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, t]
+    [sendBatch, waitForChange, ensureExecutionFee, portfolio, t]
   );
 
   // Both updates move money, so they take the same phase lifecycle as every
@@ -271,10 +294,25 @@ export function usePerpActions() {
           takeProfit,
           stopLoss,
         });
+        const feeShortfall = ensureExecutionFee([build]);
+        if (feeShortfall) {
+          toast.error(feeShortfall, { id: toastId });
+          return false;
+        }
         setPhase("signing");
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
-        toast.success(t("tpSlUpdated"), { id: toastId });
-        void refetch();
+        setPhase("settling");
+        const key = `${position.pairIndex}:${position.index}`;
+        const applied = await waitForChange((fresh) => {
+          const still = fresh.find((p) => `${p.pairIndex}:${p.index}` === key);
+          if (!still) return true;
+          return still.takeProfit !== position.takeProfit || still.stopLoss !== position.stopLoss;
+        });
+        if (applied) {
+          toast.success(t("tpSlUpdated"), { id: toastId });
+        } else {
+          toast.info(t("updateTakingLonger"), { id: toastId });
+        }
         return true;
       } catch (error) {
         toast.error(friendlyError(error, t("updateFailed")), { id: toastId });
@@ -283,7 +321,7 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [sendBatch, refetch, t]
+    [sendBatch, waitForChange, ensureExecutionFee, t]
   );
 
   const updateMargin = useCallback(
@@ -301,10 +339,26 @@ export function usePerpActions() {
           marginUsdc,
           direction,
         });
+        const feeShortfall = ensureExecutionFee([build]);
+        if (feeShortfall) {
+          toast.error(feeShortfall, { id: toastId });
+          return false;
+        }
         setPhase("signing");
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
-        toast.success(t("marginUpdated"), { id: toastId });
-        void refetch();
+        setPhase("settling");
+        const key = `${position.pairIndex}:${position.index}`;
+        const applied = await waitForChange((fresh) => {
+          const still = fresh.find((p) => `${p.pairIndex}:${p.index}` === key);
+          if (!still) return true;
+          return still.initialCollateralUsdc !== position.initialCollateralUsdc;
+        });
+        void portfolio.refetch();
+        if (applied) {
+          toast.success(t("marginUpdated"), { id: toastId });
+        } else {
+          toast.info(t("updateTakingLonger"), { id: toastId });
+        }
         return true;
       } catch (error) {
         toast.error(friendlyError(error, t("marginChangeFailed")), { id: toastId });
@@ -313,7 +367,7 @@ export function usePerpActions() {
         setPhase("idle");
       }
     },
-    [sendBatch, refetch, t]
+    [sendBatch, waitForChange, ensureExecutionFee, portfolio, t]
   );
 
   return {

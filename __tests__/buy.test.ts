@@ -4,6 +4,7 @@ import {
   DEFAULT_BUY_CHAIN_ID,
   buyableSymbols,
   defaultRouteForSymbol,
+  holdingMatchesSymbol,
   isBuyable,
   isOfferable,
   routesForSymbol,
@@ -179,5 +180,33 @@ describe("sortRoutes", () => {
     const before = input.map((r) => r.chainName);
     sortRoutes(input);
     expect(input.map((r) => r.chainName)).toEqual(before);
+  });
+});
+
+describe("holdingMatchesSymbol", () => {
+  const cbBtcAddr = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
+  const dests = [
+    ...DESTINATIONS,
+    route({ symbol: "cbBTC", destinationChainId: BASE, chainName: "Base", asset: cbBtcAddr }),
+  ];
+
+  it("matches a held cbBTC against the BTC market through the alias", () => {
+    const held = { network: "base-mainnet", address: cbBtcAddr, symbol: "cbBTC" };
+    expect(holdingMatchesSymbol(held, dests, "BTC")).toBe(true);
+  });
+
+  it("matches by route address even when the wallet reports another symbol", () => {
+    const held = { network: "base-mainnet", address: cbBtcAddr.toUpperCase(), symbol: "WRAPPED" };
+    expect(holdingMatchesSymbol(held, dests, "BTC")).toBe(true);
+  });
+
+  it("matches native balances by plain symbol", () => {
+    const held = { network: "base-mainnet", address: null, symbol: "ETH" };
+    expect(holdingMatchesSymbol(held, dests, "ETH")).toBe(true);
+  });
+
+  it("rejects an unrelated token that shares nothing with the market", () => {
+    const held = { network: "base-mainnet", address: "0xother", symbol: "PEPE" };
+    expect(holdingMatchesSymbol(held, dests, "BTC")).toBe(false);
   });
 });

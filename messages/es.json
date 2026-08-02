@@ -123,7 +123,9 @@
     "youPay": "Pagas",
     "youReceive": "Recibes",
     "youSell": "Vendes",
-    "youSellRow": "Vendes"
+    "youSellRow": "Vendes",
+    "ctaNotSellable": "{symbol} no se puede vender desde esta billetera",
+    "ctaNeedsGas": "Necesitas {symbol} en {chain} para la tarifa de red"
   },
   "topbar": {
     "searchPlaceholder": "Buscar activos, mercados, tickers",
@@ -774,7 +776,9 @@
     "confirmRiskOpen": "Las operaciones con apalancamiento pueden perder valor rápidamente y se ejecutan a precio de mercado. Continúa solo si todo es correcto.",
     "confirmRiskClose": "El cierre se ejecuta al precio de mercado actual. Esto no se puede deshacer.",
     "confirmCancel": "Cancelar",
-    "confirmContinue": "Continuar"
+    "confirmContinue": "Continuar",
+    "positionsUnavailable": "No se pudieron cargar tus posiciones. Están seguras on-chain; reintentando…",
+    "updateTakingLonger": "El cambio está confirmado y tarda un momento en liquidarse."
   },
   "fundsFlow": {
     "back": "Atrás",

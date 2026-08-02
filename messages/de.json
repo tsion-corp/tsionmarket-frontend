@@ -123,7 +123,9 @@
     "youPay": "Sie zahlen",
     "youReceive": "Sie erhalten",
     "youSell": "Sie verkaufen",
-    "youSellRow": "Sie verkaufen"
+    "youSellRow": "Sie verkaufen",
+    "ctaNotSellable": "{symbol} kann aus dieser Wallet nicht verkauft werden",
+    "ctaNeedsGas": "Sie brauchen {symbol} auf {chain} für die Netzwerkgebühr"
   },
   "topbar": {
     "searchPlaceholder": "Assets, Märkte, Ticker suchen",
@@ -774,7 +776,9 @@
     "confirmRiskOpen": "Gehebelte Trades können schnell an Wert verlieren, die Ausführung erfolgt zum Marktpreis. Fahren Sie nur fort, wenn alles stimmt.",
     "confirmRiskClose": "Die Schließung erfolgt zum aktuellen Marktpreis. Dies kann nicht rückgängig gemacht werden.",
     "confirmCancel": "Abbrechen",
-    "confirmContinue": "Fortfahren"
+    "confirmContinue": "Fortfahren",
+    "positionsUnavailable": "Ihre Positionen konnten nicht geladen werden. Sie sind on-chain sicher; neuer Versuch…",
+    "updateTakingLonger": "Die Änderung ist bestätigt und braucht einen Moment bis zur Abwicklung."
   },
   "fundsFlow": {
     "back": "Zurück",

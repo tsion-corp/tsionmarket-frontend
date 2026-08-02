@@ -41,6 +41,8 @@ export function usePerpOrders(enabled = true) {
         await delay(SETTLE_POLL_MS);
         try {
           const fresh = await fetchPerpOrders(trader);
+          // Keep an older in-flight poll from overwriting this snapshot.
+          await queryClient.cancelQueries({ queryKey: ["perp-orders", trader] });
           queryClient.setQueryData(["perp-orders", trader], fresh);
           if (changed(fresh)) return true;
         } catch {

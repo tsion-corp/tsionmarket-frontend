@@ -7,6 +7,8 @@ import { useSell } from "@/hooks/use-sell";
 import { useDepositStatus } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usdcBaseUnits, depositProgress, type DepositStage } from "@/lib/deposit";
+import { canSellAsset } from "@/lib/sell";
+import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
 import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -46,6 +48,22 @@ interface SpotPanelProps {
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const PERCENTS = [25, 50, 75, 100];
+const NATIVE_SYMBOL: Record<string, string> = {
+  "base-mainnet": "ETH",
+  "eth-mainnet": "ETH",
+  "arb-mainnet": "ETH",
+  "opt-mainnet": "ETH",
+  "polygon-mainnet": "POL",
+  "solana-mainnet": "SOL",
+};
+const CHAIN_LABEL: Record<string, string> = {
+  "base-mainnet": "Base",
+  "eth-mainnet": "Ethereum",
+  "arb-mainnet": "Arbitrum",
+  "opt-mainnet": "Optimism",
+  "polygon-mainnet": "Polygon",
+  "solana-mainnet": "Solana",
+};
 // Indicative taker fee shown on the ticket. The real price tolerance is applied
 // by the quote at execution.
 const FEE_PCT = 0.001;
@@ -79,6 +97,21 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const canBuy = buyRoute != null;
   const heldBalance = heldToken?.balance ?? 0;
 
+  // Sell-side gates, mirroring the sell sheet.
+  const notSellable = heldToken != null && !canSellAsset(heldToken.network, heldToken.address);
+  const maxSell = heldToken
+    ? maxSellable(heldToken.network, heldToken.address, heldToken.balance)
+    : 0;
+  const sellSponsored = heldToken?.network === "base-mainnet";
+  const sellNativeSym = heldToken ? (NATIVE_SYMBOL[heldToken.network] ?? "") : "";
+  const sellHasGas =
+    heldToken == null ||
+    sellSponsored ||
+    portfolio.tokens.some(
+      (p) => p.network === heldToken.network && p.symbol === sellNativeSym && p.balance > 0
+    );
+  const sellNeedsGas = !buying && heldToken != null && !portfolio.loading && !sellHasGas;
+
   // Clear the amount when the market or side changes, so a figure meant for one
   // asset never carries into another.
   const [seen, setSeen] = useState(`${base}:${side}`);
@@ -88,7 +121,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     setAmount("");
   }
 
-  const balance = buying ? usdcBalance : heldBalance;
+  const balance = buying ? usdcBalance : maxSell;
   const amountNum = parseFloat(amount) || 0;
 
   // Buy: pay USDC, receive base. Sell: sell base, receive USDC. Fee comes off the
@@ -103,7 +136,15 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const notBuyable = buying && !canBuy;
   const overBalance = amountNum > balance + 1e-9;
   const belowMin = buying && amountNum > 0 && amountNum < MIN_BUY_USD;
-  const invalid = amountNum <= 0 || overBalance || belowMin || notBuyable || !token || mark <= 0;
+  // A missing mark only blocks buys; a sell prices at the quote.
+  const invalid =
+    amountNum <= 0 ||
+    overBalance ||
+    belowMin ||
+    notBuyable ||
+    !token ||
+    (buying && mark <= 0) ||
+    (!buying && (notSellable || sellNeedsGas));
 
   // Settlement phase for the confirm sheet.
   const progress = status.data
@@ -141,7 +182,13 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     const v = (balance * pct) / 100;
     // Floor buys to cents so 100% never rounds above the USDC balance; sells keep
     // full precision and settle the exact held amount via rawBalance below.
-    setAmount(buying ? (Math.floor(v * 100) / 100).toFixed(2) : String(v));
+    if (buying) {
+      setAmount((Math.floor(v * 100) / 100).toFixed(2));
+      return;
+    }
+    // String() emits scientific notation for dust, which the regex rejects.
+    const fixed = v.toFixed(heldToken?.decimals ?? 18);
+    setAmount(fixed.includes(".") ? fixed.replace(/\.?0+$/, "") || "0" : fixed);
   };
 
   const submit = () => {
@@ -161,10 +208,9 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
         setRequestId(result.requestId);
       } else {
         if (!heldToken) return;
-        // A full sell sends the exact on-chain balance; a partial sell converts
-        // the typed amount at the asset's decimals.
+        // Exact-balance sends only when nothing is held back for gas.
         const amountUnits =
-          amountNum >= heldBalance
+          amountNum >= heldBalance && gasBufferFor(heldToken.network, heldToken.address) === 0
             ? BigInt(heldToken.rawBalance)
             : toBaseUnits(amount, heldToken.decimals);
         const result = await sell.mutateAsync({
@@ -214,15 +260,22 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     ? t("ctaSelect")
     : notBuyable
       ? t("ctaNotBuyable", { symbol: base })
-      : amountNum <= 0
-        ? t("ctaEnterAmount")
-        : belowMin
-          ? t("ctaMin", { amount: formatUsd(MIN_BUY_USD) })
-          : overBalance
-            ? t("ctaNoBalance")
-            : buying
-              ? t("ctaBuy", { symbol: base })
-              : t("ctaSell", { symbol: base });
+      : !buying && notSellable
+        ? t("ctaNotSellable", { symbol: base })
+        : sellNeedsGas
+          ? t("ctaNeedsGas", {
+              symbol: sellNativeSym,
+              chain: heldToken ? (CHAIN_LABEL[heldToken.network] ?? heldToken.network) : "",
+            })
+          : amountNum <= 0
+            ? t("ctaEnterAmount")
+            : belowMin
+              ? t("ctaMin", { amount: formatUsd(MIN_BUY_USD) })
+              : overBalance
+                ? t("ctaNoBalance")
+                : buying
+                  ? t("ctaBuy", { symbol: base })
+                  : t("ctaSell", { symbol: base });
 
   return (
     <div className="ws-card p-4 sm:p-5">

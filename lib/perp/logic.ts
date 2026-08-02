@@ -45,6 +45,15 @@ export function isWireAmount(value: string, maxDecimals: number): boolean {
   return dot === -1 || value.length - dot - 1 <= maxDecimals;
 }
 
+// A float as a wire-safe decimal string (String() emits scientific notation
+// for sub-micro values), or null.
+export function toWirePrice(n: number): string | null {
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const fixed = n.toFixed(8);
+  const trimmed = fixed.includes(".") ? fixed.replace(/\.?0+$/, "") : fixed;
+  return isPositiveWireDecimal(trimmed) ? trimmed : null;
+}
+
 // Collateral in USDC base units (6 decimals), for the exact allowance compare.
 export function collateralBaseUnits(collateralUsdc: string): bigint {
   return toBaseUnits(collateralUsdc, USDC_DECIMALS);

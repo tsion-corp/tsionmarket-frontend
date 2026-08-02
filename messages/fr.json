@@ -123,7 +123,9 @@
     "youPay": "Vous payez",
     "youReceive": "Vous recevez",
     "youSell": "Vous vendez",
-    "youSellRow": "Vous vendez"
+    "youSellRow": "Vous vendez",
+    "ctaNotSellable": "{symbol} ne peut pas être vendu depuis ce portefeuille",
+    "ctaNeedsGas": "Il vous faut du {symbol} sur {chain} pour les frais de réseau"
   },
   "topbar": {
     "searchPlaceholder": "Rechercher actifs, marchés, tickers",
@@ -774,7 +776,9 @@
     "confirmRiskOpen": "Les trades à effet de levier peuvent perdre de la valeur rapidement, et l'exécution se fait au prix du marché. Ne continuez que si tout est correct.",
     "confirmRiskClose": "La fermeture s'exécute au prix actuel du marché. Cette action est irréversible.",
     "confirmCancel": "Annuler",
-    "confirmContinue": "Continuer"
+    "confirmContinue": "Continuer",
+    "positionsUnavailable": "Impossible de charger vos positions. Elles sont en sécurité on-chain ; nouvelle tentative…",
+    "updateTakingLonger": "Le changement est confirmé et prend un moment à se régler."
   },
   "fundsFlow": {
     "back": "Retour",
