@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 import { assetPriceUsd, type RwaApiAsset } from "@/lib/rwa-api";
-import { coingeckoPlatform } from "@/lib/coingecko";
 
-const PRICE_STALE_MS = 5 * 60_000;
+const PRICE_STALE_MS = 60_000;
 
 // Overlay fetched prices onto assets the backend serves without one. Pure, so
 // the merge is testable without the query layer.
@@ -20,37 +20,53 @@ export function mergeFallbackPrices(
   });
 }
 
-async function fetchTokenPrice(platform: string, address: string): Promise<number | null> {
-  const res = await fetch(
-    `/api/token-price?platform=${encodeURIComponent(platform)}&address=${encodeURIComponent(address)}`
-  );
-  if (!res.ok) return null;
-  const data = (await res.json()) as { priceUsd?: number | null };
-  return typeof data.priceUsd === "number" ? data.priceUsd : null;
-}
-
-// Assets with the backend's price where present, and a CoinGecko contract
-// lookup filling the gaps (today: the Solana catalog ships priceUsd null).
-// Rows without a resolvable price keep showing the dash.
+// Assets with the backend's price where present, and a batched lookup filling
+// the gaps (today: the whole Solana catalog ships priceUsd null). One request
+// covers every missing asset — a per-asset fan-out rate-limits immediately.
 export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaApiAsset[] {
   const targets = useMemo(
-    () => assets.filter((a) => assetPriceUsd(a) == null && coingeckoPlatform(a.chain) != null),
+    () =>
+      assets
+        .filter((a) => assetPriceUsd(a) == null)
+        .map((a) => ({ id: a.id, chain: a.chain, address: a.address })),
     [assets]
   );
 
-  const results = useQueries({
-    queries: targets.map((a) => ({
-      queryKey: ["token-price", a.chain, a.address],
-      queryFn: () => fetchTokenPrice(coingeckoPlatform(a.chain) as string, a.address),
-      staleTime: PRICE_STALE_MS,
-      retry: 1,
-    })),
+  // Keyed by the asset set, so the query re-runs when the catalog changes but
+  // not on every render.
+  const key = useMemo(
+    () =>
+      targets
+        .map((t) => t.id)
+        .sort()
+        .join(","),
+    [targets]
+  );
+
+  const { data } = useQuery<Record<string, number>>({
+    queryKey: ["rwa-prices", key],
+    enabled: targets.length > 0,
+    staleTime: PRICE_STALE_MS,
+    refetchInterval: PRICE_STALE_MS,
+    retry: 1,
+    queryFn: async () => {
+      const res = await apiFetch(
+        "/api/rwa-prices",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: targets }),
+        },
+        { requireAuth: true }
+      );
+      // Throwing lets the retry engage; returning {} would cache "no prices"
+      // as a success for the whole stale window.
+      if (!res.ok) throw new Error("Could not load prices");
+      const body = (await res.json()) as { prices?: Record<string, number> };
+      return body.prices ?? {};
+    },
   });
 
-  const priceById = new Map<string, number>();
-  targets.forEach((a, i) => {
-    const price = results[i]?.data;
-    if (typeof price === "number" && price > 0) priceById.set(a.id, price);
-  });
-  return mergeFallbackPrices(assets, priceById);
+  const priceById = useMemo(() => new Map(Object.entries(data ?? {})), [data]);
+  return useMemo(() => mergeFallbackPrices(assets, priceById), [assets, priceById]);
 }

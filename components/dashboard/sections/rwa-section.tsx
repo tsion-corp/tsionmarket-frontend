@@ -9,7 +9,7 @@ import { RwaTradePanel } from "@/components/dashboard/rwa/rwa-trade-panel";
 import { RwaDetailSheet } from "@/components/dashboard/rwa/rwa-detail-sheet";
 import { useRwaAssets } from "@/hooks/use-rwa-assets";
 import { useTradePrefill } from "@/hooks/use-trade-prefill";
-import { isLiveChain, isTradable } from "@/lib/rwa/presenter";
+import { isLiveChain, isTradable, isUsableAsset } from "@/lib/rwa/presenter";
 import { useRwaEnrichedAssets } from "@/hooks/use-rwa-prices";
 import type { RwaApiAsset } from "@/lib/rwa-api";
 import type { TradePrefill } from "@/lib/voice/intent";
@@ -36,7 +36,10 @@ export const RwaSection: FC<RwaSectionProps> = () => {
   // Buyable assets on the live chains (Base + Solana): issuer-only assets and
   // other catalog chains are filtered out, so every row is actionable. Prices
   // the backend omits are filled from the CoinGecko fallback.
-  const tradable = useMemo(() => assets.filter((a) => isTradable(a) && isLiveChain(a)), [assets]);
+  const tradable = useMemo(
+    () => assets.filter((a) => isUsableAsset(a) && isTradable(a) && isLiveChain(a)),
+    [assets]
+  );
   const buyable = useRwaEnrichedAssets(tradable);
 
   const openTrade = (asset: RwaApiAsset) => {

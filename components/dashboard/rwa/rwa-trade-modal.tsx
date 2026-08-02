@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { RwaTradePanel } from "@/components/dashboard/rwa/rwa-trade-panel";
 import { useRwaAssets } from "@/hooks/use-rwa-assets";
+import { useRwaEnrichedAssets } from "@/hooks/use-rwa-prices";
 import { findRwaAsset } from "@/lib/rwa/presenter";
 import type { RwaTradePayload } from "@/components/dashboard/modal-types";
 
@@ -12,7 +13,10 @@ import type { RwaTradePayload } from "@/components/dashboard/modal-types";
 // cannot source or deliver RWA tokens.
 export function RwaTradeModal({ payload }: { payload: RwaTradePayload }) {
   const t = useTranslations("rwa");
-  const { assets, loading } = useRwaAssets();
+  const { assets: rawAssets, loading } = useRwaAssets();
+  // Same price fallback the table uses: without it a Solana asset opened from
+  // Holdings shows $0 until the quote returns.
+  const assets = useRwaEnrichedAssets(rawAssets);
   const asset = findRwaAsset(assets, payload.network, payload.address);
 
   if (asset) {

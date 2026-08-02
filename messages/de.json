@@ -580,7 +580,13 @@
     "fundSolanaWithGas": "Wir überbrücken Ihre USDC nach Solana und kaufen etwas SOL für die Netzwerkgebühr — etwa 30 Sekunden, ohne Gasgebühr.",
     "fundSolanaCta": "Mittel nach Solana bewegen",
     "fundSolanaWorking": "Wird übertragen…",
-    "fundSolanaShort": "Nicht genug USDC auf Base"
+    "fundSolanaShort": "Nicht genug USDC auf Base",
+    "proceedsTitle": "{amount} liegen auf Solana",
+    "proceedsBody": "Holen Sie Ihren Erlös zurück nach Base, wo der Rest Ihres Kontos liegt — etwa 10 Sekunden.",
+    "proceedsCta": "Erlös nach Base holen",
+    "proceedsWorking": "Wird übertragen…",
+    "proceedsDone": "Guthaben auf Base",
+    "fundSolanaFirst": "Zuerst Mittel nach Solana bewegen"
   },
   "prediction": {
     "eyebrow": "Prognosemärkte",

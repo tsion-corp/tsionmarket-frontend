@@ -20,6 +20,7 @@ import {
   isRateLimitError,
   isSellableChain,
   isLiveChain,
+  isUsableAsset,
   isTradable,
   isTransientRwaError,
   minReceiveTokens,
@@ -207,7 +208,7 @@ describe("rwaErrorInfo", () => {
     expect(rwaErrorInfo("NO_ROUTE").message).toBe("No route can fill this trade");
     expect(rwaErrorInfo("INSUFFICIENT_LIQUIDITY").message).toMatch(/liquidity/i);
     expect(rwaErrorInfo("QUOTE_EXPIRED").requote).toBe(true);
-    expect(rwaErrorInfo("SIMULATION_FAILED").message).toMatch(/fail on-chain/i);
+    expect(rwaErrorInfo("SIMULATION_FAILED").message).toMatch(/balance and network fee/i);
     expect(rwaErrorInfo("ASSET_NOT_TRADABLE").message).toMatch(/issuer/i);
     expect(rwaErrorInfo("SERVICE_UNAVAILABLE").retryable).toBe(true);
   });
@@ -518,5 +519,14 @@ describe("quoteReceiveTokens", () => {
   it("is null for a non-integer or non-positive output amount", () => {
     expect(quoteReceiveTokens(quote("2.5"), 6)).toBeNull();
     expect(quoteReceiveTokens(quote("0"), 6)).toBeNull();
+  });
+});
+
+describe("isUsableAsset", () => {
+  it("rejects rows missing the fields the UI dereferences", () => {
+    expect(isUsableAsset(asset({}))).toBe(true);
+    expect(isUsableAsset(asset({ symbol: null as unknown as string }))).toBe(false);
+    expect(isUsableAsset(asset({ address: null as unknown as string }))).toBe(false);
+    expect(isUsableAsset(asset({ chain: null as unknown as RwaApiAsset["chain"] }))).toBe(false);
   });
 });

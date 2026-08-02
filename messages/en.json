@@ -580,7 +580,13 @@
     "fundSolanaWithGas": "We'll bridge your USDC to Solana and buy a little SOL for the network fee — about 30 seconds, no gas fee.",
     "fundSolanaCta": "Move funds to Solana",
     "fundSolanaWorking": "Moving funds…",
-    "fundSolanaShort": "Not enough USDC on Base"
+    "fundSolanaShort": "Not enough USDC on Base",
+    "proceedsTitle": "{amount} is on Solana",
+    "proceedsBody": "Bring your proceeds back to Base, where the rest of your account lives — about 10 seconds.",
+    "proceedsCta": "Bring proceeds to Base",
+    "proceedsWorking": "Moving funds…",
+    "proceedsDone": "Funds are on Base",
+    "fundSolanaFirst": "Move funds to Solana first"
   },
   "prediction": {
     "eyebrow": "Prediction markets",

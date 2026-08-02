@@ -43,6 +43,12 @@ export function isLiveChain(a: RwaApiAsset): boolean {
   return (LIVE_RWA_CHAINS as readonly string[]).includes(a.chain);
 }
 
+// The gateway payload is cast, not validated, so one malformed row would
+// otherwise crash the table, the modal or the voice prefill on a null field.
+export function isUsableAsset(a: RwaApiAsset): boolean {
+  return Boolean(a && a.id && a.chain && a.address && a.symbol);
+}
+
 // Native gas token and portfolio network id per chain. The portfolio source
 // (Alchemy) does not index BSC, so BSC gas cannot be verified from it.
 const CHAIN_GAS: Record<RwaChain, { network: string; symbol: string }> = {
@@ -182,9 +188,14 @@ export function rwaErrorInfo(code: string | undefined, fallback?: string): RwaEr
         requote: true,
       };
     case "SIMULATION_FAILED":
+      // Two very different causes reach this code: a size the pool cannot
+      // fill, and a wallet that is not ready on that chain (no token account
+      // or no gas). Advising a smaller size would be wrong for the second, so
+      // the copy names both.
       return {
-        message: "This trade would fail on-chain, try a smaller size",
-        retryable: false,
+        message:
+          "This trade could not be prepared. Check your balance and network fee on this chain, or try a smaller size.",
+        retryable: true,
         requote: false,
       };
     case "ASSET_NOT_TRADABLE":

@@ -580,7 +580,13 @@
     "fundSolanaWithGas": "Transferimos tus USDC a Solana y compramos un poco de SOL para la comisión de red — unos 30 segundos, sin comisión de gas.",
     "fundSolanaCta": "Mover fondos a Solana",
     "fundSolanaWorking": "Moviendo fondos…",
-    "fundSolanaShort": "USDC insuficientes en Base"
+    "fundSolanaShort": "USDC insuficientes en Base",
+    "proceedsTitle": "{amount} está en Solana",
+    "proceedsBody": "Trae tus fondos de vuelta a Base, donde vive el resto de tu cuenta — unos 10 segundos.",
+    "proceedsCta": "Traer fondos a Base",
+    "proceedsWorking": "Moviendo fondos…",
+    "proceedsDone": "Fondos en Base",
+    "fundSolanaFirst": "Primero mueve fondos a Solana"
   },
   "prediction": {
     "eyebrow": "Mercados de predicción",

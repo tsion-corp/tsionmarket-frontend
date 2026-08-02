@@ -21,6 +21,15 @@ export const SOL_GAS_TARGET = 0.01;
 // the smallest amount bridges reliably route.
 export const GAS_TOPUP_USDC = 1;
 
+// A bridge delivers less than it takes: measured 0.4% on a $10 hop, ~1% at $2
+// and over 4% at $0.50. Sending the exact shortfall therefore lands short and
+// leaves the buy unaffordable, which then asks for a second, even more
+// wasteful dust hop. Send enough that the arrival covers the shortfall.
+const BRIDGE_COST_BUFFER = 1.02;
+// Below this, the percentage cost of a hop is punitive, so top up to it rather
+// than bridge dust.
+const MIN_BRIDGE_USDC = 2;
+
 export interface FundingPlan {
   // USDC to move Base -> Solana so the buy can pay for itself. Zero when the
   // Solana wallet already holds enough.
@@ -46,9 +55,12 @@ export function planSolanaFunding(input: FundingInputs): FundingPlan | null {
   const shortfall = Math.max(0, input.spendUsdc - input.solanaUsdc);
   const topUpGas = input.solanaSol < SOL_GAS_TARGET;
   if (shortfall <= 0 && !topUpGas) return null;
-  // Round the bridged amount up to the cent so rounding never leaves the buy
-  // a fraction short on arrival.
-  const bridgeUsdc = shortfall > 0 ? Math.ceil(shortfall * 100) / 100 : 0;
+  // Size the send so the ARRIVAL covers the shortfall, then round up to the
+  // cent. A dust-sized hop is raised to the minimum instead.
+  const bridgeUsdc =
+    shortfall > 0
+      ? Math.ceil(Math.max(shortfall * BRIDGE_COST_BUFFER, MIN_BRIDGE_USDC) * 100) / 100
+      : 0;
   return {
     bridgeUsdc,
     topUpGas,
@@ -85,3 +97,9 @@ export function fundingLegs(plan: FundingPlan): FundingLeg[] {
 }
 
 export const BASE_USDC = SETTLE_CHAINS.base.usdc;
+
+// Identifies a plan, so an in-flight funding run can tell "the same plan,
+// retried" from "a different amount, re-planned".
+export function planSignature(plan: FundingPlan): string {
+  return `${plan.bridgeUsdc.toFixed(2)}:${plan.topUpGas ? "gas" : "nogas"}`;
+}

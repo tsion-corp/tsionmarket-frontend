@@ -580,7 +580,13 @@
     "fundSolanaWithGas": "Nous transférons vos USDC vers Solana et achetons un peu de SOL pour les frais de réseau — environ 30 secondes, sans frais de gaz.",
     "fundSolanaCta": "Transférer vers Solana",
     "fundSolanaWorking": "Transfert en cours…",
-    "fundSolanaShort": "USDC insuffisants sur Base"
+    "fundSolanaShort": "USDC insuffisants sur Base",
+    "proceedsTitle": "{amount} est sur Solana",
+    "proceedsBody": "Ramenez vos fonds vers Base, où réside le reste de votre compte — environ 10 secondes.",
+    "proceedsCta": "Ramener vers Base",
+    "proceedsWorking": "Transfert en cours…",
+    "proceedsDone": "Fonds sur Base",
+    "fundSolanaFirst": "Transférez d'abord vers Solana"
   },
   "prediction": {
     "eyebrow": "Marchés de prédiction",

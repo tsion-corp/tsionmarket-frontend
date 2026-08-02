@@ -8,9 +8,13 @@ const BASE = process.env.WSAPI_BASE_URL ?? "https://api.worldstreetwebservices.c
 // falls back to the shared gateway once deployed there.
 const PERP_BASE = process.env.PERP_API_BASE_URL ?? BASE;
 
-const ALLOWED = /^(health|categories|assets|assets\/.+|quote|build)$/;
+const ALLOWED = /^(health|categories|assets|assets\/[^/]+|quote|build)$/;
 
 export function isAllowedRwaPath(path: string): boolean {
+  // A dot segment or an encoded one would be normalized away by new URL(),
+  // letting "assets/../../health" reach any gateway path. Reject the
+  // characters that make traversal possible before the pattern is applied.
+  if (path.includes("..") || path.includes("%") || path.includes("\\")) return false;
   return ALLOWED.test(path);
 }
 
@@ -69,6 +73,9 @@ async function gatewayRequest(url: URL, init: GatewayInit): Promise<Response> {
       method: init.method,
       headers: Object.keys(headers).length ? headers : undefined,
       body: init.body ? JSON.stringify(init.body) : undefined,
+      // Without this a hung gateway hangs everything awaiting it, including
+      // the portfolio's balances for every other chain.
+      signal: AbortSignal.timeout(12_000),
       ...(init.revalidate != null
         ? { next: { revalidate: init.revalidate } }
         : { cache: "no-store" }),

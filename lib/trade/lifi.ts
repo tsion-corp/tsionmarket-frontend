@@ -6,6 +6,9 @@ import { apiFetch } from "@/lib/api";
 
 const LIFI_QUOTE_PATH = "/api/lifi/quote";
 
+// LI.FI addresses Solana by this chain id.
+export const SOLANA_LIFI_CHAIN = 1151111081099710;
+
 // The wallet-ready transaction LI.FI returns. Numeric fields are hex strings,
 // which the Privy sendTransaction Quantity type accepts as-is.
 export interface LifiTransactionRequest {
@@ -139,4 +142,54 @@ export async function fetchLifiQuote(req: LifiQuoteRequest): Promise<LifiQuote> 
   const res = await apiFetch(`${LIFI_QUOTE_PATH}?${params.toString()}`, { signal: req.signal });
   if (!res.ok) throw new Error(`LI.FI quote failed: ${res.status}`);
   return normalize(await res.json());
+}
+
+// A Solana-origin route. LI.FI returns a base64 transaction for the Solana
+// wallet to sign rather than the EVM shape above — no `to`, no chainId, no
+// approval address — so it gets its own type and normalizer.
+export interface SolanaBridgeQuote {
+  // Base64 versioned transaction, signed by the embedded Solana wallet.
+  transaction: string;
+  toAmount: bigint;
+  toAmountMin: bigint;
+  toolName: string | null;
+  // LI.FI's own estimate of how long the route takes, in seconds.
+  durationSeconds: number | null;
+}
+
+export async function fetchSolanaBridgeQuote(req: {
+  fromToken: string;
+  toChain: number;
+  toToken: string;
+  fromAmount: bigint;
+  fromAddress: string;
+  toAddress: string;
+  slippage: number;
+  signal?: AbortSignal;
+}): Promise<SolanaBridgeQuote> {
+  const params = new URLSearchParams({
+    fromChain: String(SOLANA_LIFI_CHAIN),
+    toChain: String(req.toChain),
+    fromToken: req.fromToken,
+    toToken: normalizeToken(req.toToken),
+    fromAmount: req.fromAmount.toString(),
+    fromAddress: req.fromAddress,
+    toAddress: req.toAddress,
+    slippage: String(req.slippage),
+  });
+  const res = await apiFetch(`${LIFI_QUOTE_PATH}?${params.toString()}`, { signal: req.signal });
+  if (!res.ok) throw new Error(`LI.FI quote failed: ${res.status}`);
+  const raw = (await res.json()) as RawQuoteResponse & {
+    transactionRequest?: { data?: string };
+    estimate?: RawEstimate & { executionDuration?: number };
+  };
+  const transaction = raw.transactionRequest?.data;
+  if (!transaction) throw new Error("LI.FI returned no transaction to sign");
+  return {
+    transaction,
+    toAmount: BigInt(raw.estimate?.toAmount ?? "0"),
+    toAmountMin: BigInt(raw.estimate?.toAmountMin ?? "0"),
+    toolName: raw.toolDetails?.name ?? raw.tool ?? null,
+    durationSeconds: raw.estimate?.executionDuration ?? null,
+  };
 }
