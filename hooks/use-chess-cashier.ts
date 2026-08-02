@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import {
+  cashierLockBuckets,
   confirmChessDeposit,
   createChessWithdrawal,
   feePctFromBps,
@@ -100,6 +101,7 @@ export function useChessCashierStatus() {
     feePct: config.data ? feePctFromBps(config.data.platformFeeBps) : null,
     available: balance.data?.availableUsdc ?? "0",
     locked: balance.data?.lockedUsdc ?? "0",
+    lockBuckets: cashierLockBuckets(balance.data),
     balanceLoading: enabled && balance.isLoading,
   };
 }

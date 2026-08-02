@@ -2,9 +2,8 @@
 
 import { useSyncExternalStore } from "react";
 
-// Switchable board palettes. The grey set is the app default — the Ark greyscale
-// the rest of the casino uses — and stays first so nothing changes unless a
-// player picks another. The alternates are the familiar classic-board looks.
+// Switchable board palettes. The classic green board is the default for the
+// chess module, while the others stay available in the picker.
 // Squares are the only thing a theme colours; the piece set, move markers, and
 // coordinates derive from the square shade so every theme stays legible.
 
@@ -64,7 +63,7 @@ export const BOARD_THEMES: BoardTheme[] = [
   },
 ];
 
-export const DEFAULT_THEME = BOARD_THEMES[0];
+export const DEFAULT_THEME = BOARD_THEMES.find((theme) => theme.id === "green") ?? BOARD_THEMES[0];
 
 function themeById(id: string | null): BoardTheme {
   return BOARD_THEMES.find((t) => t.id === id) ?? DEFAULT_THEME;

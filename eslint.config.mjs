@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "casino-service/**",
     // Design handoff bundles are reference material, not code we lint.
     "design_handoff_*/**",
+    // Vendored Stockfish worker build (GPLv3, shipped as a static asset).
+    "public/stockfish/**",
   ]),
 ]);
 

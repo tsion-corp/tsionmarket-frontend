@@ -29,6 +29,15 @@ const chessApi = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/casino/api/chess", () => chessApi);
 
+// Boards subscribe to the live socket even while waiting for an opponent; a
+// real jsdom WebSocket would dial out and its teardown throws cross-realm
+// Event errors on some Node versions, so the relay is stubbed out entirely.
+vi.mock("@/lib/casino/chess/live-socket", () => ({
+  SOCKET_CLOSED_FRAME: { type: "__closed" },
+  SOCKET_OPEN_FRAME: { type: "__open" },
+  subscribeChessTopic: () => () => {},
+}));
+
 const drawApi = vi.hoisted(() => ({
   fetchCurrentRound: vi.fn(),
   fetchPastResults: vi.fn(),
@@ -215,7 +224,7 @@ describe("chess lobby", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
-  it("keeps your own waiting game resumable from the lobby", async () => {
+  it("does not surface your own waiting game as a landing-rail resume card", async () => {
     chessApi.fetchLobbyChallenges.mockResolvedValue({
       challenges: [],
       myOpenGames: [
@@ -232,19 +241,18 @@ describe("chess lobby", () => {
     });
     render(<LobbySection />, { wrapper });
 
-    expect(await screen.findByText("Your open games")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=mine-1"));
+    await screen.findByText("Play Online");
+    expect(screen.queryByText("Your open games")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
   });
 
-  it("keeps your own active game resumable from the lobby", async () => {
+  it("does not surface your own active game as a landing-rail resume card", async () => {
     chessApi.fetchLiveMatches.mockResolvedValue([activeMatch()]);
     render(<LobbySection />, { wrapper });
 
-    expect(await screen.findByText("Your active games")).toBeInTheDocument();
-    expect(screen.getByText("GrandmasterKay")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=m1"));
+    await screen.findByText("Play Online");
+    expect(screen.queryByText("Your active games")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
   });
 
   it("hides finished games from the live lobby lists", async () => {
@@ -268,11 +276,18 @@ describe("create a game", () => {
   it("creates with the chosen time control, named by the caller's wallet", async () => {
     chessApi.createChallenge.mockResolvedValue({
       challenge: challenge({ inviteCode: "c1" }),
+      match: activeMatch({
+        id: "c1",
+        state: "awaiting_opponent",
+        black: null,
+        moves: [],
+        turn: "w",
+      }),
       ticket: null,
     });
     render(<CreateSection />, { wrapper });
-    fireEvent.click(screen.getByRole("button", { name: "1m" }));
-    fireEvent.click(screen.getByRole("button", { name: /Create game & get invite link/ }));
+    fireEvent.click(screen.getByRole("button", { name: "1 min" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start game" }));
 
     await waitFor(() => expect(chessApi.createChallenge).toHaveBeenCalled());
     const sent = chessApi.createChallenge.mock.calls[0][0];
@@ -290,10 +305,17 @@ describe("create a game", () => {
   it("opens the created board straight away", async () => {
     chessApi.createChallenge.mockResolvedValue({
       challenge: challenge({ inviteCode: "c1" }),
+      match: activeMatch({
+        id: "c1",
+        state: "awaiting_opponent",
+        black: null,
+        moves: [],
+        turn: "w",
+      }),
       ticket: null,
     });
     render(<CreateSection />, { wrapper });
-    fireEvent.click(screen.getByRole("button", { name: /Create game & get invite link/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Start game" }));
 
     // The creator lands on the board (id c1); the invite link is shared from there.
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=c1"));
@@ -582,7 +604,17 @@ describe("quick match", () => {
 
   it("opens its own game when nobody is waiting", async () => {
     chessApi.fetchJoinableMatches.mockResolvedValue([]);
-    chessApi.createChallenge.mockResolvedValue({ challenge: challenge(), ticket: null });
+    chessApi.createChallenge.mockResolvedValue({
+      challenge: challenge(),
+      match: activeMatch({
+        id: "c1",
+        state: "awaiting_opponent",
+        black: null,
+        moves: [],
+        turn: "w",
+      }),
+      ticket: null,
+    });
     render(<LobbySection />, { wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Find opponent" }));

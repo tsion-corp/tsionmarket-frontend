@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { useChessCashier } from "@/hooks/use-chess-cashier";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { exceedsUsdcBalance, normalizeUsdcAmount } from "@/lib/casino/api/cashier";
+import { exceedsUsdcBalance, hasPositiveUsdc, normalizeUsdcAmount } from "@/lib/casino/api/cashier";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
@@ -111,6 +111,13 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
     : isDeposit
       ? t("depositSubmit", { amount: normalized ?? "0" })
       : t("withdrawSubmit", { amount: normalized ?? "0" });
+  const lockRows = [
+    { label: t("lockedMatch"), value: cashier.lockBuckets.lockedMatchUsdc },
+    { label: t("lockedSwiss"), value: cashier.lockBuckets.lockedSwissUsdc },
+    { label: t("lockedBet"), value: cashier.lockBuckets.lockedBetUsdc },
+    { label: t("pendingWithdrawal"), value: cashier.lockBuckets.pendingWithdrawalUsdc },
+    { label: t("lockedOther"), value: cashier.lockBuckets.lockedOtherUsdc },
+  ].filter((row) => hasPositiveUsdc(row.value));
 
   return (
     <div>
@@ -128,6 +135,19 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
         <span className="text-[13px] font-normal text-white/55">{t("locked")}</span>
         <span className="ws-display tnum text-[18px] text-white">{cashier.locked} USDC</span>
       </div>
+      {lockRows.length > 0 ? (
+        <div className="ws-inset mt-2 px-4 py-3.5">
+          <div className="mb-2 text-[12px] font-normal text-white/50">{t("lockBreakdown")}</div>
+          <div className="space-y-2">
+            {lockRows.map((row) => (
+              <div key={row.label} className="flex items-center justify-between gap-3 text-[13px]">
+                <span className="text-white/58">{row.label}</span>
+                <span className="ws-display tnum text-white">{row.value} USDC</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="ws-inset mt-4 flex gap-2 rounded-full p-1">
         {(["deposit", "withdraw"] as const).map((m) => (

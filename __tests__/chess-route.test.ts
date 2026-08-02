@@ -31,9 +31,10 @@ function walletUser(address: string) {
   };
 }
 
-async function loadRoute() {
+async function loadRoute(env: { chessApiUrl?: string; publicChessApiUrl?: string } = {}) {
   vi.resetModules();
-  process.env.NEXT_PUBLIC_CHESS_API_URL = "https://chess.test";
+  process.env.CHESS_API_URL = env.chessApiUrl;
+  process.env.NEXT_PUBLIC_CHESS_API_URL = env.publicChessApiUrl ?? "https://chess.test";
   return import("@/app/api/chess/[...path]/route");
 }
 
@@ -70,6 +71,21 @@ describe("chess proxy route", () => {
     expect(res.status).toBe(200);
     expect(auth.verifyRequest).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledOnce();
+  });
+
+  it("prefers the server-only chess url when both envs are set", async () => {
+    const { GET } = await loadRoute({
+      chessApiUrl: "http://127.0.0.1:18083",
+      publicChessApiUrl: "https://prod-chess.test",
+    });
+    const res = await GET(makeReq("https://app.test/api/chess/cashier/config"), {
+      params: Promise.resolve({ path: ["cashier", "config"] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [url] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0];
+    expect(url).toBe("http://127.0.0.1:18083/cashier/config");
   });
 
   it("requires a session for private chess reads", async () => {

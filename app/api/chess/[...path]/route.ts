@@ -15,7 +15,9 @@ import {
 // spectator-visible, except per-caller reads such as cashier balance and the
 // caller's own bets. Writes act on a game or a cashier balance, so they need a
 // verified session and the wallet that session owns.
-const BASE = process.env.NEXT_PUBLIC_CHESS_API_URL;
+// Server-only local override first, then the legacy public env so existing
+// deployments keep working unchanged.
+const BASE = process.env.CHESS_API_URL ?? process.env.NEXT_PUBLIC_CHESS_API_URL;
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 // Just long enough to collapse the concurrent polls of two players watching the

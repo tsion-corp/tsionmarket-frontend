@@ -217,7 +217,7 @@ export function ChessBoard({
                 className={`relative flex aspect-square items-center justify-center ${
                   onSquareClick ? "cursor-pointer" : ""
                 }`}
-                style={{ background }}
+                style={{ background, containerType: "size" }}
               >
                 {isCheck ? (
                   <span
@@ -232,8 +232,8 @@ export function ChessBoard({
                 {c === leftFile ? (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute top-[2px] left-[3px] text-[9px] leading-none font-semibold tabular-nums sm:text-[10.5px]"
-                    style={{ color: coordColor }}
+                    className="pointer-events-none absolute leading-none font-semibold tabular-nums"
+                    style={{ color: coordColor, fontSize: "22cqw", left: "6cqw", top: "3cqw" }}
                   >
                     {8 - r}
                   </span>
@@ -241,8 +241,8 @@ export function ChessBoard({
                 {r === bottomRank ? (
                   <span
                     aria-hidden
-                    className="pointer-events-none absolute right-[3px] bottom-[1px] text-[9px] leading-none font-semibold sm:text-[10.5px]"
-                    style={{ color: coordColor }}
+                    className="pointer-events-none absolute leading-none font-semibold"
+                    style={{ color: coordColor, fontSize: "22cqw", right: "5cqw", bottom: "1cqw" }}
                   >
                     {String.fromCharCode(97 + c)}
                   </span>
@@ -283,7 +283,7 @@ export function ChessBoard({
               src={pieceSrc(p.color, p.type)}
               alt=""
               draggable={false}
-              className="h-[90%] w-[90%] select-none"
+              className="h-full w-full select-none"
               style={{ filter: PIECE_HALO }}
             />
           </div>

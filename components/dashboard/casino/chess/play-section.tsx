@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-casino-chess";
+import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import { useChessEngine } from "@/hooks/use-chess-engine";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
@@ -11,6 +14,7 @@ import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-them
 import { VictoryConfetti } from "@/components/dashboard/casino/chess/victory-confetti";
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { identifyOpening } from "@/lib/casino/chess/openings";
+import { formatEngineScore, pvToSan, uciToSan } from "@/lib/casino/chess/engine-analysis";
 import { moveSoundFromSan, playGameEndSound, playMoveSound } from "@/lib/casino/chess/sound";
 import {
   CasinoEmpty,
@@ -27,8 +31,10 @@ import {
   type Square,
 } from "@/lib/casino/chess/engine";
 import { friendlyError } from "@/lib/errors";
+import { truncateAddress } from "@/lib/format";
+import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
-import type { ChessColor, ChessMatch } from "@/lib/casino/api/types";
+import type { ChessColor, ChessMatch, ChessPlayer } from "@/lib/casino/api/types";
 
 function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -47,6 +53,14 @@ function ClockIcon() {
     </svg>
   );
 }
+
+const SURFACE_BG = "#312E2B";
+const SHELL_BG = "rgba(0, 0, 0, 0.20)";
+const CARD_BG =
+  "linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%)";
+const SHADOW = "0 .1rem .1rem 0 rgba(0, 0, 0, 0.20)";
+const CARD_SHADOW =
+  "inset 0 .1rem 0 0 rgba(255, 255, 255, 0.07), 0 .1rem .2rem 0 rgba(0, 0, 0, 0.20)";
 
 type Translator = ReturnType<typeof useTranslations>;
 
@@ -95,12 +109,38 @@ const PROMOTION_TEXT_KEY: Record<
   n: "promotionN",
 };
 
+function displayName(
+  name: string | null | undefined,
+  wallet: string | null | undefined
+): string | null {
+  if (name && name !== "Account" && name !== "World Street user") return name;
+  return wallet ? truncateAddress(wallet) : null;
+}
+
+function playerName(
+  player: ChessPlayer | null,
+  walletName: string | null | undefined,
+  walletAddress: string | null | undefined,
+  fallback: string
+): string {
+  if (!player) return fallback;
+  const playerWallet = player.walletAddress.toLowerCase();
+  const viewerWallet = walletAddress?.toLowerCase() ?? null;
+
+  if (viewerWallet && playerWallet === viewerWallet) {
+    return displayName(walletName, player.walletAddress) ?? fallback;
+  }
+
+  return displayName(player.username, player.walletAddress) ?? fallback;
+}
+
 export function PlaySection({ matchId }: { matchId: string | null }) {
   const t = useTranslations("casino.chess.play");
   const tStake = useTranslations("casino.chess.stake");
   // The create screen owns the invite-link copy; the waiting board reuses it.
   const tCreate = useTranslations("casino.chess.create");
   const router = useRouter();
+  const wallet = useCasinoWallet();
   // Only the fee percentage is read here, for the settled-wager line.
   const { feePct } = useChessCashierStatus();
   const {
@@ -137,6 +177,8 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   const rematchOffered = useRematchOffer(match, you);
   const acceptRematch = useAcceptChallenge();
   const theme = useBoardTheme();
+  const [railTab, setRailTab] = useState<"moves" | "chat" | "info">("moves");
+  const engine = useChessEngine(match?.fen ?? null);
 
   // A soft "thock" whenever the move count grows — the player's own move and the
   // opponent's alike. The first render only records the starting count, so
@@ -380,22 +422,43 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
   const self = you === "w" ? match.white : match.black;
   const opponentColor: ChessColor = you === "w" ? "b" : "w";
   const selfColor: ChessColor = you ?? "w";
+  const opponentDisplayName = playerName(
+    opponent,
+    wallet.name,
+    wallet.address ?? null,
+    t("waitingForOpponent")
+  );
+  const selfDisplayName = playerName(self, wallet.name, wallet.address ?? null, t("you"));
+  const whiteDisplayName = playerName(
+    match.white,
+    wallet.name,
+    wallet.address ?? null,
+    t("waitingForOpponent")
+  );
+  const blackDisplayName = playerName(
+    match.black,
+    wallet.name,
+    wallet.address ?? null,
+    t("waitingForOpponent")
+  );
 
   const opening = identifyOpening(match.moves);
   // The king in check, if any — the side to move is the one that can be in
   // check. Glowed on the board; also lit on a checkmate, where that side is
   // still in check with no move.
   const checkSquare = isInCheck(board, displayTurn) ? kingPos(board, displayTurn) : null;
-  const moveList =
+  const moveRows =
     match.moves.length === 0
-      ? t("noMoves")
-      : match.moves
-          .reduce<string[]>((acc, san, i) => {
-            if (i % 2 === 0) acc.push(`${i / 2 + 1}. ${san}`);
-            else acc[acc.length - 1] += ` ${san}`;
-            return acc;
-          }, [])
-          .join("  ");
+      ? ["Starting Position"]
+      : match.moves.reduce<string[]>((acc, san, i) => {
+          if (i % 2 === 0) acc.push(`${i / 2 + 1}. ${san}`);
+          else acc[acc.length - 1] += ` ${san}`;
+          return acc;
+        }, []);
+  const enginePvSan = match ? pvToSan(match.fen, engine.pv) : [];
+  const engineBestMoveSan = match
+    ? (uciToSan(match.fen, engine.bestMove) ?? engine.bestMove)
+    : engine.bestMove;
 
   // One quiet line for staked matches. During play both stakes sit locked; a
   // draw or abort refunds them, a decisive result settles the pot to the
@@ -432,182 +495,433 @@ export function PlaySection({ matchId }: { matchId: string | null }) {
                 : offerPending
                   ? t("statusDrawSent")
                   : t("statusOpponentThinking");
+  const inviteUrl =
+    waiting && matchId
+      ? typeof window === "undefined"
+        ? `/casino/chess/invite?code=${matchId}`
+        : `${window.location.origin}/casino/chess/invite?code=${matchId}`
+      : null;
 
   return (
-    <div className="relative mx-auto w-full max-w-[560px] px-4 pt-7 pb-20 sm:px-6">
+    <div className="relative mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
       {celebrating ? <VictoryConfetti /> : null}
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
-          <span className="h-[26px] w-[26px] shrink-0 rounded-full border border-white/10 bg-white/8" />
-          <div className="min-w-0">
-            <span className="block truncate">
-              {opponent ? opponent.username : t("waitingForOpponent")}
-            </span>
-            <CapturedRow
-              pieces={capturedByColor(opponentColor)}
-              lead={leadFor(opponentColor)}
-              color={selfColor}
-            />
-          </div>
-        </div>
-        <div className="tnum flex shrink-0 items-center gap-1.5 rounded-lg border border-transparent bg-white/4 px-3.5 py-1.5 text-[20px]">
-          <ClockIcon />
-          {formatClock(clocks?.[opponentColor] ?? 0)}
-        </div>
-      </div>
-
-      <ChessBoard
-        board={board}
-        selected={selected}
-        legalTargets={targetSquares}
-        checkSquare={checkSquare}
-        orientation={you ?? "w"}
-        theme={theme}
-        onSquareClick={you !== null && !over ? (r, c) => void onSquareClick(r, c) : undefined}
-      />
-
-      {activePendingPromotion ? (
-        <div className="mt-2.5 rounded-[12px] border border-white/10 bg-white/4 px-3.5 py-3">
-          <div className="mb-2 text-[11.5px] font-semibold tracking-[0.04em] text-white/65 uppercase">
-            {t("promotionTitle")}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {activePendingPromotion.options.map((piece) => (
-              <button
-                key={piece}
-                onClick={() => void onPromotionChoice(piece)}
-                disabled={moving}
-                className="cursor-pointer rounded-full border border-white/15 px-3 py-1.5 font-sans text-[12px] font-semibold text-white/75 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50"
-              >
-                {PROMOTION_LABEL[piece]} {t(PROMOTION_TEXT_KEY[piece])}
-              </button>
-            ))}
-            <button
-              onClick={() => setPendingPromotion(null)}
-              disabled={moving}
-              className="cursor-pointer rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12px] font-semibold text-white/50 transition-colors hover:border-white/25 hover:text-white/80 disabled:opacity-50"
-            >
-              {t("promotionCancel")}
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      <div className="mt-2.5 flex items-center justify-between gap-3">
-        <span className="min-w-0 truncate text-[12px] text-white/55">
-          {opening ? (
-            <>
-              <span className="tnum mr-1.5 text-white/40">{opening.eco}</span>
-              {opening.name}
-            </>
-          ) : null}
-        </span>
-        <BoardThemePicker className="shrink-0" />
-      </div>
-
-      {waiting && you !== null ? (
-        <div className="border-accent/35 mt-3 flex items-center gap-2 rounded-[12px] border bg-white/4 px-4 py-3">
-          <div className="min-w-0 flex-1 text-[12px] font-normal text-white/60">
-            {tCreate("inviteReady")}
-          </div>
-          <button
-            onClick={() => {
-              void navigator.clipboard.writeText(
-                `${window.location.origin}/casino/chess/invite?code=${match.id}`
-              );
-              toast.success(tCreate("linkCopied"));
-            }}
-            className="bg-accent text-ink shrink-0 cursor-pointer rounded-lg px-4 py-2 font-sans text-[12px] font-bold"
-          >
-            {tCreate("copy")}
-          </button>
-        </div>
-      ) : null}
-
-      <div className="mt-2.5 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5 text-[13.5px]">
-          <span className="border-accent h-[26px] w-[26px] shrink-0 rounded-full border bg-white/8" />
-          <div className="min-w-0">
-            <span className="block truncate">{self ? self.username : t("you")}</span>
-            <CapturedRow
-              pieces={capturedByColor(selfColor)}
-              lead={leadFor(selfColor)}
-              color={opponentColor}
-            />
-          </div>
-        </div>
-        <div
-          className={`tnum flex shrink-0 items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-[20px] ${
-            yourTurn ? "border-accent/50 bg-white/6" : "border-transparent bg-white/4"
-          }`}
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
+        <section
+          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+          style={{ background: SURFACE_BG }}
         >
-          <ClockIcon />
-          {formatClock(clocks?.[selfColor] ?? 0)}
-        </div>
+          <div className="mx-auto max-w-[944px]">
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div
+                className="flex min-w-0 items-center gap-4 rounded-[8px] px-3 py-3"
+                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+              >
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[1.1rem] font-bold text-white/30">
+                  P
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-sans text-[1.05rem] font-bold text-white">
+                    {opponentDisplayName}
+                  </div>
+                  <CapturedRow
+                    pieces={capturedByColor(opponentColor)}
+                    lead={leadFor(opponentColor)}
+                    color={selfColor}
+                  />
+                </div>
+              </div>
+              <div
+                className="tnum flex min-w-[126px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-5 py-3 text-[1.15rem] font-semibold text-white/88"
+                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+              >
+                <ClockIcon />
+                {formatClock(clocks?.[opponentColor] ?? 0)}
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[2px]">
+              <ChessBoard
+                board={board}
+                selected={selected}
+                legalTargets={targetSquares}
+                checkSquare={checkSquare}
+                orientation={you ?? "w"}
+                theme={theme}
+                onSquareClick={
+                  you !== null && !over ? (r, c) => void onSquareClick(r, c) : undefined
+                }
+              />
+            </div>
+
+            {activePendingPromotion ? (
+              <div
+                className="mt-4 rounded-[16px] border border-white/8 px-4 py-4"
+                style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+              >
+                <div className="mb-2 text-[11.5px] font-semibold tracking-[0.04em] text-white/65 uppercase">
+                  {t("promotionTitle")}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {activePendingPromotion.options.map((piece) => (
+                    <button
+                      key={piece}
+                      onClick={() => void onPromotionChoice(piece)}
+                      disabled={moving}
+                      className="cursor-pointer rounded-full border border-white/15 px-3 py-1.5 font-sans text-[12px] font-semibold text-white/75 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50"
+                    >
+                      {PROMOTION_LABEL[piece]} {t(PROMOTION_TEXT_KEY[piece])}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPendingPromotion(null)}
+                    disabled={moving}
+                    className="cursor-pointer rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12px] font-semibold text-white/50 transition-colors hover:border-white/25 hover:text-white/80 disabled:opacity-50"
+                  >
+                    {t("promotionCancel")}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex items-center justify-between gap-4">
+              <div
+                className="flex min-w-0 items-center gap-4 rounded-[8px] px-3 py-3"
+                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+              >
+                <span className="grid h-14 w-14 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[1.1rem] font-bold text-white/30">
+                  P
+                </span>
+                <div className="min-w-0">
+                  <div className="truncate font-sans text-[1.05rem] font-bold text-white">
+                    {selfDisplayName}
+                  </div>
+                  <CapturedRow
+                    pieces={capturedByColor(selfColor)}
+                    lead={leadFor(selfColor)}
+                    color={opponentColor}
+                  />
+                </div>
+              </div>
+              <div
+                className={`tnum flex min-w-[126px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-5 py-3 text-[1.15rem] font-semibold ${
+                  yourTurn ? "border border-[#81B64C]/45 text-white" : "text-white/88"
+                }`}
+                style={{ background: SHELL_BG, boxShadow: SHADOW }}
+              >
+                <ClockIcon />
+                {formatClock(clocks?.[selfColor] ?? 0)}
+              </div>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-[12px] text-white/55">
+                {opening ? (
+                  <>
+                    <span className="tnum mr-1.5 text-white/40">{opening.eco}</span>
+                    {opening.name}
+                  </>
+                ) : waiting ? (
+                  "Starting position"
+                ) : null}
+              </span>
+              <BoardThemePicker className="shrink-0" />
+            </div>
+          </div>
+        </section>
+
+        <aside
+          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+          style={{ background: SHELL_BG }}
+        >
+          <div className="grid grid-cols-4 border-b border-white/6 bg-black/10">
+            <div className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white">
+              <span className="mb-2 block text-[1.1rem] font-bold">P</span>
+              <span className="font-sans text-[0.98rem] font-semibold">Play</span>
+            </div>
+            <Link
+              href="/casino/chess/create"
+              className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
+            >
+              <span className="mb-2 block text-[1.1rem] font-bold">+</span>
+              <span className="font-sans text-[0.98rem] font-semibold">{t("navNewGame")}</span>
+            </Link>
+            <Link
+              href="/casino/chess/history"
+              className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
+            >
+              <span className="mb-2 block text-[1.1rem] font-bold">#</span>
+              <span className="font-sans text-[0.98rem] font-semibold">{t("navGames")}</span>
+            </Link>
+            <Link
+              href="/casino/chess"
+              className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
+            >
+              <span className="mb-2 block text-[1.1rem] font-bold">U</span>
+              <span className="font-sans text-[0.98rem] font-semibold">{t("navPlayers")}</span>
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-3 border-b border-white/6 bg-black/8">
+            {(["moves", "chat", "info"] as const).map((tab) => {
+              const label =
+                tab === "moves" ? t("railMoves") : tab === "chat" ? t("railChat") : t("railInfo");
+              const active = railTab === tab;
+              return (
+                <button
+                  key={tab}
+                  onClick={() => setRailTab(tab)}
+                  className={`cursor-pointer px-4 py-4 text-center font-sans text-[1rem] font-semibold transition-colors ${
+                    active
+                      ? "border-b-4 border-white text-white"
+                      : "text-white/56 hover:text-white/82"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-5">
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {railTab === "moves" ? (
+                <div className="space-y-4">
+                  {waiting && you !== null ? (
+                    <div
+                      className="rounded-[16px] border border-white/6 px-4 py-4"
+                      style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                    >
+                      <div className="mb-1 text-[1.2rem] font-extrabold text-white">
+                        {t("challengeLink")}
+                      </div>
+                      <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                        {tCreate("inviteReady")}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="tnum min-w-0 flex-1 truncate rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[12px] text-white/76">
+                          {inviteUrl}
+                        </div>
+                        <button
+                          onClick={async () => {
+                            if (!inviteUrl) return;
+                            const copied = await copyText(inviteUrl);
+                            if (copied) toast.success(tCreate("linkCopied"));
+                          }}
+                          className="cursor-pointer rounded-[12px] bg-[#81B64C] px-4 py-3 font-sans text-[12px] font-bold text-white"
+                        >
+                          {tCreate("copy")}
+                        </button>
+                      </div>
+                      <div className="mt-3 text-[11.5px] text-white/44">{t("shareManually")}</div>
+                    </div>
+                  ) : null}
+
+                  <div
+                    className="rounded-[16px] border border-white/6 px-4 py-4"
+                    style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="text-[1.2rem] font-extrabold text-white">
+                        {waiting ? t("startGame") : t("movesTitle")}
+                      </div>
+                      <div className="text-[12px] text-white/46">{turnLabel}</div>
+                    </div>
+                    <div className="space-y-2 text-[0.98rem] text-white/78">
+                      {moveRows.map((row) => (
+                        <div
+                          key={row}
+                          className="rounded-[10px] border border-white/6 bg-black/10 px-3 py-2"
+                        >
+                          {row}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div
+                    className="rounded-[16px] border border-white/6 px-4 py-4"
+                    style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                  >
+                    <div className="mb-1 flex items-center justify-between gap-3">
+                      <div className="text-[1.2rem] font-extrabold text-white">
+                        {t("engineTitle")}
+                      </div>
+                      <div className="text-[12px] text-white/46">
+                        {engine.depth !== null
+                          ? t("engineDepth", { depth: engine.depth })
+                          : engine.label}
+                      </div>
+                    </div>
+                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                      {t("engineAbout")}
+                    </div>
+
+                    {engine.status === "unsupported" ? (
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
+                        {t("engineUnsupported")}
+                      </div>
+                    ) : engine.status === "error" ? (
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
+                        {engine.error ?? t("engineFailed")}
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5">
+                        <div className="grid grid-cols-3 gap-2.5">
+                          <div className="rounded-[10px] bg-black/10 px-3 py-2">
+                            <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
+                              {t("engineScore")}
+                            </div>
+                            <div className="tnum text-[1rem] font-semibold text-white">
+                              {formatEngineScore(engine.scoreCp, engine.scoreMate)}
+                            </div>
+                          </div>
+                          <div className="rounded-[10px] bg-black/10 px-3 py-2">
+                            <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
+                              {t("engineBestMove")}
+                            </div>
+                            <div className="tnum text-[1rem] font-semibold text-white">
+                              {engineBestMoveSan ?? "…"}
+                            </div>
+                          </div>
+                          <div className="rounded-[10px] bg-black/10 px-3 py-2">
+                            <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
+                              {t("engineStatus")}
+                            </div>
+                            <div className="text-[1rem] font-semibold text-white">
+                              {engine.status === "loading"
+                                ? t("engineLoading")
+                                : engine.status === "analyzing"
+                                  ? t("engineAnalyzing")
+                                  : t("engineReady")}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2">
+                          <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
+                            {t("enginePv")}
+                          </div>
+                          <div className="tnum text-[0.92rem] leading-6 break-words text-white/72">
+                            {enginePvSan.length > 0 ? enginePvSan.join(" ") : t("enginePvWaiting")}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : railTab === "chat" ? (
+                <div
+                  className="rounded-[16px] border border-white/6 px-4 py-4"
+                  style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                >
+                  <div className="mb-2 text-[1.2rem] font-extrabold text-white">
+                    {t("chatTitle")}
+                  </div>
+                  <div className="text-[0.92rem] leading-6 text-white/56">
+                    {waiting ? t("chatWaiting") : t("chatUnavailable")}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="space-y-3 rounded-[16px] border border-white/6 px-4 py-4"
+                  style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+                >
+                  <div className="text-[1.2rem] font-extrabold text-white">{t("infoTitle")}</div>
+                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                    <span className="text-white/55">{t("infoStatus")}</span>
+                    <span className="text-white">{turnLabel}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                    <span className="text-white/55">{t("infoTimeControl")}</span>
+                    <span className="text-white">{match.timeControl}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                    <span className="text-white/55">{t("infoWhite")}</span>
+                    <span className="truncate text-white">{whiteDisplayName}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                    <span className="text-white/55">{t("infoBlack")}</span>
+                    <span className="truncate text-white">{blackDisplayName}</span>
+                  </div>
+                  {wagerLine ? (
+                    <div className="rounded-[10px] bg-black/10 px-3 py-2.5 text-[12px] text-white/62">
+                      {wagerLine}
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {you !== null && !over ? (
+              <div className="mt-4 shrink-0 border-t border-white/6 pt-4">
+                <div className="mb-3 text-[12px] text-white/48">
+                  {waiting ? t("controlsWaiting") : t("controlsActions")}
+                </div>
+                <div className="flex flex-wrap gap-2.5">
+                  {waiting ? (
+                    <button
+                      onClick={() => void onAbort()}
+                      disabled={aborting}
+                      className={actionButton}
+                    >
+                      {aborting ? "…" : t("abort")}
+                    </button>
+                  ) : offerToAnswer ? (
+                    <>
+                      <button
+                        onClick={() => void onAnswerDraw(true)}
+                        disabled={respondingToDraw}
+                        className={actionButton}
+                      >
+                        {respondingToDraw ? "…" : t("acceptDraw")}
+                      </button>
+                      <button
+                        onClick={() => void onAnswerDraw(false)}
+                        disabled={respondingToDraw}
+                        className={actionButton}
+                      >
+                        {t("declineDraw")}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => void onOfferDraw()}
+                        disabled={offeringDraw || offerPending}
+                        className={actionButton}
+                      >
+                        {offeringDraw ? "…" : offerPending ? t("drawOffered") : t("offerDraw")}
+                      </button>
+                      <button
+                        onClick={() => void onClaimDraw()}
+                        disabled={claimingDraw}
+                        className={actionButton}
+                      >
+                        {claimingDraw ? "…" : t("claimDraw")}
+                      </button>
+                      <button
+                        onClick={() => void onResign()}
+                        disabled={resigning}
+                        className="border-down/40 text-down cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap disabled:opacity-50"
+                      >
+                        {resigning ? "…" : t("resign")}
+                      </button>
+                    </>
+                  )}
+                </div>
+                <button
+                  onClick={() => router.push("/casino/chess")}
+                  className="mt-3 cursor-pointer text-[12px] text-white/52 transition-colors hover:text-white/82"
+                >
+                  {t("backToLobby")}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </aside>
       </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="ws-inset min-w-0 flex-1 truncate rounded-[10px] px-3 py-2 text-left text-[12px] font-normal text-white/70 [direction:rtl]">
-          <span className="tnum [direction:ltr] [unicode-bidi:bidi-override]">{moveList}</span>
-        </div>
-        <div className="text-[12px] whitespace-nowrap text-white/50">{turnLabel}</div>
-
-        {you !== null && !over ? (
-          waiting ? (
-            <button onClick={() => void onAbort()} disabled={aborting} className={actionButton}>
-              {aborting ? "…" : t("abort")}
-            </button>
-          ) : offerToAnswer ? (
-            <>
-              <button
-                onClick={() => void onAnswerDraw(true)}
-                disabled={respondingToDraw}
-                className={actionButton}
-              >
-                {respondingToDraw ? "…" : t("acceptDraw")}
-              </button>
-              <button
-                onClick={() => void onAnswerDraw(false)}
-                disabled={respondingToDraw}
-                className={actionButton}
-              >
-                {t("declineDraw")}
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => void onOfferDraw()}
-                disabled={offeringDraw || offerPending}
-                className={actionButton}
-              >
-                {offeringDraw ? "…" : offerPending ? t("drawOffered") : t("offerDraw")}
-              </button>
-              <button
-                onClick={() => void onClaimDraw()}
-                disabled={claimingDraw}
-                className={actionButton}
-              >
-                {claimingDraw ? "…" : t("claimDraw")}
-              </button>
-              <button
-                onClick={() => void onResign()}
-                disabled={resigning}
-                className="border-down/40 text-down cursor-pointer rounded-full border px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap disabled:opacity-50"
-              >
-                {resigning ? "…" : t("resign")}
-              </button>
-            </>
-          )
-        ) : null}
-      </div>
-
-      {wagerLine ? (
-        <div className="mt-2 text-[11.5px] font-normal text-white/45">{wagerLine}</div>
-      ) : null}
 
       {over ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-[10px] bg-black/60 backdrop-blur-md">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-md">
           <div className="ws-glass w-[320px] rounded-2xl px-8 py-9 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
             <div className="text-[12px] font-semibold tracking-[0.06em] text-white/70 uppercase">
               {resultLine(t, match, you)}

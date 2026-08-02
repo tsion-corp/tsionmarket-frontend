@@ -28,7 +28,20 @@ export interface CashierBalance {
   player: string;
   availableUsdc: string;
   lockedUsdc: string;
+  lockedMatchUsdc?: string;
+  lockedSwissUsdc?: string;
+  lockedBetUsdc?: string;
+  pendingWithdrawalUsdc?: string;
+  lockedOtherUsdc?: string;
   totalUsdc: string;
+}
+
+export interface CashierLockBuckets {
+  lockedMatchUsdc: string;
+  lockedSwissUsdc: string;
+  lockedBetUsdc: string;
+  pendingWithdrawalUsdc: string;
+  lockedOtherUsdc: string;
 }
 
 export interface CashierDeposit {
@@ -83,6 +96,26 @@ export function isCashierUnavailable(error: unknown): boolean {
 export function isCashierAccessDenied(error: unknown): boolean {
   const code = (error as CasinoApiError | null)?.code;
   return code === "UNAUTHORIZED" || code === "NO_WALLET";
+}
+
+function nonNegativeUsdc(value: string | undefined): string {
+  if (!value?.trim()) return "0";
+  const units = toBaseUnits(value, USDC_DECIMALS);
+  return units > 0n ? fromBaseUnits(units, USDC_DECIMALS) : "0";
+}
+
+export function cashierLockBuckets(balance: CashierBalance | null | undefined): CashierLockBuckets {
+  return {
+    lockedMatchUsdc: nonNegativeUsdc(balance?.lockedMatchUsdc),
+    lockedSwissUsdc: nonNegativeUsdc(balance?.lockedSwissUsdc),
+    lockedBetUsdc: nonNegativeUsdc(balance?.lockedBetUsdc),
+    pendingWithdrawalUsdc: nonNegativeUsdc(balance?.pendingWithdrawalUsdc),
+    lockedOtherUsdc: nonNegativeUsdc(balance?.lockedOtherUsdc),
+  };
+}
+
+export function hasPositiveUsdc(value: string): boolean {
+  return toBaseUnits(value, USDC_DECIMALS) > 0n;
 }
 
 // 500 bps reads as 5 (%). Display only; settlement math stays server-side.

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { apiError } from "@/lib/casino/api/envelope";
 import {
+  cashierLockBuckets,
   exceedsUsdcBalance,
   feePctFromBps,
+  hasPositiveUsdc,
   isCashierAccessDenied,
   isCashierUnavailable,
   normalizeUsdcAmount,
@@ -157,5 +159,55 @@ describe("feePctFromBps", () => {
     expect(feePctFromBps(0)).toBe(0);
     expect(feePctFromBps(25)).toBe(0.25);
     expect(feePctFromBps(10_000)).toBe(100);
+  });
+});
+
+describe("cashierLockBuckets", () => {
+  it("fills missing bucket fields with zero", () => {
+    expect(
+      cashierLockBuckets({
+        player: "0xabc",
+        availableUsdc: "10",
+        lockedUsdc: "0",
+        totalUsdc: "10",
+      })
+    ).toEqual({
+      lockedMatchUsdc: "0",
+      lockedSwissUsdc: "0",
+      lockedBetUsdc: "0",
+      pendingWithdrawalUsdc: "0",
+      lockedOtherUsdc: "0",
+    });
+  });
+
+  it("normalizes positive bucket values for display", () => {
+    expect(
+      cashierLockBuckets({
+        player: "0xabc",
+        availableUsdc: "5",
+        lockedUsdc: "2.750000",
+        lockedMatchUsdc: "2.5",
+        lockedSwissUsdc: "0.25",
+        lockedBetUsdc: "0",
+        pendingWithdrawalUsdc: "0.000000",
+        lockedOtherUsdc: "0",
+        totalUsdc: "7.75",
+      })
+    ).toEqual({
+      lockedMatchUsdc: "2.5",
+      lockedSwissUsdc: "0.25",
+      lockedBetUsdc: "0",
+      pendingWithdrawalUsdc: "0",
+      lockedOtherUsdc: "0",
+    });
+  });
+});
+
+describe("hasPositiveUsdc", () => {
+  it("distinguishes zero buckets from real locks", () => {
+    expect(hasPositiveUsdc("0")).toBe(false);
+    expect(hasPositiveUsdc("0.000000")).toBe(false);
+    expect(hasPositiveUsdc("0.000001")).toBe(true);
+    expect(hasPositiveUsdc("2.5")).toBe(true);
   });
 });

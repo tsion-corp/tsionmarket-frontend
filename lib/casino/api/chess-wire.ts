@@ -181,17 +181,23 @@ export function toPlayer(wallet: string | null): ChessPlayer | null {
 
 export interface ToChessMatchOptions {
   moves?: ChessMoveWire[];
+  moveSan?: string[];
+  clockUpdatedAt?: string;
 }
 
 export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions = {}): ChessMatch {
-  const moves = options.moves ?? [];
+  const moveWires = options.moves ?? [];
+  const moves = options.moveSan ?? moveWires.map((m) => m.san);
 
   // When the clocks were last true. The service has no "as of" field and does
   // not charge time on a read, so the last move is the only honest reference
   // point; using the moment the response arrived would restart the countdown on
   // every poll and freeze the displayed clock.
   const clockUpdatedAt =
-    moves.length > 0 ? moves[moves.length - 1].createdAt : (wire.startedAt ?? wire.createdAt);
+    options.clockUpdatedAt ??
+    (moveWires.length > 0
+      ? moveWires[moveWires.length - 1].createdAt
+      : (wire.startedAt ?? wire.createdAt));
 
   const drawOfferSide: ChessColor | null =
     wire.drawOfferBy === null
@@ -212,7 +218,7 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
       wire.timeControl.incrementSeconds
     ),
     fen: wire.fen,
-    moves: moves.map((m) => m.san),
+    moves,
     clocks: { w: wire.clocks.whiteMs / 1000, b: wire.clocks.blackMs / 1000 },
     clockUpdatedAt,
     turn: toColor(wire.turn),

@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useMoney } from "@/components/ui/currency-select";
-import { getWalletAddress } from "@/lib/user";
+import { deriveProfile, getWalletAddress } from "@/lib/user";
 import { weiToUnits } from "@/lib/casino/money";
 
 // The casino spends the same balance as the rest of the platform: the
@@ -14,6 +14,7 @@ import { weiToUnits } from "@/lib/casino/money";
 // balance everywhere.
 export function useCasinoWallet() {
   const { user } = usePrivy();
+  const profile = deriveProfile(user);
   const money = useMoney();
   const { tokens, loading, refetch } = usePortfolio();
 
@@ -43,6 +44,7 @@ export function useCasinoWallet() {
 
   return {
     address,
+    name: profile.name,
     connected: !!address,
     balance,
     balanceUsd,

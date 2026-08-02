@@ -4,14 +4,17 @@ The chess frontend is built against this contract. Every screen calls it;
 nothing is stubbed and there are no fixtures in the UI. Until the service
 answers, the screens show their "not available yet" state.
 
-Set `NEXT_PUBLIC_CHESS_API_URL` to the gateway base path, e.g.
-`https://api.worldstreetwebservices.com/v1/chess`. Unset, every chess screen
-reads as not configured.
+Set `CHESS_API_URL` to the chess service base path when you want a server-only
+override, for example a local Rust service at `http://127.0.0.1:18083`.
+
+`NEXT_PUBLIC_CHESS_API_URL` remains as the fallback for existing deployments,
+for example `https://api.worldstreetwebservices.com/v1/chess`. If neither is
+set, every chess screen reads as not configured.
 
 ## Transport
 
 All traffic goes through the frontend's own proxy at `/api/chess/*`, which
-forwards to `${NEXT_PUBLIC_CHESS_API_URL}/*`. The proxy:
+forwards to `${CHESS_API_URL ?? NEXT_PUBLIC_CHESS_API_URL}/*`. The proxy:
 
 - serves public reads (lobby, board, moves, PGN, tournaments) without a session
   and caches them for 1s, so two players watching one board collapse into a
@@ -58,6 +61,19 @@ The route-shape rules live in `lib/casino/chess-identity.ts`, and the proxy
 enforcement lives in `app/api/chess/[...path]/route.ts`. They are covered by
 `__tests__/chess-identity.test.ts`, `__tests__/server-auth.test.ts` and
 `__tests__/chess-route.test.ts`.
+
+## Local backend
+
+For local chess-service work, put this in `.env.local`:
+
+```dotenv
+CHESS_API_URL=http://127.0.0.1:18083
+```
+
+That keeps your browser bundle free of the local upstream URL and lets the Next
+proxy talk to the Rust service directly. If you run the chess service without
+RabbitMQ or the WS gateway, live updates fall back to the client's HTTP poll
+path, which is enough for local edge-case testing.
 
 ## Money
 

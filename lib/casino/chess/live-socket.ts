@@ -27,7 +27,7 @@ export interface GatewayFrame {
 // can fall back to polling until it reconnects. It never comes from the gateway.
 export const SOCKET_CLOSED_FRAME: GatewayFrame = { type: "__closed" };
 // A synthetic frame delivered when the shared socket is open for subscriptions,
-// so a board can treat the live path as warm before the next chess move lands.
+// so a board can refresh one authoritative snapshot after subscribe/reconnect.
 export const SOCKET_OPEN_FRAME: GatewayFrame = { type: "__open" };
 
 type Listener = (frame: GatewayFrame) => void;
