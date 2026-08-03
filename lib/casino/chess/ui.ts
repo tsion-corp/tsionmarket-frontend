@@ -18,7 +18,13 @@ export const CHESS_CARD_BG =
 export const CHESS_CARD_SHADOW =
   "inset 0 .1rem 0 0 rgba(255, 255, 255, 0.07), 0 .1rem .2rem 0 rgba(0, 0, 0, 0.20)";
 export const CHESS_SHELL_SHADOW = "0 .1rem .1rem 0 rgba(0, 0, 0, 0.20)";
-export const CHESS_PAGE_BOARD_MAX_WIDTH = "min(100%, 780px)";
+// The board is w-full with aspect-square cells, so its height follows its
+// width and capping the width is how the whole board is kept on screen. The
+// dvh term is what does that: without it the board grows to 780px, runs past
+// the fold, and the page scrolls to reach the bottom rank. The subtraction
+// covers the sticky topbar, the casino back link, and the player bars and
+// clocks stacked above and below the board inside its panel.
+export const CHESS_PAGE_BOARD_MAX_WIDTH = "min(100%, 780px, calc(100dvh - 300px))";
 
 // White on ink is the app's primary button everywhere else, so chess uses it
 // too rather than the tan it was ported with.

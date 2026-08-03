@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-7 -13.425 68.503 68.503">
+  <!--
+    Tab icon. The wordmark in public/ark-logo.svg is 186x37 — a five-to-one
+    strip that squashes to an illegible smear at 16px, so this is the A on its
+    own, lifted from that file and centred in a square.
+
+    The plate is drawn rather than left transparent: the mark is white, and a
+    transparent icon disappears against a light tab bar.
+  -->
+  <rect x="-7" y="-13.425" width="68.503" height="68.503" rx="15" fill="#0a0a0a" />
+  <path
+    d="M10.4132 36.7785L27.1407 12.7395L37.1108 26.4761H19.2754L41.8742 33.012L45.0868 36.7785H54.503L30.4641 4.87427H23.1527L0 36.7785H10.4132Z"
+    fill="#ffffff"
+  />
+</svg>

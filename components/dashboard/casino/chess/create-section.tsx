@@ -359,9 +359,12 @@ export function CreateSection() {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
+      {/* On desktop the row is bounded to the viewport so the board is wholly
+          visible without scrolling; the setup rail beside it scrolls inside
+          itself instead. Below xl both stack and the page scrolls normally. */}
+      <div className="grid gap-6 xl:h-[calc(100dvh-160px)] xl:grid-cols-[minmax(0,944px)_430px]">
         <section
-          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:min-h-0"
           style={{ background: CHESS_SURFACE_BG }}
         >
           <div className="mx-auto w-full" style={{ maxWidth: CHESS_PAGE_BOARD_MAX_WIDTH }}>
@@ -391,7 +394,7 @@ export function CreateSection() {
         </section>
 
         <aside
-          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:h-full"
           style={{ background: CHESS_SIDEBAR_BG }}
         >
           <div className="grid grid-cols-3 border-b border-white/6 bg-black/10">

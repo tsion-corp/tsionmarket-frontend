@@ -19,8 +19,10 @@ const SIZE = 132;
 const STROKE = 16;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
-// A hair of blank between arcs so neighbouring greys stay distinguishable.
-const GAP = 2;
+// Blank between arcs so neighbouring greys stay distinguishable. Round caps
+// spend half the stroke past each end of the dash, so the gap has to clear the
+// full stroke on top of the space it is meant to leave.
+const GAP = STROKE + 6;
 
 // Where the portfolio's money actually sits, as one ring with a legend. Replaces
 // a price chart of the largest holding, which showed one asset's market rather
@@ -35,18 +37,28 @@ export function PortfolioDonut({ tokens }: { tokens: TokenBalance[] }) {
   // Each arc's dash and where it starts, derived rather than accumulated: a
   // counter mutated inside the map is a render-time reassignment, and there are
   // at most four slices so scanning the ones before is free.
+  // A single slice owning the whole ring has no neighbour to separate from, and
+  // subtracting a gap there would leave a visible notch in what should read as
+  // one closed circle.
+  const single = slices.length === 1;
   const arcs = slices.map((slice, i) => {
     const before = slices.slice(0, i).reduce((sum, s) => sum + s.share, 0);
-    const length = Math.max(slice.share * CIRCUMFERENCE - GAP, 1);
+    const span = slice.share * CIRCUMFERENCE;
+    const length = single ? span : Math.max(span - GAP, 1);
     return {
       key: slice.key,
       dash: `${length} ${CIRCUMFERENCE - length}`,
-      start: -before * CIRCUMFERENCE,
+      // Half the gap in, so the arc sits centred in the span it owns rather
+      // than flush against the slice before it.
+      start: -(before * CIRCUMFERENCE + (single ? 0 : GAP / 2)),
     };
   });
 
   return (
-    <div className="flex flex-col items-center gap-5 min-[420px]:flex-row min-[420px]:gap-6">
+    // Ring and legend sit side by side at every width, the way the mobile app
+    // reads. Stacking them below 420px pushed the legend under a centred ring
+    // and made the card twice as tall as the app's.
+    <div className="flex items-center gap-4 min-[420px]:gap-6">
       <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
         <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
           {/* Rotated so the first slice starts at twelve o'clock. */}
@@ -70,7 +82,7 @@ export function PortfolioDonut({ tokens }: { tokens: TokenBalance[] }) {
                 strokeWidth={STROKE}
                 strokeDasharray={arc.dash}
                 strokeDashoffset={arc.start}
-                strokeLinecap="butt"
+                strokeLinecap="round"
               />
             ))}
           </g>
@@ -83,7 +95,7 @@ export function PortfolioDonut({ tokens }: { tokens: TokenBalance[] }) {
         </div>
       </div>
 
-      <ul className="flex w-full min-w-0 flex-col gap-2">
+      <ul className="flex min-w-0 flex-1 flex-col gap-2.5 min-[420px]:gap-2">
         {slices.length === 0 ? (
           <li className="text-[13px] font-normal text-white/45">{t("breakdownEmpty")}</li>
         ) : (
@@ -96,10 +108,13 @@ export function PortfolioDonut({ tokens }: { tokens: TokenBalance[] }) {
               <span className="min-w-0 flex-1 truncate text-[13px] font-normal text-white/70">
                 {t(`slice_${slice.key}`)}
               </span>
-              <span className="tnum shrink-0 text-[13px] font-medium text-white">
+              {/* The amount and share are the web's addition. Beside a ring on a
+                  narrow phone they wrap the label onto two lines, so they only
+                  appear once there is room for them. */}
+              <span className="tnum hidden shrink-0 text-[13px] font-medium text-white min-[420px]:inline">
                 {mask(money.format(slice.valueUsd))}
               </span>
-              <span className="tnum w-9 shrink-0 text-right text-[12px] font-normal text-white/40">
+              <span className="tnum hidden w-9 shrink-0 text-right text-[12px] font-normal text-white/40 min-[420px]:inline">
                 {Math.round(slice.share * 100)}%
               </span>
             </li>

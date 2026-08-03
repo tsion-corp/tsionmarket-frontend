@@ -20,11 +20,13 @@ const monaSans = Mona_Sans({
   variable: "--font-display",
 });
 
+// No `icons` here: app/icon.svg is picked up by file convention and emits the
+// link tag itself. Declaring both would point the tab at the wide wordmark,
+// which is what made the old icon unreadable.
 export const metadata: Metadata = {
   title: "Ark",
   description:
     "The onchain superapp for global markets. Own stocks, gold, crypto and real-world assets from one self-custody account, funded in Naira.",
-  icons: { icon: "/ark-logo.svg" },
 };
 
 export default async function RootLayout({

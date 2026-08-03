@@ -76,8 +76,12 @@ export default function Providers({ children }: { children: React.ReactNode }) {
           // Login modal only — tx signing stays headless (showWalletUIs: false).
           theme: "#0c0c0e",
           accentColor: "#d4d4d8",
-          logo:
-            typeof window !== "undefined" ? `${window.location.origin}/ark-logo.svg` : undefined,
+          // Root-relative, not `${window.location.origin}/…`. That branch made
+          // the logo undefined on the server and a string on the client, so
+          // Privy's hidden preload <img> existed only in the client render and
+          // every page load failed hydration. The browser resolves this against
+          // the current origin anyway, which is all the branch was computing.
+          logo: "/ark-logo.svg",
         },
       }}
     >
