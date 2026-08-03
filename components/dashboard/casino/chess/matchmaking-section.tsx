@@ -32,7 +32,7 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
           <div className="mb-5 text-[12.5px] font-normal text-white/55">{t("noTicketNote")}</div>
           <Link
             href="/casino/chess"
-            className="text-ink inline-block cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-bold"
+            className="text-ink inline-block cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-medium"
           >
             {t("backToLobby")}
           </Link>

@@ -15,10 +15,11 @@ import { BOARD_THEMES, DEFAULT_THEME } from "@/lib/casino/chess/board-theme";
 import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
 import { initialBoard } from "@/lib/casino/chess/engine";
+import { CHESS_SURFACE_BG } from "@/lib/casino/chess/ui";
 import { toast } from "@/lib/toast";
 import type { ChessChallenge } from "@/lib/casino/api/types";
 
-const SURFACE_BG = "#312E2B";
+const SURFACE_BG = CHESS_SURFACE_BG;
 const SHELL_BG = "rgba(0, 0, 0, 0.20)";
 const CARD_BG = "linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.14) 100%)";
 const CARD_BG_HOVER = "linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.10) 100%)";
@@ -57,7 +58,7 @@ function MenuHeader() {
       style={{ background: SHELL_BG, boxShadow: SHADOW }}
     >
       <LandingIcon src="/chesscom-icons/play-white.svg" alt="" className="h-10 w-10" />
-      <div className="font-sans text-[2.6rem] leading-none font-extrabold tracking-[-0.05em] text-white">
+      <div className="font-sans text-[28px] leading-none font-semibold tracking-[-0.05em] text-white">
         Play Chess
       </div>
     </div>
@@ -92,12 +93,10 @@ function MenuCard({
       <div className="pointer-events-none flex min-h-[136px] items-center gap-4 px-6 py-6">
         {icon}
         <div className="min-w-0">
-          <div className="font-sans text-[1.18rem] leading-none font-extrabold tracking-[-0.03em] text-white sm:text-[1.24rem]">
+          <div className="font-sans text-[17px] leading-none font-semibold tracking-[-0.03em] text-white sm:text-[18px]">
             {title}
           </div>
-          <div className="mt-2 text-[0.92rem] leading-6 text-white/72 sm:text-[0.98rem]">
-            {note}
-          </div>
+          <div className="mt-2 text-[13px] leading-6 text-white/72 sm:text-[14px]">{note}</div>
         </div>
       </div>
     </div>
@@ -164,15 +163,15 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
       className="flex items-center gap-4 rounded-[8px] px-3 py-3"
       style={{ background: SHELL_BG, boxShadow: SHADOW }}
     >
-      <span className="grid h-14 w-14 place-items-center rounded-[4px] bg-[#4B4847]">
+      <span className="grid h-14 w-14 place-items-center rounded-[4px] bg-white/8">
         <LandingIcon src="/chesscom-icons/play-white.svg" alt="" className="h-8 w-8 opacity-35" />
       </span>
       <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-sans text-[1.05rem] font-bold text-white">{label}</span>
+        <span className="truncate font-sans text-[15px] font-medium text-white">{label}</span>
         {active ? (
           <span aria-hidden className="inline-flex gap-[3px]">
-            <span className="h-4 w-[8px] rounded-[2px] bg-[#B7B1A8]" />
-            <span className="h-4 w-[8px] rounded-[2px] bg-[#8B847B]" />
+            <span className="h-4 w-[8px] rounded-[2px] bg-white/70" />
+            <span className="h-4 w-[8px] rounded-[2px] bg-white/35" />
           </span>
         ) : null}
       </span>
@@ -199,14 +198,14 @@ function StateRow({
       style={{ background: CARD_BG, boxShadow: SHADOW }}
     >
       <div className="min-w-0 flex-1">
-        <div className="truncate font-sans text-[0.95rem] font-bold text-white">{label}</div>
-        <div className="truncate text-[0.82rem] text-white/64">{meta}</div>
+        <div className="truncate font-sans text-[13.5px] font-medium text-white">{label}</div>
+        <div className="truncate text-[12px] text-white/64">{meta}</div>
       </div>
       <button
         type="button"
         onClick={onAction}
         disabled={disabled}
-        className="cursor-pointer rounded-full bg-white px-4 py-2 text-[0.75rem] font-bold text-[#1f1d1a] disabled:opacity-45"
+        className="text-ink cursor-pointer rounded-full bg-white px-4 py-2 text-[11.5px] font-medium disabled:opacity-45"
       >
         {action}
       </button>
@@ -217,7 +216,7 @@ function StateRow({
 function EmptyHint({ lines }: { lines: string[] }) {
   return (
     <div
-      className="rounded-[8px] px-4 py-3 text-[0.92rem] leading-6 text-white/72"
+      className="rounded-[8px] px-4 py-3 text-[13px] leading-6 text-white/72"
       style={{ background: CARD_BG, boxShadow: SHADOW }}
     >
       {lines.map((line) => (

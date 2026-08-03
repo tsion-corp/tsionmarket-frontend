@@ -79,7 +79,7 @@ export function SwissCreateForm({ embedded = false, onCreated }: SwissCreateForm
   const chipClass = (active: boolean) =>
     `cursor-pointer rounded-lg border border-white/10 px-3.5 py-2 font-sans text-[13px] transition-colors ${
       active
-        ? "border-[#8B847B] bg-[#8B847B] text-white font-semibold"
+        ? "border-accent/45 bg-accent/12 font-semibold text-white"
         : "text-white hover:bg-white/6"
     }`;
 
@@ -183,7 +183,7 @@ export function SwissCreateForm({ embedded = false, onCreated }: SwissCreateForm
       <button
         onClick={() => void onCreate()}
         disabled={create.isPending}
-        className={`${CHESS_PRIMARY_BUTTON_CLASS} w-full p-3.5 font-sans text-[14px] font-bold`}
+        className={`${CHESS_PRIMARY_BUTTON_CLASS} w-full p-3.5 font-sans text-[14px] font-medium`}
       >
         {create.isPending ? t("creating") : t("submit")}
       </button>

@@ -75,7 +75,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
                 className="rounded-[18px] border border-white/8 px-5 py-5"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
-                <div className="mb-2 font-sans text-[1.15rem] leading-none font-extrabold tracking-[-0.03em] text-white">
+                <div className="mb-2 font-sans text-[16px] leading-none font-semibold tracking-[-0.03em] text-white">
                   {liveMatchLabel(match)}
                 </div>
                 <div className="mb-4 text-[13px] leading-6 text-white/62">
@@ -85,7 +85,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
                 <button
                   type="button"
                   onClick={() => onResume(match.id)}
-                  className={`${CHESS_PRIMARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[13px] font-bold`}
+                  className={`${CHESS_PRIMARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[13px] font-medium`}
                 >
                   Resume
                 </button>
@@ -97,7 +97,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
                 className="rounded-[18px] border border-white/8 px-5 py-5"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
-                <div className="mb-2 font-sans text-[1.15rem] leading-none font-extrabold tracking-[-0.03em] text-white">
+                <div className="mb-2 font-sans text-[16px] leading-none font-semibold tracking-[-0.03em] text-white">
                   {liveMatchLabel(match)}
                 </div>
                 <div className="mb-4 text-[13px] leading-6 text-white/62">
@@ -107,7 +107,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
                 <button
                   type="button"
                   onClick={() => onWatch(match.id)}
-                  className={`${CHESS_PRIMARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[13px] font-bold`}
+                  className={`${CHESS_PRIMARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[13px] font-medium`}
                 >
                   Watch
                 </button>

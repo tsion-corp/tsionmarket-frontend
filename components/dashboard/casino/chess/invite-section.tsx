@@ -111,7 +111,7 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       <button
         onClick={() => void onAccept()}
         disabled={accept.isPending || insufficient}
-        className="text-ink mb-2.5 block w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-bold transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
+        className="text-ink mb-2.5 block w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[14px] font-medium transition-transform hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-45"
       >
         {accept.isPending ? t("takingSeat") : t("accept")}
       </button>

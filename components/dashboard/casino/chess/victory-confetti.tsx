@@ -3,7 +3,8 @@
 import { useEffect, useRef } from "react";
 import confetti from "canvas-confetti";
 
-const COLORS = ["#d8d8dc", "#ffffff", "#a8a8ae", "#7CE7B0"];
+// Monochrome, like the rest of the brand.
+const COLORS = ["#ffffff", "#d8d8dc", "#a8a8ae", "#78787e"];
 
 // A short silver burst over the board; mounted only for the round the player
 // just won, unmounting cleans it up.

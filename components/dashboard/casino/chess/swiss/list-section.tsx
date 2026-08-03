@@ -49,7 +49,7 @@ function TournamentRow({ tournament }: { tournament: SwissSummary }) {
       </div>
       <div className="tnum font-normal text-white/50">{tournament.timeControl}</div>
       {tournament.state === "open" ? (
-        <span className="bg-up text-up-ink rounded-full py-1.5 text-center font-sans text-[12px] font-bold">
+        <span className="bg-up text-up-ink rounded-full py-1.5 text-center font-sans text-[12px] font-medium">
           {t("join")}
         </span>
       ) : (
@@ -100,7 +100,7 @@ export function SwissListSection() {
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
-          className="text-ink cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-bold transition-transform hover:-translate-y-0.5"
+          className="text-ink cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[13px] font-medium transition-transform hover:-translate-y-0.5"
         >
           {showCreate ? t("closeCreate") : t("createTitle")}
         </button>

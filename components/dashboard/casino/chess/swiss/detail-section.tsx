@@ -80,10 +80,10 @@ function ShellPlayerBar({
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={iconSrc} alt="" className="h-11 w-11 shrink-0 rounded-[4px] bg-[#4B4847] p-2.5" />
+      <img src={iconSrc} alt="" className="h-11 w-11 shrink-0 rounded-[4px] bg-white/8 p-2.5" />
       <div className="min-w-0">
-        <div className="truncate font-sans text-[0.96rem] font-bold text-white">{label}</div>
-        <div className="truncate text-[0.8rem] text-white/58">{meta}</div>
+        <div className="truncate font-sans text-[13.5px] font-medium text-white">{label}</div>
+        <div className="truncate text-[12px] text-white/58">{meta}</div>
       </div>
     </div>
   );
@@ -92,7 +92,7 @@ function ShellPlayerBar({
 function ShellBadge({ label }: { label: string }) {
   return (
     <div
-      className="tnum flex min-w-[118px] shrink-0 items-center justify-center rounded-[8px] px-3.5 py-2 text-center text-[0.95rem] font-semibold text-white/88"
+      className="tnum flex min-w-[118px] shrink-0 items-center justify-center rounded-[8px] px-3.5 py-2 text-center text-[13.5px] font-semibold text-white/88"
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
       {label}
@@ -113,7 +113,7 @@ function RailTabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`cursor-pointer px-4 py-4 text-center font-sans text-[1rem] font-semibold transition-colors ${
+      className={`cursor-pointer px-4 py-4 text-center font-sans text-[14px] font-semibold transition-colors ${
         active ? "border-b-4 border-white text-white" : "text-white/56 hover:text-white/82"
       }`}
     >
@@ -126,7 +126,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[12px] border border-white/6 bg-black/10 px-3 py-3">
       <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">{label}</div>
-      <div className="text-[0.95rem] font-semibold text-white">{value}</div>
+      <div className="text-[13.5px] font-semibold text-white">{value}</div>
     </div>
   );
 }
@@ -134,7 +134,7 @@ function SummaryStat({ label, value }: { label: string; value: string }) {
 function CompactMessage({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className="rounded-[16px] border border-white/6 px-4 py-4 text-[0.92rem] leading-6 text-white/62"
+      className="rounded-[16px] border border-white/6 px-4 py-4 text-[13px] leading-6 text-white/62"
       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
     >
       {children}
@@ -182,7 +182,7 @@ function JoinPanel({
       className="rounded-[16px] border border-white/6 px-4 py-4"
       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
     >
-      <div className="mb-3 text-[1.1rem] font-extrabold text-white">{t("joinTitle")}</div>
+      <div className="mb-3 text-[16px] font-semibold text-white">{t("joinTitle")}</div>
       <div className="space-y-3">
         <div>
           <div className="mb-2 text-[11px] tracking-[0.05em] text-white/38 uppercase">
@@ -218,7 +218,7 @@ function JoinPanel({
         type="button"
         onClick={() => void onJoin()}
         disabled={joining}
-        className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-4 w-full px-4 py-3 font-sans text-[13.5px] font-bold`}
+        className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-4 w-full px-4 py-3 font-sans text-[13.5px] font-medium`}
       >
         {joining ? t("joiningLabel") : t("joinSubmit")}
       </button>
@@ -260,10 +260,10 @@ function OrganizerPanel({
       className="rounded-[16px] border border-white/6 px-4 py-4"
       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
     >
-      <div className="mb-2 text-[1.1rem] font-extrabold text-white">{title}</div>
-      <div className="text-[0.9rem] leading-6 text-white/60">{description}</div>
+      <div className="mb-2 text-[16px] font-semibold text-white">{title}</div>
+      <div className="text-[13px] leading-6 text-white/60">{description}</div>
       {state === "open" ? (
-        <div className="mt-3 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[0.9rem] text-white/68">
+        <div className="mt-3 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[13px] text-white/68">
           {participantCount >= 2
             ? `${participantCount} players are ready. Click Start round 1 now.`
             : "At least 2 players must join before round 1 can start."}
@@ -285,7 +285,7 @@ function OrganizerPanel({
         type="button"
         onClick={() => void onStartRound()}
         disabled={startingRound}
-        className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-4 w-full px-4 py-3 font-sans text-[13px] font-bold`}
+        className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-4 w-full px-4 py-3 font-sans text-[13px] font-medium`}
       >
         {startingRound ? t("startingRound") : ctaLabel}
       </button>
@@ -322,7 +322,7 @@ function ShareCard({
       style={
         overlay
           ? {
-              background: "#2A2724",
+              background: CHESS_SHELL_BG,
               boxShadow: "0 28px 72px rgba(0,0,0,0.58), inset 0 1px 0 rgba(255,255,255,0.06)",
             }
           : { background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }
@@ -335,7 +335,7 @@ function ShareCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/chesscom-icons/tournaments.svg" alt="" className="h-12 w-12 shrink-0" />
           <div className="min-w-0">
-            <div className="truncate font-sans text-[1.18rem] font-extrabold tracking-[-0.03em] text-white">
+            <div className="truncate font-sans text-[17px] font-semibold tracking-[-0.03em] text-white">
               {title}
             </div>
             <div className="mt-1 text-[13px] leading-6 text-white/60">
@@ -364,7 +364,7 @@ function ShareCard({
         <button
           type="button"
           onClick={() => void onCopy()}
-          className={`${CHESS_PRIMARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[13px] font-bold`}
+          className={`${CHESS_PRIMARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[13px] font-medium`}
         >
           Copy
         </button>
@@ -396,8 +396,8 @@ function InfoPanel({
         className="rounded-[16px] border border-white/6 px-4 py-4"
         style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
       >
-        <div className="mb-3 text-[1.1rem] font-extrabold text-white">Tournament Info</div>
-        <div className="space-y-3 text-[0.92rem] leading-6 text-white/66">
+        <div className="mb-3 text-[16px] font-semibold text-white">Tournament Info</div>
+        <div className="space-y-3 text-[13px] leading-6 text-white/66">
           <div>{headerLine(t, detail)}</div>
           {detail.state === "finished" && detail.winner ? (
             <div className="font-semibold text-white">{t("winner", { name: detail.winner })}</div>
@@ -613,29 +613,29 @@ export function SwissDetailSection({
         >
           <div className="grid grid-cols-4 border-b border-white/6 bg-black/10">
             <div className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white">
-              <span className="mb-2 block text-[1.1rem] font-bold">T</span>
-              <span className="font-sans text-[0.98rem] font-semibold">Tournament</span>
+              <span className="mb-2 block text-[16px] font-medium">T</span>
+              <span className="font-sans text-[14px] font-semibold">Tournament</span>
             </div>
             <Link
               href="/casino/chess/create"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">+</span>
-              <span className="font-sans text-[0.98rem] font-semibold">New Game</span>
+              <span className="mb-2 block text-[16px] font-medium">+</span>
+              <span className="font-sans text-[14px] font-semibold">New Game</span>
             </Link>
             <Link
               href="/casino/chess/history"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">#</span>
-              <span className="font-sans text-[0.98rem] font-semibold">Games</span>
+              <span className="mb-2 block text-[16px] font-medium">#</span>
+              <span className="font-sans text-[14px] font-semibold">Games</span>
             </Link>
             <Link
               href="/casino/chess"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">U</span>
-              <span className="font-sans text-[0.98rem] font-semibold">Players</span>
+              <span className="mb-2 block text-[16px] font-medium">U</span>
+              <span className="font-sans text-[14px] font-semibold">Players</span>
             </Link>
           </div>
 
@@ -646,10 +646,8 @@ export function SwissDetailSection({
             >
               <div className="mb-1 flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="truncate text-[1.35rem] font-extrabold text-white">
-                    {detail.name}
-                  </div>
-                  <div className="mt-1 text-[0.88rem] leading-6 text-white/58">
+                  <div className="truncate text-[19px] font-semibold text-white">{detail.name}</div>
+                  <div className="mt-1 text-[12.5px] leading-6 text-white/58">
                     {headerLine(t, detail)}
                   </div>
                 </div>
@@ -666,7 +664,7 @@ export function SwissDetailSection({
               </div>
 
               {detail.state === "finished" && detail.winner ? (
-                <div className="mt-4 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[0.95rem] font-semibold text-white">
+                <div className="mt-4 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[13.5px] font-semibold text-white">
                   {t("winner", { name: detail.winner })}
                 </div>
               ) : null}
@@ -695,10 +693,10 @@ export function SwissDetailSection({
                   style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                 >
                   <div className="min-w-0">
-                    <div className="text-[1rem] font-bold text-white">
+                    <div className="text-[14px] font-medium text-white">
                       Round {yourPairing.round}, board {yourPairing.board} is live
                     </div>
-                    <div className="mt-1 text-[0.92rem] leading-6 text-white/62">
+                    <div className="mt-1 text-[13px] leading-6 text-white/62">
                       {opponentName
                         ? `You are paired against ${opponentName}.`
                         : "Your board is ready."}{" "}
@@ -707,7 +705,7 @@ export function SwissDetailSection({
                   </div>
                   <Link
                     href={`/casino/chess/play?match=${yourPairing.matchId}&player=${encodeURIComponent(yourName ?? "")}`}
-                    className={`${CHESS_PRIMARY_BUTTON_CLASS} shrink-0 px-4 py-2.5 font-sans text-[13px] font-bold`}
+                    className={`${CHESS_PRIMARY_BUTTON_CLASS} shrink-0 px-4 py-2.5 font-sans text-[13px] font-medium`}
                   >
                     Play now
                   </Link>
@@ -793,7 +791,7 @@ export function SwissDetailSection({
                         className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-white/6 px-4 py-4"
                         style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                       >
-                        <div className="text-[0.94rem] text-white/70">
+                        <div className="text-[13px] text-white/70">
                           {t("youPlayAs", { name: yourName as string })}
                         </div>
                         <button

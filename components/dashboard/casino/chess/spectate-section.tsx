@@ -60,16 +60,16 @@ function PlayerStrip({
         className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
         style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
       >
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[0.96rem] font-bold text-white/30">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/8 font-sans text-[13.5px] font-medium text-white/30">
           P
         </span>
         <div className="min-w-0">
-          <div className="truncate font-sans text-[0.96rem] font-bold text-white">{label}</div>
+          <div className="truncate font-sans text-[13.5px] font-medium text-white">{label}</div>
           <CapturedRow pieces={pieces} lead={lead} color={color} />
         </div>
       </div>
       <div
-        className="tnum flex min-w-[108px] shrink-0 items-center justify-center rounded-[8px] px-3.5 py-2 text-[1rem] font-semibold text-white/88"
+        className="tnum flex min-w-[108px] shrink-0 items-center justify-center rounded-[8px] px-3.5 py-2 text-[14px] font-semibold text-white/88"
         style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
       >
         {clock}
@@ -244,8 +244,8 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
               className="rounded-[16px] border border-white/6 px-4 py-4"
               style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
             >
-              <div className="mb-1 text-[1.2rem] font-extrabold text-white">{t("liveMarket")}</div>
-              <div className="text-[0.92rem] leading-6 text-white/60">
+              <div className="mb-1 text-[17px] font-semibold text-white">{t("liveMarket")}</div>
+              <div className="text-[13px] leading-6 text-white/60">
                 Watching is free. Betting here uses your chess balance, not the Base wallet
                 directly.
               </div>
@@ -287,7 +287,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                           disabled={!marketOpen || isPlayer}
                           className={`cursor-pointer rounded-[10px] border py-2.5 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
                             active
-                              ? "border-[#B7B1A8] bg-[#8B847B] text-white shadow-[0_0_0_1px_rgba(183,177,168,0.35)]"
+                              ? "border-accent/45 bg-accent/12 text-white"
                               : won
                                 ? "border-up/50 bg-up/10 text-white"
                                 : "border-white/10 bg-white/4 text-white hover:border-white/25"
@@ -312,7 +312,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                     </div>
                     <div className="flex h-[7px] overflow-hidden rounded-[4px] bg-white/10">
                       <div
-                        className="h-full bg-[#B7B1A8] transition-[width] duration-500"
+                        className="h-full bg-white/70 transition-[width] duration-500"
                         style={{ width: `${impliedProbability(odds, "white")}%` }}
                       />
                     </div>
@@ -341,7 +341,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                         <button
                           onClick={() => void onPlaceBet()}
                           disabled={!canBet}
-                          className={`${CHESS_PRIMARY_BUTTON_CLASS} rounded-lg px-4 font-sans text-[12px] font-bold`}
+                          className={`${CHESS_PRIMARY_BUTTON_CLASS} rounded-lg px-4 font-sans text-[12px] font-medium`}
                         >
                           {placeBet.isPending ? "…" : t("placeBet")}
                         </button>

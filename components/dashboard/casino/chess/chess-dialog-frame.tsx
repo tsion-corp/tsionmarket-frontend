@@ -54,7 +54,7 @@ export function ChessDialogFrame({
           <div className="flex min-w-0 items-center gap-4">
             <DialogIcon src={iconSrc} />
             <div className="min-w-0">
-              <div className="truncate font-sans text-[2rem] font-extrabold tracking-[-0.04em] text-white">
+              <div className="truncate font-sans text-[25px] font-semibold tracking-[-0.04em] text-white">
                 {title}
               </div>
             </div>
@@ -71,7 +71,7 @@ export function ChessDialogFrame({
                 onClick={tab.onClick}
                 className={`cursor-pointer rounded-full px-4 py-2 font-sans text-[13px] font-semibold transition-colors ${
                   tab.active
-                    ? "bg-[#8B847B] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                    ? "bg-white/12 text-white"
                     : "border border-white/12 bg-white/4 text-white/75 hover:border-white/24 hover:bg-white/8 hover:text-white"
                 }`}
               >

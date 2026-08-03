@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { WagerSummary } from "@/components/dashboard/casino/chess/wager-summary";
-import { ChevronLeftIcon, ClockIcon, GridIcon, SettingsIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, GridIcon, SettingsIcon } from "@/components/ui/icons";
 import { useCreateChallenge } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
@@ -39,7 +39,6 @@ const LANDING_BOARD = initialBoard();
 const CREATE_TIME_GROUPS = [
   {
     title: "Game Clock",
-    tone: "#B7B1A8",
     options: [
       { value: "5+0", label: "5 min" },
       { value: "10+0", label: "10 min" },
@@ -48,7 +47,6 @@ const CREATE_TIME_GROUPS = [
   },
 ] as const satisfies readonly {
   title: string;
-  tone: string;
   options: readonly { value: ChessTimeControl; label: string }[];
 }[];
 
@@ -120,40 +118,6 @@ function TabIcon({
   );
 }
 
-function SpeedIcon({ tone }: { tone: string }) {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden>
-      <path
-        d="M8.8 1.7 3.7 8h3L5.8 14.3 11.8 7.4H8.9l-.1-5.7Z"
-        fill={tone}
-        stroke={tone}
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function CaretIcon({ open = false }: { open?: boolean }) {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 20 20"
-      fill="none"
-      className={open ? "rotate-180" : undefined}
-      aria-hidden
-    >
-      <path
-        d="m5 7.5 5 5 5-5"
-        stroke="currentColor"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function UsersIcon({ className = "text-white/70" }: { className?: string }) {
   return (
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
@@ -176,40 +140,21 @@ function UsersIcon({ className = "text-white/70" }: { className?: string }) {
   );
 }
 
-function LandingIcon({
-  src,
-  alt,
-  className = "h-10 w-10",
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-}) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} className={className} />
-  );
-}
-
 function PlayerBar({ label, active = false }: { label: string; active?: boolean }) {
   return (
     <div
       className="flex min-w-0 items-center gap-4 rounded-[8px] px-3 py-3"
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847]">
-        <LandingIcon
-          src="/chesscom-icons/play-white.svg"
-          alt=""
-          className="h-6.5 w-6.5 opacity-35"
-        />
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-white/8 text-white/45">
+        <UsersIcon className="h-[18px] w-[18px]" />
       </span>
       <span className="flex min-w-0 items-center gap-2">
-        <span className="truncate font-sans text-[0.96rem] font-bold text-white">{label}</span>
+        <span className="truncate text-[14px] font-medium text-white">{label}</span>
         {active ? (
           <span aria-hidden className="inline-flex gap-[3px]">
-            <span className="h-4 w-[8px] rounded-[2px] bg-[#B7B1A8]" />
-            <span className="h-4 w-[8px] rounded-[2px] bg-[#8B847B]" />
+            <span className="h-3.5 w-[7px] rounded-[2px] bg-white/70" />
+            <span className="h-3.5 w-[7px] rounded-[2px] bg-white/35" />
           </span>
         ) : null}
       </span>
@@ -220,7 +165,7 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
 function ClockBadge({ label }: { label: string }) {
   return (
     <div
-      className="flex min-w-[108px] items-center justify-center rounded-[8px] px-3.5 py-2 text-[0.96rem] font-semibold text-white/88"
+      className="flex min-w-[108px] items-center justify-center rounded-[8px] px-3.5 py-2 text-[13px] font-medium text-white/80"
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
       {label}
@@ -246,7 +191,7 @@ function RailTab({
   const content = (
     <>
       <span className="mb-2 block">{icon}</span>
-      <span className="font-sans text-[0.98rem] font-semibold">{label}</span>
+      <span className="text-[13px] font-medium">{label}</span>
     </>
   );
 
@@ -258,36 +203,20 @@ function RailTab({
   );
 }
 
-function FieldRow({
-  label,
-  value,
-  icon,
-  accent,
-  open = false,
-}: {
-  label: string;
-  value: string;
-  icon: ReactNode;
-  accent?: string;
-  open?: boolean;
-}) {
+// A settled fact about the game being created, not a control. These carried a
+// caret and read as dropdowns, but nothing opened: this screen always creates an
+// invite ("Play a Friend" — matchmaking is its own flow), and the service has no
+// variant concept, so there is nothing to pick in either case. The caret is gone
+// rather than wired to an empty menu.
+function InfoRow({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
   return (
     <div>
-      <div className="mb-2 text-[0.96rem] font-extrabold text-white/88">{label}</div>
-      <div
-        className="flex items-center gap-3 rounded-[16px] border border-white/6 px-5 py-4 text-white"
-        style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
-      >
-        <span
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full"
-          style={{ color: accent ?? "rgba(255,255,255,0.75)" }}
-        >
-          {icon}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[1.06rem] font-extrabold">{value}</span>
-        <span className="text-white/58">
-          <CaretIcon open={open} />
-        </span>
+      <div className="mb-1.5 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
+        {label}
+      </div>
+      <div className="flex items-center gap-2.5 rounded-[14px] border border-white/8 bg-white/4 px-3.5 py-3">
+        <span className="grid h-7 w-7 shrink-0 place-items-center text-white/55">{icon}</span>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-white">{value}</span>
       </div>
     </div>
   );
@@ -315,8 +244,8 @@ function StakeCard({
   const chipClass = (active: boolean) =>
     `cursor-pointer rounded-[12px] border px-3.5 py-2 font-sans text-[13px] transition-colors ${
       active
-        ? "border-[#B7B1A8] bg-[#4A4641] font-semibold text-white"
-        : "border-white/10 bg-black/8 text-white/80 hover:border-white/25"
+        ? "border-accent/45 bg-accent/12 text-white"
+        : "border-white/10 bg-white/4 text-white/60 hover:bg-white/8 hover:text-white"
     }`;
 
   return (
@@ -324,7 +253,9 @@ function StakeCard({
       className="rounded-[16px] border border-white/6 px-4 py-4"
       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
     >
-      <div className="mb-3 text-[0.96rem] font-extrabold text-white/88">{tStake("label")}</div>
+      <div className="mb-2 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
+        {tStake("label")}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         {STAKE_CHIPS.map((v) => (
           <button
@@ -470,66 +401,56 @@ export function CreateSection() {
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
-            <div className="mb-6 flex items-center justify-between gap-3">
+            {/* Back sits on its own line above the title: the two shared a row,
+                which centred a title that is not centred anywhere else in the
+                app and left a settings button that opened nothing. */}
+            <div className="mb-5">
               <Link
                 href="/casino/chess"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white/70 transition-colors hover:bg-white/6 hover:text-white"
-                aria-label="Back to chess lobby"
+                className="mb-3 inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-normal text-white/60 transition-colors hover:text-white"
               >
-                <ChevronLeftIcon size={24} />
+                <ChevronLeftIcon size={14} />
+                Back
               </Link>
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[12px] bg-[#8D6A26]/22 text-[#D9B15B]">
-                  <GridIcon size={22} />
-                </span>
-                <div className="min-w-0">
-                  <div className="truncate font-sans text-[1.9rem] font-extrabold tracking-[-0.05em] text-white">
-                    Challenge Link
-                  </div>
-                  <div className="text-[0.92rem] text-white/52">Play a Friend</div>
-                </div>
+              <div className="ws-display text-[24px] tracking-[-0.01em] text-white">
+                Challenge link
               </div>
-              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-white/50">
-                <SettingsIcon size={19} />
-              </span>
+              <p className="mt-1 text-[13.5px] leading-normal font-normal text-white/55">
+                Pick a clock, create the game, and send the link to whoever you want to play.
+              </p>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
-              <FieldRow
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              <InfoRow
                 label="Opponent"
                 value="Challenge link"
-                icon={<UsersIcon className="text-white/72" />}
+                icon={<UsersIcon className="h-[18px] w-[18px]" />}
               />
-              <FieldRow
-                label="Game Type"
-                value="Standard"
-                icon={<GridIcon size={22} className="text-white/72" />}
-              />
-              <FieldRow
-                label="Time Control"
-                value={selectedTime.panelLabel}
-                icon={<ClockIcon size={22} className="text-[#B7B1A8]" />}
-                accent="#B7B1A8"
-                open
-              />
+              <InfoRow label="Game Type" value="Standard" icon={<GridIcon size={18} />} />
 
+              {/* Time control: the buttons are the control, so the selection is
+                  summarised in the label rather than in a row that opens nothing. */}
               {CREATE_TIME_GROUPS.map((group) => (
                 <div key={group.title}>
-                  <div className="mb-3 flex items-center gap-2 text-[0.95rem] font-extrabold text-white/92">
-                    <SpeedIcon tone={group.tone} />
-                    <span>{group.title}</span>
+                  <div className="mb-1.5 flex items-baseline justify-between gap-2">
+                    <span className="text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
+                      {group.title}
+                    </span>
+                    <span className="text-[12px] font-normal text-white/45">
+                      {selectedTime.panelLabel}
+                    </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-3 gap-2">
                     {group.options.map((option) => {
                       const active = timeControl === option.value;
                       return (
                         <button
                           key={option.value}
                           onClick={() => setTimeControl(option.value)}
-                          className={`cursor-pointer rounded-[12px] border px-3 py-3 text-center font-sans text-[1rem] font-extrabold transition-colors ${
+                          className={`cursor-pointer rounded-[12px] border px-3 py-2.5 text-center text-[13px] font-medium transition-colors ${
                             active
-                              ? "border-[#B7B1A8] bg-[#3F3D37] text-white shadow-[0_0_0_1px_rgba(183,177,168,0.35)]"
-                              : "border-white/6 bg-[#3A3833] text-white/82 hover:border-white/18 hover:text-white"
+                              ? "border-accent/45 bg-accent/12 text-white"
+                              : "border-white/10 bg-white/4 text-white/60 hover:bg-white/8 hover:text-white"
                           }`}
                         >
                           {option.label}
@@ -555,7 +476,7 @@ export function CreateSection() {
 
               <ChessCashierLauncher compact />
 
-              <div className="rounded-[16px] border border-white/6 px-4 py-4 text-[0.92rem] leading-6 text-white/60">
+              <div className="rounded-[14px] border border-white/8 bg-white/4 px-3.5 py-3 text-[13px] leading-relaxed font-normal text-white/55">
                 After you create the game, we open the waiting board, copy the challenge link, and
                 show a copy button there again. Send that link manually for now, the first person
                 who opens it takes the other side.
@@ -566,11 +487,11 @@ export function CreateSection() {
               <button
                 onClick={() => void onCreate()}
                 disabled={create.isPending || stakeOverBalance}
-                className={`${CHESS_PRIMARY_BUTTON_CLASS} w-full rounded-[16px] px-4 py-4 font-sans text-[1.06rem] font-extrabold`}
+                className={`${CHESS_PRIMARY_BUTTON_CLASS} w-full rounded-[14px] px-4 py-3.5 text-[14px] font-semibold`}
               >
                 {create.isPending ? t("creating") : t("submitInvite")}
               </button>
-              <div className="mt-2 text-center text-[0.82rem] text-white/42">
+              <div className="mt-2 text-center text-[12px] font-normal text-white/45">
                 The link is copied right after creation, and you can copy it again from the waiting
                 board.
               </div>

@@ -193,13 +193,13 @@ function NoteEditor({
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder={placeholder}
-        className="min-h-[110px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[0.94rem] text-white outline-none placeholder:text-white/28"
+        className="min-h-[110px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[13px] text-white outline-none placeholder:text-white/28"
       />
       <div className="mt-3 flex justify-end">
         <button
           onClick={() => void onSave(value)}
           disabled={saving}
-          className="cursor-pointer rounded-full bg-[#8B847B] px-4 py-2 font-sans text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+          className="cursor-pointer rounded-full border border-white/12 bg-white/6 px-4 py-2 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? savingLabel : saveLabel}
         </button>
@@ -232,13 +232,13 @@ function CommentEditor({
         value={value}
         onChange={(event) => setValue(event.target.value)}
         placeholder={placeholder}
-        className="min-h-[84px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[0.94rem] text-white outline-none placeholder:text-white/28"
+        className="min-h-[84px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[13px] text-white outline-none placeholder:text-white/28"
       />
       <div className="flex justify-end">
         <button
           onClick={() => void onSave(value)}
           disabled={saving || value.trim().length === 0}
-          className="cursor-pointer rounded-full bg-[#8B847B] px-4 py-2 font-sans text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+          className="cursor-pointer rounded-full border border-white/12 bg-white/6 px-4 py-2 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {saving ? savingLabel : saveLabel}
         </button>
@@ -765,11 +765,11 @@ export function PlaySection({
                 className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[0.96rem] font-bold text-white/30">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/8 font-sans text-[13.5px] font-medium text-white/30">
                   P
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate font-sans text-[0.96rem] font-bold text-white">
+                  <div className="truncate font-sans text-[13.5px] font-medium text-white">
                     {opponentDisplayName}
                   </div>
                   <CapturedRow
@@ -780,7 +780,7 @@ export function PlaySection({
                 </div>
               </div>
               <div
-                className="tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[1rem] font-semibold text-white/88"
+                className="tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[14px] font-semibold text-white/88"
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
                 <ClockIcon />
@@ -839,11 +839,11 @@ export function PlaySection({
                 className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[0.96rem] font-bold text-white/30">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/8 font-sans text-[13.5px] font-medium text-white/30">
                   P
                 </span>
                 <div className="min-w-0">
-                  <div className="truncate font-sans text-[0.96rem] font-bold text-white">
+                  <div className="truncate font-sans text-[13.5px] font-medium text-white">
                     {selfDisplayName}
                   </div>
                   <CapturedRow
@@ -854,8 +854,8 @@ export function PlaySection({
                 </div>
               </div>
               <div
-                className={`tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[1rem] font-semibold ${
-                  yourTurn ? "border border-[#B7B1A8]/45 text-white" : "text-white/88"
+                className={`tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[14px] font-semibold ${
+                  yourTurn ? "border border-white/35 text-white" : "text-white/88"
                 }`}
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
@@ -886,29 +886,29 @@ export function PlaySection({
         >
           <div className="grid grid-cols-4 border-b border-white/6 bg-black/10">
             <div className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white">
-              <span className="mb-2 block text-[1.1rem] font-bold">P</span>
-              <span className="font-sans text-[0.98rem] font-semibold">{t("navPlay")}</span>
+              <span className="mb-2 block text-[16px] font-medium">P</span>
+              <span className="font-sans text-[14px] font-semibold">{t("navPlay")}</span>
             </div>
             <Link
               href="/casino/chess/create"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">+</span>
-              <span className="font-sans text-[0.98rem] font-semibold">{t("navNewGame")}</span>
+              <span className="mb-2 block text-[16px] font-medium">+</span>
+              <span className="font-sans text-[14px] font-semibold">{t("navNewGame")}</span>
             </Link>
             <Link
               href="/casino/chess/history"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">#</span>
-              <span className="font-sans text-[0.98rem] font-semibold">{t("navGames")}</span>
+              <span className="mb-2 block text-[16px] font-medium">#</span>
+              <span className="font-sans text-[14px] font-semibold">{t("navGames")}</span>
             </Link>
             <Link
               href="/casino/chess"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <span className="mb-2 block text-[1.1rem] font-bold">U</span>
-              <span className="font-sans text-[0.98rem] font-semibold">{t("navPlayers")}</span>
+              <span className="mb-2 block text-[16px] font-medium">U</span>
+              <span className="font-sans text-[14px] font-semibold">{t("navPlayers")}</span>
             </Link>
           </div>
 
@@ -921,7 +921,7 @@ export function PlaySection({
                 <button
                   key={tab}
                   onClick={() => setRailTab(tab)}
-                  className={`cursor-pointer px-4 py-4 text-center font-sans text-[1rem] font-semibold transition-colors ${
+                  className={`cursor-pointer px-4 py-4 text-center font-sans text-[14px] font-semibold transition-colors ${
                     active
                       ? "border-b-4 border-white text-white"
                       : "text-white/56 hover:text-white/82"
@@ -942,10 +942,10 @@ export function PlaySection({
                       className="rounded-[16px] border border-white/6 px-4 py-4"
                       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                     >
-                      <div className="mb-1 text-[1.2rem] font-extrabold text-white">
+                      <div className="mb-1 text-[17px] font-semibold text-white">
                         {t("challengeLink")}
                       </div>
-                      <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                      <div className="mb-3 text-[13px] leading-6 text-white/60">
                         {tCreate("inviteReady")}
                       </div>
                       <div className="flex items-center gap-2">
@@ -958,7 +958,7 @@ export function PlaySection({
                             const copied = await copyText(inviteUrl);
                             if (copied) toast.success(tCreate("linkCopied"));
                           }}
-                          className="cursor-pointer rounded-[12px] bg-[#8B847B] px-4 py-3 font-sans text-[12px] font-bold text-white"
+                          className="cursor-pointer rounded-[12px] border border-white/12 bg-white/6 px-4 py-3 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12"
                         >
                           {tCreate("copy")}
                         </button>
@@ -972,12 +972,12 @@ export function PlaySection({
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="text-[1.2rem] font-extrabold text-white">
+                      <div className="text-[17px] font-semibold text-white">
                         {waiting ? t("startGame") : t("movesTitle")}
                       </div>
                       <div className="text-[12px] text-white/46">{turnLabel}</div>
                     </div>
-                    <div className="space-y-2 text-[0.98rem] text-white/78">
+                    <div className="space-y-2 text-[14px] text-white/78">
                       {moveRows.map((row) => (
                         <div
                           key={row}
@@ -994,25 +994,23 @@ export function PlaySection({
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-1 flex items-center justify-between gap-3">
-                      <div className="text-[1.2rem] font-extrabold text-white">
-                        {t("engineTitle")}
-                      </div>
+                      <div className="text-[17px] font-semibold text-white">{t("engineTitle")}</div>
                       <div className="text-[12px] text-white/46">
                         {engine.depth !== null
                           ? t("engineDepth", { depth: engine.depth })
                           : engine.label}
                       </div>
                     </div>
-                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                    <div className="mb-3 text-[13px] leading-6 text-white/60">
                       {t("engineAbout")}
                     </div>
 
                     {engine.status === "unsupported" ? (
-                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/62">
                         {t("engineUnsupported")}
                       </div>
                     ) : engine.status === "error" ? (
-                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/62">
                         {engine.error ?? t("engineFailed")}
                       </div>
                     ) : (
@@ -1022,7 +1020,7 @@ export function PlaySection({
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
                               {t("engineScore")}
                             </div>
-                            <div className="tnum text-[1rem] font-semibold text-white">
+                            <div className="tnum text-[14px] font-semibold text-white">
                               {formatEngineScore(engine.scoreCp, engine.scoreMate)}
                             </div>
                           </div>
@@ -1030,7 +1028,7 @@ export function PlaySection({
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
                               {t("engineBestMove")}
                             </div>
-                            <div className="tnum text-[1rem] font-semibold text-white">
+                            <div className="tnum text-[14px] font-semibold text-white">
                               {engineBestMoveSan ?? "…"}
                             </div>
                           </div>
@@ -1038,7 +1036,7 @@ export function PlaySection({
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
                               {t("engineStatus")}
                             </div>
-                            <div className="text-[1rem] font-semibold text-white">
+                            <div className="text-[14px] font-semibold text-white">
                               {engine.status === "loading"
                                 ? t("engineLoading")
                                 : engine.status === "analyzing"
@@ -1051,7 +1049,7 @@ export function PlaySection({
                           <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
                             {t("enginePv")}
                           </div>
-                          <div className="tnum text-[0.92rem] leading-6 break-words text-white/72">
+                          <div className="tnum text-[13px] leading-6 break-words text-white/72">
                             {enginePvSan.length > 0 ? enginePvSan.join(" ") : t("enginePvWaiting")}
                           </div>
                         </div>
@@ -1066,9 +1064,7 @@ export function PlaySection({
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="text-[1.2rem] font-extrabold text-white">
-                        {t("chatTitle")}
-                      </div>
+                      <div className="text-[17px] font-semibold text-white">{t("chatTitle")}</div>
                       {canUsePlayerChat ? (
                         <div className="flex gap-2">
                           {(["spectator", "player"] as const).map((room) => {
@@ -1090,7 +1086,7 @@ export function PlaySection({
                         </div>
                       ) : null}
                     </div>
-                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                    <div className="mb-3 text-[13px] leading-6 text-white/60">
                       {waiting
                         ? t("chatWaiting")
                         : activeChatRoom === "player"
@@ -1099,11 +1095,11 @@ export function PlaySection({
                     </div>
                     <div className="space-y-2">
                       {chatLoading ? (
-                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                           {t("chatLoading")}
                         </div>
                       ) : chatMessages.length === 0 ? (
-                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                           {activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")}
                         </div>
                       ) : (
@@ -1126,16 +1122,14 @@ export function PlaySection({
                               </span>
                               <span className="shrink-0">{formatShortTime(line.createdAt)}</span>
                             </div>
-                            <div className="text-[0.94rem] leading-6 text-white/78">
-                              {line.text}
-                            </div>
+                            <div className="text-[13px] leading-6 text-white/78">{line.text}</div>
                           </div>
                         ))
                       )}
                     </div>
                     <div className="mt-4 space-y-2">
                       {!canWriteChat ? (
-                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                           {t("chatLogin")}
                         </div>
                       ) : (
@@ -1154,13 +1148,13 @@ export function PlaySection({
                                 ? t("chatPlaceholderPlayer")
                                 : t("chatPlaceholderSpectator")
                             }
-                            className="min-h-[84px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[0.94rem] text-white outline-none placeholder:text-white/28"
+                            className="min-h-[84px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[13px] text-white outline-none placeholder:text-white/28"
                           />
                           <div className="flex justify-end">
                             <button
                               onClick={() => void onPostChat()}
                               disabled={postingChat || chatDraft.trim().length === 0}
-                              className="cursor-pointer rounded-full bg-[#8B847B] px-4 py-2 font-sans text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                              className="cursor-pointer rounded-full border border-white/12 bg-white/6 px-4 py-2 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               {postingChat ? t("chatSending") : t("chatSend")}
                             </button>
@@ -1176,7 +1170,7 @@ export function PlaySection({
                     className="space-y-3 rounded-[16px] border border-white/6 px-4 py-4"
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
-                    <div className="text-[1.2rem] font-extrabold text-white">{t("infoTitle")}</div>
+                    <div className="text-[17px] font-semibold text-white">{t("infoTitle")}</div>
                     <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
                       <span className="text-white/55">{t("infoStatus")}</span>
                       <span className="text-white">{turnLabel}</span>
@@ -1204,14 +1198,12 @@ export function PlaySection({
                     className="rounded-[16px] border border-white/6 px-4 py-4"
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
-                    <div className="mb-2 text-[1.2rem] font-extrabold text-white">
+                    <div className="mb-2 text-[17px] font-semibold text-white">
                       {t("noteTitle")}
                     </div>
-                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
-                      {t("noteHint")}
-                    </div>
+                    <div className="mb-3 text-[13px] leading-6 text-white/60">{t("noteHint")}</div>
                     {!wallet.address ? (
-                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                         {t("noteLogin")}
                       </div>
                     ) : (
@@ -1232,21 +1224,21 @@ export function PlaySection({
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-2 flex items-center justify-between gap-3">
-                      <div className="text-[1.2rem] font-extrabold text-white">
+                      <div className="text-[17px] font-semibold text-white">
                         {t("commentTitle")}
                       </div>
                       <div className="text-[12px] text-white/46">{currentPositionLabel}</div>
                     </div>
-                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                    <div className="mb-3 text-[13px] leading-6 text-white/60">
                       {t("commentHint")}
                     </div>
                     <div className="space-y-2">
                       {commentsLoading ? (
-                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                           {t("commentLoading")}
                         </div>
                       ) : sortedComments.length === 0 ? (
-                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                           {t("commentEmpty")}
                         </div>
                       ) : (
@@ -1274,7 +1266,7 @@ export function PlaySection({
                                   {formatShortTime(comment.updatedAt)}
                                 </span>
                               </div>
-                              <div className="text-[0.94rem] leading-6 text-white/78">
+                              <div className="text-[13px] leading-6 text-white/78">
                                 {comment.text}
                               </div>
                               {own ? (
@@ -1304,7 +1296,7 @@ export function PlaySection({
                         onSave={onSaveComment}
                       />
                     ) : (
-                      <div className="mt-4 rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                      <div className="mt-4 rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                         {t("commentPlayerOnly")}
                       </div>
                     )}
@@ -1438,7 +1430,7 @@ export function PlaySection({
             {you !== null && rematchReadyId ? (
               <button
                 onClick={() => router.push(`/casino/chess/play?match=${rematchReadyId}`)}
-                className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold"
+                className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-medium"
               >
                 {t("openRematch")}
               </button>
@@ -1451,7 +1443,7 @@ export function PlaySection({
                 <button
                   onClick={() => void onAcceptRematch()}
                   disabled={requestingRematch}
-                  className="text-ink mt-2.5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-medium disabled:opacity-50"
                 >
                   {requestingRematch ? t("joining") : t("acceptRematch")}
                 </button>
@@ -1482,7 +1474,7 @@ export function PlaySection({
               <button
                 onClick={() => void onRematch()}
                 disabled={requestingRematch}
-                className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
+                className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-medium disabled:opacity-50"
               >
                 {requestingRematch ? t("opening") : t("rematch")}
               </button>
