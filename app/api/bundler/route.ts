@@ -1,13 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 
-// Server-side proxy for Alchemy's Base bundler/Gas Manager. Keeps the Alchemy
-// key and the gas-sponsorship policy id off the client: the client only ever
-// posts JSON-RPC bodies here, and this route stamps them with the real
-// endpoint and policy header. Used for the EIP-7702 sponsored transaction flow
-// (see lib/trade/base-sponsor.ts) so Base transactions (RWA buys/sells, vault
-// wagers) never need the wallet to hold ETH.
-const ALCHEMY_URL = `https://base-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`;
+// Server-side proxy for Alchemy's bundler/Gas Manager. Keeps the Alchemy key
+// and the gas-sponsorship policy id off the client: the client only ever posts
+// JSON-RPC bodies here, and this route stamps them with the real endpoint and
+// policy header. Used for the EIP-7702 sponsored transaction flow (see
+// lib/trade/sponsor.ts) so transactions never need the wallet to hold gas.
+//
+// One Gas Manager policy covers every chain listed here, so a new chain is a
+// line in this map rather than a second policy.
+const ALCHEMY_HOST: Record<string, string> = {
+  base: "base-mainnet",
+  polygon: "polygon-mainnet",
+};
+
 const POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 
 // Every JSON-RPC method this flow's viem bundler/public client can call. Kept
@@ -38,6 +44,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Defaults to Base so an older client that posts without a chain keeps
+  // working through a deploy.
+  const chain = req.nextUrl.searchParams.get("chain") ?? "base";
+  const host = ALCHEMY_HOST[chain];
+  if (!host) {
+    return NextResponse.json({ error: "Unsupported chain" }, { status: 404 });
+  }
+
   const body = await req.json().catch(() => null);
   const calls = Array.isArray(body) ? body : [body];
   for (const call of calls) {
@@ -47,7 +61,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(ALCHEMY_URL, {
+    const res = await fetch(`https://${host}.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

@@ -10,6 +10,7 @@ import { TokenList } from "@/components/dashboard/funds/token-list";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { CoinBadge } from "@/components/ui/coin-badge";
+import { NetworkIcon } from "@/components/ui/network-icon";
 import {
   useDepositChains,
   useDepositStatus,
@@ -21,7 +22,6 @@ import {
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
 import {
-  BASE_CHAIN_ID,
   SETTLE_CHAINS,
   txExplorerUrl,
   type AddressKind,
@@ -36,24 +36,29 @@ import { toast } from "@/lib/toast";
 const DECIMAL = /^\d*\.?\d*$/;
 const QUOTE_DEBOUNCE_MS = 450;
 
-// The wallet balance is USDC on Base — everything deposited settles here, so
-// it's the single source every withdrawal sends from.
-const SOURCE = SETTLE_CHAINS.base;
-const SOURCE_NETWORK = SOURCE.alchemyNetwork; // "base-mainnet"
+// Base is where deposits settle and where the rest of the app trades, so it is
+// the default source. Solana is offered too: an RWA purchase can leave USDC
+// there, and without this it would show in Holdings with no way out.
+const SOURCE_KEYS = ["base", "solana"] as const;
+type SourceKey = (typeof SOURCE_KEYS)[number];
 
-// Dextopus's solver omits Base as a withdrawal destination (bridging Base->Base
-// isn't a cross-chain route), but sending USDC-on-Base to an external Base
-// address is a valid plain same-chain transfer (see isDirectSend). Inject it so
-// Base still appears as a "withdraw to" network.
-const BASE_USDC_DESTINATION: WithdrawDestination = {
-  destinationChainId: BASE_CHAIN_ID,
-  blockchain: "Base",
-  currency: SOURCE.usdc,
-  symbol: "USDC",
-  decimals: SOURCE.decimals,
-  addressKind: "evm",
-  logoUrl: null,
-};
+// Dextopus's solver omits the origin chain itself as a destination (a same-chain
+// hop isn't a route), but sending USDC to an external address on that chain is a
+// valid plain transfer (see isDirectSend). Inject it so the origin still appears
+// as a "withdraw to" network.
+export function sameChainDestination(
+  source: (typeof SETTLE_CHAINS)[SourceKey]
+): WithdrawDestination {
+  return {
+    destinationChainId: source.chainId,
+    blockchain: source.chainName,
+    currency: source.usdc,
+    symbol: "USDC",
+    decimals: source.decimals,
+    addressKind: source.chainType === "solana" ? "solana" : "evm",
+    logoUrl: null,
+  };
+}
 
 const ADDRESS_KIND_LABEL: Record<AddressKind, string> = {
   evm: "EVM",
@@ -131,6 +136,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   const { sendToken } = useSendToken();
   const allChains = useDepositChains();
 
+  const [sourceKey, setSourceKey] = useState<SourceKey>("base");
   const [destSymbol, setDestSymbol] = useState<string | null>(null);
   const [destChainId, setDestChainId] = useState<number | null>(null);
   // Each picker collapses to its selected row once chosen, and reopens on
@@ -152,16 +158,31 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     return () => clearTimeout(t);
   }, [amount]);
 
-  const usdc = tokens.find(
-    (t) => t.network === SOURCE_NETWORK && t.symbol.toUpperCase() === "USDC"
+  const source = SETTLE_CHAINS[sourceKey];
+  const sourceNetwork = source.alchemyNetwork;
+  const balanceOn = (key: SourceKey) =>
+    tokens.find(
+      (t) => t.network === SETTLE_CHAINS[key].alchemyNetwork && t.symbol.toUpperCase() === "USDC"
+    )?.balance ?? 0;
+  const usdcHolding = tokens.find(
+    (t) => t.network === sourceNetwork && t.symbol.toUpperCase() === "USDC"
   );
-  const balance = usdc?.balance ?? 0;
-  const refundTo = getWalletAddress(user, "ethereum");
+  const balance = balanceOn(sourceKey);
+  // Dextopus validates the refund address against the ORIGIN chain family, so
+  // this has to follow the source rather than always being the EVM wallet.
+  const refundTo = getWalletAddress(user, source.chainType);
+  // Base sends are gas-sponsored; a Solana send is signed by the wallet and
+  // costs SOL, which cannot be bootstrapped from Solana.
+  const nativeBalance =
+    tokens.find(
+      (t) => t.network === sourceNetwork && t.symbol.toUpperCase() === source.nativeSymbol
+    )?.balance ?? 0;
+  const needsGas = source.chainType === "solana" && nativeBalance <= 0;
 
-  // Where the USDC can go, per Dextopus's solver for USDC-on-Base.
+  // Where the USDC can go, per Dextopus's solver for USDC on the chosen source.
   const destinations = useWithdrawDestinations({
-    chainId: BASE_CHAIN_ID,
-    address: SOURCE.usdc,
+    chainId: source.chainId,
+    address: source.usdc,
   });
 
   // Dextopus's destinations plus a Base-USDC row (which the solver omits), so
@@ -173,13 +194,13 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     const solver = (destinations.data ?? []).filter((d) =>
       DETECTABLE_ADDRESS_KINDS.has(d.addressKind)
     );
-    const hasBaseUsdc = solver.some(
+    const hasSameChain = solver.some(
       (d) =>
-        d.destinationChainId === BASE_CHAIN_ID &&
-        d.currency.toLowerCase() === SOURCE.usdc.toLowerCase()
+        d.destinationChainId === source.chainId &&
+        d.currency.toLowerCase() === source.usdc.toLowerCase()
     );
-    return hasBaseUsdc ? solver : [BASE_USDC_DESTINATION, ...solver];
-  }, [destinations.data]);
+    return hasSameChain ? solver : [sameChainDestination(source), ...solver];
+  }, [destinations.data, source]);
 
   // One row per destination symbol (e.g. "USDC" once, though it exists on many
   // chains) — pick the coin, then the network, reusing TokenList as-is.
@@ -222,8 +243,8 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   // no quote. Everything else routes through Dextopus.
   const isDirectSend =
     selectedDestination != null &&
-    selectedDestination.destinationChainId === BASE_CHAIN_ID &&
-    selectedDestination.currency.toLowerCase() === SOURCE.usdc.toLowerCase();
+    selectedDestination.destinationChainId === source.chainId &&
+    selectedDestination.currency.toLowerCase() === source.usdc.toLowerCase();
 
   const detectedKind = useMemo(() => detectAddressKind(to), [to]);
   const requiredKind: AddressKind | null = selectedDestination?.addressKind ?? null;
@@ -245,11 +266,11 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     !overBalance &&
     amountSettled
       ? {
-          originChainId: BASE_CHAIN_ID,
-          originAsset: SOURCE.usdc,
+          originChainId: source.chainId,
+          originAsset: source.usdc,
           destinationChainId: selectedDestination.destinationChainId,
           destinationAsset: selectedDestination.currency,
-          amount: toBaseUnits(debouncedAmount, SOURCE.decimals).toString(),
+          amount: toBaseUnits(debouncedAmount, source.decimals).toString(),
           recipient: to.trim(),
           refundTo,
         }
@@ -273,6 +294,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     !busy &&
     amountSettled &&
     Boolean(refundTo) &&
+    !needsGas &&
     (isDirectSend || Boolean(quote.data));
 
   const status = useDepositStatus(depositRequestId);
@@ -282,10 +304,10 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     refunded: t("withdrawalRefunded"),
   });
 
-  // The immediate tx is always the USDC send on Base.
-  const baseChain = (allChains.data ?? []).find((c) => c.chainId === BASE_CHAIN_ID) ?? null;
+  // The immediate tx is the USDC send on whichever chain it left from.
+  const originChain = (allChains.data ?? []).find((c) => c.chainId === source.chainId) ?? null;
   const originExplorerUrl = txHash
-    ? txExplorerUrl(BASE_CHAIN_ID, baseChain?.blockExplorer ?? null, txHash)
+    ? txExplorerUrl(source.chainId, originChain?.blockExplorer ?? null, txHash)
     : null;
 
   // Once Dextopus settles a routed withdrawal, its status carries the
@@ -301,16 +323,21 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     if (!selectedDestination) return;
     setError(null);
     setSubmitting(true);
+    // Flipped the moment a transfer is handed to the wallet. Past that point a
+    // failure cannot be reported as "not sent": the transfer may already be
+    // on-chain, and inviting a retry would send real money twice.
+    let broadcasting = false;
     // One processing toast that resolves in place; dismissed if we bail on a
     // validation check before anything is actually sent.
     const toastId = toast.loading(t("sendingWithdrawal"));
     try {
-      const sendAmount = toBaseUnits(amount, SOURCE.decimals);
+      const sendAmount = toBaseUnits(amount, source.decimals);
       if (isDirectSend) {
+        broadcasting = true;
         const hash = await sendToken({
-          network: SOURCE_NETWORK,
-          tokenAddress: SOURCE.usdc,
-          decimals: SOURCE.decimals,
+          network: sourceNetwork,
+          tokenAddress: source.usdc,
+          decimals: source.decimals,
           to: to.trim(),
           amount: sendAmount,
         });
@@ -331,10 +358,11 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         toast.dismiss(toastId);
         return;
       }
+      broadcasting = true;
       const hash = await sendToken({
-        network: SOURCE_NETWORK,
-        tokenAddress: SOURCE.usdc,
-        decimals: SOURCE.decimals,
+        network: sourceNetwork,
+        tokenAddress: source.usdc,
+        decimals: source.decimals,
         to: fresh.data.depositAddress,
         amount: sendAmount,
       });
@@ -349,8 +377,13 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         { id: toastId }
       );
     } catch (e) {
-      setError(friendlyError(e, t("withdrawalNotSentFallback")));
-      toast.error(t("withdrawalNotSent"), { id: toastId });
+      if (broadcasting) {
+        setError(t("withdrawalUnconfirmed"));
+        toast.error(t("withdrawalUnconfirmedToast"), { id: toastId });
+      } else {
+        setError(friendlyError(e, t("withdrawalNotSentFallback")));
+        toast.error(t("withdrawalNotSent"), { id: toastId });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -427,12 +460,54 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         onBack={onBack}
       />
 
-      <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
-        <span className="text-[13px] font-normal text-white/55">{t("availableBalance")}</span>
-        <span className="ws-display tnum text-[20px] text-white">
-          {formatAmount(balance)} <span className="text-[14px] text-white/60">USDC</span>
-        </span>
+      {/* Which chain the USDC leaves from. Base is home, but an RWA purchase
+          can leave USDC on Solana, and it sends out from there directly rather
+          than needing a bridge home first. */}
+      <div className="mt-1 grid grid-cols-2 gap-2">
+        {SOURCE_KEYS.map((key) => {
+          const chain = SETTLE_CHAINS[key];
+          const active = key === sourceKey;
+          return (
+            <button
+              key={key}
+              onClick={() => {
+                if (submitting || active) return;
+                setSourceKey(key);
+                // Destinations are solved per origin, so any earlier pick may
+                // not exist on the new one.
+                setDestSymbol(null);
+                setDestChainId(null);
+                setTokenOpen(true);
+                setNetworkOpen(true);
+                setError(null);
+              }}
+              disabled={submitting}
+              className={`ws-inset flex cursor-pointer flex-col items-start gap-0.5 px-3.5 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                active ? "ring-accent/45 ring-1" : "hover:bg-white/4"
+              }`}
+            >
+              <span className="flex items-center gap-1.5">
+                <NetworkIcon network={chain.alchemyNetwork} size={13} />
+                <span
+                  className={`font-sans text-[13px] font-medium ${active ? "text-white" : "text-white/60"}`}
+                >
+                  {chain.chainName}
+                </span>
+              </span>
+              <span className="ws-display tnum text-[17px] text-white">
+                {formatAmount(balanceOn(key))}{" "}
+                <span className="text-[12px] text-white/55">USDC</span>
+              </span>
+            </button>
+          );
+        })}
       </div>
+
+      {needsGas ? (
+        <div className="mt-2 rounded-[12px] border border-amber-400/30 bg-amber-400/10 p-3 text-[12.5px] leading-[1.5] font-medium text-amber-200">
+          {t("withdrawNeedsGas", { symbol: source.nativeSymbol, chain: source.chainName })}
+        </div>
+      ) : null}
 
       <div className="mt-3">
         <div className="mb-2 text-xs font-normal text-white/55">{t("withdrawAs")}</div>
@@ -563,7 +638,11 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               // display float, and a max built from it can round above what
               // the wallet actually holds.
               onClick={() =>
-                setAmount(usdc ? fromBaseUnits(BigInt(usdc.rawBalance), usdc.decimals) : "0")
+                setAmount(
+                  usdcHolding
+                    ? fromBaseUnits(BigInt(usdcHolding.rawBalance), usdcHolding.decimals)
+                    : "0"
+                )
               }
               disabled={submitting}
               className="tnum cursor-pointer text-white/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"

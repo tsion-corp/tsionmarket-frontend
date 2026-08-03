@@ -26,7 +26,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
   const t = useTranslations("prediction");
   const money = useMoney();
   const { accepted, accept } = usePredictionConsent();
-  const { placeBet, phase, error, sessionStatus, usdcTotal, portfolioLoading } = useBet();
+  const { placeBet, phase, error, sessionStatus } = useBet();
   const [amount, setAmount] = useState(10);
 
   const open = prediction !== null;
@@ -166,13 +166,6 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                 >
                   {actionLabel}
                 </button>
-
-                <p className="text-center text-xs font-normal text-white/45">
-                  {!portfolioLoading
-                    ? `${t("usdcOnBase", { amount: money.format(usdcTotal) })} `
-                    : ""}
-                  {t("betFundingNote")}
-                </p>
               </>
             )}
           </div>

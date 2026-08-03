@@ -19,12 +19,25 @@ interface PriceChartProps {
   up?: boolean;
 }
 
+// The chart library throws on a repeated or out-of-order timestamp rather than
+// skipping it, which takes the whole surrounding sheet down with it. Upstream
+// price series do occasionally repeat an hour, so clean the series here — every
+// caller gets the guarantee, not just the one that hit it.
+function ordered(points: (AreaPoint | CandlePoint)[]): (AreaPoint | CandlePoint)[] {
+  const byTime = new Map<number, AreaPoint | CandlePoint>();
+  for (const p of points) {
+    if (typeof p?.time === "number" && Number.isFinite(p.time)) byTime.set(p.time, p);
+  }
+  return [...byTime.values()].sort((a, b) => a.time - b.time);
+}
+
 export function PriceChart({ points, type = "area", height = 260, up = true }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || points.length === 0) return;
+    const data = ordered(points);
+    if (!container || data.length === 0) return;
 
     const accent = up ? "#7CE7B0" : "#F6A5A5";
     const chart: IChartApi = createChart(container, {
@@ -52,7 +65,7 @@ export function PriceChart({ points, type = "area", height = 260, up = true }: P
         wickUpColor: "#7CE7B0",
         wickDownColor: "#F6A5A5",
       });
-      series.setData(points as unknown as CandlestickData[]);
+      series.setData(data as unknown as CandlestickData[]);
     } else {
       const series = chart.addSeries(AreaSeries, {
         lineColor: accent,
@@ -60,7 +73,7 @@ export function PriceChart({ points, type = "area", height = 260, up = true }: P
         bottomColor: "rgba(0,0,0,0)",
         lineWidth: 2,
       });
-      series.setData(points as unknown as AreaData[]);
+      series.setData(data as unknown as AreaData[]);
     }
 
     chart.timeScale().fitContent();

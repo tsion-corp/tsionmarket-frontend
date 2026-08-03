@@ -3,7 +3,13 @@
 // exact base-unit helpers from lib/trade/math and never floating point.
 
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
-import { USDC_BY_CHAIN, type RwaApiAsset, type RwaChain, type RwaQuote } from "@/lib/rwa-api";
+import {
+  assetPriceUsd,
+  USDC_BY_CHAIN,
+  type RwaApiAsset,
+  type RwaChain,
+  type RwaQuote,
+} from "@/lib/rwa-api";
 import type { TokenBalance } from "@/hooks/use-portfolio";
 
 // Yield APY as a percent number. yieldApyBps is in basis points, so 485 -> 4.85.
@@ -15,6 +21,50 @@ export function apyPercent(bps?: number): number | null {
 export function formatApy(bps?: number): string | null {
   const pct = apyPercent(bps);
   return pct == null ? null : `${pct.toFixed(2)}%`;
+}
+
+// Live market stats sourced outside the RWA backend, which serves a price for
+// almost no asset and a TVL for one. Kept alongside the asset rather than in a
+// parallel map so every consumer reads one object.
+export interface RwaMarketStats {
+  priceUsd?: number;
+  change24h?: number;
+  liquidityUsd?: number;
+  marketCapUsd?: number;
+}
+
+export interface RwaAssetView extends RwaApiAsset {
+  market?: RwaMarketStats;
+}
+
+// What actually bounds a trade in this asset. Live DEX liquidity is the honest
+// number here: the registry's TVL is the issuer's total across every chain it
+// has ever deployed on, which for a Solana row can overstate the tradable depth
+// by three orders of magnitude.
+export function assetLiquidityUsd(a: RwaAssetView): number | undefined {
+  return a.market?.liquidityUsd;
+}
+
+// A signed percent, e.g. "+1.86%". Zero is a real reading and formats as such.
+export function formatChange(pct?: number): string | null {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+}
+
+// Attaches market stats to each asset and backfills the price the backend
+// omitted. The backend's own price always wins where it has one.
+export function mergeMarket(
+  assets: RwaApiAsset[],
+  byId: Map<string, RwaMarketStats>
+): RwaAssetView[] {
+  if (byId.size === 0) return assets;
+  return assets.map((a) => {
+    const market = byId.get(a.id);
+    if (!market) return a;
+    const priceUsd =
+      assetPriceUsd(a) == null && market.priceUsd != null ? String(market.priceUsd) : a.priceUsd;
+    return { ...a, priceUsd, market };
+  });
 }
 
 // Compact USD like $1.2M. Returns a muted dash for missing or non-positive input.
@@ -49,16 +99,29 @@ export function isUsableAsset(a: RwaApiAsset): boolean {
   return Boolean(a && a.id && a.chain && a.address && a.symbol);
 }
 
-// Native gas token and portfolio network id per chain. The portfolio source
-// (Alchemy) does not index BSC, so BSC gas cannot be verified from it.
-const CHAIN_GAS: Record<RwaChain, { network: string; symbol: string }> = {
-  solana: { network: "solana-mainnet", symbol: "SOL" },
-  ethereum: { network: "eth-mainnet", symbol: "ETH" },
-  base: { network: "base-mainnet", symbol: "ETH" },
-  arbitrum: { network: "arb-mainnet", symbol: "ETH" },
-  polygon: { network: "polygon-mainnet", symbol: "POL" },
-  bsc: { network: "bsc-mainnet", symbol: "BNB" },
+// Native gas token and portfolio network id per chain, plus the balance a
+// purchase actually needs. The portfolio source (Alchemy) does not index BSC,
+// so BSC gas cannot be verified from it.
+//
+// The minimum matters as much as the symbol. Buying an asset for the first time
+// creates a token account, and Solana charges a rent-exempt deposit of about
+// 0.00204 SOL for it — a real cost, on top of the amount entered, that a
+// balance of dust cannot cover. Treating any balance above zero as "has gas"
+// let the trade through and took the difference out of the wallet's SOL.
+const CHAIN_GAS: Record<RwaChain, { network: string; symbol: string; min: number }> = {
+  solana: { network: "solana-mainnet", symbol: "SOL", min: 0.005 },
+  ethereum: { network: "eth-mainnet", symbol: "ETH", min: 0.0004 },
+  base: { network: "base-mainnet", symbol: "ETH", min: 0 },
+  arbitrum: { network: "arb-mainnet", symbol: "ETH", min: 0.0001 },
+  polygon: { network: "polygon-mainnet", symbol: "POL", min: 0.05 },
+  bsc: { network: "bsc-mainnet", symbol: "BNB", min: 0.0005 },
 };
+
+// What a trade on this chain needs in its native token, for the copy that asks
+// the user to top it up.
+export function gasMinimumForChain(chain: RwaChain): number {
+  return CHAIN_GAS[chain].min;
+}
 
 // The four chains the portfolio source now indexes.
 const PORTFOLIO_NETWORKS = new Set([
@@ -126,11 +189,14 @@ export function payTokensForChain(tokens: TokenBalance[], chain: RwaChain): Toke
 // zero. null means the portfolio source does not cover this chain, so we cannot
 // tell and must not block on it.
 export function hasNativeGas(tokens: TokenBalance[], chain: RwaChain): boolean | null {
-  const { network, symbol } = CHAIN_GAS[chain];
+  const { network, symbol, min } = CHAIN_GAS[chain];
   if (!PORTFOLIO_NETWORKS.has(network)) return null;
-  return tokens.some(
-    (t) => t.network === network && t.symbol.toUpperCase() === symbol && t.balance > 0
-  );
+  const held = tokens.find((t) => t.network === network && t.symbol.toUpperCase() === symbol);
+  const balance = held?.balance ?? 0;
+  // Both conditions matter. Holding nothing is never "has gas", whatever the
+  // minimum; and dust passes a > 0 check yet cannot pay for the token account
+  // the purchase has to open.
+  return balance > 0 && balance >= min;
 }
 
 // Base transactions are gas-sponsored end to end (EIP-7702 through our

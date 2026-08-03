@@ -5,8 +5,33 @@ import {
   isAllowedHolding,
   isRateLimitError,
 } from "@/lib/server/alchemy";
-import { fetchRwaRegistry } from "@/lib/server/rwa-registry";
-import { fetchBuyableRegistry } from "@/lib/server/buyable-registry";
+import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
+import { fetchBuyableRegistry, type BuyableRegistry } from "@/lib/server/buyable-registry";
+
+type RwaRegistry = Record<string, Map<string, RwaTokenInfo>>;
+
+// Alchemy network -> the chain name the logo route takes. Any token address
+// resolves through it, so a row never has to fall back to a coloured circle
+// for an asset that has a real icon.
+const LOGO_CHAIN: Record<string, string> = {
+  "base-mainnet": "base",
+  "eth-mainnet": "ethereum",
+  "arb-mainnet": "arbitrum",
+  "polygon-mainnet": "polygon",
+  "solana-mainnet": "solana",
+};
+
+function tokenLogo(network: string, address: string | null): string | null {
+  const chain = LOGO_CHAIN[network];
+  return chain && address ? `/api/token-logo/${chain}/${address}` : null;
+}
+
+// Solana mints we can name without a registry lookup. The RWA registry covers
+// every tradable asset; these are the money it trades against.
+const SOLANA_SYMBOLS: Record<string, string> = {
+  EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
+  Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB: "USDT",
+};
 
 // Wallet transaction history.
 //
@@ -29,6 +54,9 @@ export interface ActivityItem {
   // Milliseconds since epoch.
   timestamp: number;
   counterparty: string | null;
+  // Server-resolved asset logo, the same one the portfolio renders. Null when
+  // the symbol already has a built-in icon or the token is unknown.
+  logo: string | null;
 }
 
 interface RawTransfer {
@@ -109,10 +137,73 @@ interface SolanaSignature {
   err?: unknown;
 }
 
+// A SOL delta this small is the cost of transacting, not a transfer: a
+// signature is ~0.000005 and a rent-exempt token account ~0.00204. When a
+// transaction also moved tokens, reporting that as its own "Sent SOL" row
+// buries the trade it paid for.
+const SOL_FEE_NOISE = 0.003;
+
+interface TokenBalanceEntry {
+  owner?: string;
+  mint?: string;
+  uiTokenAmount?: { uiAmountString?: string | null };
+}
+
+// Token movements for one signature, from the balances the transaction already
+// carries — no extra call. Only registry-known mints are reported, the same
+// allowlist the portfolio uses, so a dusting airdrop never appears here either.
+function solanaTokenDeltas(
+  signature: string,
+  address: string,
+  meta:
+    { preTokenBalances?: TokenBalanceEntry[]; postTokenBalances?: TokenBalanceEntry[] } | undefined,
+  timestamp: number,
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
+): ActivityItem[] {
+  const read = (rows: TokenBalanceEntry[] | undefined) => {
+    const out = new Map<string, number>();
+    for (const row of rows ?? []) {
+      if (row.owner !== address || !row.mint) continue;
+      out.set(row.mint, Number(row.uiTokenAmount?.uiAmountString ?? 0) || 0);
+    }
+    return out;
+  };
+  const pre = read(meta?.preTokenBalances);
+  const post = read(meta?.postTokenBalances);
+
+  const items: ActivityItem[] = [];
+  for (const mint of new Set([...pre.keys(), ...post.keys()])) {
+    const delta = (post.get(mint) ?? 0) - (pre.get(mint) ?? 0);
+    if (Math.abs(delta) < 1e-9) continue;
+    if (!isAllowedHolding(SOLANA_NETWORK, mint, false, rwa, buyable)) continue;
+    // An unnameable mint is dropped downstream by the empty-symbol filter
+    // rather than shown as a blank row.
+    const known = rwa[SOLANA_NETWORK]?.get(mint.toLowerCase());
+    const symbol = SOLANA_SYMBOLS[mint] ?? known?.symbol ?? "";
+    items.push({
+      id: `${signature}:${mint}`,
+      hash: signature,
+      network: SOLANA_NETWORK,
+      direction: delta > 0 ? "in" : "out",
+      symbol,
+      amount: Math.abs(delta),
+      timestamp,
+      counterparty: null,
+      logo: tokenLogo(SOLANA_NETWORK, mint),
+    });
+  }
+  return items;
+}
+
 // Solana has no asset-transfer index, so recent signatures carry the entry and
-// the native balance delta gives its amount. Token-account changes are left to
-// the explorer link rather than guessed at.
-async function solanaActivity(address: string): Promise<ActivityItem[]> {
+// the transaction's balance changes give the amounts — native SOL from the
+// lamport delta, tokens from the pre/post token balances it already returns.
+async function solanaActivity(
+  address: string,
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
+): Promise<ActivityItem[]> {
   const sigs = await rpc<SolanaSignature[]>(SOLANA_NETWORK, "getSignaturesForAddress", [
     address,
     { limit: 10 },
@@ -124,12 +215,20 @@ async function solanaActivity(address: string): Promise<ActivityItem[]> {
       .filter((s) => !s.err)
       .map(async (s) => {
         const tx = await rpc<{
-          meta?: { preBalances?: number[]; postBalances?: number[] };
+          meta?: {
+            preBalances?: number[];
+            postBalances?: number[];
+            preTokenBalances?: TokenBalanceEntry[];
+            postTokenBalances?: TokenBalanceEntry[];
+          };
           transaction?: { message?: { accountKeys?: (string | { pubkey?: string })[] } };
         }>(SOLANA_NETWORK, "getTransaction", [
           s.signature,
           { encoding: "jsonParsed", maxSupportedTransactionVersion: 0 },
         ]);
+
+        const timestamp = (s.blockTime ?? 0) * 1000;
+        const tokens = solanaTokenDeltas(s.signature, address, tx?.meta, timestamp, rwa, buyable);
 
         const keys = (tx?.transaction?.message?.accountKeys ?? []).map((k) =>
           typeof k === "string" ? k : (k?.pubkey ?? "")
@@ -137,24 +236,29 @@ async function solanaActivity(address: string): Promise<ActivityItem[]> {
         const index = keys.indexOf(address);
         const pre = tx?.meta?.preBalances?.[index];
         const post = tx?.meta?.postBalances?.[index];
-        if (index < 0 || pre == null || post == null) return null;
+        const deltaSol = index < 0 || pre == null || post == null ? 0 : (post - pre) / 1e9;
 
-        const deltaLamports = post - pre;
-        if (deltaLamports === 0) return null;
-        const item: ActivityItem = {
-          id: s.signature,
-          hash: s.signature,
-          network: SOLANA_NETWORK,
-          direction: deltaLamports > 0 ? "in" : "out",
-          symbol: "SOL",
-          amount: Math.abs(deltaLamports) / 1e9,
-          timestamp: (s.blockTime ?? 0) * 1000,
-          counterparty: null,
-        };
-        return item;
+        // The fee alongside a trade is not its own event; a real SOL transfer
+        // still is.
+        const solIsNoise = tokens.length > 0 && Math.abs(deltaSol) < SOL_FEE_NOISE;
+        if (deltaSol === 0 || solIsNoise) return tokens;
+        return [
+          ...tokens,
+          {
+            id: s.signature,
+            hash: s.signature,
+            network: SOLANA_NETWORK,
+            direction: deltaSol > 0 ? "in" : "out",
+            symbol: "SOL",
+            amount: Math.abs(deltaSol),
+            timestamp,
+            logo: null,
+            counterparty: null,
+          } satisfies ActivityItem,
+        ];
       })
   );
-  return items.filter((i): i is ActivityItem => i !== null);
+  return items.flat();
 }
 
 // Recent wallet activity across every tracked chain, newest first. Spam is
@@ -167,7 +271,7 @@ export async function fetchActivity(
 ): Promise<ActivityItem[]> {
   if (!evm && !solana) return [];
   const [rwa, registries] = await Promise.all([
-    fetchRwaRegistry().catch(() => ({})),
+    fetchRwaRegistry().catch((): RwaRegistry => ({})),
     fetchBuyableRegistry().catch(() => ({ buyable: {}, meme: {} })),
   ]);
 
@@ -199,12 +303,15 @@ export async function fetchActivity(
           amount,
           timestamp: Date.parse(t.metadata?.blockTimestamp ?? "") || 0,
           counterparty: (direction === "in" ? t.from : t.to) ?? null,
+          logo: tokenLogo(network, contract),
         });
       }
     }
   }
 
-  const solanaItems = solana ? await solanaActivity(solana).catch(() => []) : [];
+  const solanaItems = solana
+    ? await solanaActivity(solana, rwa, registries.buyable).catch(() => [])
+    : [];
 
   return [...evmItems, ...solanaItems]
     .filter((i) => i.symbol)

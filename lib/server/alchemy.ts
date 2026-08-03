@@ -353,9 +353,13 @@ const responseCache = new Map<string, { expires: number; value: unknown }>();
 async function cached<T>(
   cacheKey: string,
   load: () => Promise<T>,
-  ttlMs: number = CACHE_TTL_MS
+  ttlMs: number = CACHE_TTL_MS,
+  // Set when the caller has just changed the balances and needs to observe its
+  // own effect. Reading a cached snapshot there shows the pre-trade state and
+  // then holds it until the next poll.
+  skipCache = false
 ): Promise<T> {
-  const hit = responseCache.get(cacheKey);
+  const hit = skipCache ? undefined : responseCache.get(cacheKey);
   if (hit && hit.expires > Date.now()) return hit.value as T;
   const value = await load();
   responseCache.set(cacheKey, { expires: Date.now() + ttlMs, value });
@@ -381,7 +385,11 @@ export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
   });
 }
 
-export async function fetchPortfolio(evm?: string, solana?: string): Promise<Portfolio> {
+export async function fetchPortfolio(
+  evm?: string,
+  solana?: string,
+  skipCache = false
+): Promise<Portfolio> {
   if (!evm && !solana) return { totalUsd: 0, tokens: [] };
   const cacheKey = `portfolio:${evm ?? ""}:${solana ?? ""}`;
   return cached(
@@ -415,6 +423,7 @@ export async function fetchPortfolio(evm?: string, solana?: string): Promise<Por
       const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
       return { totalUsd, tokens };
     },
-    PORTFOLIO_CACHE_TTL_MS
+    PORTFOLIO_CACHE_TTL_MS,
+    skipCache
   );
 }

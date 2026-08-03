@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowDownIcon } from "@/components/ui/icons";
 import { RwaIssuerCard } from "@/components/dashboard/rwa/rwa-issuer-card";
+import { RwaProgress, type ProgressStep } from "@/components/dashboard/rwa/rwa-progress";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useRwaQuote, useRwaBuild } from "@/hooks/use-rwa-trade";
 import { useExecuteRwa } from "@/hooks/use-execute-rwa";
@@ -20,10 +21,10 @@ import {
 } from "@/lib/rwa-api";
 import { getWalletAddress } from "@/lib/user";
 import { useSolanaFunding } from "@/hooks/use-solana-funding";
-import { planAffordable, planSolanaFunding } from "@/lib/rwa/funding";
+import { planAffordable, planBaseFunding, planSolanaFunding } from "@/lib/rwa/funding";
 import { useSolanaProceeds } from "@/hooks/use-solana-proceeds";
 import { toast } from "@/lib/toast";
-import { formatAmount, formatUsd } from "@/lib/trade/math";
+import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
 import {
   buildPayOptions,
   buyQuoteRequest,
@@ -33,6 +34,7 @@ import {
   estimateReceiveUsdc,
   exceedsBalance,
   findRwaHolding,
+  gasMinimumForChain,
   gasSymbolForChain,
   gradientFor,
   hasNativeGas,
@@ -76,6 +78,15 @@ const QUOTE_TTL_MS = 60_000;
 // a rate-limit or "service busy" error for a blip that clears in a second.
 const RETRY_BACKOFFS_MS = [800, 1600];
 
+// The base units a bring-home leg should send: what the plan asks for, capped
+// at what the wallet actually holds.
+function bridgeHomeUnits(bridgeUsdc: number | undefined, rawBalance: string | undefined): string {
+  if (bridgeUsdc == null || !rawBalance) return "0";
+  const wanted = toBaseUnits(bridgeUsdc.toFixed(6), 6);
+  const held = BigInt(rawBalance || "0");
+  return (wanted < held ? wanted : held).toString();
+}
+
 async function withTransientRetry<T>(fn: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
@@ -101,6 +112,9 @@ interface RwaTradePanelProps {
   // Pre-fill the amount, e.g. from a spoken "buy $10 of Ondo". The user still
   // reviews and confirms — we only stage the form.
   initialAmount?: string;
+  // Opens the deposit flow. An empty wallet is the most common reason a first
+  // buy stalls, so the panel offers the way forward rather than a dead zero.
+  onAddFunds?: () => void;
 }
 
 // Buy and sell surface for one RWA. Both directions run a live debounced quote,
@@ -114,6 +128,7 @@ export function RwaTradePanel({
   bare = false,
   initialMode = "buy",
   initialAmount = "",
+  onAddFunds,
 }: RwaTradePanelProps) {
   const t = useTranslations("rwa");
   // Only for the shared over-balance label; the rwa namespace has no such key.
@@ -131,6 +146,10 @@ export function RwaTradePanel({
   const [notice, setNotice] = useState<Notice | null>(null);
   const [signStep, setSignStep] = useState<SignStep | null>(null);
   const [payKey, setPayKey] = useState<string | null>(null);
+  // The amount funding has already run for. Without this, a purchase that
+  // stalled after its bridge offers to bridge again — the user pays twice and
+  // still holds no asset.
+  const [fundedFor, setFundedFor] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   const logos = useTokenLogos([{ chain: asset.chain, address: asset.address }]);
@@ -154,20 +173,27 @@ export function RwaTradePanel({
   // wallet is short but holds Base USDC, the shortfall is bridgeable rather
   // than a dead end — both legs execute on Base, so they cost the user no gas.
   const funding = useSolanaFunding();
+  // Whether the buy is being paid for in the chain's own USDC — the only case
+  // bridging USDC can top up. Paying with a token already held needs no
+  // transfer at all; the over-balance gate covers spending more than there is.
+  const payingWithUsdc =
+    (payOption?.input.address ?? "").toLowerCase() ===
+    USDC_BY_CHAIN[asset.chain].address.toLowerCase();
   const solanaPlan = useMemo(() => {
     if (asset.chain !== "solana" || !isBuy) return null;
     const balanceOf = (network: string, symbol: string) =>
       portfolio.tokens.find((t) => t.network === network && t.symbol.toUpperCase() === symbol)
         ?.balance ?? 0;
     return planSolanaFunding({
-      // The USD value of whatever token is paying, not the typed amount: 0.5
-      // SOL is ~$100, and a plan built from 0.5 would fund nothing.
-      spendUsdc: payUsd,
+      // In USDC, never in dollars. The price feed quotes USDC at 1.001, so
+      // valuing the spend in USD made a full-balance buy look 0.3% short of
+      // its own balance and the funding card could never clear.
+      spendUsdc: payingWithUsdc ? payValue : 0,
       solanaUsdc: balanceOf("solana-mainnet", "USDC"),
       solanaSol: balanceOf("solana-mainnet", "SOL"),
       baseUsdc: balanceOf("base-mainnet", "USDC"),
     });
-  }, [asset.chain, isBuy, payUsd, portfolio.tokens]);
+  }, [asset.chain, isBuy, payingWithUsdc, payValue, portfolio.tokens]);
   const baseUsdcBalance =
     portfolio.tokens.find((t) => t.network === "base-mainnet" && t.symbol.toUpperCase() === "USDC")
       ?.balance ?? 0;
@@ -181,9 +207,105 @@ export function RwaTradePanel({
   const showProceeds =
     phase === "done" && !isBuy && asset.chain === "solana" && solanaUsdcBalance > 0.5;
 
-  const needsFunding = solanaPlan != null && payValue > 0;
-  const canFund = needsFunding && planAffordable(solanaPlan, baseUsdcBalance);
+  // The mirror case: a Base asset paid for in USDC that is sitting on Solana.
+  // Base trades are sponsored, so there is no gas leg to buy — only the outbound
+  // Solana signature, which the wallet must already be able to afford.
+  const basePlan = useMemo(() => {
+    if (asset.chain !== "base" || !isBuy || !payingWithUsdc) return null;
+    const balanceOf = (network: string, symbol: string) =>
+      portfolio.tokens.find((t) => t.network === network && t.symbol.toUpperCase() === symbol)
+        ?.balance ?? 0;
+    return planBaseFunding({
+      spendUsdc: payValue,
+      baseUsdc: balanceOf("base-mainnet", "USDC"),
+      solanaUsdc: balanceOf("solana-mainnet", "USDC"),
+      solanaSol: balanceOf("solana-mainnet", "SOL"),
+    });
+  }, [asset.chain, isBuy, payingWithUsdc, payValue, portfolio.tokens]);
+
+  const needsFunding = (solanaPlan != null || basePlan != null) && payValue > 0;
+  const canFund =
+    solanaPlan != null
+      ? planAffordable(solanaPlan, baseUsdcBalance)
+      : basePlan != null && !basePlan.needsSolForGas;
   const payInput = payOption?.input ?? null;
+
+  // The exact base units to send home, never more than the wallet holds.
+  const bridgeHomeRaw = bridgeHomeUnits(basePlan?.bridgeUsdc, solanaUsdcHolding?.rawBalance);
+
+  // USDC the buy can still draw on, just from the other chain. Shown in place
+  // of a bare zero so an empty balance on this chain never reads as "you cannot
+  // buy" when the funds are one hop away.
+  const fallbackChain: RwaApiAsset["chain"] = asset.chain === "solana" ? "base" : "solana";
+  const fallbackBalance =
+    isBuy && payingWithUsdc && (payOption?.balance ?? 0) <= 0
+      ? asset.chain === "solana"
+        ? baseUsdcBalance
+        : solanaUsdcBalance
+      : 0;
+
+  // Funding cannot go further but the wallet does hold something spendable on
+  // the asset's chain — the state a bridge that delivered less than it quoted
+  // leaves behind. Offering the landed balance is the way out; without it the
+  // buy is stranded behind a top-up the user can no longer afford.
+  const spendableNow = payOption?.balance ?? 0;
+  // Funding already ran for exactly this purchase. Whatever it delivered is
+  // what there is; asking again just buys another bridge.
+  const alreadyFunded = fundedFor !== null && fundedFor === amount;
+  const offerSpendable =
+    needsFunding &&
+    (!canFund || alreadyFunded) &&
+    spendableNow > 0 &&
+    spendableNow < payValue &&
+    !funding.busy;
+
+  // Nothing this buy could draw on: no funded token on the asset's chain, and
+  // for Solana no Base USDC to bridge over either. A bare zero balance reads as
+  // a dead end and is where a first-time buyer gives up, so the panel offers
+  // the deposit flow instead of leaving them to close the sheet.
+  // USDC on the other live chain, which funding can bring across either way.
+  const fundableElsewhere = asset.chain === "solana" ? baseUsdcBalance > 0 : solanaUsdcBalance > 0;
+  const walletEmpty =
+    isBuy &&
+    !portfolio.loading &&
+    !portfolio.error &&
+    payOptions.every((o) => o.balance <= 0) &&
+    !fundableElsewhere;
+
+  // Every step of the run, so a stall is attributable to a named leg rather
+  // than to a spinner that only said "working". The purchase closes the list:
+  // funding is a means to it, not the goal.
+  const fundingSteps = funding.steps;
+  const progressSteps = useMemo<ProgressStep[]>(() => {
+    if (fundingSteps.length === 0) return [];
+    const detailFor = (p: (typeof fundingSteps)[number]["phase"]) =>
+      p === "quoting"
+        ? t("stepQuoting")
+        : p === "signing"
+          ? t("stepSigning")
+          : p === "settling"
+            ? t("stepSettling")
+            : undefined;
+    const legs: ProgressStep[] = fundingSteps.map((s, i) => ({
+      id: `${s.kind}-${i}`,
+      label:
+        s.kind === "gas"
+          ? t("stepGas", { amount: formatUsd(s.usdc) })
+          : t("stepBridge", { amount: formatUsd(s.usdc) }),
+      detail: s.status === "active" ? detailFor(s.phase) : undefined,
+      status: s.status,
+    }));
+    const buying = phase === "confirming";
+    return [
+      ...legs,
+      {
+        id: "buy",
+        label: t("stepBuy", { symbol: asset.symbol }),
+        detail: buying ? (signStep?.label ?? t("stepBuilding")) : undefined,
+        status: phase === "done" ? "done" : buying ? "active" : "pending",
+      },
+    ];
+  }, [fundingSteps, signStep, phase, asset.symbol, t]);
 
   // Sell side: the held RWA, which carries the exact on-chain decimals we need to
   // size the input. Absent when the chain isn't indexed or the asset isn't held.
@@ -298,6 +420,7 @@ export function RwaTradePanel({
     // Any in-flight quote priced the amount being replaced; drop its response.
     quoteSeqRef.current++;
     setAmount(value);
+    setFundedFor(null);
     const num = Number.parseFloat(value);
     if (num > 0) {
       setPhase("quoting");
@@ -330,6 +453,7 @@ export function RwaTradePanel({
     // funds have no way home, and a stale funding error outlives its plan.
     funding.reset();
     proceeds.reset();
+    setFundedFor(null);
   };
 
   const setPct = (pct: number) => {
@@ -350,19 +474,13 @@ export function RwaTradePanel({
     reset();
   };
 
-  const confirmTrade = async () => {
-    if (!quote || overBalance) return;
+  // The trade itself. Split from confirmTrade so funding can run straight into
+  // it: the build re-prices server-side, so the staleness gate below is about
+  // what the USER last saw, and a purchase they already committed to by funding
+  // must not stop to ask again.
+  const executeTrade = async () => {
     const req = buildReq(amount);
     if (!req) return;
-
-    // Never execute against stale numbers. Refresh the quote and require a
-    // second confirm; the notice is set after runQuote's synchronous start so
-    // its setNotice(null) does not wipe it.
-    if (Date.now() - quotedAtRef.current > QUOTE_TTL_MS) {
-      void runQuote(amount);
-      setNotice({ kind: "info", message: rwaErrorInfo("QUOTE_EXPIRED").message });
-      return;
-    }
 
     // Base trades are gas-sponsored, so the native-gas check only applies to
     // the chains where the wallet really pays its own fee.
@@ -371,7 +489,10 @@ export function RwaTradePanel({
     if (requiresNativeGas(asset.chain) && gasKnown && gas === false) {
       setNotice({
         kind: "gas",
-        message: t("gasNeeded", { symbol: gasSymbolForChain(asset.chain) }),
+        message: t("gasNeeded", {
+          symbol: gasSymbolForChain(asset.chain),
+          amount: gasMinimumForChain(asset.chain),
+        }),
       });
       return;
     }
@@ -403,9 +524,12 @@ export function RwaTradePanel({
           : t("soldSymbol", { symbol: asset.symbol }),
         { id: toastId }
       );
-      await portfolio.refetch();
       setSignStep(null);
       setPhase("done");
+      // Not awaited: the trade is settled and the user should see that now.
+      // Holdings catch up on their own once the balance index reflects it,
+      // which for a newly created Solana token account lags confirmation.
+      void portfolio.refetchUntilChanged();
     } catch (e) {
       const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
       setSignStep(null);
@@ -414,6 +538,33 @@ export function RwaTradePanel({
       setPhase("quoted");
       if (info.requote) void runQuote(amount);
     }
+  };
+
+  const confirmTrade = async () => {
+    if (!quote || overBalance) return;
+    // Never execute against numbers the user has not seen. Refresh the quote
+    // and require a second confirm; the notice is set after runQuote's
+    // synchronous start so its setNotice(null) does not wipe it.
+    if (Date.now() - quotedAtRef.current > QUOTE_TTL_MS) {
+      void runQuote(amount);
+      setNotice({ kind: "info", message: rwaErrorInfo("QUOTE_EXPIRED").message });
+      return;
+    }
+    await executeTrade();
+  };
+
+  // Moving funds is not the goal — the purchase is. Stopping after the bridge
+  // leaves the user staring at a card they already acted on, and tapping it
+  // again is how one purchase became two bridges and no trade.
+  const fundThenBuy = async () => {
+    if (!solanaPlan || fundedFor === amount) return;
+    setFundedFor(amount);
+    const funded = await funding.fund(solanaPlan);
+    if (!funded) return;
+    // The buy is sized and simulated against the arrived balance, so it cannot
+    // run until the balance index reflects it.
+    await portfolio.refetchUntilChanged();
+    await executeTrade();
   };
 
   if (isIssuerAccess(asset)) {
@@ -543,8 +694,15 @@ export function RwaTradePanel({
                 >
                   {t("balanceOf", { amount: formatAmount(spendBalance), symbol: spendSymbol })}
                 </button>
+              ) : fallbackBalance > 0 ? (
+                <span className="tnum text-white/55">
+                  {t("balanceOnChain", {
+                    amount: formatAmount(fallbackBalance),
+                    chain: chainLabel(fallbackChain),
+                  })}
+                </span>
               ) : (
-                <span>≈ {usdValue > 0 ? formatUsd(usdValue) : "$0"}</span>
+                <span className="tnum">≈ {usdValue > 0 ? formatUsd(usdValue) : "$0"}</span>
               )}
             </div>
             <div className="flex items-center justify-between gap-3">
@@ -650,52 +808,149 @@ export function RwaTradePanel({
             </div>
           ) : null}
 
-          {needsFunding ? (
+          {walletEmpty ? (
             <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3">
               <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
-                {t("fundSolanaTitle", {
-                  amount: formatUsd(solanaPlan.totalBaseUsdc),
-                })}
+                {t("noFundsTitle", { chain: chainLabel(asset.chain) })}
               </div>
               <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
-                {solanaPlan.topUpGas ? t("fundSolanaWithGas") : t("fundSolanaBody")}
+                {t("noFundsBody")}
               </p>
-              {funding.error ? (
-                <p className="text-down mt-1.5 text-[11.5px] font-normal">{funding.error}</p>
+              {onAddFunds ? (
+                <button
+                  onClick={onAddFunds}
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
+                >
+                  {t("addFunds")}
+                </button>
               ) : null}
-              <button
-                onClick={() => void funding.fund(solanaPlan)}
-                disabled={!canFund || funding.busy}
-                className={`mt-2.5 w-full rounded-[12px] p-2.5 font-sans text-[13.5px] font-semibold ${
-                  canFund && !funding.busy
-                    ? "text-ink cursor-pointer bg-white hover:opacity-90"
-                    : "cursor-not-allowed bg-white/10 text-white/40"
-                }`}
-              >
-                {funding.busy
-                  ? t("fundSolanaWorking")
+            </div>
+          ) : basePlan ? (
+            /* USDC on Solana, buying on Base: one hop home, signed on Solana. */
+            <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3">
+              <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
+                {basePlan.needsSolForGas
+                  ? t("bringToBaseNoGas")
+                  : t("bringToBaseTitle", { amount: formatUsd(basePlan.bridgeUsdc) })}
+              </div>
+              <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
+                {basePlan.needsSolForGas ? t("bringToBaseNoGasBody") : t("bringToBaseBody")}
+              </p>
+              {proceeds.error ? (
+                <p className="text-down mt-2 text-[11.5px] leading-[1.5] font-normal">
+                  {proceeds.error}
+                </p>
+              ) : null}
+              {basePlan.needsSolForGas && onAddFunds ? (
+                <button
+                  onClick={onAddFunds}
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
+                >
+                  {t("addFunds")}
+                </button>
+              ) : (
+                <button
+                  onClick={() => void proceeds.bringHome(bridgeHomeRaw)}
+                  disabled={basePlan.needsSolForGas || proceeds.busy}
+                  className={`mt-2.5 w-full rounded-[12px] p-2.5 font-sans text-[13.5px] font-semibold ${
+                    !basePlan.needsSolForGas && !proceeds.busy
+                      ? "text-ink cursor-pointer bg-white hover:opacity-90"
+                      : "cursor-not-allowed bg-white/10 text-white/40"
+                  }`}
+                >
+                  {proceeds.busy ? t("bringToBaseWorking") : t("bringToBaseCta")}
+                </button>
+              )}
+            </div>
+          ) : needsFunding && solanaPlan ? (
+            <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3">
+              <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
+                {progressSteps.length > 0
+                  ? t("fundSolanaProgress")
                   : canFund
-                    ? t("fundSolanaCta")
+                    ? t("fundSolanaTitle", { amount: formatUsd(solanaPlan.totalBaseUsdc) })
                     : t("fundSolanaShort")}
-              </button>
+              </div>
+              {progressSteps.length > 0 ? (
+                <div className="mt-2.5">
+                  <RwaProgress steps={progressSteps} />
+                </div>
+              ) : (
+                <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
+                  {!canFund
+                    ? t("fundSolanaShortBody", { amount: formatUsd(solanaPlan.totalBaseUsdc) })
+                    : solanaPlan.topUpGas
+                      ? t("fundSolanaWithGas")
+                      : t("fundSolanaBody")}
+                </p>
+              )}
+              {funding.error ? (
+                <p className="text-down mt-2 text-[11.5px] leading-[1.5] font-normal">
+                  {funding.error}
+                </p>
+              ) : null}
+              {/* A bridge can deliver less than it quoted. Rather than strand
+                  the buy behind a top-up the wallet can no longer afford,
+                  offer to spend exactly what landed. */}
+              {offerSpendable ? (
+                <button
+                  // Floored to the base unit: rounding up would stage more than
+                  // the wallet holds and trip the over-balance gate instead.
+                  onClick={() => onInput((Math.floor(spendableNow * 1e6) / 1e6).toFixed(6))}
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
+                >
+                  {t("useLandedBalance", { amount: formatUsd(spendableNow) })}
+                </button>
+              ) : canFund || !onAddFunds ? (
+                <button
+                  onClick={() => void fundThenBuy()}
+                  disabled={!canFund || alreadyFunded || funding.busy}
+                  className={`mt-2.5 w-full rounded-[12px] p-2.5 font-sans text-[13.5px] font-semibold ${
+                    canFund && !alreadyFunded && !funding.busy
+                      ? "text-ink cursor-pointer bg-white hover:opacity-90"
+                      : "cursor-not-allowed bg-white/10 text-white/40"
+                  }`}
+                >
+                  {funding.busy
+                    ? t("fundSolanaWorking")
+                    : funding.phase === "failed"
+                      ? t("fundSolanaRetry")
+                      : t("fundSolanaCta")}
+                </button>
+              ) : (
+                <button
+                  onClick={onAddFunds}
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
+                >
+                  {t("addFunds")}
+                </button>
+              )}
             </div>
           ) : null}
 
-          <button
-            onClick={() => void confirmTrade()}
-            disabled={!canConfirm || needsFunding || funding.busy}
-            className={`mt-4 w-full rounded-[14px] p-[15px] font-sans text-[15px] font-semibold whitespace-nowrap transition-opacity ${
-              canConfirm
-                ? "text-ink cursor-pointer bg-white hover:opacity-90"
-                : "cursor-not-allowed bg-white/10 text-white/40"
-            }`}
-          >
-            {confirming
-              ? signStep
-                ? t("signingStep", { current: signStep.index + 1, total: signStep.total })
-                : t("buildingOrder")
-              : needsFunding
-                ? t("fundSolanaFirst")
+          {/* With nothing on either chain there is nothing to buy with, so the
+              button stays but says why — a hidden control reads as broken. */}
+          {walletEmpty ? (
+            <button
+              disabled
+              className="mt-4 w-full cursor-not-allowed rounded-[14px] bg-white/10 p-[15px] font-sans text-[15px] font-semibold whitespace-nowrap text-white/40"
+            >
+              {t("noBalanceToBuy")}
+            </button>
+          ) : needsFunding ? null : (
+            <button
+              onClick={() => void confirmTrade()}
+              disabled={!canConfirm || funding.busy}
+              className={`mt-4 w-full rounded-[14px] p-[15px] font-sans text-[15px] font-semibold whitespace-nowrap transition-opacity ${
+                canConfirm && !funding.busy
+                  ? "text-ink cursor-pointer bg-white hover:opacity-90"
+                  : "cursor-not-allowed bg-white/10 text-white/40"
+              }`}
+            >
+              {confirming
+                ? signStep
+                  ? t("signingStep", { current: signStep.index + 1, total: signStep.total })
+                  : t("buildingOrder")
                 : overBalance
                   ? tBuySell("notEnoughBalance")
                   : phase === "quoting"
@@ -705,7 +960,8 @@ export function RwaTradePanel({
                         ? t("buySymbol", { symbol: asset.symbol })
                         : t("sellSymbol", { symbol: asset.symbol })
                       : t("enterAmount")}
-          </button>
+            </button>
+          )}
 
           {confirming && signStep ? (
             <p className="mt-2 text-center text-[12px] font-normal text-white/55">

@@ -84,6 +84,9 @@ export function useSolanaProceeds() {
         const { signature } = await signAndSendTransaction({
           transaction: base64ToBytes(quote.transaction),
           wallet,
+          // Broadcast-only: the confirmation below polls the RPC we send
+          // through, rather than a WebSocket we do not proxy.
+          options: { optimisticBroadcast: true },
         });
         sentRef.current = true;
         const sig = getBase58Decoder().decode(signature);
@@ -97,7 +100,7 @@ export function useSolanaProceeds() {
           await delay(POLL_MS);
           const status = await fetchLifiStatus(sig).catch(() => "PENDING" as const);
           if (status === "DONE") {
-            void portfolio.refetch();
+            void portfolio.refetchUntilChanged();
             setPhase("done");
             return true;
           }

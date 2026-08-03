@@ -1,0 +1,74 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { NextRequest } from "next/server";
+
+vi.mock("server-only", () => ({}));
+
+const auth = vi.hoisted(() => ({ verifyRequest: vi.fn(), getRequestUser: vi.fn() }));
+vi.mock("@/lib/server/auth", () => auth);
+
+const { POST } = await import("@/app/api/solana-rpc/route");
+
+function makeReq(body: unknown): NextRequest {
+  return { json: async () => body } as unknown as NextRequest;
+}
+
+const fetchMock = vi.fn();
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  auth.verifyRequest.mockResolvedValue({ sub: "user" });
+  process.env.ALCHEMY_API_KEY = "test-key";
+  // A fresh Response per call: a body can only be read once.
+  fetchMock.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "ok" }), { status: 200 })
+  );
+  vi.stubGlobal("fetch", fetchMock);
+});
+
+describe("solana rpc proxy", () => {
+  it("rejects an unauthenticated caller before reaching Alchemy", async () => {
+    auth.verifyRequest.mockResolvedValue(null);
+    const res = await POST(makeReq({ method: "getLatestBlockhash" }));
+    expect(res.status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("forwards the methods the wallet flows need", async () => {
+    for (const method of [
+      "getLatestBlockhash",
+      "getSignatureStatuses",
+      "sendTransaction",
+      "simulateTransaction",
+      "getAccountInfo",
+      "getFeeForMessage",
+    ]) {
+      const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method }));
+      expect(res.status, method).toBe(200);
+    }
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it("refuses anything outside the allowlist, so it is not a free relay", async () => {
+    const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getProgramAccounts" }));
+    expect(res.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("checks every call in a batch, not just the first", async () => {
+    const res = await POST(
+      makeReq([
+        { jsonrpc: "2.0", id: 1, method: "getLatestBlockhash" },
+        { jsonrpc: "2.0", id: 2, method: "getProgramAccounts" },
+      ])
+    );
+    expect(res.status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("never leaks the key into the response path", async () => {
+    const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getLatestBlockhash" }));
+    expect(await res.text()).not.toContain("test-key");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("test-key");
+  });
+});

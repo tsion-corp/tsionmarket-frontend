@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
-import type { ActivityItem } from "@/hooks/use-activity";
+import type { ActivityEntry } from "@/lib/activity/entries";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatQty, truncateAddress } from "@/lib/format";
 
@@ -64,12 +64,19 @@ export function dayHeading(ms: number, t: Translate): string {
   });
 }
 
-export function ActivityRow({ item, priceUsd }: { item: ActivityItem; priceUsd: number }) {
+export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd: number }) {
   const t = useTranslations("activity");
   const money = useMoney();
   const incoming = item.direction === "in";
   const explorer = EXPLORER[item.network];
   const value = priceUsd > 0 ? priceUsd * item.amount : 0;
+  // What the user did, named. A trade also carries what it cost or fetched,
+  // which is more use on the row than the dollar value of one leg.
+  const title = t(item.kind, { symbol: item.symbol });
+  const counter =
+    item.counterSymbol && item.counterAmount != null
+      ? `${item.kind === "sold" ? "+" : "\u2212"}${formatQty(item.counterAmount)} ${item.counterSymbol}`
+      : null;
 
   return (
     <a
@@ -81,17 +88,18 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityItem; priceUsd: 
     >
       <div className="flex min-w-0 items-center gap-3">
         <span className="relative shrink-0">
-          <AssetIcon sym={item.symbol} bg={tokenBg(item.symbol)} fallback="gradient" />
+          <AssetIcon
+            sym={item.symbol}
+            bg={tokenBg(item.symbol)}
+            logo={item.logo}
+            fallback="gradient"
+          />
           <span className="absolute -right-1 -bottom-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-black">
             <NetworkIcon network={item.network} size={13} />
           </span>
         </span>
         <div className="min-w-0">
-          <div className="truncate font-sans text-[14.5px] font-medium">
-            {incoming
-              ? t("receivedSymbol", { symbol: item.symbol })
-              : t("sentSymbol", { symbol: item.symbol })}
-          </div>
+          <div className="truncate font-sans text-[14.5px] font-medium">{title}</div>
           <div className="truncate text-xs font-normal text-white/50">
             {clockTime(item.timestamp)} · {NETWORK_LABEL[item.network] ?? item.network}
             {item.counterparty
@@ -107,7 +115,7 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityItem; priceUsd: 
           {formatQty(item.amount)} {item.symbol}
         </div>
         <div className="tnum text-[12px] font-normal text-white/45">
-          {value > 0 ? money.format(value) : relativeTime(item.timestamp, t)}
+          {counter ?? (value > 0 ? money.format(value) : relativeTime(item.timestamp, t))}
         </div>
       </div>
     </a>

@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
-import { fetchRwaPrices, type PriceRequestItem } from "@/lib/server/rwa-prices";
+import { fetchRwaMarket, type PriceRequestItem } from "@/lib/server/rwa-prices";
 
-// Batched price lookup for catalog assets the RWA backend serves without one.
-// Auth-gated because it spends our Alchemy key, exactly like the portfolio.
+// Batched market lookup (price, 24h change, liquidity, market cap) for catalog
+// assets the RWA backend serves thin. Auth-gated because it spends our Alchemy
+// key, exactly like the portfolio.
 const MAX_ITEMS = 120;
 
 export async function POST(req: NextRequest) {
@@ -16,14 +17,14 @@ export async function POST(req: NextRequest) {
   const items = (body?.items ?? [])
     .filter((i) => i && typeof i.id === "string" && typeof i.address === "string")
     .slice(0, MAX_ITEMS);
-  if (items.length === 0) return NextResponse.json({ prices: {} });
+  if (items.length === 0) return NextResponse.json({ market: {} });
 
   try {
-    return NextResponse.json({ prices: await fetchRwaPrices(items) });
+    return NextResponse.json({ market: await fetchRwaMarket(items) });
   } catch (error) {
-    console.error("RWA price fetch failed:", error);
-    // A price is decoration here — the quote prices the trade — so a failure
+    console.error("RWA market fetch failed:", error);
+    // These stats are decoration — the quote prices the trade — so a failure
     // returns nothing rather than breaking the table.
-    return NextResponse.json({ prices: {} });
+    return NextResponse.json({ market: {} });
   }
 }

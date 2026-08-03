@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PrivyProvider } from "@privy-io/react-auth";
+import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
+import { createSolanaRpcSubscriptions } from "@solana/kit";
+import { createAppSolanaRpc } from "@/lib/solana-rpc";
 import { defaultShouldDehydrateQuery } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
@@ -20,8 +22,26 @@ import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 // Well-formed placeholder lets the app build before env vars are set.
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cl0123456789abcdefghijklm";
 
+type SolanaRpcs = NonNullable<NonNullable<PrivyClientConfig["solana"]>["rpcs"]>;
+type SolanaRpcEntry = NonNullable<SolanaRpcs[keyof SolanaRpcs]>;
+
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(createQueryClient);
+  // Without this Privy has nowhere to broadcast a Solana transaction and every
+  // Solana signature fails with "No RPC configuration found for chain
+  // solana:mainnet". Reads and sends go through our proxy; the subscription
+  // endpoint is only consulted when waiting for confirmation, which we skip
+  // (optimisticBroadcast) and do ourselves against the same proxy.
+  const [solanaRpcs] = useState<SolanaRpcs>(() => ({
+    "solana:mainnet": {
+      // Privy declares this against the test-cluster RPC API, which includes
+      // requestAirdrop — a method mainnet does not have. The client is right;
+      // only the declaration is too narrow.
+      rpc: createAppSolanaRpc() as SolanaRpcEntry["rpc"],
+      rpcSubscriptions: createSolanaRpcSubscriptions("wss://api.mainnet-beta.solana.com"),
+      blockExplorerUrl: "https://explorer.solana.com",
+    },
+  }));
   // Storage is undefined on the server, which makes the persister a no-op there,
   // so the same provider tree renders on both sides without a hydration mismatch.
   const [persister] = useState(() =>
@@ -50,6 +70,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
             createOnLogin: "users-without-wallets",
           },
         },
+        solana: { rpcs: solanaRpcs },
         appearance: {
           walletChainType: "ethereum-and-solana",
           // Login modal only — tx signing stays headless (showWalletUIs: false).

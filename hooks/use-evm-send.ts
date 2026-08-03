@@ -9,7 +9,7 @@ import {
 } from "@privy-io/react-auth";
 import { base } from "viem/chains";
 import type { EIP1193Provider } from "viem";
-import { sendSponsoredBaseCalls } from "@/lib/trade/base-sponsor";
+import { isSponsoredChain, sendSponsoredCalls } from "@/lib/trade/sponsor";
 
 export interface EvmSendInput {
   to: `0x${string}`;
@@ -48,18 +48,19 @@ export function useEvmSend() {
       address,
       gasLimit,
     }: EvmSendInput): Promise<`0x${string}`> => {
-      if (chainId === base.id) {
+      if (isSponsoredChain(chainId)) {
         const wallet = wallets.find((w) => w.walletClientType === "privy");
         if (!wallet) throw new Error("No EVM wallet is connected.");
         const accessToken = await getAccessToken();
         if (!accessToken) throw new Error("Your session expired. Sign in again.");
         const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-        return sendSponsoredBaseCalls({
+        return sendSponsoredCalls({
           address: wallet.address as `0x${string}`,
           provider,
           signAuthorization,
           accessToken,
           calls: [{ to, data, value }],
+          chainId,
         });
       }
       const { hash } = await sendTransaction(
@@ -89,8 +90,8 @@ export function useEvmSendBatch() {
 
   return useCallback(
     async (calls: EvmBatchCall[], chainId: number): Promise<`0x${string}`> => {
-      if (chainId !== base.id) {
-        throw new Error("Batched transactions are only supported on Base.");
+      if (!isSponsoredChain(chainId)) {
+        throw new Error("Batched transactions need a sponsored chain.");
       }
       if (calls.length === 0) throw new Error("Nothing to send.");
       const wallet = wallets.find((w) => w.walletClientType === "privy");
@@ -98,12 +99,13 @@ export function useEvmSendBatch() {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error("Your session expired. Sign in again.");
       const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-      return sendSponsoredBaseCalls({
+      return sendSponsoredCalls({
         address: wallet.address as `0x${string}`,
         provider,
         signAuthorization,
         accessToken,
         calls,
+        chainId,
       });
     },
     [signAuthorization, wallets]

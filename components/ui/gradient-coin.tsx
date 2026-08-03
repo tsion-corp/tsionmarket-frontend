@@ -22,7 +22,9 @@ export function GradientCoin({ sym, size = 36 }: GradientCoinProps) {
   return (
     <span
       aria-label={sym}
-      className="shrink-0 rounded-full"
+      // Inline elements ignore width and height, so outside a flex container
+      // this collapsed to nothing and the row showed only its network badge.
+      className="block shrink-0 rounded-full"
       style={{
         width: size,
         height: size,

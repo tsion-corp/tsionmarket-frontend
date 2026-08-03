@@ -16,10 +16,11 @@ import { RwaCategoryTabs } from "@/components/dashboard/rwa/rwa-category-tabs";
 import { RwaPagination } from "@/components/dashboard/rwa/rwa-pagination";
 import { SearchIcon } from "@/components/ui/icons";
 import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
-import { assetPriceUsd, assetTvlUsd, type RwaApiAsset } from "@/lib/rwa-api";
+import { assetPriceUsd, type RwaApiAsset } from "@/lib/rwa-api";
+import { assetLiquidityUsd, type RwaAssetView } from "@/lib/rwa/presenter";
 
 interface RwaAssetListProps {
-  assets: RwaApiAsset[];
+  assets: RwaAssetView[];
   selectedId: string;
   loading: boolean;
   error: boolean;
@@ -29,15 +30,15 @@ interface RwaAssetListProps {
 
 const PER_PAGE = 9;
 
-const columnHelper = createColumnHelper<RwaApiAsset>();
+const columnHelper = createColumnHelper<RwaAssetView>();
 const columns = [
   columnHelper.accessor((a) => `${a.symbol} ${a.name} ${a.issuer} ${a.chain}`, {
     id: "search",
     enableSorting: false,
   }),
   columnHelper.accessor((a) => assetPriceUsd(a) ?? 0, { id: "price" }),
-  columnHelper.accessor((a) => a.yieldApyBps ?? 0, { id: "apy" }),
-  columnHelper.accessor((a) => Number(assetTvlUsd(a) ?? 0), { id: "tvl" }),
+  columnHelper.accessor((a) => a.market?.change24h ?? 0, { id: "change" }),
+  columnHelper.accessor((a) => assetLiquidityUsd(a) ?? 0, { id: "liquidity" }),
 ];
 
 export function RwaAssetList({
@@ -124,8 +125,8 @@ export function RwaAssetList({
           <span>{t("asset")}</span>
           <span className="hidden min-[560px]:block">{t("network")}</span>
           {sortHeader("price", t("price"))}
-          {sortHeader("apy", t("apy"), "hidden min-[820px]:flex")}
-          {sortHeader("tvl", t("tvl"), "hidden min-[820px]:flex")}
+          {sortHeader("change", t("change24h"), "hidden min-[820px]:flex")}
+          {sortHeader("liquidity", t("liquidity"), "hidden min-[820px]:flex")}
           <span />
         </div>
 

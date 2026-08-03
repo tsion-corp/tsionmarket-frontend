@@ -116,7 +116,7 @@ export function MemeTradeSheet({
           ? t("toastBought", { symbol: token.symbol ?? "" })
           : t("toastSold", { symbol: token.symbol ?? "" })
       );
-      void portfolio.refetch();
+      void portfolio.refetchUntilChanged();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : t("orderFailed"));
     }

@@ -166,7 +166,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     if (stage === "settled") {
       resolvedRef.current = true;
       toast.success(buying ? t("toastBought", { symbol: base }) : t("toastSold", { symbol: base }));
-      void portfolio.refetch();
+      void portfolio.refetchUntilChanged();
     } else if (stage === "failed" || stage === "refunded") {
       resolvedRef.current = true;
       toast.error(t("orderFailedNote"));

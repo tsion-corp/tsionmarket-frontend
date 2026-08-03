@@ -12,6 +12,7 @@ import {
   findRwaHolding,
   formatApy,
   formatCompactUsd,
+  gasMinimumForChain,
   gasSymbolForChain,
   gradientFor,
   hasNativeGas,
@@ -528,5 +529,49 @@ describe("isUsableAsset", () => {
     expect(isUsableAsset(asset({ symbol: null as unknown as string }))).toBe(false);
     expect(isUsableAsset(asset({ address: null as unknown as string }))).toBe(false);
     expect(isUsableAsset(asset({ chain: null as unknown as RwaApiAsset["chain"] }))).toBe(false);
+  });
+});
+
+describe("hasNativeGas minimum", () => {
+  const sol = (balance: number) =>
+    [
+      {
+        symbol: "SOL",
+        name: "Solana",
+        network: "solana-mainnet",
+        address: null,
+        decimals: 9,
+        kind: "coin",
+        balance,
+        rawBalance: String(Math.round(balance * 1e9)),
+        priceUsd: 73,
+        valueUsd: balance * 73,
+        logo: null,
+      },
+    ] as never;
+
+  it("rejects dust that cannot open a token account", () => {
+    // 0.002142 SOL is what a first purchase actually cost: the rent-exempt
+    // deposit for the new account plus the fee. A > 0 check let this through
+    // and the difference came out of the wallet unannounced.
+    expect(hasNativeGas(sol(0.0001), "solana")).toBe(false);
+    expect(hasNativeGas(sol(0.002), "solana")).toBe(false);
+  });
+
+  it("accepts a balance that covers the account plus fees", () => {
+    expect(hasNativeGas(sol(0.005), "solana")).toBe(true);
+    expect(hasNativeGas(sol(0.0117), "solana")).toBe(true);
+  });
+
+  it("still reports nothing held as false", () => {
+    expect(hasNativeGas([], "solana")).toBe(false);
+  });
+
+  it("never gates Base, which is sponsored", () => {
+    expect(gasMinimumForChain("base")).toBe(0);
+  });
+
+  it("cannot judge a chain the portfolio does not index", () => {
+    expect(hasNativeGas([], "bsc")).toBeNull();
   });
 });

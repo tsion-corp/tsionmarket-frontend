@@ -118,7 +118,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       settledRef.current = true;
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
-      void portfolio.refetch();
+      void portfolio.refetchUntilChanged();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       toast.error(t("purchaseRefundedToast"), { id: toastRef.current });

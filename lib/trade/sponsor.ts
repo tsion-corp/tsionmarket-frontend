@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient, http, type EIP1193Provider, type SignedAuthorization } from "viem";
-import { base } from "viem/chains";
+import { base, polygon } from "viem/chains";
 import { createBundlerClient } from "viem/account-abstraction";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
 
@@ -12,9 +12,21 @@ import { to7702SimpleSmartAccount } from "permissionless/accounts";
 const SIMPLE_7702_IMPL = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as const;
 
 // Every Base transaction in the sponsored flow routes through our own proxy
-// (see app/api/base-bundler/route.ts) instead of Alchemy directly, so the API
+// (see app/api/bundler/route.ts) instead of Alchemy directly, so the API
 // key and sponsorship policy id never reach the client.
-const BUNDLER_PATH = "/api/base-bundler";
+// One Gas Manager policy covers every chain here, so adding one is a line in
+// this map. A chain that is absent simply sends normally and pays its own gas.
+const SPONSORED_CHAINS = { [base.id]: base, [polygon.id]: polygon } as const;
+
+export type SponsoredChainId = keyof typeof SPONSORED_CHAINS;
+
+export function isSponsoredChain(chainId: number): chainId is SponsoredChainId {
+  return chainId in SPONSORED_CHAINS;
+}
+
+function bundlerPath(chainId: SponsoredChainId): string {
+  return `/api/bundler?chain=${chainId === polygon.id ? "polygon" : "base"}`;
+}
 
 export interface SponsoredCall {
   to: `0x${string}`;
@@ -43,23 +55,26 @@ async function isAlreadyDelegated(
 // in place via EIP-7702 (same address, no balance migration). The EOA only
 // signs the one-time delegation (skipped once already delegated) plus its
 // normal userOp signature; the bundler covers every gas cost.
-export async function sendSponsoredBaseCalls({
+export async function sendSponsoredCalls({
   address,
   provider,
   signAuthorization,
   accessToken,
   calls,
+  chainId = base.id,
 }: {
   address: `0x${string}`;
   provider: EIP1193Provider;
   signAuthorization: SignAuthorization;
   accessToken: string;
   calls: SponsoredCall[];
+  chainId?: SponsoredChainId;
 }): Promise<`0x${string}`> {
-  const transport = http(BUNDLER_PATH, {
+  const chain = SPONSORED_CHAINS[chainId];
+  const transport = http(bundlerPath(chainId), {
     fetchOptions: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
-  const client = createClient({ chain: base, transport });
+  const client = createClient({ chain, transport });
 
   let authorization: SignedAuthorization<number> | undefined;
   if (!(await isAlreadyDelegated(client, address))) {
@@ -71,14 +86,14 @@ export async function sendSponsoredBaseCalls({
     );
     authorization = await signAuthorization({
       contractAddress: SIMPLE_7702_IMPL,
-      chainId: base.id,
+      chainId,
       nonce,
     });
   }
 
   const account = await to7702SimpleSmartAccount({ client, owner: provider });
 
-  const bundlerClient = createBundlerClient({ account, client, chain: base, transport });
+  const bundlerClient = createBundlerClient({ account, client, chain, transport });
 
   const hash = await bundlerClient.sendUserOperation({
     calls,

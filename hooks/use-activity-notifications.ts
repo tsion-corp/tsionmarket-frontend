@@ -2,9 +2,23 @@
 
 import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { useActivity, type ActivityItem } from "@/hooks/use-activity";
+import { useActivity, type ActivityEntry } from "@/hooks/use-activity";
 import { formatQty } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import type { ActivityKind } from "@/lib/activity/entries";
+
+// A trade names itself; a plain movement still needs its network, since the
+// same asset can arrive on more than one.
+const TOAST_KEY: Record<ActivityKind, string> = {
+  bought: "toastBought",
+  sold: "toastSold",
+  swapped: "toastBought",
+  deposited: "toastDeposited",
+  withdrew: "toastWithdrew",
+  moved: "toastMoved",
+  received: "toastReceived",
+  sent: "toastSent",
+};
 
 // Transfers that land while the app is open — including ones this app did not
 // initiate, like a deposit sent from an exchange — get a toast. The per-flow
@@ -67,7 +81,7 @@ export function useActivityNotifications(): void {
     }
 
     const seen = seenRef.current;
-    const fresh: ActivityItem[] = [];
+    const fresh: ActivityEntry[] = [];
     for (const item of items) {
       if (seen.has(item.id)) continue;
       seen.add(item.id);
@@ -82,7 +96,8 @@ export function useActivityNotifications(): void {
         symbol: item.symbol,
         network: NETWORK_LABEL[item.network] ?? item.network,
       };
-      const message = item.direction === "in" ? t("toastReceived", params) : t("toastSent", params);
+      // The same verb the row uses, so a toast and the history agree.
+      const message = t(TOAST_KEY[item.kind], params);
       // Keyed by the transfer so a re-render can never double-toast it.
       toast.success(message, { id: `activity:${item.id}` });
     }

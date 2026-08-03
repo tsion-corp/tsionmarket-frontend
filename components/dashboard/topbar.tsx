@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { SearchIcon } from "@/components/ui/icons";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { LanguageSelect } from "@/components/ui/language-select";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Avatar } from "@/components/dashboard/avatar";
 import { useGlobalSearch, type SearchResult } from "@/hooks/use-global-search";
@@ -101,10 +102,10 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   return (
     <div className="relative z-[2] flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
       <Link href="/dashboard" className="flex items-center text-white md:hidden">
-        <ArkMark height={17} />
+        <ArkMark height={14} />
       </Link>
 
-      <div className="relative max-w-[230px] flex-1 md:max-w-[420px]">
+      <div className="relative max-w-[230px] min-w-0 flex-1 md:max-w-[420px]">
         <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
           <SearchIcon />
           <input
@@ -121,7 +122,12 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
-        <LanguageSelect />
+        {/* Language is the least urgent control, so it yields first on a phone;
+            the bell stays at every width. */}
+        <span className="hidden min-[400px]:block">
+          <LanguageSelect />
+        </span>
+        <NotificationBell />
         <button
           onClick={onOpenAccount}
           aria-label={t("account")}

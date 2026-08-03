@@ -117,7 +117,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       settledRef.current = true;
       toast.success(t("soldToast", { symbol: payload.symbol }), { id: toastRef.current });
       toastRef.current = undefined;
-      void portfolio.refetch();
+      void portfolio.refetchUntilChanged();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       toast.error(t("saleRefundedToast"), { id: toastRef.current });

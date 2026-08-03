@@ -5,8 +5,9 @@ import type { NextRequest } from "next/server";
 const { verifyRequest } = vi.hoisted(() => ({ verifyRequest: vi.fn() }));
 vi.mock("@/lib/server/auth", () => ({ verifyRequest }));
 
-function makeReq(body: unknown): NextRequest {
-  return { json: async () => body } as unknown as NextRequest;
+function makeReq(body: unknown, chain?: string): NextRequest {
+  const url = new URL(`https://x/api/bundler${chain ? `?chain=${chain}` : ""}`);
+  return { json: async () => body, nextUrl: url } as unknown as NextRequest;
 }
 
 // The route reads ALCHEMY_* env at module load, so set env then import fresh.
@@ -14,10 +15,10 @@ async function loadRoute() {
   vi.resetModules();
   process.env.ALCHEMY_API_KEY = "test-key";
   process.env.ALCHEMY_GAS_POLICY_ID = "test-policy";
-  return import("@/app/api/base-bundler/route");
+  return import("@/app/api/bundler/route");
 }
 
-describe("base-bundler proxy route", () => {
+describe("bundler proxy route", () => {
   beforeEach(() => {
     verifyRequest.mockReset();
     global.fetch = vi.fn(async () => ({
@@ -64,5 +65,45 @@ describe("base-bundler proxy route", () => {
     );
     expect(res.status).toBe(403);
     expect(global.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("chain routing", () => {
+  it("forwards to the chain asked for, with the one policy that covers both", async () => {
+    const { POST } = await loadRoute();
+    verifyRequest.mockResolvedValue({ sub: "u" });
+    const fetchMock = vi.fn<(url: unknown, init?: RequestInit) => Promise<Response>>(
+      async () => new Response("{}", { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await POST(makeReq({ method: "eth_chainId", params: [] }, "polygon"));
+    expect(String(fetchMock.mock.calls[0][0])).toContain("polygon-mainnet");
+
+    await POST(makeReq({ method: "eth_chainId", params: [] }, "base"));
+    expect(String(fetchMock.mock.calls[1][0])).toContain("base-mainnet");
+
+    for (const call of fetchMock.mock.calls) {
+      const headers = (call[1]?.headers ?? {}) as Record<string, string>;
+      expect(headers["x-alchemy-policy-id"]).toBe("test-policy");
+    }
+  });
+
+  it("defaults to Base when no chain is given, so an older client keeps working", async () => {
+    const { POST } = await loadRoute();
+    verifyRequest.mockResolvedValue({ sub: "u" });
+    const fetchMock = vi.fn<(url: unknown, init?: RequestInit) => Promise<Response>>(
+      async () => new Response("{}", { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await POST(makeReq({ method: "eth_chainId", params: [] }));
+    expect(String(fetchMock.mock.calls[0][0])).toContain("base-mainnet");
+  });
+
+  it("refuses a chain the policy does not cover", async () => {
+    const { POST } = await loadRoute();
+    verifyRequest.mockResolvedValue({ sub: "u" });
+    const res = await POST(makeReq({ method: "eth_chainId", params: [] }, "ethereum"));
+    expect(res.status).toBe(404);
   });
 });

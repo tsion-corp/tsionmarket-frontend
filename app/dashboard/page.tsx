@@ -118,7 +118,7 @@ export default function DashboardPage() {
     spot: <Spot onOpenDetail={openDetail} onOpenBuy={openBuy} />,
     perps: <Perps />,
     meme: <Meme />,
-    rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} />,
+    rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} onAddFunds={openFunds} />,
   };
 
   return (

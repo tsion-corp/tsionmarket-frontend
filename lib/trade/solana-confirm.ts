@@ -1,6 +1,6 @@
-import { createSolanaRpc, signature as toSignature } from "@solana/kit";
+import { signature as toSignature } from "@solana/kit";
+import { createAppSolanaRpc } from "@/lib/solana-rpc";
 
-const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 const ATTEMPTS = 20;
 const POLL_MS = 1500;
 
@@ -8,7 +8,7 @@ const POLL_MS = 1500;
 // result instead of the pre-transaction state. Best-effort: returns after
 // confirmation, throws on an on-chain failure, or returns after a short timeout.
 export async function confirmSolanaSignature(sigBase58: string): Promise<void> {
-  const rpc = createSolanaRpc(SOLANA_RPC);
+  const rpc = createAppSolanaRpc();
   const sig = toSignature(sigBase58);
   for (let i = 0; i < ATTEMPTS; i++) {
     const { value } = await rpc.getSignatureStatuses([sig]).send();

@@ -16,8 +16,11 @@ const RISK_STYLE: Record<TokenRiskLevel, string> = {
 export function RiskBadge({ level }: { level: TokenRiskLevel }) {
   const t = useTranslations("meme");
   return (
+    // shrink-0 keeps it inside the card when the price beside it is long, and
+    // nowrap stops "LOW RISK" breaking onto a second line, which made those
+    // cards taller than the rest of their row.
     <span
-      className={`rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] uppercase ${RISK_STYLE[level]}`}
+      className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] whitespace-nowrap uppercase ${RISK_STYLE[level]}`}
     >
       {t(`risk${level.charAt(0)}${level.slice(1).toLowerCase()}`)}
     </span>
@@ -42,10 +45,26 @@ export function MemeCoin({ token, size = 30 }: { token: MemeToken; size?: number
   );
 }
 
+const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
+
+function subscript(count: number): string {
+  return String(count)
+    .split("")
+    .map((d) => SUBSCRIPT[Number(d)])
+    .join("");
+}
+
 export function priceLabel(priceUsd: string | null): string {
   const n = priceUsd === null ? NaN : Number(priceUsd);
   if (!Number.isFinite(n) || n <= 0) return "—";
   if (n >= 1) return `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-  // Sub-cent meme prices need the significant digits, not two decimals.
-  return `$${n.toLocaleString("en-US", { maximumSignificantDigits: 4 })}`;
+  if (n >= 0.001) return `$${n.toLocaleString("en-US", { maximumSignificantDigits: 4 })}`;
+  // Below a thousandth, spelling out the zeros runs to fourteen characters and
+  // shoves the risk badge out of the card. Subscript the run instead — the
+  // convention every DEX front-end uses — which keeps full precision in a
+  // label short enough to sit beside the badge.
+  const [mantissa, exponent] = n.toExponential(3).split("e");
+  const zeros = -Number(exponent) - 1;
+  const digits = mantissa.replace(".", "").replace(/0+$/, "") || "0";
+  return `$0.0${subscript(zeros)}${digits}`;
 }

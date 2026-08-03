@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ClockIcon } from "@/components/ui/icons";
 import { ActivityRow, dayHeading } from "@/components/dashboard/activity/activity-row";
-import { useActivity, type ActivityItem } from "@/hooks/use-activity";
+import { useActivity, type ActivityEntry } from "@/hooks/use-activity";
 import { usePortfolio } from "@/hooks/use-portfolio";
 
 // Wallet history across every chain we track, newest first and grouped by day.
@@ -27,7 +27,7 @@ export function ActivityView() {
   }, [portfolio.tokens]);
 
   const groups = useMemo(() => {
-    const out: { heading: string; items: ActivityItem[] }[] = [];
+    const out: { heading: string; items: ActivityEntry[] }[] = [];
     for (const item of items) {
       const heading = item.timestamp ? dayHeading(item.timestamp, t) : t("unknownDate");
       const last = out[out.length - 1];

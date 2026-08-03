@@ -72,6 +72,10 @@ export function useExecuteRwa() {
           const { signature } = await signAndSendTransaction({
             transaction: base64ToBytes(step.tx.base64),
             wallet,
+            // Return once broadcast. Privy would otherwise confirm over a
+            // WebSocket subscription we do not proxy; the confirmation below
+            // polls the same RPC we send through.
+            options: { optimisticBroadcast: true },
           });
           lastSolanaSig = getBase58Decoder().decode(signature);
         } else {

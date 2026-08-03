@@ -2,18 +2,21 @@
 
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
-import { assetPriceUsd, assetTvlUsd, rwaLogoUrl, type RwaApiAsset } from "@/lib/rwa-api";
+import { assetPriceUsd, rwaLogoUrl } from "@/lib/rwa-api";
 import { formatUsd } from "@/lib/trade/math";
 import {
+  assetLiquidityUsd,
   chainLabel,
   formatApy,
+  formatChange,
   formatCompactUsd,
   gradientFor,
   isTradable,
+  type RwaAssetView,
 } from "@/lib/rwa/presenter";
 
 interface RwaAssetRowProps {
-  asset: RwaApiAsset;
+  asset: RwaAssetView;
   selected: boolean;
   logo?: string;
   onOpen: () => void;
@@ -27,7 +30,11 @@ function Dash() {
 export function RwaAssetRow({ asset, selected, logo, onOpen, onTrade }: RwaAssetRowProps) {
   const t = useTranslations("rwa");
   const price = assetPriceUsd(asset);
+  // Only three assets in the catalog pay a yield, so APY rides beside the name
+  // where it is real rather than as a column that is empty for everything else.
   const apy = formatApy(asset.yieldApyBps);
+  const change = formatChange(asset.market?.change24h);
+  const up = (asset.market?.change24h ?? 0) >= 0;
   const tradable = isTradable(asset);
 
   return (
@@ -44,7 +51,14 @@ export function RwaAssetRow({ asset, selected, logo, onOpen, onTrade }: RwaAsset
           logo={logo ?? rwaLogoUrl(asset)}
         />
         <div className="min-w-0">
-          <div className="truncate font-sans text-[14.5px] font-medium">{asset.name}</div>
+          <div className="flex items-center gap-2">
+            <span className="truncate font-sans text-[14.5px] font-medium">{asset.name}</span>
+            {apy ? (
+              <span className="border-up/25 bg-up/12 text-up shrink-0 rounded-full border px-1.5 py-px text-[10.5px] font-semibold">
+                {t("apyPill", { apy })}
+              </span>
+            ) : null}
+          </div>
           <div className="truncate text-xs font-normal text-white/50">
             {asset.symbol} · {asset.issuer}
             <span className="min-[560px]:hidden"> · {chainLabel(asset.chain)}</span>
@@ -61,11 +75,11 @@ export function RwaAssetRow({ asset, selected, logo, onOpen, onTrade }: RwaAsset
       </span>
 
       <span className="tnum hidden text-right text-[13.5px] font-normal min-[820px]:block">
-        {apy ? <span className="text-up">{apy}</span> : <Dash />}
+        {change ? <span className={up ? "text-up" : "text-down"}>{change}</span> : <Dash />}
       </span>
 
       <span className="tnum hidden text-right text-[13.5px] font-normal text-white/75 min-[820px]:block">
-        {formatCompactUsd(assetTvlUsd(asset))}
+        {formatCompactUsd(assetLiquidityUsd(asset))}
       </span>
 
       <span className="text-right">

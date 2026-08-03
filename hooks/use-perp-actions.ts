@@ -30,7 +30,7 @@ import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/l
 // Account identity: the perp doc warns that under ERC-4337 the `trader` must
 // be the smart-account address, not the EOA. Our gasless path is EIP-7702 —
 // the embedded EOA is upgraded IN PLACE at the same address (see
-// lib/trade/base-sponsor.ts) — so `trader` here and the sponsored sender are
+// lib/trade/sponsor.ts) — so `trader` here and the sponsored sender are
 // the same address by construction. Do not "fix" this to a separate
 // smart-account address.
 //

@@ -34,6 +34,9 @@ export function useSwapExecute() {
       const { signature } = await signAndSendTransaction({
         transaction: base64ToBytes(txBase64),
         wallet,
+        // Broadcast-only: the confirmation below polls the RPC we send
+        // through, rather than a WebSocket we do not proxy.
+        options: { optimisticBroadcast: true },
       });
       await confirmSolanaSignature(getBase58Decoder().decode(signature));
     },

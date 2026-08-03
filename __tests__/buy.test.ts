@@ -91,7 +91,11 @@ describe("isOfferable", () => {
     );
   });
 
-  it("rejects native SOL (undeliverable) and the Base wrapper", () => {
+  it("offers SOL on Solana but not the Base wrapper", () => {
+    // An ERC-20 "SOL" on Base is not native SOL, so it stays excluded. Solana
+    // itself is offerable: the catalog advertises it under the wSOL mint, which
+    // the quote endpoint rejects, and settlementAddress re-addresses it to the
+    // system program — verified live, $3 -> 0.0396 SOL.
     expect(isOfferable(route({ symbol: "SOL", chainName: "Base", destinationChainId: BASE }))).toBe(
       false
     );
@@ -99,7 +103,7 @@ describe("isOfferable", () => {
       isOfferable(
         route({ symbol: "SOL", chainName: "solana", destinationChainId: SOLANA, asset: SOL_MINT })
       )
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -114,8 +118,10 @@ describe("routesForSymbol", () => {
     expect(routes.map((r) => r.chainName)).toEqual(["Arbitrum", "Polygon"]);
   });
 
-  it("offers nothing for SOL: native SOL is undeliverable and the Base one is wrapped", () => {
-    expect(routesForSymbol(DESTINATIONS, "SOL")).toEqual([]);
+  it("offers SOL only on Solana, never the Base wrapper", () => {
+    const routes = routesForSymbol(DESTINATIONS, "SOL");
+    expect(routes).toHaveLength(1);
+    expect(routes[0].destinationChainId).toBe(SOLANA);
   });
 
   it("resolves BTC through its alias to cbBTC on Base", () => {
@@ -152,20 +158,24 @@ describe("defaultRouteForSymbol", () => {
 
   it("is null for a non-offerable symbol", () => {
     expect(defaultRouteForSymbol(DESTINATIONS, "XRP")).toBeNull();
-    expect(defaultRouteForSymbol(DESTINATIONS, "SOL")).toBeNull();
+    expect(defaultRouteForSymbol(DESTINATIONS, "DOGE")).toBeNull();
+  });
+
+  it("routes SOL to Solana", () => {
+    expect(defaultRouteForSymbol(DESTINATIONS, "SOL")?.destinationChainId).toBe(SOLANA);
   });
 });
 
 describe("buyableSymbols / isBuyable", () => {
   it("collects offerable symbols by display ticker (cbBTC surfaces as BTC)", () => {
-    expect(buyableSymbols(DESTINATIONS)).toEqual(new Set(["ETH", "USDT", "BTC", "WIF"]));
+    expect(buyableSymbols(DESTINATIONS)).toEqual(new Set(["ETH", "USDT", "BTC", "WIF", "SOL"]));
   });
 
   it("reports buyability, resolving aliases and excluding undeliverable assets", () => {
     expect(isBuyable(DESTINATIONS, "eth")).toBe(true);
     expect(isBuyable(DESTINATIONS, "BTC")).toBe(true);
     expect(isBuyable(DESTINATIONS, "WIF")).toBe(true);
-    expect(isBuyable(DESTINATIONS, "SOL")).toBe(false);
+    expect(isBuyable(DESTINATIONS, "SOL")).toBe(true);
     expect(isBuyable(DESTINATIONS, "XRP")).toBe(false);
     expect(isBuyable(DESTINATIONS, "DOGE")).toBe(false);
   });

@@ -3,32 +3,18 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { assetPriceUsd, type RwaApiAsset } from "@/lib/rwa-api";
+import { mergeMarket, type RwaAssetView, type RwaMarketStats } from "@/lib/rwa/presenter";
+import type { RwaApiAsset } from "@/lib/rwa-api";
 
-const PRICE_STALE_MS = 60_000;
+const MARKET_STALE_MS = 60_000;
 
-// Overlay fetched prices onto assets the backend serves without one. Pure, so
-// the merge is testable without the query layer.
-export function mergeFallbackPrices(
-  assets: RwaApiAsset[],
-  priceById: Map<string, number>
-): RwaApiAsset[] {
-  if (priceById.size === 0) return assets;
-  return assets.map((a) => {
-    const price = priceById.get(a.id);
-    return price != null && assetPriceUsd(a) == null ? { ...a, priceUsd: String(price) } : a;
-  });
-}
-
-// Assets with the backend's price where present, and a batched lookup filling
-// the gaps (today: the whole Solana catalog ships priceUsd null). One request
-// covers every missing asset — a per-asset fan-out rate-limits immediately.
-export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaApiAsset[] {
+// Assets carrying live market stats — price, 24h change, pool liquidity, market
+// cap — for every row. The RWA backend serves a price for almost none of them,
+// an APY for three and a TVL for one, so one batched request covers the rest;
+// a per-asset fan-out rate-limits immediately.
+export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaAssetView[] {
   const targets = useMemo(
-    () =>
-      assets
-        .filter((a) => assetPriceUsd(a) == null)
-        .map((a) => ({ id: a.id, chain: a.chain, address: a.address })),
+    () => assets.map((a) => ({ id: a.id, chain: a.chain, address: a.address })),
     [assets]
   );
 
@@ -43,11 +29,11 @@ export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaApiAsset[] {
     [targets]
   );
 
-  const { data } = useQuery<Record<string, number>>({
-    queryKey: ["rwa-prices", key],
+  const { data } = useQuery<Record<string, RwaMarketStats>>({
+    queryKey: ["rwa-market", key],
     enabled: targets.length > 0,
-    staleTime: PRICE_STALE_MS,
-    refetchInterval: PRICE_STALE_MS,
+    staleTime: MARKET_STALE_MS,
+    refetchInterval: MARKET_STALE_MS,
     retry: 1,
     queryFn: async () => {
       const res = await apiFetch(
@@ -59,14 +45,14 @@ export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaApiAsset[] {
         },
         { requireAuth: true }
       );
-      // Throwing lets the retry engage; returning {} would cache "no prices"
+      // Throwing lets the retry engage; returning {} would cache "no data"
       // as a success for the whole stale window.
-      if (!res.ok) throw new Error("Could not load prices");
-      const body = (await res.json()) as { prices?: Record<string, number> };
-      return body.prices ?? {};
+      if (!res.ok) throw new Error("Could not load market data");
+      const body = (await res.json()) as { market?: Record<string, RwaMarketStats> };
+      return body.market ?? {};
     },
   });
 
-  const priceById = useMemo(() => new Map(Object.entries(data ?? {})), [data]);
-  return useMemo(() => mergeFallbackPrices(assets, priceById), [assets, priceById]);
+  const byId = useMemo(() => new Map(Object.entries(data ?? {})), [data]);
+  return useMemo(() => mergeMarket(assets, byId), [assets, byId]);
 }

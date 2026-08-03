@@ -33,7 +33,10 @@ export function MemeSimpleView() {
             <button
               key={token.address}
               onClick={() => setSelected(token)}
-              className="ws-card hover:border-accent/50 cursor-pointer rounded-[16px] p-4 text-left transition-[transform,border-color] duration-150 hover:-translate-y-0.5"
+              // h-full + column layout so every card in a row is the same
+              // height and the price sits on the baseline across the grid;
+              // overflow-hidden keeps content inside the rounded corners.
+              className="ws-card hover:border-accent/50 flex h-full cursor-pointer flex-col justify-between overflow-hidden rounded-[16px] p-4 text-left transition-[transform,border-color] duration-150 hover:-translate-y-0.5"
             >
               <div className="flex items-center gap-2.5">
                 <MemeCoin token={token} size={32} />
@@ -47,8 +50,13 @@ export function MemeSimpleView() {
                 </div>
               </div>
               <div className="mt-3 flex items-end justify-between gap-2">
-                <div>
-                  <div className="tnum text-[15px] font-medium">{priceLabel(token.priceUsd)}</div>
+                {/* min-w-0: a flex item defaults to min-width:auto and refuses
+                    to shrink below its text, which pushed the badge out of the
+                    card on the longest prices. */}
+                <div className="min-w-0">
+                  <div className="tnum truncate text-[15px] font-medium">
+                    {priceLabel(token.priceUsd)}
+                  </div>
                   <div className="text-[11.5px]">
                     <PctChange value={token.priceChange24hPercent} />
                   </div>

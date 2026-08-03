@@ -280,7 +280,7 @@ export function PortfolioView({
 
       <Eyebrow>{t("eyebrow")}</Eyebrow>
 
-      <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
         <KashCard />
       </div>

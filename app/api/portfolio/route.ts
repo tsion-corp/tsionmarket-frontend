@@ -12,9 +12,12 @@ export async function GET(req: NextRequest) {
 
   const evm = req.nextUrl.searchParams.get("evm") ?? undefined;
   const solana = req.nextUrl.searchParams.get("solana") ?? undefined;
+  // A caller that just traded needs to observe its own effect; the short shared
+  // cache would otherwise hand back the pre-trade snapshot.
+  const fresh = req.nextUrl.searchParams.get("fresh") === "1";
 
   try {
-    const portfolio = await fetchPortfolio(evm, solana);
+    const portfolio = await fetchPortfolio(evm, solana, fresh);
     return NextResponse.json(portfolio);
   } catch (error) {
     console.error("Portfolio fetch failed:", error);

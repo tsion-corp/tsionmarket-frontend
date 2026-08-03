@@ -49,10 +49,29 @@ const CANONICAL_CHAIN: Record<string, number> = {
 };
 
 // Assets Dextopus lists as destinations but its quote endpoint cannot actually
-// deliver. Native SOL is one: the bridge only settles SPL tokens (USDC, USDT,
-// ...) to Solana, not native lamports, so offering it only yields a quote error.
-// Addresses are lowercased for comparison.
-const NON_BUYABLE_ASSETS = new Set(["so11111111111111111111111111111111111111112"]);
+// deliver. Addresses are lowercased for comparison. Empty today; SOL used to sit
+// here, see SETTLEMENT_ADDRESS below for why it does not any more.
+const NON_BUYABLE_ASSETS = new Set<string>();
+
+// Wrapped SOL, which the destinations catalog advertises SOL under.
+const WSOL_MINT = "So11111111111111111111111111111111111111112";
+// The Solana system program, which is how native SOL is addressed.
+const NATIVE_SOL = "11111111111111111111111111111111";
+
+// Addresses the catalog advertises but the quote endpoint will not accept,
+// mapped to the one that settles. Quoting the wSOL mint returns "Destination
+// asset is not supported on chain"; the system-program address delivers native
+// SOL fine. SOL was excluded from the whole buy list over this — it is a top-ten
+// asset and a QA tester could not find it.
+const SETTLEMENT_ADDRESS: Record<string, string> = {
+  [WSOL_MINT.toLowerCase()]: NATIVE_SOL,
+};
+
+// The address to quote and settle against for a destination. Identical to the
+// catalog's for everything except the handful it advertises wrongly.
+export function settlementAddress(asset: string): string {
+  return SETTLEMENT_ADDRESS[asset.toLowerCase()] ?? asset;
+}
 
 // A route is offerable when we can deliver to its chain, it is a token Dextopus
 // can actually settle, and it is not a misleading wrapped representation of a

@@ -12,7 +12,7 @@
 
 import { apiFetch } from "@/lib/api";
 import { toBaseUnits } from "@/lib/trade/math";
-import { BUY_ORIGIN, type BuyRoute } from "@/lib/buy";
+import { BUY_ORIGIN, type BuyRoute, settlementAddress } from "@/lib/buy";
 
 export interface BuyQuoteInput {
   route: BuyRoute;
@@ -44,7 +44,9 @@ export function buildBuyQuoteBody(input: BuyQuoteInput) {
     originChainId: BUY_ORIGIN.chainId,
     originAsset: BUY_ORIGIN.asset,
     destinationChainId: input.route.destinationChainId,
-    destinationAsset: input.route.asset,
+    // The catalog advertises SOL under the wSOL mint, which the quote
+    // endpoint rejects; this resolves it to the address that settles.
+    destinationAsset: settlementAddress(input.route.asset),
     amount: input.amount.toString(),
     recipient: input.recipient,
     refundTo: input.refundTo,
