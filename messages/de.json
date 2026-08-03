@@ -284,7 +284,9 @@
     "differentEmail": "Andere E-Mail verwenden",
     "resendCode": "Code erneut senden",
     "sendingCode": "Code wird gesendet…",
-    "continueEmail": "Weiter mit E-Mail"
+    "continueEmail": "Weiter mit E-Mail",
+    "continueKingschat": "Weiter mit KingsChat",
+    "comingSoon": "Bald verfügbar"
   },
   "landingNav": {
     "markets": "Märkte",

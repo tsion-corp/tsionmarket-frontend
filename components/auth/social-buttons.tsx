@@ -65,6 +65,19 @@ export function SocialButtons() {
         <XLogo />
         {t("continueX")}
       </button>
+      {/* Not wired yet — announced ahead of the integration, so it renders
+          disabled with the tag rather than firing an OAuth flow that has no
+          provider behind it. */}
+      <button
+        className={`${BUTTON} cursor-default opacity-60 hover:border-white/14 hover:bg-white/6`}
+        disabled
+        aria-disabled
+      >
+        {t("continueKingschat")}
+        <span className="ml-1 rounded-full border border-white/15 bg-white/8 px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.06em] text-white/55 uppercase">
+          {t("comingSoon")}
+        </span>
+      </button>
     </div>
   );
 }
