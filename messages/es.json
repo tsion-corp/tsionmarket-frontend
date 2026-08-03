@@ -1359,7 +1359,9 @@
       "revealGotIt": "Entendido",
       "calcTitle": "Calculando el ganador…",
       "calcBody": "Decidiendo quién se lleva el pozo. Espera un momento.",
-      "calcOnTheLine": "{amount} en juego"
+      "calcOnTheLine": "{amount} en juego",
+      "soundPlay": "Sonido",
+      "soundMute": "Silenciar"
     },
     "fund": {
       "title": "Añadir dinero",

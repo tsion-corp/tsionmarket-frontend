@@ -1359,7 +1359,9 @@
       "revealGotIt": "Verstanden",
       "calcTitle": "Der Gewinner wird ermittelt…",
       "calcBody": "Es wird entschieden, wer den Pot nimmt. Einen Moment.",
-      "calcOnTheLine": "{amount} stehen auf dem Spiel"
+      "calcOnTheLine": "{amount} stehen auf dem Spiel",
+      "soundPlay": "Ton",
+      "soundMute": "Stumm"
     },
     "fund": {
       "title": "Geld hinzufügen",

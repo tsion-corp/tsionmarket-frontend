@@ -1359,7 +1359,9 @@
       "revealGotIt": "Got it",
       "calcTitle": "Calculating the winner…",
       "calcBody": "Deciding who takes the pot. Hold tight.",
-      "calcOnTheLine": "{amount} on the line"
+      "calcOnTheLine": "{amount} on the line",
+      "soundPlay": "Sound",
+      "soundMute": "Mute"
     },
     "fund": {
       "title": "Add money",

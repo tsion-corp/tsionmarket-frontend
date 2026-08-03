@@ -1359,7 +1359,9 @@
       "revealGotIt": "Compris",
       "calcTitle": "Calcul du gagnant…",
       "calcBody": "On détermine qui remporte le pot. Tenez bon.",
-      "calcOnTheLine": "{amount} en jeu"
+      "calcOnTheLine": "{amount} en jeu",
+      "soundPlay": "Son",
+      "soundMute": "Muet"
     },
     "fund": {
       "title": "Ajouter de l'argent",

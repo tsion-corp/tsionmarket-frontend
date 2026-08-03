@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
@@ -27,6 +27,21 @@ import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
 import { timeAgo, truncateAddress } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
+import {
+  isMusicPlaying,
+  setUrgentMode,
+  startMusic,
+  stopMusic,
+  subscribeMusic,
+} from "@/lib/casino/last-standing/music";
+import {
+  playClaimSound,
+  playDethronedSound,
+  playRevealSound,
+  playRoundEndSound,
+  playWagerSound,
+  setSoundEnabled,
+} from "@/lib/casino/last-standing/sound";
 import { toast } from "@/lib/toast";
 
 const EXPLORER_TX_URL = "https://basescan.org/tx/";
@@ -58,6 +73,52 @@ const SPARKLES = [
   { left: "52%", top: "80%", size: 6, dur: 3.2, delay: 2.0 },
   { left: "41%", top: "12%", size: 7, dur: 4.0, delay: 1.1 },
 ];
+
+// Play/pause for the arena's looping background track. The track (and every
+// event cue) is synthesised live with the Web Audio API — no audio file ships
+// or downloads. One switch governs all game audio: pausing the loop also mutes
+// the cues. Playback can only start from this click; autoplay policy blocks
+// anything earlier.
+function MusicToggle() {
+  const t = useTranslations("casino.lastStanding");
+  const playing = useSyncExternalStore(subscribeMusic, isMusicPlaying, () => false);
+  const toggle = () => {
+    if (playing) {
+      stopMusic();
+      setSoundEnabled(false);
+    } else {
+      startMusic();
+      setSoundEnabled(true);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      aria-label={playing ? t("soundMute") : t("soundPlay")}
+      aria-pressed={playing}
+      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 text-[11.5px] font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
+    >
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        {playing ? <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" /> : <path d="M8 5v14l11-7L8 5Z" />}
+      </svg>
+      {playing ? t("soundMute") : t("soundPlay")}
+    </button>
+  );
+}
+
+// The wager's coin flight: fixed launch offsets and stagger, so the burst is
+// deterministic (no per-render randomness) and reads as a handful of coins
+// rather than a single dot. Coordinates are viewport-relative; the layer that
+// renders them is position:fixed.
+const COIN_FLIGHTS = [
+  { dx: -26, delay: 0 },
+  { dx: -8, delay: 0.07 },
+  { dx: 10, delay: 0.13 },
+  { dx: 26, delay: 0.05 },
+  { dx: 0, delay: 0.19 },
+];
+const COIN_FLIGHT_SECONDS = 0.75;
 
 function formatCountdown(totalSeconds: number): string {
   const clamped = Math.max(0, Math.floor(totalSeconds));
@@ -95,6 +156,21 @@ export function LastStandingSection() {
   const { status, statusLoading, activities, winners, winnersLoading, resyncGame } = useVaultGame();
   const { wager, wagering, claim, claiming } = useVaultActions();
   const [fundOpen, setFundOpen] = useState(false);
+  // One coin flight per wager click: viewport coordinates captured from the
+  // button and the pot at the moment of the click. Null when nothing flies.
+  const [flight, setFlight] = useState<{
+    id: number;
+    from: { x: number; y: number };
+    to: { x: number; y: number };
+  } | null>(null);
+  const playBtnRef = useRef<HTMLButtonElement | null>(null);
+  const potRef = useRef<HTMLDivElement | null>(null);
+  const flightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (flightTimerRef.current) clearTimeout(flightTimerRef.current);
+    };
+  }, []);
   // Shows the "you're in!" arcade takeover the moment a play confirms.
   const [playEntering, setPlayEntering] = useState(false);
   // End-of-round overlay: null (idle), "calculating" (5s suspense), or "won"
@@ -112,6 +188,10 @@ export function LastStandingSection() {
 
   const reduce = useReducedMotion();
   const address = getWalletAddress(user, "ethereum");
+
+  // Leaving the arena stops the track — background music must not follow the
+  // user to the portfolio.
+  useEffect(() => stopMusic, []);
 
   // Unclaimed winnings straight from the contract (winners take the pot via
   // claim(), it is not auto-credited). Refreshed on each new block so it clears
@@ -184,6 +264,14 @@ export function LastStandingSection() {
     gameActive && status ? Math.min(100, (countdown / Math.max(1, status.timerDuration)) * 100) : 0;
   const urgent = gameActive && countdown <= 10;
 
+  // The red zone changes the music itself: at ten seconds the groove hands
+  // over to a clock tick-tock, the audible version of the red ring the arena
+  // already shows, and hands back if a wager saves the round.
+  useEffect(() => {
+    setUrgentMode(urgent && countdown > 0);
+    return () => setUrgentMode(false);
+  }, [urgent, countdown]);
+
   // Round-end handling. The winner is whoever was the last to play when the
   // clock ran out, and the contract credits their balance automatically — no
   // claim needed. The moment a live round ends we show the "calculating"
@@ -194,6 +282,18 @@ export function LastStandingSection() {
   // Drives the live "last standing" tension state on the game panel.
   const iAmLastStanding =
     gameActive && !!address && !!lastPlayer && lastPlayer.toLowerCase() === address.toLowerCase();
+
+  // The dethroned alert: this wallet was last standing and someone else played.
+  // Only while the round stays live — losing the flag because the round ended
+  // is the reveal's moment, not this one.
+  const wasLastStandingRef = useRef(false);
+  useEffect(() => {
+    if (wasLastStandingRef.current && !iAmLastStanding && gameActive) {
+      playDethronedSound();
+    }
+    wasLastStandingRef.current = iAmLastStanding;
+  }, [iAmLastStanding, gameActive]);
+
   const prevActiveRef = useRef(false);
   const lastPotRef = useRef(0);
   const winnerAtEndRef = useRef<string | null>(null);
@@ -220,6 +320,10 @@ export function LastStandingSection() {
       winnerAtEndRef.current = winnerAddress;
       setRoundPrizeUsd(prizeUsd);
       setPhase("calculating");
+      // The arena falls silent for the verdict: the loop stops (the next wager
+      // restarts it) and the buzzer-plus-suspense carries the audio instead.
+      stopMusic();
+      playRoundEndSound();
       setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
       // Converge immediately: fresh status (pot/timer reset), winners table and
       // feed, plus the balance — not whenever the next socket push arrives.
@@ -279,6 +383,7 @@ export function LastStandingSection() {
       const iWon = !!(me && winner.toLowerCase() === me);
       setRevealWinner(winner);
       if (iWon) setRecentWinUsd(roundPrizeUsd);
+      playRevealSound(iWon);
       setPhase("won");
     }, CALCULATING_MS);
     return () => clearTimeout(id);
@@ -347,6 +452,7 @@ export function LastStandingSection() {
     try {
       await claim();
       toast.success(t("toastClaimed"), { id });
+      playClaimSound();
       void refetchWinnings();
       void refetchPortfolio();
     } catch (e) {
@@ -378,6 +484,29 @@ export function LastStandingSection() {
       setFundOpen(true);
       return;
     }
+    // Entering the round starts the arena's audio, unconditionally — placing a
+    // wager IS asking for the game, sound and all, and this click is the user
+    // gesture autoplay policy wants. The mute button governs everything after;
+    // an earlier mute is deliberately overridden by choosing to play again.
+    startMusic();
+    setSoundEnabled(true);
+    // The wager visualised: coins leave the button and land in the pot. Fired
+    // on the click rather than on confirmation so the money reads as leaving
+    // the player's hand immediately; a failed wager costs only a cosmetic.
+    const btnRect = playBtnRef.current?.getBoundingClientRect();
+    const potRect = potRef.current?.getBoundingClientRect();
+    if (btnRect && potRect && !reduce) {
+      setFlight({
+        id: Date.now(),
+        from: { x: btnRect.left + btnRect.width / 2, y: btnRect.top + 8 },
+        to: { x: potRect.left + potRect.width / 2, y: potRect.top + potRect.height / 2 },
+      });
+      if (flightTimerRef.current) clearTimeout(flightTimerRef.current);
+      flightTimerRef.current = setTimeout(
+        () => setFlight(null),
+        (COIN_FLIGHT_SECONDS + 0.3) * 1000
+      );
+    }
     // One processing toast that resolves in place. Signing is headless (no Privy
     // modal), so this toast plus the button's "Placing your play…" state is the
     // only feedback the player sees while the gasless wager settles.
@@ -385,6 +514,7 @@ export function LastStandingSection() {
     try {
       await wager();
       toast.success(t("toastYoureIn"), { id: toastId });
+      playWagerSound();
       setPlayEntering(true);
       // The wager just landed on-chain, but the backend indexes it a moment
       // later — resync now and keep the fast settle-poll running briefly so
@@ -400,6 +530,40 @@ export function LastStandingSection() {
 
   return (
     <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+      {/* The wager in flight: coins arc from the play button into the pot.
+          Viewport coordinates, so the layer is fixed and pointer-transparent;
+          keyed by flight id so a rapid second wager restarts the burst. */}
+      {flight ? (
+        <div key={flight.id} aria-hidden className="pointer-events-none fixed inset-0 z-[85]">
+          {COIN_FLIGHTS.map((coin, i) => (
+            <motion.span
+              key={i}
+              className="text-ink absolute grid h-5 w-5 place-items-center rounded-full bg-white text-[10px] font-bold shadow-[0_0_12px_rgba(255,255,255,0.65)]"
+              style={{ left: -10, top: -10 }}
+              initial={{
+                x: flight.from.x + coin.dx,
+                y: flight.from.y,
+                scale: 0.5,
+                opacity: 0,
+              }}
+              animate={{
+                x: [flight.from.x + coin.dx, flight.from.x + coin.dx, flight.to.x],
+                y: [flight.from.y, flight.from.y - 46, flight.to.y],
+                scale: [0.5, 1, 0.4],
+                opacity: [0, 1, 0],
+              }}
+              transition={{
+                duration: COIN_FLIGHT_SECONDS,
+                delay: coin.delay,
+                ease: "easeInOut",
+                times: [0, 0.35, 1],
+              }}
+            >
+              $
+            </motion.span>
+          ))}
+        </div>
+      ) : null}
       {/* Playful layered glow behind the arena, for an arcade-y feel. */}
       <div
         aria-hidden
@@ -504,28 +668,43 @@ export function LastStandingSection() {
             />
           ) : null}
           <div className="relative">
-            <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
-              {t("prizePool")}
-            </div>
-            {statusLoading || !status ? (
-              <div className="mt-2 h-[62px] w-52 animate-pulse rounded-xl bg-white/8" />
-            ) : gameActive ? (
-              // Live round: the pot pulses between white and gold so it reads as
-              // hot money on the line.
-              <motion.div
-                className="ws-display tnum drop-shadow-[0_0_34px_rgba(216, 216, 220, 0.4)] mt-1.5 text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em]"
-                animate={
-                  reduce ? { color: "#d8d8dc" } : { color: ["#ffffff", "#d8d8dc", "#ffffff"] }
-                }
-                transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-              >
-                <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
-              </motion.div>
-            ) : (
-              <div className="ws-display tnum drop-shadow-[0_0_30px_rgba(255, 255, 255, 0.35)] mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent">
-                <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
+                {t("prizePool")}
               </div>
-            )}
+              <MusicToggle />
+            </div>
+            <motion.div
+              ref={potRef}
+              key={flight?.id ?? "idle"}
+              className="inline-block"
+              animate={flight && !reduce ? { scale: [1, 1, 1.05, 1] } : undefined}
+              transition={
+                flight && !reduce
+                  ? { duration: COIN_FLIGHT_SECONDS + 0.2, times: [0, 0.8, 0.92, 1] }
+                  : undefined
+              }
+            >
+              {statusLoading || !status ? (
+                <div className="mt-2 h-[62px] w-52 animate-pulse rounded-xl bg-white/8" />
+              ) : gameActive ? (
+                // Live round: the pot pulses between white and gold so it reads as
+                // hot money on the line.
+                <motion.div
+                  className="ws-display tnum drop-shadow-[0_0_34px_rgba(216, 216, 220, 0.4)] mt-1.5 text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em]"
+                  animate={
+                    reduce ? { color: "#d8d8dc" } : { color: ["#ffffff", "#d8d8dc", "#ffffff"] }
+                  }
+                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                >
+                  <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
+                </motion.div>
+              ) : (
+                <div className="ws-display tnum drop-shadow-[0_0_30px_rgba(255, 255, 255, 0.35)] mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent">
+                  <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
+                </div>
+              )}
+            </motion.div>
             <div className="mt-2 text-[13px] font-normal text-white/50">{t("potNote")}</div>
 
             {/* Live tension: when this wallet is last to play, it's winning. The
@@ -666,6 +845,7 @@ export function LastStandingSection() {
                 />
               ) : null}
               <motion.button
+                ref={playBtnRef}
                 onClick={() => void onPlay()}
                 disabled={wagering || !status || !address}
                 animate={luring && !reduce ? { opacity: [1, 0.5, 1] } : undefined}

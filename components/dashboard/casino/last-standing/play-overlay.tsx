@@ -3,11 +3,8 @@
 import { useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import confetti from "canvas-confetti";
 import { MoneyTicker } from "@/components/ui/money-ticker";
 
-// Confetti palette. Silver/white to match the monochrome brand.
-const CONFETTI_COLORS = ["#d8d8dc", "#a8a8ae", "#ffffff", "#c6c6cc"];
 const AUTO_CLOSE_MS = 3600;
 
 interface PlayOverlayProps {
@@ -27,9 +24,10 @@ function pad(total: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-// The moment you join a round. A full-screen arcade takeover: a coin drops, the
-// title slams in, the pot you're chasing counts up, and silver confetti fires,
-// so clicking Play lands as a real event instead of a silent state change. Auto
+// The moment you join a round. A full-screen arcade takeover: a coin drops,
+// the title slams in, and the pot you're chasing counts up, so clicking Play
+// lands as a real event instead of a silent state change. No confetti here —
+// that celebration belongs to winning, and entering is not winning. Auto
 // dismisses back to the arena after a beat.
 export function PlayOverlay({
   open,
@@ -39,40 +37,11 @@ export function PlayOverlay({
   onClose,
 }: PlayOverlayProps) {
   const t = useTranslations("casino.lastStanding");
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
   const reduce = useReducedMotion();
-
-  // Silver burst from the centre while the takeover is up.
-  useEffect(() => {
-    if (!open || reduce || !canvasRef.current) return;
-    const fire = confetti.create(canvasRef.current, { resize: true, useWorker: false });
-    fire({
-      particleCount: 160,
-      spread: 360,
-      startVelocity: 42,
-      gravity: 0.9,
-      scalar: 1.05,
-      origin: { x: 0.5, y: 0.5 },
-      colors: CONFETTI_COLORS,
-    });
-    const burst = setTimeout(() => {
-      fire({
-        particleCount: 90,
-        spread: 360,
-        startVelocity: 30,
-        origin: { x: 0.5, y: 0.42 },
-        colors: CONFETTI_COLORS,
-      });
-    }, 500);
-    return () => {
-      clearTimeout(burst);
-      fire.reset();
-    };
-  }, [open, reduce]);
 
   // Auto-dismiss back to the arena.
   useEffect(() => {
@@ -97,11 +66,6 @@ export function PlayOverlay({
           <div
             aria-hidden
             className="bg-[radial-gradient(60%_50%_at_50%_45%,rgba(216, 216, 220, 0.22),transparent_70%)] pointer-events-none fixed inset-0 z-[398]"
-          />
-          <canvas
-            ref={canvasRef}
-            aria-hidden
-            className="pointer-events-none fixed inset-0 z-[399] h-screen w-screen"
           />
           <div className="pointer-events-none fixed inset-0 z-[400] grid place-items-center p-6">
             <motion.div

@@ -1359,7 +1359,9 @@
       "revealGotIt": "Entendi",
       "calcTitle": "Calculando o vencedor…",
       "calcBody": "Decidindo quem leva o pote. Aguente firme.",
-      "calcOnTheLine": "{amount} em jogo"
+      "calcOnTheLine": "{amount} em jogo",
+      "soundPlay": "Som",
+      "soundMute": "Mudo"
     },
     "fund": {
       "title": "Adicionar dinheiro",
