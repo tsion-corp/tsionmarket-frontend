@@ -10,7 +10,10 @@ import { useCurrentSponsor } from "@/hooks/use-earn-sponsor";
 import { DEFAULT_BROWSE_QUERY, type BrowseQuery } from "@/lib/earn/api/types";
 import { BRAND } from "@/lib/brand";
 
-const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-8 pb-20 sm:px-6 lg:px-8";
+// relative + overflow-x-clip keep the decorative glow, which pokes past the
+// right edge, from widening the page into a horizontal scroll on mobile.
+const PAGE =
+  "relative mx-auto w-full max-w-[1520px] overflow-x-clip px-4 pt-8 pb-20 sm:px-6 lg:px-8";
 
 const UNCONFIGURED_DETAIL = "Bounties go live once the earn service is switched on.";
 
