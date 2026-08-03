@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { MethodTile } from "@/components/dashboard/funds/method-tile";
 import { CryptoDepositScreen } from "@/components/dashboard/funds/crypto-deposit-screen";
-import { FiatDepositScreen } from "@/components/dashboard/funds/fiat-deposit-screen";
+import { BankTransferScreen } from "@/components/dashboard/funds/bank-transfer-screen";
 import { AssetIcon } from "@/components/ui/asset-icon";
-import { ArrowRightIcon, CardIcon } from "@/components/ui/icons";
+import { ArrowRightIcon, BankIcon } from "@/components/ui/icons";
 import type { DepositPrefill } from "@/lib/voice/intent";
 
-type Step = "chooser" | "crypto" | "fiat";
+type Step = "chooser" | "crypto" | "bank";
 
 // USDC brand blue — only the fallback tint; AssetIcon renders the real
 // TokenUSDC web3icon for "USDC".
@@ -30,7 +30,7 @@ export function FundsModal({
   const back = () => setStep("chooser");
 
   if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
-  if (step === "fiat") return <FiatDepositScreen onBack={back} />;
+  if (step === "bank") return <BankTransferScreen onBack={back} onClose={onClose} />;
 
   return (
     <div>
@@ -62,11 +62,10 @@ export function FundsModal({
           </span>
         </button>
         <MethodTile
-          icon={<CardIcon size={22} />}
-          title={t("fiatTitle")}
-          subtitle={t("fiatSubtitle")}
-          badge={t("soon")}
-          onClick={() => setStep("fiat")}
+          icon={<BankIcon size={22} />}
+          title={t("bankTitle")}
+          subtitle={t("bankSubtitle")}
+          onClick={() => setStep("bank")}
         />
       </div>
       <button

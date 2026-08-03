@@ -60,6 +60,10 @@ export interface ActivityItem {
 }
 
 interface RawTransfer {
+  // Alchemy's stable, unique id per transfer (for example "0xabc…:log:3"). One
+  // transaction can hold several transfers of the same token in the same
+  // direction, so this, not the hash, is what makes an item unique.
+  uniqueId?: string;
   hash?: string;
   from?: string;
   to?: string | null;
@@ -288,14 +292,18 @@ export async function fetchActivity(
     );
 
     for (const { network, direction, transfers } of batches) {
-      for (const t of transfers) {
+      for (const [index, t] of transfers.entries()) {
         const contract = t.rawContract?.address ?? null;
         const isNative = t.category === "external";
         if (!isAllowedHolding(network, contract, isNative, rwa, registries.buyable)) continue;
         const amount = typeof t.value === "number" ? t.value : 0;
         if (amount <= 0 || !t.hash) continue;
         evmItems.push({
-          id: `${t.hash}:${direction}:${contract ?? "native"}`,
+          // Prefer Alchemy's uniqueId; fall back to a per-transfer composite so
+          // two transfers of the same token in one tx never share a React key.
+          // Always keyed by direction: a self-transfer log matches both the in
+          // and out queries with the same uniqueId, and we render both.
+          id: `${direction}:${t.uniqueId ?? `${t.hash}:${contract ?? "native"}:${network}:${index}`}`,
           hash: t.hash,
           network,
           direction,

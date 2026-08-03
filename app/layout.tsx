@@ -38,6 +38,14 @@ export default async function RootLayout({
   const locale = await getLocale();
   const messages = await getMessages();
 
+  // Public Vivid widget config (a publishable key), read on the server with the
+  // deployed values as a fallback. Injected as a plain inline script so it runs
+  // before widget.js and sets the global the widget reads.
+  const vividConfig = {
+    key: process.env.VIVID_API_KEY ?? "pk_live_xARDqkZFFwSnUPE4rN_cNU5d",
+    api: process.env.VIVID_API_URL ?? "https://platformvivid.worldstreetgold.com",
+  };
+
   return (
     <html lang={locale} className={`${geist.variable} ${monaSans.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
@@ -48,10 +56,22 @@ export default async function RootLayout({
           The Vivid widget reads its key from document.currentScript, which is
           null for scripts next/script injects dynamically. Configure it via the
           window global it also supports so the key survives that injection.
+
+          Both scripts use afterInteractive so next/script injects them
+          imperatively (document.createElement in an effect) rather than rendering
+          a real <script> element. A rendered inline <script> is what React 19
+          warns about ("scripts inside React components are never executed on the
+          client"), which beforeInteractive would produce. The config script sits
+          first, so its effect runs and sets the global before widget.js, which
+          still has to download, executes.
         */}
-        <Script id="vivid-config" strategy="beforeInteractive">
-          {`window.__VIVID_CONFIG = { key: "pk_live_xARDqkZFFwSnUPE4rN_cNU5d", api: "https://platformvivid.worldstreetgold.com" };`}
-        </Script>
+        <Script
+          id="vivid-config"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `window.__VIVID_CONFIG = ${JSON.stringify(vividConfig)};`,
+          }}
+        />
         <Script
           src="https://platformvivid.worldstreetgold.com/widget.js"
           strategy="afterInteractive"
