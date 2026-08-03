@@ -10,6 +10,7 @@ import {
   depositOriginAsset,
   eligibilityKey,
   eligibilityLookupAddress,
+  findStaticAddress,
   quoteReadyDestinationAsset,
   type AddressKind,
   type DepositChain,
@@ -18,6 +19,7 @@ import {
   type QuoteRequest,
   type QuoteResult,
   type StaticAddress,
+  type StaticAddressListResult,
   type StaticAddressRequest,
   type StaticAddressResult,
   type ValidateAddressResult,
@@ -387,6 +389,49 @@ export function useStaticDepositAddress(req: StaticAddressRequest | null) {
         "Couldn't create a deposit address"
       );
       return data.data;
+    },
+  });
+}
+
+// The permanent address for a request, reusing whatever was already minted for
+// it. Unlike `useStaticDepositAddress` this never mints a second address for a
+// request that already has one: it asks Dextopus what exists first, because
+// minting is not idempotent and the profile shows these addresses as permanent.
+// The extra list call costs one request the first time and is then persisted.
+export function useStableStaticAddress(req: StaticAddressRequest | null) {
+  return useQuery<StaticAddress>({
+    queryKey: [
+      "deposit-static-stable",
+      req?.userId ?? null,
+      req?.originChainId ?? null,
+      req?.originAsset ?? null,
+      req?.settlementChainId ?? null,
+      req?.settlementAddress ?? null,
+    ],
+    enabled: req !== null,
+    staleTime: PERSISTED_GC_TIME,
+    gcTime: PERSISTED_GC_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    retry: (count, error) => isRetryableDextopusError(error) && count < 2,
+    queryFn: async () => {
+      if (!req) throw new Error("Missing deposit parameters");
+      // A listing failure must not fall through to minting: that is how a
+      // duplicate gets created for a user who already has an address.
+      const listed = await dextopusGet<StaticAddressListResult>(
+        `deposit/static/addresses?userId=${encodeURIComponent(req.userId)}`,
+        "Couldn't load your deposit address"
+      );
+      const existing = findStaticAddress(listed.data ?? [], req);
+      if (existing) return existing;
+
+      const minted = await dextopusPost<StaticAddressResult>(
+        "deposit/static/generate",
+        req,
+        "Couldn't create a deposit address"
+      );
+      return minted.data;
     },
   });
 }

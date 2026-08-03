@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
+import { subscriptZeros } from "@/lib/format";
 import { tokenBg } from "@/lib/trade/assets";
 import type { MemeToken, TokenRiskLevel } from "@/lib/meme/api";
 
@@ -45,26 +46,13 @@ export function MemeCoin({ token, size = 30 }: { token: MemeToken; size?: number
   );
 }
 
-const SUBSCRIPT = "₀₁₂₃₄₅₆₇₈₉";
-
-function subscript(count: number): string {
-  return String(count)
-    .split("")
-    .map((d) => SUBSCRIPT[Number(d)])
-    .join("");
-}
-
 export function priceLabel(priceUsd: string | null): string {
   const n = priceUsd === null ? NaN : Number(priceUsd);
   if (!Number.isFinite(n) || n <= 0) return "—";
   if (n >= 1) return `$${n.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
-  if (n >= 0.001) return `$${n.toLocaleString("en-US", { maximumSignificantDigits: 4 })}`;
   // Below a thousandth, spelling out the zeros runs to fourteen characters and
-  // shoves the risk badge out of the card. Subscript the run instead — the
-  // convention every DEX front-end uses — which keeps full precision in a
-  // label short enough to sit beside the badge.
-  const [mantissa, exponent] = n.toExponential(3).split("e");
-  const zeros = -Number(exponent) - 1;
-  const digits = mantissa.replace(".", "").replace(/0+$/, "") || "0";
-  return `$0.0${subscript(zeros)}${digits}`;
+  // shoves the risk badge out of the card, so the run is counted instead.
+  const compact = subscriptZeros(n);
+  if (compact) return `$${compact}`;
+  return `$${n.toLocaleString("en-US", { maximumSignificantDigits: 4 })}`;
 }

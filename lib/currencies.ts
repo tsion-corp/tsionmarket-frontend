@@ -1,3 +1,5 @@
+import { subscriptZeros } from "@/lib/format";
+
 export interface Currency {
   code: string;
   name: string;
@@ -70,8 +72,11 @@ export function formatMoney(amountUsd: number, currency: Currency, rate: number)
   const value = amountUsd * rate;
   const noDecimals = NO_DECIMALS.has(currency.code);
   // A tiny non-zero price (memecoins trade far below a cent) must not flatten
-  // to zero — show its significant digits instead.
+  // to zero — show its significant digits instead, counting a long run of
+  // leading zeros the way the memecoin cards do rather than spelling it out.
   if (value > 0 && value < (noDecimals ? 1 : 0.01)) {
+    const compact = subscriptZeros(value);
+    if (compact) return `${currency.symbol}${compact}`;
     return `${currency.symbol}${value.toLocaleString(undefined, { maximumSignificantDigits: 4 })}`;
   }
   const fractionDigits = noDecimals ? 0 : 2;

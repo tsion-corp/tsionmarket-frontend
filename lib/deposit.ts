@@ -311,6 +311,78 @@ export interface StaticAddressResult {
   data: StaticAddress;
 }
 
+export interface StaticAddressListResult {
+  success: boolean;
+  data: StaticAddress[];
+  count?: number;
+}
+
+// The addresses the profile hands out, one per wallet family. Each takes USDC
+// on its own chain and settles the same USDC into the user's embedded wallet on
+// that chain, so what the profile shows is a Dextopus-routed address rather than
+// the embedded wallet itself: funds sent from a chain we do not index still
+// arrive somewhere the app can see, instead of stranding at an address the
+// dashboard never reads.
+export interface ProfileAddressSpec {
+  key: WalletChainType;
+  label: string;
+  // The wallet the settled USDC lands in — the user's own embedded wallet.
+  settlementAddress: string;
+  request: StaticAddressRequest;
+}
+
+// Null for a family whose embedded wallet is not ready yet: minting against a
+// missing settlement address would bind the address to the wrong destination
+// permanently, and a static address cannot be repointed.
+export function profileAddressSpec(
+  userId: string,
+  chainType: WalletChainType,
+  walletAddress: string | null
+): ProfileAddressSpec | null {
+  if (!walletAddress) return null;
+  const settle = SETTLEMENTS[chainType];
+  return {
+    key: chainType,
+    label: settle.chainName,
+    settlementAddress: walletAddress,
+    request: {
+      userId,
+      originChainId: settle.chainId,
+      originAsset: settle.asset,
+      settlementChainId: settle.chainId,
+      settlementAsset: settle.asset,
+      settlementAddress: walletAddress,
+      // Same family as the origin, which is what Dextopus requires.
+      refundTo: walletAddress,
+    },
+  };
+}
+
+function sameAddress(a: string, b: string): boolean {
+  return a.toLowerCase() === b.toLowerCase();
+}
+
+// The address already minted for this exact request, oldest first. Minting is
+// not idempotent — the same body posted twice returns two different addresses —
+// so a profile that posted on every open would show a new address each time and
+// scatter the user's funds across a growing set of them. Reusing the oldest
+// match keeps the address a user saves valid forever.
+export function findStaticAddress(
+  existing: StaticAddress[],
+  req: StaticAddressRequest
+): StaticAddress | null {
+  const matches = existing.filter(
+    (a) =>
+      a.originChainId === req.originChainId &&
+      sameAddress(a.originAsset, req.originAsset) &&
+      a.settlementChainId === req.settlementChainId &&
+      sameAddress(a.settlementAsset, req.settlementAsset) &&
+      sameAddress(a.settlementAddress, req.settlementAddress)
+  );
+  if (matches.length === 0) return null;
+  return matches.reduce((oldest, a) => (a.createdAt < oldest.createdAt ? a : oldest));
+}
+
 // A direct (same-chain) USDC deposit or send network. Keyless for deposits,
 // signed by the embedded wallet for withdrawals.
 export interface DirectNetwork extends SettlementTarget {
