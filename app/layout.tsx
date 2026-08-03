@@ -16,7 +16,7 @@ const geist = Geist({
 // Headers. Mona Sans, used at bold by the ws-display utility.
 const monaSans = Mona_Sans({
   subsets: ["latin"],
-  weight: ["600", "700"],
+  weight: ["500", "600", "700"],
   variable: "--font-display",
 });
 
