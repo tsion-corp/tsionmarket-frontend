@@ -538,7 +538,9 @@
     "pageOf": "Page {page} of {pages}",
     "prev": "Prev",
     "next": "Next",
-    "buyToken": "Buy {name}"
+    "buyToken": "Buy {name}",
+    "showAllTokens": "Show all {count} tokens",
+    "showLess": "Show less"
   },
   "buySell": {
     "buy": "Buy",
