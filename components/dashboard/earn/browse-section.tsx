@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { AsyncEmpty, AsyncError, AsyncLoading } from "@/components/dashboard/async-state";
+import { AsyncError, AsyncLoading } from "@/components/dashboard/async-state";
 import { ListingCard } from "@/components/dashboard/earn/listing-card";
 import { ListingFilters } from "@/components/dashboard/earn/listing-filters";
 import { useListingFeed } from "@/hooks/use-earn-listings";
@@ -15,6 +15,58 @@ const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-8 pb-20 sm:px-6 lg:px-8";
 const UNCONFIGURED_DETAIL = "Bounties go live once the earn service is switched on.";
 
 const PAGE_SIZE = 12;
+
+// Only the type and status rows can hide listings. Sort does not change what is
+// in the feed, and category and context are never moved off their defaults.
+function isFiltered(query: BrowseQuery): boolean {
+  return query.tab !== DEFAULT_BROWSE_QUERY.tab || query.status !== DEFAULT_BROWSE_QUERY.status;
+}
+
+// An empty feed is two different situations and they need different exits. A
+// narrowed feed has work behind it, so the way out is dropping the filters. A
+// feed that is empty at its widest has nothing to browse to, so the only useful
+// thing to offer is posting the first listing.
+function EmptyFeed({
+  query,
+  onClearFilters,
+  hasSponsor,
+}: {
+  query: BrowseQuery;
+  onClearFilters: () => void;
+  hasSponsor: boolean;
+}) {
+  const filtered = isFiltered(query);
+
+  return (
+    <div className="ws-inset grid place-items-center px-5 py-12 text-center">
+      <div className="max-w-[44ch]">
+        <div className="text-[14px] font-semibold text-white/85">
+          {filtered ? "Nothing open under these filters." : "No work is open right now."}
+        </div>
+        <div className="mt-1.5 text-[12.5px] font-normal text-white/50">
+          {filtered
+            ? "There may be listings under a different type or status."
+            : `New listings land here as companies post them. ${BRAND} is early, so the feed fills up in bursts.`}
+        </div>
+        {filtered ? (
+          <button
+            onClick={onClearFilters}
+            className="mt-4 cursor-pointer rounded-full border border-white/15 px-4 py-2 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"
+          >
+            Show everything
+          </button>
+        ) : (
+          <Link
+            href="/earn/sponsor"
+            className="mt-4 inline-block cursor-pointer rounded-full border border-white/15 px-4 py-2 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"
+          >
+            {hasSponsor ? "Post a listing" : "Post the first one"}
+          </Link>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function BrowseSection() {
   const [query, setQuery] = useState<BrowseQuery>(DEFAULT_BROWSE_QUERY);
@@ -49,12 +101,20 @@ export function BrowseSection() {
           </p>
         </div>
 
-        <Link
-          href="/earn/sponsor"
-          className="ws-inset cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/30"
-        >
-          {sponsor ? "Your company" : "Post a listing"}
-        </Link>
+        <div className="flex items-center gap-2.5">
+          <Link
+            href="/earn/profile"
+            className="ws-inset cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white/75 transition-colors hover:text-white"
+          >
+            Your profile
+          </Link>
+          <Link
+            href="/earn/sponsor"
+            className="ws-inset cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/30"
+          >
+            {sponsor ? "Your company" : "Post a listing"}
+          </Link>
+        </div>
       </header>
 
       <div className="mt-7">
@@ -67,7 +127,11 @@ export function BrowseSection() {
         ) : isLoading ? (
           <AsyncLoading label="Loading listings" rows={5} />
         ) : listings.length === 0 ? (
-          <AsyncEmpty>Nothing open under these filters right now.</AsyncEmpty>
+          <EmptyFeed
+            query={query}
+            onClearFilters={() => changeQuery(DEFAULT_BROWSE_QUERY)}
+            hasSponsor={!!sponsor}
+          />
         ) : (
           <>
             {count !== null ? (

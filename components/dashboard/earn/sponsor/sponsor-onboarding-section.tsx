@@ -6,7 +6,6 @@ import { TextAreaField, TextField } from "@/components/dashboard/earn/form-field
 import { ImageUploadField } from "@/components/ui/image-upload-field";
 import {
   useCreateSponsor,
-  useSaveSponsorProfile,
   useSponsorNameAvailable,
   useSponsorSlugAvailable,
 } from "@/hooks/use-earn-sponsor";
@@ -115,7 +114,9 @@ function CompanyStep({
     if (!state.name.trim()) next.name = "Give your company a name.";
     if (!state.slug.trim()) next.slug = "Pick a slug for your page.";
     if (!state.bio.trim()) next.bio = "Say what your company does.";
-    if (!state.logo) next.logo = "Upload a logo.";
+    // A logo is optional: the service accepts a company without one and the
+    // sponsor pages render it, so requiring artwork here would block onboarding
+    // for no reason.
     if (!state.industry.trim()) next.industry = "Pick an industry.";
     if (nameTaken) next.name = "That name is taken.";
     if (slugTaken) next.slug = "That slug is taken.";
@@ -153,9 +154,7 @@ function CompanyStep({
         required
         value={state.slug}
         error={errors.slug}
-        hint={
-          slugTaken ? undefined : slug.isChecking ? "Checking…" : "worldstreet.com/earn/your-slug"
-        }
+        hint={slugTaken ? undefined : slug.isChecking ? "Checking…" : "tsionark.com/earn/your-slug"}
         onChange={(value) => {
           setSlugTouched(true);
           set("slug", value);
@@ -165,11 +164,10 @@ function CompanyStep({
       <ImageUploadField
         label="Logo"
         source="sponsor"
-        required
         value={state.logo}
         error={errors.logo}
         onChange={(url) => set("logo", url)}
-        hint="PNG, JPEG or WebP, up to 5MB."
+        hint="Optional. PNG, JPEG or WebP, up to 5MB."
       />
 
       <TextAreaField

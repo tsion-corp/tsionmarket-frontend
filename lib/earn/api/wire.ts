@@ -23,9 +23,11 @@ import type {
   SkillCategory,
   SkillGroup,
   Sponsor,
+  SponsorListing,
   SponsorRef,
   Submission,
   SubmissionApplicant,
+  TalentProfile,
   SubmissionCheck,
   SubmissionStatus,
 } from "@/lib/earn/api/types";
@@ -66,7 +68,7 @@ export interface ListingWire {
   commitmentDate?: string | null;
   pocSocials?: string | null;
   token?: string;
-  rewardAmount?: number;
+  rewardAmount?: number | string; // service sends numeric strings (e.g. "1000")
   rewards?: Record<string, number> | null;
   compensationType?: string;
   isPrivate?: boolean;
@@ -139,12 +141,75 @@ function flag(value: unknown): boolean {
 }
 
 export function toSponsorRef(wire: SponsorWire | null | undefined): SponsorRef | null {
-  if (!wire?.id) return null;
+  // The feed identifies a sponsor by slug (public pages are slug-based) and does
+  // not always send an id, so accept the sponsor as long as it has a name or
+  // slug — only a truly empty object yields null. id falls back to the slug.
+  if (!wire || (!wire.id && !wire.slug && !wire.name)) return null;
   return {
-    id: wire.id,
+    id: wire.id ?? wire.slug ?? "",
     name: text(wire.name),
     slug: text(wire.slug),
     logo: optionalText(wire.logo),
+  };
+}
+
+export interface TalentProfileWire {
+  id?: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  username?: string | null;
+  photo?: string | null;
+  bio?: string | null;
+  location?: string | null;
+  skills?: unknown;
+  twitter?: string | null;
+  github?: string | null;
+  linkedin?: string | null;
+  telegram?: string | null;
+  website?: string | null;
+  discord?: string | null;
+  walletAddress?: string | null;
+  isTalentFilled?: boolean;
+}
+
+// Talent skills are stored as free-form JSON, so anything that does not look
+// like a skill group is dropped rather than trusted. Unlike a listing's skills
+// these are not restricted to the known categories: a person may describe
+// themselves with something the taxonomy has not caught up with.
+function toTalentSkills(value: unknown): SkillGroup[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (group): group is { skills: string; subskills?: unknown } =>
+        !!group &&
+        typeof group === "object" &&
+        isNonEmptyString((group as { skills?: unknown }).skills)
+    )
+    .map((group) => ({
+      skill: group.skills,
+      subskills: Array.isArray(group.subskills) ? group.subskills.filter(isNonEmptyString) : [],
+    }));
+}
+
+export function toTalentProfile(wire: TalentProfileWire | null | undefined): TalentProfile | null {
+  if (!wire?.id) return null;
+  return {
+    id: wire.id,
+    firstName: text(wire.firstName),
+    lastName: text(wire.lastName),
+    username: text(wire.username),
+    photo: optionalText(wire.photo),
+    bio: optionalText(wire.bio),
+    location: optionalText(wire.location),
+    skills: toTalentSkills(wire.skills),
+    twitter: optionalText(wire.twitter),
+    github: optionalText(wire.github),
+    linkedin: optionalText(wire.linkedin),
+    telegram: optionalText(wire.telegram),
+    website: optionalText(wire.website),
+    discord: optionalText(wire.discord),
+    walletAddress: optionalText(wire.walletAddress),
+    isTalentFilled: flag(wire.isTalentFilled),
   };
 }
 
@@ -254,6 +319,26 @@ export function toListing(wire: ListingWire): Listing | null {
     eligibility: toEligibility(wire.eligibility),
     isPublished: flag(wire.isPublished),
   };
+}
+
+// The sponsor's own feed, which is the only one carrying unpublished work.
+// `isPublished` stays null when the field is absent rather than defaulting to
+// false, so a service that stops sending it empties the drafts screen instead
+// of filling it with live listings.
+export function toSponsorListing(wire: ListingWire): SponsorListing | null {
+  const summary = toListingSummary(wire);
+  if (!summary) return null;
+  return {
+    ...summary,
+    isPublished: typeof wire.isPublished === "boolean" ? wire.isPublished : null,
+  };
+}
+
+export function toSponsorListings(wire: ListingWire[] | null | undefined): SponsorListing[] {
+  if (!Array.isArray(wire)) return [];
+  return wire
+    .map(toSponsorListing)
+    .filter((listing): listing is SponsorListing => listing !== null);
 }
 
 // A listing that fails to normalize is dropped from the feed rather than

@@ -5,12 +5,11 @@ import Link from "next/link";
 import { AsyncEmpty, AsyncError, AsyncLoading } from "@/components/dashboard/async-state";
 import { RewardBadge } from "@/components/dashboard/earn/reward-badge";
 import { useCurrentSponsor } from "@/hooks/use-earn-sponsor";
-import { useIsCreateAllowed } from "@/hooks/use-earn-sponsor-listings";
-import { useListingFeed } from "@/hooks/use-earn-listings";
+import { useIsCreateAllowed, useSponsorListings } from "@/hooks/use-earn-sponsor-listings";
 import { deadlineLabel } from "@/lib/earn/deadline";
-import { DEFAULT_BROWSE_QUERY, type ListingStatus } from "@/lib/earn/api/types";
+import type { ListingStatus } from "@/lib/earn/api/types";
 
-const PAGE = "mx-auto w-full max-w-[900px] px-4 pt-6 pb-20 sm:px-6";
+const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-6 pb-20 sm:px-6";
 
 const UNCONFIGURED_DETAIL = "This goes live once the earn service is switched on.";
 
@@ -54,7 +53,7 @@ export function SponsorHomeSection() {
   // redirect, so the user sees what they are being asked to do.
   if (!sponsor) return <NoSponsorPrompt />;
 
-  return <SponsorListings sponsorSlug={sponsor.slug} sponsorName={sponsor.name} />;
+  return <SponsorListings sponsorName={sponsor.name} />;
 }
 
 function NoSponsorPrompt() {
@@ -77,24 +76,26 @@ function NoSponsorPrompt() {
   );
 }
 
-function SponsorListings({
-  sponsorSlug,
-  sponsorName,
-}: {
-  sponsorSlug: string;
-  sponsorName: string;
-}) {
+function SponsorListings({ sponsorName }: { sponsorName: string }) {
   const [status, setStatus] = useState<ListingStatus>("open");
   const { allowed } = useIsCreateAllowed();
 
-  // Stopgap. The MVP has no endpoint that lists a sponsor's own listings, only
-  // one that reads a single listing by slug, so this filters the public feed
-  // down to this company. It cannot show unpublished drafts, which never reach
-  // that feed. Replace once the service exposes GET /sponsor-dashboard/listings.
-  const { listings, isLoading, error } = useListingFeed({ ...DEFAULT_BROWSE_QUERY, status });
+  // The sponsor's own listings rather than the public feed filtered down to
+  // them. The feed cannot answer this: it never carries unpublished work, and
+  // it is paged for browsing, not scoped to one company.
+  const { listings, isLoading, error } = useSponsorListings();
+
+  // A listing the service did not report on counts as published here and is
+  // left off the drafts screen, so every listing shows up in exactly one of
+  // the two views.
+  const published = useMemo(
+    () => listings.filter((listing) => listing.isPublished !== false),
+    [listings]
+  );
+  const draftCount = listings.length - published.length;
   const mine = useMemo(
-    () => listings.filter((listing) => listing.sponsor?.slug === sponsorSlug),
-    [listings, sponsorSlug]
+    () => published.filter((listing) => listing.status === status),
+    [published, status]
   );
 
   return (
@@ -109,18 +110,27 @@ function SponsorListings({
           </p>
         </div>
 
-        {allowed ? (
+        <div className="flex items-center gap-2.5">
           <Link
-            href="/earn/sponsor/listing/new"
-            className="bg-accent text-ink cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold"
+            href="/earn/sponsor/drafts"
+            className="ws-inset cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white/75 transition-colors hover:text-white"
           >
-            New listing
+            Drafts{draftCount > 0 ? ` (${draftCount})` : ""}
           </Link>
-        ) : (
-          <span className="ws-inset rounded-full px-4 py-2.5 font-sans text-[12.5px] font-medium text-white/40">
-            Listing limit reached
-          </span>
-        )}
+
+          {allowed ? (
+            <Link
+              href="/earn/sponsor/listing/new"
+              className="bg-accent text-ink cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold"
+            >
+              New listing
+            </Link>
+          ) : (
+            <span className="ws-inset rounded-full px-4 py-2.5 font-sans text-[12.5px] font-medium text-white/40">
+              Listing limit reached
+            </span>
+          )}
+        </div>
       </header>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -151,7 +161,21 @@ function SponsorListings({
         ) : isLoading ? (
           <AsyncLoading label="Loading your listings" rows={3} />
         ) : mine.length === 0 ? (
-          <AsyncEmpty>Nothing here yet. Drafts stay hidden until you publish them.</AsyncEmpty>
+          <AsyncEmpty>
+            {draftCount > 0 ? (
+              <>
+                Nothing published under this status.{" "}
+                <Link
+                  href="/earn/sponsor/drafts"
+                  className="text-white/70 underline-offset-2 hover:underline"
+                >
+                  You have {draftCount} {draftCount === 1 ? "draft" : "drafts"} waiting.
+                </Link>
+              </>
+            ) : (
+              "Nothing here yet. Drafts stay hidden until you publish them."
+            )}
+          </AsyncEmpty>
         ) : (
           <ul className="flex flex-col gap-2.5">
             {mine.map((listing) => {

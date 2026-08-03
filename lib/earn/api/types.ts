@@ -67,6 +67,47 @@ export interface Sponsor extends SponsorRef {
   entityName: string | null;
 }
 
+// The caller's own account. `isTalentFilled` is the one field that decides
+// whether they may enter a listing at all: the service refuses a submission
+// from an incomplete profile.
+export interface TalentProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  username: string;
+  photo: string | null;
+  bio: string | null;
+  location: string | null;
+  skills: SkillGroup[];
+  twitter: string | null;
+  github: string | null;
+  linkedin: string | null;
+  telegram: string | null;
+  website: string | null;
+  discord: string | null;
+  walletAddress: string | null;
+  isTalentFilled: boolean;
+}
+
+// What the profile form sends. Only a name and a username are required; the
+// rest is what a sponsor might want in order to judge and contact an entrant.
+export interface TalentProfileInput {
+  firstName: string;
+  lastName: string;
+  username: string;
+  photo?: string;
+  bio?: string;
+  location?: string;
+  skills?: { skills: string; subskills: string[] }[];
+  twitter?: string;
+  github?: string;
+  linkedin?: string;
+  telegram?: string;
+  website?: string;
+  discord?: string;
+  walletAddress?: string;
+}
+
 export interface SponsorProfile {
   firstName: string;
   lastName: string;
@@ -100,6 +141,14 @@ export interface ListingSummary {
   winnersAnnounced: boolean;
   submissionCount: number;
   sponsor: SponsorRef | null;
+}
+
+// A listing as its own sponsor sees it, which is the only view that includes
+// unpublished drafts. `isPublished` is null when the service did not say: a
+// listing whose state is unknown is not treated as a draft, since showing live
+// work on a drafts screen is worse than leaving it out.
+export interface SponsorListing extends ListingSummary {
+  isPublished: boolean | null;
 }
 
 export interface Listing extends ListingSummary {

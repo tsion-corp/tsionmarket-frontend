@@ -19,8 +19,10 @@ import type {
   Listing,
   ListingSummary,
   Sponsor,
+  SponsorListing,
   Submission,
   SubmissionCheck,
+  TalentProfile,
 } from "@/lib/earn/api/types";
 import { rewardFromApi } from "@/lib/earn/reward";
 
@@ -107,6 +109,35 @@ export const FIXTURE_LISTINGS: ListingSummary[] = [
   }),
 ];
 
+// The sponsor's own feed, which unlike the public one carries unpublished work.
+// Two drafts so the drafts screen has something to show and something to sort.
+export const FIXTURE_SPONSOR_LISTINGS: SponsorListing[] = [
+  ...FIXTURE_LISTINGS.map((listing) => ({ ...listing, isPublished: true })),
+  {
+    ...summary({
+      id: "listing_sample_draft_1",
+      slug: "sample-draft-indexer",
+      title: "Index Base transfers into a public API",
+      reward: rewardFromApi(3000, "USDC"),
+      submissionCount: 0,
+      deadline: inDays(18),
+    }),
+    isPublished: false,
+  },
+  {
+    ...summary({
+      id: "listing_sample_draft_2",
+      slug: "sample-draft-brand-refresh",
+      title: "Brand refresh for the docs site",
+      type: "project",
+      reward: null,
+      submissionCount: 0,
+      deadline: null,
+    }),
+    isPublished: false,
+  },
+];
+
 export function fixtureListing(slug: string): Listing {
   const base = FIXTURE_LISTINGS.find((listing) => listing.slug === slug) ?? FIXTURE_LISTINGS[0];
 
@@ -163,6 +194,27 @@ export const FIXTURE_SUBMISSIONS: Submission[] = [
     applicant: { id: "user_sample_2", username: "anotheruser", photo: null, telegram: null },
   },
 ];
+
+// Filled in, so the sample data does not park every visitor behind the profile
+// form before they can see what submitting looks like.
+export const FIXTURE_TALENT_PROFILE: TalentProfile = {
+  id: "user_sample_self",
+  firstName: "Sample",
+  lastName: "User",
+  username: "sampleuser",
+  photo: null,
+  bio: null,
+  location: null,
+  skills: [{ skill: "Frontend", subskills: ["React"] }],
+  twitter: null,
+  github: null,
+  linkedin: null,
+  telegram: null,
+  website: null,
+  discord: null,
+  walletAddress: null,
+  isTalentFilled: true,
+};
 
 export const FIXTURE_SUBMISSION_CHECK: SubmissionCheck = {
   hasSubmitted: false,

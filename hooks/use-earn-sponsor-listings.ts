@@ -2,8 +2,10 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  announceWinners,
   fetchIsCreateAllowed,
   fetchSponsorListing,
+  fetchSponsorListings,
   fetchSponsorSubmissions,
   publishListing,
   rejectSubmissions,
@@ -17,6 +19,7 @@ import type { ListingPayload } from "@/lib/earn/listing-form";
 
 export const SPONSOR_LISTING_KEYS = {
   createAllowed: ["earn", "sponsor-dashboard", "create-allowed"] as const,
+  all: ["earn", "sponsor-dashboard", "listings"] as const,
   listing: (slug: string, type: ListingType) =>
     ["earn", "sponsor-dashboard", "listing", slug, type] as const,
   submissions: (slug: string) => ["earn", "sponsor-dashboard", "submissions", slug] as const,
@@ -34,6 +37,21 @@ export function useIsCreateAllowed() {
     // Assume not allowed until the service says otherwise, so the create
     // button never invites a sponsor into a flow that will be refused.
     allowed: query.data ?? false,
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+}
+
+// Everything this sponsor owns, published and draft alike. The drafts screen
+// splits them; nothing here filters, so one fetch serves both views.
+export function useSponsorListings() {
+  const query = useQuery({
+    queryKey: SPONSOR_LISTING_KEYS.all,
+    queryFn: fetchSponsorListings,
+  });
+
+  return {
+    listings: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
   };
@@ -73,6 +91,8 @@ export function useSaveListingDraft() {
     mutationFn: (payload: ListingPayload) => saveListingDraft(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SPONSOR_LISTING_KEYS.createAllowed });
+      // A new draft has to show up on the drafts screen without a reload.
+      void queryClient.invalidateQueries({ queryKey: SPONSOR_LISTING_KEYS.all });
     },
   });
 }
@@ -106,6 +126,20 @@ export function useUpdateListing() {
 
 // Both review actions take the listing slug so the feed they changed can be
 // refetched. The service's response carries no listing, so the caller names it.
+// Announcing changes what every entrant sees, so the public listing and the
+// submission feed are both stale afterwards.
+export function useAnnounceWinners(slug: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => announceWinners(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["earn", "sponsor-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["earn", "listings"] });
+      void queryClient.invalidateQueries({ queryKey: SPONSOR_LISTING_KEYS.submissions(slug) });
+    },
+  });
+}
+
 export function useRejectSubmissions(slug: string) {
   const queryClient = useQueryClient();
   return useMutation({

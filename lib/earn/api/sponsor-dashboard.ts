@@ -7,19 +7,37 @@
 import { earnAuthedGet, earnPost } from "@/lib/earn/api/client";
 import {
   toListing,
+  toSponsorListings,
   toSubmissions,
   type ListingWire,
   type SubmissionWire,
 } from "@/lib/earn/api/wire";
-import type { Listing, ListingType, Submission, WinnerSelection } from "@/lib/earn/api/types";
-import { FIXTURE_SUBMISSIONS, USE_FIXTURES, fixtureListing } from "@/lib/earn/api/fixtures";
+import type {
+  Listing,
+  ListingType,
+  SponsorListing,
+  Submission,
+  WinnerSelection,
+} from "@/lib/earn/api/types";
+import {
+  FIXTURE_SPONSOR_LISTINGS,
+  FIXTURE_SUBMISSIONS,
+  USE_FIXTURES,
+  fixtureListing,
+} from "@/lib/earn/api/fixtures";
 import type { ListingPayload } from "@/lib/earn/listing-form";
 
-type FeedResponse = SubmissionWire[] | { submissions?: SubmissionWire[] } | null;
+type SubmissionFeed = SubmissionWire[] | { submissions?: SubmissionWire[] } | null;
+type ListingFeed = ListingWire[] | { listings?: ListingWire[] } | null;
 
-function submissionsOf(data: FeedResponse): SubmissionWire[] {
+function submissionsOf(data: SubmissionFeed): SubmissionWire[] {
   if (Array.isArray(data)) return data;
   return data?.submissions ?? [];
+}
+
+function listingsOf(data: ListingFeed): ListingWire[] {
+  if (Array.isArray(data)) return data;
+  return data?.listings ?? [];
 }
 
 export async function fetchIsCreateAllowed(): Promise<boolean> {
@@ -30,6 +48,15 @@ export async function fetchIsCreateAllowed(): Promise<boolean> {
   if (typeof data === "boolean") return data;
   if (typeof data?.allowed === "boolean") return data.allowed;
   return data?.isCreateAllowed !== false;
+}
+
+// Every listing this sponsor owns, drafts included. The public feed carries
+// only published work, so this is the one call that can see a draft without
+// already knowing its slug.
+export async function fetchSponsorListings(): Promise<SponsorListing[]> {
+  if (USE_FIXTURES) return FIXTURE_SPONSOR_LISTINGS;
+  const data = await earnAuthedGet<ListingFeed>("/sponsor-dashboard/listings");
+  return toSponsorListings(listingsOf(data));
 }
 
 // Saves a draft, creating it on the first call and updating it after. The
@@ -77,10 +104,19 @@ export async function fetchSponsorListing(slug: string, type: ListingType): Prom
 
 export async function fetchSponsorSubmissions(slug: string): Promise<Submission[]> {
   if (USE_FIXTURES) return FIXTURE_SUBMISSIONS;
-  const data = await earnAuthedGet<FeedResponse>(
+  const data = await earnAuthedGet<SubmissionFeed>(
     `/sponsor-dashboard/${encodeURIComponent(slug)}/submissions`
   );
   return toSubmissions(submissionsOf(data));
+}
+
+// Publishes the result. Until this runs the winners are only marked internally:
+// `winnersAnnounced` stays false, so nobody who entered is told how they did.
+// The service refuses a second announce, and refuses one where the marked
+// winners do not cover every prize position.
+export async function announceWinners(id: string): Promise<void> {
+  if (USE_FIXTURES) return;
+  await earnPost<unknown>(`/sponsor-dashboard/listing/${encodeURIComponent(id)}/announce`);
 }
 
 export async function rejectSubmissions(ids: string[]): Promise<void> {

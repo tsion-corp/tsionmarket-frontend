@@ -10,27 +10,24 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 import { loadInterest } from "@/lib/preferences";
 
-// Names for the routes that are somewhere to go back to. Anything else falls
-// back to its own last path segment.
+// The earn routes that have a page of their own, and what to call them.
+// `/earn/listing` and `/earn/sponsor/listing` are missing on purpose: they are
+// grouping segments with no page, so a back link pointing at either 404s.
 const ROUTE_LABEL: Record<string, string> = {
   "/earn": "Earn",
-  "/earn/listing": "Earn",
   "/earn/sponsor": "Your company",
-  "/earn/sponsor/listing": "Your company",
 };
 
-function titleCase(segment: string): string {
-  const words = segment.replace(/-/g, " ");
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-// Back goes up one level rather than always to the browse feed, so a
-// submission list returns to the listing it belongs to.
+// Back goes to the nearest ancestor that is a real page, so a listing under a
+// company returns to the company rather than to the segment in between.
 export function parentRoute(pathname: string): { href: string; label: string } {
   const parts = pathname.split("/").filter(Boolean);
-  if (parts.length <= 1) return { href: "/earn", label: "Earn" };
-  const href = `/${parts.slice(0, -1).join("/")}`;
-  return { href, label: ROUTE_LABEL[href] ?? titleCase(parts[parts.length - 2]) };
+  for (let depth = parts.length - 1; depth > 0; depth--) {
+    const href = `/${parts.slice(0, depth).join("/")}`;
+    const label = ROUTE_LABEL[href];
+    if (label) return { href, label };
+  }
+  return { href: "/earn", label: "Earn" };
 }
 
 function BackLink({ pathname }: { pathname: string }) {

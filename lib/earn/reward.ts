@@ -50,12 +50,22 @@ export function rewardFrom(minor: bigint, token: string): RewardAmount {
 // that is not a finite number becomes null rather than zero: a listing with an
 // unreadable reward must not render as "free".
 export function rewardFromApi(amount: unknown, token: unknown): RewardAmount | null {
-  if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) return null;
+  // The service sends reward amounts as numeric strings (e.g. "1000") on some
+  // fields and as numbers on others, so accept both — coerce a non-empty numeric
+  // string to a number. A value that still isn't finite becomes null rather than
+  // zero: a listing with an unreadable reward must not render as "free".
+  const num =
+    typeof amount === "number"
+      ? amount
+      : typeof amount === "string" && amount.trim() !== ""
+        ? Number(amount)
+        : NaN;
+  if (!Number.isFinite(num) || num < 0) return null;
   const symbol = typeof token === "string" && token.length > 0 ? token : "USDC";
   const decimals = decimalsFor(symbol);
   // toFixed pins the value to the token's precision before parsing, so a
   // number that arrived as 1000.0000000000001 does not throw here.
-  return rewardFrom(parseUnits(amount.toFixed(decimals), decimals), symbol);
+  return rewardFrom(parseUnits(num.toFixed(decimals), decimals), symbol);
 }
 
 // The number the API expects back. Called once, at the payload boundary.

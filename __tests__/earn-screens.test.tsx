@@ -4,10 +4,12 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowseSection } from "@/components/dashboard/earn/browse-section";
 import { ListingDetailSection } from "@/components/dashboard/earn/listing-detail-section";
+import { SubmitSheet } from "@/components/dashboard/earn/submit-sheet";
+import { SponsorDraftsSection } from "@/components/dashboard/earn/sponsor/sponsor-drafts-section";
 import { SponsorOnboardingSection } from "@/components/dashboard/earn/sponsor/sponsor-onboarding-section";
 import { SubmissionReviewList } from "@/components/dashboard/earn/sponsor/submission-review-list";
 import { parseRewardInput, rewardFrom } from "@/lib/earn/reward";
-import type { Listing, ListingSummary, Submission } from "@/lib/earn/api/types";
+import type { Listing, ListingSummary, SponsorListing, Submission } from "@/lib/earn/api/types";
 
 // The screens are mocked at the API-client seam, not inside the components, so
 // these exercise the real hooks, real query wiring and real render paths.
@@ -32,12 +34,17 @@ const submissionsApi = vi.hoisted(() => ({
 const dashboardApi = vi.hoisted(() => ({
   fetchIsCreateAllowed: vi.fn(),
   fetchSponsorListing: vi.fn(),
+  fetchSponsorListings: vi.fn(),
   fetchSponsorSubmissions: vi.fn(),
   saveListingDraft: vi.fn(),
   publishListing: vi.fn(),
   updateListing: vi.fn(),
   rejectSubmissions: vi.fn(),
   toggleWinners: vi.fn(),
+}));
+const talentApi = vi.hoisted(() => ({
+  fetchTalentProfile: vi.fn(),
+  completeTalentProfile: vi.fn(),
 }));
 const imagesApi = vi.hoisted(() => ({
   ACCEPTED_IMAGE_TYPES: ["image/png", "image/jpeg", "image/webp"] as const,
@@ -53,6 +60,7 @@ vi.mock("@/lib/earn/api/sponsors", () => sponsorsApi);
 vi.mock("@/lib/earn/api/submissions", () => submissionsApi);
 vi.mock("@/lib/earn/api/sponsor-dashboard", () => dashboardApi);
 vi.mock("@/lib/earn/api/images", () => imagesApi);
+vi.mock("@/lib/earn/api/talent", () => talentApi);
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -157,15 +165,62 @@ beforeEach(() => {
     kycVerified: false,
     isPaid: false,
   });
+  // A complete profile by default, so a test about entering a listing is not
+  // silently testing the profile form instead.
+  talentApi.fetchTalentProfile.mockResolvedValue({
+    id: "user_1",
+    firstName: "Test",
+    lastName: "Submitter",
+    username: "testsubmitter",
+    photo: null,
+    bio: null,
+    location: null,
+    skills: [],
+    twitter: null,
+    github: null,
+    linkedin: null,
+    telegram: "https://t.me/testsubmitter",
+    website: null,
+    discord: null,
+    walletAddress: null,
+    isTalentFilled: true,
+  });
+  talentApi.completeTalentProfile.mockResolvedValue(null);
+  dashboardApi.fetchSponsorListings.mockResolvedValue([]);
   dashboardApi.fetchSponsorSubmissions.mockResolvedValue([]);
   dashboardApi.rejectSubmissions.mockResolvedValue(undefined);
   dashboardApi.toggleWinners.mockResolvedValue(undefined);
 });
 
 describe("browse feed", () => {
-  it("says so when nothing matches the filters", async () => {
+  // An empty feed at its widest has nothing to filter down to, so it offers the
+  // only thing that would fill it rather than blaming the filters.
+  it("invites a first listing when nothing is open at all", async () => {
     render(<BrowseSection />, { wrapper });
+
+    expect(await screen.findByText(/no work is open right now/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /post the first one/i })).toHaveAttribute(
+      "href",
+      "/earn/sponsor"
+    );
+  });
+
+  it("blames the filters, and clears them, when the feed is narrowed", async () => {
+    render(<BrowseSection />, { wrapper });
+    await screen.findByText(/no work is open right now/i);
+
+    fireEvent.click(screen.getByRole("button", { name: "Bounties" }));
+
     expect(await screen.findByText(/nothing open under these filters/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show everything/i }));
+
+    await waitFor(() =>
+      expect(listingsApi.fetchListings).toHaveBeenLastCalledWith(
+        expect.objectContaining({ tab: "all", status: "open" })
+      )
+    );
+    expect(await screen.findByText(/no work is open right now/i)).toBeInTheDocument();
   });
 
   it("lists what came back, with its reward", async () => {
@@ -185,7 +240,7 @@ describe("browse feed", () => {
     render(<BrowseSection />, { wrapper });
 
     expect(await screen.findByText(/couldn't load listings/i)).toBeInTheDocument();
-    expect(screen.queryByText(/nothing open under these filters/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/no work is open right now/i)).not.toBeInTheDocument();
   });
 
   it("reads as not-available-yet when the service is not configured", async () => {
@@ -202,7 +257,7 @@ describe("browse feed", () => {
 
   it("refetches against the chosen filter", async () => {
     render(<BrowseSection />, { wrapper });
-    await screen.findByText(/nothing open under these filters/i);
+    await screen.findByText(/no work is open right now/i);
 
     fireEvent.click(screen.getByRole("button", { name: "Bounties" }));
 
@@ -210,6 +265,198 @@ describe("browse feed", () => {
       expect(listingsApi.fetchListings).toHaveBeenCalledWith(
         expect.objectContaining({ tab: "bounties" })
       )
+    );
+  });
+});
+
+describe("entering a listing", () => {
+  const listing = {
+    listingId: "listing_1",
+    listingTitle: "Build a trading dashboard",
+    eligibility: [],
+  };
+
+  // The service refuses a submission from an account whose talent profile is
+  // not filled in. Asking first means nobody writes out an entry and loses it
+  // to a rejection they had no warning about.
+  it("asks for the profile first when it has not been filled in", async () => {
+    talentApi.fetchTalentProfile.mockResolvedValue(null);
+
+    render(<SubmitSheet open onClose={() => {}} {...listing} />, {
+      wrapper,
+    });
+
+    expect(await screen.findByText(/first, your profile/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/link to your work/i)).not.toBeInTheDocument();
+  });
+
+  it("goes straight to the entry form when the profile is complete", async () => {
+    render(<SubmitSheet open onClose={() => {}} {...listing} />, {
+      wrapper,
+    });
+
+    expect(await screen.findByLabelText(/link to your work/i)).toBeInTheDocument();
+    expect(screen.queryByText(/first, your profile/i)).not.toBeInTheDocument();
+  });
+
+  it("completes the profile, then shows the entry form without losing the listing", async () => {
+    talentApi.fetchTalentProfile.mockResolvedValue(null);
+
+    render(<SubmitSheet open onClose={() => {}} {...listing} />, {
+      wrapper,
+    });
+
+    await screen.findByText(/first, your profile/i);
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Ada" } });
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Lovelace" } });
+    fireEvent.change(screen.getByLabelText(/username/i), { target: { value: "ada" } });
+
+    // The profile now exists, which is what the refetch after saving returns.
+    talentApi.fetchTalentProfile.mockResolvedValue({
+      id: "user_1",
+      firstName: "Ada",
+      lastName: "Lovelace",
+      username: "ada",
+      photo: null,
+      bio: null,
+      location: null,
+      skills: [],
+      twitter: null,
+      github: null,
+      linkedin: null,
+      telegram: null,
+      website: null,
+      discord: null,
+      walletAddress: null,
+      isTalentFilled: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
+
+    await waitFor(() =>
+      expect(talentApi.completeTalentProfile).toHaveBeenCalledWith(
+        expect.objectContaining({ firstName: "Ada", lastName: "Lovelace", username: "ada" })
+      )
+    );
+    expect(await screen.findByLabelText(/link to your work/i)).toBeInTheDocument();
+  });
+
+  it("will not save a profile with no username", async () => {
+    talentApi.fetchTalentProfile.mockResolvedValue(null);
+
+    render(<SubmitSheet open onClose={() => {}} {...listing} />, {
+      wrapper,
+    });
+
+    await screen.findByText(/first, your profile/i);
+    fireEvent.change(screen.getByLabelText(/first name/i), { target: { value: "Ada" } });
+    fireEvent.change(screen.getByLabelText(/last name/i), { target: { value: "Lovelace" } });
+    fireEvent.click(screen.getByRole("button", { name: /save and continue/i }));
+
+    expect(await screen.findByText(/pick a username/i)).toBeInTheDocument();
+    expect(talentApi.completeTalentProfile).not.toHaveBeenCalled();
+  });
+
+  it("sends the entry with the telegram already on the profile", async () => {
+    submissionsApi.createSubmission.mockResolvedValue(null);
+
+    render(<SubmitSheet open onClose={() => {}} {...listing} />, {
+      wrapper,
+    });
+
+    fireEvent.change(await screen.findByLabelText(/link to your work/i), {
+      target: { value: "https://github.com/ada/entry" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() =>
+      expect(submissionsApi.createSubmission).toHaveBeenCalledWith(
+        expect.objectContaining({
+          listingId: "listing_1",
+          link: "https://github.com/ada/entry",
+          telegram: "https://t.me/testsubmitter",
+        })
+      )
+    );
+  });
+});
+
+describe("sponsor drafts", () => {
+  const sponsor = {
+    id: "sponsor_1",
+    name: "Test Sponsor",
+    slug: "test-sponsor",
+    logo: null,
+    bio: "",
+    industry: "DeFi",
+    url: null,
+    twitter: null,
+    entityName: null,
+  };
+
+  function owned(over: Partial<SponsorListing> = {}): SponsorListing {
+    return { ...summary(), isPublished: false, ...over };
+  }
+
+  beforeEach(() => {
+    sponsorsApi.fetchCurrentSponsor.mockResolvedValue(sponsor);
+  });
+
+  it("lists the drafts and links each one into the editor", async () => {
+    dashboardApi.fetchSponsorListings.mockResolvedValue([
+      owned({ id: "d1", slug: "draft-one", title: "Index Base transfers" }),
+      owned({ id: "p1", slug: "live-one", title: "Already published", isPublished: true }),
+    ]);
+
+    render(<SponsorDraftsSection />, { wrapper });
+
+    const link = await screen.findByRole("link", { name: /index base transfers/i });
+    expect(link).toHaveAttribute("href", "/earn/sponsor/listing/draft-one?type=bounty");
+    expect(screen.queryByText("Already published")).not.toBeInTheDocument();
+  });
+
+  // A missing isPublished means the service did not say. Showing a live listing
+  // on the drafts screen invites a second publish, so unknown is left out.
+  it("leaves out a listing whose published state the service did not report", async () => {
+    dashboardApi.fetchSponsorListings.mockResolvedValue([
+      owned({ id: "u1", title: "State unknown", isPublished: null }),
+    ]);
+
+    render(<SponsorDraftsSection />, { wrapper });
+
+    expect(await screen.findByText(/no drafts right now/i)).toBeInTheDocument();
+    expect(screen.queryByText("State unknown")).not.toBeInTheDocument();
+  });
+
+  it("says what is still missing on a draft that has no deadline or reward", async () => {
+    dashboardApi.fetchSponsorListings.mockResolvedValue([
+      owned({ id: "d2", slug: "bare", title: "Barely started", deadline: null, reward: null }),
+    ]);
+
+    render(<SponsorDraftsSection />, { wrapper });
+
+    expect(await screen.findByText(/no deadline yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/no reward set/i)).toBeInTheDocument();
+  });
+
+  it("shows the failure rather than an empty list when the feed errors", async () => {
+    dashboardApi.fetchSponsorListings.mockRejectedValue(apiFailure());
+
+    render(<SponsorDraftsSection />, { wrapper });
+
+    expect(await screen.findByText(/couldn't load your drafts/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no drafts right now/i)).not.toBeInTheDocument();
+  });
+
+  it("sends someone without a company to set one up", async () => {
+    sponsorsApi.fetchCurrentSponsor.mockResolvedValue(null);
+
+    render(<SponsorDraftsSection />, { wrapper });
+
+    expect(await screen.findByText(/drafts belong to a company/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /set up your company/i })).toHaveAttribute(
+      "href",
+      "/earn/sponsor/new"
     );
   });
 });
@@ -301,8 +548,10 @@ describe("sponsor onboarding", () => {
     fireEvent.change(screen.getByLabelText(/industry/i), { target: { value: "DeFi" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    // Blocked on the logo, which is still required before moving on.
-    expect(await screen.findByText("Upload a logo.")).toBeInTheDocument();
+    // The company step is done, logo and all: a logo is optional, so its
+    // absence must not hold the form here. Nothing is created yet either way,
+    // since the service takes the company and the owner together.
+    expect(await screen.findByText("Your details")).toBeInTheDocument();
     expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();
   });
 

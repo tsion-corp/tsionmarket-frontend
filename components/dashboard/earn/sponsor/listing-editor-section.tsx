@@ -44,6 +44,10 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
 
   const busy = saveDraft.isPending || publish.isPending || update.isPending;
 
+  // An existing listing that was never published. It is edited like any other,
+  // but it also still needs the publish step a new listing gets.
+  const isDraft = !!existing && !existing.isPublished;
+
   async function onSaveDraft() {
     const found = validateListingForm(state, { forPublish: false });
     setErrors(found);
@@ -103,10 +107,10 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   return (
     <div className={PAGE}>
       <h1 className="ws-display text-[clamp(22px,3vw,30px)] tracking-[-0.02em] text-white">
-        {existing ? "Edit listing" : "New listing"}
+        {!existing ? "New listing" : isDraft ? "Edit draft" : "Edit listing"}
       </h1>
       <p className="mt-1.5 font-sans text-[13px] font-normal text-white/50">
-        {existing
+        {existing && !isDraft
           ? "Changes go live as soon as you save them."
           : "Save a draft as you go. Nothing is public until you publish."}
       </p>
@@ -119,8 +123,12 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
           slugLocked={!!existing}
         />
 
+        {/* A draft is a draft whether it was started a minute ago or a week
+            ago: both save through the draft endpoint, which accepts a partial
+            listing, and both still need publishing. Only a listing that is
+            already live is edited in place. */}
         <div className="mt-7 flex flex-wrap gap-2.5">
-          {existing ? (
+          {existing && !isDraft ? (
             <button
               type="button"
               onClick={onUpdate}

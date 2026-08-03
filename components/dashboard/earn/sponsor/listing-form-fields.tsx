@@ -36,7 +36,12 @@ const AGENT_ACCESS: { value: AgentAccess; label: string }[] = [
   { value: "AGENT_ONLY", label: "Agents only" },
 ];
 
-const TOKENS = ["USDC", "USDT", "ETH", "SOL"].map((value) => ({ value, label: value }));
+// The tokens the service will accept, which is the set in its own registry.
+// Offering one it does not hold gets the publish rejected with "Token Not
+// Allowed" after the sponsor has filled in the whole form.
+//
+// Should come from GET /tokens/ rather than being repeated here.
+const TOKENS = ["USDC", "USDT", "ETH"].map((value) => ({ value, label: value }));
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 
