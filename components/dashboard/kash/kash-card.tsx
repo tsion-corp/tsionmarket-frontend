@@ -22,8 +22,9 @@ export function KashCard() {
       </div>
 
       <div className="mt-2">
-        <div className="ws-display tnum text-[34px] leading-none tracking-[-0.02em]">
+        <div className="ws-display tnum flex items-end gap-1.5 text-[34px] leading-none tracking-[-0.02em]">
           0 <span className="ml-2 text-[20px] text-amber-200/90">KASH</span>
+          <span className="tnum ml-5 inline-flex text-[12px] font-normal text-white/45">ESP</span>
         </div>
         <div className="tnum mt-1 text-[12.5px] font-normal text-white/45">$0.00</div>
       </div>
