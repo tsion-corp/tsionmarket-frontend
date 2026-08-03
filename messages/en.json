@@ -1071,7 +1071,8 @@
     "confirmCancel": "Cancel",
     "confirmContinue": "Continue",
     "positionsUnavailable": "Couldn't load your positions. They are safe on-chain; retrying…",
-    "updateTakingLonger": "The change is confirmed and is taking a moment to settle."
+    "updateTakingLonger": "The change is confirmed and is taking a moment to settle.",
+    "pagerMarkets": "markets"
   },
   "fundsFlow": {
     "back": "Back",

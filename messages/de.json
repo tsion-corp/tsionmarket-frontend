@@ -1071,7 +1071,8 @@
     "confirmCancel": "Abbrechen",
     "confirmContinue": "Fortfahren",
     "positionsUnavailable": "Ihre Positionen konnten nicht geladen werden. Sie sind on-chain sicher; neuer Versuch…",
-    "updateTakingLonger": "Die Änderung ist bestätigt und braucht einen Moment bis zur Abwicklung."
+    "updateTakingLonger": "Die Änderung ist bestätigt und braucht einen Moment bis zur Abwicklung.",
+    "pagerMarkets": "Märkte"
   },
   "fundsFlow": {
     "back": "Zurück",

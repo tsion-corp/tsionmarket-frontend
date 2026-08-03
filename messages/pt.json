@@ -1071,7 +1071,8 @@
     "confirmCancel": "Cancelar",
     "confirmContinue": "Continuar",
     "positionsUnavailable": "Não foi possível carregar suas posições. Elas estão seguras on-chain; tentando novamente…",
-    "updateTakingLonger": "A mudança está confirmada e leva um momento para liquidar."
+    "updateTakingLonger": "A mudança está confirmada e leva um momento para liquidar.",
+    "pagerMarkets": "mercados"
   },
   "fundsFlow": {
     "back": "Voltar",

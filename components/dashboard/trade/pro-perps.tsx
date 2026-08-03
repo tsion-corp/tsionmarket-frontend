@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Pager } from "@/components/ui/pager";
+import { usePaged } from "@/hooks/use-paged";
 import { SearchIcon } from "@/components/ui/icons";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/components/dashboard/trade/flash-price";
@@ -53,6 +55,9 @@ const ORDER_TYPE_KEY: Record<PerpOrderType, string> = {
 };
 
 const ORDER_TYPES: readonly PerpOrderType[] = ["market", "limit", "stop_limit"];
+
+// Fits the browser column without pushing it taller than the panel beside it.
+const MARKETS_PER_PAGE = 12;
 
 // Translation keys per market category; the ids come from lib/perp/logic.
 const CATEGORY_KEY: Record<PerpCategory, string> = {
@@ -111,6 +116,12 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
       .filter((p) => !q || pairSymbol(p).toLowerCase().includes(q))
       .sort((a, b) => pairSymbol(a).localeCompare(pairSymbol(b)));
   }, [pairs, category, search]);
+
+  // Crypto alone runs to 64 markets, so the browser paged rather than asking
+  // for a scroll through the whole category. usePaged clamps, which matters
+  // here because switching category or typing a search shortens the list under
+  // a viewer already parked on a later page.
+  const paged = usePaged(filtered, MARKETS_PER_PAGE);
 
   const { quote, loading: quoteLoading } = usePerpQuote({
     pair: live && pair ? selected : null,
@@ -289,7 +300,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
                 {live ? t("noMarketsMatch") : t("marketsLoadWhenConnected")}
               </div>
             ) : (
-              filtered.map((p) => {
+              paged.pageItems.map((p) => {
                 const s = pairSymbol(p);
                 const on = s === selected;
                 const price = priceOf(s);
@@ -316,6 +327,20 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
               })
             )}
           </div>
+          {paged.pageCount > 1 ? (
+            <div className="px-4 pb-1">
+              <Pager
+                from={paged.from}
+                to={paged.to}
+                total={paged.total}
+                canPrev={paged.canPrev}
+                canNext={paged.canNext}
+                onPrev={paged.goPrev}
+                onNext={paged.goNext}
+                label={t("pagerMarkets")}
+              />
+            </div>
+          ) : null}
         </div>
 
         {/* Selected market: stats + chart. */}
