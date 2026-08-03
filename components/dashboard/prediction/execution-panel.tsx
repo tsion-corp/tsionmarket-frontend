@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { useMoney } from "@/components/ui/currency-select";
 import { usePredictionActions } from "@/hooks/use-prediction-actions";
 import { useTradePreview } from "@/hooks/use-prediction-quote";
 import { usePredictionConsent } from "@/hooks/use-prediction-consent";
@@ -17,19 +16,19 @@ interface ExecutionPanelProps {
 
 const TOLERANCES = [10, 50, 100];
 
-// The trade panel (Execution): pick a side, buy with USDC or sell shares, with a
-// live preview and slippage guard. Quotes are pure and off the streamed reserves;
-// the transaction recomputes its guard from a fresh on-chain read.
+// The trade panel (Execution): pick a side and buy with USDC, with a live
+// preview and slippage guard. Buy only — a position is held until the market
+// resolves, then redeemed from the positions panel. There is no early exit, so
+// selling shares back to the market is not offered. Quotes are pure and off the
+// streamed reserves; the transaction recomputes its guard from a fresh on-chain
+// read.
 export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelProps) {
   const t = useTranslations("prediction");
-  const money = useMoney();
   const { accepted, accept } = usePredictionConsent();
   const actions = usePredictionActions();
   const [side, setSide] = useState<Side>(initialSide);
-  const [mode, setMode] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("");
   const [tolerance, setTolerance] = useState(50);
-  const [balance, setBalance] = useState<bigint>(0n);
 
   // Follow the side the card deep-linked to. Render-phase reset (the React
   // "adjust state when a prop changes" pattern) rather than an effect.
@@ -39,42 +38,20 @@ export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelPr
     setSide(initialSide);
   }
 
-  // Selling needs the wallet's share balance for the side to cap the input.
-  useEffect(() => {
-    let live = true;
-    if (mode === "sell") {
-      actions.shareBalance(market.marketId, side).then((b) => {
-        if (live) setBalance(b);
-      });
-    }
-    return () => {
-      live = false;
-    };
-  }, [mode, side, market.marketId, actions]);
-
   const amountUnits = toBaseUnits(amount, USDC_DECIMALS);
-  const preview = useTradePreview(market, mode, side, amountUnits, tolerance);
+  const preview = useTradePreview(market, "buy", side, amountUnits, tolerance);
 
   const closed = market.status !== "Open";
-  const overBalance = mode === "sell" && amountUnits > balance;
-  const canSubmit = amountUnits > 0n && preview.valid && !actions.busy && !closed && !overBalance;
+  const canSubmit = amountUnits > 0n && preview.valid && !actions.busy && !closed;
 
   const submit = async () => {
     if (!canSubmit) return;
-    const ok =
-      mode === "buy"
-        ? await actions.buyShares({
-            marketId: market.marketId,
-            side,
-            usdcIn: amountUnits,
-            toleranceBps: tolerance,
-          })
-        : await actions.sellShares({
-            marketId: market.marketId,
-            side,
-            sharesIn: amountUnits,
-            toleranceBps: tolerance,
-          });
+    const ok = await actions.buyShares({
+      marketId: market.marketId,
+      side,
+      usdcIn: amountUnits,
+      toleranceBps: tolerance,
+    });
     if (ok) setAmount("");
   };
 
@@ -126,39 +103,9 @@ export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelPr
         </button>
       </div>
 
-      <div className="flex gap-2 text-[13px]">
-        {(["buy", "sell"] as const).map((mo) => (
-          <button
-            key={mo}
-            onClick={() => {
-              setMode(mo);
-              setAmount("");
-            }}
-            className={`flex-1 cursor-pointer rounded-lg border py-2 font-medium transition-colors ${
-              mode === mo
-                ? mo === "sell"
-                  ? "border-down/45 bg-down/16 text-down"
-                  : "border-accent/45 bg-accent/12 text-white"
-                : "border-white/10 bg-white/4 text-white/60 hover:bg-white/8"
-            }`}
-          >
-            {mo === "buy" ? t("buyTab") : t("sellTab")}
-          </button>
-        ))}
-      </div>
-
       <label className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between text-[12.5px] font-normal text-white/55">
-          <span>{mode === "buy" ? t("amountUsdc") : t("amountShares")}</span>
-          {mode === "sell" ? (
-            <button
-              type="button"
-              onClick={() => setAmount(toNumber(balance).toString())}
-              className="text-accent cursor-pointer font-medium"
-            >
-              {t("maxShares", { count: toNumber(balance).toFixed(2) })}
-            </button>
-          ) : null}
+          <span>{t("amountUsdc")}</span>
         </div>
         <input
           inputMode="decimal"
@@ -190,34 +137,26 @@ export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelPr
 
       {preview.valid ? (
         <div className="ws-inset flex items-center justify-between p-3 text-[13px] font-normal">
-          <span className="text-white/55">{mode === "buy" ? t("sharesOut") : t("usdcOut")}</span>
+          <span className="text-white/55">{t("sharesOut")}</span>
           <span className="tnum text-accent font-medium">
-            {mode === "buy"
-              ? t("sharesCount", { count: toNumber(preview.out).toFixed(2) })
-              : money.format(toNumber(preview.out))}
+            {t("sharesCount", { count: toNumber(preview.out).toFixed(2) })}
           </span>
         </div>
-      ) : null}
-
-      {overBalance ? (
-        <p className="text-down text-[13px] font-normal">{t("overShareBalance")}</p>
       ) : null}
 
       <button
         onClick={submit}
         disabled={!canSubmit}
-        className={`mt-1 w-full cursor-pointer rounded-[14px] p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60 ${
-          mode === "sell" ? "bg-down text-white" : "text-ink bg-white"
-        }`}
+        className="text-ink mt-1 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {actions.busy
           ? t("confirmingOnChain")
           : closed
             ? t("marketClosedLabel")
-            : mode === "buy"
-              ? t(side === "yes" ? "buyYesCta" : "buyNoCta")
-              : t("sellCta")}
+            : t(side === "yes" ? "buyYesCta" : "buyNoCta")}
       </button>
+
+      <p className="text-center text-[12px] font-normal text-white/45">{t("noEarlyExitNote")}</p>
     </div>
   );
 }

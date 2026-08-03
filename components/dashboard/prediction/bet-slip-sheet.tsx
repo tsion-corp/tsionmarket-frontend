@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { useMoney } from "@/components/ui/currency-select";
-import { PerpConfirmModal, type ConfirmRow } from "@/components/dashboard/trade/perp-confirm-modal";
 import {
   betSlip,
-  isCashoutable,
   isClaimable,
   priceCents,
   resolutionInfo,
@@ -20,20 +17,17 @@ interface BetSlipSheetProps {
   position: RawPosition;
   onClaim: (conditionId: string) => void;
   claiming: boolean;
-  // Sells the position back to the market before resolution.
-  onSell: (position: RawPosition) => void;
-  selling: boolean;
 }
 
 // The detail view of a placed bet: the market, side, stake, shares, current
-// value, payout if it wins, profit or loss, and resolution date. Redeemable
-// positions can be claimed straight from here.
-export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: BetSlipSheetProps) {
+// value, payout if it wins, profit or loss, and resolution date. Positions are
+// held to resolution — there is no early cash-out — so only a resolved, winning
+// position shows a claim action; everything else waits for the result.
+export function BetSlipSheet({ position, onClaim, claiming }: BetSlipSheetProps) {
   const t = useTranslations("prediction");
   // Every dollar figure renders in the user's selected display currency.
   const money = useMoney();
   const signedMoney = (usd: number) => `${usd < 0 ? "-" : "+"}${money.format(Math.abs(usd))}`;
-  const [confirming, setConfirming] = useState(false);
   const slip = betSlip(position);
   const yes = slip.outcome.toLowerCase() === "yes";
   const outcomeColor = yes ? "#7CE7B0" : slip.outcome === "—" ? "#FFFFFF" : "#F6A5A5";
@@ -51,12 +45,6 @@ export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: B
     },
   ];
   const claimable = isClaimable(slip.redeemable, slip.currentValue);
-  const cashoutable = isCashoutable(slip.redeemable, slip.shares, slip.tokenId);
-  const confirmRows: ConfirmRow[] = [
-    { label: t("marketLabel"), value: slip.market },
-    { label: t("shares"), value: slip.shares.toFixed(2) },
-    { label: t("currentValue"), value: money.format(slip.currentValue) },
-  ];
   const resolution = resolutionInfo(slip.redeemable, slip.resolvesAt, undefined, claimable);
   if (resolution) {
     // resolutionInfo returns English k/v pairs from pure, tested logic. Map the
@@ -111,39 +99,11 @@ export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: B
         >
           {claiming ? t("claiming") : t("claimAmount", { amount: money.format(slip.currentValue) })}
         </button>
-      ) : cashoutable ? (
-        <>
-          <button
-            onClick={() => setConfirming(true)}
-            disabled={selling}
-            className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {selling
-              ? t("cashingOutPosition")
-              : t("cashOutFor", { amount: money.format(slip.currentValue) })}
-          </button>
-          <p className="mt-2 text-center text-xs font-normal text-white/45">{t("cashOutNote")}</p>
-        </>
       ) : (
         <p className="mt-5 text-center text-xs font-normal text-white/45">
           {slip.redeemable ? t("resolvedNothingToClaim") : t("settlesOnPolymarket")}
         </p>
       )}
-
-      {confirming ? (
-        <PerpConfirmModal
-          title={t("confirmSellTitle")}
-          rows={confirmRows}
-          warning={t("confirmSellWarning")}
-          cancelLabel={t("confirmCancel")}
-          continueLabel={t("confirmContinue")}
-          onCancel={() => setConfirming(false)}
-          onContinue={() => {
-            setConfirming(false);
-            onSell(position);
-          }}
-        />
-      ) : null}
     </div>
   );
 }

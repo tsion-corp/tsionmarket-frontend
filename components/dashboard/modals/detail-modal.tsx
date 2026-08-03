@@ -28,7 +28,13 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
       </div>
       {detail.coingeckoId ? (
         <div className="mt-4">
-          <AssetChart coingeckoId={detail.coingeckoId} up={detail.up ?? isUp(detail.chg)} />
+          <AssetChart
+            coingeckoId={detail.coingeckoId}
+            up={detail.up ?? isUp(detail.chg)}
+            {...(detail.candlesOnly
+              ? { allowCandles: false, defaultType: "candles" as const }
+              : {})}
+          />
         </div>
       ) : (
         <div className="bg-[linear-gradient(180deg,rgba(255, 255, 255, 0.12),rgba(255, 255, 255, 0))] mt-4 rounded-[14px]">

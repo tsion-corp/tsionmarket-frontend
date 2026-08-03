@@ -80,6 +80,8 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
       coingeckoId: token.coingeckoId ?? undefined,
       up: token.change24h >= 0,
       logo: token.logo,
+      // Simple spot trading shows candles only, no area chart.
+      candlesOnly: true,
       stats: [
         { k: t("price"), v: token.priceUsd > 0 ? formatUsd(token.priceUsd) : "—" },
         { k: t("change24hFull"), v: changeLabel(token.change24h) },

@@ -948,7 +948,8 @@
     "noPositionThisSide": "No position on this side.",
     "redeemCta": "Redeem winnings",
     "tab_positions": "Positions",
-    "positionConnect": "Connect a wallet to see your position."
+    "positionConnect": "Connect a wallet to see your position.",
+    "noEarlyExitNote": "Kein vorzeitiger Ausstieg. Du kannst einlösen, sobald der Markt aufgelöst ist."
   },
   "perps": {
     "eyebrow": "Perpetuals",

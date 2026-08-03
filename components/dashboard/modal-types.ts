@@ -23,6 +23,9 @@ export interface DetailPayload {
   coingeckoId?: string;
   up?: boolean;
   logo?: string | null;
+  // Show only the candlestick chart, with no area option. Set for the simple
+  // spot flow, which is candles-only.
+  candlesOnly?: boolean;
 }
 
 export interface ConfirmPayload {
