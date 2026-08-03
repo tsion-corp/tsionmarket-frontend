@@ -242,7 +242,8 @@ export function toPlayer(wallet: string | null): ChessPlayer | null {
   return {
     id: wallet,
     username: EVM_WALLET.test(wallet) ? truncateAddress(wallet) : wallet,
-    rating: 0,
+    // No rating source yet, so leave it unknown rather than inventing a zero.
+    rating: null,
     walletAddress: wallet,
   };
 }
@@ -506,7 +507,7 @@ export function toChessChallenge(wire: ChessMatchWire): ChessChallenge {
     creator: creator ?? {
       id: wire.id,
       username: "Open seat",
-      rating: 0,
+      rating: null,
       walletAddress: "",
     },
     timeControl: formatTimeControl(

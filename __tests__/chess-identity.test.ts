@@ -54,15 +54,16 @@ describe("chess identity helper", () => {
   });
 
   it("rewrites the wallet-bearing body fields to the verified wallet", () => {
+    const oldWallet = "0x1111111111111111111111111111111111111111";
     expect(
       withChessIdentity(
         "matches/123/chat",
         JSON.stringify({
-          author: "0xold",
-          creator: "0xold",
-          player: "0xold",
-          bettor: "0xold",
-          walletAddress: "0xold",
+          author: oldWallet,
+          creator: oldWallet,
+          player: oldWallet,
+          bettor: oldWallet,
+          walletAddress: oldWallet,
           amountUsdc: "5",
         }),
         "0xabc"
@@ -89,6 +90,49 @@ describe("chess identity helper", () => {
     expect(
       withChessIdentity("matches/123/comments", JSON.stringify({ ply: 4, text: "sharp" }), "0xabc")
     ).toBe(JSON.stringify({ ply: 4, text: "sharp", player: "0xabc" }));
+  });
+
+  it("keeps a Swiss seat name across the seat-gated endpoints, forcing wallet-shaped ids", () => {
+    const proven = "0xDD07370000000000000000000000000000006C2E";
+    // A managed-tournament seat is a short display name, not a wallet: it must
+    // reach the service untouched so the seat check on moves, comments, notes and
+    // player chat recognises the caller.
+    expect(
+      withChessIdentity(
+        "matches/123/moves",
+        JSON.stringify({ player: "0xDD0737-6C2E", uci: "e2e4" }),
+        proven
+      )
+    ).toBe(JSON.stringify({ player: "0xDD0737-6C2E", uci: "e2e4" }));
+    expect(
+      withChessIdentity(
+        "matches/123/comments",
+        JSON.stringify({ player: "0xDD0737-6C2E", ply: 1, text: "x" }),
+        proven
+      )
+    ).toBe(JSON.stringify({ player: "0xDD0737-6C2E", ply: 1, text: "x" }));
+    expect(
+      withChessIdentity(
+        "matches/123/note",
+        JSON.stringify({ player: "0xDD0737-6C2E", text: "x" }),
+        proven
+      )
+    ).toBe(JSON.stringify({ player: "0xDD0737-6C2E", text: "x" }));
+    expect(
+      withChessIdentity(
+        "matches/123/chat",
+        JSON.stringify({ author: "0xDD0737-6C2E", room: "player", text: "x" }),
+        proven
+      )
+    ).toBe(JSON.stringify({ author: "0xDD0737-6C2E", room: "player", text: "x" }));
+    // An ordinary wallet game sends a wallet-shaped id, which is still forced.
+    expect(
+      withChessIdentity(
+        "matches/123/moves",
+        JSON.stringify({ player: "0x1111111111111111111111111111111111111111", uci: "e2e4" }),
+        "0xabc"
+      )
+    ).toBe(JSON.stringify({ player: "0xabc", uci: "e2e4" }));
   });
 
   it("injects the verified wallet into private chess read query params", () => {

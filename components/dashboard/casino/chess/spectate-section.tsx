@@ -1,12 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
-import { useChessMatch } from "@/hooks/use-casino-chess";
+import { useChessMatch, useChessMatchSocial } from "@/hooks/use-casino-chess";
 import { useMatchMarket, usePlaceBet } from "@/hooks/use-casino-betting";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import { LiveChatOverlay } from "@/components/dashboard/casino/chess/live-chat-overlay";
+import { FinalCountdown } from "@/components/dashboard/casino/chess/final-countdown";
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import {
@@ -29,12 +32,26 @@ import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { exceedsUsdcBalance, normalizeUsdcAmount, parseUsdcAmount } from "@/lib/casino/api/cashier";
 import { estimatePariMutuelReturn, impliedProbability } from "@/lib/casino/betting-math";
 import { friendlyError } from "@/lib/errors";
+import { truncateAddress } from "@/lib/format";
 import { toast } from "@/lib/toast";
 import type { BetSelection, ChessColor } from "@/lib/casino/api/types";
 
 // The selection ids double as keys in the common chess namespace, which
 // carries the localized side names.
 const SELECTIONS: readonly BetSelection[] = ["white", "draw", "black"];
+
+// A running clock reads as urgent under 20s and critical under 10s, so a
+// watcher sees both sides' flags approach zero in red, the same warning the
+// players get. Empty string keeps the normal styling when there is time to
+// spare or the game is not live.
+const LOW_CLOCK_SECONDS = 20;
+const CRITICAL_CLOCK_SECONDS = 10;
+function lowClockClass(seconds: number, live: boolean): string {
+  if (!live || seconds <= 0 || seconds > LOW_CLOCK_SECONDS) return "";
+  return seconds <= CRITICAL_CLOCK_SECONDS
+    ? "border-down/70 text-down animate-pulse border"
+    : "text-down/70";
+}
 
 function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -47,12 +64,14 @@ function PlayerStrip({
   lead,
   color,
   clock,
+  lowClock = "",
 }: {
   label: string;
   pieces: ReturnType<typeof capturedFromBoard>["w"];
   lead: number;
   color: ChessColor;
   clock: string;
+  lowClock?: string;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -69,7 +88,7 @@ function PlayerStrip({
         </div>
       </div>
       <div
-        className="tnum flex min-w-[108px] shrink-0 items-center justify-center rounded-[8px] px-3.5 py-2 text-[14px] font-semibold text-white/88"
+        className={`tnum flex min-w-[108px] shrink-0 items-center justify-center rounded-[8px] px-3.5 py-2 text-[14px] font-semibold text-white/88 ${lowClock}`}
         style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
       >
         {clock}
@@ -81,15 +100,19 @@ function PlayerStrip({
 export function SpectateSection({ matchId }: { matchId: string | null }) {
   const t = useTranslations("casino.chess.spectate");
   const tCommon = useTranslations("casino.chess.common");
+  const tPlay = useTranslations("casino.chess.play");
   const wallet = useCasinoWallet();
   const { match, clocks, isLoading, error } = useChessMatch(matchId);
   const theme = useBoardTheme();
   const { odds, myBets } = useMatchMarket(matchId, wallet.address ?? null);
   const cashier = useChessCashierStatus();
   const placeBet = usePlaceBet();
+  // A watcher is a spectator: only the public spectator room, never a seat.
+  const social = useChessMatchSocial(matchId, "spectator", false, null, null);
 
   const [selection, setSelection] = useState<BetSelection | null>(null);
   const [stakeInput, setStakeInput] = useState("");
+  const [chatDraft, setChatDraft] = useState("");
 
   if (!matchId) {
     return (
@@ -130,12 +153,12 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
     const advantage = colour === "w" ? captured.advantage : -captured.advantage;
     return advantage > 0 ? advantage : 0;
   };
-  const blackLabel = match.black
-    ? `${match.black.username} (${match.black.rating})`
-    : tCommon("black");
-  const whiteLabel = match.white
-    ? `${match.white.username} (${match.white.rating})`
-    : tCommon("white");
+  // Ratings are hidden until the service actually exposes them: a real one gets
+  // shown in parentheses, an unknown one just shows the name.
+  const seatLabel = (player: { username: string; rating: number | null }) =>
+    player.rating !== null ? `${player.username} (${player.rating})` : player.username;
+  const blackLabel = match.black ? seatLabel(match.black) : tCommon("black");
+  const whiteLabel = match.white ? seatLabel(match.white) : tCommon("white");
 
   // Money here is USDC from the chess cashier, the same balance staked matches
   // use, in exact decimal strings. A USDC figure formatted for display only.
@@ -197,8 +220,45 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
     }
   };
 
+  const canWriteChat = !!wallet.address;
+  const onPostChat = async () => {
+    const text = chatDraft.trim();
+    if (!text || social.postingChat) return;
+    try {
+      await social.postChat({ room: "spectator", text });
+      setChatDraft("");
+    } catch (e) {
+      toast.error(friendlyError(e, tPlay("toastChatFailed")));
+    }
+  };
+
+  const live = match.state === "in_progress";
+  const over = match.state === "settled" || match.state === "cancelled";
+  // The result told from the board's side, reusing the play screen's phrasing so
+  // the watcher reads the same "Checkmate · White won" the players do.
+  const resultText = (() => {
+    const r = match.result;
+    if (!r) return over ? tPlay("resultAborted") : "";
+    if (r.kind === "draw") {
+      const reasonKey = {
+        stalemate: "reasonStalemate",
+        agreement: "reasonAgreement",
+        repetition: "reasonRepetition",
+        insufficient: "reasonInsufficient",
+      }[r.reason];
+      return tPlay("resultDraw", { reason: tPlay(reasonKey) });
+    }
+    const how =
+      r.kind === "checkmate"
+        ? tPlay("howCheckmate")
+        : r.kind === "resignation"
+          ? tPlay("howResignation")
+          : tPlay("howTimeout");
+    return r.winner === "w" ? tPlay("resultWhiteWon", { how }) : tPlay("resultBlackWon", { how });
+  })();
+
   return (
-    <div className="mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
+    <div className="relative mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
       <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
         <section
           className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
@@ -212,15 +272,18 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 lead={leadFor("b")}
                 color="w"
                 clock={formatClock(clocks?.b ?? 0)}
+                lowClock={lowClockClass(clocks?.b ?? 0, live)}
               />
             </div>
 
-            <div className="overflow-hidden rounded-[2px]">
+            <div className="relative overflow-hidden rounded-[2px]">
               {board ? (
                 <ChessBoard board={board} theme={theme} checkSquare={checkSquare} />
               ) : (
                 <CasinoLoading rows={1} />
               )}
+              <LiveChatOverlay messages={social.chatMessages} />
+              <FinalCountdown secondsLeft={clocks?.[match.turn] ?? 0} live={live} />
             </div>
 
             <div className="mt-3">
@@ -230,6 +293,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 lead={leadFor("w")}
                 color="b"
                 clock={formatClock(clocks?.w ?? 0)}
+                lowClock={lowClockClass(clocks?.w ?? 0, live)}
               />
             </div>
           </div>
@@ -293,6 +357,18 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                                 : "border-white/10 bg-white/4 text-white hover:border-white/25"
                           }`}
                         >
+                          {s === "draw" ? (
+                            // Draw stays label-only; the spacer keeps all three
+                            // outcome buttons the same height as the king icons.
+                            <span className="mx-auto mb-0.5 block h-6" aria-hidden />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={s === "white" ? "/piece/neo/wk.png" : "/piece/neo/bk.png"}
+                              alt=""
+                              className="mx-auto mb-0.5 h-6 w-6"
+                            />
+                          )}
                           <span className="block text-[11px] opacity-70">{tCommon(s)}</span>
                           <span className="tnum block text-[18px]">
                             {outcome.odds !== null ? outcome.odds.toFixed(2) : "—"}
@@ -399,9 +475,87 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 </>
               )}
             </div>
+
+            <div
+              className="rounded-[16px] border border-white/6 px-4 py-4"
+              style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
+            >
+              <div className="mb-1 text-[17px] font-semibold text-white">{tPlay("chatTitle")}</div>
+              <div className="mb-3 text-[13px] leading-6 text-white/60">
+                {tPlay("chatSpectatorsHint")}
+              </div>
+              <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                {social.chatLoading ? (
+                  <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
+                    {tPlay("chatLoading")}
+                  </div>
+                ) : social.chatMessages.length === 0 ? (
+                  <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
+                    {tPlay("chatEmpty")}
+                  </div>
+                ) : (
+                  social.chatMessages.map((line) => (
+                    <div
+                      key={line.id}
+                      className="rounded-[10px] border border-white/6 bg-black/10 px-3 py-2.5"
+                    >
+                      <div className="mb-1 truncate text-[11px] text-white/42">
+                        {truncateAddress(line.author)}
+                      </div>
+                      <div className="text-[13px] leading-6 text-white/78">{line.text}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div className="mt-4 space-y-2">
+                {!canWriteChat ? (
+                  <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
+                    {tPlay("chatLogin")}
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      rows={3}
+                      value={chatDraft}
+                      onChange={(event) => setChatDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter" || event.shiftKey) return;
+                        event.preventDefault();
+                        void onPostChat();
+                      }}
+                      placeholder={tPlay("chatPlaceholderSpectator")}
+                      className="min-h-[76px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[13px] text-white outline-none placeholder:text-white/28"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={() => void onPostChat()}
+                        disabled={social.postingChat || chatDraft.trim().length === 0}
+                        className="cursor-pointer rounded-full border border-white/12 bg-white/6 px-4 py-2 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {social.postingChat ? tPlay("chatSending") : tPlay("chatSend")}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         </aside>
       </div>
+
+      {over ? (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 px-4 backdrop-blur-md">
+          <div className="ws-glass w-[340px] rounded-2xl px-8 py-9 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+            <div className="text-[17px] font-semibold text-white">{resultText}</div>
+            <Link
+              href="/casino/chess"
+              className="text-ink mt-6 inline-block w-full cursor-pointer rounded-full bg-white p-3 text-[13px] font-semibold"
+            >
+              {tPlay("backToLobby")}
+            </Link>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

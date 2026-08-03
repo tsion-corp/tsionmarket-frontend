@@ -6,6 +6,31 @@ const PRIVATE_READ_PATTERNS = [
   /^matches\/[^/]+\/note$/u,
 ];
 
+const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/u;
+
+// The match endpoints whose caller identity names a seat: moves, the match
+// actions, and the social surfaces (comments, note, chat) that the service gates
+// behind "are you a player in this match". On a managed Swiss-tournament board a
+// seat is the short display name the player registered under, not a wallet, so a
+// non-wallet identity on these paths is a tournament seat name and must survive
+// to the service or it rejects the caller as a non-player. The proven wallet
+// still rides along in `x-wallet-address`, so binding the named seat to the
+// caller stays a server concern. A wallet-shaped or empty identity is forced to
+// the proven wallet as before, which is what an ordinary wallet-seated game
+// sends.
+const MATCH_SEAT_IDENTITY =
+  /^matches\/[^/]+\/(moves|resign|draw-offer|draw-response|claim-draw|claim-timeout|abort|rematch|rematch-decline|takeback|takeback-decline|comments(?:\/[^/]+)?|note|chat)$/u;
+
+function isWalletLike(value: unknown): boolean {
+  return typeof value !== "string" || value === "" || EVM_WALLET.test(value);
+}
+
+// Force an identity field to the proven wallet unless it is a tournament seat
+// name (a non-wallet string) on a seat-identity path, which is kept intact.
+function seatOrWallet(joined: string, value: unknown, wallet: string): string {
+  return MATCH_SEAT_IDENTITY.test(joined) && !isWalletLike(value) ? (value as string) : wallet;
+}
+
 function parseBody(raw: string): Record<string, unknown> | null {
   try {
     const body = raw ? JSON.parse(raw) : {};
@@ -41,9 +66,13 @@ export function withChessIdentity(joined: string, raw: string, wallet: string): 
   ) {
     record.player = wallet;
   }
-  if ("author" in record) record.author = wallet;
+  // `author` (chat) and `player` (moves, actions, comments, note) name a seat, so
+  // a tournament display name on a seat-identity path is kept; everything else is
+  // the proven wallet. `creator`, `bettor` and `walletAddress` never carry a
+  // display name, so they are always forced.
+  if ("author" in record) record.author = seatOrWallet(joined, record.author, wallet);
+  if ("player" in record) record.player = seatOrWallet(joined, record.player, wallet);
   if ("creator" in record) record.creator = wallet;
-  if ("player" in record) record.player = wallet;
   if ("bettor" in record) record.bettor = wallet;
   if ("walletAddress" in record) record.walletAddress = wallet;
   return JSON.stringify(record);

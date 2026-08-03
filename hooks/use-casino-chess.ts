@@ -74,6 +74,13 @@ const MATCH_POLL_MS = 1_000;
 const MATCH_POLL_LIVE_MS = 5_000;
 const MATCH_WAITING_POLL_MS = 1_000;
 const LOBBY_POLL_MS = 10_000;
+// Chat lines and move comments arrive instantly over the live socket, but the
+// relay is best-effort — a dropped or unfanned frame would otherwise leave the
+// opponent's message invisible until a tab switch. A slow background poll is the
+// safety net that keeps both surfaces fresh without the socket, mirroring the
+// board's own reconcile poll but gentler, since neither is as time-critical as a
+// move.
+const SOCIAL_POLL_MS = 4_000;
 const TICKET_POLL_MS = 1_000;
 const OPTIMISTIC_RECONCILE_MS = 1_500;
 
@@ -383,9 +390,20 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
 
   const you = resolveViewerColor(match, wallet.address ?? null, seatName);
 
+  // Who the write names as the acting player. A managed Swiss-tournament board
+  // seats a player by the short display name they registered under — carried on
+  // the play URL as `?player=` and surfaced here as seatName — not by their
+  // wallet, so a tournament move has to name that seat or the service reads it
+  // as coming from a non-player and refuses it (which then flags the mover on
+  // time). Ordinary games have no seatName and fall back to the wallet, which
+  // the proxy re-stamps from the proven session anyway. The proxy leaves a
+  // non-wallet seat name intact while still forwarding the proven wallet as
+  // `x-wallet-address`, so the service can bind the named seat to the caller.
+  const actingPlayer = () => seatName ?? requireWallet(wallet.address);
+
   const move = useMutation({
     mutationFn: (uci: string) =>
-      submitMove(matchId as string, uci, requireWallet(wallet.address), baseMatch?.moves ?? []),
+      submitMove(matchId as string, uci, actingPlayer(), baseMatch?.moves ?? []),
     onMutate: (uci) => {
       if (!matchId) return;
       const current = queryClient.getQueryData<ChessMatch>(CHESS_KEYS.match(matchId));
@@ -400,55 +418,54 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
   });
 
   const resign = useMutation({
-    mutationFn: () => resignMatch(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => resignMatch(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const proposeDraw = useMutation({
-    mutationFn: () => offerDraw(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => offerDraw(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const answerDraw = useMutation({
-    mutationFn: (accept: boolean) =>
-      respondToDraw(matchId as string, requireWallet(wallet.address), accept),
+    mutationFn: (accept: boolean) => respondToDraw(matchId as string, actingPlayer(), accept),
     onSuccess: applyMatch,
   });
 
   const abort = useMutation({
-    mutationFn: () => abortMatch(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => abortMatch(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   // Threefold repetition and the fifty-move rule are claimed, never automatic;
   // the service arbitrates the claim and rejects it when neither holds.
   const drawClaim = useMutation({
-    mutationFn: () => claimDraw(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => claimDraw(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const rematch = useMutation({
-    mutationFn: () => requestRematch(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => requestRematch(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const declineRematch = useMutation({
-    mutationFn: () => declineRematchAction(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => declineRematchAction(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const takeback = useMutation({
-    mutationFn: () => requestTakeback(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => requestTakeback(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const declineTakeback = useMutation({
-    mutationFn: () => declineTakebackAction(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => declineTakebackAction(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
   const flag = useMutation({
-    mutationFn: () => claimTimeout(matchId as string, requireWallet(wallet.address)),
+    mutationFn: () => claimTimeout(matchId as string, actingPlayer()),
     onSuccess: applyMatch,
   });
 
@@ -507,22 +524,31 @@ export function useChessMatchSocial(
   matchId: string | null,
   room: ChessChatRoom,
   canUsePlayerRoom: boolean,
-  currentPly: number | null
+  currentPly: number | null,
+  // The tournament seat name for a managed-tournament board (null on ordinary
+  // wallet-seated games). The chat/note/comment writes are seat-gated exactly
+  // like moves, so the caller must name the seat here or the service rejects a
+  // real tournament player as a non-player. See the note in chess.ts.
+  seatName: string | null = null
 ) {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
-  const viewer = wallet.address?.toLowerCase() ?? "anon";
+  // On a tournament board the caller is their seat name; otherwise the wallet.
+  // The note is per-caller, so it is cached under whichever identity acts.
+  const viewer = seatName ?? wallet.address?.toLowerCase() ?? "anon";
   const activeRoom: ChessChatRoom = room === "player" && canUsePlayerRoom ? "player" : "spectator";
 
   const chat = useQuery({
     queryKey: CHESS_KEYS.chat(matchId ?? "none", activeRoom),
-    queryFn: () => fetchMatchChat(matchId as string, { room: activeRoom, limit: 100 }),
+    queryFn: () => fetchMatchChat(matchId as string, { room: activeRoom, limit: 100 }, seatName),
     enabled: !!matchId && (activeRoom === "spectator" || !!wallet.address),
+    refetchInterval: SOCIAL_POLL_MS,
+    refetchIntervalInBackground: true,
   });
 
   const note = useQuery({
     queryKey: CHESS_KEYS.note(matchId ?? "none", viewer),
-    queryFn: () => fetchMatchNote(matchId as string),
+    queryFn: () => fetchMatchNote(matchId as string, seatName),
     enabled: !!matchId && !!wallet.address,
   });
 
@@ -530,11 +556,13 @@ export function useChessMatchSocial(
     queryKey: CHESS_KEYS.comments(matchId ?? "none", currentPly ?? -1),
     queryFn: () => fetchMatchComments(matchId as string, currentPly ?? undefined),
     enabled: !!matchId && currentPly !== null,
+    refetchInterval: SOCIAL_POLL_MS,
+    refetchIntervalInBackground: true,
   });
 
   const postChat = useMutation({
     mutationFn: (input: { room: ChessChatRoom; text: string }) =>
-      postMatchChatMessage(matchId as string, input.room, input.text),
+      postMatchChatMessage(matchId as string, input.room, input.text, seatName),
     onSuccess: (line) => {
       queryClient.setQueryData<ChessChatMessage[]>(
         CHESS_KEYS.chat(matchId as string, line.room),
@@ -545,7 +573,7 @@ export function useChessMatchSocial(
   });
 
   const saveNote = useMutation({
-    mutationFn: (text: string) => saveMatchNote(matchId as string, text),
+    mutationFn: (text: string) => saveMatchNote(matchId as string, text, seatName),
     onSuccess: (saved) => {
       queryClient.setQueryData(CHESS_KEYS.note(matchId as string, viewer), saved);
     },
@@ -553,7 +581,7 @@ export function useChessMatchSocial(
 
   const upsertComment = useMutation({
     mutationFn: (input: { ply: number; text: string }) =>
-      upsertMatchComment(matchId as string, input),
+      upsertMatchComment(matchId as string, input, seatName),
     onSuccess: (saved) => {
       queryClient.setQueryData<ChessMatchComment[]>(
         CHESS_KEYS.comments(matchId as string, saved.ply),
@@ -570,7 +598,7 @@ export function useChessMatchSocial(
 
   const removeComment = useMutation({
     mutationFn: (input: { commentId: string; ply: number }) =>
-      deleteMatchComment(matchId as string, input.commentId).then((deleted) => ({
+      deleteMatchComment(matchId as string, input.commentId, seatName).then((deleted) => ({
         deleted,
         ply: input.ply,
       })),

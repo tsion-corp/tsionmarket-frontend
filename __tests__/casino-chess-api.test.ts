@@ -361,7 +361,7 @@ describe("match social api", () => {
       ply: 3,
       text: "new idea",
     });
-    expect(chessClient.chessDelete).toHaveBeenCalledWith(`/matches/${id}/comments/c2`);
+    expect(chessClient.chessDelete).toHaveBeenCalledWith(`/matches/${id}/comments/c2`, {});
     expect(items).toHaveLength(1);
     expect(saved.id).toBe("c2");
     expect(deleted.id).toBe("c2");

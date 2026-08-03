@@ -24,7 +24,13 @@ import {
   CHESS_SIDEBAR_BG,
   CHESS_SURFACE_BG,
 } from "@/lib/casino/chess/ui";
-import { moveSoundFromSan, playGameEndSound, playMoveSound } from "@/lib/casino/chess/sound";
+import {
+  armAudioUnlock,
+  moveSoundFromSan,
+  playGameEndSound,
+  playMoveSound,
+} from "@/lib/casino/chess/sound";
+import { FinalCountdown } from "@/components/dashboard/casino/chess/final-countdown";
 import {
   CasinoEmpty,
   CasinoError,
@@ -54,6 +60,21 @@ import type {
 function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+// A running clock reads as urgent under 20s and critical under 10s, the way the
+// board turns a side's clock red as its flag approaches. Only a live game warns:
+// a finished game's frozen clock is never "about to end".
+const LOW_CLOCK_SECONDS = 20;
+const CRITICAL_CLOCK_SECONDS = 10;
+
+// Tailwind classes that tint a clock chip by how little time is left; empty when
+// the clock is comfortable, so the caller keeps its normal styling.
+function lowClockClass(seconds: number, live: boolean): string {
+  if (!live || seconds <= 0 || seconds > LOW_CLOCK_SECONDS) return "";
+  return seconds <= CRITICAL_CLOCK_SECONDS
+    ? "border-down/70 text-down animate-pulse border"
+    : "text-down/70";
 }
 
 function formatShortTime(value: string): string {
@@ -321,7 +342,13 @@ export function PlaySection({
     savingComment,
     deleteComment,
     deletingComment,
-  } = useChessMatchSocial(matchId, chatRoom, canUsePlayerChat, currentPly);
+  } = useChessMatchSocial(matchId, chatRoom, canUsePlayerChat, currentPly, seatName);
+
+  // Unlock the audio context on the first gesture so the opponent's very first
+  // move is audible even before this player has moved.
+  useEffect(() => {
+    armAudioUnlock();
+  }, []);
 
   // A soft "thock" whenever the move count grows — the player's own move and the
   // opponent's alike. The first render only records the starting count, so
@@ -754,6 +781,12 @@ export function PlaySection({
 
   return (
     <div className="relative mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
+      {/* On narrow screens the side rail stacks below the board, so the balance
+          would sit down by the footer. Surface it as the first thing here, and
+          hide it once the rail becomes a column that already shows it up top. */}
+      <div className="mb-6 xl:hidden">
+        <ChessCashierLauncher compact />
+      </div>
       <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
         <section
           className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
@@ -780,7 +813,10 @@ export function PlaySection({
                 </div>
               </div>
               <div
-                className="tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[14px] font-semibold text-white/88"
+                className={`tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[14px] font-semibold text-white/88 ${lowClockClass(
+                  clocks?.[opponentColor] ?? 0,
+                  !over
+                )}`}
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
                 <ClockIcon />
@@ -788,7 +824,7 @@ export function PlaySection({
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[2px]">
+            <div className="relative overflow-hidden rounded-[2px]">
               <ChessBoard
                 board={board}
                 selected={selected}
@@ -801,6 +837,10 @@ export function PlaySection({
                     ? (r, c) => void onSquareClick(r, c)
                     : undefined
                 }
+              />
+              <FinalCountdown
+                secondsLeft={clocks?.[displayTurn] ?? 0}
+                live={match.state === "in_progress"}
               />
             </div>
 
@@ -855,7 +895,8 @@ export function PlaySection({
               </div>
               <div
                 className={`tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[14px] font-semibold ${
-                  yourTurn ? "border border-white/35 text-white" : "text-white/88"
+                  lowClockClass(clocks?.[selfColor] ?? 0, !over) ||
+                  (yourTurn ? "border border-white/35 text-white" : "text-white/88")
                 }`}
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
@@ -910,6 +951,10 @@ export function PlaySection({
               <span className="mb-2 block text-[16px] font-medium">U</span>
               <span className="font-sans text-[14px] font-semibold">{t("navPlayers")}</span>
             </Link>
+          </div>
+
+          <div className="hidden shrink-0 border-b border-white/6 px-4 pt-4 pb-4 sm:px-5 xl:block">
+            <ChessCashierLauncher compact />
           </div>
 
           <div className="grid grid-cols-3 border-b border-white/6 bg-black/8">
@@ -1415,8 +1460,6 @@ export function PlaySection({
                 </button>
               </div>
             ) : null}
-
-            <ChessCashierLauncher compact className="mt-4 shrink-0" />
           </div>
         </aside>
       </div>

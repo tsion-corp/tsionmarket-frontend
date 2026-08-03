@@ -22,7 +22,14 @@ export function useMatchMarket(matchId: string | null, bettor: string | null) {
     queryKey: BETTING_KEYS.odds(matchId ?? "none"),
     queryFn: () => fetchMarketOdds(matchId as string),
     enabled: !!matchId,
-    refetchInterval: ODDS_POLL_MS,
+    // A settled or voided market is final — stop polling it. Without this the
+    // odds keep polling a finished match forever, and the backend's transient
+    // 500 while it settles the market turns into an endless retry storm.
+    refetchInterval: (q) => {
+      const status = q.state.data?.status;
+      if (status === "settled" || status === "voided") return false;
+      return ODDS_POLL_MS;
+    },
   });
 
   const bets = useQuery({

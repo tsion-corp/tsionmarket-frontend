@@ -26,14 +26,17 @@ export type ChessTimeControl = string;
 
 // The controls offered on the create screens.
 // These are whole-game clocks, not per-move resets.
-export const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["5+0", "10+0", "15+0"];
+export const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["1+0", "5+0", "10+0", "15+0"];
 
 export type ChessColor = "w" | "b";
 
 export interface ChessPlayer {
   id: string;
   username: string;
-  rating: number;
+  // Null until the service exposes ratings. The chess backend models a game and
+  // nothing else, so there is no honest number to show yet; the UI hides the
+  // rating rather than printing a fabricated zero.
+  rating: number | null;
   walletAddress: string;
 }
 

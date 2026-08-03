@@ -160,7 +160,7 @@ describe("match", () => {
   it("leaves an empty seat empty rather than inventing a player", () => {
     const match = toChessMatch(wire({ status: "waiting", black: null }));
     expect(match.black).toBeNull();
-    expect(match.white).toMatchObject({ walletAddress: "0xwhite", rating: 0 });
+    expect(match.white).toMatchObject({ walletAddress: "0xwhite", rating: null });
   });
 
   it("keeps non-wallet seat names readable for managed tournament games", () => {

@@ -24,6 +24,23 @@ function audioContext(): AudioContext | null {
   return context;
 }
 
+// Browsers keep a freshly-created AudioContext suspended until a user gesture.
+// Resuming from inside a move handler usually works for your own move, but the
+// first sound can be the opponent's move with no local gesture yet. Arm a
+// one-shot resume on the first pointer or key gesture so audio is unlocked
+// before it is needed. Safe to call repeatedly — it arms only once.
+let unlockArmed = false;
+export function armAudioUnlock(): void {
+  if (unlockArmed || typeof window === "undefined") return;
+  unlockArmed = true;
+  const unlock = () => {
+    const ac = audioContext();
+    if (ac && ac.state === "suspended") void ac.resume();
+  };
+  window.addEventListener("pointerdown", unlock, { once: true });
+  window.addEventListener("keydown", unlock, { once: true });
+}
+
 // One synthesised note. `at` is an offset in seconds from now, so several tones
 // compose into a short motif (a castle's double knock, an end chime). Always
 // silent and never throwing on failure — the move still went through.
@@ -120,6 +137,30 @@ export function playMoveSound(kind: MoveSound = "move"): void {
     }
   } catch {
     // Audio glitch — the move still went through, so stay silent.
+  }
+}
+
+// A single robotic countdown beep for the final seconds of a clock. The pitch
+// climbs as the number falls (10 low, 1 high) so the urgency is audible, and
+// the last three tick harder. `n` is the whole second being shown.
+export function playCountdownBeep(n: number): void {
+  const ac = audioContext();
+  if (!ac) return;
+  if (ac.state === "suspended") void ac.resume();
+  try {
+    const clamped = Math.max(0, Math.min(10, n));
+    const freq = 440 + (10 - clamped) * 55; // 440Hz at 10 → ~990Hz at 1
+    const urgent = clamped <= 3;
+    tone(ac, {
+      freqStart: freq,
+      freqEnd: freq,
+      attack: 0.004,
+      hold: urgent ? 0.16 : 0.1,
+      peak: urgent ? 0.26 : 0.18,
+      type: "square",
+    });
+  } catch {
+    // A missed beep must never interrupt the game.
   }
 }
 

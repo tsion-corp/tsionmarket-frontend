@@ -557,7 +557,12 @@ describe("a drawn game", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
-      expect(chessApi.postMatchChatMessage).toHaveBeenCalledWith("m1", "spectator", "nice move")
+      expect(chessApi.postMatchChatMessage).toHaveBeenCalledWith(
+        "m1",
+        "spectator",
+        "nice move",
+        null
+      )
     );
   });
 
@@ -616,7 +621,9 @@ describe("a drawn game", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Save note" }));
 
-    await waitFor(() => expect(chessApi.saveMatchNote).toHaveBeenCalledWith("m1", "updated prep"));
+    await waitFor(() =>
+      expect(chessApi.saveMatchNote).toHaveBeenCalledWith("m1", "updated prep", null)
+    );
 
     fireEvent.change(screen.getByPlaceholderText("Add a comment on this position."), {
       target: { value: "play c4 soon" },
@@ -624,10 +631,14 @@ describe("a drawn game", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save comment" }));
 
     await waitFor(() =>
-      expect(chessApi.upsertMatchComment).toHaveBeenCalledWith("m1", {
-        ply: 0,
-        text: "play c4 soon",
-      })
+      expect(chessApi.upsertMatchComment).toHaveBeenCalledWith(
+        "m1",
+        {
+          ply: 0,
+          text: "play c4 soon",
+        },
+        null
+      )
     );
   });
 

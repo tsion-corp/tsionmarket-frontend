@@ -15,17 +15,35 @@ import {
 import { toast } from "@/lib/toast";
 import type { ChessMatch } from "@/lib/casino/api/types";
 
-// The result of a finished game from this player's side of the board: won,
-// lost, drawn, or aborted before it counted.
-function resultKey(
+const DRAW_REASON_KEYS = {
+  stalemate: "reasonStalemate",
+  agreement: "reasonAgreement",
+  repetition: "reasonRepetition",
+  insufficient: "reasonInsufficient",
+} as const;
+
+// The result of a finished game from this player's side of the board, spelled
+// out with the manner it ended ("Checkmate · You won"). Every win/loss/draw
+// message carries a variable, so the label is formatted here rather than handed
+// back as a bare key; mirrors the play screen so both lists read identically.
+function resultLabel(
   match: ChessMatch,
-  wallet: string | null
-): "resultYouWon" | "resultYouLost" | "resultDraw" | "resultAborted" {
-  if (!match.result) return "resultAborted";
-  if (match.result.kind === "draw") return "resultDraw";
+  wallet: string | null,
+  t: ReturnType<typeof useTranslations>
+): string {
+  const r = match.result;
+  if (!r) return t("resultAborted");
+  if (r.kind === "draw") return t("resultDraw", { reason: t(DRAW_REASON_KEYS[r.reason]) });
+  const how =
+    r.kind === "checkmate"
+      ? t("howCheckmate")
+      : r.kind === "resignation"
+        ? t("howResignation")
+        : t("howTimeout");
   const mine = wallet?.toLowerCase();
-  const winner = match.result.winner === "w" ? match.white : match.black;
-  return winner?.walletAddress?.toLowerCase() === mine ? "resultYouWon" : "resultYouLost";
+  const winner = r.winner === "w" ? match.white : match.black;
+  const youWon = winner?.walletAddress?.toLowerCase() === mine;
+  return youWon ? t("resultYouWon", { how }) : t("resultYouLost", { how });
 }
 
 function opponentName(match: ChessMatch, wallet: string | null): string | null {
@@ -110,7 +128,7 @@ export function HistorySection() {
                       : t("rapid", { tc: m.timeControl })}
                   </div>
                   <div className={finished ? "text-white/80" : "text-up font-normal"}>
-                    {finished ? tPlay(resultKey(m, wallet.address)) : tLobby("liveNow")}
+                    {finished ? resultLabel(m, wallet.address, tPlay) : tLobby("liveNow")}
                   </div>
                   <div className="text-right">
                     {finished ? (

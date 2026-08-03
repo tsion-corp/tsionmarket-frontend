@@ -266,7 +266,12 @@ export async function fetchMatchmakingTicket(ticketId: string): Promise<Matchmak
     matchId: wire.id,
     acceptSecondsRemaining: null,
     opponent: opponentWallet
-      ? { id: opponentWallet, username: opponentWallet, rating: 0, walletAddress: opponentWallet }
+      ? {
+          id: opponentWallet,
+          username: opponentWallet,
+          rating: null,
+          walletAddress: opponentWallet,
+        }
       : null,
   };
 }
@@ -378,9 +383,17 @@ export async function fetchPlayerMatches(wallet: string, status?: string): Promi
   return data.items.map((wire) => toChessMatch(wire));
 }
 
+// The social surfaces (chat, note, comments) are gated by the service behind
+// "are you a player in this match", the same seat check as moves. On a managed
+// Swiss-tournament board a seat is the player's display name, not their wallet,
+// so every one of these carries an optional `seat`: when set it names the
+// tournament seat as the caller (the proxy passes a non-wallet identity through
+// untouched), and when null the caller is the wallet the proxy stamps. Ordinary
+// wallet-seated games pass null and their requests are unchanged.
 export async function fetchMatchChat(
   matchId: string,
-  query: MatchChatQuery = {}
+  query: MatchChatQuery = {},
+  seat: string | null = null
 ): Promise<ChessChatMessage[]> {
   const room = query.room ?? "spectator";
   const data = await chessGet<ChessChatMessagesWire>(
@@ -388,6 +401,7 @@ export async function fetchMatchChat(
     {
       room,
       ...(query.limit ? { limit: String(query.limit) } : {}),
+      ...(room === "player" && seat ? { player: seat } : {}),
     },
     { requireAuth: room === "player" }
   );
@@ -397,27 +411,37 @@ export async function fetchMatchChat(
 export async function postMatchChatMessage(
   matchId: string,
   room: ChessChatRoom,
-  text: string
+  text: string,
+  seat: string | null = null
 ): Promise<ChessChatMessage> {
   const wire = await chessPost<ChessChatMessageWire>(`/matches/${requireMatchId(matchId)}/chat`, {
     room,
     text,
+    ...(seat ? { author: seat } : {}),
   });
   return toChessChatMessage(wire);
 }
 
-export async function fetchMatchNote(matchId: string): Promise<ChessMatchNote> {
+export async function fetchMatchNote(
+  matchId: string,
+  seat: string | null = null
+): Promise<ChessMatchNote> {
   const wire = await chessGet<ChessMatchNoteWire>(
     `/matches/${requireMatchId(matchId)}/note`,
-    undefined,
+    seat ? { player: seat } : undefined,
     { requireAuth: true }
   );
   return toChessMatchNote(wire);
 }
 
-export async function saveMatchNote(matchId: string, text: string): Promise<ChessMatchNote> {
+export async function saveMatchNote(
+  matchId: string,
+  text: string,
+  seat: string | null = null
+): Promise<ChessMatchNote> {
   const wire = await chessPut<ChessMatchNoteWire>(`/matches/${requireMatchId(matchId)}/note`, {
     text,
+    ...(seat ? { player: seat } : {}),
   });
   return toChessMatchNote(wire);
 }
@@ -437,21 +461,24 @@ export async function fetchMatchComments(
 
 export async function upsertMatchComment(
   matchId: string,
-  input: UpsertMatchCommentInput
+  input: UpsertMatchCommentInput,
+  seat: string | null = null
 ): Promise<ChessMatchComment> {
   const wire = await chessPost<ChessMatchCommentWire>(
     `/matches/${requireMatchId(matchId)}/comments`,
-    input
+    { ...input, ...(seat ? { player: seat } : {}) }
   );
   return toChessMatchComment(wire);
 }
 
 export async function deleteMatchComment(
   matchId: string,
-  commentId: string
+  commentId: string,
+  seat: string | null = null
 ): Promise<ChessMatchComment> {
   const wire = await chessDelete<ChessMatchCommentWire>(
-    `/matches/${requireMatchId(matchId)}/comments/${encodeURIComponent(commentId)}`
+    `/matches/${requireMatchId(matchId)}/comments/${encodeURIComponent(commentId)}`,
+    seat ? { player: seat } : {}
   );
   return toChessMatchComment(wire);
 }

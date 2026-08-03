@@ -40,6 +40,7 @@ const CREATE_TIME_GROUPS = [
   {
     title: "Game Clock",
     options: [
+      { value: "1+0", label: "1 min" },
       { value: "5+0", label: "5 min" },
       { value: "10+0", label: "10 min" },
       { value: "15+0", label: "15 min" },
@@ -424,6 +425,7 @@ export function CreateSection() {
             </div>
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+              <ChessCashierLauncher compact />
               <InfoRow
                 label="Opponent"
                 value="Challenge link"
@@ -443,7 +445,7 @@ export function CreateSection() {
                       {selectedTime.panelLabel}
                     </span>
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {group.options.map((option) => {
                       const active = timeControl === option.value;
                       return (
@@ -476,8 +478,6 @@ export function CreateSection() {
                   feePct={cashier.feePct}
                 />
               ) : null}
-
-              <ChessCashierLauncher compact />
 
               <div className="rounded-[14px] border border-white/8 bg-white/4 px-3.5 py-3 text-[13px] leading-relaxed font-normal text-white/55">
                 After you create the game, we open the waiting board, copy the challenge link, and
