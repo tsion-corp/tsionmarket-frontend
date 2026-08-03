@@ -4,6 +4,7 @@ import {
   buildPayOptions,
   buyQuoteRequest,
   clampPage,
+  dedupeByChain,
   errorCode,
   estimateReceiveTokens,
   estimateReceiveUsdc,
@@ -573,5 +574,37 @@ describe("hasNativeGas minimum", () => {
 
   it("cannot judge a chain the portfolio does not index", () => {
     expect(hasNativeGas([], "bsc")).toBeNull();
+  });
+});
+
+describe("dedupeByChain", () => {
+  const base = asset({ id: "base:0x66", chain: "base", symbol: "syrupUSDC" });
+  const solana = asset({ id: "solana:Avz", chain: "solana", symbol: "syrupUSDC" });
+
+  it("keeps the Base listing when an asset is on both chains", () => {
+    // Maple Syrup USDC ships on Base and Solana; two identical-looking rows
+    // gave no way to tell them apart, and Base trades are gas-sponsored.
+    expect(dedupeByChain([solana, base]).map((a) => a.chain)).toEqual(["base"]);
+    expect(dedupeByChain([base, solana]).map((a) => a.chain)).toEqual(["base"]);
+  });
+
+  it("keeps a Solana-only asset", () => {
+    expect(dedupeByChain([solana]).map((a) => a.id)).toEqual(["solana:Avz"]);
+  });
+
+  it("leaves distinct symbols alone and preserves order", () => {
+    const a = asset({ id: "base:1", chain: "base", symbol: "AAA" });
+    const b = asset({ id: "solana:2", chain: "solana", symbol: "BBB" });
+    const c = asset({ id: "base:3", chain: "base", symbol: "CCC" });
+    expect(dedupeByChain([a, b, c]).map((x) => x.symbol)).toEqual(["AAA", "BBB", "CCC"]);
+  });
+
+  it("matches symbols case-insensitively", () => {
+    const lower = asset({ id: "solana:x", chain: "solana", symbol: "syrupusdc" });
+    expect(dedupeByChain([lower, base]).map((a) => a.chain)).toEqual(["base"]);
+  });
+
+  it("returns an empty list unchanged", () => {
+    expect(dedupeByChain([])).toEqual([]);
   });
 });

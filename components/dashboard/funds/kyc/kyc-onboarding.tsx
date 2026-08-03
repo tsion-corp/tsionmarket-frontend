@@ -176,7 +176,9 @@ export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardin
         <ChevronLeftIcon size={14} />
         {t("back")}
       </button>
-      <span className="bg-accent/14 text-accent inline-grid h-[52px] w-[52px] place-items-center rounded-full">
+      {/* Block-level, not inline-grid: the back button above is inline-flex, so
+          an inline badge shares its line and lands beside "Back". */}
+      <span className="bg-accent/14 text-accent grid h-[52px] w-[52px] place-items-center rounded-full">
         <ShieldIcon size={24} />
       </span>
       <div className="ws-display mt-3 text-[24px] tracking-[-0.01em]">{t("startTitle")}</div>

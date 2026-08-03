@@ -93,6 +93,30 @@ export function isLiveChain(a: RwaApiAsset): boolean {
   return (LIVE_RWA_CHAINS as readonly string[]).includes(a.chain);
 }
 
+// Which chain to keep when the catalog lists one asset on several. Base first:
+// its trades are gas-sponsored, so the same asset costs the user less there.
+const CHAIN_PREFERENCE: readonly RwaChain[] = ["base", "solana"];
+
+function chainRank(a: RwaApiAsset): number {
+  const at = (CHAIN_PREFERENCE as readonly string[]).indexOf(a.chain);
+  return at === -1 ? CHAIN_PREFERENCE.length : at;
+}
+
+// One row per asset. The catalog lists the same token on several chains — Maple
+// Syrup USDC is on Base and Solana — which reads as a duplicate row with nothing
+// to tell the two apart, and picking the wrong one lands the user on the chain
+// where the trade costs more. Ordering is preserved, so the table's existing
+// sort still decides where the surviving row sits.
+export function dedupeByChain(assets: RwaApiAsset[]): RwaApiAsset[] {
+  const best = new Map<string, RwaApiAsset>();
+  for (const a of assets) {
+    const key = a.symbol.toUpperCase();
+    const held = best.get(key);
+    if (!held || chainRank(a) < chainRank(held)) best.set(key, a);
+  }
+  return assets.filter((a) => best.get(a.symbol.toUpperCase()) === a);
+}
+
 // The gateway payload is cast, not validated, so one malformed row would
 // otherwise crash the table, the modal or the voice prefill on a null field.
 export function isUsableAsset(a: RwaApiAsset): boolean {
