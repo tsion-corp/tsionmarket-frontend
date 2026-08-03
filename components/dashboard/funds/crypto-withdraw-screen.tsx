@@ -266,7 +266,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   // What the recipient receives: the live quote's amountOut for a route, or the
   // amount itself for a same-asset send.
   const previewOut = isDirectSend
-    ? `${formatAmount(value)} USDC`
+    ? `$${formatAmount(value)}`
     : quote.data && selectedDestination
       ? `${fromBaseUnits(BigInt(quote.data.amountOut), selectedDestination.decimals)} ${selectedDestination.symbol}`
       : null;
@@ -447,9 +447,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
       <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
         <span className="text-[13px] font-normal text-white/55">{t("availableBalance")}</span>
-        <span className="ws-display tnum text-[20px] text-white">
-          {formatAmount(balance)} <span className="text-[14px] text-white/60">USDC</span>
-        </span>
+        <span className="ws-display tnum text-[20px] text-white">${formatAmount(balance)}</span>
       </div>
 
       <div className="mt-3">
@@ -643,7 +641,9 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           ? t("sending")
           : quoteInput && quote.isFetching
             ? t("gettingRate")
-            : t("withdrawAsset", { symbol: destSymbol ?? "USDC" })}
+            : destSymbol
+              ? t("withdrawAsset", { symbol: destSymbol })
+              : t("withdrawCryptoTitle")}
       </button>
     </div>
   );
