@@ -17,7 +17,6 @@ import {
   RoundOverlay,
   type RoundPhase,
 } from "@/components/dashboard/casino/last-standing/round-overlay";
-import { PlayOverlay } from "@/components/dashboard/casino/last-standing/play-overlay";
 import { useVaultGame } from "@/hooks/use-vault-game";
 import { useVaultActions } from "@/hooks/use-vault-actions";
 import { useVaultPendingWinnings } from "@/hooks/use-vault-winnings";
@@ -171,8 +170,6 @@ export function LastStandingSection() {
       if (flightTimerRef.current) clearTimeout(flightTimerRef.current);
     };
   }, []);
-  // Shows the "you're in!" arcade takeover the moment a play confirms.
-  const [playEntering, setPlayEntering] = useState(false);
   // End-of-round overlay: null (idle), "calculating" (5s suspense), or "won"
   // (the reveal, shown to everyone). Prize is USD, formatted to money only at
   // render. `youWon` switches the reveal from a personal jackpot to a "someone
@@ -515,7 +512,6 @@ export function LastStandingSection() {
       await wager();
       toast.success(t("toastYoureIn"), { id: toastId });
       playWagerSound();
-      setPlayEntering(true);
       // The wager just landed on-chain, but the backend indexes it a moment
       // later — resync now and keep the fast settle-poll running briefly so
       // the pot, timer and last-player reflect this play within seconds
@@ -1101,14 +1097,6 @@ export function LastStandingSection() {
       <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
         <FundSheet onClose={() => setFundOpen(false)} />
       </ModalShell>
-
-      <PlayOverlay
-        open={playEntering}
-        potValue={potUsd}
-        formatMoney={money.format}
-        secondsToSurvive={status?.timerDuration ?? 0}
-        onClose={() => setPlayEntering(false)}
-      />
 
       <RoundOverlay
         phase={phase}

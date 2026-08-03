@@ -10,7 +10,6 @@ import { TokenList } from "@/components/dashboard/funds/token-list";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { CoinBadge } from "@/components/ui/coin-badge";
-import { NetworkIcon } from "@/components/ui/network-icon";
 import {
   useDepositChains,
   useDepositStatus,
@@ -36,18 +35,18 @@ import { toast } from "@/lib/toast";
 const DECIMAL = /^\d*\.?\d*$/;
 const QUOTE_DEBOUNCE_MS = 450;
 
-// Base is where deposits settle and where the rest of the app trades, so it is
-// the default source. Solana is offered too: an RWA purchase can leave USDC
-// there, and without this it would show in Holdings with no way out.
-const SOURCE_KEYS = ["base", "solana"] as const;
-type SourceKey = (typeof SOURCE_KEYS)[number];
+// The wallet balance is USDC on Base — everything deposited settles here, so
+// it is the single source every withdrawal sends from. The screen never names
+// the chain: the user withdraws "USDC", and where it sits is plumbing.
+const SOURCE = SETTLE_CHAINS.base;
 
 // Dextopus's solver omits the origin chain itself as a destination (a same-chain
 // hop isn't a route), but sending USDC to an external address on that chain is a
 // valid plain transfer (see isDirectSend). Inject it so the origin still appears
-// as a "withdraw to" network.
+// as a "withdraw to" network. Parameterized and pure, so it stays testable
+// against any settle chain even though only Base sends today.
 export function sameChainDestination(
-  source: (typeof SETTLE_CHAINS)[SourceKey]
+  source: (typeof SETTLE_CHAINS)[keyof typeof SETTLE_CHAINS]
 ): WithdrawDestination {
   return {
     destinationChainId: source.chainId,
@@ -136,7 +135,6 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   const { sendToken } = useSendToken();
   const allChains = useDepositChains();
 
-  const [sourceKey, setSourceKey] = useState<SourceKey>("base");
   const [destSymbol, setDestSymbol] = useState<string | null>(null);
   const [destChainId, setDestChainId] = useState<number | null>(null);
   // Each picker collapses to its selected row once chosen, and reopens on
@@ -158,26 +156,14 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     return () => clearTimeout(t);
   }, [amount]);
 
-  const source = SETTLE_CHAINS[sourceKey];
+  const source = SOURCE;
   const sourceNetwork = source.alchemyNetwork;
-  const balanceOn = (key: SourceKey) =>
-    tokens.find(
-      (t) => t.network === SETTLE_CHAINS[key].alchemyNetwork && t.symbol.toUpperCase() === "USDC"
-    )?.balance ?? 0;
   const usdcHolding = tokens.find(
     (t) => t.network === sourceNetwork && t.symbol.toUpperCase() === "USDC"
   );
-  const balance = balanceOn(sourceKey);
-  // Dextopus validates the refund address against the ORIGIN chain family, so
-  // this has to follow the source rather than always being the EVM wallet.
+  const balance = usdcHolding?.balance ?? 0;
+  // Dextopus validates the refund address against the ORIGIN chain family.
   const refundTo = getWalletAddress(user, source.chainType);
-  // Base sends are gas-sponsored; a Solana send is signed by the wallet and
-  // costs SOL, which cannot be bootstrapped from Solana.
-  const nativeBalance =
-    tokens.find(
-      (t) => t.network === sourceNetwork && t.symbol.toUpperCase() === source.nativeSymbol
-    )?.balance ?? 0;
-  const needsGas = source.chainType === "solana" && nativeBalance <= 0;
 
   // Where the USDC can go, per Dextopus's solver for USDC on the chosen source.
   const destinations = useWithdrawDestinations({
@@ -294,7 +280,6 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     !busy &&
     amountSettled &&
     Boolean(refundTo) &&
-    !needsGas &&
     (isDirectSend || Boolean(quote.data));
 
   const status = useDepositStatus(depositRequestId);
@@ -460,54 +445,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         onBack={onBack}
       />
 
-      {/* Which chain the USDC leaves from. Base is home, but an RWA purchase
-          can leave USDC on Solana, and it sends out from there directly rather
-          than needing a bridge home first. */}
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        {SOURCE_KEYS.map((key) => {
-          const chain = SETTLE_CHAINS[key];
-          const active = key === sourceKey;
-          return (
-            <button
-              key={key}
-              onClick={() => {
-                if (submitting || active) return;
-                setSourceKey(key);
-                // Destinations are solved per origin, so any earlier pick may
-                // not exist on the new one.
-                setDestSymbol(null);
-                setDestChainId(null);
-                setTokenOpen(true);
-                setNetworkOpen(true);
-                setError(null);
-              }}
-              disabled={submitting}
-              className={`ws-inset flex cursor-pointer flex-col items-start gap-0.5 px-3.5 py-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                active ? "ring-accent/45 ring-1" : "hover:bg-white/4"
-              }`}
-            >
-              <span className="flex items-center gap-1.5">
-                <NetworkIcon network={chain.alchemyNetwork} size={13} />
-                <span
-                  className={`font-sans text-[13px] font-medium ${active ? "text-white" : "text-white/60"}`}
-                >
-                  {chain.chainName}
-                </span>
-              </span>
-              <span className="ws-display tnum text-[17px] text-white">
-                {formatAmount(balanceOn(key))}{" "}
-                <span className="text-[12px] text-white/55">USDC</span>
-              </span>
-            </button>
-          );
-        })}
+      <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
+        <span className="text-[13px] font-normal text-white/55">{t("availableBalance")}</span>
+        <span className="ws-display tnum text-[20px] text-white">
+          {formatAmount(balance)} <span className="text-[14px] text-white/60">USDC</span>
+        </span>
       </div>
-
-      {needsGas ? (
-        <div className="mt-2 rounded-[12px] border border-amber-400/30 bg-amber-400/10 p-3 text-[12.5px] leading-[1.5] font-medium text-amber-200">
-          {t("withdrawNeedsGas", { symbol: source.nativeSymbol, chain: source.chainName })}
-        </div>
-      ) : null}
 
       <div className="mt-3">
         <div className="mb-2 text-xs font-normal text-white/55">{t("withdrawAs")}</div>
