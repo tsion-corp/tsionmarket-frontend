@@ -75,7 +75,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
                 className="rounded-[18px] border border-white/8 px-5 py-5"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
-                <div className="ws-display mb-2 text-[1.15rem] leading-none tracking-[-0.03em] text-white">
+                <div className="mb-2 font-sans text-[1.15rem] leading-none font-extrabold tracking-[-0.03em] text-white">
                   {liveMatchLabel(match)}
                 </div>
                 <div className="mb-4 text-[13px] leading-6 text-white/62">
@@ -97,7 +97,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
                 className="rounded-[18px] border border-white/8 px-5 py-5"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
-                <div className="ws-display mb-2 text-[1.15rem] leading-none tracking-[-0.03em] text-white">
+                <div className="mb-2 font-sans text-[1.15rem] leading-none font-extrabold tracking-[-0.03em] text-white">
                   {liveMatchLabel(match)}
                 </div>
                 <div className="mb-4 text-[13px] leading-6 text-white/62">

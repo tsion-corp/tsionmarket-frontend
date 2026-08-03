@@ -6,6 +6,7 @@ import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/sola
 import { getBase58Decoder } from "@solana/kit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
+import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
 import { fetchLifiStatus, fetchSolanaBridgeQuote } from "@/lib/trade/lifi";
 import { LIFI_BASE_CHAIN, BASE_USDC } from "@/lib/rwa/funding";
 import { USDC_BY_CHAIN } from "@/lib/rwa-api";
@@ -21,20 +22,13 @@ const SETTLE_DEADLINE_MS = 150_000;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
-
 // Brings USDC on Solana back to Base, where the rest of the account lives —
 // the return half of the funding leg, used after selling a Solana asset.
 //
 // Unlike the outbound legs, this route originates on Solana: LI.FI returns a
-// base64 transaction for the embedded Solana wallet to sign, so it costs a
-// little SOL rather than being sponsored. The buy flow's gas top-up leaves
-// enough behind to cover it.
+// base64 transaction for the embedded Solana wallet to sponsor, sign, and
+// send. That keeps the return leg gasless too, instead of burning the user's
+// leftover SOL from the funding hop.
 export function useSolanaProceeds() {
   const { user } = usePrivy();
   const { signAndSendTransaction } = useSignAndSendTransaction();
@@ -81,8 +75,9 @@ export function useSolanaProceeds() {
         });
 
         setPhase("signing");
+        const transaction = await sponsorSolanaTransaction(quote.transaction);
         const { signature } = await signAndSendTransaction({
-          transaction: base64ToBytes(quote.transaction),
+          transaction,
           wallet,
           // Broadcast-only: the confirmation below polls the RPC we send
           // through, rather than a WebSocket we do not proxy.

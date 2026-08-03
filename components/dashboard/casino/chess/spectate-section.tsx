@@ -60,7 +60,7 @@ function PlayerStrip({
         className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
         style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
       >
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/10 font-sans text-[0.96rem] font-bold text-white/30">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[0.96rem] font-bold text-white/30">
           P
         </span>
         <div className="min-w-0">
@@ -199,9 +199,9 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
         <section
-          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[88px] xl:self-start"
+          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
           style={{ background: CHESS_SURFACE_BG }}
         >
           <div className="mx-auto w-full" style={{ maxWidth: CHESS_PAGE_BOARD_MAX_WIDTH }}>
@@ -244,7 +244,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
               className="rounded-[16px] border border-white/6 px-4 py-4"
               style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
             >
-              <div className="ws-display mb-1 text-[17px] text-white">{t("liveMarket")}</div>
+              <div className="mb-1 text-[1.2rem] font-extrabold text-white">{t("liveMarket")}</div>
               <div className="text-[0.92rem] leading-6 text-white/60">
                 Watching is free. Betting here uses your chess balance, not the Base wallet
                 directly.
@@ -287,7 +287,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                           disabled={!marketOpen || isPlayer}
                           className={`cursor-pointer rounded-[10px] border py-2.5 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-55 ${
                             active
-                              ? "border-white/40 bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.2)]"
+                              ? "border-[#B7B1A8] bg-[#8B847B] text-white shadow-[0_0_0_1px_rgba(183,177,168,0.35)]"
                               : won
                                 ? "border-up/50 bg-up/10 text-white"
                                 : "border-white/10 bg-white/4 text-white hover:border-white/25"
@@ -312,7 +312,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                     </div>
                     <div className="flex h-[7px] overflow-hidden rounded-[4px] bg-white/10">
                       <div
-                        className="h-full bg-white/70 transition-[width] duration-500"
+                        className="h-full bg-[#B7B1A8] transition-[width] duration-500"
                         style={{ width: `${impliedProbability(odds, "white")}%` }}
                       />
                     </div>

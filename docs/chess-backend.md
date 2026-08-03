@@ -119,23 +119,26 @@ in a game in progress is not withdrawable.
 
 ### Matches
 
-| Method | Path                          | Auth    | Returns              |
-| ------ | ----------------------------- | ------- | -------------------- |
-| GET    | `/matches?status=&limit=`     | public  | `{ items: Match[] }` |
-| GET    | `/matches/{id}`               | public  | `Match`              |
-| GET    | `/matches/{id}/moves`         | public  | `{ moves: Move[] }`  |
-| GET    | `/matches/{id}/pgn`           | public  | `{ pgn: string }`    |
-| GET    | `/players/{wallet}/matches`   | public  | `{ items: Match[] }` |
-| POST   | `/matches`                    | session | `Match`              |
-| POST   | `/matches/{id}/join`          | session | `Match`              |
-| POST   | `/matches/{id}/moves`         | session | `{ match, move }`    |
-| POST   | `/matches/{id}/resign`        | session | `Match`              |
-| POST   | `/matches/{id}/draw-offer`    | session | `Match`              |
-| POST   | `/matches/{id}/draw-response` | session | `Match`              |
-| POST   | `/matches/{id}/claim-draw`    | session | `Match`              |
-| POST   | `/matches/{id}/claim-timeout` | session | `Match`              |
-| POST   | `/matches/{id}/abort`         | session | `Match`              |
-| POST   | `/matches/{id}/rematch`       | session | `Match` (a new one)  |
+| Method | Path                             | Auth    | Returns              |
+| ------ | -------------------------------- | ------- | -------------------- |
+| GET    | `/matches?status=&limit=`        | public  | `{ items: Match[] }` |
+| GET    | `/matches/{id}`                  | public  | `Match`              |
+| GET    | `/matches/{id}/moves`            | public  | `{ moves: Move[] }`  |
+| GET    | `/matches/{id}/pgn`              | public  | `{ pgn: string }`    |
+| GET    | `/players/{wallet}/matches`      | public  | `{ items: Match[] }` |
+| POST   | `/matches`                       | session | `Match`              |
+| POST   | `/matches/{id}/join`             | session | `Match`              |
+| POST   | `/matches/{id}/moves`            | session | `{ match, move }`    |
+| POST   | `/matches/{id}/resign`           | session | `Match`              |
+| POST   | `/matches/{id}/draw-offer`       | session | `Match`              |
+| POST   | `/matches/{id}/draw-response`    | session | `Match`              |
+| POST   | `/matches/{id}/claim-draw`       | session | `Match`              |
+| POST   | `/matches/{id}/claim-timeout`    | session | `Match`              |
+| POST   | `/matches/{id}/abort`            | session | `Match`              |
+| POST   | `/matches/{id}/rematch`          | session | `Match`              |
+| POST   | `/matches/{id}/rematch-decline`  | session | `Match`              |
+| POST   | `/matches/{id}/takeback`         | session | `Match`              |
+| POST   | `/matches/{id}/takeback-decline` | session | `Match`              |
 
 **The server owns the game.** It holds the position, validates every move, runs
 both clocks and decides the result. The client sends a move in coordinate
@@ -147,15 +150,21 @@ Match ids are UUIDs and are checked client-side before a request is spent on
 them, because the gateway answers a malformed id with plain text rather than the
 envelope.
 
+`Match` now carries two extra live-action objects the frontend consumes
+directly:
+
+- `takeback: { white, black, takebackable }`
+- `rematch: { offeredBy, nextMatchId }`
+
 Two service behaviours the frontend has to compensate for:
 
 - **The service never ends a game on time.** A flag fall has to be claimed by the
   opponent, so the client claims automatically when a clock hits zero. That claim
   now retries up to three times: one dropped request used to leave the game
   `active` forever, which for a staked game means the money stays locked.
-- **Rematch is not an invitation.** It opens a fresh one-seat game with the
-  colours swapped and never tells the opponent, so the client watches the waiting
-  list for a game the ex-opponent opened rather than opening a third.
+- **Rematch and takeback are Lila-style offers on the current match.** The first
+  click offers; the second accepts. Rematch acceptance writes
+  `rematch.nextMatchId`, while takeback acceptance rewinds the current board.
 
 `stake_usdc` on create is omitted entirely for a free game. Sending `"0"` would
 make the service open a settlement row for nothing.
@@ -169,6 +178,7 @@ make the service open a settlement row for nothing.
 | POST   | `/swiss`                  | session | `SwissSummary`  |
 | POST   | `/swiss/{id}/join`        | session | `Swiss`         |
 | POST   | `/swiss/{id}/withdraw`    | session | `Swiss`         |
+| POST   | `/swiss/{id}/reconcile`   | session | `Swiss`         |
 | POST   | `/swiss/{id}/rounds/next` | session | `Swiss`         |
 
 Withdrawing means two different things and the UI has to say which: **before
@@ -180,6 +190,9 @@ later, so it is on the button itself, not buried in a tooltip.
 one it answers `400 BAD_REQUEST` asking for `manualPairings`, which the frontend
 treats as a request for input rather than a failure: it opens a pairings editor
 that validates duplicates, self-pairings and unknown names before sending.
+
+`POST /swiss/{id}/reconcile` is the organizer's repair path for rounds whose
+boards are still marked ongoing until the backing matches are reconciled.
 
 Swiss players are named by a token of 1 to 30 characters with no spaces. A
 42-character address would be rejected, so `swissNameFor` shortens it to
@@ -195,13 +208,18 @@ which the browser subscribes to at `NEXT_PUBLIC_WS_GATEWAY_URL` (falling back to
 Bootstrap with `GET /matches/{id}`, then subscribe to the `liveTopic` the
 response carries. Do not rebuild that string client-side.
 
-| Frame      | When                  | Payload                                        |
-| ---------- | --------------------- | ---------------------------------------------- |
-| `state`    | join, draw offer, end | a whole match                                  |
-| `position` | a move is applied     | `{ fen, turn, ply, lastMove, clocks, status }` |
-| `gameOver` | the match finishes    | `{ result, reason }`                           |
+| Frame            | When                     | Payload                                        |
+| ---------------- | ------------------------ | ---------------------------------------------- |
+| `state`          | join, draw offer, end    | a whole match                                  |
+| `position`       | a move is applied        | `{ fen, turn, ply, lastMove, clocks, status }` |
+| `gameOver`       | the match finishes       | `{ result, reason }`                           |
+| `takebackOffers` | takeback offered/cleared | `{ white, black }`                             |
+| `rematchOffer`   | rematch offered/cleared  | `{ offeredBy }`                                |
+| `rematchTaken`   | rematch accepted         | `{ nextMatchId }`                              |
 
-Polling runs at 2s while the socket is down and drops to 20s once it is up.
+Live boards poll at 1s while the socket is silent and back off to 5s once
+frames are flowing. Finished boards stay subscribed too, because rematch is now
+driven by socket-only post-game frames.
 
 ## Request body casing
 

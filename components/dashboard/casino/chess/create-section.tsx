@@ -39,7 +39,7 @@ const LANDING_BOARD = initialBoard();
 const CREATE_TIME_GROUPS = [
   {
     title: "Game Clock",
-    tone: "rgba(255,255,255,0.7)",
+    tone: "#B7B1A8",
     options: [
       { value: "5+0", label: "5 min" },
       { value: "10+0", label: "10 min" },
@@ -197,7 +197,7 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
       className="flex min-w-0 items-center gap-4 rounded-[8px] px-3 py-3"
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
-      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/10">
+      <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847]">
         <LandingIcon
           src="/chesscom-icons/play-white.svg"
           alt=""
@@ -208,8 +208,8 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
         <span className="truncate font-sans text-[0.96rem] font-bold text-white">{label}</span>
         {active ? (
           <span aria-hidden className="inline-flex gap-[3px]">
-            <span className="h-4 w-[8px] rounded-[2px] bg-white/70" />
-            <span className="h-4 w-[8px] rounded-[2px] bg-white/60" />
+            <span className="h-4 w-[8px] rounded-[2px] bg-[#B7B1A8]" />
+            <span className="h-4 w-[8px] rounded-[2px] bg-[#8B847B]" />
           </span>
         ) : null}
       </span>
@@ -315,7 +315,7 @@ function StakeCard({
   const chipClass = (active: boolean) =>
     `cursor-pointer rounded-[12px] border px-3.5 py-2 font-sans text-[13px] transition-colors ${
       active
-        ? "border-white/40 bg-white/10 font-semibold text-white"
+        ? "border-[#B7B1A8] bg-[#4A4641] font-semibold text-white"
         : "border-white/10 bg-black/8 text-white/80 hover:border-white/25"
     }`;
 
@@ -428,9 +428,9 @@ export function CreateSection() {
 
   return (
     <div className="mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
         <section
-          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[88px] xl:self-start"
+          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
           style={{ background: CHESS_SURFACE_BG }}
         >
           <div className="mx-auto w-full" style={{ maxWidth: CHESS_PAGE_BOARD_MAX_WIDTH }}>
@@ -483,7 +483,7 @@ export function CreateSection() {
                   <GridIcon size={22} />
                 </span>
                 <div className="min-w-0">
-                  <div className="ws-display truncate text-[1.9rem] tracking-[-0.05em] text-white">
+                  <div className="truncate font-sans text-[1.9rem] font-extrabold tracking-[-0.05em] text-white">
                     Challenge Link
                   </div>
                   <div className="text-[0.92rem] text-white/52">Play a Friend</div>
@@ -508,8 +508,8 @@ export function CreateSection() {
               <FieldRow
                 label="Time Control"
                 value={selectedTime.panelLabel}
-                icon={<ClockIcon size={22} className="text-white/70" />}
-                accent="rgba(255,255,255,0.7)"
+                icon={<ClockIcon size={22} className="text-[#B7B1A8]" />}
+                accent="#B7B1A8"
                 open
               />
 
@@ -528,8 +528,8 @@ export function CreateSection() {
                           onClick={() => setTimeControl(option.value)}
                           className={`cursor-pointer rounded-[12px] border px-3 py-3 text-center font-sans text-[1rem] font-extrabold transition-colors ${
                             active
-                              ? "border-white/40 bg-white/10 text-white shadow-[0_0_0_1px_rgba(255,255,255,0.2)]"
-                              : "border-white/6 bg-white/4 text-white/82 hover:border-white/18 hover:text-white"
+                              ? "border-[#B7B1A8] bg-[#3F3D37] text-white shadow-[0_0_0_1px_rgba(183,177,168,0.35)]"
+                              : "border-white/6 bg-[#3A3833] text-white/82 hover:border-white/18 hover:text-white"
                           }`}
                         >
                           {option.label}

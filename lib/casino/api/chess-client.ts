@@ -41,3 +41,33 @@ export async function chessPost<T>(path: string, body: Record<string, unknown> =
     FALLBACK_MESSAGE
   );
 }
+
+export async function chessPut<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  return unwrap<T>(
+    await apiFetch(
+      `${BASE_PATH}${path}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      { requireAuth: true }
+    ),
+    FALLBACK_MESSAGE
+  );
+}
+
+export async function chessDelete<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
+  return unwrap<T>(
+    await apiFetch(
+      `${BASE_PATH}${path}`,
+      {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      },
+      { requireAuth: true }
+    ),
+    FALLBACK_MESSAGE
+  );
+}

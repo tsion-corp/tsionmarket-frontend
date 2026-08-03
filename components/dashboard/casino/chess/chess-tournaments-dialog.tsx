@@ -28,7 +28,7 @@ function TournamentCreatePicker({ onSwiss }: { onSwiss: () => void }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/chesscom-icons/tournaments.svg" alt="" className="h-12 w-12 shrink-0" />
             <div className="min-w-0">
-              <div className="ws-display text-[1.22rem] tracking-[-0.03em] text-white">
+              <div className="font-sans text-[1.22rem] font-extrabold tracking-[-0.03em] text-white">
                 Swiss Tournament
               </div>
               <div className="mt-1 text-[14px] leading-6 text-white/62">
@@ -86,7 +86,7 @@ export function ChessTournamentsDialog({ open, onClose }: ChessTournamentsDialog
             className="rounded-[18px] border border-white/8 px-5 py-5"
             style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
           >
-            <div className="ws-display mb-4 text-[1.35rem] tracking-[-0.03em] text-white">
+            <div className="mb-4 font-sans text-[1.35rem] font-extrabold tracking-[-0.03em] text-white">
               New Shareable Swiss Tournament
             </div>
             <SwissCreateForm embedded onCreated={() => onClose()} />

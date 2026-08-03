@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyChatLineFrame,
+  applyCommentDeletedFrame,
+  applyCommentUpsertedFrame,
+  applyRematchOfferFrame,
+  applyRematchTakenFrame,
+  applyTakebackOffersFrame,
   formatTimeControl,
   isMatchId,
   parseTimeControl,
@@ -171,6 +177,17 @@ describe("match", () => {
     expect(toChessMatch(wire({ drawOfferBy: "0xother" })).drawOffered).toBeNull();
   });
 
+  it("maps the takeback and rematch state carried on the match", () => {
+    const match = toChessMatch(
+      wire({
+        takeback: { white: true, black: false, takebackable: true },
+        rematch: { offeredBy: "0xwhite", nextMatchId: "next-1" },
+      })
+    );
+    expect(match.takeback).toEqual({ white: true, black: false, takebackable: true });
+    expect(match.rematch).toEqual({ offeredBy: "0xwhite", nextMatchId: "next-1" });
+  });
+
   it("takes the move list in order", () => {
     const match = toChessMatch(wire(), {
       moves: [move(), move({ ply: 2, san: "c5" }), move({ ply: 3, san: "Nf3" })],
@@ -193,6 +210,86 @@ describe("match", () => {
       })
     );
     expect(staked.stakeUsdc).toBe("10");
+  });
+});
+
+describe("live social frames", () => {
+  it("updates the cached takeback state in place", () => {
+    const match = applyTakebackOffersFrame(toChessMatch(wire()), { white: false, black: true });
+    expect(match.takeback.white).toBe(false);
+    expect(match.takeback.black).toBe(true);
+  });
+
+  it("updates the cached rematch offer and destination in place", () => {
+    const base = toChessMatch(wire());
+    const offered = applyRematchOfferFrame(base, { offeredBy: "0xblack" });
+    const taken = applyRematchTakenFrame(offered, { nextMatchId: "next-2" });
+    expect(offered.rematch.offeredBy).toBe("0xblack");
+    expect(taken.rematch.nextMatchId).toBe("next-2");
+  });
+
+  it("appends chat lines once and keeps them in order", () => {
+    const base = [
+      {
+        id: 1,
+        matchId: wire().id,
+        room: "spectator" as const,
+        author: "0xwhite",
+        text: "hello",
+        createdAt: "2026-08-02T20:00:00.000Z",
+      },
+    ];
+    const next = applyChatLineFrame(base, {
+      id: 2,
+      matchId: wire().id,
+      room: "spectator",
+      author: "0xblack",
+      text: "hi",
+      createdAt: "2026-08-02T20:01:00.000Z",
+    });
+    const deduped = applyChatLineFrame(next, {
+      id: 2,
+      matchId: wire().id,
+      room: "spectator",
+      author: "0xblack",
+      text: "hi",
+      createdAt: "2026-08-02T20:01:00.000Z",
+    });
+    expect(next.map((line) => line.id)).toEqual([1, 2]);
+    expect(deduped).toEqual(next);
+  });
+
+  it("upserts and deletes position comments by id", () => {
+    const initial = [
+      {
+        id: "c1",
+        matchId: wire().id,
+        ply: 3,
+        fen: "fen",
+        author: "0xwhite",
+        text: "idea",
+        createdAt: "2026-08-02T20:00:00.000Z",
+        updatedAt: "2026-08-02T20:00:00.000Z",
+      },
+    ];
+    const upserted = applyCommentUpsertedFrame(initial, {
+      id: "c1",
+      matchId: wire().id,
+      ply: 3,
+      fen: "fen",
+      author: "0xwhite",
+      text: "better idea",
+      createdAt: "2026-08-02T20:00:00.000Z",
+      updatedAt: "2026-08-02T20:01:00.000Z",
+    });
+    const deleted = applyCommentDeletedFrame(upserted, {
+      id: "c1",
+      matchId: wire().id,
+      ply: 3,
+      author: "0xwhite",
+    });
+    expect(upserted[0]?.text).toBe("better idea");
+    expect(deleted).toEqual([]);
   });
 });
 

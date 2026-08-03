@@ -26,6 +26,8 @@ function match(over: Partial<ChessMatch> = {}): ChessMatch {
     turn: "w",
     result: null,
     drawOffered: null,
+    takeback: { white: false, black: false, takebackable: false },
+    rematch: { offeredBy: null, nextMatchId: null },
     stakeUsdc: null,
     wagerStatus: null,
     liveTopic: "chess:match:m1",

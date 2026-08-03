@@ -3,6 +3,7 @@ import type { User } from "@privy-io/node";
 import {
   chessReadNeedsSession,
   walletOfUser,
+  withChessReadIdentity,
   withChessIdentity,
 } from "@/lib/casino/chess-identity";
 
@@ -42,13 +43,22 @@ describe("chess identity helper", () => {
     expect(chessReadNeedsSession("cashier/players/0xabc/balance")).toBe(true);
     expect(chessReadNeedsSession("cashier/config")).toBe(false);
     expect(chessReadNeedsSession("betting/markets/match-1/bets")).toBe(true);
+    expect(chessReadNeedsSession("matches/123/note")).toBe(true);
+    expect(chessReadNeedsSession("matches/123/chat", new URLSearchParams("room=player"))).toBe(
+      true
+    );
+    expect(chessReadNeedsSession("matches/123/chat", new URLSearchParams("room=spectator"))).toBe(
+      false
+    );
     expect(chessReadNeedsSession("matches/123")).toBe(false);
   });
 
   it("rewrites the wallet-bearing body fields to the verified wallet", () => {
     expect(
       withChessIdentity(
+        "matches/123/chat",
         JSON.stringify({
+          author: "0xold",
           creator: "0xold",
           player: "0xold",
           bettor: "0xold",
@@ -59,6 +69,7 @@ describe("chess identity helper", () => {
       )
     ).toBe(
       JSON.stringify({
+        author: "0xabc",
         creator: "0xabc",
         player: "0xabc",
         bettor: "0xabc",
@@ -66,5 +77,37 @@ describe("chess identity helper", () => {
         amountUsdc: "5",
       })
     );
+  });
+
+  it("adds missing private write identities from the verified wallet", () => {
+    expect(
+      withChessIdentity("matches/123/chat", JSON.stringify({ room: "player", text: "hi" }), "0xabc")
+    ).toBe(JSON.stringify({ room: "player", text: "hi", author: "0xabc" }));
+    expect(
+      withChessIdentity("matches/123/note", JSON.stringify({ text: "prep line" }), "0xabc")
+    ).toBe(JSON.stringify({ text: "prep line", player: "0xabc" }));
+    expect(
+      withChessIdentity("matches/123/comments", JSON.stringify({ ply: 4, text: "sharp" }), "0xabc")
+    ).toBe(JSON.stringify({ ply: 4, text: "sharp", player: "0xabc" }));
+  });
+
+  it("injects the verified wallet into private chess read query params", () => {
+    expect(
+      withChessReadIdentity("matches/123/note", new URLSearchParams(), "0xabc").toString()
+    ).toBe("player=0xabc");
+    expect(
+      withChessReadIdentity(
+        "matches/123/chat",
+        new URLSearchParams("room=player&limit=100"),
+        "0xabc"
+      ).toString()
+    ).toBe("room=player&limit=100&player=0xabc");
+    expect(
+      withChessReadIdentity(
+        "matches/123/chat",
+        new URLSearchParams("room=spectator&limit=100"),
+        "0xabc"
+      ).toString()
+    ).toBe("room=spectator&limit=100");
   });
 });

@@ -4,16 +4,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useAcceptChallenge, useChessMatch, useRematchOffer } from "@/hooks/use-casino-chess";
+import { useChessMatch, useChessMatchSocial } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useChessEngine } from "@/hooks/use-chess-engine";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
 import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
-import { GridIcon } from "@/components/ui/icons";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-theme-picker";
-import { VictoryConfetti } from "@/components/dashboard/casino/chess/victory-confetti";
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { identifyOpening } from "@/lib/casino/chess/openings";
 import { formatEngineScore, pvToSan, uciToSan } from "@/lib/casino/chess/engine-analysis";
@@ -45,11 +43,26 @@ import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
-import type { ChessColor, ChessMatch, ChessPlayer } from "@/lib/casino/api/types";
+import type {
+  ChessChatRoom,
+  ChessColor,
+  ChessMatch,
+  ChessMatchComment,
+  ChessPlayer,
+} from "@/lib/casino/api/types";
 
 function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function formatShortTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 // A small clock glyph next to the time, the way chess.com and lila mark the
@@ -92,6 +105,9 @@ function resultLine(t: Translator, match: ChessMatch, you: ChessColor | null): s
 
 const actionButton =
   "cursor-pointer rounded-full border border-white/15 px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50";
+
+const EMPTY_TAKEBACK = { white: false, black: false, takebackable: false } as const;
+const EMPTY_REMATCH = { offeredBy: null, nextMatchId: null } as const;
 
 type PromotionOption = "q" | "r" | "b" | "n";
 
@@ -137,35 +153,97 @@ function playerName(
   return displayName(player.username, player.walletAddress) ?? fallback;
 }
 
-// The rail's tab glyphs; the create screen draws the same set.
-function RailGlyph({ kind }: { kind: "play" | "new" | "games" | "players" }) {
-  if (kind === "new") {
-    return (
-      <span className="relative mb-2 block h-6 w-6" aria-hidden>
-        <span className="absolute inset-x-1 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-current" />
-        <span className="absolute inset-y-1 left-1/2 w-[3px] -translate-x-1/2 rounded-full bg-current" />
-      </span>
-    );
-  }
-  if (kind === "games") return <GridIcon size={24} className="mb-2" />;
-  if (kind === "players") {
-    return (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="mb-2" aria-hidden>
-        <circle cx="8.5" cy="9.25" r="2.75" fill="currentColor" />
-        <circle cx="15.75" cy="10" r="2.25" fill="currentColor" opacity="0.78" />
-        <path
-          d="M4.5 18.5c.8-2.4 2.8-3.7 5.5-3.7 2.7 0 4.7 1.3 5.5 3.7"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
+function actorLabel(
+  actor: string,
+  match: ChessMatch,
+  walletName: string | null | undefined,
+  walletAddress: string | null | undefined,
+  whiteDisplayName: string,
+  blackDisplayName: string,
+  youLabel: string
+): string {
+  const normalizedActor = actor.toLowerCase();
+  if (walletAddress && normalizedActor === walletAddress.toLowerCase()) return youLabel;
+  if (match.white?.walletAddress.toLowerCase() === normalizedActor) return whiteDisplayName;
+  if (match.black?.walletAddress.toLowerCase() === normalizedActor) return blackDisplayName;
+  return displayName(undefined, actor) ?? actor;
+}
+
+function NoteEditor({
+  initialValue,
+  placeholder,
+  saving,
+  saveLabel,
+  savingLabel,
+  onSave,
+}: {
+  initialValue: string;
+  placeholder: string;
+  saving: boolean;
+  saveLabel: string;
+  savingLabel: string;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(initialValue);
+
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="mb-2" aria-hidden>
-      <path d="M8 5.5v13l10.5-6.5L8 5.5Z" fill="currentColor" />
-    </svg>
+    <>
+      <textarea
+        rows={4}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={placeholder}
+        className="min-h-[110px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[0.94rem] text-white outline-none placeholder:text-white/28"
+      />
+      <div className="mt-3 flex justify-end">
+        <button
+          onClick={() => void onSave(value)}
+          disabled={saving}
+          className="cursor-pointer rounded-full bg-[#8B847B] px-4 py-2 font-sans text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? savingLabel : saveLabel}
+        </button>
+      </div>
+    </>
+  );
+}
+
+function CommentEditor({
+  initialValue,
+  placeholder,
+  saving,
+  saveLabel,
+  savingLabel,
+  onSave,
+}: {
+  initialValue: string;
+  placeholder: string;
+  saving: boolean;
+  saveLabel: string;
+  savingLabel: string;
+  onSave: (value: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(initialValue);
+
+  return (
+    <div className="mt-4 space-y-2">
+      <textarea
+        rows={3}
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={placeholder}
+        className="min-h-[84px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[0.94rem] text-white outline-none placeholder:text-white/28"
+      />
+      <div className="flex justify-end">
+        <button
+          onClick={() => void onSave(value)}
+          disabled={saving || value.trim().length === 0}
+          className="cursor-pointer rounded-full bg-[#8B847B] px-4 py-2 font-sans text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {saving ? savingLabel : saveLabel}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -204,6 +282,12 @@ export function PlaySection({
     aborting,
     rematch,
     requestingRematch,
+    declineRematch,
+    decliningRematch,
+    takeback,
+    requestingTakeback,
+    declineTakeback,
+    decliningTakeback,
     claimingTimeout,
   } = useChessMatch(matchId, seatName);
   const [selected, setSelected] = useState<Square | null>(null);
@@ -213,13 +297,31 @@ export function PlaySection({
     to: Square;
     options: PromotionOption[];
   } | null>(null);
-  // A rematch the opponent has already opened, which this player joins rather
-  // than opening a second one of their own.
-  const rematchOffered = useRematchOffer(match, you);
-  const acceptRematch = useAcceptChallenge();
+  const awaitingRematchRoute = useRef(false);
   const theme = useBoardTheme();
-  const [railTab, setRailTab] = useState<"moves" | "info">("moves");
+  const [railTab, setRailTab] = useState<"moves" | "chat" | "info">("moves");
+  const [chatRoom, setChatRoom] = useState<ChessChatRoom>("spectator");
+  const [chatDraft, setChatDraft] = useState("");
   const engine = useChessEngine(match?.fen ?? null);
+  const rematchReadyId = match?.rematch?.nextMatchId ?? null;
+  const currentPly = match ? match.moves.length : null;
+  const canUsePlayerChat = you !== null;
+  const {
+    chatMessages,
+    chatLoading,
+    activeChatRoom,
+    postChat,
+    postingChat,
+    note,
+    saveNote,
+    savingNote,
+    comments,
+    commentsLoading,
+    upsertComment,
+    savingComment,
+    deleteComment,
+    deletingComment,
+  } = useChessMatchSocial(matchId, chatRoom, canUsePlayerChat, currentPly);
 
   // A soft "thock" whenever the move count grows — the player's own move and the
   // opponent's alike. The first render only records the starting count, so
@@ -241,7 +343,6 @@ export function PlaySection({
   // the game in progress, so opening an already-finished board stays silent.
   const sawInProgress = useRef(false);
   const sawResult = useRef(false);
-  const [celebrating, setCelebrating] = useState(false);
   const inProgress = match?.state === "in_progress";
   const result = match?.result ?? null;
   useEffect(() => {
@@ -256,16 +357,13 @@ export function PlaySection({
     sawResult.current = true;
     const outcome = result.kind === "draw" ? "draw" : result.winner === you ? "win" : "loss";
     playGameEndSound(outcome);
-    if (outcome === "win") {
-      const id = setTimeout(() => setCelebrating(true), 0);
-      return () => clearTimeout(id);
-    }
   }, [result, you]);
+
   useEffect(() => {
-    if (!celebrating) return;
-    const id = setTimeout(() => setCelebrating(false), 4500);
-    return () => clearTimeout(id);
-  }, [celebrating]);
+    if (!awaitingRematchRoute.current || !rematchReadyId) return;
+    awaitingRematchRoute.current = false;
+    router.push(`/casino/chess/play?match=${rematchReadyId}`);
+  }, [rematchReadyId, router]);
 
   // The board is whatever the server says. A malformed FEN yields null rather
   // than a silently half-rendered position.
@@ -325,6 +423,8 @@ export function PlaySection({
   }
 
   const displayTurn = match.turn;
+  const takebackState = match.takeback ?? EMPTY_TAKEBACK;
+  const rematchState = match.rematch ?? EMPTY_REMATCH;
   const yourTurn = match.state === "in_progress" && you !== null && displayTurn === you;
   const yourClockExpired = yourTurn && you !== null && (clocks?.[you] ?? 0) <= 0;
   const board = position.board;
@@ -340,6 +440,22 @@ export function PlaySection({
   // An offer from the other side is the one this player can answer.
   const offerToAnswer = you !== null && match.drawOffered !== null && match.drawOffered !== you;
   const offerPending = you !== null && match.drawOffered === you;
+  const yourWallet =
+    you === "w"
+      ? (match.white?.walletAddress ?? null)
+      : you === "b"
+        ? (match.black?.walletAddress ?? null)
+        : null;
+  const rematchOfferBy = rematchState.offeredBy?.toLowerCase() ?? null;
+  const yourRematchOffer =
+    !!yourWallet && rematchOfferBy !== null && rematchOfferBy === yourWallet.toLowerCase();
+  const opponentRematchOffer =
+    !!yourWallet && rematchOfferBy !== null && rematchOfferBy !== yourWallet.toLowerCase();
+  const takebackOfferedByYou =
+    you === "w" ? takebackState.white : you === "b" ? takebackState.black : false;
+  const takebackOfferToAnswer =
+    you === "w" ? takebackState.black : you === "b" ? takebackState.white : false;
+  const takebackPending = takebackOfferedByYou && !takebackOfferToAnswer;
 
   const onSquareClick = async (r: number, c: number) => {
     if (!yourTurn || yourClockExpired || moving) return;
@@ -436,28 +552,104 @@ export function PlaySection({
     }
   };
 
-  // Opening a rematch seats only this player, so it lands on a board that waits
-  // for the opponent to accept.
   const onRematch = async () => {
     const id = toast.loading(t("toastRematchOpening"));
     try {
       const next = await rematch();
-      toast.success(t("toastRematchOpened"), { id });
-      router.push(`/casino/chess/play?match=${next.id}`);
+      if (next.rematch.nextMatchId) {
+        toast.success(t("toastRematchOn"), { id });
+        router.push(`/casino/chess/play?match=${next.rematch.nextMatchId}`);
+      } else {
+        awaitingRematchRoute.current = true;
+        toast.success(t("toastRematchOpened"), { id });
+      }
     } catch (e) {
       toast.error(friendlyError(e, t("toastRematchFailed")), { id });
     }
   };
 
   const onAcceptRematch = async () => {
-    if (!rematchOffered) return;
     const id = toast.loading(t("toastRematchJoining"));
     try {
-      const next = await acceptRematch.mutateAsync(rematchOffered);
+      const next = await rematch();
+      if (!next.rematch.nextMatchId) {
+        throw new Error(t("toastRematchJoinFailed"));
+      }
       toast.success(t("toastRematchOn"), { id });
-      router.push(`/casino/chess/play?match=${next.id}`);
+      router.push(`/casino/chess/play?match=${next.rematch.nextMatchId}`);
     } catch (e) {
       toast.error(friendlyError(e, t("toastRematchJoinFailed")), { id });
+    }
+  };
+
+  const onDeclineRematch = async () => {
+    const id = toast.loading(t("toastRematchDeclining"));
+    try {
+      awaitingRematchRoute.current = false;
+      await declineRematch();
+      toast.success(t("toastRematchDeclined"), { id });
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastRematchDeclineFailed")), { id });
+    }
+  };
+
+  const onTakeback = async () => {
+    const accepting = takebackOfferToAnswer;
+    const id = toast.loading(accepting ? t("toastTakebackAccepting") : t("toastTakebackOffering"));
+    try {
+      await takeback();
+      toast.success(accepting ? t("toastTakebackAccepted") : t("toastTakebackOffered"), { id });
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastTakebackFailed")), { id });
+    }
+  };
+
+  const onDeclineTakeback = async () => {
+    const id = toast.loading(t("toastTakebackDeclining"));
+    try {
+      await declineTakeback();
+      toast.success(t("toastTakebackDeclined"), { id });
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastTakebackDeclineFailed")), { id });
+    }
+  };
+
+  const onPostChat = async () => {
+    const text = chatDraft.trim();
+    if (!text) return;
+    try {
+      await postChat({ room: activeChatRoom, text });
+      setChatDraft("");
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastChatFailed")));
+    }
+  };
+
+  const onSaveNote = async (text: string) => {
+    try {
+      await saveNote(text);
+      toast.success(t("toastNoteSaved"));
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastNoteFailed")));
+    }
+  };
+
+  const onSaveComment = async (text: string) => {
+    if (currentPly === null) return;
+    try {
+      await upsertComment({ ply: currentPly, text });
+      toast.success(t("toastCommentSaved"));
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastCommentFailed")));
+    }
+  };
+
+  const onDeleteComment = async (comment: ChessMatchComment) => {
+    try {
+      await deleteComment({ commentId: comment.id, ply: comment.ply });
+      toast.success(t("toastCommentDeleted"));
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastCommentDeleteFailed")));
     }
   };
 
@@ -483,6 +675,13 @@ export function PlaySection({
     wallet.name,
     wallet.address ?? null,
     t("waitingForOpponent")
+  );
+  const viewerWallet = wallet.address?.toLowerCase() ?? null;
+  const yourCurrentComment = viewerWallet
+    ? (comments.find((comment) => comment.author.toLowerCase() === viewerWallet) ?? null)
+    : null;
+  const sortedComments = [...comments].sort(
+    (left, right) => Date.parse(left.createdAt) - Date.parse(right.createdAt)
   );
 
   const opening = identifyOpening(match.moves);
@@ -546,13 +745,18 @@ export function PlaySection({
         ? `/casino/chess/invite?code=${matchId}`
         : `${window.location.origin}/casino/chess/invite?code=${matchId}`
       : null;
+  const canWriteChat = !!wallet.address;
+  const canEditComments = you !== null && currentPly !== null;
+  const currentPositionLabel =
+    currentPly === 0
+      ? t("commentPositionStart")
+      : t("commentPositionMove", { ply: currentPly ?? 0 });
 
   return (
     <div className="relative mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
-      {celebrating ? <VictoryConfetti /> : null}
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
         <section
-          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[88px] xl:self-start"
+          className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
           style={{ background: CHESS_SURFACE_BG }}
         >
           <div className="mx-auto w-full" style={{ maxWidth: CHESS_PAGE_BOARD_MAX_WIDTH }}>
@@ -561,7 +765,7 @@ export function PlaySection({
                 className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/10 font-sans text-[0.96rem] font-bold text-white/30">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[0.96rem] font-bold text-white/30">
                   P
                 </span>
                 <div className="min-w-0">
@@ -635,7 +839,7 @@ export function PlaySection({
                 className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
-                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-white/10 font-sans text-[0.96rem] font-bold text-white/30">
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[4px] bg-[#4B4847] font-sans text-[0.96rem] font-bold text-white/30">
                   P
                 </span>
                 <div className="min-w-0">
@@ -651,7 +855,7 @@ export function PlaySection({
               </div>
               <div
                 className={`tnum flex min-w-[108px] shrink-0 items-center justify-center gap-2 rounded-[8px] px-3.5 py-2 text-[1rem] font-semibold ${
-                  yourTurn ? "border border-white/45 text-white" : "text-white/88"
+                  yourTurn ? "border border-[#B7B1A8]/45 text-white" : "text-white/88"
                 }`}
                 style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
               >
@@ -682,35 +886,36 @@ export function PlaySection({
         >
           <div className="grid grid-cols-4 border-b border-white/6 bg-black/10">
             <div className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white">
-              <RailGlyph kind="play" />
+              <span className="mb-2 block text-[1.1rem] font-bold">P</span>
               <span className="font-sans text-[0.98rem] font-semibold">{t("navPlay")}</span>
             </div>
             <Link
               href="/casino/chess/create"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <RailGlyph kind="new" />
+              <span className="mb-2 block text-[1.1rem] font-bold">+</span>
               <span className="font-sans text-[0.98rem] font-semibold">{t("navNewGame")}</span>
             </Link>
             <Link
               href="/casino/chess/history"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <RailGlyph kind="games" />
+              <span className="mb-2 block text-[1.1rem] font-bold">#</span>
               <span className="font-sans text-[0.98rem] font-semibold">{t("navGames")}</span>
             </Link>
             <Link
               href="/casino/chess"
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
-              <RailGlyph kind="players" />
+              <span className="mb-2 block text-[1.1rem] font-bold">U</span>
               <span className="font-sans text-[0.98rem] font-semibold">{t("navPlayers")}</span>
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 border-b border-white/6 bg-black/8">
-            {(["moves", "info"] as const).map((tab) => {
-              const label = tab === "moves" ? t("railMoves") : "Info";
+          <div className="grid grid-cols-3 border-b border-white/6 bg-black/8">
+            {(["moves", "chat", "info"] as const).map((tab) => {
+              const label =
+                tab === "moves" ? t("railMoves") : tab === "chat" ? t("railChat") : t("railInfo");
               const active = railTab === tab;
               return (
                 <button
@@ -737,7 +942,9 @@ export function PlaySection({
                       className="rounded-[16px] border border-white/6 px-4 py-4"
                       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                     >
-                      <div className="ws-display mb-1 text-[17px] text-white">Challenge Link</div>
+                      <div className="mb-1 text-[1.2rem] font-extrabold text-white">
+                        {t("challengeLink")}
+                      </div>
                       <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
                         {tCreate("inviteReady")}
                       </div>
@@ -751,15 +958,12 @@ export function PlaySection({
                             const copied = await copyText(inviteUrl);
                             if (copied) toast.success(tCreate("linkCopied"));
                           }}
-                          className="text-ink cursor-pointer rounded-[12px] bg-white px-4 py-3 font-sans text-[12px] font-bold"
+                          className="cursor-pointer rounded-[12px] bg-[#8B847B] px-4 py-3 font-sans text-[12px] font-bold text-white"
                         >
                           {tCreate("copy")}
                         </button>
                       </div>
-                      <div className="mt-3 text-[11.5px] text-white/44">
-                        Share this link manually. The first player who opens it takes the other
-                        side.
-                      </div>
+                      <div className="mt-3 text-[11.5px] text-white/44">{t("shareManually")}</div>
                     </div>
                   ) : null}
 
@@ -768,8 +972,8 @@ export function PlaySection({
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="ws-display text-[17px] text-white">
-                        {waiting ? "Start Game" : "Moves"}
+                      <div className="text-[1.2rem] font-extrabold text-white">
+                        {waiting ? t("startGame") : t("movesTitle")}
                       </div>
                       <div className="text-[12px] text-white/46">{turnLabel}</div>
                     </div>
@@ -790,29 +994,33 @@ export function PlaySection({
                     style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                   >
                     <div className="mb-1 flex items-center justify-between gap-3">
-                      <div className="ws-display text-[17px] text-white">Engine</div>
+                      <div className="text-[1.2rem] font-extrabold text-white">
+                        {t("engineTitle")}
+                      </div>
                       <div className="text-[12px] text-white/46">
-                        {engine.depth !== null ? `Depth ${engine.depth}` : engine.label}
+                        {engine.depth !== null
+                          ? t("engineDepth", { depth: engine.depth })
+                          : engine.label}
                       </div>
                     </div>
                     <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
-                      Local browser analysis via Stockfish WASM.
+                      {t("engineAbout")}
                     </div>
 
                     {engine.status === "unsupported" ? (
                       <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
-                        This browser cannot run the local engine.
+                        {t("engineUnsupported")}
                       </div>
                     ) : engine.status === "error" ? (
                       <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/62">
-                        {engine.error ?? "The engine could not start."}
+                        {engine.error ?? t("engineFailed")}
                       </div>
                     ) : (
                       <div className="space-y-2.5">
                         <div className="grid grid-cols-3 gap-2.5">
                           <div className="rounded-[10px] bg-black/10 px-3 py-2">
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
-                              Score
+                              {t("engineScore")}
                             </div>
                             <div className="tnum text-[1rem] font-semibold text-white">
                               {formatEngineScore(engine.scoreCp, engine.scoreMate)}
@@ -828,14 +1036,14 @@ export function PlaySection({
                           </div>
                           <div className="rounded-[10px] bg-black/10 px-3 py-2">
                             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
-                              Status
+                              {t("engineStatus")}
                             </div>
                             <div className="text-[1rem] font-semibold text-white">
                               {engine.status === "loading"
-                                ? "Loading"
+                                ? t("engineLoading")
                                 : engine.status === "analyzing"
-                                  ? "Analyzing"
-                                  : "Ready"}
+                                  ? t("engineAnalyzing")
+                                  : t("engineReady")}
                             </div>
                           </div>
                         </div>
@@ -844,42 +1052,263 @@ export function PlaySection({
                             {t("enginePv")}
                           </div>
                           <div className="tnum text-[0.92rem] leading-6 break-words text-white/72">
-                            {enginePvSan.length > 0
-                              ? enginePvSan.join(" ")
-                              : "Waiting for engine line…"}
+                            {enginePvSan.length > 0 ? enginePvSan.join(" ") : t("enginePvWaiting")}
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
                 </div>
-              ) : (
-                <div
-                  className="space-y-3 rounded-[16px] border border-white/6 px-4 py-4"
-                  style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
-                >
-                  <div className="ws-display text-[17px] text-white">Info</div>
-                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">Status</span>
-                    <span className="text-white">{turnLabel}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">Time Control</span>
-                    <span className="text-white">{match.timeControl}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">White</span>
-                    <span className="truncate text-white">{whiteDisplayName}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
-                    <span className="text-white/55">Black</span>
-                    <span className="truncate text-white">{blackDisplayName}</span>
-                  </div>
-                  {wagerLine ? (
-                    <div className="rounded-[10px] bg-black/10 px-3 py-2.5 text-[12px] text-white/62">
-                      {wagerLine}
+              ) : railTab === "chat" ? (
+                <div className="space-y-4">
+                  <div
+                    className="rounded-[16px] border border-white/6 px-4 py-4"
+                    style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
+                  >
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div className="text-[1.2rem] font-extrabold text-white">
+                        {t("chatTitle")}
+                      </div>
+                      {canUsePlayerChat ? (
+                        <div className="flex gap-2">
+                          {(["spectator", "player"] as const).map((room) => {
+                            const active = activeChatRoom === room;
+                            return (
+                              <button
+                                key={room}
+                                onClick={() => setChatRoom(room)}
+                                className={`cursor-pointer rounded-full border px-3 py-1 text-[11.5px] font-semibold transition-colors ${
+                                  active
+                                    ? "border-white/40 bg-white/8 text-white"
+                                    : "border-white/10 text-white/55 hover:border-white/25 hover:text-white/82"
+                                }`}
+                              >
+                                {room === "player" ? t("chatPlayers") : t("chatSpectators")}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
+                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                      {waiting
+                        ? t("chatWaiting")
+                        : activeChatRoom === "player"
+                          ? t("chatPlayersHint")
+                          : t("chatSpectatorsHint")}
+                    </div>
+                    <div className="space-y-2">
+                      {chatLoading ? (
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                          {t("chatLoading")}
+                        </div>
+                      ) : chatMessages.length === 0 ? (
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                          {activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")}
+                        </div>
+                      ) : (
+                        chatMessages.map((line) => (
+                          <div
+                            key={line.id}
+                            className="rounded-[10px] border border-white/6 bg-black/10 px-3 py-2.5"
+                          >
+                            <div className="mb-1 flex items-center justify-between gap-3 text-[11px] text-white/42">
+                              <span className="truncate">
+                                {actorLabel(
+                                  line.author,
+                                  match,
+                                  wallet.name,
+                                  wallet.address ?? null,
+                                  whiteDisplayName,
+                                  blackDisplayName,
+                                  t("you")
+                                )}
+                              </span>
+                              <span className="shrink-0">{formatShortTime(line.createdAt)}</span>
+                            </div>
+                            <div className="text-[0.94rem] leading-6 text-white/78">
+                              {line.text}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      {!canWriteChat ? (
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                          {t("chatLogin")}
+                        </div>
+                      ) : (
+                        <>
+                          <textarea
+                            rows={3}
+                            value={chatDraft}
+                            onChange={(event) => setChatDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key !== "Enter" || event.shiftKey) return;
+                              event.preventDefault();
+                              void onPostChat();
+                            }}
+                            placeholder={
+                              activeChatRoom === "player"
+                                ? t("chatPlaceholderPlayer")
+                                : t("chatPlaceholderSpectator")
+                            }
+                            className="min-h-[84px] w-full rounded-[12px] border border-white/10 bg-black/12 px-3 py-3 text-[0.94rem] text-white outline-none placeholder:text-white/28"
+                          />
+                          <div className="flex justify-end">
+                            <button
+                              onClick={() => void onPostChat()}
+                              disabled={postingChat || chatDraft.trim().length === 0}
+                              className="cursor-pointer rounded-full bg-[#8B847B] px-4 py-2 font-sans text-[12px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                              {postingChat ? t("chatSending") : t("chatSend")}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div
+                    className="space-y-3 rounded-[16px] border border-white/6 px-4 py-4"
+                    style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
+                  >
+                    <div className="text-[1.2rem] font-extrabold text-white">{t("infoTitle")}</div>
+                    <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                      <span className="text-white/55">{t("infoStatus")}</span>
+                      <span className="text-white">{turnLabel}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                      <span className="text-white/55">{t("infoTimeControl")}</span>
+                      <span className="text-white">{match.timeControl}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                      <span className="text-white/55">{t("infoWhite")}</span>
+                      <span className="truncate text-white">{whiteDisplayName}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
+                      <span className="text-white/55">{t("infoBlack")}</span>
+                      <span className="truncate text-white">{blackDisplayName}</span>
+                    </div>
+                    {wagerLine ? (
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2.5 text-[12px] text-white/62">
+                        {wagerLine}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div
+                    className="rounded-[16px] border border-white/6 px-4 py-4"
+                    style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
+                  >
+                    <div className="mb-2 text-[1.2rem] font-extrabold text-white">
+                      {t("noteTitle")}
+                    </div>
+                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                      {t("noteHint")}
+                    </div>
+                    {!wallet.address ? (
+                      <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        {t("noteLogin")}
+                      </div>
+                    ) : (
+                      <NoteEditor
+                        key={`${matchId}:${note?.updatedAt ?? note?.createdAt ?? note?.text ?? ""}`}
+                        initialValue={note?.text ?? ""}
+                        placeholder={t("notePlaceholder")}
+                        saving={savingNote}
+                        saveLabel={t("noteSave")}
+                        savingLabel={t("noteSaving")}
+                        onSave={onSaveNote}
+                      />
+                    )}
+                  </div>
+
+                  <div
+                    className="rounded-[16px] border border-white/6 px-4 py-4"
+                    style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div className="text-[1.2rem] font-extrabold text-white">
+                        {t("commentTitle")}
+                      </div>
+                      <div className="text-[12px] text-white/46">{currentPositionLabel}</div>
+                    </div>
+                    <div className="mb-3 text-[0.9rem] leading-6 text-white/60">
+                      {t("commentHint")}
+                    </div>
+                    <div className="space-y-2">
+                      {commentsLoading ? (
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                          {t("commentLoading")}
+                        </div>
+                      ) : sortedComments.length === 0 ? (
+                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                          {t("commentEmpty")}
+                        </div>
+                      ) : (
+                        sortedComments.map((comment) => {
+                          const own =
+                            viewerWallet !== null && comment.author.toLowerCase() === viewerWallet;
+                          return (
+                            <div
+                              key={comment.id}
+                              className="rounded-[10px] border border-white/6 bg-black/10 px-3 py-2.5"
+                            >
+                              <div className="mb-1 flex items-center justify-between gap-3 text-[11px] text-white/42">
+                                <span className="truncate">
+                                  {actorLabel(
+                                    comment.author,
+                                    match,
+                                    wallet.name,
+                                    wallet.address ?? null,
+                                    whiteDisplayName,
+                                    blackDisplayName,
+                                    t("you")
+                                  )}
+                                </span>
+                                <span className="shrink-0">
+                                  {formatShortTime(comment.updatedAt)}
+                                </span>
+                              </div>
+                              <div className="text-[0.94rem] leading-6 text-white/78">
+                                {comment.text}
+                              </div>
+                              {own ? (
+                                <div className="mt-2 flex justify-end">
+                                  <button
+                                    onClick={() => void onDeleteComment(comment)}
+                                    disabled={deletingComment}
+                                    className="cursor-pointer text-[11.5px] font-semibold text-white/48 transition-colors hover:text-white/82 disabled:cursor-not-allowed disabled:opacity-40"
+                                  >
+                                    {t("commentDelete")}
+                                  </button>
+                                </div>
+                              ) : null}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                    {canEditComments ? (
+                      <CommentEditor
+                        key={`${matchId}:${currentPly ?? 0}:${yourCurrentComment?.updatedAt ?? yourCurrentComment?.createdAt ?? yourCurrentComment?.text ?? ""}`}
+                        initialValue={yourCurrentComment?.text ?? ""}
+                        placeholder={t("commentPlaceholder")}
+                        saving={savingComment}
+                        saveLabel={yourCurrentComment ? t("commentUpdate") : t("commentSave")}
+                        savingLabel={t("commentSaving")}
+                        onSave={onSaveComment}
+                      />
+                    ) : (
+                      <div className="mt-4 rounded-[10px] bg-black/10 px-3 py-2 text-[0.92rem] text-white/55">
+                        {t("commentPlayerOnly")}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -887,7 +1316,7 @@ export function PlaySection({
             {you !== null && !over ? (
               <div className="mt-4 shrink-0 border-t border-white/6 pt-4">
                 <div className="mb-3 text-[12px] text-white/48">
-                  {waiting ? "Game controls" : "Actions"}
+                  {waiting ? t("controlsWaiting") : t("controlsActions")}
                 </div>
                 <div className="flex flex-wrap gap-2.5">
                   {waiting ? (
@@ -898,32 +1327,77 @@ export function PlaySection({
                     >
                       {aborting ? "…" : t("abort")}
                     </button>
-                  ) : offerToAnswer ? (
-                    <>
-                      <button
-                        onClick={() => void onAnswerDraw(true)}
-                        disabled={respondingToDraw}
-                        className={actionButton}
-                      >
-                        {respondingToDraw ? "…" : t("acceptDraw")}
-                      </button>
-                      <button
-                        onClick={() => void onAnswerDraw(false)}
-                        disabled={respondingToDraw}
-                        className={actionButton}
-                      >
-                        {t("declineDraw")}
-                      </button>
-                    </>
                   ) : (
                     <>
-                      <button
-                        onClick={() => void onOfferDraw()}
-                        disabled={offeringDraw || offerPending}
-                        className={actionButton}
-                      >
-                        {offeringDraw ? "…" : offerPending ? t("drawOffered") : t("offerDraw")}
-                      </button>
+                      {offerToAnswer ? (
+                        <>
+                          <button
+                            onClick={() => void onAnswerDraw(true)}
+                            disabled={respondingToDraw}
+                            className={actionButton}
+                          >
+                            {respondingToDraw ? "…" : t("acceptDraw")}
+                          </button>
+                          <button
+                            onClick={() => void onAnswerDraw(false)}
+                            disabled={respondingToDraw}
+                            className={actionButton}
+                          >
+                            {t("declineDraw")}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => void onOfferDraw()}
+                          disabled={offeringDraw || offerPending}
+                          className={actionButton}
+                        >
+                          {offeringDraw ? "…" : offerPending ? t("drawOffered") : t("offerDraw")}
+                        </button>
+                      )}
+
+                      {takebackOfferToAnswer ? (
+                        <>
+                          <button
+                            onClick={() => void onTakeback()}
+                            disabled={requestingTakeback}
+                            className={actionButton}
+                          >
+                            {requestingTakeback ? "…" : t("acceptTakeback")}
+                          </button>
+                          <button
+                            onClick={() => void onDeclineTakeback()}
+                            disabled={decliningTakeback}
+                            className={actionButton}
+                          >
+                            {decliningTakeback ? "…" : t("declineTakeback")}
+                          </button>
+                        </>
+                      ) : takebackState.takebackable ? (
+                        <>
+                          <button
+                            onClick={() => void onTakeback()}
+                            disabled={requestingTakeback || takebackPending}
+                            className={actionButton}
+                          >
+                            {requestingTakeback
+                              ? "…"
+                              : takebackPending
+                                ? t("takebackOffered")
+                                : t("offerTakeback")}
+                          </button>
+                          {takebackPending ? (
+                            <button
+                              onClick={() => void onDeclineTakeback()}
+                              disabled={decliningTakeback}
+                              className={actionButton}
+                            >
+                              {decliningTakeback ? "…" : t("cancelTakeback")}
+                            </button>
+                          ) : null}
+                        </>
+                      ) : null}
+
                       <button
                         onClick={() => void onClaimDraw()}
                         disabled={claimingDraw}
@@ -961,29 +1435,57 @@ export function PlaySection({
             <div className="text-[12px] font-semibold tracking-[0.06em] text-white/70 uppercase">
               {resultLine(t, match, you)}
             </div>
-            {you !== null ? (
-              rematchOffered ? (
-                <>
-                  <div className="mt-4 text-[12.5px] font-normal text-white/70">
-                    {t("opponentWantsRematch")}
-                  </div>
-                  <button
-                    onClick={() => void onAcceptRematch()}
-                    disabled={acceptRematch.isPending}
-                    className="text-ink mt-2.5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
-                  >
-                    {acceptRematch.isPending ? t("joining") : t("acceptRematch")}
-                  </button>
-                </>
-              ) : (
+            {you !== null && rematchReadyId ? (
+              <button
+                onClick={() => router.push(`/casino/chess/play?match=${rematchReadyId}`)}
+                className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold"
+              >
+                {t("openRematch")}
+              </button>
+            ) : null}
+            {you !== null && !rematchReadyId && opponentRematchOffer ? (
+              <>
+                <div className="mt-4 text-[12.5px] font-normal text-white/70">
+                  {t("opponentWantsRematch")}
+                </div>
                 <button
-                  onClick={() => void onRematch()}
+                  onClick={() => void onAcceptRematch()}
                   disabled={requestingRematch}
-                  className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
                 >
-                  {requestingRematch ? t("opening") : t("rematch")}
+                  {requestingRematch ? t("joining") : t("acceptRematch")}
                 </button>
-              )
+                <button
+                  onClick={() => void onDeclineRematch()}
+                  disabled={decliningRematch}
+                  className="mt-2.5 w-full cursor-pointer rounded-full border border-white/15 p-3 font-sans text-[13px] font-semibold text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50"
+                >
+                  {decliningRematch ? t("declining") : t("declineRematch")}
+                </button>
+              </>
+            ) : null}
+            {you !== null && !rematchReadyId && yourRematchOffer ? (
+              <>
+                <div className="mt-4 text-[12.5px] font-normal text-white/70">
+                  {t("rematchPending")}
+                </div>
+                <button
+                  onClick={() => void onDeclineRematch()}
+                  disabled={decliningRematch}
+                  className="mt-2.5 w-full cursor-pointer rounded-full border border-white/15 p-3 font-sans text-[13px] font-semibold text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:opacity-50"
+                >
+                  {decliningRematch ? t("declining") : t("cancelRematch")}
+                </button>
+              </>
+            ) : null}
+            {you !== null && !rematchReadyId && !yourRematchOffer && !opponentRematchOffer ? (
+              <button
+                onClick={() => void onRematch()}
+                disabled={requestingRematch}
+                className="text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3 font-sans text-[13px] font-bold disabled:opacity-50"
+              >
+                {requestingRematch ? t("opening") : t("rematch")}
+              </button>
             ) : null}
             <button
               onClick={() => router.push("/casino/chess")}

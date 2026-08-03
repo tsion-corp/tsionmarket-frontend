@@ -11,9 +11,9 @@
 //
 // Every data frame the gateway delivers carries a `topic` (the match's
 // liveTopic), so each frame is routed to exactly the subscribers of that topic —
-// the only reliable attribution, since `position`/`gameOver` payloads have no id
-// of their own. Connection-level control frames (welcome/subscribed/pong/error)
-// are topic-less and ignored here.
+// the only reliable attribution, since not every chess frame carries its own
+// match id. Connection-level control frames (welcome/subscribed/pong/error) are
+// topic-less and ignored here.
 
 const WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL ?? "wss://ws.worldstreetwebservices.com";
 
@@ -63,7 +63,15 @@ function deliver(frame: GatewayFrame): void {
     return;
   }
   const isChessFrame =
-    frame.type === "state" || frame.type === "position" || frame.type === "gameOver";
+    frame.type === "state" ||
+    frame.type === "position" ||
+    frame.type === "gameOver" ||
+    frame.type === "chatLine" ||
+    frame.type === "commentUpserted" ||
+    frame.type === "commentDeleted" ||
+    frame.type === "rematchOffer" ||
+    frame.type === "rematchTaken" ||
+    frame.type === "takebackOffers";
   if (isChessFrame && listeners.size === 1) {
     for (const set of listeners.values()) for (const listener of set) listener(frame);
   }
@@ -108,7 +116,17 @@ function open(): void {
     // Only a delivered game frame proves a healthy relay, so reset the backoff
     // here (not on open): a socket that connects but flaps without delivering
     // keeps backing off instead of reconnecting every couple of seconds.
-    if (frame.type === "state" || frame.type === "position" || frame.type === "gameOver") {
+    if (
+      frame.type === "state" ||
+      frame.type === "position" ||
+      frame.type === "gameOver" ||
+      frame.type === "chatLine" ||
+      frame.type === "commentUpserted" ||
+      frame.type === "commentDeleted" ||
+      frame.type === "rematchOffer" ||
+      frame.type === "rematchTaken" ||
+      frame.type === "takebackOffers"
+    ) {
       reconnectDelay = 2_000;
     }
     deliver(frame);

@@ -3,6 +3,7 @@
 // exact base-unit helpers from lib/trade/math and never floating point.
 
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
+import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import {
   assetPriceUsd,
   USDC_BY_CHAIN,
@@ -138,7 +139,7 @@ const CHAIN_GAS: Record<RwaChain, { network: string; symbol: string; min: number
   base: { network: "base-mainnet", symbol: "ETH", min: 0 },
   arbitrum: { network: "arb-mainnet", symbol: "ETH", min: 0.0001 },
   polygon: { network: "polygon-mainnet", symbol: "POL", min: 0.05 },
-  bsc: { network: "bsc-mainnet", symbol: "BNB", min: 0.0005 },
+  bsc: { network: "bnb-mainnet", symbol: "BNB", min: 0.0005 },
 };
 
 // What a trade on this chain needs in its native token, for the copy that asks
@@ -223,11 +224,13 @@ export function hasNativeGas(tokens: TokenBalance[], chain: RwaChain): boolean |
   return balance > 0 && balance >= min;
 }
 
-// Base transactions are gas-sponsored end to end (EIP-7702 through our
-// bundler), so only the other chains require the wallet to hold native gas
-// before a trade can go through.
+// Sponsored EVM transactions do not require the wallet to hold native gas
+// before the trade can go through. Solana still does.
 export function requiresNativeGas(chain: RwaChain): boolean {
-  return chain !== "base";
+  const network = CHAIN_GAS[chain]?.network;
+  if (!network) return true;
+  if (network === "solana-mainnet") return true;
+  return !isSponsoredEvmNetwork(network);
 }
 
 // A sell can only be sized from a holding we can actually see, and the holding

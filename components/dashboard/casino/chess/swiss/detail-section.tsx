@@ -80,7 +80,7 @@ function ShellPlayerBar({
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={iconSrc} alt="" className="h-11 w-11 shrink-0 rounded-[4px] bg-white/10 p-2.5" />
+      <img src={iconSrc} alt="" className="h-11 w-11 shrink-0 rounded-[4px] bg-[#4B4847] p-2.5" />
       <div className="min-w-0">
         <div className="truncate font-sans text-[0.96rem] font-bold text-white">{label}</div>
         <div className="truncate text-[0.8rem] text-white/58">{meta}</div>
@@ -234,6 +234,8 @@ function OrganizerPanel({
   setManual,
   onStartRound,
   startingRound,
+  onReconcile,
+  reconciling,
 }: {
   state: SwissDetail["state"];
   round: number;
@@ -242,6 +244,8 @@ function OrganizerPanel({
   setManual: (value: string) => void;
   onStartRound: () => Promise<void>;
   startingRound: boolean;
+  onReconcile: () => Promise<void>;
+  reconciling: boolean;
 }) {
   const t = useTranslations("casino.chess.swiss");
   const title = state === "open" ? "Start the tournament" : "Start the next round";
@@ -285,6 +289,16 @@ function OrganizerPanel({
       >
         {startingRound ? t("startingRound") : ctaLabel}
       </button>
+      {state === "running" ? (
+        <button
+          type="button"
+          onClick={() => void onReconcile()}
+          disabled={reconciling}
+          className={`${CHESS_SECONDARY_BUTTON_CLASS} mt-2.5 w-full px-4 py-3 font-sans text-[13px] font-semibold`}
+        >
+          {reconciling ? t("reconcilingRound") : t("reconcileRound")}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -321,7 +335,7 @@ function ShareCard({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/chesscom-icons/tournaments.svg" alt="" className="h-12 w-12 shrink-0" />
           <div className="min-w-0">
-            <div className="ws-display truncate text-[1.18rem] tracking-[-0.03em] text-white">
+            <div className="truncate font-sans text-[1.18rem] font-extrabold tracking-[-0.03em] text-white">
               {title}
             </div>
             <div className="mt-1 text-[13px] leading-6 text-white/60">
@@ -436,6 +450,8 @@ export function SwissDetailSection({
     withdrawing,
     startNextRound,
     startingRound,
+    reconcile,
+    reconciling,
   } = useSwissTournament(tournamentId);
 
   const [manual, setManual] = useState("");
@@ -455,6 +471,17 @@ export function SwissDetailSection({
       toast.success(t("toastRoundStarted"), { id });
     } catch (e) {
       toast.error(friendlyError(e, t("toastRoundFailed")), { id });
+    }
+  };
+
+  const onReconcile = async () => {
+    if (reconciling) return;
+    const id = toast.loading(t("toastReconcilingRound"));
+    try {
+      await reconcile();
+      toast.success(t("toastRoundReconciled"), { id });
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastRoundReconcileFailed")), { id });
     }
   };
 
@@ -705,6 +732,8 @@ export function SwissDetailSection({
                   setManual={setManual}
                   onStartRound={onStartRound}
                   startingRound={startingRound}
+                  onReconcile={onReconcile}
+                  reconciling={reconciling}
                 />
               ) : null}
 

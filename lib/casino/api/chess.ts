@@ -1,18 +1,34 @@
 "use client";
 
-import { chessGet, chessPost } from "@/lib/casino/api/chess-client";
+import { chessDelete, chessGet, chessPost, chessPut } from "@/lib/casino/api/chess-client";
 import {
+  applyChatLineFrame,
+  applyCommentDeletedFrame,
+  applyCommentUpsertedFrame,
   isMatchId,
   parseTimeControl,
+  toChessChatMessage,
+  toChessMatchComment,
+  toChessMatchNote,
   toChessChallenge,
   toChessMatch,
+  type ChessChatMessageWire,
+  type ChessChatMessagesWire,
+  type ChessCommentDeletedFrame,
   type ChessMatchWire,
+  type ChessMatchCommentWire,
+  type ChessMatchCommentsWire,
+  type ChessMatchNoteWire,
   type ChessMoveWire,
 } from "@/lib/casino/api/chess-wire";
 import { apiError } from "@/lib/casino/api/envelope";
 import type {
+  ChessChatMessage,
+  ChessChatRoom,
   ChessChallenge,
   ChessMatch,
+  ChessMatchComment,
+  ChessMatchNote,
   CreateChessChallengeInput,
   MatchmakingTicket,
 } from "@/lib/casino/api/types";
@@ -38,6 +54,16 @@ interface MoveResultWire {
   match: ChessMatchWire;
   move: ChessMoveWire;
 }
+
+interface MatchChatQuery {
+  room?: ChessChatRoom;
+  limit?: number;
+}
+
+type UpsertMatchCommentInput = {
+  ply: number;
+  text: string;
+};
 
 export interface LobbyChallenges {
   challenges: ChessChallenge[];
@@ -319,10 +345,24 @@ export async function abortMatch(matchId: string, player: string): Promise<Chess
   return playerAction(matchId, "abort", player);
 }
 
-// Starts a fresh game between the same players with the colours swapped, and
-// returns that new game.
+// Lila-style rematch "yes": the first click offers, the second accepts and the
+// response carries the original match plus `rematch.nextMatchId`.
 export async function requestRematch(matchId: string, player: string): Promise<ChessMatch> {
   return playerAction(matchId, "rematch", player);
+}
+
+export async function declineRematch(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "rematch-decline", player);
+}
+
+// Lila-style takeback "yes": the first click offers, the second accepts and
+// rewinds the current game.
+export async function requestTakeback(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "takeback", player);
+}
+
+export async function declineTakeback(matchId: string, player: string): Promise<ChessMatch> {
+  return playerAction(matchId, "takeback-decline", player);
 }
 
 export async function fetchPgn(matchId: string): Promise<string> {
@@ -337,3 +377,84 @@ export async function fetchPlayerMatches(wallet: string, status?: string): Promi
   });
   return data.items.map((wire) => toChessMatch(wire));
 }
+
+export async function fetchMatchChat(
+  matchId: string,
+  query: MatchChatQuery = {}
+): Promise<ChessChatMessage[]> {
+  const room = query.room ?? "spectator";
+  const data = await chessGet<ChessChatMessagesWire>(
+    `/matches/${requireMatchId(matchId)}/chat`,
+    {
+      room,
+      ...(query.limit ? { limit: String(query.limit) } : {}),
+    },
+    { requireAuth: room === "player" }
+  );
+  return data.items.map((wire) => toChessChatMessage(wire));
+}
+
+export async function postMatchChatMessage(
+  matchId: string,
+  room: ChessChatRoom,
+  text: string
+): Promise<ChessChatMessage> {
+  const wire = await chessPost<ChessChatMessageWire>(`/matches/${requireMatchId(matchId)}/chat`, {
+    room,
+    text,
+  });
+  return toChessChatMessage(wire);
+}
+
+export async function fetchMatchNote(matchId: string): Promise<ChessMatchNote> {
+  const wire = await chessGet<ChessMatchNoteWire>(
+    `/matches/${requireMatchId(matchId)}/note`,
+    undefined,
+    { requireAuth: true }
+  );
+  return toChessMatchNote(wire);
+}
+
+export async function saveMatchNote(matchId: string, text: string): Promise<ChessMatchNote> {
+  const wire = await chessPut<ChessMatchNoteWire>(`/matches/${requireMatchId(matchId)}/note`, {
+    text,
+  });
+  return toChessMatchNote(wire);
+}
+
+export async function fetchMatchComments(
+  matchId: string,
+  ply?: number
+): Promise<ChessMatchComment[]> {
+  const data = await chessGet<ChessMatchCommentsWire>(
+    `/matches/${requireMatchId(matchId)}/comments`,
+    {
+      ...(typeof ply === "number" ? { ply: String(ply) } : {}),
+    }
+  );
+  return data.items.map((wire) => toChessMatchComment(wire));
+}
+
+export async function upsertMatchComment(
+  matchId: string,
+  input: UpsertMatchCommentInput
+): Promise<ChessMatchComment> {
+  const wire = await chessPost<ChessMatchCommentWire>(
+    `/matches/${requireMatchId(matchId)}/comments`,
+    input
+  );
+  return toChessMatchComment(wire);
+}
+
+export async function deleteMatchComment(
+  matchId: string,
+  commentId: string
+): Promise<ChessMatchComment> {
+  const wire = await chessDelete<ChessMatchCommentWire>(
+    `/matches/${requireMatchId(matchId)}/comments/${encodeURIComponent(commentId)}`
+  );
+  return toChessMatchComment(wire);
+}
+
+export { applyChatLineFrame, applyCommentDeletedFrame, applyCommentUpsertedFrame };
+export type { ChessCommentDeletedFrame };

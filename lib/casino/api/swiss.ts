@@ -369,3 +369,12 @@ export async function startNextSwissRound(
   });
   return toSwissDetail(wire);
 }
+
+// Organizer-only repair path for a round that has boards stuck "ongoing" until
+// their underlying matches are reconciled.
+export async function reconcileSwiss(id: string, organizer: string): Promise<SwissDetail> {
+  const wire = await chessPost<SwissDetailWire>(`/swiss/${requireSwissId(id)}/reconcile`, {
+    organizer,
+  });
+  return toSwissDetail(wire);
+}

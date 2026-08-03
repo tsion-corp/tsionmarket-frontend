@@ -7,9 +7,9 @@ import {
   useSign7702Authorization,
   useWallets,
 } from "@privy-io/react-auth";
-import { base } from "viem/chains";
 import type { EIP1193Provider } from "viem";
-import { isSponsoredChain, sendSponsoredCalls } from "@/lib/trade/sponsor";
+import { sendSponsoredEvmCalls } from "@/lib/trade/sponsor";
+import { getSponsoredEvmChainById, isSponsoredEvmChainId } from "@/lib/trade/sponsored-evm";
 
 export interface EvmSendInput {
   to: `0x${string}`;
@@ -21,19 +21,15 @@ export interface EvmSendInput {
   // Which embedded wallet to send from (non-Base path). Defaults to the account
   // Privy picks; Base always uses the embedded Privy wallet.
   address?: string;
-  // Optional gas-limit hint for the non-Base path (e.g. from a LI.FI quote). The
-  // Base sponsored path ignores it — the bundler estimates its own userOp gas.
+  // Optional gas-limit hint for the non-sponsored path (e.g. from a LI.FI
+  // quote). The sponsored path ignores it, the bundler estimates its own userOp gas.
   gasLimit?: bigint;
 }
 
-// The single EVM send path for the app. On Base every transaction is gasless:
-// the embedded EOA is upgraded in place via EIP-7702 and the operation is
-// sponsored through our bundler proxy, so the wallet never needs ETH and no
-// approval modal appears (embeddedWallets.showWalletUIs is off globally). On
-// every other chain it sends normally from the EOA, which pays its own gas.
-// Returns the on-chain transaction hash; on Base the hash is already confirmed
-// (the sponsored path waits for the user-operation receipt), so a caller's
-// awaitReceipt on it is a cheap no-op.
+// The single EVM send path for the app. Supported sponsored chains route
+// through the 7702 + bundler flow; unsupported chains keep the normal EOA send
+// path. The sponsored path already waits for the userOp receipt, so callers can
+// treat its returned transaction hash as confirmed.
 export function useEvmSend() {
   const { sendTransaction } = useSendTransaction();
   const { signAuthorization } = useSign7702Authorization();
@@ -48,19 +44,25 @@ export function useEvmSend() {
       address,
       gasLimit,
     }: EvmSendInput): Promise<`0x${string}`> => {
-      if (isSponsoredChain(chainId)) {
+      const sponsored = getSponsoredEvmChainById(chainId);
+      if (sponsored) {
         const wallet = wallets.find((w) => w.walletClientType === "privy");
         if (!wallet) throw new Error("No EVM wallet is connected.");
+        if (address && address.toLowerCase() !== wallet.address.toLowerCase()) {
+          throw new Error(
+            `Sponsored ${sponsored.chain.name} sends must use your connected embedded wallet.`
+          );
+        }
         const accessToken = await getAccessToken();
         if (!accessToken) throw new Error("Your session expired. Sign in again.");
         const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-        return sendSponsoredCalls({
+        return sendSponsoredEvmCalls({
+          chainId,
           address: wallet.address as `0x${string}`,
           provider,
           signAuthorization,
           accessToken,
           calls: [{ to, data, value }],
-          chainId,
         });
       }
       const { hash } = await sendTransaction(
@@ -79,19 +81,18 @@ export interface EvmBatchCall {
   value?: bigint;
 }
 
-// Sends several calls as ONE atomic sponsored operation on Base. Used where a
-// flow would otherwise need sequential dependent transactions (approve, then a
-// transferFrom-consuming action): batching removes the in-between state, so an
-// allowance can never be observed stale between the two, and the user signs
-// once. Base-only by design; other chains have no batch primitive here.
+// Sends several calls as one atomic sponsored operation on a supported EVM
+// chain. Used where a flow would otherwise need sequential dependent
+// transactions (approve, then consume the allowance): batching removes the
+// in-between state and keeps the user to one signature.
 export function useEvmSendBatch() {
   const { signAuthorization } = useSign7702Authorization();
   const { wallets } = useWallets();
 
   return useCallback(
     async (calls: EvmBatchCall[], chainId: number): Promise<`0x${string}`> => {
-      if (!isSponsoredChain(chainId)) {
-        throw new Error("Batched transactions need a sponsored chain.");
+      if (!isSponsoredEvmChainId(chainId)) {
+        throw new Error("Batched transactions are only supported on sponsored EVM chains.");
       }
       if (calls.length === 0) throw new Error("Nothing to send.");
       const wallet = wallets.find((w) => w.walletClientType === "privy");
@@ -99,13 +100,13 @@ export function useEvmSendBatch() {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error("Your session expired. Sign in again.");
       const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-      return sendSponsoredCalls({
+      return sendSponsoredEvmCalls({
+        chainId,
         address: wallet.address as `0x${string}`,
         provider,
         signAuthorization,
         accessToken,
         calls,
-        chainId,
       });
     },
     [signAuthorization, wallets]

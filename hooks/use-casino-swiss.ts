@@ -9,6 +9,7 @@ import {
   fetchSwissList,
   joinSwiss,
   organizerWalletMatches,
+  reconcileSwiss,
   seatedName,
   startNextSwissRound,
   withdrawSwiss,
@@ -176,6 +177,11 @@ export function useSwissTournament(tournamentId: string | null) {
     onSuccess: applyDetail,
   });
 
+  const reconcile = useMutation({
+    mutationFn: () => reconcileSwiss(tournamentId as string, (detail as SwissDetail).organizer),
+    onSuccess: applyDetail,
+  });
+
   return {
     detail,
     yourName,
@@ -189,5 +195,7 @@ export function useSwissTournament(tournamentId: string | null) {
     withdrawing: withdraw.isPending,
     startNextRound: nextRound.mutateAsync,
     startingRound: nextRound.isPending,
+    reconcile: reconcile.mutateAsync,
+    reconciling: reconcile.isPending,
   };
 }

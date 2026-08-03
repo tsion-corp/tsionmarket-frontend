@@ -99,6 +99,43 @@ describe("chess proxy route", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it("requires a session for match notes", async () => {
+    auth.verifyRequest.mockResolvedValue(null);
+    const { GET } = await loadRoute();
+    const res = await GET(makeReq("https://app.test/api/chess/matches/match-1/note"), {
+      params: Promise.resolve({ path: ["matches", "match-1", "note"] }),
+    });
+
+    expect(res.status).toBe(401);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("requires a session for player chat reads", async () => {
+    auth.verifyRequest.mockResolvedValue(null);
+    const { GET } = await loadRoute();
+    const res = await GET(
+      makeReq("https://app.test/api/chess/matches/match-1/chat?room=player&limit=100"),
+      { params: Promise.resolve({ path: ["matches", "match-1", "chat"] }) }
+    );
+
+    expect(res.status).toBe(401);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it("forwards the verified wallet on match notes", async () => {
+    auth.verifyRequest.mockResolvedValue({ userId: "user_1" });
+    auth.getRequestUser.mockResolvedValue(walletUser("0xabc"));
+    const { GET } = await loadRoute();
+    const res = await GET(makeReq("https://app.test/api/chess/matches/match-1/note"), {
+      params: Promise.resolve({ path: ["matches", "match-1", "note"] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, init] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0];
+    expect((init.headers as Record<string, string>)["x-wallet-address"]).toBe("0xabc");
+  });
+
   it("forwards the verified wallet on private chess reads", async () => {
     auth.verifyRequest.mockResolvedValue({ userId: "user_1" });
     auth.getRequestUser.mockResolvedValue(walletUser("0xabc"));

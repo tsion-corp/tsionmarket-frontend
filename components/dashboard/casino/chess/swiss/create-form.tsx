@@ -78,7 +78,9 @@ export function SwissCreateForm({ embedded = false, onCreated }: SwissCreateForm
 
   const chipClass = (active: boolean) =>
     `cursor-pointer rounded-lg border border-white/10 px-3.5 py-2 font-sans text-[13px] transition-colors ${
-      active ? "text-ink border-white bg-white font-semibold" : "text-white hover:bg-white/6"
+      active
+        ? "border-[#8B847B] bg-[#8B847B] text-white font-semibold"
+        : "text-white hover:bg-white/6"
     }`;
 
   const labelClass = "mb-2.5 text-[11px] font-normal tracking-[0.05em] text-white/50 uppercase";

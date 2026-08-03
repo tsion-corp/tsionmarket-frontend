@@ -29,7 +29,6 @@ import { getTransferSolInstruction } from "@solana-program/system";
 import { useCreateQuote } from "@/hooks/use-deposit";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { getWalletAddress } from "@/lib/user";
-import { createAppSolanaRpc } from "@/lib/solana-rpc";
 import {
   BASE_CHAIN_ID,
   encodeErc20Transfer,
@@ -37,8 +36,10 @@ import {
   type SettleChain,
   type WalletChainType,
 } from "@/lib/deposit";
+import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
 
 // Public Solana mainnet RPC, the same endpoint Dextopus lists for the chain.
+const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 
 export interface SendUsdcParams {
   chainType: WalletChainType;
@@ -76,7 +77,7 @@ async function buildSolanaTokenTransfer(
   mintAddress: string,
   decimals: number
 ): Promise<Uint8Array> {
-  const rpc = createAppSolanaRpc();
+  const rpc = createSolanaRpc(SOLANA_RPC);
   const mint = address(mintAddress);
   const owner = address(from);
   const destinationOwner = address(to);
@@ -163,15 +164,8 @@ export function useSendUsdc() {
           settle?.usdc ?? solana.asset,
           settle?.decimals ?? solana.decimals
         );
-        const { signature } = await signAndSendTransaction({
-          transaction,
-          wallet,
-          // Return once broadcast. Privy would otherwise wait on a WebSocket
-          // subscription we do not proxy, and it throws AFTER the transfer is
-          // already on-chain — reporting a sent withdrawal as failed, which
-          // invites a second send of real money.
-          options: { optimisticBroadcast: true },
-        });
+        const sponsored = await sponsorSolanaTransaction(transaction);
+        const { signature } = await signAndSendTransaction({ transaction: sponsored, wallet });
         return getBase58Decoder().decode(signature);
       } finally {
         setSending(false);
@@ -200,7 +194,7 @@ async function buildSolanaSolTransfer(
   to: string,
   amount: bigint
 ): Promise<Uint8Array> {
-  const rpc = createAppSolanaRpc();
+  const rpc = createSolanaRpc(SOLANA_RPC);
   const source = createNoopSigner(address(from));
   const transfer = getTransferSolInstruction({ source, destination: address(to), amount });
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
@@ -262,15 +256,8 @@ export function useSendToken() {
           tokenAddress === null
             ? await buildSolanaSolTransfer(from, to, amount)
             : await buildSolanaTokenTransfer(from, to, amount, tokenAddress, decimals);
-        const { signature } = await signAndSendTransaction({
-          transaction,
-          wallet,
-          // Return once broadcast. Privy would otherwise wait on a WebSocket
-          // subscription we do not proxy, and it throws AFTER the transfer is
-          // already on-chain — reporting a sent withdrawal as failed, which
-          // invites a second send of real money.
-          options: { optimisticBroadcast: true },
-        });
+        const sponsored = await sponsorSolanaTransaction(transaction);
+        const { signature } = await signAndSendTransaction({ transaction: sponsored, wallet });
         return getBase58Decoder().decode(signature);
       } finally {
         setSending(false);

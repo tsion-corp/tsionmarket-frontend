@@ -8,12 +8,18 @@
 
 import { truncateAddress } from "@/lib/format";
 import type {
+  ChessChatMessage,
+  ChessChatRoom,
   ChessChallenge,
   ChessColor,
   ChessMatch,
+  ChessMatchComment,
+  ChessMatchNote,
+  ChessRematchState,
   ChessMatchState,
   ChessPlayer,
   ChessResult,
+  ChessTakebackState,
 } from "@/lib/casino/api/types";
 
 export type ChessStatusWire = "waiting" | "active" | "finished" | "aborted";
@@ -39,6 +45,17 @@ export interface ChessWagerWire {
   winnerPlayer?: string | null;
 }
 
+export interface ChessTakebackWire {
+  white: boolean;
+  black: boolean;
+  takebackable: boolean;
+}
+
+export interface ChessRematchWire {
+  offeredBy: string | null;
+  nextMatchId: string | null;
+}
+
 export interface ChessMatchWire {
   id: string;
   // The service currently sets this to the match id; carried so a future
@@ -55,6 +72,8 @@ export interface ChessMatchWire {
   white: string | null;
   black: string | null;
   drawOfferBy: string | null;
+  takeback?: ChessTakebackWire;
+  rematch?: ChessRematchWire;
   result: ChessResultWire | null;
   resultReason: string | null;
   wager?: ChessWagerWire | null;
@@ -73,6 +92,42 @@ export interface ChessMoveWire {
   createdAt: string;
 }
 
+export interface ChessChatMessageWire {
+  id: number;
+  matchId: string;
+  room: ChessChatRoom;
+  author: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ChessChatMessagesWire {
+  items: ChessChatMessageWire[];
+}
+
+export interface ChessMatchNoteWire {
+  matchId: string;
+  player: string;
+  text: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ChessMatchCommentWire {
+  id: string;
+  matchId: string;
+  ply: number;
+  fen: string;
+  author: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChessMatchCommentsWire {
+  items: ChessMatchCommentWire[];
+}
+
 const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/;
 
 // Match ids are UUIDs. A malformed id makes the gateway answer with plain text
@@ -89,6 +144,17 @@ const STATE_BY_STATUS: Record<ChessStatusWire, ChessMatchState> = {
   active: "in_progress",
   finished: "settled",
   aborted: "cancelled",
+};
+
+const EMPTY_TAKEBACK: ChessTakebackState = {
+  white: false,
+  black: false,
+  takebackable: false,
+};
+
+const EMPTY_REMATCH: ChessRematchState = {
+  offeredBy: null,
+  nextMatchId: null,
 };
 
 export function toColor(side: ChessSideWire): ChessColor {
@@ -247,6 +313,14 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
     turn: toColor(wire.turn),
     result: toResult(wire.result, wire.resultReason),
     drawOffered: drawOfferSide,
+    takeback: {
+      ...EMPTY_TAKEBACK,
+      ...(wire.takeback ?? {}),
+    },
+    rematch: {
+      ...EMPTY_REMATCH,
+      ...(wire.rematch ?? {}),
+    },
     // A staked match carries its per-player USDC stake; null = played for free.
     stakeUsdc: wire.wager?.stakeUsdc ?? null,
     wagerStatus: wire.wager?.status ?? null,
@@ -254,6 +328,40 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
     // the fallback only covers an older service that predates the field.
     liveTopic: wire.liveTopic ?? `chess:match:${wire.id}`,
     createdAt: wire.createdAt,
+  };
+}
+
+export function toChessChatMessage(wire: ChessChatMessageWire): ChessChatMessage {
+  return {
+    id: wire.id,
+    matchId: wire.matchId,
+    room: wire.room,
+    author: wire.author,
+    text: wire.text,
+    createdAt: wire.createdAt,
+  };
+}
+
+export function toChessMatchNote(wire: ChessMatchNoteWire): ChessMatchNote {
+  return {
+    matchId: wire.matchId,
+    player: wire.player,
+    text: wire.text,
+    createdAt: wire.createdAt,
+    updatedAt: wire.updatedAt,
+  };
+}
+
+export function toChessMatchComment(wire: ChessMatchCommentWire): ChessMatchComment {
+  return {
+    id: wire.id,
+    matchId: wire.matchId,
+    ply: wire.ply,
+    fen: wire.fen,
+    author: wire.author,
+    text: wire.text,
+    createdAt: wire.createdAt,
+    updatedAt: wire.updatedAt,
   };
 }
 
@@ -299,6 +407,94 @@ export function applyPositionFrame(prev: ChessMatch, frame: ChessPositionFrame):
 export function applyStateFrame(prev: ChessMatch, wire: ChessMatchWire): ChessMatch {
   const next = toChessMatch(wire);
   return { ...next, moves: prev.moves, clockUpdatedAt: new Date().toISOString() };
+}
+
+export interface ChessTakebackOffersFrame {
+  white: boolean;
+  black: boolean;
+}
+
+export interface ChessRematchOfferFrame {
+  offeredBy: string | null;
+}
+
+export interface ChessRematchTakenFrame {
+  nextMatchId: string;
+}
+
+export interface ChessCommentDeletedFrame {
+  id: string;
+  matchId: string;
+  ply: number;
+  author: string;
+}
+
+export function applyTakebackOffersFrame(
+  prev: ChessMatch,
+  frame: ChessTakebackOffersFrame
+): ChessMatch {
+  return {
+    ...prev,
+    takeback: {
+      ...prev.takeback,
+      white: frame.white,
+      black: frame.black,
+    },
+  };
+}
+
+export function applyRematchOfferFrame(
+  prev: ChessMatch,
+  frame: ChessRematchOfferFrame
+): ChessMatch {
+  return {
+    ...prev,
+    rematch: {
+      ...prev.rematch,
+      offeredBy: frame.offeredBy ?? null,
+    },
+  };
+}
+
+export function applyRematchTakenFrame(
+  prev: ChessMatch,
+  frame: ChessRematchTakenFrame
+): ChessMatch {
+  return {
+    ...prev,
+    rematch: {
+      ...prev.rematch,
+      nextMatchId: frame.nextMatchId,
+    },
+  };
+}
+
+export function applyChatLineFrame(
+  prev: ChessChatMessage[],
+  frame: ChessChatMessageWire
+): ChessChatMessage[] {
+  const next = toChessChatMessage(frame);
+  if (prev.some((line) => line.id === next.id)) return prev;
+  return [...prev, next].sort((left, right) => left.id - right.id);
+}
+
+export function applyCommentUpsertedFrame(
+  prev: ChessMatchComment[],
+  frame: ChessMatchCommentWire
+): ChessMatchComment[] {
+  const next = toChessMatchComment(frame);
+  const withoutCurrent = prev.filter((comment) => comment.id !== next.id);
+  return [...withoutCurrent, next].sort((left, right) => {
+    if (left.ply !== right.ply) return left.ply - right.ply;
+    return Date.parse(left.createdAt) - Date.parse(right.createdAt);
+  });
+}
+
+export function applyCommentDeletedFrame(
+  prev: ChessMatchComment[],
+  frame: ChessCommentDeletedFrame
+): ChessMatchComment[] {
+  return prev.filter((comment) => comment.id !== frame.id);
 }
 
 // A waiting match, presented as a joinable challenge. The creator is whichever

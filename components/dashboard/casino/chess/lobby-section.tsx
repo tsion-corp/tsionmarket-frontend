@@ -18,7 +18,7 @@ import { initialBoard } from "@/lib/casino/chess/engine";
 import { toast } from "@/lib/toast";
 import type { ChessChallenge } from "@/lib/casino/api/types";
 
-const SURFACE_BG = "rgba(255, 255, 255, 0.045)";
+const SURFACE_BG = "#312E2B";
 const SHELL_BG = "rgba(0, 0, 0, 0.20)";
 const CARD_BG = "linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.14) 100%)";
 const CARD_BG_HOVER = "linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.10) 100%)";
@@ -29,7 +29,7 @@ const CARD_SHADOW_HOVER =
   "inset 0 .1rem 0 0 rgba(255, 255, 255, 0.14), 0 .1rem .2rem 0 rgba(0, 0, 0, 0.14), 0 .2rem .4rem 0 rgba(0, 0, 0, 0.10)";
 const LANDING_THEME = BOARD_THEMES.find((theme) => theme.id === "green") ?? DEFAULT_THEME;
 const LANDING_BOARD = initialBoard();
-const LOBBY_BOARD_MAX_WIDTH = "min(100%, 780px, calc(100dvh - 255px))";
+const LOBBY_BOARD_MAX_WIDTH = "min(100%, 780px, calc(100vh - 255px))";
 
 function timeControlLabel(t: ReturnType<typeof useTranslations>, tc: string): string {
   return tc === "3+2" || tc === "5+3" ? t("blitz", { tc }) : t("rapid", { tc });
@@ -57,7 +57,7 @@ function MenuHeader() {
       style={{ background: SHELL_BG, boxShadow: SHADOW }}
     >
       <LandingIcon src="/chesscom-icons/play-white.svg" alt="" className="h-10 w-10" />
-      <div className="ws-display text-[2.6rem] leading-none tracking-[-0.05em] text-white">
+      <div className="font-sans text-[2.6rem] leading-none font-extrabold tracking-[-0.05em] text-white">
         Play Chess
       </div>
     </div>
@@ -92,7 +92,7 @@ function MenuCard({
       <div className="pointer-events-none flex min-h-[136px] items-center gap-4 px-6 py-6">
         {icon}
         <div className="min-w-0">
-          <div className="ws-display text-[1.18rem] leading-none tracking-[-0.03em] text-white sm:text-[1.24rem]">
+          <div className="font-sans text-[1.18rem] leading-none font-extrabold tracking-[-0.03em] text-white sm:text-[1.24rem]">
             {title}
           </div>
           <div className="mt-2 text-[0.92rem] leading-6 text-white/72 sm:text-[0.98rem]">
@@ -164,15 +164,15 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
       className="flex items-center gap-4 rounded-[8px] px-3 py-3"
       style={{ background: SHELL_BG, boxShadow: SHADOW }}
     >
-      <span className="grid h-14 w-14 place-items-center rounded-[4px] bg-white/10">
+      <span className="grid h-14 w-14 place-items-center rounded-[4px] bg-[#4B4847]">
         <LandingIcon src="/chesscom-icons/play-white.svg" alt="" className="h-8 w-8 opacity-35" />
       </span>
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate font-sans text-[1.05rem] font-bold text-white">{label}</span>
         {active ? (
           <span aria-hidden className="inline-flex gap-[3px]">
-            <span className="h-4 w-[8px] rounded-[2px] bg-white/70" />
-            <span className="h-4 w-[8px] rounded-[2px] bg-white/60" />
+            <span className="h-4 w-[8px] rounded-[2px] bg-[#B7B1A8]" />
+            <span className="h-4 w-[8px] rounded-[2px] bg-[#8B847B]" />
           </span>
         ) : null}
       </span>
@@ -280,9 +280,9 @@ export function LobbySection() {
   return (
     <>
       <div className="mx-auto w-full max-w-[1520px] px-4 pb-8 sm:px-6 lg:px-8">
-        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,840px)_392px]">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,840px)_392px]">
           <section
-            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[88px] xl:self-start"
+            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
             style={{ background: SURFACE_BG }}
           >
             <div className="mx-auto w-full" style={{ maxWidth: LOBBY_BOARD_MAX_WIDTH }}>

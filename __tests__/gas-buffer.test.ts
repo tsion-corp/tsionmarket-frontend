@@ -2,15 +2,15 @@ import { describe, expect, it } from "vitest";
 import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
 
 describe("gasBufferFor", () => {
-  it("reserves a buffer when selling the native token on a fee-paying chain", () => {
-    expect(gasBufferFor("eth-mainnet", null)).toBeGreaterThan(0);
-    expect(gasBufferFor("arb-mainnet", null)).toBeGreaterThan(0);
-    expect(gasBufferFor("opt-mainnet", null)).toBeGreaterThan(0);
-    expect(gasBufferFor("polygon-mainnet", null)).toBeGreaterThan(0);
+  it("reserves a buffer when selling the native token on a non-sponsored chain", () => {
     expect(gasBufferFor("solana-mainnet", null)).toBeGreaterThan(0);
   });
 
-  it("reserves nothing on Base, where sends are gas-sponsored", () => {
+  it("reserves nothing on sponsored EVM chains", () => {
+    expect(gasBufferFor("eth-mainnet", null)).toBe(0);
+    expect(gasBufferFor("arb-mainnet", null)).toBe(0);
+    expect(gasBufferFor("opt-mainnet", null)).toBe(0);
+    expect(gasBufferFor("polygon-mainnet", null)).toBe(0);
     expect(gasBufferFor("base-mainnet", null)).toBe(0);
   });
 
@@ -25,12 +25,13 @@ describe("gasBufferFor", () => {
 });
 
 describe("maxSellable", () => {
-  it("subtracts the buffer from a native balance on a fee-paying chain", () => {
-    const buffer = gasBufferFor("eth-mainnet", null);
-    expect(maxSellable("eth-mainnet", null, 1)).toBeCloseTo(1 - buffer, 12);
+  it("subtracts the buffer from a native balance on a non-sponsored chain", () => {
+    const buffer = gasBufferFor("solana-mainnet", null);
+    expect(maxSellable("solana-mainnet", null, 1)).toBeCloseTo(1 - buffer, 12);
   });
 
-  it("keeps the full native balance on Base", () => {
+  it("keeps the full native balance on sponsored EVM chains", () => {
+    expect(maxSellable("eth-mainnet", null, 1)).toBe(1);
     expect(maxSellable("base-mainnet", null, 1)).toBe(1);
   });
 
@@ -39,7 +40,7 @@ describe("maxSellable", () => {
   });
 
   it("never goes below zero when the balance is under the buffer", () => {
-    expect(maxSellable("eth-mainnet", null, 0.0001)).toBe(0);
-    expect(maxSellable("eth-mainnet", null, 0)).toBe(0);
+    expect(maxSellable("solana-mainnet", null, 0.0001)).toBe(0);
+    expect(maxSellable("solana-mainnet", null, 0)).toBe(0);
   });
 });

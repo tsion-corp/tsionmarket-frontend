@@ -1,32 +1,18 @@
 "use client";
 
 import { createClient, http, type EIP1193Provider, type SignedAuthorization } from "viem";
-import { base, polygon } from "viem/chains";
 import { createBundlerClient } from "viem/account-abstraction";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
+import { getSponsoredEvmChainById } from "@/lib/trade/sponsored-evm";
 
-// Reference EIP-7702 "Simple Account" implementation. Deployed and verified on
-// Base mainnet (checked via eth_getCode). Delegating an EOA's code to this
-// address turns it into a sponsorable ERC-4337 account at the *same* address,
-// so no separate smart-account address or balance migration is ever needed.
+// The shared 7702 Simple Account implementation used by permissionless. The
+// EOA delegates to this logic at the same address, so sponsorship does not
+// create or migrate funds into a separate smart-wallet address.
 const SIMPLE_7702_IMPL = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as const;
 
-// Every Base transaction in the sponsored flow routes through our own proxy
-// (see app/api/bundler/route.ts) instead of Alchemy directly, so the API
-// key and sponsorship policy id never reach the client.
-// One Gas Manager policy covers every chain here, so adding one is a line in
-// this map. A chain that is absent simply sends normally and pays its own gas.
-const SPONSORED_CHAINS = { [base.id]: base, [polygon.id]: polygon } as const;
-
-export type SponsoredChainId = keyof typeof SPONSORED_CHAINS;
-
-export function isSponsoredChain(chainId: number): chainId is SponsoredChainId {
-  return chainId in SPONSORED_CHAINS;
-}
-
-function bundlerPath(chainId: SponsoredChainId): string {
-  return `/api/bundler?chain=${chainId === polygon.id ? "polygon" : "base"}`;
-}
+// Every sponsored EVM transaction routes through our own proxy instead of
+// Alchemy directly, so the API key and policy id never reach the client.
+const BUNDLER_PATH = "/api/alchemy-bundler";
 
 export interface SponsoredCall {
   to: `0x${string}`;
@@ -51,30 +37,33 @@ async function isAlreadyDelegated(
   return code.toLowerCase() === `0xef0100${SIMPLE_7702_IMPL.slice(2).toLowerCase()}`;
 }
 
-// Sends a sponsored Base transaction from the user's own embedded EOA, upgraded
-// in place via EIP-7702 (same address, no balance migration). The EOA only
-// signs the one-time delegation (skipped once already delegated) plus its
-// normal userOp signature; the bundler covers every gas cost.
-export async function sendSponsoredCalls({
+// Sends a sponsored EVM transaction from the user's embedded EOA, upgraded in
+// place via EIP-7702. The EOA signs the one-time delegation if needed, then
+// the userOp, and Alchemy's bundler + paymaster path covers the gas cost.
+export async function sendSponsoredEvmCalls({
+  chainId,
   address,
   provider,
   signAuthorization,
   accessToken,
   calls,
-  chainId = base.id,
 }: {
+  chainId: number;
   address: `0x${string}`;
   provider: EIP1193Provider;
   signAuthorization: SignAuthorization;
   accessToken: string;
   calls: SponsoredCall[];
-  chainId?: SponsoredChainId;
 }): Promise<`0x${string}`> {
-  const chain = SPONSORED_CHAINS[chainId];
-  const transport = http(bundlerPath(chainId), {
+  const target = getSponsoredEvmChainById(chainId);
+  if (!target) {
+    throw new Error(`This chain is not configured for sponsored EVM sends (${chainId}).`);
+  }
+
+  const transport = http(`${BUNDLER_PATH}/${target.network}`, {
     fetchOptions: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
-  const client = createClient({ chain, transport });
+  const client = createClient({ chain: target.chain, transport });
 
   let authorization: SignedAuthorization<number> | undefined;
   if (!(await isAlreadyDelegated(client, address))) {
@@ -86,14 +75,18 @@ export async function sendSponsoredCalls({
     );
     authorization = await signAuthorization({
       contractAddress: SIMPLE_7702_IMPL,
-      chainId,
+      chainId: target.chainId,
       nonce,
     });
   }
 
-  const account = await to7702SimpleSmartAccount({ client, owner: provider });
+  const account = await to7702SimpleSmartAccount({
+    client,
+    owner: provider,
+    accountLogicAddress: SIMPLE_7702_IMPL,
+  });
 
-  const bundlerClient = createBundlerClient({ account, client, chain, transport });
+  const bundlerClient = createBundlerClient({ account, client, chain: target.chain, transport });
 
   const hash = await bundlerClient.sendUserOperation({
     calls,

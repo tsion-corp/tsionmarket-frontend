@@ -1,13 +1,14 @@
+import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
+
 // Gas headroom for selling a chain's native token. A native-token sell spends
 // the same asset that pays the network fee, so sending the full balance leaves
 // nothing for gas and the wallet rejects the transaction. Holding back a small
 // buffer keeps a "max" sell payable.
 //
-// Base is absent on purpose: Base sends are gas-sponsored (EIP-7702 through
-// our bundler), so the wallet never needs native ETH there and the full
+// Sponsored EVM chains are absent on purpose: their sends route through the
+// 7702 + bundler path, so the wallet never needs native gas there and the full
 // balance is sellable. Values are in native units, sized to cover a simple
-// transfer with room for fee spikes while staying negligible next to any
-// realistic balance.
+// transfer with room for fee spikes while staying negligible next to any realistic balance.
 const NATIVE_GAS_BUFFER: Record<string, number> = {
   "eth-mainnet": 0.0003,
   "arb-mainnet": 0.0003,
@@ -22,6 +23,7 @@ const NATIVE_GAS_BUFFER: Record<string, number> = {
 // chain's native token, matching TokenBalance and SellPayload.
 export function gasBufferFor(network: string, assetAddress: string | null): number {
   if (assetAddress !== null) return 0;
+  if (isSponsoredEvmNetwork(network)) return 0;
   return NATIVE_GAS_BUFFER[network] ?? 0;
 }
 

@@ -5,16 +5,25 @@ import type { ChessMatch } from "@/lib/casino/api/types";
 const chessClient = vi.hoisted(() => ({
   chessGet: vi.fn(),
   chessPost: vi.fn(),
+  chessPut: vi.fn(),
+  chessDelete: vi.fn(),
 }));
 
 vi.mock("@/lib/casino/api/chess-client", () => chessClient);
 
 import {
+  deleteMatchComment,
   fetchMatch,
+  fetchMatchChat,
+  fetchMatchComments,
+  fetchMatchNote,
   fetchJoinableMatches,
   fetchLobbyChallenges,
   fetchLiveMatches,
   fetchOpenChallenges,
+  postMatchChatMessage,
+  saveMatchNote,
+  upsertMatchComment,
 } from "@/lib/casino/api/chess";
 
 function waitingMatch(
@@ -69,6 +78,8 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
     turn: "w",
     result: null,
     drawOffered: null,
+    takeback: { white: false, black: false, takebackable: true },
+    rematch: { offeredBy: null, nextMatchId: null },
     stakeUsdc: null,
     wagerStatus: null,
     liveTopic: `chess:match:${id}`,
@@ -225,5 +236,134 @@ describe("match fetch reconciliation", () => {
     expect(chessClient.chessGet).toHaveBeenCalledTimes(2);
     expect(match.moves).toEqual(["e4", "e5"]);
     expect(match.clockUpdatedAt).toBe("2026-08-01T18:02:05.000Z");
+  });
+});
+
+describe("match social api", () => {
+  it("reads chat history from the selected room", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3303";
+    chessClient.chessGet.mockResolvedValue({
+      items: [
+        {
+          id: 1,
+          matchId: id,
+          room: "spectator",
+          author: "0xhost",
+          text: "gl hf",
+          createdAt: "2026-08-02T20:00:00.000Z",
+        },
+      ],
+    });
+
+    const items = await fetchMatchChat(id, { room: "spectator", limit: 20 });
+
+    expect(chessClient.chessGet).toHaveBeenCalledWith(
+      `/matches/${id}/chat`,
+      { room: "spectator", limit: "20" },
+      { requireAuth: false }
+    );
+    expect(items[0]).toMatchObject({ id: 1, room: "spectator", text: "gl hf" });
+  });
+
+  it("posts chat messages through the authenticated write path", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3304";
+    chessClient.chessPost.mockResolvedValue({
+      id: 2,
+      matchId: id,
+      room: "player",
+      author: "0xhost",
+      text: "ready",
+      createdAt: "2026-08-02T20:01:00.000Z",
+    });
+
+    const line = await postMatchChatMessage(id, "player", "ready");
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(`/matches/${id}/chat`, {
+      room: "player",
+      text: "ready",
+    });
+    expect(line.author).toBe("0xhost");
+  });
+
+  it("loads and saves the viewer's private match note", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3305";
+    chessClient.chessGet.mockResolvedValue({
+      matchId: id,
+      player: "0xhost",
+      text: "prep",
+      createdAt: "2026-08-02T20:02:00.000Z",
+      updatedAt: "2026-08-02T20:03:00.000Z",
+    });
+    chessClient.chessPut.mockResolvedValue({
+      matchId: id,
+      player: "0xhost",
+      text: "updated prep",
+      createdAt: "2026-08-02T20:02:00.000Z",
+      updatedAt: "2026-08-02T20:04:00.000Z",
+    });
+
+    const note = await fetchMatchNote(id);
+    const saved = await saveMatchNote(id, "updated prep");
+
+    expect(chessClient.chessGet).toHaveBeenCalledWith(`/matches/${id}/note`, undefined, {
+      requireAuth: true,
+    });
+    expect(chessClient.chessPut).toHaveBeenCalledWith(`/matches/${id}/note`, {
+      text: "updated prep",
+    });
+    expect(note.text).toBe("prep");
+    expect(saved.text).toBe("updated prep");
+  });
+
+  it("loads, upserts, and deletes current-position comments", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3306";
+    chessClient.chessGet.mockResolvedValue({
+      items: [
+        {
+          id: "c1",
+          matchId: id,
+          ply: 3,
+          fen: "fen",
+          author: "0xhost",
+          text: "idea",
+          createdAt: "2026-08-02T20:05:00.000Z",
+          updatedAt: "2026-08-02T20:05:00.000Z",
+        },
+      ],
+    });
+    chessClient.chessPost.mockResolvedValue({
+      id: "c2",
+      matchId: id,
+      ply: 3,
+      fen: "fen",
+      author: "0xhost",
+      text: "new idea",
+      createdAt: "2026-08-02T20:06:00.000Z",
+      updatedAt: "2026-08-02T20:06:00.000Z",
+    });
+    chessClient.chessDelete.mockResolvedValue({
+      id: "c2",
+      matchId: id,
+      ply: 3,
+      fen: "fen",
+      author: "0xhost",
+      text: "new idea",
+      createdAt: "2026-08-02T20:06:00.000Z",
+      updatedAt: "2026-08-02T20:06:00.000Z",
+    });
+
+    const items = await fetchMatchComments(id, 3);
+    const saved = await upsertMatchComment(id, { ply: 3, text: "new idea" });
+    const deleted = await deleteMatchComment(id, "c2");
+
+    expect(chessClient.chessGet).toHaveBeenCalledWith(`/matches/${id}/comments`, { ply: "3" });
+    expect(chessClient.chessPost).toHaveBeenCalledWith(`/matches/${id}/comments`, {
+      ply: 3,
+      text: "new idea",
+    });
+    expect(chessClient.chessDelete).toHaveBeenCalledWith(`/matches/${id}/comments/c2`);
+    expect(items).toHaveLength(1);
+    expect(saved.id).toBe("c2");
+    expect(deleted.id).toBe("c2");
   });
 });

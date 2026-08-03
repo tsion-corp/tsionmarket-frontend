@@ -197,11 +197,13 @@ describe("hasNativeGas", () => {
     expect(hasNativeGas([token({ symbol: "BNB", balance: 1 })], "bsc")).toBeNull();
   });
 
-  it("never requires native gas on Base, where sends are sponsored", () => {
+  it("never requires native gas on sponsored EVM chains", () => {
     expect(requiresNativeGas("base")).toBe(false);
+    expect(requiresNativeGas("ethereum")).toBe(false);
+    expect(requiresNativeGas("arbitrum")).toBe(false);
+    expect(requiresNativeGas("polygon")).toBe(false);
+    expect(requiresNativeGas("bsc")).toBe(false);
     expect(requiresNativeGas("solana")).toBe(true);
-    expect(requiresNativeGas("polygon")).toBe(true);
-    expect(requiresNativeGas("arbitrum")).toBe(true);
   });
 });
 

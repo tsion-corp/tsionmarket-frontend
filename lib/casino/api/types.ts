@@ -45,6 +45,47 @@ export type ChessResult =
   | { kind: "timeout"; winner: ChessColor }
   | { kind: "draw"; reason: "stalemate" | "agreement" | "repetition" | "insufficient" };
 
+export interface ChessTakebackState {
+  white: boolean;
+  black: boolean;
+  takebackable: boolean;
+}
+
+export interface ChessRematchState {
+  offeredBy: string | null;
+  nextMatchId: string | null;
+}
+
+export type ChessChatRoom = "player" | "spectator";
+
+export interface ChessChatMessage {
+  id: number;
+  matchId: string;
+  room: ChessChatRoom;
+  author: string;
+  text: string;
+  createdAt: string;
+}
+
+export interface ChessMatchNote {
+  matchId: string;
+  player: string;
+  text: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface ChessMatchComment {
+  id: string;
+  matchId: string;
+  ply: number;
+  fen: string;
+  author: string;
+  text: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // A match is free unless it carries a stake: staked games settle server-side
 // through the chess cashier, so the client renders amounts but never moves
 // money itself.
@@ -68,6 +109,10 @@ export interface ChessMatch {
   result: ChessResult | null;
   // The colour with an outstanding draw offer, if any.
   drawOffered: ChessColor | null;
+  // Pending takeback offer state, if the match type allows takebacks at all.
+  takeback: ChessTakebackState;
+  // Lila-style rematch state carried on the finished match.
+  rematch: ChessRematchState;
   // Per-player USDC stake for a wager-backed match, null when played for free.
   // Stakes settle server-side through the chess cashier.
   stakeUsdc: string | null;

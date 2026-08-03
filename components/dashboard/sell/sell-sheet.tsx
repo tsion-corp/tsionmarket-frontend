@@ -11,6 +11,7 @@ import { useSell } from "@/hooks/use-sell";
 import { depositProgress, type DepositStage } from "@/lib/deposit";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
+import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
 import type { SellPayload } from "@/components/dashboard/modal-types";
@@ -66,10 +67,9 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const nativeSym = NATIVE_SYMBOL[payload.network] ?? "";
   const chainLabel = CHAIN_LABEL[payload.network] ?? payload.network;
 
-  // Sending the asset needs a little of the chain's native token for the fee —
-  // except on Base, where every send is gas-sponsored (EIP-7702 through our
-  // bundler) and no ETH is ever required.
-  const sponsored = payload.network === "base-mainnet";
+  // Sending the asset needs a little of the chain's native token for the fee,
+  // except on sponsored EVM networks where the bundler covers the gas.
+  const sponsored = isSponsoredEvmNetwork(payload.network);
   const hasGas = useMemo(
     () =>
       sponsored ||

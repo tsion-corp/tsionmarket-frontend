@@ -3,6 +3,7 @@ import { getRequestUser, verifyRequest } from "@/lib/server/auth";
 import {
   chessReadNeedsSession,
   walletOfUser,
+  withChessReadIdentity,
   withChessIdentity,
 } from "@/lib/casino/chess-identity";
 
@@ -84,13 +85,16 @@ function noWallet() {
 async function forward(
   req: NextRequest,
   joined: string,
-  method: "GET" | "POST",
+  method: "GET" | "POST" | "PUT" | "DELETE",
   body?: string,
-  wallet?: string
+  wallet?: string,
+  searchParams?: URLSearchParams
 ) {
-  const url = `${BASE}/${joined}${req.nextUrl.search}`;
+  const search = searchParams ? searchParams.toString() : req.nextUrl.searchParams.toString();
+  const query = search ? `?${search}` : "";
+  const url = `${BASE}/${joined}${query}`;
   const headers: Record<string, string> = { accept: "application/json" };
-  if (method === "POST") headers["content-type"] = "application/json";
+  if (method !== "GET") headers["content-type"] = "application/json";
   if (wallet) headers["x-wallet-address"] = wallet;
   const ttl = cacheTtlMs(joined);
 
@@ -130,15 +134,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   if (!BASE) return notConfigured();
   const joined = path.join("/");
   const ttl = cacheTtlMs(joined);
-  const needsSession = chessReadNeedsSession(joined);
+  const needsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
   const claims = needsSession ? await verifyRequest(req) : null;
   if (needsSession && !claims) return unauthorized();
   const user = needsSession ? await getRequestUser(req, claims) : null;
   const wallet = needsSession ? walletOfUser(user) : null;
   if (needsSession && !user) return walletUnavailable();
   if (needsSession && !wallet) return noWallet();
+  const forwardedSearch = wallet
+    ? withChessReadIdentity(joined, req.nextUrl.searchParams, wallet)
+    : req.nextUrl.searchParams;
 
-  const url = `${BASE}/${joined}${req.nextUrl.search}`;
+  const forwardedQuery = forwardedSearch.toString();
+  const url = `${BASE}/${joined}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
   if (ttl > 0) {
     const hit = cache.get(url);
     if (hit && hit.expires > Date.now()) {
@@ -149,10 +157,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     }
   }
 
-  return forward(req, joined, "GET", undefined, wallet ?? undefined);
+  return forward(req, joined, "GET", undefined, wallet ?? undefined, forwardedSearch);
 }
 
-export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+async function authedWrite(
+  req: NextRequest,
+  ctx: { params: Promise<{ path: string[] }> },
+  method: "POST" | "PUT" | "DELETE"
+) {
   const { path } = await ctx.params;
   if (!BASE) return notConfigured();
 
@@ -165,5 +177,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ path: stri
   if (!wallet) return noWallet();
 
   const raw = await req.text();
-  return forward(req, path.join("/"), "POST", withChessIdentity(raw, wallet), wallet);
+  const joined = path.join("/");
+  return forward(req, joined, method, withChessIdentity(joined, raw, wallet), wallet);
+}
+
+export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return authedWrite(req, ctx, "POST");
+}
+
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return authedWrite(req, ctx, "PUT");
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  return authedWrite(req, ctx, "DELETE");
 }

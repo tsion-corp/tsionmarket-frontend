@@ -79,7 +79,8 @@ export function useEvmSwapExecute() {
       }
 
       const tx = quote.transactionRequest;
-      // Gasless on Base via the sponsored path; other chains pay their own gas.
+      // Sponsored chains route through the 7702 path; unsupported ones still
+      // pay their own gas through the normal send flow.
       const hash = await evmSend({
         to: tx.to as `0x${string}`,
         data: tx.data as `0x${string}`,

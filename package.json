@@ -8,6 +8,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "alchemy:policy-check": "node scripts/alchemy-policy-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",
@@ -42,6 +43,7 @@
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
     "sonner": "^2.0.7",
+    "stockfish": "^18.0.8",
     "tailwind-merge": "^3.6.0",
     "viem": "^2.55.8"
   },

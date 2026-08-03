@@ -5,13 +5,7 @@ import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/sola
 import { getBase58Decoder } from "@solana/kit";
 import { buildJupiterSwapTransaction } from "@/lib/trade/jupiter";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
-
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-  return bytes;
-}
+import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
 
 export interface SwapExecuteInput {
   inputMint: string;
@@ -31,8 +25,9 @@ export function useSwapExecute() {
       const wallet = wallets[0];
       if (!wallet) throw new Error("No Solana wallet is connected.");
       const txBase64 = await buildJupiterSwapTransaction(input, wallet.address);
+      const transaction = await sponsorSolanaTransaction(txBase64);
       const { signature } = await signAndSendTransaction({
-        transaction: base64ToBytes(txBase64),
+        transaction,
         wallet,
         // Broadcast-only: the confirmation below polls the RPC we send
         // through, rather than a WebSocket we do not proxy.

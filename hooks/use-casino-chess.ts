@@ -3,40 +3,64 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  deleteMatchComment,
   abortMatch,
   acceptChallenge,
   cancelMatchmaking,
   claimTimeout,
   createChallenge,
+  fetchMatchChat,
+  fetchMatchComments,
+  fetchMatchNote,
+  declineRematch as declineRematchAction,
+  declineTakeback as declineTakebackAction,
   fetchJoinableMatches,
   fetchLobbyChallenges,
   fetchLiveMatches,
   fetchPlayerMatches,
   fetchMatch,
   fetchMatchmakingTicket,
-  fetchWaitingMatches,
   claimDraw,
   offerDraw,
+  postMatchChatMessage,
   requestRematch,
+  requestTakeback,
   resignMatch,
   respondToDraw,
+  saveMatchNote,
   submitMove,
+  upsertMatchComment,
 } from "@/lib/casino/api/chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import {
+  applyChatLineFrame,
+  applyCommentDeletedFrame,
+  applyCommentUpsertedFrame,
   applyPositionFrame,
+  applyRematchOfferFrame,
+  applyRematchTakenFrame,
   applyStateFrame,
+  applyTakebackOffersFrame,
+  type ChessChatMessageWire,
+  type ChessCommentDeletedFrame,
   parseTimeControl,
   toChessMatch,
   type ChessMatchWire,
+  type ChessMatchCommentWire,
   type ChessPositionFrame,
+  type ChessRematchOfferFrame,
+  type ChessRematchTakenFrame,
+  type ChessTakebackOffersFrame,
 } from "@/lib/casino/api/chess-wire";
 import { subscribeChessTopic } from "@/lib/casino/chess/live-socket";
 import { applyUciToFen } from "@/lib/casino/chess/engine";
 import { resolveViewerColor } from "@/lib/casino/chess/viewer";
 import type {
+  ChessChatMessage,
+  ChessChatRoom,
   ChessColor,
   ChessMatch,
+  ChessMatchComment,
   ChessMatchState,
   CreateChessChallengeInput,
 } from "@/lib/casino/api/types";
@@ -61,6 +85,10 @@ export const CHESS_KEYS = {
   challenges: ["casino", "chess", "challenges"] as const,
   liveMatches: ["casino", "chess", "live"] as const,
   match: (id: string) => ["casino", "chess", "match", id] as const,
+  chat: (id: string, room: ChessChatRoom) =>
+    ["casino", "chess", "match", id, "chat", room] as const,
+  note: (id: string, viewer: string) => ["casino", "chess", "match", id, "note", viewer] as const,
+  comments: (id: string, ply: number) => ["casino", "chess", "match", id, "comments", ply] as const,
   history: (wallet: string) => ["casino", "chess", "history", wallet] as const,
   ticket: (id: string) => ["casino", "chess", "ticket", id] as const,
 };
@@ -246,18 +274,13 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
       : baseMatch;
   const clocks = useTickingClocks(match);
 
-  // Live path: the service publishes state/position/gameOver frames to the
-  // ws-gateway on the match's liveTopic. We subscribe through the shared client
-  // socket (one per browser, never one per match) and apply each frame straight
-  // to the cache so moves render the instant they arrive; only a real chess
-  // frame marks the relay live, because a bare socket open does not prove this
-  // topic is flowing and a false "live" state would stretch a broken relay into
-  // a five-second poll delay for the opponent's move.
+  // Live path: the service publishes state/position/gameOver plus rematch and
+  // takeback frames to the ws-gateway on the match's liveTopic. Finished boards
+  // still stay subscribed because rematch never polls: the post-game actions
+  // advance only over this socket.
   const liveTopic = match?.liveTopic ?? (matchId ? `chess:match:${matchId}` : null);
-  const liveTrackable =
-    match?.state === undefined || (match.state !== "settled" && match.state !== "cancelled");
   useEffect(() => {
-    if (!liveTopic || !matchId || !liveTrackable) return;
+    if (!liveTopic || !matchId) return;
     return subscribeChessTopic(liveTopic, (frame) => {
       const { type, data } = frame;
       if (type === "__open") {
@@ -274,7 +297,19 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
         setLiveMatchId((current) => (current === matchId ? null : current));
         return;
       }
-      if (type !== "state" && type !== "position" && type !== "gameOver") return;
+      if (
+        type !== "state" &&
+        type !== "position" &&
+        type !== "gameOver" &&
+        type !== "chatLine" &&
+        type !== "commentUpserted" &&
+        type !== "commentDeleted" &&
+        type !== "rematchOffer" &&
+        type !== "rematchTaken" &&
+        type !== "takebackOffers"
+      ) {
+        return;
+      }
       // The shared socket already routed this frame here by its topic, so it is
       // this match's. A frame proves the relay is live: let the match poll drop
       // to its slow safety-net interval.
@@ -295,11 +330,40 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
             ? applyStateFrame(prev, data as ChessMatchWire)
             : toChessMatch(data as ChessMatchWire)
         );
+      } else if (type === "takebackOffers" && data) {
+        queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
+          prev ? applyTakebackOffersFrame(prev, data as ChessTakebackOffersFrame) : prev
+        );
+      } else if (type === "rematchOffer" && data) {
+        queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
+          prev ? applyRematchOfferFrame(prev, data as ChessRematchOfferFrame) : prev
+        );
+      } else if (type === "rematchTaken" && data) {
+        queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
+          prev ? applyRematchTakenFrame(prev, data as ChessRematchTakenFrame) : prev
+        );
+      } else if (type === "chatLine" && data) {
+        const frame = data as ChessChatMessageWire;
+        queryClient.setQueryData<ChessChatMessage[]>(CHESS_KEYS.chat(matchId, frame.room), (prev) =>
+          applyChatLineFrame(prev ?? [], frame)
+        );
+      } else if (type === "commentUpserted" && data) {
+        const frame = data as ChessMatchCommentWire;
+        queryClient.setQueryData<ChessMatchComment[]>(
+          CHESS_KEYS.comments(matchId, frame.ply),
+          (prev) => applyCommentUpsertedFrame(prev ?? [], frame)
+        );
+      } else if (type === "commentDeleted" && data) {
+        const frame = data as ChessCommentDeletedFrame;
+        queryClient.setQueryData<ChessMatchComment[]>(
+          CHESS_KEYS.comments(matchId, frame.ply),
+          (prev) => (prev ? applyCommentDeletedFrame(prev, frame) : prev)
+        );
       } else {
         void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
       }
     });
-  }, [liveTopic, liveTrackable, matchId, queryClient]);
+  }, [liveTopic, matchId, queryClient]);
 
   useEffect(() => {
     if (!optimistic || !matchId) return;
@@ -365,7 +429,22 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
 
   const rematch = useMutation({
     mutationFn: () => requestRematch(matchId as string, requireWallet(wallet.address)),
-    onSuccess: (next) => applyMatch(next),
+    onSuccess: applyMatch,
+  });
+
+  const declineRematch = useMutation({
+    mutationFn: () => declineRematchAction(matchId as string, requireWallet(wallet.address)),
+    onSuccess: applyMatch,
+  });
+
+  const takeback = useMutation({
+    mutationFn: () => requestTakeback(matchId as string, requireWallet(wallet.address)),
+    onSuccess: applyMatch,
+  });
+
+  const declineTakeback = useMutation({
+    mutationFn: () => declineTakebackAction(matchId as string, requireWallet(wallet.address)),
+    onSuccess: applyMatch,
   });
 
   const flag = useMutation({
@@ -414,7 +493,114 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
     aborting: abort.isPending,
     rematch: rematch.mutateAsync,
     requestingRematch: rematch.isPending,
+    declineRematch: declineRematch.mutateAsync,
+    decliningRematch: declineRematch.isPending,
+    takeback: takeback.mutateAsync,
+    requestingTakeback: takeback.isPending,
+    declineTakeback: declineTakeback.mutateAsync,
+    decliningTakeback: declineTakeback.isPending,
     claimingTimeout: flag.isPending,
+  };
+}
+
+export function useChessMatchSocial(
+  matchId: string | null,
+  room: ChessChatRoom,
+  canUsePlayerRoom: boolean,
+  currentPly: number | null
+) {
+  const queryClient = useQueryClient();
+  const wallet = useCasinoWallet();
+  const viewer = wallet.address?.toLowerCase() ?? "anon";
+  const activeRoom: ChessChatRoom = room === "player" && canUsePlayerRoom ? "player" : "spectator";
+
+  const chat = useQuery({
+    queryKey: CHESS_KEYS.chat(matchId ?? "none", activeRoom),
+    queryFn: () => fetchMatchChat(matchId as string, { room: activeRoom, limit: 100 }),
+    enabled: !!matchId && (activeRoom === "spectator" || !!wallet.address),
+  });
+
+  const note = useQuery({
+    queryKey: CHESS_KEYS.note(matchId ?? "none", viewer),
+    queryFn: () => fetchMatchNote(matchId as string),
+    enabled: !!matchId && !!wallet.address,
+  });
+
+  const comments = useQuery({
+    queryKey: CHESS_KEYS.comments(matchId ?? "none", currentPly ?? -1),
+    queryFn: () => fetchMatchComments(matchId as string, currentPly ?? undefined),
+    enabled: !!matchId && currentPly !== null,
+  });
+
+  const postChat = useMutation({
+    mutationFn: (input: { room: ChessChatRoom; text: string }) =>
+      postMatchChatMessage(matchId as string, input.room, input.text),
+    onSuccess: (line) => {
+      queryClient.setQueryData<ChessChatMessage[]>(
+        CHESS_KEYS.chat(matchId as string, line.room),
+        (prev) =>
+          prev && prev.some((item) => item.id === line.id) ? prev : [...(prev ?? []), line]
+      );
+    },
+  });
+
+  const saveNote = useMutation({
+    mutationFn: (text: string) => saveMatchNote(matchId as string, text),
+    onSuccess: (saved) => {
+      queryClient.setQueryData(CHESS_KEYS.note(matchId as string, viewer), saved);
+    },
+  });
+
+  const upsertComment = useMutation({
+    mutationFn: (input: { ply: number; text: string }) =>
+      upsertMatchComment(matchId as string, input),
+    onSuccess: (saved) => {
+      queryClient.setQueryData<ChessMatchComment[]>(
+        CHESS_KEYS.comments(matchId as string, saved.ply),
+        (prev) => {
+          const withoutCurrent = (prev ?? []).filter((comment) => comment.id !== saved.id);
+          return [...withoutCurrent, saved].sort((left, right) => {
+            const byCreated = Date.parse(left.createdAt) - Date.parse(right.createdAt);
+            return Number.isFinite(byCreated) ? byCreated : 0;
+          });
+        }
+      );
+    },
+  });
+
+  const removeComment = useMutation({
+    mutationFn: (input: { commentId: string; ply: number }) =>
+      deleteMatchComment(matchId as string, input.commentId).then((deleted) => ({
+        deleted,
+        ply: input.ply,
+      })),
+    onSuccess: ({ deleted, ply }) => {
+      queryClient.setQueryData<ChessMatchComment[]>(
+        CHESS_KEYS.comments(matchId as string, ply),
+        (prev) => (prev ?? []).filter((comment) => comment.id !== deleted.id)
+      );
+    },
+  });
+
+  return {
+    chatMessages: chat.data ?? [],
+    chatLoading: chat.isLoading,
+    chatError: chat.error,
+    activeChatRoom: activeRoom,
+    postChat: postChat.mutateAsync,
+    postingChat: postChat.isPending,
+    note: note.data ?? null,
+    noteLoading: note.isLoading,
+    noteError: note.error,
+    saveNote: saveNote.mutateAsync,
+    savingNote: saveNote.isPending,
+    comments: comments.data ?? [],
+    commentsLoading: comments.isLoading,
+    commentsError: comments.error,
+    upsertComment: upsertComment.mutateAsync,
+    savingComment: upsertComment.isPending,
+    deleteComment: removeComment.mutateAsync,
+    deletingComment: removeComment.isPending,
   };
 }
 
@@ -488,42 +674,6 @@ export function useQuickMatch() {
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
     },
   });
-}
-
-// Watches for the opponent opening a rematch.
-//
-// The service's rematch is not an invitation: it opens a brand new game seating
-// only the caller, with the colours swapped, and the other player is never told.
-// If both pressed it they would sit in two separate empty games. So once a game
-// is over the loser of the race watches the waiting list for a game their last
-// opponent has just opened, and joins that one instead of opening a third.
-const REMATCH_POLL_MS = 3_000;
-
-export function useRematchOffer(match: ChessMatch | undefined, you: ChessColor | null) {
-  const over = !!match && (match.state === "settled" || match.state === "cancelled");
-  const opponentWallet =
-    !match || you === null
-      ? null
-      : ((you === "w" ? match.black : match.white)?.walletAddress ?? null);
-
-  const query = useQuery({
-    queryKey: ["casino", "chess", "rematch-offer", match?.id ?? "none"],
-    queryFn: async () => {
-      const waiting = await fetchWaitingMatches();
-      const theirs = (opponentWallet as string).toLowerCase();
-      // Only a game opened after this one started can be its rematch.
-      const found = waiting.find(
-        (m) =>
-          (m.white?.toLowerCase() === theirs || m.black?.toLowerCase() === theirs) &&
-          m.createdAt > (match as ChessMatch).createdAt
-      );
-      return found?.id ?? null;
-    },
-    enabled: over && !!opponentWallet,
-    refetchInterval: (q) => (q.state.data ? false : REMATCH_POLL_MS),
-  });
-
-  return query.data ?? null;
 }
 
 // Follows a game the player opened until somebody joins it.

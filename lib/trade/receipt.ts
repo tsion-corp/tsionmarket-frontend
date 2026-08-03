@@ -1,16 +1,17 @@
 import { createPublicClient, http, type Chain } from "viem";
-import { arbitrum, base, polygon } from "viem/chains";
+import { SPONSORED_EVM_CHAINS } from "@/lib/trade/sponsored-evm";
 
 // Read client per chain for confirming transactions. Reads must go through a
 // client pinned to the transaction's chain, never the embedded wallet's ambient
 // provider: Privy can leave that provider pointed at a different chain, so a
-// receipt for a Base/Polygon/Arbitrum transaction would be polled on the wrong
-// chain and never found, timing the flow out even though the transaction landed.
-const READ_CHAINS: Record<number, Chain> = {
-  [base.id]: base,
-  [arbitrum.id]: arbitrum,
-  [polygon.id]: polygon,
-};
+// receipt would be polled on the wrong chain and never found, timing the flow
+// out even though the transaction landed.
+const READ_CHAINS: Record<number, Chain> = Object.fromEntries(
+  SPONSORED_EVM_CHAINS.filter((config) => config.supportsReceiptPolling).map((config) => [
+    config.chainId,
+    config.chain,
+  ])
+);
 
 // Cap the wait so a genuinely stuck transaction surfaces an error instead of
 // hanging the flow. Fast L2 blocks (~2s) confirm well inside this.

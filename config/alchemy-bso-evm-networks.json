@@ -1,0 +1,317 @@
+[
+  {
+    "network": "eth-mainnet",
+    "policyNetwork": "ETH_MAINNET",
+    "alchemyHost": "eth-mainnet.g.alchemy.com",
+    "chainKey": "mainnet"
+  },
+  {
+    "network": "eth-sepolia",
+    "policyNetwork": "ETH_SEPOLIA",
+    "alchemyHost": "eth-sepolia.g.alchemy.com",
+    "chainKey": "sepolia"
+  },
+  {
+    "network": "base-mainnet",
+    "policyNetwork": "BASE_MAINNET",
+    "alchemyHost": "base-mainnet.g.alchemy.com",
+    "chainKey": "base"
+  },
+  {
+    "network": "base-sepolia",
+    "policyNetwork": "BASE_SEPOLIA",
+    "alchemyHost": "base-sepolia.g.alchemy.com",
+    "chainKey": "baseSepolia"
+  },
+  {
+    "network": "arb-mainnet",
+    "policyNetwork": "ARB_MAINNET",
+    "alchemyHost": "arb-mainnet.g.alchemy.com",
+    "chainKey": "arbitrum"
+  },
+  {
+    "network": "arb-sepolia",
+    "policyNetwork": "ARB_SEPOLIA",
+    "alchemyHost": "arb-sepolia.g.alchemy.com",
+    "chainKey": "arbitrumSepolia"
+  },
+  {
+    "network": "arbnova-mainnet",
+    "policyNetwork": "ARBNOVA_MAINNET",
+    "alchemyHost": "arbnova-mainnet.g.alchemy.com",
+    "chainKey": "arbitrumNova"
+  },
+  {
+    "network": "apechain-mainnet",
+    "policyNetwork": "APECHAIN_MAINNET",
+    "alchemyHost": "apechain-mainnet.g.alchemy.com",
+    "chainKey": "apeChain"
+  },
+  {
+    "network": "apechain-curtis",
+    "policyNetwork": "APECHAIN_CURTIS",
+    "alchemyHost": "apechain-curtis.g.alchemy.com",
+    "chainKey": "curtis"
+  },
+  {
+    "network": "arc-testnet",
+    "policyNetwork": "ARC_TESTNET",
+    "alchemyHost": "arc-testnet.g.alchemy.com",
+    "chainKey": "arcTestnet"
+  },
+  {
+    "network": "berachain-mainnet",
+    "policyNetwork": "BERACHAIN_MAINNET",
+    "alchemyHost": "berachain-mainnet.g.alchemy.com",
+    "chainKey": "berachain"
+  },
+  {
+    "network": "bnb-mainnet",
+    "policyNetwork": "BNB_MAINNET",
+    "alchemyHost": "bnb-mainnet.g.alchemy.com",
+    "chainKey": "bsc"
+  },
+  {
+    "network": "bnb-testnet",
+    "policyNetwork": "BNB_TESTNET",
+    "alchemyHost": "bnb-testnet.g.alchemy.com",
+    "chainKey": "bscTestnet"
+  },
+  {
+    "network": "celo-mainnet",
+    "policyNetwork": "CELO_MAINNET",
+    "alchemyHost": "celo-mainnet.g.alchemy.com",
+    "chainKey": "celo"
+  },
+  {
+    "network": "celo-sepolia",
+    "policyNetwork": "CELO_SEPOLIA",
+    "alchemyHost": "celo-sepolia.g.alchemy.com",
+    "chainKey": "celoSepolia"
+  },
+  {
+    "network": "cronos-mainnet",
+    "policyNetwork": "CRONOS_MAINNET",
+    "alchemyHost": "cronos-mainnet.g.alchemy.com",
+    "chainKey": "cronos"
+  },
+  {
+    "network": "cronos-testnet",
+    "policyNetwork": "CRONOS_TESTNET",
+    "alchemyHost": "cronos-testnet.g.alchemy.com",
+    "chainKey": "cronosTestnet"
+  },
+  {
+    "network": "edge-mainnet",
+    "policyNetwork": "EDGE_MAINNET",
+    "alchemyHost": "edge-mainnet.g.alchemy.com",
+    "chainKey": null,
+    "chainId": 3343,
+    "name": "Edge Mainnet",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  {
+    "network": "edge-testnet",
+    "policyNetwork": "EDGE_TESTNET",
+    "alchemyHost": "edge-testnet.g.alchemy.com",
+    "chainKey": null,
+    "chainId": 33431,
+    "name": "Edge Testnet",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  {
+    "network": "frax-mainnet",
+    "policyNetwork": "FRAX_MAINNET",
+    "alchemyHost": "frax-mainnet.g.alchemy.com",
+    "chainKey": "fraxtal"
+  },
+  {
+    "network": "gensyn-mainnet",
+    "policyNetwork": "GENSYN_MAINNET",
+    "alchemyHost": "gensyn-mainnet.g.alchemy.com",
+    "chainKey": "gensyn"
+  },
+  {
+    "network": "gensyn-testnet",
+    "policyNetwork": "GENSYN_TESTNET",
+    "alchemyHost": "gensyn-testnet.g.alchemy.com",
+    "chainKey": null,
+    "chainId": 685685,
+    "name": "Gensyn Testnet",
+    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+  },
+  {
+    "network": "hyperliquid-mainnet",
+    "policyNetwork": "HYPERLIQUID_MAINNET",
+    "alchemyHost": "hyperliquid-mainnet.g.alchemy.com",
+    "chainKey": "hyperliquid"
+  },
+  {
+    "network": "hyperliquid-testnet",
+    "policyNetwork": "HYPERLIQUID_TESTNET",
+    "alchemyHost": "hyperliquid-testnet.g.alchemy.com",
+    "chainKey": "hyperliquidEvmTestnet"
+  },
+  {
+    "network": "ink-mainnet",
+    "policyNetwork": "INK_MAINNET",
+    "alchemyHost": "ink-mainnet.g.alchemy.com",
+    "chainKey": "ink"
+  },
+  {
+    "network": "ink-sepolia",
+    "policyNetwork": "INK_SEPOLIA",
+    "alchemyHost": "ink-sepolia.g.alchemy.com",
+    "chainKey": "inkSepolia"
+  },
+  {
+    "network": "monad-mainnet",
+    "policyNetwork": "MONAD_MAINNET",
+    "alchemyHost": "monad-mainnet.g.alchemy.com",
+    "chainKey": "monad"
+  },
+  {
+    "network": "monad-testnet",
+    "policyNetwork": "MONAD_TESTNET",
+    "alchemyHost": "monad-testnet.g.alchemy.com",
+    "chainKey": "monadTestnet"
+  },
+  {
+    "network": "opbnb-mainnet",
+    "policyNetwork": "OPBNB_MAINNET",
+    "alchemyHost": "opbnb-mainnet.g.alchemy.com",
+    "chainKey": "opBNB"
+  },
+  {
+    "network": "opbnb-testnet",
+    "policyNetwork": "OPBNB_TESTNET",
+    "alchemyHost": "opbnb-testnet.g.alchemy.com",
+    "chainKey": "opBNBTestnet"
+  },
+  {
+    "network": "opt-mainnet",
+    "policyNetwork": "OPT_MAINNET",
+    "alchemyHost": "opt-mainnet.g.alchemy.com",
+    "chainKey": "optimism"
+  },
+  {
+    "network": "opt-sepolia",
+    "policyNetwork": "OPT_SEPOLIA",
+    "alchemyHost": "opt-sepolia.g.alchemy.com",
+    "chainKey": "optimismSepolia"
+  },
+  {
+    "network": "plasma-mainnet",
+    "policyNetwork": "PLASMA_MAINNET",
+    "alchemyHost": "plasma-mainnet.g.alchemy.com",
+    "chainKey": "plasma"
+  },
+  {
+    "network": "plasma-testnet",
+    "policyNetwork": "PLASMA_TESTNET",
+    "alchemyHost": "plasma-testnet.g.alchemy.com",
+    "chainKey": "plasmaTestnet"
+  },
+  {
+    "network": "polygon-mainnet",
+    "policyNetwork": "MATIC_MAINNET",
+    "alchemyHost": "polygon-mainnet.g.alchemy.com",
+    "chainKey": "polygon"
+  },
+  {
+    "network": "polygon-amoy",
+    "policyNetwork": "POLYGON_AMOY",
+    "alchemyHost": "polygon-amoy.g.alchemy.com",
+    "chainKey": "polygonAmoy"
+  },
+  {
+    "network": "polynomial-mainnet",
+    "policyNetwork": "POLYNOMIAL_MAINNET",
+    "alchemyHost": "polynomial-mainnet.g.alchemy.com",
+    "chainKey": "polynomial"
+  },
+  {
+    "network": "polynomial-sepolia",
+    "policyNetwork": "POLYNOMIAL_TESTNET",
+    "alchemyHost": "polynomial-sepolia.g.alchemy.com",
+    "chainKey": "polynomialSepolia"
+  },
+  {
+    "network": "rise-testnet",
+    "policyNetwork": "RISE_TESTNET",
+    "alchemyHost": "rise-testnet.g.alchemy.com",
+    "chainKey": "riseTestnet"
+  },
+  {
+    "network": "robinhood-mainnet",
+    "policyNetwork": "ROBINHOOD_MAINNET",
+    "alchemyHost": "robinhood-mainnet.g.alchemy.com",
+    "chainKey": "robinhood"
+  },
+  {
+    "network": "robinhood-testnet",
+    "policyNetwork": "ROBINHOOD_TESTNET",
+    "alchemyHost": "robinhood-testnet.g.alchemy.com",
+    "chainKey": "robinhoodTestnet"
+  },
+  {
+    "network": "shape-mainnet",
+    "policyNetwork": "SHAPE_MAINNET",
+    "alchemyHost": "shape-mainnet.g.alchemy.com",
+    "chainKey": "shape"
+  },
+  {
+    "network": "shape-sepolia",
+    "policyNetwork": "SHAPE_SEPOLIA",
+    "alchemyHost": "shape-sepolia.g.alchemy.com",
+    "chainKey": "shapeSepolia"
+  },
+  {
+    "network": "soneium-mainnet",
+    "policyNetwork": "SONEIUM_MAINNET",
+    "alchemyHost": "soneium-mainnet.g.alchemy.com",
+    "chainKey": "soneium"
+  },
+  {
+    "network": "soneium-minato",
+    "policyNetwork": "SONEIUM_MINATO",
+    "alchemyHost": "soneium-minato.g.alchemy.com",
+    "chainKey": "soneiumMinato"
+  },
+  {
+    "network": "stable-mainnet",
+    "policyNetwork": "STABLE_MAINNET",
+    "alchemyHost": "stable-mainnet.g.alchemy.com",
+    "chainKey": "stable"
+  },
+  {
+    "network": "stable-testnet",
+    "policyNetwork": "STABLE_TESTNET",
+    "alchemyHost": "stable-testnet.g.alchemy.com",
+    "chainKey": "stableTestnet"
+  },
+  {
+    "network": "unichain-mainnet",
+    "policyNetwork": "UNICHAIN_MAINNET",
+    "alchemyHost": "unichain-mainnet.g.alchemy.com",
+    "chainKey": "unichain"
+  },
+  {
+    "network": "unichain-sepolia",
+    "policyNetwork": "UNICHAIN_SEPOLIA",
+    "alchemyHost": "unichain-sepolia.g.alchemy.com",
+    "chainKey": "unichainSepolia"
+  },
+  {
+    "network": "worldchain-mainnet",
+    "policyNetwork": "WORLDCHAIN_MAINNET",
+    "alchemyHost": "worldchain-mainnet.g.alchemy.com",
+    "chainKey": "worldchain"
+  },
+  {
+    "network": "worldchain-sepolia",
+    "policyNetwork": "WORLDCHAIN_SEPOLIA",
+    "alchemyHost": "worldchain-sepolia.g.alchemy.com",
+    "chainKey": "worldchainSepolia"
+  }
+]
