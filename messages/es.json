@@ -788,6 +788,7 @@
     "viewSlip": "Ver boleto",
     "claim": "Reclamar",
     "claiming": "Reclamando…",
+    "claimed": "Reclamado",
     "claimAmount": "Reclamar {amount}",
     "resolvedNoWin": "Resuelto · sin premio",
     "resolvedYouWon": "Resuelto · ganaste",
@@ -891,6 +892,11 @@
     "resolveNote": "Como creador puedes fijar el resultado una vez cerrada la operativa.",
     "resolveYes": "Resolver Sí",
     "resolveNo": "Resolver No",
+    "resolveEventTitle": "Resolver evento",
+    "resolveEventNote": "Como creador, resuelve cada resultado: Sí si ocurrió, No si no. Los resultados se resuelven de forma independiente.",
+    "resolving": "Resolviendo…",
+    "resolvedYes": "Resuelto Sí",
+    "resolvedNo": "Resuelto No",
     "closeMarketCta": "Cerrar operativa",
     "questionLabel": "Pregunta",
     "questionPlaceholder": "¿Superará BTC los 150k$ para el 3T de 2026?",
@@ -1006,7 +1012,9 @@
     "redeemCta": "Redeem winnings",
     "tab_positions": "Positions",
     "positionConnect": "Connect a wallet to see your position.",
-    "noEarlyExitNote": "Sin salida anticipada. Podrás reclamar cuando el mercado se resuelva."
+    "noEarlyExitNote": "Sin salida anticipada. Podrás reclamar cuando el mercado se resuelva.",
+    "viewOutcomes": "Ver resultados",
+    "moreOutcomes": "+{count} más"
   },
   "perps": {
     "eyebrow": "Perpetuos",

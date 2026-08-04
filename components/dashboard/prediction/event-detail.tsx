@@ -7,6 +7,7 @@ import { ChevronLeftIcon } from "@/components/ui/icons";
 import { useGroup, useGroupChart } from "@/hooks/use-prediction-detail";
 import { CommentsPanel } from "@/components/dashboard/prediction/comments-panel";
 import { EventChart } from "@/components/dashboard/prediction/event-chart";
+import { EventResolvePanel } from "@/components/dashboard/prediction/event-resolve-panel";
 import { OutcomeRow } from "@/components/dashboard/prediction/outcome-row";
 import { compactUsd } from "@/lib/prediction/format";
 import type { ChartInterval } from "@/lib/prediction/types";
@@ -141,6 +142,9 @@ export function EventDetail({ idOrSlug }: EventDetailProps) {
         </div>
 
         <div className="flex flex-col gap-6 lg:sticky lg:top-6">
+          {/* Creator-only: resolve each outcome market independently. Renders
+              nothing for non-creators or a fully-resolved event. */}
+          <EventResolvePanel group={group} />
           <CommentsPanel groupId={group.id} />
         </div>
       </div>

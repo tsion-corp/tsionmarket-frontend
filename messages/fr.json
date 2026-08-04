@@ -788,6 +788,7 @@
     "viewSlip": "Voir le ticket",
     "claim": "Réclamer",
     "claiming": "Réclamation…",
+    "claimed": "Réclamé",
     "claimAmount": "Réclamer {amount}",
     "resolvedNoWin": "Résolu · pas de gain",
     "resolvedYouWon": "Résolu · vous avez gagné",
@@ -891,6 +892,11 @@
     "resolveNote": "En tant que créateur, vous pouvez fixer le résultat une fois le trading fermé.",
     "resolveYes": "Résoudre Oui",
     "resolveNo": "Résoudre Non",
+    "resolveEventTitle": "Résoudre l'événement",
+    "resolveEventNote": "En tant que créateur, résolvez chaque résultat : Oui s'il s'est produit, Non sinon. Les résultats sont résolus indépendamment.",
+    "resolving": "Résolution…",
+    "resolvedYes": "Résolu Oui",
+    "resolvedNo": "Résolu Non",
     "closeMarketCta": "Fermer le trading",
     "questionLabel": "Question",
     "questionPlaceholder": "Le BTC dépassera-t-il 150k$ d'ici le T3 2026 ?",
@@ -1006,7 +1012,9 @@
     "redeemCta": "Redeem winnings",
     "tab_positions": "Positions",
     "positionConnect": "Connect a wallet to see your position.",
-    "noEarlyExitNote": "Pas de sortie anticipée. Vous pourrez récupérer une fois le marché résolu."
+    "noEarlyExitNote": "Pas de sortie anticipée. Vous pourrez récupérer une fois le marché résolu.",
+    "viewOutcomes": "Voir les issues",
+    "moreOutcomes": "+{count} de plus"
   },
   "perps": {
     "eyebrow": "Perpétuels",

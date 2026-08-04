@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMoney } from "@/components/ui/currency-select";
 import { ChevronLeftIcon, ChartBarsIcon } from "@/components/ui/icons";
@@ -37,14 +37,32 @@ export function PortfolioPanel() {
   const list = positions ?? [];
   const claimable = withdrawable.data ?? 0n;
 
+  // Positions the user just redeemed this session, keyed "<marketId>-<side>".
+  // redeem() burns the shares ON-CHAIN immediately, but usePositions reads the
+  // INDEXER, which lags — so without this the just-claimed position (and its
+  // Claim button) lingers until the indexer catches up, letting the user tap
+  // Claim again and hit an on-chain "balance" revert (the shares are already
+  // gone). Marking it here hides the button the moment the redeem tx confirms.
+  const [claimedKeys, setClaimedKeys] = useState<Set<string>>(new Set());
+  const keyOf = (p: Position) => `${p.marketId.toString()}-${p.side}`;
+
   // A position wins when its market resolved and the held side matches the
-  // outcome. Winning shares can be redeemed 1:1 for USDC.
+  // outcome. Winning shares can be redeemed 1:1 for USDC. A position already
+  // redeemed this session is no longer claimable (see claimedKeys).
   const isWinner = (p: Position, m: Market | undefined): boolean =>
-    !!m && m.status === "Resolved" && m.outcome.toLowerCase() === p.side;
+    !!m &&
+    m.status === "Resolved" &&
+    m.outcome.toLowerCase() === p.side &&
+    !claimedKeys.has(keyOf(p));
 
   const onRedeem = async (p: Position) => {
     const ok = await actions.redeem(p.marketId, p.side, p.shares);
-    if (ok) void actions.claim();
+    if (ok) {
+      // Optimistically retire this position's Claim button right away — don't
+      // wait for the indexer to reflect the burned shares.
+      setClaimedKeys((prev) => new Set(prev).add(keyOf(p)));
+      void actions.claim();
+    }
   };
 
   const created = myMarkets ?? [];
@@ -116,6 +134,12 @@ export function PortfolioPanel() {
                   >
                     {actions.busy ? t("claiming") : t("claim")}
                   </button>
+                ) : claimedKeys.has(keyOf(p)) ? (
+                  // Just redeemed this session — the shares are burned on-chain;
+                  // show a settled label instead of a re-clickable Claim button.
+                  <span className="text-accent text-right text-[12.5px] font-medium">
+                    {t("claimed")}
+                  </span>
                 ) : m?.status === "Resolved" ? (
                   <span className="text-down text-right text-[12.5px] font-medium">
                     {t("resolvedNoWin")}

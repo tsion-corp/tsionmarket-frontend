@@ -4,6 +4,7 @@ import { createClient, http, type EIP1193Provider, type SignedAuthorization } fr
 import { createBundlerClient } from "viem/account-abstraction";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
 import { getSponsoredEvmChainById } from "@/lib/trade/sponsored-evm";
+import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 
 // The shared 7702 Simple Account implementation used by permissionless. The
 // EOA delegates to this logic at the same address, so sponsorship does not
@@ -26,11 +27,14 @@ export type SignAuthorization = (input: {
   nonce?: number;
 }) => Promise<SignedAuthorization<number>>;
 
-async function isAlreadyDelegated(
-  client: ReturnType<typeof createClient>,
-  address: `0x${string}`
-): Promise<boolean> {
-  const code = (await client.request({
+// A minimal "can serve node reads" shape — satisfied by both a public read
+// client (mainnet.base.org node) and the bundler-proxy client. Typed as a bare
+// callable so viem's method-union request signatures on either client widen to
+// it; `params` is passed through untouched to the JSON-RPC layer.
+type ReadRequest = (args: { method: string; params: unknown }) => Promise<unknown>;
+
+async function isAlreadyDelegated(request: ReadRequest, address: `0x${string}`): Promise<boolean> {
+  const code = (await request({
     method: "eth_getCode",
     params: [address, "latest"],
   })) as string;
@@ -60,15 +64,33 @@ export async function sendSponsoredEvmCalls({
     throw new Error(`This chain is not configured for sponsored EVM sends (${chainId}).`);
   }
 
+  // Bundler transport: ONLY the ERC-4337 UserOperation methods
+  // (eth_sendUserOperation, eth_estimateUserOperationGas, …) go here, through
+  // our Alchemy proxy.
   const transport = http(`${BUNDLER_PATH}/${target.network}`, {
     fetchOptions: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
-  const client = createClient({ chain: target.chain, transport });
+
+  // Read client: ALL plain node reads (eth_getCode, eth_getTransactionCount, gas
+  // reads) go to a real node RPC, NOT the Alchemy bundler endpoint. The bundler
+  // endpoint is tuned for UserOperation methods; general state reads through it
+  // are slow and intermittently time out — the `eth_getCode` the account builder
+  // and delegation check issue on EVERY send was hanging there, which is what
+  // failed createMarket (once per outcome in a multi-market event). This client
+  // is what `to7702SimpleSmartAccount` and the bundler client use for reads;
+  // only `sendUserOperation` uses the bundler transport. Chains without a
+  // dedicated read node fall back to the bundler transport.
+  const client = isReceiptChain(target.chainId)
+    ? publicClientForChain(target.chainId)
+    : createClient({ chain: target.chain, transport });
+
+  const read: ReadRequest = (args) =>
+    (client.request as (a: { method: string; params: unknown }) => Promise<unknown>)(args);
 
   let authorization: SignedAuthorization<number> | undefined;
-  if (!(await isAlreadyDelegated(client, address))) {
+  if (!(await isAlreadyDelegated(read, address))) {
     const nonce = Number(
-      (await client.request({
+      (await read({
         method: "eth_getTransactionCount",
         params: [address, "latest"],
       })) as string
@@ -86,6 +108,9 @@ export async function sendSponsoredEvmCalls({
     accountLogicAddress: SIMPLE_7702_IMPL,
   });
 
+  // The bundler client reads through `client` (fast node) and submits the userOp
+  // through `transport` (bundler proxy) — the split that keeps eth_getCode off
+  // the bundler endpoint.
   const bundlerClient = createBundlerClient({ account, client, chain: target.chain, transport });
 
   const hash = await bundlerClient.sendUserOperation({

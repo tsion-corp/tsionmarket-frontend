@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ProgressBar } from "@/components/ui/progress-bar";
+import { CloseTimer } from "@/components/dashboard/prediction/close-timer";
 import { compactUsd, priceToCents, priceToPct } from "@/lib/prediction/format";
 import type { Market } from "@/lib/prediction/types";
 
@@ -60,6 +61,11 @@ export function LocalPredictionCard({ market: m }: PredictionCardProps) {
           <div className="mt-1.5">
             <ProgressBar pct={priceToPct(m.priceYes)} />
           </div>
+          <CloseTimer
+            closeTime={m.closeTime}
+            status={m.status}
+            className="mt-2.5 text-[11.5px] font-normal text-white/45"
+          />
         </div>
       </Link>
 

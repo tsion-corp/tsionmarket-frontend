@@ -788,6 +788,7 @@
     "viewSlip": "View slip",
     "claim": "Claim",
     "claiming": "Claiming…",
+    "claimed": "Claimed",
     "claimAmount": "Claim {amount}",
     "resolvedNoWin": "Resolved · no win",
     "resolvedYouWon": "Resolved · you won",
@@ -891,6 +892,11 @@
     "resolveNote": "As the creator you can set the outcome once trading has closed.",
     "resolveYes": "Resolve Yes",
     "resolveNo": "Resolve No",
+    "resolveEventTitle": "Resolve event",
+    "resolveEventNote": "As the creator, resolve each outcome: Yes if it happened, No if it didn't. Outcomes are settled independently.",
+    "resolving": "Resolving…",
+    "resolvedYes": "Resolved Yes",
+    "resolvedNo": "Resolved No",
     "closeMarketCta": "Close trading",
     "questionLabel": "Question",
     "questionPlaceholder": "Will BTC top $150k by Q3 2026?",
@@ -1006,7 +1012,9 @@
     "redeemCta": "Redeem winnings",
     "tab_positions": "Positions",
     "positionConnect": "Connect a wallet to see your position.",
-    "noEarlyExitNote": "No early exit. You can redeem once the market resolves."
+    "noEarlyExitNote": "No early exit. You can redeem once the market resolves.",
+    "viewOutcomes": "View outcomes",
+    "moreOutcomes": "+{count} more"
   },
   "perps": {
     "eyebrow": "Perpetuals",

@@ -788,6 +788,7 @@
     "viewSlip": "Schein ansehen",
     "claim": "Abholen",
     "claiming": "Wird abgeholt…",
+    "claimed": "Abgeholt",
     "claimAmount": "{amount} abholen",
     "resolvedNoWin": "Entschieden · kein Gewinn",
     "resolvedYouWon": "Entschieden · Sie haben gewonnen",
@@ -891,6 +892,11 @@
     "resolveNote": "Als Ersteller kannst du das Ergebnis festlegen, sobald der Handel geschlossen ist.",
     "resolveYes": "Ja auflösen",
     "resolveNo": "Nein auflösen",
+    "resolveEventTitle": "Ereignis auflösen",
+    "resolveEventNote": "Als Ersteller lösen Sie jedes Ergebnis auf: Ja, wenn es eingetreten ist, Nein, wenn nicht. Ergebnisse werden unabhängig voneinander abgewickelt.",
+    "resolving": "Wird aufgelöst…",
+    "resolvedYes": "Als Ja aufgelöst",
+    "resolvedNo": "Als Nein aufgelöst",
     "closeMarketCta": "Handel schließen",
     "questionLabel": "Frage",
     "questionPlaceholder": "Übersteigt BTC bis Q3 2026 die 150k $?",
@@ -1006,7 +1012,9 @@
     "redeemCta": "Redeem winnings",
     "tab_positions": "Positions",
     "positionConnect": "Connect a wallet to see your position.",
-    "noEarlyExitNote": "Kein vorzeitiger Ausstieg. Du kannst einlösen, sobald der Markt aufgelöst ist."
+    "noEarlyExitNote": "Kein vorzeitiger Ausstieg. Du kannst einlösen, sobald der Markt aufgelöst ist.",
+    "viewOutcomes": "Ergebnisse ansehen",
+    "moreOutcomes": "+{count} mehr"
   },
   "perps": {
     "eyebrow": "Perpetuals",

@@ -4,11 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { LocalPredictionCard } from "@/components/dashboard/prediction/prediction-card-local";
+import { EventCard } from "@/components/dashboard/prediction/event-card-local";
 import { LocalPredictionSlider } from "@/components/dashboard/prediction/prediction-slider-local";
 import { PortfolioPanel } from "@/components/dashboard/prediction/positions-panel-local";
 import { CreateMarketFlow } from "@/components/dashboard/prediction/create-market-flow";
 import { useMarkets, useCategories } from "@/hooks/use-prediction-markets";
-import type { MarketStatus } from "@/lib/prediction/types";
+import { useGroups } from "@/hooks/use-prediction-detail";
+import type { Market, MarketGroup, MarketStatus } from "@/lib/prediction/types";
 
 // The LOCAL (on-chain CPMM) prediction browse — our own markets with holders,
 // activity, comments, and multi-outcome events. Rendered as the "Local" tab of
@@ -16,6 +18,11 @@ import type { MarketStatus } from "@/lib/prediction/types";
 // filters, a create-market entry, and the portfolio panel. Each card links to
 // the CPMM market detail page where trading/liquidity/resolution live.
 const STATUS_TABS: MarketStatus[] = ["Open", "Closed", "Resolved"];
+
+// A browse-grid entry: either a multi-outcome event (group) or a standalone
+// single market. Events are rendered as one grouped card; single markets as the
+// usual YES/NO tile.
+type BrowseItem = { kind: "event"; group: MarketGroup } | { kind: "market"; market: Market };
 
 export function LocalPredictionView() {
   const t = useTranslations("prediction");
@@ -25,14 +32,20 @@ export function LocalPredictionView() {
   const [creating, setCreating] = useState(false);
 
   const { data: markets, isLoading } = useMarkets(status);
+  // Multi-outcome EVENTS (Polymarket-style groups). Their member markets are real
+  // binary markets that ALSO come back from useMarkets — we surface the event as a
+  // single grouped card and hide its members from the flat grid so the browse
+  // shows one "event" tile instead of N scattered "Title — Outcome" cards.
+  const { data: groups } = useGroups({ status });
   const { data: categories } = useCategories();
 
   const tabs = useMemo(() => {
     const set = new Set<string>();
     for (const c of categories ?? []) set.add(c);
     for (const m of markets ?? []) if (m.category) set.add(m.category);
+    for (const g of groups ?? []) if (g.category) set.add(g.category);
     return Array.from(set);
-  }, [categories, markets]);
+  }, [categories, markets, groups]);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -42,7 +55,47 @@ export function LocalPredictionView() {
     return () => mq.removeEventListener("change", update);
   }, []);
 
-  const list = category ? (markets ?? []).filter((m) => m.category === category) : (markets ?? []);
+  // Combine events + standalone markets into one browse list. Member markets of
+  // an event are hidden from the flat grid (the event card represents them), so
+  // the same underlying market never appears twice.
+  const items = useMemo<BrowseItem[]>(() => {
+    const groupList = groups ?? [];
+
+    // Primary hide-set: exact member marketIds the group reports.
+    const memberIds = new Set<string>();
+    for (const g of groupList) {
+      for (const o of g.outcomes) memberIds.add(o.marketId.toString());
+    }
+
+    // Fallback hide-set: each member market's question is created as
+    // "<event title> — <outcome label>" (see use-create-event.ts), so any market
+    // whose question starts with a known event's "<title> — " prefix belongs to
+    // that event even if the group's `outcomes` array came back empty or partial
+    // (e.g. an interrupted create where not every addGroupMember completed).
+    // Without this, those member markets leak into the grid as standalone
+    // "Title — Outcome" cards instead of being represented by the event card.
+    const titlePrefixes = groupList.map((g) => `${g.title.trim().toLowerCase()} — `);
+    const belongsToEvent = (m: Market): boolean => {
+      if (memberIds.has(m.marketId.toString())) return true;
+      const q = (m.question ?? "").trim().toLowerCase();
+      return q.length > 0 && titlePrefixes.some((prefix) => q.startsWith(prefix));
+    };
+
+    const standalone = (markets ?? []).filter((m) => !belongsToEvent(m));
+    const events: BrowseItem[] = groupList.map((g) => ({ kind: "event", group: g }));
+    const singles: BrowseItem[] = standalone.map((m) => ({ kind: "market", market: m }));
+    // Events lead the grid (they're the richer surface), then single markets.
+    return [...events, ...singles];
+  }, [groups, markets]);
+
+  const list = category
+    ? items.filter((it) =>
+        it.kind === "event" ? it.group.category === category : it.market.category === category
+      )
+    : items;
+
+  // Mobile slider only carries single markets (its card is single-market shaped).
+  const sliderMarkets = list.flatMap((it) => (it.kind === "market" ? [it.market] : []));
 
   return (
     <div>
@@ -117,13 +170,27 @@ export function LocalPredictionView() {
         ) : desktop ? (
           <div className="@container">
             <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-3 @min-[900px]:gap-6 @min-[1240px]:grid-cols-4 @min-[1240px]:gap-7">
-              {list.map((m) => (
-                <LocalPredictionCard key={m.marketId.toString()} market={m} />
-              ))}
+              {list.map((it) =>
+                it.kind === "event" ? (
+                  <EventCard key={`event-${it.group.id}`} group={it.group} />
+                ) : (
+                  <LocalPredictionCard
+                    key={`market-${it.market.marketId.toString()}`}
+                    market={it.market}
+                  />
+                )
+              )}
             </div>
           </div>
         ) : (
-          <LocalPredictionSlider markets={list} />
+          <div className="flex flex-col gap-4">
+            {list
+              .filter((it): it is Extract<BrowseItem, { kind: "event" }> => it.kind === "event")
+              .map((it) => (
+                <EventCard key={`event-${it.group.id}`} group={it.group} />
+              ))}
+            {sliderMarkets.length > 0 ? <LocalPredictionSlider markets={sliderMarkets} /> : null}
+          </div>
         )}
 
         <PortfolioPanel />

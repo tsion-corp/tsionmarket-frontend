@@ -63,3 +63,22 @@ export function timeAgo(ms: number, nowMs: number = Date.now()): string {
   const d = Math.floor(h / 24);
   return `${d}d`;
 }
+
+// A forward countdown to a close time, given both as unix SECONDS (the shape
+// prediction close times are stored in). Returns null once the close time has
+// passed (the caller shows "Closed" instead), so a market never shows a stale or
+// negative countdown. Two most-significant units for readability ("2d 4h",
+// "3h 12m", "45m", "30s") — enough precision to feel live without churning every
+// second on a multi-day market.
+export function timeUntil(closeSeconds: number, nowMs: number = Date.now()): string | null {
+  const remainingS = Math.floor(closeSeconds - nowMs / 1000);
+  if (remainingS <= 0) return null;
+  const d = Math.floor(remainingS / 86_400);
+  const h = Math.floor((remainingS % 86_400) / 3_600);
+  const m = Math.floor((remainingS % 3_600) / 60);
+  const s = remainingS % 60;
+  if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  return `${s}s`;
+}

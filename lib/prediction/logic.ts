@@ -49,11 +49,18 @@ export function needsApproval(allowance: bigint, spend: bigint): boolean {
   return allowance < spend;
 }
 
-// Generates an unused market id off-chain: a random uint256 (the contract lets
-// the creator pick the id; a wide random space avoids collisions). Shared by the
-// single-market create flow and the multi-outcome event flow.
+// Generates an unused market id off-chain (the contract lets the creator pick
+// the id; anyone may create). Shared by the single-market create flow and the
+// multi-outcome event flow.
+//
+// 128 BITS, not the full 256: the contract derives each side's ERC-1155 token id
+// as `(marketId << 1) | side`, so a full-width uint256 id overflows that shift
+// and the create reverts with "id too large". A 128-bit random space leaves the
+// top bits clear (no overflow, fits any packed-id bound) while remaining
+// collision-free in practice — 2^128 ids, so a birthday collision is
+// astronomically unlikely across every market this platform could ever create.
 export function randomMarketId(): bigint {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
   let id = 0n;
   for (const b of bytes) id = (id << 8n) | BigInt(b);
   return id;
