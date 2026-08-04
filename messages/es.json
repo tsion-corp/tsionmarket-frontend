@@ -294,7 +294,19 @@
     "sendingCode": "Enviando código…",
     "continueEmail": "Continuar con correo",
     "continueKingschat": "Continuar con KingsChat",
-    "comingSoon": "Próximamente"
+    "comingSoon": "Próximamente",
+    "stepOf": "Paso {step} de {steps}",
+    "creatingAccount": "Configurando tu cuenta…",
+    "passkeyStepHeading": "Protege tu cuenta",
+    "passkeyStepTagline": "Tu cuenta y tus billeteras están listas. Un paso más las deja atadas a ti.",
+    "passkeyStepTitle": "Añade una passkey",
+    "passkeyStepBody": "Inicia sesión la próxima vez con tu huella, rostro o PIN del dispositivo — sin contraseña y a prueba de phishing.",
+    "passkeyStepUnsupported": "Este navegador no puede crear passkeys. Puedes añadir una más tarde desde un dispositivo compatible.",
+    "passkeyStepAdd": "Añadir passkey",
+    "passkeyStepSkip": "Omitir por ahora",
+    "passkeyStepLater": "Siempre puedes añadir una passkey más tarde.",
+    "passkeyAdded": "Passkey añadida — tu cuenta está protegida.",
+    "continue": "Continuar"
   },
   "landingNav": {
     "markets": "Mercados",

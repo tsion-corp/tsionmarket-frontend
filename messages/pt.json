@@ -294,7 +294,19 @@
     "sendingCode": "A enviar código…",
     "continueEmail": "Continuar com e-mail",
     "continueKingschat": "Continuar com KingsChat",
-    "comingSoon": "Em breve"
+    "comingSoon": "Em breve",
+    "stepOf": "Etapa {step} de {steps}",
+    "creatingAccount": "Configurando sua conta…",
+    "passkeyStepHeading": "Proteja sua conta",
+    "passkeyStepTagline": "Sua conta e suas carteiras estão prontas. Mais uma etapa as prende a você.",
+    "passkeyStepTitle": "Adicione uma passkey",
+    "passkeyStepBody": "Entre da próxima vez com sua digital, rosto ou PIN do aparelho — sem senha e à prova de phishing.",
+    "passkeyStepUnsupported": "Este navegador não cria passkeys. Você pode adicionar uma depois em um aparelho compatível.",
+    "passkeyStepAdd": "Adicionar passkey",
+    "passkeyStepSkip": "Pular por enquanto",
+    "passkeyStepLater": "Você sempre pode adicionar uma passkey depois.",
+    "passkeyAdded": "Passkey adicionada — sua conta está protegida.",
+    "continue": "Continuar"
   },
   "landingNav": {
     "markets": "Mercados",

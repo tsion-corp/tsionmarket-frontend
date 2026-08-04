@@ -294,7 +294,19 @@
     "sendingCode": "Code wird gesendet…",
     "continueEmail": "Weiter mit E-Mail",
     "continueKingschat": "Weiter mit KingsChat",
-    "comingSoon": "Bald verfügbar"
+    "comingSoon": "Bald verfügbar",
+    "stepOf": "Schritt {step} von {steps}",
+    "creatingAccount": "Dein Konto wird eingerichtet…",
+    "passkeyStepHeading": "Sichere dein Konto",
+    "passkeyStepTagline": "Dein Konto und deine Wallets sind bereit. Ein Schritt noch, um sie an dich zu binden.",
+    "passkeyStepTitle": "Passkey hinzufügen",
+    "passkeyStepBody": "Melde dich künftig mit Fingerabdruck, Gesicht oder Geräte-PIN an — ohne Passwort und phishing-sicher.",
+    "passkeyStepUnsupported": "Dieser Browser kann keine Passkeys erstellen. Du kannst später einen auf einem passenden Gerät hinzufügen.",
+    "passkeyStepAdd": "Passkey hinzufügen",
+    "passkeyStepSkip": "Vorerst überspringen",
+    "passkeyStepLater": "Du kannst jederzeit später einen Passkey hinzufügen.",
+    "passkeyAdded": "Passkey hinzugefügt — dein Konto ist gesichert.",
+    "continue": "Weiter"
   },
   "landingNav": {
     "markets": "Märkte",

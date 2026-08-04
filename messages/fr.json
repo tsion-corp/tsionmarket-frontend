@@ -294,7 +294,19 @@
     "sendingCode": "Envoi du code…",
     "continueEmail": "Continuer avec l'e-mail",
     "continueKingschat": "Continuer avec KingsChat",
-    "comingSoon": "Bientôt disponible"
+    "comingSoon": "Bientôt disponible",
+    "stepOf": "Étape {step} sur {steps}",
+    "creatingAccount": "Configuration de votre compte…",
+    "passkeyStepHeading": "Sécurisez votre compte",
+    "passkeyStepTagline": "Votre compte et vos portefeuilles sont prêts. Une dernière étape les verrouille à vous.",
+    "passkeyStepTitle": "Ajouter une passkey",
+    "passkeyStepBody": "Connectez-vous ensuite avec votre empreinte, votre visage ou le code de l'appareil — sans mot de passe, à l'épreuve du phishing.",
+    "passkeyStepUnsupported": "Ce navigateur ne peut pas créer de passkeys. Vous pourrez en ajouter une plus tard depuis un appareil compatible.",
+    "passkeyStepAdd": "Ajouter une passkey",
+    "passkeyStepSkip": "Passer pour l'instant",
+    "passkeyStepLater": "Vous pourrez toujours ajouter une passkey plus tard.",
+    "passkeyAdded": "Passkey ajoutée — votre compte est sécurisé.",
+    "continue": "Continuer"
   },
   "landingNav": {
     "markets": "Marchés",

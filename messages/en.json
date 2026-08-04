@@ -294,7 +294,19 @@
     "sendingCode": "Sending code…",
     "continueEmail": "Continue with email",
     "continueKingschat": "Continue with KingsChat",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "stepOf": "Step {step} of {steps}",
+    "creatingAccount": "Setting up your account…",
+    "passkeyStepHeading": "Secure your account",
+    "passkeyStepTagline": "Your account and wallets are ready. One more step keeps them locked to you.",
+    "passkeyStepTitle": "Add a passkey",
+    "passkeyStepBody": "Sign in next time with your fingerprint, face, or device PIN — no password, and phishing-proof.",
+    "passkeyStepUnsupported": "This browser can't create passkeys. You can add one later from a device that can.",
+    "passkeyStepAdd": "Add a passkey",
+    "passkeyStepSkip": "Skip for now",
+    "passkeyStepLater": "You can always add a passkey later.",
+    "passkeyAdded": "Passkey added — your account is secured.",
+    "continue": "Continue"
   },
   "landingNav": {
     "markets": "Markets",
