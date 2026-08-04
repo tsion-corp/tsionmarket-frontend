@@ -2,6 +2,7 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
+import { MarketLogo } from "@/components/ui/market-logo";
 import { Avatar } from "@/components/dashboard/avatar";
 import type { NavItem } from "@/components/dashboard/nav-items";
 import type { DashboardSection } from "@/components/dashboard/modal-types";
@@ -24,8 +25,7 @@ export function Sidebar({ items, activeSection, onNavigate, onOpenAccount }: Sid
             reads on this dark chrome, so auth and the landing keep the Ark
             wordmark. */}
         <Link href="/dashboard" className="flex items-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/market-logo.png" alt="mARKet" className="h-[21px] w-auto" />
+          <MarketLogo className="h-[21px] w-auto" />
         </Link>
       </div>
 
