@@ -6,6 +6,7 @@ import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { usePendingOnramp } from "@/hooks/use-pouch-onramp";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { readyToSpendUsd } from "@/lib/portfolio-breakdown";
 
@@ -24,6 +25,10 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   const { hidden, toggle, mask } = useBalanceVisibility();
   const t = useTranslations("balance");
   useInvalidateOnBlock(PORTFOLIO_KEY);
+  // A confirmed bank deposit that has not settled yet holds the withdraw
+  // button, so an unchanged balance next to a live button doesn't read as
+  // "withdraw your new money now" and invite repeated attempts.
+  const { pending: depositPending } = usePendingOnramp();
 
   // What a purchase can actually draw on. A portfolio can be worth a lot and
   // still have nothing spendable, which the total alone never shows.
@@ -84,12 +89,20 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
           </button>
           <button
             onClick={onOpenWithdraw}
-            className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10 min-[560px]:flex-none"
+            disabled={depositPending}
+            className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/6 min-[560px]:flex-none"
           >
             {t("withdraw")}
           </button>
         </div>
       </div>
+
+      {depositPending ? (
+        <div className="mt-3 flex items-center gap-2 text-[12.5px] font-normal text-white/55">
+          <span className="bg-accent h-1.5 w-1.5 shrink-0 animate-pulse rounded-full" />
+          {t("depositPending")}
+        </div>
+      ) : null}
 
       {!loading && tokens.length > 0 ? (
         <div className="mt-[22px]">

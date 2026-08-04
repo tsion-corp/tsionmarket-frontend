@@ -14,6 +14,7 @@ import { friendlyError } from "@/lib/errors";
 import { getWalletAddress, deriveProfile } from "@/lib/user";
 import { formatAmount } from "@/lib/trade/math";
 import { KYC_COUNTRY_CODE } from "@/lib/pouch/kyc";
+import { clearPendingOnramp, savePendingOnramp } from "@/lib/pouch/pending";
 import { isReusableSession, loadKycSession, saveKycSession } from "@/lib/pouch/session";
 import {
   estimatedUsd,
@@ -46,6 +47,32 @@ function formatUsd(amount: number): string {
 
 // Quick-select deposit amounts, in Naira. The first is the minimum.
 const AMOUNT_PRESETS = [5000, 10000, 50000, 100000];
+
+// How long a generated account stays payable. Pouch's expiresAt is the truth;
+// this covers a creation response that arrives without one.
+const ACCOUNT_TTL_MS = 10 * 60 * 1000;
+
+// Seconds until the generated account expires. Derived from the deadline
+// rather than a stored duration, so a slept tab shows the true time left.
+// Null when there is no usable deadline to count against.
+function useSecondsUntil(iso: string | null): number | null {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!iso) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [iso]);
+  if (!iso) return null;
+  const end = Date.parse(iso);
+  if (!Number.isFinite(end)) return null;
+  return Math.max(0, Math.ceil((end - now) / 1000));
+}
+
+function formatCountdown(totalSeconds: number): string {
+  const m = Math.floor(totalSeconds / 60);
+  const s = totalSeconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
 
 function compactNgn(amount: number): string {
   return amount >= 1000 ? `${amount / 1000}K` : String(amount);
@@ -100,10 +127,22 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   const status = statusQuery.data?.status ?? creation?.status ?? "awaiting_payment";
   const done = status === "completed";
 
-  // Refresh balances once the crypto has settled.
+  // The account is only payable for about ten minutes. Count down from the
+  // provider's expiry (or our own stamp when it sends none) while the user is
+  // still on the transfer screen; once they confirm sending, or the payment is
+  // detected, the deadline no longer applies.
+  const [fallbackExpiresAt, setFallbackExpiresAt] = useState<string | null>(null);
+  const expiresAtIso = creation?.bank?.expiresAt ?? fallbackExpiresAt;
+  const countingDown = handoff === "none" && status === "awaiting_payment";
+  const secondsLeft = useSecondsUntil(countingDown ? expiresAtIso : null);
+  const accountTimedOut = secondsLeft === 0;
+
+  // Refresh balances once the crypto has settled, and release the dashboard's
+  // withdraw hold on any terminal outcome.
   useEffect(() => {
+    if (isTerminalOnrampStatus(status)) clearPendingOnramp();
     if (done) refetch();
-  }, [done, refetch]);
+  }, [status, done, refetch]);
 
   // Hold the confirming state briefly, then move to the reassuring message. This
   // is a UX beat, not a real settlement check, so a fixed pause reads honestly.
@@ -151,10 +190,17 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             />
             <span className="font-sans text-[15px] font-medium text-white/70">NGN</span>
           </div>
-          <div className="mt-2 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
-            {validAmount && usdAmount != null
-              ? t("usdEquivalent", { amount: `$${formatUsd(usdAmount)}` })
-              : t("enterMin", { amount: `₦${formatNgn(ONRAMP_MIN_NGN)}` })}
+          <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
+            <span>
+              {validAmount && usdAmount != null
+                ? t("usdEquivalent", { amount: `$${formatUsd(usdAmount)}` })
+                : t("enterMin", { amount: `₦${formatNgn(ONRAMP_MIN_NGN)}` })}
+            </span>
+            {ngnRate > 0 ? (
+              <span className="tnum shrink-0 text-white/45">
+                {t("fxRate", { rate: `₦${formatNgn(ngnRate)}` })}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -196,7 +242,18 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         <button
           onClick={() => {
             if (!validAmount || !walletAddress || usdAmount == null) return;
-            create.mutate({ token, amountUsd: usdAmount, walletAddress });
+            create.mutate(
+              { token, amountUsd: usdAmount, walletAddress },
+              {
+                onSuccess: (result) => {
+                  // No provider expiry: stamp our own so the countdown and the
+                  // auto-expire still run.
+                  if (!result.bank?.expiresAt) {
+                    setFallbackExpiresAt(new Date(Date.now() + ACCOUNT_TTL_MS).toISOString());
+                  }
+                },
+              }
+            );
           }}
           disabled={!validAmount || !walletAddress || create.isPending}
           className="text-ink mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
@@ -250,8 +307,11 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     );
   }
 
-  // Failed or expired: let the user start over.
-  if (isTerminalOnrampStatus(status)) {
+  // Failed or expired: let the user start over. A run-out countdown counts as
+  // expired locally, so the dead account closes on its own instead of inviting
+  // a payment that can no longer land.
+  if (isTerminalOnrampStatus(status) || accountTimedOut) {
+    const showExpired = status === "expired" || accountTimedOut;
     return (
       <div className="px-1 py-2 text-center">
         <span className="bg-down/15 text-down inline-grid h-[56px] w-[56px] place-items-center rounded-full">
@@ -259,12 +319,13 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         </span>
         <div className="ws-display mt-4 text-[21px]">{t("failedTitle")}</div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
-          {status === "expired" ? t("expiredBody") : t("failedBody")}
+          {showExpired ? t("expiredBody") : t("failedBody")}
         </p>
         <button
           onClick={() => {
             create.reset();
             setAmountNgn("");
+            setFallbackExpiresAt(null);
           }}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >
@@ -321,6 +382,15 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             <div className="ws-display tnum mt-1 text-[30px] text-white">
               ₦{formatNgn(bank.amountNgn)}
             </div>
+            {secondsLeft != null ? (
+              <div
+                className={`tnum mt-1.5 text-[13px] font-medium ${
+                  secondsLeft <= 60 ? "text-down" : "text-white/70"
+                }`}
+              >
+                {t("expiresIn", { time: formatCountdown(secondsLeft) })}
+              </div>
+            ) : null}
           </div>
 
           <div className="ws-inset mt-3 divide-y divide-white/6">
@@ -354,7 +424,12 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
           </div>
 
           <button
-            onClick={() => setHandoff("confirming")}
+            onClick={() => {
+              // Money is now claimed to be in flight: hold the dashboard's
+              // withdraw button until settlement resolves.
+              if (creation.sessionId) savePendingOnramp(creation.sessionId, Date.now());
+              setHandoff("confirming");
+            }}
             className="text-ink mt-3 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
           >
             {t("sentIt")}
