@@ -514,7 +514,9 @@ export function RwaTradePanel({
         : t("sellingSymbol", { symbol: asset.symbol })
     );
     try {
-      const action = await withTransientRetry(() => buildAsync({ ...req, taker, simulate: true }));
+      // Real execution needs an executable action. Asking the backend for a
+      // simulated build here can produce a non-submittable Solana transaction.
+      const action = await withTransientRetry(() => buildAsync({ ...req, taker }));
       await execute(action, asset.chain, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });

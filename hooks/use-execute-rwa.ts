@@ -20,9 +20,10 @@ const EVM_CHAIN_ID: Partial<Record<RwaChain, number>> = {
   polygon: 137,
 };
 
-// Signs and sends each step of a built RWA action with the embedded wallet.
-// Solana steps carry a base64 versioned transaction; EVM steps carry to/data.
-// The backend never signs, so every step is signed client-side here.
+// Executes each step of a built RWA action with the embedded wallet. Solana
+// steps are sponsored first so the backend can rewrite the fee payer when
+// needed, then the embedded wallet signs and broadcasts the sponsored bytes.
+// EVM steps send directly from the wallet.
 export function useExecuteRwa() {
   const evmSend = useEvmSend();
   const { signAndSendTransaction } = useSignAndSendTransaction();
@@ -63,13 +64,11 @@ export function useExecuteRwa() {
           const wallet = solanaWallets[0];
           if (!wallet) throw new Error("No Solana wallet is connected.");
           if (!step.tx.base64) throw new Error("The transaction is missing.");
-          const transaction = await sponsorSolanaTransaction(step.tx.base64);
+          const sponsored = await sponsorSolanaTransaction(step.tx.base64);
           const { signature } = await signAndSendTransaction({
-            transaction,
+            transaction: sponsored,
             wallet,
-            // Return once broadcast. Privy would otherwise confirm over a
-            // WebSocket subscription we do not proxy; the confirmation below
-            // polls the same RPC we send through.
+            // Broadcast-only: confirmation is handled below via explicit RPC polling.
             options: { optimisticBroadcast: true },
           });
           lastSolanaSig = getBase58Decoder().decode(signature);

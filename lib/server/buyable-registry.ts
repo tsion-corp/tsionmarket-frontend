@@ -36,7 +36,8 @@ interface RawDestination {
   currency?: string;
 }
 
-const TRADE_BASE = process.env.NEXT_PUBLIC_TRADE_API_URL;
+const TRADE_BASE =
+  process.env.NEXT_PUBLIC_TRADE_API_URL ?? "https://api.worldstreetwebservices.com/v1/trade";
 
 // Memecoins from the trade service's catalog: a bought token is a legitimate
 // holding the Dextopus catalog doesn't know about. Catalog entries persist

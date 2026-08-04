@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
-import { forwardAlchemySolanaSponsorRequest } from "@/lib/server/alchemy-solana-sponsor";
+import { forwardSolanaSponsorRequest } from "@/lib/server/solana-sponsor";
 
 export async function POST(req: NextRequest) {
-  return forwardAlchemySolanaSponsorRequest(req);
+  return forwardSolanaSponsorRequest(req);
 }
