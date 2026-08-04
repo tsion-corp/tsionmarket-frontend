@@ -5,11 +5,10 @@ import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { KycOnboarding } from "@/components/dashboard/funds/kyc/kyc-onboarding";
-import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowUpRightIcon, BankIcon, CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useNgnRate } from "@/hooks/use-ngn-rate";
-import { useCreateOnramp, useOnrampStatus } from "@/hooks/use-pouch-onramp";
+import { useCreateOnramp, useOnrampStatus, usePouchOnrampRate } from "@/hooks/use-pouch-onramp";
 import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
 import { getWalletAddress, deriveProfile } from "@/lib/user";
@@ -17,10 +16,10 @@ import { formatAmount } from "@/lib/trade/math";
 import { KYC_COUNTRY_CODE } from "@/lib/pouch/kyc";
 import { isReusableSession, loadKycSession, saveKycSession } from "@/lib/pouch/session";
 import {
-  estimatedNgn,
+  estimatedUsd,
   isTerminalOnrampStatus,
-  isValidOnrampAmount,
-  ONRAMP_MIN_USD,
+  isValidOnrampNgn,
+  ONRAMP_MIN_NGN,
 } from "@/lib/pouch/onramp";
 
 interface BankTransferScreenProps {
@@ -28,23 +27,46 @@ interface BankTransferScreenProps {
   onClose: () => void;
 }
 
-const DECIMAL_INPUT = /^\d*\.?\d*$/;
-const USDC_BLUE = "#2775CA";
-
 function formatNgn(amount: number): string {
   return new Intl.NumberFormat("en-NG", { maximumFractionDigits: 2 }).format(amount);
 }
 
+// Group the raw digit string with commas for display, keeping "" empty. The
+// state itself stays as plain digits, so the real amount is what gets used.
+function formatNgnInput(digits: string): string {
+  return digits ? new Intl.NumberFormat("en-NG").format(Number(digits)) : "";
+}
+
+function formatUsd(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
+// Quick-select deposit amounts, in Naira. The first is the minimum.
+const AMOUNT_PRESETS = [5000, 10000, 50000, 100000];
+
+function compactNgn(amount: number): string {
+  return amount >= 1000 ? `${amount / 1000}K` : String(amount);
+}
+
 // Naira onramp. Identity is verified once through Pouch Shared KYC; the JWT is
 // stored and reused, so funding again is just amount then transfer. The user
-// enters how much USDC they want, we ask Pouch for a one-off bank account bound
-// to their Base wallet, and they transfer the exact Naira shown. USDC settles to
-// the wallet automatically once the payment clears.
+// enters a Naira amount and sees its USD equivalent (Pouch is priced in USD, so
+// we send that). We ask Pouch for a one-off bank account bound to their Base
+// wallet, and they transfer the exact Naira shown; USDC settles to the wallet
+// automatically once the payment clears.
 export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps) {
   const t = useTranslations("bankTransfer");
   const { user } = usePrivy();
   const { refetch } = usePortfolio();
-  const { rate: ngnRate } = useNgnRate();
+  // Prefer Pouch's live onramp rate so the USD estimate matches what the transfer
+  // actually costs; fall back to the app FX rate only until the provider rate
+  // loads (or if it is briefly unavailable).
+  const { rate: appNgnRate } = useNgnRate();
+  const { data: pouchRate } = usePouchOnrampRate();
+  const ngnRate = pouchRate?.rate && pouchRate.rate > 0 ? pouchRate.rate : appNgnRate;
 
   const walletAddress = getWalletAddress(user, "ethereum");
   const email = deriveProfile(user).email;
@@ -56,7 +78,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     return isReusableSession(session) ? session.token : "";
   });
 
-  const [amountUsd, setAmountUsd] = useState("");
+  const [amountNgn, setAmountNgn] = useState("");
   // After the user says they have paid, we show a brief confirming state and
   // then a reassuring "on its way" message. Settlement takes a couple of minutes
   // on the provider side, so we do not block the user waiting on it here.
@@ -64,13 +86,16 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   const create = useCreateOnramp();
   const creation = create.data;
 
-  const amount = Number(amountUsd);
-  const validAmount = isValidOnrampAmount(amount);
-  const ngnEstimate = estimatedNgn(amount, ngnRate);
+  // The user enters Naira; Pouch is priced in USD, so we convert with the live
+  // rate and send the USD equivalent. The exact Naira to pay comes back from
+  // Pouch on the next screen.
+  const ngnAmount = Number(amountNgn);
+  const usdAmount = estimatedUsd(ngnAmount, ngnRate);
+  const validAmount = isValidOnrampNgn(ngnAmount) && usdAmount != null;
 
   const statusQuery = useOnrampStatus(creation?.sessionId ?? null, {
     enabled: Boolean(creation?.sessionId),
-    pollMs: 6000,
+    pollMs: 20000,
   });
   const status = statusQuery.data?.status ?? creation?.status ?? "awaiting_payment";
   const done = status === "completed";
@@ -84,7 +109,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   // is a UX beat, not a real settlement check, so a fixed pause reads honestly.
   useEffect(() => {
     if (handoff !== "confirming") return;
-    const id = setTimeout(() => setHandoff("enroute"), 2400);
+    const id = setTimeout(() => setHandoff("enroute"), 15000);
     return () => clearTimeout(id);
   }, [handoff]);
 
@@ -115,28 +140,41 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
 
         <div className="ws-inset p-[15px]">
-          <div className="mb-[9px] text-xs font-normal text-white/55">{t("youReceive")}</div>
+          <div className="mb-[9px] text-xs font-normal text-white/55">{t("youSend")}</div>
           <div className="flex items-center justify-between gap-3">
             <input
-              inputMode="decimal"
-              value={amountUsd}
-              onChange={(e) => {
-                const next = e.target.value;
-                if (next === "" || DECIMAL_INPUT.test(next)) setAmountUsd(next);
-              }}
-              placeholder="0.00"
+              inputMode="numeric"
+              value={formatNgnInput(amountNgn)}
+              onChange={(e) => setAmountNgn(e.target.value.replace(/\D/g, ""))}
+              placeholder="0"
               className="ws-display tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
             />
-            <span className="flex shrink-0 items-center gap-2 font-sans text-[15px] font-medium text-white/70">
-              <AssetIcon sym="USDC" bg={USDC_BLUE} size={22} />
-              USDC
-            </span>
+            <span className="font-sans text-[15px] font-medium text-white/70">NGN</span>
           </div>
           <div className="mt-2 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
-            {ngnEstimate != null
-              ? t("payEstimate", { amount: `₦${formatNgn(ngnEstimate)}` })
-              : t("payEstimateEmpty", { min: ONRAMP_MIN_USD })}
+            {validAmount && usdAmount != null
+              ? t("usdEquivalent", { amount: `$${formatUsd(usdAmount)}` })
+              : t("enterMin", { amount: `₦${formatNgn(ONRAMP_MIN_NGN)}` })}
           </div>
+        </div>
+
+        <div className="mt-3 flex gap-2">
+          {AMOUNT_PRESETS.map((preset) => {
+            const active = amountNgn === String(preset);
+            return (
+              <button
+                key={preset}
+                onClick={() => setAmountNgn(String(preset))}
+                className={`flex-1 cursor-pointer rounded-full border px-2 py-2 font-sans text-[13px] font-medium transition-colors ${
+                  active
+                    ? "border-accent/50 bg-accent/16 text-white"
+                    : "border-white/12 bg-white/5 text-white/70 hover:bg-white/10"
+                }`}
+              >
+                ₦{compactNgn(preset)}
+              </button>
+            );
+          })}
         </div>
 
         {!walletAddress ? (
@@ -157,8 +195,8 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
 
         <button
           onClick={() => {
-            if (!validAmount || !walletAddress) return;
-            create.mutate({ token, amountUsd: amount, walletAddress });
+            if (!validAmount || !walletAddress || usdAmount == null) return;
+            create.mutate({ token, amountUsd: usdAmount, walletAddress });
           }}
           disabled={!validAmount || !walletAddress || create.isPending}
           className="text-ink mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
@@ -226,7 +264,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         <button
           onClick={() => {
             create.reset();
-            setAmountUsd("");
+            setAmountNgn("");
           }}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >

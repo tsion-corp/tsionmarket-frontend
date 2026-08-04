@@ -127,24 +127,42 @@ export function normalizeInitiation(raw: unknown): KycInitiation {
 
 // A validation outcome as a stable code the UI maps to a localized message.
 export type KycFieldError =
-  "required" | "invalidEmail" | "invalidPhone" | "invalidDate" | "invalidNumber" | null;
+  | "required"
+  | "invalidEmail"
+  | "invalidPhone"
+  | "invalidDate"
+  | "invalidNumber"
+  | "invalid11Digits"
+  | null;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-// Validate one field's value against its kind and required flag. The required
-// flag is authoritative from Pouch; the format checks are light, kind-driven
-// shape checks that catch obvious mistakes before submission.
+// Nigeria: NIN and BVN are exactly 11 digits, and phone numbers are 11 digits.
+const ELEVEN_DIGIT_IDS = /(^|_)(NIN|BVN)(_|$)/;
+const PHONE_DIGITS = 11;
+
+function digitsOf(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+// Validate one field's value against its type and required flag. The required
+// flag is authoritative from Pouch; the format checks catch obvious mistakes
+// before submission. Some Nigerian document types have an exact digit length.
 export function validateKycValue(field: KycField, value: string): KycFieldError {
   const trimmed = value.trim();
   if (!trimmed) return field.required ? "required" : null;
+
+  // NIN and BVN are exactly 11 digits, whichever kind they were inferred as.
+  if (ELEVEN_DIGIT_IDS.test(field.key.toUpperCase())) {
+    return digitsOf(trimmed).length === 11 ? null : "invalid11Digits";
+  }
+
   switch (field.kind) {
     case "email":
       return EMAIL_RE.test(trimmed) ? null : "invalidEmail";
-    case "tel": {
-      const digits = trimmed.replace(/\D/g, "");
-      return digits.length >= 7 && digits.length <= 15 ? null : "invalidPhone";
-    }
+    case "tel":
+      return digitsOf(trimmed).length === PHONE_DIGITS ? null : "invalidPhone";
     case "date":
       return ISO_DATE_RE.test(trimmed) && !Number.isNaN(Date.parse(trimmed)) ? null : "invalidDate";
     case "number":
@@ -152,6 +170,13 @@ export function validateKycValue(field: KycField, value: string): KycFieldError 
     default:
       return null;
   }
+}
+
+// The maximum characters an input should accept, for fixed-length fields. NIN
+// and BVN are exactly 11 digits; phone numbers are left uncapped so a leading
+// zero or a +234 prefix is not cut off.
+export function kycMaxLength(field: KycField): number | undefined {
+  return ELEVEN_DIGIT_IDS.test(field.key.toUpperCase()) ? 11 : undefined;
 }
 
 // Whether every required field is valid. Optional blanks do not block.

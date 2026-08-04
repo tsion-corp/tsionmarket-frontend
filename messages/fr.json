@@ -172,11 +172,11 @@
     "soon": "Bientôt",
     "close": "Fermer",
     "bankTitle": "Virement bancaire",
-    "bankSubtitle": "Alimentez en naira. Réglé en USDC."
+    "bankSubtitle": "Alimentez en naira."
   },
   "bankTransfer": {
     "title": "Virement bancaire",
-    "subtitle": "Alimentez votre portefeuille en naira. Réglé en USDC sur Base.",
+    "subtitle": "Ajoutez de l’argent à votre solde en naira.",
     "youReceive": "Vous recevez",
     "payEstimate": "Vous payez environ {amount}",
     "payEstimateEmpty": "Saisissez au moins {min} $ pour continuer",
@@ -204,14 +204,18 @@
     "copied": "Copié",
     "processing": "Paiement reçu. Envoi de votre USDC…",
     "waiting": "En attente de votre virement…",
-    "transferNote": "Virez le montant exact depuis n'importe quelle banque ou application nigériane vers le compte ci-dessus. N'envoyez qu'une seule fois. Votre USDC est crédité automatiquement, généralement en quelques minutes. Vous pouvez fermer cet écran.",
+    "transferNote": "Effectuez le virement depuis votre propre compte bancaire, au même nom que celui vérifié — le paiement doit venir de vous. Un virement depuis le compte d’une autre personne peut être retardé ou remboursé. Envoyez le montant exact, une seule fois. Votre USDC est crédité automatiquement, généralement en quelques minutes.",
     "doneForNow": "J'ai effectué le virement",
     "noAccount": "Nous n'avons pas pu générer de compte. Veuillez recommencer.",
     "sentIt": "J'ai envoyé l'argent",
     "confirmingTitle": "Confirmation de votre virement",
-    "confirmingBody": "Patientez un instant pendant que nous enregistrons votre paiement.",
+    "confirmingBody": "Enregistrement de votre paiement. Cela ne prend que quelques secondes.",
     "enrouteTitle": "Le paiement est en route",
-    "enrouteBody": "Merci, votre virement est en cours de traitement. Votre USDC est en route et apparaîtra dans votre solde sous peu, généralement en quelques minutes."
+    "enrouteBody": "Merci, votre virement est en cours de traitement. Vos fonds apparaissent généralement dans votre solde en 2 à 5 minutes.",
+    "youSend": "Vous envoyez",
+    "usdEquivalent": "≈ {amount}",
+    "fxRate": "1 $ = {rate}",
+    "enterMin": "Saisissez au moins {amount}"
   },
   "fundsKyc": {
     "back": "Retour",
@@ -222,7 +226,7 @@
     "sendingCode": "Envoi du code…",
     "initiateFailed": "Impossible de démarrer la vérification. Veuillez réessayer.",
     "otpTitle": "Saisissez le code",
-    "otpSentTo": "Nous avons envoyé un code à six chiffres à {email}.",
+    "otpSentTo": "Nous avons envoyé un code à six chiffres à <email></email>.",
     "checking": "Vérification…",
     "verifyContinue": "Vérifier et continuer",
     "codeMismatch": "Le code ne correspond pas. Veuillez réessayer.",
@@ -236,7 +240,7 @@
     "submitFailed": "Impossible de soumettre vos informations. Veuillez réessayer.",
     "errRequired": "Ce champ est obligatoire.",
     "errEmail": "Saisissez une adresse e-mail valide.",
-    "errPhone": "Saisissez un numéro de téléphone valide.",
+    "errPhone": "Saisissez un numéro de téléphone valide à 11 chiffres.",
     "errDate": "Saisissez une date valide.",
     "errNumber": "Saisissez uniquement des chiffres.",
     "pendingTitle": "En cours d'examen",
@@ -246,7 +250,11 @@
     "rejectedBody": "Nous n'avons pas pu vérifier votre identité avec les informations fournies. Veuillez contacter le support.",
     "retryTitle": "Informations supplémentaires requises",
     "retryBody": "Certaines informations doivent être revues. Mettez-les à jour et soumettez à nouveau.",
-    "updateDetails": "Mettre à jour les informations"
+    "updateDetails": "Mettre à jour les informations",
+    "selectDate": "Sélectionner une date",
+    "prevMonth": "Mois précédent",
+    "nextMonth": "Mois suivant",
+    "errDigits11": "Saisissez exactement 11 chiffres."
   },
   "withdrawModal": {
     "title": "Retirer",

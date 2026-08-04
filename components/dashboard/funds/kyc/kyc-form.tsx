@@ -59,6 +59,8 @@ export function KycForm({ token, countryCode, fields, prefill, onSubmitted }: Ky
         return t("errDate");
       case "invalidNumber":
         return t("errNumber");
+      case "invalid11Digits":
+        return t("errDigits11");
       default:
         return null;
     }

@@ -172,11 +172,11 @@
     "soon": "Bald",
     "close": "Schließen",
     "bankTitle": "Banküberweisung",
-    "bankSubtitle": "In Naira einzahlen. Wird als USDC gutgeschrieben."
+    "bankSubtitle": "In Naira einzahlen."
   },
   "bankTransfer": {
     "title": "Banküberweisung",
-    "subtitle": "Lade dein Wallet in Naira auf. Es wird als USDC auf Base gutgeschrieben.",
+    "subtitle": "Lade dein Guthaben in Naira auf.",
     "youReceive": "Du erhältst",
     "payEstimate": "Du zahlst etwa {amount}",
     "payEstimateEmpty": "Gib mindestens {min} $ ein, um fortzufahren",
@@ -204,14 +204,18 @@
     "copied": "Kopiert",
     "processing": "Zahlung erhalten. Dein USDC wird gesendet…",
     "waiting": "Warte auf deine Überweisung…",
-    "transferNote": "Überweise den genauen Betrag von einer beliebigen nigerianischen Bank oder App an das obige Konto. Nur einmal senden. Dein USDC wird automatisch gutgeschrieben, meist innerhalb von Minuten. Du kannst diesen Bildschirm schließen.",
+    "transferNote": "Überweise von deinem eigenen Bankkonto, auf denselben Namen, den du verifiziert hast — die Zahlung muss von dir kommen. Eine Überweisung von einem fremden Konto kann verzögert oder erstattet werden. Sende den genauen Betrag, nur einmal. Dein USDC wird automatisch gutgeschrieben, meist innerhalb weniger Minuten.",
     "doneForNow": "Ich habe überwiesen",
     "noAccount": "Wir konnten kein Konto erstellen. Bitte beginne von vorn.",
     "sentIt": "Ich habe überwiesen",
     "confirmingTitle": "Überweisung wird bestätigt",
-    "confirmingBody": "Einen Moment, während wir deine Zahlung erfassen.",
+    "confirmingBody": "Zahlung wird erfasst. Das dauert nur ein paar Sekunden.",
     "enrouteTitle": "Zahlung ist unterwegs",
-    "enrouteBody": "Danke — deine Überweisung wird verarbeitet. Dein USDC ist unterwegs und erscheint in Kürze in deinem Guthaben, meist innerhalb von ein paar Minuten."
+    "enrouteBody": "Danke — deine Überweisung wird verarbeitet. Es dauert normalerweise 2 bis 5 Minuten, bis dein Guthaben aktualisiert wird.",
+    "youSend": "Du sendest",
+    "usdEquivalent": "≈ {amount}",
+    "fxRate": "1 $ = {rate}",
+    "enterMin": "Mindestens {amount} eingeben"
   },
   "fundsKyc": {
     "back": "Zurück",
@@ -222,7 +226,7 @@
     "sendingCode": "Code wird gesendet…",
     "initiateFailed": "Die Verifizierung konnte nicht gestartet werden. Bitte versuche es erneut.",
     "otpTitle": "Code eingeben",
-    "otpSentTo": "Wir haben einen sechsstelligen Code an {email} gesendet.",
+    "otpSentTo": "Wir haben einen sechsstelligen Code an <email></email> gesendet.",
     "checking": "Wird geprüft…",
     "verifyContinue": "Verifizieren und fortfahren",
     "codeMismatch": "Der Code war nicht korrekt. Bitte versuche es erneut.",
@@ -236,7 +240,7 @@
     "submitFailed": "Deine Angaben konnten nicht eingereicht werden. Bitte versuche es erneut.",
     "errRequired": "Dieses Feld ist erforderlich.",
     "errEmail": "Gib eine gültige E-Mail-Adresse ein.",
-    "errPhone": "Gib eine gültige Telefonnummer ein.",
+    "errPhone": "Gib eine gültige 11-stellige Telefonnummer ein.",
     "errDate": "Gib ein gültiges Datum ein.",
     "errNumber": "Gib nur Ziffern ein.",
     "pendingTitle": "In Prüfung",
@@ -246,7 +250,11 @@
     "rejectedBody": "Wir konnten deine Identität mit den angegebenen Daten nicht bestätigen. Bitte wende dich an den Support.",
     "retryTitle": "Weitere Angaben erforderlich",
     "retryBody": "Einige Angaben müssen noch einmal geprüft werden. Aktualisiere sie und reiche sie erneut ein.",
-    "updateDetails": "Angaben aktualisieren"
+    "updateDetails": "Angaben aktualisieren",
+    "selectDate": "Datum auswählen",
+    "prevMonth": "Vorheriger Monat",
+    "nextMonth": "Nächster Monat",
+    "errDigits11": "Gib genau 11 Ziffern ein."
   },
   "withdrawModal": {
     "title": "Auszahlen",

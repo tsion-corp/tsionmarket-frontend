@@ -10,6 +10,22 @@ import {
 // Client hooks over the onramp proxy routes. The routes already return normalized
 // domain objects, so these hooks only type the response and surface errors.
 
+// Pouch's live onramp rate (Naira per USD). Cached for a few minutes; the entry
+// screen divides the typed Naira by it to show a USD estimate that matches the
+// charge.
+export function usePouchOnrampRate() {
+  return useQuery<{ rate: number }>({
+    queryKey: ["pouch-onramp-rate"],
+    queryFn: async () => {
+      const res = await fetch("/api/pouch/rate");
+      if (!res.ok) await readError(res, "Could not load the rate");
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  });
+}
+
 async function readError(res: Response, fallback: string): Promise<never> {
   let message = fallback;
   try {

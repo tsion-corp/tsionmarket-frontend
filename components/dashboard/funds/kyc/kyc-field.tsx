@@ -1,7 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import type { KycField as KycFieldType } from "@/lib/pouch/kyc";
+import { DateField } from "@/components/dashboard/funds/kyc/date-field";
+import { kycMaxLength, type KycField as KycFieldType } from "@/lib/pouch/kyc";
 
 interface KycFieldProps {
   field: KycFieldType;
@@ -21,34 +22,46 @@ const INPUT_CLASS =
 export function KycField({ field, value, error, onChange, disabled }: KycFieldProps) {
   const t = useTranslations("fundsKyc");
 
-  const inputType =
-    field.kind === "date"
-      ? "date"
-      : field.kind === "email"
-        ? "email"
-        : field.kind === "tel"
-          ? "tel"
-          : "text";
+  const labelRow = (
+    <span className="mb-1.5 flex items-center gap-1 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
+      {field.label}
+      {field.required ? <span className="text-accent">*</span> : null}
+    </span>
+  );
+  const errorRow = error ? (
+    <span className="text-down mt-1.5 block text-[12px]">{error}</span>
+  ) : null;
+
+  if (field.kind === "date") {
+    return (
+      <DateField
+        label={field.label}
+        required={field.required}
+        value={value}
+        error={error}
+        onChange={onChange}
+        disabled={disabled}
+      />
+    );
+  }
+
+  const inputType = field.kind === "email" ? "email" : field.kind === "tel" ? "tel" : "text";
   const inputMode = field.kind === "number" ? "numeric" : field.kind === "tel" ? "tel" : undefined;
 
   return (
     <label className="block">
-      <span className="mb-1.5 flex items-center gap-1 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-        {field.label}
-        {field.required ? <span className="text-accent">*</span> : null}
-      </span>
+      {labelRow}
       <input
         type={inputType}
         inputMode={inputMode}
         value={value}
+        maxLength={kycMaxLength(field)}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={
-          field.kind === "date" ? undefined : t("fieldPlaceholder", { label: field.label })
-        }
+        placeholder={t("fieldPlaceholder", { label: field.label })}
         className={INPUT_CLASS}
       />
-      {error ? <span className="text-down mt-1.5 block text-[12px]">{error}</span> : null}
+      {errorRow}
     </label>
   );
 }

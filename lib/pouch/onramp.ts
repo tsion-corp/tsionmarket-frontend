@@ -23,9 +23,13 @@ export const ONRAMP_FIAT = {
   localCurrency: "NGN",
 } as const;
 
-// A small floor so a dust request never reaches the provider. Pouch accepts from
-// about one dollar; we keep a modest minimum for a sensible transfer.
+// A small USD floor for the server, so a dust request never reaches the
+// provider. The user-facing minimum is set in Naira below.
 export const ONRAMP_MIN_USD = 1;
+
+// The minimum deposit in Naira. This is the amount the user actually enters, so
+// the floor is enforced against it directly rather than a converted figure.
+export const ONRAMP_MIN_NGN = 5000;
 
 // The unified status the UI reads, mapped from Pouch's create and session enums.
 // "awaiting_payment" means the bank account is live and waiting for the transfer;
@@ -206,6 +210,20 @@ export function isValidOnrampAmount(amountUsd: number): boolean {
   return Number.isFinite(amountUsd) && amountUsd >= ONRAMP_MIN_USD;
 }
 
+// Whether the Naira amount the user entered meets the minimum deposit.
+export function isValidOnrampNgn(amountNgn: number): boolean {
+  return Number.isFinite(amountNgn) && amountNgn >= ONRAMP_MIN_NGN;
+}
+
+// Pouch's live onramp rate (Naira per USD) from the crypto/rate response. Using
+// this for the estimate keeps it in step with the amount Pouch actually charges,
+// instead of a generic mid-market rate.
+export function normalizePouchRate(raw: unknown): number | null {
+  const record = asRecord(raw);
+  const rate = record ? asNumber(record.rate) : null;
+  return rate != null && rate > 0 ? rate : null;
+}
+
 // A display-only Naira estimate for the amount entry, before Pouch returns the
 // exact figure. The real amount to pay always comes from the create response, so
 // this is intentionally an approximation and is labelled as such in the UI.
@@ -213,4 +231,14 @@ export function estimatedNgn(amountUsd: number, usdNgnRate: number): number | nu
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) return null;
   if (!Number.isFinite(usdNgnRate) || usdNgnRate <= 0) return null;
   return amountUsd * usdNgnRate;
+}
+
+// The USD equivalent of a Naira amount the user typed, using the live rate
+// (Naira per USD). Pouch is priced in USD, so this is what we send; it is also
+// shown to the user so they can pick a precise amount. Approximate: the provider
+// applies its own rate and returns the exact Naira to pay.
+export function estimatedUsd(amountNgn: number, usdNgnRate: number): number | null {
+  if (!Number.isFinite(amountNgn) || amountNgn <= 0) return null;
+  if (!Number.isFinite(usdNgnRate) || usdNgnRate <= 0) return null;
+  return amountNgn / usdNgnRate;
 }

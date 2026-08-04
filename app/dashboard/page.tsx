@@ -137,7 +137,12 @@ export default function DashboardPage() {
         <RecentActivity />
       </DashboardShell>
 
-      <ModalShell open={modal !== null} onClose={close} contentKey={modal?.type ?? "none"}>
+      <ModalShell
+        open={modal !== null}
+        onClose={close}
+        contentKey={modal?.type ?? "none"}
+        size={modal?.type === "funds" ? "lg" : "md"}
+      >
         {modal?.type === "detail" ? <DetailModal detail={modal.detail} /> : null}
         {modal?.type === "confirm" ? (
           <ConfirmModal

@@ -227,6 +227,20 @@ export function ArrowDownIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function CalendarIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke={stroke} strokeWidth="1.8" />
+      <path
+        d="M3.5 9.5h17M8 3.5v3M16 3.5v3"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 export function CopyIcon({ size = 16, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>

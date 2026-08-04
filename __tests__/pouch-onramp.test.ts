@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   estimatedNgn,
+  estimatedUsd,
   isTerminalOnrampStatus,
   isValidOnrampAmount,
+  isValidOnrampNgn,
   normalizeOnrampCreation,
   normalizeOnrampStatus,
   normalizeOnrampStatusResult,
+  normalizePouchRate,
+  ONRAMP_MIN_NGN,
   ONRAMP_MIN_USD,
   ONRAMP_SETTLEMENT,
 } from "@/lib/pouch/onramp";
@@ -138,10 +142,34 @@ describe("amount validation and estimate", () => {
     expect(isValidOnrampAmount(100)).toBe(true);
   });
 
+  it("enforces the minimum Naira deposit", () => {
+    expect(ONRAMP_MIN_NGN).toBe(5000);
+    expect(isValidOnrampNgn(5000)).toBe(true);
+    expect(isValidOnrampNgn(4999)).toBe(false);
+    expect(isValidOnrampNgn(10000)).toBe(true);
+    expect(isValidOnrampNgn(Number.NaN)).toBe(false);
+  });
+
   it("estimates naira from a USD amount and a rate, guarding bad inputs", () => {
     expect(estimatedNgn(20, 1403)).toBe(28060);
     expect(estimatedNgn(0, 1403)).toBeNull();
     expect(estimatedNgn(-5, 1403)).toBeNull();
     expect(estimatedNgn(100, 0)).toBeNull();
+  });
+
+  it("estimates the USD equivalent of a naira amount, guarding bad inputs", () => {
+    expect(estimatedUsd(28060, 1403)).toBe(20);
+    expect(estimatedUsd(0, 1600)).toBeNull();
+    expect(estimatedUsd(-100, 1600)).toBeNull();
+    expect(estimatedUsd(10000, 0)).toBeNull();
+  });
+
+  it("reads Pouch's rate from the crypto/rate response, rejecting bad values", () => {
+    expect(normalizePouchRate({ rate: 1399, type: "BUY" })).toBe(1399);
+    expect(normalizePouchRate({ rate: "1399" })).toBe(1399);
+    expect(normalizePouchRate({ rate: 0 })).toBeNull();
+    expect(normalizePouchRate({ rate: -5 })).toBeNull();
+    expect(normalizePouchRate({})).toBeNull();
+    expect(normalizePouchRate(null)).toBeNull();
   });
 });

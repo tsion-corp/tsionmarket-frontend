@@ -172,11 +172,11 @@
     "soon": "Soon",
     "close": "Close",
     "bankTitle": "Bank transfer",
-    "bankSubtitle": "Fund in naira. Settles as USDC."
+    "bankSubtitle": "Fund in naira."
   },
   "bankTransfer": {
     "title": "Bank transfer",
-    "subtitle": "Fund your wallet in naira. It settles to USDC on Base.",
+    "subtitle": "Add money to your balance in naira.",
     "youReceive": "You receive",
     "payEstimate": "You pay about {amount}",
     "payEstimateEmpty": "Enter at least ${min} to continue",
@@ -204,14 +204,18 @@
     "copied": "Copied",
     "processing": "Payment received. Sending your USDC…",
     "waiting": "Waiting for your transfer…",
-    "transferNote": "Transfer the exact amount from any Nigerian bank or app to the account above. Send only once. Your USDC credits automatically, usually within minutes. You can close this screen.",
+    "transferNote": "Send from your own bank account, in the same name you verified — the payment must come from you. A transfer from someone else’s account may be delayed or refunded. Send the exact amount, once. Your USDC credits automatically, usually within a few minutes.",
     "doneForNow": "I've made the transfer",
     "noAccount": "We couldn't generate an account. Please start over.",
     "sentIt": "I've sent the money",
     "confirmingTitle": "Confirming your transfer",
-    "confirmingBody": "Hold on a moment while we note your payment.",
+    "confirmingBody": "Registering your payment. This will only take a few seconds.",
     "enrouteTitle": "Payment on its way",
-    "enrouteBody": "Thanks — your transfer is being processed. Your USDC is on its way and will reflect in your balance shortly, usually within a couple of minutes."
+    "enrouteBody": "Thanks — your transfer is being processed. It usually takes 2 to 5 minutes for your funds to reflect in your balance.",
+    "youSend": "You send",
+    "usdEquivalent": "≈ {amount}",
+    "fxRate": "$1 = {rate}",
+    "enterMin": "Enter at least {amount}"
   },
   "fundsKyc": {
     "back": "Back",
@@ -222,7 +226,7 @@
     "sendingCode": "Sending code…",
     "initiateFailed": "We couldn't start verification. Please try again.",
     "otpTitle": "Enter the code",
-    "otpSentTo": "We sent a six-digit code to {email}.",
+    "otpSentTo": "We sent a six-digit code to <email></email>.",
     "checking": "Checking…",
     "verifyContinue": "Verify and continue",
     "codeMismatch": "That code didn't match. Please try again.",
@@ -236,7 +240,7 @@
     "submitFailed": "We couldn't submit your details. Please try again.",
     "errRequired": "This field is required.",
     "errEmail": "Enter a valid email address.",
-    "errPhone": "Enter a valid phone number.",
+    "errPhone": "Enter a valid 11-digit phone number.",
     "errDate": "Enter a valid date.",
     "errNumber": "Enter digits only.",
     "pendingTitle": "Under review",
@@ -246,7 +250,11 @@
     "rejectedBody": "We couldn't verify your identity with the details provided. Please contact support.",
     "retryTitle": "More information needed",
     "retryBody": "Some details need another look. Update them and submit again.",
-    "updateDetails": "Update details"
+    "updateDetails": "Update details",
+    "selectDate": "Select date",
+    "prevMonth": "Previous month",
+    "nextMonth": "Next month",
+    "errDigits11": "Enter exactly 11 digits."
   },
   "withdrawModal": {
     "title": "Withdraw",

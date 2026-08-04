@@ -5,6 +5,7 @@ import {
   humanizeKey,
   inferFieldKind,
   isFormSubmittable,
+  kycMaxLength,
   normalizeInitiation,
   normalizeKycState,
   validateKycValue,
@@ -111,6 +112,24 @@ describe("field validation and assembly", () => {
     expect(validateKycValue(field({ kind: "date" }), "1990-01-15")).toBeNull();
     expect(validateKycValue(field({ kind: "number" }), "12a")).toBe("invalidNumber");
     expect(validateKycValue(field({ kind: "number" }), "12345678901")).toBeNull();
+  });
+
+  it("enforces 11 digits for NIN, BVN, and phone", () => {
+    expect(validateKycValue(field({ key: "NIN", kind: "number" }), "1234567890")).toBe(
+      "invalid11Digits"
+    );
+    expect(validateKycValue(field({ key: "NIN", kind: "number" }), "12345678901")).toBeNull();
+    expect(validateKycValue(field({ key: "BVN", kind: "number" }), "123")).toBe("invalid11Digits");
+    expect(validateKycValue(field({ key: "BVN", kind: "number" }), "12345678901")).toBeNull();
+    // Separators are ignored; only the digit count matters.
+    expect(validateKycValue(field({ key: "PHONE", kind: "tel" }), "0803 123 4567")).toBeNull();
+    expect(validateKycValue(field({ key: "PHONE", kind: "tel" }), "0803123456")).toBe(
+      "invalidPhone"
+    );
+    expect(kycMaxLength(field({ key: "NIN" }))).toBe(11);
+    expect(kycMaxLength(field({ key: "BVN" }))).toBe(11);
+    expect(kycMaxLength(field({ key: "PHONE" }))).toBeUndefined();
+    expect(kycMaxLength(field({ key: "FULL_NAME" }))).toBeUndefined();
   });
 
   it("gates submission and builds the documents map with verbatim keys", () => {

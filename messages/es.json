@@ -172,11 +172,11 @@
     "soon": "Pronto",
     "close": "Cerrar",
     "bankTitle": "Transferencia bancaria",
-    "bankSubtitle": "Recarga en naira. Se liquida en USDC."
+    "bankSubtitle": "Recarga en naira."
   },
   "bankTransfer": {
     "title": "Transferencia bancaria",
-    "subtitle": "Recarga tu billetera en naira. Se liquida en USDC en Base.",
+    "subtitle": "Agrega dinero a tu saldo en naira.",
     "youReceive": "Recibes",
     "payEstimate": "Pagas aproximadamente {amount}",
     "payEstimateEmpty": "Ingresa al menos ${min} para continuar",
@@ -204,14 +204,18 @@
     "copied": "Copiado",
     "processing": "Pago recibido. Enviando tu USDC…",
     "waiting": "Esperando tu transferencia…",
-    "transferNote": "Transfiere el monto exacto desde cualquier banco o app de Nigeria a la cuenta de arriba. Envía solo una vez. Tu USDC se acredita automáticamente, normalmente en minutos. Puedes cerrar esta pantalla.",
+    "transferNote": "Envía desde tu propia cuenta bancaria, con el mismo nombre que verificaste: el pago debe venir de ti. Una transferencia desde la cuenta de otra persona puede retrasarse o ser reembolsada. Envía el monto exacto, una sola vez. Tu USDC se acredita automáticamente, normalmente en unos minutos.",
     "doneForNow": "Ya hice la transferencia",
     "noAccount": "No pudimos generar una cuenta. Empieza de nuevo.",
     "sentIt": "Ya envié el dinero",
     "confirmingTitle": "Confirmando tu transferencia",
-    "confirmingBody": "Espera un momento mientras registramos tu pago.",
+    "confirmingBody": "Registrando tu pago. Solo tardará unos segundos.",
     "enrouteTitle": "El pago está en camino",
-    "enrouteBody": "Gracias, tu transferencia se está procesando. Tu USDC está en camino y se reflejará en tu saldo en breve, normalmente en un par de minutos."
+    "enrouteBody": "Gracias, tu transferencia se está procesando. Normalmente tarda de 2 a 5 minutos en reflejarse en tu saldo.",
+    "youSend": "Envías",
+    "usdEquivalent": "≈ {amount}",
+    "fxRate": "1 $ = {rate}",
+    "enterMin": "Ingresa al menos {amount}"
   },
   "fundsKyc": {
     "back": "Atrás",
@@ -222,7 +226,7 @@
     "sendingCode": "Enviando código…",
     "initiateFailed": "No pudimos iniciar la verificación. Inténtalo de nuevo.",
     "otpTitle": "Ingresa el código",
-    "otpSentTo": "Enviamos un código de seis dígitos a {email}.",
+    "otpSentTo": "Enviamos un código de seis dígitos a <email></email>.",
     "checking": "Comprobando…",
     "verifyContinue": "Verificar y continuar",
     "codeMismatch": "El código no coincide. Inténtalo de nuevo.",
@@ -236,7 +240,7 @@
     "submitFailed": "No pudimos enviar tus datos. Inténtalo de nuevo.",
     "errRequired": "Este campo es obligatorio.",
     "errEmail": "Ingresa un correo electrónico válido.",
-    "errPhone": "Ingresa un número de teléfono válido.",
+    "errPhone": "Ingresa un número de teléfono válido de 11 dígitos.",
     "errDate": "Ingresa una fecha válida.",
     "errNumber": "Ingresa solo dígitos.",
     "pendingTitle": "En revisión",
@@ -246,7 +250,11 @@
     "rejectedBody": "No pudimos verificar tu identidad con los datos proporcionados. Ponte en contacto con soporte.",
     "retryTitle": "Se necesita más información",
     "retryBody": "Algunos datos necesitan otra revisión. Actualízalos y envíalos de nuevo.",
-    "updateDetails": "Actualizar datos"
+    "updateDetails": "Actualizar datos",
+    "selectDate": "Selecciona una fecha",
+    "prevMonth": "Mes anterior",
+    "nextMonth": "Mes siguiente",
+    "errDigits11": "Ingresa exactamente 11 dígitos."
   },
   "withdrawModal": {
     "title": "Retirar",
