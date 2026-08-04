@@ -26,6 +26,11 @@ function gatewayMeta(e: unknown): { code: string | null; status: number | null }
   };
 }
 
+export function isConflictError(e: unknown): boolean {
+  const gateway = gatewayMeta(e);
+  return gateway.status === 409 || gateway.code === "CONFLICT";
+}
+
 function looksSafeServerMessage(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed || trimmed.length > 160) return false;

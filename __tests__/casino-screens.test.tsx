@@ -48,6 +48,31 @@ const drawApi = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/casino/api/draw", () => drawApi);
 
+const bettingHooks = vi.hoisted(() => ({
+  useMatchMarket: vi.fn(),
+  placeBetMutateAsync: vi.fn(),
+}));
+vi.mock("@/hooks/use-casino-betting", () => ({
+  useMatchMarket: bettingHooks.useMatchMarket,
+  usePlaceBet: () => ({
+    isPending: false,
+    mutateAsync: bettingHooks.placeBetMutateAsync,
+  }),
+}));
+
+vi.mock("@/hooks/use-chess-cashier", () => ({
+  useChessCashierStatus: () => ({
+    configured: false,
+    config: null,
+    wallet: "0xabc",
+    feePct: null,
+    available: "0",
+    locked: "0",
+    lockBuckets: [],
+    balanceLoading: false,
+  }),
+}));
+
 const push = vi.hoisted(() => vi.fn());
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
@@ -80,6 +105,7 @@ vi.mock("@/lib/toast", () => ({
 import { NextIntlClientProvider } from "next-intl";
 import { LobbySection } from "@/components/dashboard/casino/chess/lobby-section";
 import { PlaySection } from "@/components/dashboard/casino/chess/play-section";
+import { SpectateSection } from "@/components/dashboard/casino/chess/spectate-section";
 import { CreateSection } from "@/components/dashboard/casino/chess/create-section";
 import { DrawSection } from "@/components/dashboard/casino/draw/draw-section";
 import messages from "@/messages/en.json";
@@ -152,6 +178,13 @@ beforeEach(() => {
     updatedAt: null,
   });
   chessApi.fetchMatchComments.mockResolvedValue([]);
+  bettingHooks.useMatchMarket.mockReturnValue({
+    odds: null,
+    myBets: [],
+    isLoading: false,
+    error: null,
+  });
+  bettingHooks.placeBetMutateAsync.mockReset();
   drawApi.fetchPastResults.mockResolvedValue([]);
   drawApi.fetchMyEntries.mockResolvedValue([]);
 });
@@ -794,6 +827,66 @@ describe("a drawn game", () => {
       }
       vi.useRealTimers();
     }
+  });
+});
+
+describe("spectator screen", () => {
+  it("shows the public room in the chat tab and posts from there", async () => {
+    chessApi.fetchMatch.mockResolvedValue(
+      activeMatch({
+        white: { id: "0x111", username: "TableOne", rating: 1650, walletAddress: "0x111" },
+        black: { id: "0xdef", username: "GrandmasterKay", rating: 1710, walletAddress: "0xdef" },
+      })
+    );
+    chessApi.fetchMatchChat.mockResolvedValue([
+      {
+        id: 1,
+        matchId: "m1",
+        room: "spectator",
+        author: "0xdef",
+        text: "gl hf",
+        createdAt: "2026-08-04T00:00:00.000Z",
+      },
+      {
+        id: 2,
+        matchId: "m1",
+        room: "spectator",
+        author: "0x111",
+        text: "sharp line",
+        createdAt: "2026-08-04T00:00:30.000Z",
+      },
+    ]);
+    chessApi.postMatchChatMessage.mockResolvedValue({
+      id: 3,
+      matchId: "m1",
+      room: "spectator",
+      author: "0xabc",
+      text: "wild tactic",
+      createdAt: "2026-08-04T00:01:00.000Z",
+    });
+
+    render(<SpectateSection matchId="m1" />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("tab", { name: /Chat/i }));
+    expect(await screen.findByText("gl hf")).toBeInTheDocument();
+    expect(screen.getByText("sharp line")).toBeInTheDocument();
+    expect(screen.getAllByText("gl hf")).toHaveLength(1);
+    expect(screen.getAllByText("sharp line")).toHaveLength(1);
+    expect(screen.getByText("GrandmasterKay")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText("Say something about the game…"), {
+      target: { value: "wild tactic" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() =>
+      expect(chessApi.postMatchChatMessage).toHaveBeenCalledWith(
+        "m1",
+        "spectator",
+        "wild tactic",
+        null
+      )
+    );
   });
 });
 

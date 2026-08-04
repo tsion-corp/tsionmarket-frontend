@@ -542,7 +542,19 @@ export function useChessMatchSocial(
     queryKey: CHESS_KEYS.chat(matchId ?? "none", activeRoom),
     queryFn: () => fetchMatchChat(matchId as string, { room: activeRoom, limit: 100 }, seatName),
     enabled: !!matchId && (activeRoom === "spectator" || !!wallet.address),
-    refetchInterval: SOCIAL_POLL_MS,
+    retry: false,
+    refetchInterval: (query) => {
+      const gateway = query.state.error as { status?: unknown; code?: unknown } | null;
+      const status = typeof gateway?.status === "number" ? gateway.status : null;
+      const code = typeof gateway?.code === "string" ? gateway.code : null;
+      return status === 404 ||
+        status === 409 ||
+        code === "NOT_FOUND" ||
+        code === "CONFLICT" ||
+        code === "BAD_RESPONSE"
+        ? false
+        : SOCIAL_POLL_MS;
+    },
     refetchIntervalInBackground: true,
   });
 

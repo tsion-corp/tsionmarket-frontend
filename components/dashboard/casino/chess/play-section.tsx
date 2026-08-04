@@ -13,6 +13,8 @@ import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { CapturedRow } from "@/components/dashboard/casino/chess/captured-row";
 import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-theme-picker";
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
+import { QrCode } from "@/components/dashboard/funds/qr-code";
+import { formatChatTime, matchActorLabel, playerDisplayName } from "@/lib/casino/chess/social";
 import { identifyOpening } from "@/lib/casino/chess/openings";
 import { formatEngineScore, pvToSan, uciToSan } from "@/lib/casino/chess/engine-analysis";
 import {
@@ -45,8 +47,7 @@ import {
   toUci,
   type Square,
 } from "@/lib/casino/chess/engine";
-import { friendlyError } from "@/lib/errors";
-import { truncateAddress } from "@/lib/format";
+import { friendlyError, isConflictError } from "@/lib/errors";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import type {
@@ -54,7 +55,6 @@ import type {
   ChessColor,
   ChessMatch,
   ChessMatchComment,
-  ChessPlayer,
 } from "@/lib/casino/api/types";
 
 function formatClock(totalSeconds: number): string {
@@ -75,15 +75,6 @@ function lowClockClass(seconds: number, live: boolean): string {
   return seconds <= CRITICAL_CLOCK_SECONDS
     ? "border-down/70 text-down animate-pulse border"
     : "text-down/70";
-}
-
-function formatShortTime(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 // A small clock glyph next to the time, the way chess.com and lila mark the
@@ -148,47 +139,6 @@ const PROMOTION_TEXT_KEY: Record<
   b: "promotionB",
   n: "promotionN",
 };
-
-function displayName(
-  name: string | null | undefined,
-  wallet: string | null | undefined
-): string | null {
-  if (name && name !== "Account" && name !== "World Street user") return name;
-  return wallet ? truncateAddress(wallet) : null;
-}
-
-function playerName(
-  player: ChessPlayer | null,
-  walletName: string | null | undefined,
-  walletAddress: string | null | undefined,
-  fallback: string
-): string {
-  if (!player) return fallback;
-  const playerWallet = player.walletAddress.toLowerCase();
-  const viewerWallet = walletAddress?.toLowerCase() ?? null;
-
-  if (viewerWallet && playerWallet === viewerWallet) {
-    return displayName(walletName, player.walletAddress) ?? fallback;
-  }
-
-  return displayName(player.username, player.walletAddress) ?? fallback;
-}
-
-function actorLabel(
-  actor: string,
-  match: ChessMatch,
-  walletName: string | null | undefined,
-  walletAddress: string | null | undefined,
-  whiteDisplayName: string,
-  blackDisplayName: string,
-  youLabel: string
-): string {
-  const normalizedActor = actor.toLowerCase();
-  if (walletAddress && normalizedActor === walletAddress.toLowerCase()) return youLabel;
-  if (match.white?.walletAddress.toLowerCase() === normalizedActor) return whiteDisplayName;
-  if (match.black?.walletAddress.toLowerCase() === normalizedActor) return blackDisplayName;
-  return displayName(undefined, actor) ?? actor;
-}
 
 function NoteEditor({
   initialValue,
@@ -323,6 +273,7 @@ export function PlaySection({
   const [railTab, setRailTab] = useState<"moves" | "chat" | "info">("moves");
   const [chatRoom, setChatRoom] = useState<ChessChatRoom>("spectator");
   const [chatDraft, setChatDraft] = useState("");
+  const [showInviteQr, setShowInviteQr] = useState(false);
   const engine = useChessEngine(match?.fen ?? null);
   const rematchReadyId = match?.rematch?.nextMatchId ?? null;
   const currentPly = match ? match.moves.length : null;
@@ -648,7 +599,9 @@ export function PlaySection({
       await postChat({ room: activeChatRoom, text });
       setChatDraft("");
     } catch (e) {
-      toast.error(friendlyError(e, t("toastChatFailed")));
+      toast.error(
+        isConflictError(e) ? t("toastChatConflict") : friendlyError(e, t("toastChatFailed"))
+      );
     }
   };
 
@@ -684,20 +637,20 @@ export function PlaySection({
   const self = you === "w" ? match.white : match.black;
   const opponentColor: ChessColor = you === "w" ? "b" : "w";
   const selfColor: ChessColor = you ?? "w";
-  const opponentDisplayName = playerName(
+  const opponentDisplayName = playerDisplayName(
     opponent,
     wallet.name,
     wallet.address ?? null,
     t("waitingForOpponent")
   );
-  const selfDisplayName = playerName(self, wallet.name, wallet.address ?? null, t("you"));
-  const whiteDisplayName = playerName(
+  const selfDisplayName = playerDisplayName(self, wallet.name, wallet.address ?? null, t("you"));
+  const whiteDisplayName = playerDisplayName(
     match.white,
     wallet.name,
     wallet.address ?? null,
     t("waitingForOpponent")
   );
-  const blackDisplayName = playerName(
+  const blackDisplayName = playerDisplayName(
     match.black,
     wallet.name,
     wallet.address ?? null,
@@ -780,7 +733,7 @@ export function PlaySection({
       : t("commentPositionMove", { ply: currentPly ?? 0 });
 
   return (
-    <div className="relative mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
+    <div className="relative mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8 xl:pb-0">
       {/* On narrow screens the side rail stacks below the board, so the balance
           would sit down by the footer. Surface it as the first thing here, and
           hide it once the rail becomes a column that already shows it up top. */}
@@ -922,7 +875,7 @@ export function PlaySection({
         </section>
 
         <aside
-          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:h-[calc(100vh-104px)]"
           style={{ background: CHESS_SIDEBAR_BG }}
         >
           <div className="grid grid-cols-4 border-b border-white/6 bg-black/10">
@@ -1007,7 +960,21 @@ export function PlaySection({
                         >
                           {tCreate("copy")}
                         </button>
+                        <button
+                          onClick={() => setShowInviteQr((open) => !open)}
+                          className="cursor-pointer rounded-[12px] border border-white/12 bg-white/6 px-4 py-3 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12"
+                        >
+                          {showInviteQr ? t("hideQr") : t("showQr")}
+                        </button>
                       </div>
+                      {inviteUrl && showInviteQr ? (
+                        <div className="mt-4 flex flex-col items-center gap-3 rounded-[14px] border border-white/6 bg-black/10 px-4 py-4 text-center">
+                          <QrCode value={inviteUrl} size={176} />
+                          <div className="text-[12px] leading-5 text-white/55">
+                            {t("scanToJoin")}
+                          </div>
+                        </div>
+                      ) : null}
                       <div className="mt-3 text-[11.5px] text-white/44">{t("shareManually")}</div>
                     </div>
                   ) : null}
@@ -1155,17 +1122,17 @@ export function PlaySection({
                           >
                             <div className="mb-1 flex items-center justify-between gap-3 text-[11px] text-white/42">
                               <span className="truncate">
-                                {actorLabel(
-                                  line.author,
+                                {matchActorLabel({
+                                  actor: line.author,
                                   match,
-                                  wallet.name,
-                                  wallet.address ?? null,
+                                  walletName: wallet.name,
+                                  walletAddress: wallet.address ?? null,
                                   whiteDisplayName,
                                   blackDisplayName,
-                                  t("you")
-                                )}
+                                  youLabel: t("you"),
+                                })}
                               </span>
-                              <span className="shrink-0">{formatShortTime(line.createdAt)}</span>
+                              <span className="shrink-0">{formatChatTime(line.createdAt)}</span>
                             </div>
                             <div className="text-[13px] leading-6 text-white/78">{line.text}</div>
                           </div>
@@ -1297,18 +1264,18 @@ export function PlaySection({
                             >
                               <div className="mb-1 flex items-center justify-between gap-3 text-[11px] text-white/42">
                                 <span className="truncate">
-                                  {actorLabel(
-                                    comment.author,
+                                  {matchActorLabel({
+                                    actor: comment.author,
                                     match,
-                                    wallet.name,
-                                    wallet.address ?? null,
+                                    walletName: wallet.name,
+                                    walletAddress: wallet.address ?? null,
                                     whiteDisplayName,
                                     blackDisplayName,
-                                    t("you")
-                                  )}
+                                    youLabel: t("you"),
+                                  })}
                                 </span>
                                 <span className="shrink-0">
-                                  {formatShortTime(comment.updatedAt)}
+                                  {formatChatTime(comment.updatedAt)}
                                 </span>
                               </div>
                               <div className="text-[13px] leading-6 text-white/78">
