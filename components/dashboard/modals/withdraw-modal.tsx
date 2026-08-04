@@ -33,7 +33,6 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
           icon={<BankIcon size={22} />}
           title={t("bankTitle")}
           subtitle={t("bankSubtitle")}
-          badge={t("soon")}
           onClick={() => setStep("bank")}
         />
       </div>

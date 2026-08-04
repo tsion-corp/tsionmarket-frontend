@@ -141,7 +141,7 @@ export default function DashboardPage() {
         open={modal !== null}
         onClose={close}
         contentKey={modal?.type ?? "none"}
-        size={modal?.type === "funds" ? "lg" : "md"}
+        size={modal?.type === "funds" || modal?.type === "withdraw" ? "lg" : "md"}
       >
         {modal?.type === "detail" ? <DetailModal detail={modal.detail} /> : null}
         {modal?.type === "confirm" ? (

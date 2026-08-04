@@ -1,19 +1,20 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { PouchConfigError, pouchErrorMessage, pouchRequest } from "@/lib/server/pouch";
 import { normalizePouchRate, ONRAMP_FIAT } from "@/lib/pouch/onramp";
 
-// Pouch's live onramp rate (Naira per USD, BUY side). The amount-entry screen
-// uses it so the USD estimate matches what the transfer will actually cost. The
-// rate is amount-independent, so we query a reference amount and return the rate.
+// Pouch's live rate (Naira per USD). BUY is the onramp side (what a deposit
+// costs); SELL is the offramp side (what a withdrawal pays out). The rate is
+// amount-independent, so we query a reference amount and return the rate.
 const REFERENCE_NGN = 100000;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const type = req.nextUrl.searchParams.get("type")?.toUpperCase() === "SELL" ? "SELL" : "BUY";
   const query = new URLSearchParams({
     amount: String(REFERENCE_NGN),
     fromCurrency: ONRAMP_FIAT.localCurrency,
     toCurrency: ONRAMP_FIAT.amountCurrency,
     countryCode: ONRAMP_FIAT.countryCode,
-    type: "BUY",
+    type,
   });
 
   try {
