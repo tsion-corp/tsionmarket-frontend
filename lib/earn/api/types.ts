@@ -193,6 +193,51 @@ export interface SubmissionApplicant {
   telegram: string | null;
 }
 
+export type NotificationType =
+  "WINNERS_ANNOUNCED" | "YOU_WON" | "SUBMISSION_REJECTED" | "PAYMENT_SENT";
+
+// An in-app notification. The text is written by the service at send time, so
+// it still reads correctly after the listing it refers to has changed or gone.
+export interface EarnNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string | null;
+  // Where tapping it should go, when there is somewhere.
+  listingSlug: string | null;
+  isRead: boolean;
+  createdAt: string | null;
+}
+
+export interface NotificationFeed {
+  items: EarnNotification[];
+  unread: number;
+}
+
+// One of the caller's own entries, with enough of the listing to render a row
+// and link back to it. This is the only view that answers "what have I applied
+// for and how did it go" without already knowing the listing.
+export interface MySubmission {
+  id: string;
+  listingId: string;
+  link: string | null;
+  otherInfo: string | null;
+  status: SubmissionStatus;
+  winnerPosition: number | null;
+  isPaid: boolean;
+  createdAt: string | null;
+  listing: {
+    id: string;
+    slug: string;
+    title: string;
+    type: ListingType;
+    deadline: string | null;
+    reward: RewardAmount | null;
+    winnersAnnounced: boolean;
+    sponsor: SponsorRef | null;
+  } | null;
+}
+
 // What GET /submission/check answers: whether this user already submitted, and
 // once winners are out, how their entry did and what is holding up payment.
 export interface SubmissionCheck {
@@ -249,12 +294,35 @@ export interface SponsorProfileInput {
   telegram: string;
 }
 
+// A named piece of work. A repo, a deployed demo and a design file are three
+// things a reviewer opens separately, which one URL could not express.
+export interface Deliverable {
+  label: string;
+  url: string;
+}
+
+// Uploaded evidence for work that cannot be linked to. URLs come from the
+// image upload, so nothing arbitrary is stored.
+export interface Attachment {
+  url: string;
+  caption?: string;
+}
+
 export interface CreateSubmissionInput {
   listingId: string;
   link: string;
   otherInfo: string;
   telegram: string;
   eligibilityAnswers: EligibilityAnswer[];
+  // Where a reward would be paid. Sent so a winner is payable without having
+  // opened the profile form; the service ignores it once an address is on file.
+  walletAddress?: string;
+  deliverables?: Deliverable[];
+  attachments?: Attachment[];
+  // What the applicant is asking for, on a listing priced as a range rather
+  // than a fixed amount. The service requires it for those and rejects it as
+  // meaningless on the rest.
+  ask?: number;
   // Only sent when the user has a verified X handle linked. The service
   // rejects the field otherwise.
   tweet?: string;

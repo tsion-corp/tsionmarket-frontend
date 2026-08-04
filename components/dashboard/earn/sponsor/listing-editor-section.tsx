@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ListingFormFields } from "@/components/dashboard/earn/sponsor/listing-form-fields";
+import { FundListingSheet } from "@/components/dashboard/earn/sponsor/fund-listing-sheet";
+import { fetchEscrowQuote } from "@/lib/earn/api/sponsor-dashboard";
 import {
   usePublishListing,
   useSaveListingDraft,
@@ -21,6 +23,21 @@ import type { Listing } from "@/lib/earn/api/types";
 
 const PAGE = "mx-auto w-full max-w-[720px] px-4 pt-6 pb-20 sm:px-6";
 
+// The service refuses a publish whose reward is not in escrow. Matched on the
+// wording rather than a code because it answers a plain VALIDATION_ERROR, and
+// the sponsor needs the funding sheet rather than a dead end.
+function needsFunding(error: unknown): boolean {
+  const message = (error as { message?: string } | null)?.message ?? "";
+  return /escrow/i.test(message);
+}
+
+// Escrow is switched off entirely, which is not a problem to report: without it
+// the service does not gate publishing either.
+function escrowUnavailable(error: unknown): boolean {
+  const message = (error as { message?: string } | null)?.message ?? "";
+  return /not configured/i.test(message);
+}
+
 interface ListingEditorProps {
   // Set when editing an existing listing rather than starting a new one.
   existing?: Listing;
@@ -37,6 +54,11 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   // The id of the draft this editor has already saved, so a second save
   // updates it rather than creating another listing.
   const [draftId, setDraftId] = useState<string | null>(existing?.id ?? null);
+  // Opened when a listing needs its reward deposited before it can go live.
+  const [funding, setFunding] = useState(false);
+  // The saved listing the funding sheet is acting on, so publishing can resume
+  // against the same one once the deposit lands.
+  const [pending, setPending] = useState<{ id: string; slug: string } | null>(null);
 
   const saveDraft = useSaveListingDraft();
   const publish = usePublishListing();
@@ -63,6 +85,25 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
     }
   }
 
+  /** Publishes a listing already known to be funded. */
+  async function publishNow(listingId: string, slug: string) {
+    const id = toast.loading("Publishing…");
+    try {
+      await publish.mutateAsync(listingId);
+      toast.success("Your listing is live.", { id });
+      router.push(`/earn/sponsor/listing/${slug}?type=${state.type}`);
+    } catch (error) {
+      toast.dismiss(id);
+      // Still handled, in case the listing was funded between the check and
+      // here, or escrow was switched on mid-session.
+      if (needsFunding(error)) {
+        setFunding(true);
+        return;
+      }
+      toast.error(friendlyError(error, "Couldn't publish that listing."), { id });
+    }
+  }
+
   async function onPublish() {
     const found = validateListingForm(state, { forPublish: true });
     setErrors(found);
@@ -71,18 +112,40 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
       return;
     }
 
-    const id = toast.loading("Publishing…");
+    const id = toast.loading("Saving…");
+    let listing;
     try {
-      // Save first so publish acts on what is on screen, not on whatever was
-      // last written.
-      const listing = await saveDraft.mutateAsync(buildListingPayload(state, draftId ?? undefined));
+      // Saved first so publish acts on what is on screen, not on whatever was
+      // last written. It also mints the id the deposit is recorded against.
+      listing = await saveDraft.mutateAsync(buildListingPayload(state, draftId ?? undefined));
       setDraftId(listing.id);
-      await publish.mutateAsync(listing.id);
-      toast.success("Your listing is live.", { id });
-      router.push(`/earn/sponsor/listing/${listing.slug}?type=${state.type}`);
     } catch (error) {
-      toast.error(friendlyError(error, "Couldn't publish that listing."), { id });
+      toast.error(friendlyError(error, "Couldn't save that listing."), { id });
+      return;
     }
+    setPending({ id: listing.id, slug: listing.slug });
+
+    // Funding is checked before publishing, not after it fails. Depositing is a
+    // step in posting a listing, so it belongs in front of the sponsor as one,
+    // rather than arriving as an error on the way out.
+    try {
+      const quote = await fetchEscrowQuote(listing.id);
+      toast.dismiss(id);
+      if (!quote.alreadyFunded) {
+        setFunding(true);
+        return;
+      }
+    } catch (error) {
+      toast.dismiss(id);
+      // Escrow not configured at all: nothing to fund, and the service will not
+      // gate the publish either. Anything else is a real failure to report.
+      if (!escrowUnavailable(error)) {
+        toast.error(friendlyError(error, "Couldn't check the listing's funding."), { id });
+        return;
+      }
+    }
+
+    await publishNow(listing.id, listing.slug);
   }
 
   async function onUpdate() {
@@ -159,6 +222,18 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
           )}
         </div>
       </form>
+
+      {/* Only reachable once a draft exists, since funding is recorded against
+          a listing id. Confirming the deposit retries the publish, so the
+          sponsor lands where they were heading rather than back at the form. */}
+      {pending ? (
+        <FundListingSheet
+          open={funding}
+          onClose={() => setFunding(false)}
+          listingId={pending.id}
+          onFunded={() => void publishNow(pending.id, pending.slug)}
+        />
+      ) : null}
     </div>
   );
 }

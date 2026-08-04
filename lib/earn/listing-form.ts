@@ -21,6 +21,14 @@ export const ONE_DAY_MS = 86_400_000;
 // checker accepts and what reads correctly in a URL.
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// A question applicants must answer. Projects require at least one; the
+// service refuses to publish one without any.
+export interface EligibilityInput {
+  question: string;
+  type: "text" | "link";
+  optional: boolean;
+}
+
 export interface RewardTierInput {
   position: number;
   // What the sponsor typed, not a number. Parsed at the boundary.
@@ -46,6 +54,7 @@ export interface ListingFormState {
   isFndnPaying: boolean;
   agentAccess: AgentAccess;
   isPro: boolean;
+  eligibility: EligibilityInput[];
 }
 
 export type ListingFormErrors = Partial<Record<keyof ListingFormState, string>>;
@@ -68,6 +77,9 @@ export interface ListingPayload {
   isFndnPaying: boolean;
   agentAccess: AgentAccess;
   isPro: boolean;
+  // `order` is 1-based and drives the order applicants see. Sent as an empty
+  // array for listing types that do not take questions.
+  eligibility: { order: number; question: string; type: "text" | "link"; optional: boolean }[];
   // Set when updating an existing draft rather than creating one.
   id?: string;
 }
@@ -91,6 +103,7 @@ export function emptyListingForm(): ListingFormState {
     isFndnPaying: false,
     agentAccess: "HUMAN_ONLY",
     isPro: false,
+    eligibility: [],
   };
 }
 
@@ -129,6 +142,11 @@ export function listingToForm(listing: Listing): ListingFormState {
     isFndnPaying: listing.isFndnPaying,
     agentAccess: listing.agentAccess,
     isPro: listing.isPro,
+    eligibility: listing.eligibility.map((question) => ({
+      question: question.question,
+      type: question.type,
+      optional: question.optional,
+    })),
   };
 }
 
@@ -154,6 +172,11 @@ export function validateListingForm(
   if (!state.description.trim()) errors.description = "Describe what needs building.";
   if (!state.pocSocials.trim()) errors.pocSocials = "Add a contact link for applicants.";
   if (!state.skills.length) errors.skills = "Pick at least one skill.";
+  // The service refuses to publish a project with no questions, so the same
+  // rule is applied here rather than after a round trip.
+  if (state.type === "project" && !state.eligibility.some((q) => q.question.trim())) {
+    errors.eligibility = "Add at least one question for applicants.";
+  }
   if (!state.rewardAmount.trim()) errors.rewardAmount ??= "Set the total reward.";
 
   const dateErrors = dateRuleErrors(state);
@@ -249,6 +272,14 @@ export function buildListingPayload(state: ListingFormState, id?: string): Listi
     isFndnPaying: state.isFndnPaying,
     agentAccess: state.agentAccess,
     isPro: state.isPro,
+    eligibility: state.eligibility
+      .filter((question) => question.question.trim())
+      .map((question, index) => ({
+        order: index + 1,
+        question: question.question.trim(),
+        type: question.type,
+        optional: question.optional,
+      })),
     ...(id ? { id } : {}),
   };
 }

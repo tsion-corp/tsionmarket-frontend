@@ -25,6 +25,7 @@ import type {
   Sponsor,
   SponsorListing,
   SponsorRef,
+  MySubmission,
   Submission,
   SubmissionApplicant,
   TalentProfile,
@@ -75,6 +76,9 @@ export interface ListingWire {
   isPro?: boolean;
   isFndnPaying?: boolean;
   isPublished?: boolean;
+  // The service sends `isWinnersAnnounced`. The unprefixed spelling is kept as
+  // a fallback because other feeds on the platform use it.
+  isWinnersAnnounced?: boolean;
   winnersAnnounced?: boolean;
   agentAccess?: string;
   skills?: SkillWire[];
@@ -116,7 +120,6 @@ export interface SubmissionCheckWire {
 }
 
 const LISTING_TYPES: ListingType[] = ["bounty", "project", "hackathon", "grant"];
-const LISTING_STATUSES: ListingStatus[] = ["open", "review", "completed", "closed"];
 const COMPENSATION_TYPES: CompensationType[] = ["fixed", "range", "variable"];
 const AGENT_ACCESS: AgentAccess[] = ["HUMAN_ONLY", "AGENT_ALLOWED", "AGENT_ONLY"];
 
@@ -284,6 +287,36 @@ function submissionCountOf(wire: ListingWire): number {
   return typeof counted === "number" ? counted : 0;
 }
 
+/**
+ * Whether the sponsor has published a result. Read from either spelling: the
+ * listings API sends `isWinnersAnnounced` and reading only the shorter name
+ * left this permanently false, which silently disabled every announced state.
+ */
+function announced(wire: ListingWire): boolean {
+  return flag(wire.isWinnersAnnounced) || flag(wire.winnersAnnounced);
+}
+
+/**
+ * What a listing's status means to a reader.
+ *
+ * Derived rather than read off the `status` column, because that column holds
+ * OPEN/REVIEW/CLOSED and never says "completed" — so a listing whose winners
+ * were announced still rendered as open. This mirrors how the service's own
+ * browse filter defines the three states, so a listing found under "Completed"
+ * renders as completed.
+ */
+function toListingStatus(wire: ListingWire): ListingStatus {
+  if (announced(wire)) return "completed";
+
+  // A listing closed by the sponsor is out regardless of its dates.
+  const column = text(wire.status).toLowerCase();
+  if (column === "closed") return "closed";
+
+  const deadline = wire.deadline ? new Date(wire.deadline).getTime() : NaN;
+  if (Number.isFinite(deadline) && deadline < Date.now()) return "review";
+  return "open";
+}
+
 export function toListingSummary(wire: ListingWire): ListingSummary | null {
   if (!wire?.id || !wire.slug) return null;
   return {
@@ -291,14 +324,14 @@ export function toListingSummary(wire: ListingWire): ListingSummary | null {
     slug: wire.slug,
     title: text(wire.title, "Untitled listing"),
     type: oneOf(LISTING_TYPES, wire.type, "bounty"),
-    status: oneOf(LISTING_STATUSES, wire.status, "open"),
+    status: toListingStatus(wire),
     region: text(wire.region, "Global"),
     deadline: optionalText(wire.deadline),
     reward: rewardFromApi(wire.rewardAmount, wire.token),
     compensationType: oneOf(COMPENSATION_TYPES, wire.compensationType, "fixed"),
     isPrivate: flag(wire.isPrivate),
     isPro: flag(wire.isPro),
-    winnersAnnounced: flag(wire.winnersAnnounced),
+    winnersAnnounced: announced(wire),
     submissionCount: submissionCountOf(wire),
     sponsor: toSponsorRef(wire.sponsor),
   };
@@ -390,6 +423,48 @@ export function toSubmission(wire: SubmissionWire): Submission | null {
     eligibilityAnswers: toEligibilityAnswers(wire.eligibilityAnswers),
     applicant: toApplicant(wire.user),
   };
+}
+
+export interface MySubmissionWire extends SubmissionWire {
+  isPaid?: boolean;
+  listing?: ListingWire | null;
+}
+
+// One of the caller's own entries. The listing is normalised through the same
+// summary path as the feed, so a row here shows the same reward and deadline
+// the listing page does. A listing that fails to normalise leaves the entry
+// visible with no listing rather than dropping the entry: the person still
+// submitted it, and hiding that would be worse than showing it bare.
+export function toMySubmission(wire: MySubmissionWire): MySubmission | null {
+  if (!wire?.id) return null;
+  const listing = wire.listing ? toListingSummary(wire.listing) : null;
+  return {
+    id: wire.id,
+    listingId: text(wire.listingId) || (listing?.id ?? ""),
+    link: optionalText(wire.link),
+    otherInfo: optionalText(wire.otherInfo),
+    status: toSubmissionStatus(wire),
+    winnerPosition: typeof wire.winnerPosition === "number" ? wire.winnerPosition : null,
+    isPaid: flag(wire.isPaid),
+    createdAt: optionalText(wire.createdAt),
+    listing: listing
+      ? {
+          id: listing.id,
+          slug: listing.slug,
+          title: listing.title,
+          type: listing.type,
+          deadline: listing.deadline,
+          reward: listing.reward,
+          winnersAnnounced: listing.winnersAnnounced,
+          sponsor: listing.sponsor,
+        }
+      : null,
+  };
+}
+
+export function toMySubmissions(wire: MySubmissionWire[] | null | undefined): MySubmission[] {
+  if (!Array.isArray(wire)) return [];
+  return wire.map(toMySubmission).filter((entry): entry is MySubmission => entry !== null);
 }
 
 export function toSubmissions(wire: SubmissionWire[] | null | undefined): Submission[] {

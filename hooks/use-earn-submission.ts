@@ -1,13 +1,35 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { checkSubmission, createSubmission, fetchMySubmission } from "@/lib/earn/api/submissions";
+import {
+  checkSubmission,
+  createSubmission,
+  fetchMySubmission,
+  fetchMySubmissions,
+} from "@/lib/earn/api/submissions";
 import type { CreateSubmissionInput } from "@/lib/earn/api/types";
 
 export const SUBMISSION_KEYS = {
   check: (listingId: string) => ["earn", "submission", "check", listingId] as const,
   mine: (listingId: string) => ["earn", "submission", "mine", listingId] as const,
+  all: ["earn", "submission", "all-mine"] as const,
 };
+
+// Everything the caller has entered. Answers "what did I apply for and did I
+// win" in one place, which per-listing checks cannot: they need the listing in
+// hand already.
+export function useMySubmissions() {
+  const query = useQuery({
+    queryKey: SUBMISSION_KEYS.all,
+    queryFn: fetchMySubmissions,
+  });
+
+  return {
+    submissions: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.error,
+  };
+}
 
 // Whether this user already entered, and once winners are out, how they did.
 export function useSubmissionCheck(listingId: string | null) {
@@ -45,6 +67,8 @@ export function useCreateSubmission() {
     onSuccess: (_submission, input) => {
       void queryClient.invalidateQueries({ queryKey: SUBMISSION_KEYS.check(input.listingId) });
       void queryClient.invalidateQueries({ queryKey: SUBMISSION_KEYS.mine(input.listingId) });
+      // A new entry has to appear on the applications screen without a reload.
+      void queryClient.invalidateQueries({ queryKey: SUBMISSION_KEYS.all });
     },
   });
 }

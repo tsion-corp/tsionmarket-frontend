@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { AsyncError, AsyncLoading } from "@/components/dashboard/async-state";
 import { ListingCard } from "@/components/dashboard/earn/listing-card";
+import { NotificationBell } from "@/components/dashboard/earn/notification-bell";
 import { ListingFilters } from "@/components/dashboard/earn/listing-filters";
 import { useListingFeed } from "@/hooks/use-earn-listings";
 import { useCurrentSponsor } from "@/hooks/use-earn-sponsor";
@@ -105,6 +106,13 @@ export function BrowseSection() {
         </div>
 
         <div className="flex items-center gap-2.5">
+          <NotificationBell />
+          <Link
+            href="/earn/applications"
+            className="ws-inset cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white/75 transition-colors hover:text-white"
+          >
+            Your applications
+          </Link>
           <Link
             href="/earn/profile"
             className="ws-inset cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white/75 transition-colors hover:text-white"

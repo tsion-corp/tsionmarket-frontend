@@ -4,6 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   announceWinners,
   fetchIsCreateAllowed,
+  fetchEscrowStatus,
+  fundListing,
+  releaseEscrow,
   fetchSponsorListing,
   fetchSponsorListings,
   fetchSponsorSubmissions,
@@ -120,6 +123,50 @@ export function useUpdateListing() {
       if (listing) {
         void queryClient.invalidateQueries({ queryKey: LISTING_KEYS.detail(listing.slug) });
       }
+    },
+  });
+}
+
+// Funding is what lets a listing be published, so the sponsor's own views are
+// stale afterwards: the draft becomes publishable and shows as backed.
+export function useFundListing() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      txId,
+      walletAddress,
+    }: {
+      id: string;
+      txId: string;
+      walletAddress?: string;
+    }) => fundListing(id, txId, walletAddress),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["earn", "sponsor-dashboard"] });
+    },
+  });
+}
+
+// What escrow still holds. Polled while a listing owes its winners, since the
+// release may land after the page is already open.
+export function useEscrowStatus(listingId: string | null) {
+  const query = useQuery({
+    queryKey: ["earn", "escrow-status", listingId],
+    queryFn: () => fetchEscrowStatus(listingId as string),
+    enabled: !!listingId,
+  });
+
+  return { status: query.data ?? null, isLoading: query.isLoading };
+}
+
+// Paying the winners changes what escrow holds and what every entrant sees.
+export function useReleaseEscrow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => releaseEscrow(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["earn", "escrow-status"] });
+      void queryClient.invalidateQueries({ queryKey: ["earn", "sponsor-dashboard"] });
     },
   });
 }

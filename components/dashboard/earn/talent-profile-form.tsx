@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SelectField, TextAreaField, TextField } from "@/components/dashboard/earn/form-field";
 import { ImageUploadField } from "@/components/ui/image-upload-field";
+import { useWallets } from "@privy-io/react-auth";
 import { useCompleteTalentProfile } from "@/hooks/use-earn-talent";
 import { SKILL_CATEGORIES, type SkillCategory, type TalentProfile } from "@/lib/earn/api/types";
 import { friendlyError } from "@/lib/errors";
@@ -73,6 +74,11 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
   const [state, setState] = useState<FormState>(() => initialState(existing));
   const [errors, setErrors] = useState<FormErrors>({});
   const complete = useCompleteTalentProfile();
+  const { wallets } = useWallets();
+  // Captured rather than typed. This is where a reward is paid, so a hand-typed
+  // address is a way to lose money to a typo; the connected wallet is already
+  // the right answer.
+  const walletAddress = wallets.find((w) => w.walletClientType === "privy")?.address;
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -98,6 +104,7 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
         github: state.github.trim(),
         twitter: state.twitter.trim(),
         website: state.website.trim(),
+        ...(walletAddress ? { walletAddress } : {}),
       });
       toast.success("Profile saved.", { id });
       onDone();
@@ -204,6 +211,15 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
         placeholder="https://yoursite.com"
         onChange={(value) => set("website", value)}
       />
+
+      {/* Not editable: rewards are paid to the wallet you are signed in with,
+          and letting it be typed is a way to lose money to a typo. */}
+      <div className="ws-inset rounded-[14px] px-4 py-3">
+        <div className="font-sans text-[12px] font-normal text-white/45">Paid to</div>
+        <div className="tnum mt-0.5 font-sans text-[12.5px] break-all text-white/80">
+          {walletAddress ?? "Connecting your wallet…"}
+        </div>
+      </div>
 
       <button
         type="submit"

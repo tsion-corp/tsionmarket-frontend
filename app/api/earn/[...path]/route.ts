@@ -25,6 +25,9 @@ const PUBLIC_READ_PREFIXES = [
   "listings",
   "sponsors/check-name",
   "sponsors/check-slug",
+  // The VAPID public key is exactly that, and the browser needs it before it
+  // can subscribe. Nothing about it identifies a caller.
+  "notifications/vapid-key",
 ] as const;
 
 function notConfigured() {

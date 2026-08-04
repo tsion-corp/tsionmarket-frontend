@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import {
   CheckboxField,
   SelectField,
@@ -8,7 +7,11 @@ import {
   TextField,
 } from "@/components/dashboard/earn/form-field";
 import { slugify } from "@/lib/earn/listing-form";
-import type { ListingFormErrors, ListingFormState } from "@/lib/earn/listing-form";
+import type {
+  EligibilityInput,
+  ListingFormErrors,
+  ListingFormState,
+} from "@/lib/earn/listing-form";
 import {
   SKILL_CATEGORIES,
   type AgentAccess,
@@ -44,6 +47,8 @@ const AGENT_ACCESS: { value: AgentAccess; label: string }[] = [
 const TOKENS = ["USDC", "USDT", "ETH"].map((value) => ({ value, label: value }));
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
+
+const MAX_ELIGIBILITY = 10;
 
 interface ListingFormFieldsProps {
   state: ListingFormState;
@@ -170,6 +175,12 @@ export function ListingFormFields({
         error={errors.rewards}
         onChange={(rewards) => set("rewards", rewards)}
         onAmount={setAmount}
+      />
+
+      <EligibilityField
+        state={state}
+        error={errors.eligibility}
+        onChange={(eligibility) => set("eligibility", eligibility)}
       />
 
       <SkillsField
@@ -303,5 +314,101 @@ function SkillsField({
       ]}
       onChange={(value) => onChange(value ? [{ skill: value, subskills: [] }] : [])}
     />
+  );
+}
+
+// Questions applicants answer when they enter. Required for a project, which
+// the service refuses to publish without any; optional on everything else, so
+// the field only insists when it has to.
+function EligibilityField({
+  state,
+  error,
+  onChange,
+}: {
+  state: ListingFormState;
+  error?: string;
+  onChange: (eligibility: EligibilityInput[]) => void;
+}) {
+  const required = state.type === "project";
+
+  function set(index: number, patch: Partial<EligibilityInput>) {
+    onChange(state.eligibility.map((q, i) => (i === index ? { ...q, ...patch } : q)));
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="font-sans text-[12.5px] font-medium text-white/70">
+        Questions for applicants
+        {required ? (
+          <span className="text-white/35"> *</span>
+        ) : (
+          <span className="ml-1.5 font-normal text-white/35">optional</span>
+        )}
+      </span>
+
+      {state.eligibility.map((question, index) => (
+        <div key={index} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <input
+            value={question.question}
+            aria-label={`Question ${index + 1}`}
+            placeholder="What do you want to know before picking someone?"
+            onChange={(event) => set(index, { question: event.target.value })}
+            className="ws-inset focus:border-accent/50 w-full rounded-[12px] px-3.5 py-2.5 font-sans text-[13px] text-white outline-none placeholder:text-white/25"
+          />
+          <div className="flex shrink-0 items-center gap-2">
+            <select
+              value={question.type}
+              aria-label={`Question ${index + 1} answer type`}
+              onChange={(event) =>
+                set(index, { type: event.target.value === "link" ? "link" : "text" })
+              }
+              className="ws-inset cursor-pointer rounded-[12px] px-3 py-2.5 font-sans text-[12.5px] font-medium text-white outline-none"
+            >
+              <option value="text" className="bg-sheet">
+                Text
+              </option>
+              <option value="link" className="bg-sheet">
+                Link
+              </option>
+            </select>
+            <label className="flex cursor-pointer items-center gap-1.5 font-sans text-[12px] font-normal text-white/55">
+              <input
+                type="checkbox"
+                checked={question.optional}
+                onChange={(event) => set(index, { optional: event.target.checked })}
+                className="accent-accent size-3.5 cursor-pointer"
+              />
+              Optional
+            </label>
+            <button
+              type="button"
+              onClick={() => onChange(state.eligibility.filter((_, i) => i !== index))}
+              aria-label={`Remove question ${index + 1}`}
+              className="cursor-pointer rounded-lg border border-white/12 px-2.5 py-2 font-sans text-[12px] text-white/50 hover:text-white"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {state.eligibility.length < MAX_ELIGIBILITY ? (
+        <button
+          type="button"
+          onClick={() =>
+            onChange([...state.eligibility, { question: "", type: "text", optional: false }])
+          }
+          className="cursor-pointer self-start rounded-full border border-white/12 px-3.5 py-1.5 font-sans text-[12px] font-medium text-white/60 transition-colors hover:text-white"
+        >
+          Add a question
+        </button>
+      ) : null}
+
+      {error ? (
+        <span role="alert" className="text-down font-sans text-[12px] font-normal">
+          {error}
+        </span>
+      ) : null}
+    </div>
   );
 }

@@ -152,6 +152,8 @@ export function ListingDetailSection({ slug }: { slug: string | null }) {
         listingId={listing.id}
         listingTitle={listing.title}
         eligibility={listing.eligibility}
+        compensationType={listing.compensationType}
+        rewardToken={listing.reward?.token}
       />
     </div>
   );

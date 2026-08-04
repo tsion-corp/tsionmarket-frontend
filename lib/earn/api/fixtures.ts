@@ -18,6 +18,7 @@
 import type {
   Listing,
   ListingSummary,
+  MySubmission,
   Sponsor,
   SponsorListing,
   Submission,
@@ -192,6 +193,70 @@ export const FIXTURE_SUBMISSIONS: Submission[] = [
     createdAt: inDays(-2),
     eligibilityAnswers: [],
     applicant: { id: "user_sample_2", username: "anotheruser", photo: null, telegram: null },
+  },
+];
+
+// One entry in each state worth showing: still waiting, won, and not selected.
+export const FIXTURE_MY_SUBMISSIONS: MySubmission[] = [
+  {
+    id: "submission_sample_mine_1",
+    listingId: "listing_sample_1",
+    link: "https://github.com/sample/my-entry",
+    otherInfo: null,
+    status: "pending",
+    winnerPosition: null,
+    isPaid: false,
+    createdAt: inDays(-3),
+    listing: {
+      id: "listing_sample_1",
+      slug: "sample-trading-dashboard",
+      title: "Build a trading dashboard widget",
+      type: "bounty",
+      deadline: inDays(5),
+      reward: rewardFromApi(2500, "USDC"),
+      winnersAnnounced: false,
+      sponsor: SPONSOR_ACME,
+    },
+  },
+  {
+    id: "submission_sample_mine_2",
+    listingId: "listing_sample_4",
+    link: "https://github.com/sample/audit-entry",
+    otherInfo: null,
+    status: "winner",
+    winnerPosition: 1,
+    isPaid: false,
+    createdAt: inDays(-12),
+    listing: {
+      id: "listing_sample_4",
+      slug: "sample-mobile-perf-audit",
+      title: "Mobile performance audit",
+      type: "bounty",
+      deadline: inDays(-2),
+      reward: rewardFromApi(1200, "USDC"),
+      winnersAnnounced: true,
+      sponsor: SPONSOR_ACME,
+    },
+  },
+  {
+    id: "submission_sample_mine_3",
+    listingId: "listing_sample_2",
+    link: "https://github.com/sample/copy-entry",
+    otherInfo: null,
+    status: "pending",
+    winnerPosition: null,
+    isPaid: false,
+    createdAt: inDays(-20),
+    listing: {
+      id: "listing_sample_2",
+      slug: "sample-wallet-onboarding-copy",
+      title: "Rewrite the wallet onboarding copy",
+      type: "project",
+      deadline: inDays(14),
+      reward: rewardFromApi(800, "USDC"),
+      winnersAnnounced: true,
+      sponsor: SPONSOR_ORBIT,
+    },
   },
 ];
 

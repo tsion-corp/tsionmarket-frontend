@@ -26,6 +26,7 @@ import {
   fixtureListing,
 } from "@/lib/earn/api/fixtures";
 import type { ListingPayload } from "@/lib/earn/listing-form";
+import type { EscrowQuote } from "@/lib/earn/escrow";
 
 type SubmissionFeed = SubmissionWire[] | { submissions?: SubmissionWire[] } | null;
 type ListingFeed = ListingWire[] | { listings?: ListingWire[] } | null;
@@ -108,6 +109,73 @@ export async function fetchSponsorSubmissions(slug: string): Promise<Submission[
     `/sponsor-dashboard/${encodeURIComponent(slug)}/submissions`
   );
   return toSubmissions(submissionsOf(data));
+}
+
+// What the sponsor's wallet needs in order to deposit: where to send it, the
+// contract's own id for this listing, and an amount and deadline the contract
+// will accept. Derived by the service so the client cannot drift from the
+// rules the contract enforces.
+export async function fetchEscrowQuote(
+  id: string,
+  // The connected wallet. Sent because the account may have no address
+  // recorded yet, and without one the quote cannot tell whether the contract
+  // already holds this sponsor's deposit.
+  walletAddress?: string
+): Promise<EscrowQuote> {
+  return earnAuthedGet<EscrowQuote>(
+    `/sponsor-dashboard/listing/${encodeURIComponent(id)}/escrow-quote`,
+    walletAddress ? { walletAddress } : undefined
+  );
+}
+
+// Records the escrow deposit that backs a listing's reward. Only the
+// transaction hash is sent: the service reads the amount, the token and the
+// recipient back off Base, so nothing here is taken on trust. A listing cannot
+// be published until this succeeds.
+export async function fundListing(
+  id: string,
+  txId: string,
+  // Sent so a first-time funder's account has an address to verify against.
+  // The service ignores it once the account has one recorded.
+  walletAddress?: string
+): Promise<void> {
+  if (USE_FIXTURES) return;
+  await earnPost<unknown>(`/sponsor-dashboard/listing/${encodeURIComponent(id)}/fund`, {
+    txId,
+    ...(walletAddress ? { walletAddress } : {}),
+  });
+}
+
+export interface EscrowStatus {
+  configured: boolean;
+  state?: "None" | "Funded" | "Released" | "Refunded";
+  // Winners were announced but the money is still held: somebody is owed.
+  owesWinners?: boolean;
+  winnersWithoutWallet?: number;
+  refundableAfter?: string | null;
+}
+
+// What escrow still holds for a listing. Read from the contract rather than our
+// own record, because the two can differ and the contract is the one that
+// decides where the money is.
+export async function fetchEscrowStatus(id: string): Promise<EscrowStatus> {
+  if (USE_FIXTURES) return { configured: false };
+  return earnAuthedGet<EscrowStatus>(
+    `/sponsor-dashboard/listing/${encodeURIComponent(id)}/escrow-status`
+  );
+}
+
+export interface ReleaseReport {
+  released: boolean;
+  reason: string;
+  txId?: string;
+  unpaidWinners: string[];
+}
+
+// Pays the announced winners. Safe to call again: the contract knows what it
+// has already paid, so a release that did nothing can simply be retried.
+export async function releaseEscrow(id: string): Promise<ReleaseReport> {
+  return earnPost<ReleaseReport>(`/sponsor-dashboard/listing/${encodeURIComponent(id)}/release`);
 }
 
 // Publishes the result. Until this runs the winners are only marked internally:

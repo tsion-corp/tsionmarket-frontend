@@ -5,7 +5,12 @@ import { AsyncError, AsyncLoading } from "@/components/dashboard/async-state";
 import { RewardBadge } from "@/components/dashboard/earn/reward-badge";
 import { ListingEditorSection } from "@/components/dashboard/earn/sponsor/listing-editor-section";
 import { SubmissionReviewList } from "@/components/dashboard/earn/sponsor/submission-review-list";
-import { useAnnounceWinners, useSponsorListing } from "@/hooks/use-earn-sponsor-listings";
+import {
+  useAnnounceWinners,
+  useEscrowStatus,
+  useReleaseEscrow,
+  useSponsorListing,
+} from "@/hooks/use-earn-sponsor-listings";
 import { deadlineLabel, formatDeadline } from "@/lib/earn/deadline";
 import { listingToForm } from "@/lib/earn/listing-form";
 import { friendlyError } from "@/lib/errors";
@@ -93,6 +98,63 @@ function AnnounceWinners({
   );
 }
 
+// Money still held after winners were announced. Shown because the alternative
+// is a reward sitting in escrow with nobody aware of it: the release runs on
+// announce, but a winner with no wallet, or a chain that was busy, leaves it
+// unpaid and silent.
+function EscrowBanner({ listingId }: { listingId: string }) {
+  const { status } = useEscrowStatus(listingId);
+  const release = useReleaseEscrow();
+
+  if (!status?.configured || !status.owesWinners) return null;
+
+  const blocked = (status.winnersWithoutWallet ?? 0) > 0;
+
+  async function onRelease() {
+    const id = toast.loading("Paying the winners…");
+    try {
+      const report = await release.mutateAsync(listingId);
+      if (report.released && report.unpaidWinners.length === 0) {
+        toast.success("Winners paid from escrow.", { id });
+        return;
+      }
+      if (report.unpaidWinners.length > 0) {
+        toast.warning(
+          `${report.unpaidWinners.length} winner${report.unpaidWinners.length === 1 ? "" : "s"} still have no wallet on file. Their reward stays in escrow.`,
+          { id }
+        );
+        return;
+      }
+      toast.error("Nothing was paid out. Try again shortly.", { id });
+    } catch (error) {
+      toast.error(friendlyError(error, "Couldn't pay the winners."), { id });
+    }
+  }
+
+  return (
+    <div className="ws-inset mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[16px] px-4 py-3.5">
+      <div className="min-w-0">
+        <div className="font-sans text-[13px] font-semibold text-white/85">
+          The reward is still in escrow.
+        </div>
+        <div className="mt-0.5 font-sans text-[12px] font-normal text-white/50">
+          {blocked
+            ? `${status.winnersWithoutWallet} winner${status.winnersWithoutWallet === 1 ? " has" : "s have"} no wallet on file yet. Once they add one, pay them here.`
+            : "Winners are announced but have not been paid yet."}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => void onRelease()}
+        disabled={release.isPending}
+        className="bg-accent text-ink shrink-0 cursor-pointer rounded-full px-4 py-2 font-sans text-[12.5px] font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {release.isPending ? "Paying…" : "Pay winners"}
+      </button>
+    </div>
+  );
+}
+
 export function SponsorListingSection({ slug, type }: { slug: string | null; type: ListingType }) {
   const { listing, isLoading, error } = useSponsorListing(slug, type);
   const [editing, setEditing] = useState(false);
@@ -156,6 +218,8 @@ export function SponsorListingSection({ slug, type }: { slug: string | null; typ
           </button>
         </div>
       </header>
+
+      <EscrowBanner listingId={listing.id} />
 
       <section className="mt-8">
         <div className="flex flex-wrap items-center justify-between gap-3">
