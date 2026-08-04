@@ -63,7 +63,6 @@ export function PasskeyButton() {
         </span>
         {busy ? t("passkeyWaiting") : t("passkeySignIn")}
       </button>
-      <p className="text-xs font-normal text-white/40">{t("passkeyHint")}</p>
     </div>
   );
 }

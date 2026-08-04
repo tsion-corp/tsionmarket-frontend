@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { BRAND } from "@/lib/brand";
-import { LockIcon } from "@/components/ui/icons";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
 import { PasskeyButton } from "@/components/auth/passkey-button";
@@ -140,11 +139,6 @@ export default function AuthPage() {
               )}
             </>
           )}
-
-          <div className="mt-[26px] flex items-center gap-2 text-xs text-white/40">
-            <LockIcon className="text-white/40" />
-            {t("secured")} <span className="font-medium text-white/70">Privy</span>
-          </div>
         </div>
 
         {phase === "passkey" ? null : (
