@@ -11,7 +11,7 @@ function WatchFromParams() {
 
 export default function ChessWatchPage() {
   return (
-    <CasinoPage>
+    <CasinoPage hideFooter>
       <Suspense fallback={null}>
         <WatchFromParams />
       </Suspense>

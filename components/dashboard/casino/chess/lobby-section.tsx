@@ -11,6 +11,14 @@ import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { CasinoError, CasinoLoading } from "@/components/dashboard/casino/casino-state";
 import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import {
+  ArrowRightIcon,
+  ChevronLeftIcon,
+  FlagIcon,
+  FlameIcon,
+  GameArrowsIcon,
+  PlayIcon,
+} from "@/components/ui/icons";
 import { BOARD_THEMES, DEFAULT_THEME } from "@/lib/casino/chess/board-theme";
 import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
@@ -22,137 +30,102 @@ import type { ChessChallenge } from "@/lib/casino/api/types";
 const SURFACE_BG = CHESS_SURFACE_BG;
 const SHELL_BG = "rgba(0, 0, 0, 0.20)";
 const CARD_BG = "linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.14) 100%)";
-const CARD_BG_HOVER = "linear-gradient(180deg, rgba(0, 0, 0, 0.02) 0%, rgba(0, 0, 0, 0.10) 100%)";
 const SHADOW = "0 .1rem .1rem 0 rgba(0, 0, 0, 0.20)";
 const CARD_SHADOW =
   "inset 0 .1rem 0 0 rgba(255, 255, 255, 0.08), 0 .1rem .2rem 0 rgba(0, 0, 0, 0.14), 0 .2rem .4rem 0 rgba(0, 0, 0, 0.10)";
-const CARD_SHADOW_HOVER =
-  "inset 0 .1rem 0 0 rgba(255, 255, 255, 0.14), 0 .1rem .2rem 0 rgba(0, 0, 0, 0.14), 0 .2rem .4rem 0 rgba(0, 0, 0, 0.10)";
 const LANDING_THEME = BOARD_THEMES.find((theme) => theme.id === "green") ?? DEFAULT_THEME;
 const LANDING_BOARD = initialBoard();
-const LOBBY_BOARD_MAX_WIDTH = "min(100%, 780px, calc(100vh - 255px))";
 
 function timeControlLabel(t: ReturnType<typeof useTranslations>, tc: string): string {
   return tc === "3+2" || tc === "5+3" ? t("blitz", { tc }) : t("rapid", { tc });
 }
 
-function LandingIcon({
-  src,
-  alt,
-  className = "h-12 w-12",
-}: {
-  src: string;
-  alt: string;
-  className?: string;
-}) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt={alt} className={className} />
-  );
-}
-
 function MenuHeader() {
   return (
     <div
-      className="flex min-h-[72px] items-center gap-4 px-6 py-5"
+      className="flex min-h-[64px] items-center justify-between gap-4 px-5 py-4"
       style={{ background: SHELL_BG, boxShadow: SHADOW }}
     >
-      <LandingIcon src="/chesscom-icons/play-white.svg" alt="" className="h-10 w-10" />
-      <div className="font-sans text-[28px] leading-none font-semibold tracking-[-0.05em] text-white">
+      <div className="font-sans text-[18px] leading-none font-semibold tracking-[-0.02em] text-white">
         Play Chess
       </div>
+      <Link
+        href="/casino"
+        className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12.5px] font-medium text-white/60 transition-colors hover:border-white/25 hover:text-white"
+      >
+        <ChevronLeftIcon size={12} />
+        Arkade
+      </Link>
     </div>
   );
 }
 
-function MenuCard({
-  title,
-  note,
-  icon,
-  action,
-}: {
-  title: string;
-  note: string;
-  icon: ReactNode;
-  action: ReactNode;
-}) {
+function MenuRow({ title, note, icon }: { title: string; note: string; icon: ReactNode }) {
   return (
-    <div
-      className="rounded-[8px] transition-colors"
-      style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
-      onMouseEnter={(event) => {
-        event.currentTarget.style.background = CARD_BG_HOVER;
-        event.currentTarget.style.boxShadow = CARD_SHADOW_HOVER;
-      }}
-      onMouseLeave={(event) => {
-        event.currentTarget.style.background = CARD_BG;
-        event.currentTarget.style.boxShadow = CARD_SHADOW;
-      }}
-    >
-      {action}
-      <div className="pointer-events-none flex min-h-[136px] items-center gap-4 px-6 py-6">
+    <>
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-white/8 text-white/80">
         {icon}
-        <div className="min-w-0">
-          <div className="font-sans text-[17px] leading-none font-semibold tracking-[-0.03em] text-white sm:text-[18px]">
-            {title}
-          </div>
-          <div className="mt-2 text-[13px] leading-6 text-white/72 sm:text-[14px]">{note}</div>
-        </div>
-      </div>
-    </div>
+      </span>
+      <span className="min-w-0 flex-1 text-left">
+        <span className="block truncate font-sans text-[14.5px] font-medium text-white">
+          {title}
+        </span>
+        <span className="mt-0.5 block truncate text-[12.5px] font-normal text-white/50">
+          {note}
+        </span>
+      </span>
+      <ArrowRightIcon className="shrink-0 text-white/35" />
+    </>
   );
 }
+
+const MENU_ROW_CLASS =
+  "flex w-full cursor-pointer items-center gap-3.5 rounded-[8px] px-4 py-3.5 transition-colors hover:bg-white/4";
 
 function MenuActionButton({
   title,
   note,
-  iconSrc,
+  icon,
   onClick,
   ariaLabel,
 }: {
   title: string;
   note: string;
-  iconSrc: string;
+  icon: ReactNode;
   onClick: () => void;
   ariaLabel?: string;
 }) {
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={onClick}
-        aria-label={ariaLabel ?? title}
-        className="absolute inset-0 z-10 cursor-pointer rounded-[8px]"
-      />
-      <MenuCard
-        title={title}
-        note={note}
-        icon={<LandingIcon src={iconSrc} alt="" />}
-        action={null}
-      />
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel ?? title}
+      className={MENU_ROW_CLASS}
+      style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+    >
+      <MenuRow title={title} note={note} icon={icon} />
+    </button>
   );
 }
 
 function MenuActionLink({
   title,
   note,
-  iconSrc,
+  icon,
   href,
 }: {
   title: string;
   note: string;
-  iconSrc: string;
+  icon: ReactNode;
   href: string;
 }) {
   return (
-    <Link href={href} className="block rounded-[8px]">
-      <MenuCard
-        title={title}
-        note={note}
-        icon={<LandingIcon src={iconSrc} alt="" />}
-        action={null}
-      />
+    <Link
+      href={href}
+      className={MENU_ROW_CLASS}
+      style={{ background: CARD_BG, boxShadow: CARD_SHADOW }}
+    >
+      <MenuRow title={title} note={note} icon={icon} />
     </Link>
   );
 }
@@ -163,8 +136,8 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
       className="flex items-center gap-4 rounded-[8px] px-3 py-3"
       style={{ background: SHELL_BG, boxShadow: SHADOW }}
     >
-      <span className="grid h-14 w-14 place-items-center rounded-[4px] bg-white/8">
-        <LandingIcon src="/chesscom-icons/play-white.svg" alt="" className="h-8 w-8 opacity-35" />
+      <span className="grid h-12 w-12 place-items-center rounded-[8px] bg-white/8 text-white/35">
+        <PlayIcon size={20} />
       </span>
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate font-sans text-[15px] font-medium text-white">{label}</span>
@@ -278,13 +251,22 @@ export function LobbySection() {
 
   return (
     <>
-      <div className="mx-auto w-full max-w-[1520px] px-4 pb-8 sm:px-6 lg:px-8">
+      <div className="mx-auto w-full max-w-[1520px] px-4 pt-5 pb-8 sm:px-6 lg:px-8">
+        {/* On xl the board column is pinned below the sticky topbar and the
+            menu column scrolls on its own, chess.com style, so the board never
+            leaves the screen while browsing the menu. The 84px offset clears
+            the sticky topbar and back link; 116px adds the bottom gap. */}
         <div className="grid gap-6 xl:grid-cols-[minmax(0,840px)_392px]">
           <section
-            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[84px] xl:self-start"
             style={{ background: SURFACE_BG }}
           >
-            <div className="mx-auto w-full" style={{ maxWidth: LOBBY_BOARD_MAX_WIDTH }}>
+            {/* The board caps its own width to what fits the viewport height.
+                Around it sit two player bars plus paddings (224px) and the
+                topbar, page gaps (126px); the base 255px reserve
+                is not enough on xl where the whole column must fit without
+                page scroll, so the reserve grows to 350px there. */}
+            <div className="mx-auto w-full max-w-[var(--board-max)] [--board-max:min(100%,780px,calc(100vh_-_255px))] xl:[--board-max:min(100%,780px,calc(100vh_-_350px))]">
               <PlayerBar label={t("colOpponent")} />
               <div className="mt-4 overflow-hidden rounded-[2px]">
                 <ChessBoard board={LANDING_BOARD} theme={LANDING_THEME} />
@@ -299,30 +281,30 @@ export function LobbySection() {
           </section>
 
           <aside
-            className="overflow-hidden rounded-[8px] shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
+            className="overflow-hidden rounded-[8px] shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[84px] xl:max-h-[calc(100vh-116px)] xl:self-start xl:overflow-y-auto"
             style={{ background: SHELL_BG }}
           >
             <MenuHeader />
-            <div className="space-y-4 p-4 sm:p-6">
+            <div className="space-y-3 p-4 sm:p-5">
               <ChessCashierLauncher />
-              <div className="space-y-4">
+              <div className="space-y-2">
                 <MenuActionButton
                   title="Live Now"
                   note="Watch active games and open the live market"
-                  iconSrc="/chesscom-icons/time-blitz.svg"
+                  icon={<FlameIcon size={20} />}
                   onClick={() => setLiveOpen(true)}
                   ariaLabel="Open live games"
                 />
                 <MenuActionLink
                   title="Play a Friend"
                   note="Invite a friend to a game of chess"
-                  iconSrc="/chesscom-icons/hand-shake.svg"
+                  icon={<GameArrowsIcon size={20} />}
                   href="/casino/chess/create"
                 />
                 <MenuActionButton
                   title="Tournaments"
                   note="Browse current events and create a Swiss tournament"
-                  iconSrc="/chesscom-icons/tournaments.svg"
+                  icon={<FlagIcon size={20} />}
                   onClick={() => setTournamentsOpen(true)}
                 />
               </div>

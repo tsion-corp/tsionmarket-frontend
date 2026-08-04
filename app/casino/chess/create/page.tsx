@@ -5,7 +5,7 @@ import { CreateSection } from "@/components/dashboard/casino/chess/create-sectio
 
 export default function ChessCreatePage() {
   return (
-    <CasinoPage>
+    <CasinoPage hideFooter hideBackLink>
       <CreateSection />
     </CasinoPage>
   );

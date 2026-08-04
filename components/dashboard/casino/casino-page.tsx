@@ -62,7 +62,17 @@ function BackLink({ pathname }: { pathname: string }) {
 // Chrome wrapper shared by every casino route: auth guard plus the app shell
 // with the Casino tab active. Any screen below the hub also gets a back link,
 // since the sidebar only points at the hub itself.
-export function CasinoPage({ children }: { children: React.ReactNode }) {
+export function CasinoPage({
+  children,
+  hideFooter,
+  hideBackLink,
+}: {
+  children: React.ReactNode;
+  hideFooter?: boolean;
+  // The chess lobby pins its layout to the viewport and the sidebar already
+  // points at Arkade, so the back link there is dead height.
+  hideBackLink?: boolean;
+}) {
   const tSections = useTranslations("sections");
   const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const pathname = usePathname();
@@ -70,9 +80,9 @@ export function CasinoPage({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthGuard>
-      <DashboardShell nav={nav} activeSection="casino">
+      <DashboardShell nav={nav} activeSection="casino" hideFooter={hideFooter}>
         <CasinoNavGuardProvider>
-          {isHub || !pathname ? null : <BackLink pathname={pathname} />}
+          {isHub || hideBackLink || !pathname ? null : <BackLink pathname={pathname} />}
           {children}
         </CasinoNavGuardProvider>
       </DashboardShell>

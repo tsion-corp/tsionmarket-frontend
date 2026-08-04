@@ -8,6 +8,7 @@ import { useSwissTournament } from "@/hooks/use-casino-swiss";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { CasinoError, CasinoLoading } from "@/components/dashboard/casino/casino-state";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
+import { FlagIcon, PlayIcon } from "@/components/ui/icons";
 import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
 import { SwissStandings } from "@/components/dashboard/casino/chess/swiss/standings";
 import { SwissRoundPairings } from "@/components/dashboard/casino/chess/swiss/pairings";
@@ -68,19 +69,20 @@ function viewerLabel(name: string | null | undefined, address: string | null): s
 function ShellPlayerBar({
   label,
   meta,
-  iconSrc,
+  icon,
 }: {
   label: string;
   meta: string;
-  iconSrc: string;
+  icon: React.ReactNode;
 }) {
   return (
     <div
       className="flex min-w-0 items-center gap-3 rounded-[8px] px-3 py-2.5"
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={iconSrc} alt="" className="h-11 w-11 shrink-0 rounded-[4px] bg-white/8 p-2.5" />
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[8px] bg-white/8 text-white/60">
+        {icon}
+      </span>
       <div className="min-w-0">
         <div className="truncate font-sans text-[13.5px] font-medium text-white">{label}</div>
         <div className="truncate text-[12px] text-white/58">{meta}</div>
@@ -332,8 +334,9 @@ function ShareCard({
         <div
           className={`flex min-w-0 items-center gap-3 ${overlay ? "w-full flex-col text-center" : ""}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/chesscom-icons/tournaments.svg" alt="" className="h-12 w-12 shrink-0" />
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-white/8 text-white/80">
+            <FlagIcon size={20} />
+          </span>
           <div className="min-w-0">
             <div className="truncate font-sans text-[17px] font-semibold tracking-[-0.03em] text-white">
               {title}
@@ -559,7 +562,7 @@ export function SwissDetailSection({
               <ShellPlayerBar
                 label={detail.name}
                 meta={t(STATE_KEY[detail.state])}
-                iconSrc="/chesscom-icons/tournaments.svg"
+                icon={<FlagIcon size={18} />}
               />
               <div className="flex shrink-0 items-center gap-3">
                 <ShellBadge label={detail.timeControl} />
@@ -586,7 +589,7 @@ export function SwissDetailSection({
               <ShellPlayerBar
                 label={viewer}
                 meta={joined ? t("youPlayAs", { name: yourName as string }) : t("notStarted")}
-                iconSrc="/chesscom-icons/play-white.svg"
+                icon={<PlayIcon size={18} />}
               />
               <ShellBadge
                 label={

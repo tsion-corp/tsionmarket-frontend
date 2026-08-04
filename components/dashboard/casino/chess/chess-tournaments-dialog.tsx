@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { FlagIcon } from "@/components/ui/icons";
 import { ChessDialogFrame } from "@/components/dashboard/casino/chess/chess-dialog-frame";
 import { SwissCreateForm } from "@/components/dashboard/casino/chess/swiss/create-form";
 import {
@@ -25,8 +26,9 @@ function TournamentCreatePicker({ onSwiss }: { onSwiss: () => void }) {
           style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
         >
           <div className="flex min-w-0 items-center gap-4">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/chesscom-icons/tournaments.svg" alt="" className="h-12 w-12 shrink-0" />
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-white/8 text-white/80">
+              <FlagIcon size={20} />
+            </span>
             <div className="min-w-0">
               <div className="font-sans text-[17px] font-semibold tracking-[-0.03em] text-white">
                 Swiss Tournament
@@ -57,7 +59,7 @@ export function ChessTournamentsDialog({ open, onClose }: ChessTournamentsDialog
       open={open}
       onClose={onClose}
       title="Tournaments"
-      iconSrc="/chesscom-icons/tournaments.svg"
+      icon={<FlagIcon size={20} />}
       rightAction={
         <button
           type="button"

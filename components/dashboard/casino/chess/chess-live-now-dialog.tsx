@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { FlameIcon } from "@/components/ui/icons";
 import { ChessDialogFrame } from "@/components/dashboard/casino/chess/chess-dialog-frame";
 import {
   CHESS_CARD_BG,
@@ -48,12 +49,7 @@ export function ChessLiveNowDialog({ open, onClose, myMatches, matches }: ChessL
   const hasAnyLive = myMatches.length > 0 || matches.length > 0;
 
   return (
-    <ChessDialogFrame
-      open={open}
-      onClose={onClose}
-      title="Live Now"
-      iconSrc="/chesscom-icons/time-blitz.svg"
-    >
+    <ChessDialogFrame open={open} onClose={onClose} title="Live Now" icon={<FlameIcon size={20} />}>
       <div className="space-y-4">
         <div className="text-[13px] leading-6 text-white/60">
           Watch games that are already live, then open the market to spectate and bet from your

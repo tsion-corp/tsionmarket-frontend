@@ -135,8 +135,10 @@ function SpectateTabButton({
       aria-selected={active}
       aria-controls={controls}
       onClick={onClick}
-      className={`relative flex cursor-pointer items-center gap-2 pb-3 text-[13px] font-semibold transition-colors ${
-        active ? "text-white" : "text-white/48 hover:text-white/78"
+      className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl px-3 py-2 font-sans text-[13px] font-medium transition-colors ${
+        active
+          ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
+          : "text-white/55 hover:text-white/80"
       }`}
     >
       <span>{label}</span>
@@ -149,11 +151,6 @@ function SpectateTabButton({
           {count}
         </span>
       ) : null}
-      <span
-        className={`absolute inset-x-0 bottom-0 h-[2px] rounded-full transition-opacity ${
-          active ? "bg-white opacity-100" : "bg-white/30 opacity-0"
-        }`}
-      />
     </button>
   );
 }
@@ -464,14 +461,14 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
         </section>
 
         <aside
-          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:h-[calc(100vh-104px)]"
+          className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:h-[calc(100dvh-140px)]"
           style={{ background: CHESS_SIDEBAR_BG }}
         >
-          <div className="border-b border-white/6 px-4 pt-4 sm:px-5">
+          <div className="border-b border-white/6 px-4 pt-4 pb-4 sm:px-5">
             <div
               role="tablist"
               aria-label={`${t("liveMarket")} / ${tPlay("chatTitle")}`}
-              className="flex items-center gap-5"
+              className="ws-inset grid grid-cols-2 gap-1 p-1"
             >
               <SpectateTabButton
                 active={activeTab === "market"}
@@ -503,7 +500,6 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                   className="rounded-[16px] border border-white/6 px-4 py-4"
                   style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
                 >
-                  <div className="mb-1 text-[17px] font-semibold text-white">{t("liveMarket")}</div>
                   <div className="text-[13px] leading-6 text-white/60">
                     Watching is free. Betting here uses your chess balance, not the Base wallet
                     directly.
@@ -681,20 +677,8 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[16px] border border-white/6"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
-                <div className="border-b border-white/6 px-4 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="text-[17px] font-semibold text-white">
-                        {tPlay("chatTitle")}
-                      </div>
-                      <div className="mt-1 text-[13px] leading-6 text-white/60">
-                        {tPlay("chatSpectatorsHint")}
-                      </div>
-                    </div>
-                    <div className="tnum grid h-10 min-w-10 place-items-center rounded-full border border-white/10 bg-black/12 px-3 text-[12px] font-semibold text-white/70">
-                      {commentCount}
-                    </div>
-                  </div>
+                <div className="border-b border-white/6 px-4 py-3 text-[12.5px] leading-6 text-white/50">
+                  {tPlay("chatSpectatorsHint")}
                 </div>
 
                 <div className="relative min-h-0 flex-1 px-4 py-4">
@@ -774,35 +758,27 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                       {tPlay("chatLogin")}
                     </div>
                   ) : (
-                    <div className="flex items-start gap-3">
-                      <div className="border-accent/24 bg-accent/10 grid h-10 w-10 shrink-0 place-items-center rounded-full border text-[11px] font-semibold text-white">
-                        {commentMonogram(tPlay("you"))}
-                      </div>
-                      <div className="min-w-0 flex-1 rounded-[14px] border border-white/8 bg-black/12 p-3">
-                        <textarea
-                          rows={3}
-                          value={chatDraft}
-                          onChange={(event) => setChatDraft(event.target.value)}
-                          onFocus={() => setChatPaused(true)}
-                          onBlur={() => setChatPaused(false)}
-                          onKeyDown={(event) => {
-                            if (event.key !== "Enter" || event.shiftKey) return;
-                            event.preventDefault();
-                            void onPostChat();
-                          }}
-                          placeholder={tPlay("chatPlaceholderSpectator")}
-                          className="min-h-[84px] w-full resize-none border-none bg-transparent text-[13px] leading-6 text-white outline-none placeholder:text-white/28"
-                        />
-                        <div className="mt-3 flex justify-end">
-                          <button
-                            onClick={() => void onPostChat()}
-                            disabled={social.postingChat || chatDraft.trim().length === 0}
-                            className="cursor-pointer rounded-full border border-white/12 bg-white/6 px-4 py-2 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
-                          >
-                            {social.postingChat ? tPlay("chatSending") : tPlay("chatSend")}
-                          </button>
-                        </div>
-                      </div>
+                    <div className="ws-inset flex items-center gap-2 p-1.5 pl-3.5">
+                      <input
+                        value={chatDraft}
+                        onChange={(event) => setChatDraft(event.target.value)}
+                        onFocus={() => setChatPaused(true)}
+                        onBlur={() => setChatPaused(false)}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter") return;
+                          event.preventDefault();
+                          void onPostChat();
+                        }}
+                        placeholder={tPlay("chatPlaceholderSpectator")}
+                        className="min-w-0 flex-1 border-none bg-transparent text-[13px] text-white outline-none placeholder:text-white/28"
+                      />
+                      <button
+                        onClick={() => void onPostChat()}
+                        disabled={social.postingChat || chatDraft.trim().length === 0}
+                        className="text-ink shrink-0 cursor-pointer rounded-full bg-white px-4 py-2 text-[12px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {social.postingChat ? tPlay("chatSending") : tPlay("chatSend")}
+                      </button>
                     </div>
                   )}
                 </div>

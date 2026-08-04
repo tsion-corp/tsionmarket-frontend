@@ -7,7 +7,13 @@ import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/components/dashboard/casino/chess/chess-cashier-launcher";
 import { ChessBoard } from "@/components/dashboard/casino/chess/chess-board";
 import { WagerSummary } from "@/components/dashboard/casino/chess/wager-summary";
-import { ChevronLeftIcon, GridIcon, SettingsIcon } from "@/components/ui/icons";
+import {
+  ChevronLeftIcon,
+  GameArrowsIcon,
+  GridIcon,
+  PlayIcon,
+  SettingsIcon,
+} from "@/components/ui/icons";
 import { useCreateChallenge } from "@/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/hooks/use-chess-cashier";
@@ -76,67 +82,10 @@ function findTimeOption(value: ChessTimeControl): { label: string } | null {
   return null;
 }
 
-function TabIcon({
-  kind,
-  active = false,
-}: {
-  kind: "new" | "games" | "players";
-  active?: boolean;
-}) {
-  const color = active ? "text-white" : "text-white/70";
-
-  if (kind === "new") {
-    return (
-      <span className={`relative block h-6 w-6 ${color}`} aria-hidden>
-        <span className="absolute inset-x-1 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-current" />
-        <span className="absolute inset-y-1 left-1/2 w-[3px] -translate-x-1/2 rounded-full bg-current" />
-      </span>
-    );
-  }
-
-  if (kind === "games") {
-    return <GridIcon size={24} className={color} />;
-  }
-
+function PlusIcon({ size = 15 }: { size?: number }) {
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={color} aria-hidden>
-      <circle cx="9" cy="9" r="3" fill="currentColor" />
-      <circle cx="16.5" cy="10" r="2.5" fill="currentColor" opacity="0.78" />
-      <path
-        d="M4.5 19c.9-2.6 3-4 5.9-4 3 0 5.1 1.4 6 4"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M13.5 18c.6-1.9 2.1-3 4.1-3 1 0 1.9.2 2.6.7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity="0.78"
-      />
-    </svg>
-  );
-}
-
-function UsersIcon({ className = "text-white/70" }: { className?: string }) {
-  return (
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className={className} aria-hidden>
-      <circle cx="8.5" cy="9.25" r="2.75" fill="currentColor" />
-      <circle cx="15.75" cy="10" r="2.25" fill="currentColor" opacity="0.78" />
-      <path
-        d="M4.5 18.5c.8-2.4 2.8-3.7 5.5-3.7 2.7 0 4.7 1.3 5.5 3.7"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-      <path
-        d="M13.2 18.2c.5-1.6 1.9-2.6 3.8-2.6.9 0 1.7.2 2.5.6"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        opacity="0.78"
-      />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
@@ -148,7 +97,7 @@ function PlayerBar({ label, active = false }: { label: string; active?: boolean 
       style={{ background: CHESS_SHELL_BG, boxShadow: CHESS_SHELL_SHADOW }}
     >
       <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[8px] bg-white/8 text-white/45">
-        <UsersIcon className="h-[18px] w-[18px]" />
+        <PlayIcon size={16} />
       </span>
       <span className="flex min-w-0 items-center gap-2">
         <span className="truncate text-[14px] font-medium text-white">{label}</span>
@@ -185,14 +134,16 @@ function RailTab({
   icon: ReactNode;
   active?: boolean;
 }) {
-  const classes = `grid min-h-[78px] place-items-center px-4 py-3 text-center transition-colors ${
-    active ? "bg-black/12 text-white" : "text-white/65 hover:bg-white/4 hover:text-white"
+  const classes = `flex cursor-pointer items-center justify-center gap-2 rounded-xl px-3 py-2 font-sans text-[13px] font-medium transition-colors ${
+    active
+      ? "bg-accent/16 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.35)]"
+      : "text-white/55 hover:text-white/80"
   }`;
 
   const content = (
     <>
-      <span className="mb-2 block">{icon}</span>
-      <span className="text-[13px] font-medium">{label}</span>
+      <span className="shrink-0">{icon}</span>
+      {label}
     </>
   );
 
@@ -359,11 +310,11 @@ export function CreateSection() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1560px] px-4 pb-8 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1560px] px-4 pt-5 pb-8 sm:px-6 lg:px-8">
       {/* On desktop the row is bounded to the viewport so the board is wholly
           visible without scrolling; the setup rail beside it scrolls inside
           itself instead. Below xl both stack and the page scrolls normally. */}
-      <div className="grid gap-6 xl:h-[calc(100dvh-160px)] xl:grid-cols-[minmax(0,944px)_430px]">
+      <div className="grid gap-6 xl:h-[calc(100dvh-120px)] xl:grid-cols-[minmax(0,944px)_430px]">
         <section
           className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:min-h-0"
           style={{ background: CHESS_SURFACE_BG }}
@@ -398,10 +349,10 @@ export function CreateSection() {
           className="flex min-h-0 flex-col overflow-hidden rounded-[8px] border border-white/6 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:h-full"
           style={{ background: CHESS_SIDEBAR_BG }}
         >
-          <div className="grid grid-cols-3 border-b border-white/6 bg-black/10">
-            <RailTab label="New Game" icon={<TabIcon kind="new" active />} active />
-            <RailTab href="/casino/chess/history" label="Games" icon={<TabIcon kind="games" />} />
-            <RailTab href="/casino/chess" label="Lobby" icon={<TabIcon kind="players" />} />
+          <div className="ws-inset m-4 mb-0 grid grid-cols-3 gap-1 p-1 sm:mx-6 sm:mt-6">
+            <RailTab label="New Game" icon={<PlusIcon />} active />
+            <RailTab href="/casino/chess/history" label="Games" icon={<GridIcon size={15} />} />
+            <RailTab href="/casino/chess" label="Lobby" icon={<GameArrowsIcon size={15} />} />
           </div>
 
           <div className="flex min-h-0 flex-1 flex-col p-4 sm:p-6">
@@ -429,9 +380,9 @@ export function CreateSection() {
               <InfoRow
                 label="Opponent"
                 value="Challenge link"
-                icon={<UsersIcon className="h-[18px] w-[18px]" />}
+                icon={<GameArrowsIcon size={16} />}
               />
-              <InfoRow label="Game Type" value="Standard" icon={<GridIcon size={18} />} />
+              <InfoRow label="Game Type" value="Standard" icon={<GridIcon size={16} />} />
 
               {/* Time control: the buttons are the control, so the selection is
                   summarised in the label rather than in a row that opens nothing. */}

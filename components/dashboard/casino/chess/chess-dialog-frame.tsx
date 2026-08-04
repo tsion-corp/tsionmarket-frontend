@@ -13,24 +13,17 @@ interface ChessDialogFrameProps {
   open: boolean;
   onClose: () => void;
   title: string;
-  iconSrc: string;
+  icon: React.ReactNode;
   rightAction?: React.ReactNode;
   tabs?: { id: string; label: string; active: boolean; onClick: () => void }[];
   children: React.ReactNode;
-}
-
-function DialogIcon({ src }: { src: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={src} alt="" className="h-11 w-11 shrink-0" />
-  );
 }
 
 export function ChessDialogFrame({
   open,
   onClose,
   title,
-  iconSrc,
+  icon,
   rightAction,
   tabs,
   children,
@@ -52,9 +45,11 @@ export function ChessDialogFrame({
       >
         <div className="flex items-center justify-between gap-4 pr-10">
           <div className="flex min-w-0 items-center gap-4">
-            <DialogIcon src={iconSrc} />
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[10px] bg-white/8 text-white/80">
+              {icon}
+            </span>
             <div className="min-w-0">
-              <div className="truncate font-sans text-[25px] font-semibold tracking-[-0.04em] text-white">
+              <div className="truncate font-sans text-[18px] font-semibold tracking-[-0.02em] text-white">
                 {title}
               </div>
             </div>

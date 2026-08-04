@@ -5,7 +5,7 @@ import { LobbySection } from "@/components/dashboard/casino/chess/lobby-section"
 
 export default function ChessLobbyPage() {
   return (
-    <CasinoPage>
+    <CasinoPage hideFooter hideBackLink>
       <LobbySection />
     </CasinoPage>
   );
