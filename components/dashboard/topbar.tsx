@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { SearchIcon } from "@/components/ui/icons";
-import { ArkMark } from "@/components/ui/ark-mark";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { AssetIcon } from "@/components/ui/asset-icon";
@@ -101,8 +100,9 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
 
   return (
     <div className="relative z-[2] flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
-      <Link href="/dashboard" className="flex items-center text-white md:hidden">
-        <ArkMark height={14} />
+      <Link href="/dashboard" className="flex items-center md:hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/market-logo.png" alt="mARKet" className="h-[15px] w-auto" />
       </Link>
 
       <div className="relative max-w-[230px] min-w-0 flex-1 md:max-w-[420px]">

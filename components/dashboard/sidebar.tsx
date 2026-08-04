@@ -1,7 +1,7 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { Wordmark } from "@/components/ui/wordmark";
+import Link from "next/link";
 import { Avatar } from "@/components/dashboard/avatar";
 import type { NavItem } from "@/components/dashboard/nav-items";
 import type { DashboardSection } from "@/components/dashboard/modal-types";
@@ -20,7 +20,13 @@ export function Sidebar({ items, activeSection, onNavigate, onOpenAccount }: Sid
   return (
     <aside className="bg-panel fixed top-0 bottom-0 left-0 z-100 hidden w-[248px] flex-col border-r border-white/8 px-4 py-5 md:flex">
       <div className="px-2 pb-5">
-        <Wordmark href="/dashboard" />
+        {/* The dashboard alone wears the mARKet lockup — the two-tone only
+            reads on this dark chrome, so auth and the landing keep the Ark
+            wordmark. */}
+        <Link href="/dashboard" className="flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/market-logo.png" alt="mARKet" className="h-[21px] w-auto" />
+        </Link>
       </div>
 
       <nav className="flex flex-col gap-[3px]">

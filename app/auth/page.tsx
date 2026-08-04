@@ -105,7 +105,13 @@ export default function AuthPage() {
             <>
               <StepMarker step={1} label={t("stepOf", { step: 1, steps: 2 })} />
               <h1 className="ws-display text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
-                {t("welcome")} <span className="text-accent">{BRAND}</span>
+                {t("welcome")}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/market-logo.png"
+                  alt="Market"
+                  className="mt-[0.22em] block h-[0.7em] w-auto"
+                />
               </h1>
               <p className="mt-4 max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72">
                 {t("tagline")}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { ArkMark } from "@/components/ui/ark-mark";
 import { BRAND } from "@/lib/brand";
 
 interface DashboardFooterProps {
@@ -23,7 +22,8 @@ export function DashboardFooter({ sections, onSelect }: DashboardFooterProps) {
       <div className="mx-auto flex max-w-[1520px] flex-col gap-8">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-start">
           <div className="max-w-[34ch]">
-            <ArkMark height={20} />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/market-logo.png" alt="mARKet" className="h-[19px] w-auto" />
             <p className="mt-3 text-[13px] leading-[1.6] font-normal text-white/55">
               {t("tagline")}
             </p>
