@@ -31,7 +31,7 @@ import {
   CHESS_SIDEBAR_BG,
   CHESS_SURFACE_BG,
 } from "@/lib/casino/chess/ui";
-import { copyText } from "@/lib/clipboard";
+import { copyTextWhenReady } from "@/lib/clipboard";
 import type { ChessTimeControl, CreateChessChallengeInput } from "@/lib/casino/api/types";
 import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
@@ -295,12 +295,17 @@ export function CreateSection() {
         mode: "invite",
         ...(stakeUsdc !== undefined ? { stakeUsdc } : {}),
       };
-      const { challenge } = await create.mutateAsync(input);
-      const inviteUrl =
-        typeof window === "undefined"
-          ? `/casino/chess/invite?code=${challenge.id}`
-          : `${window.location.origin}/casino/chess/invite?code=${challenge.id}`;
-      const copied = await copyText(inviteUrl);
+      // The clipboard write is armed NOW, inside the click's user activation,
+      // with a promise for the URL. Copying after the await instead fails
+      // silently on Safari/iOS, where activation dies at the first await.
+      const created = create.mutateAsync(input);
+      const copiedPromise = copyTextWhenReady(
+        created.then(
+          ({ challenge }) => `${window.location.origin}/casino/chess/invite?code=${challenge.id}`
+        )
+      );
+      const { challenge } = await created;
+      const copied = await copiedPromise;
       toast.success(copied ? t("linkCopied") : t("toastCreatedInvite"), { id });
 
       router.push(`/casino/chess/play?match=${challenge.id}`);

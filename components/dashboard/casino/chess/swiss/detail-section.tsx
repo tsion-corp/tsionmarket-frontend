@@ -503,6 +503,7 @@ export function SwissDetailSection({
   const onCopyShare = async () => {
     const copied = await copyText(shareUrl);
     if (copied) toast.success("Link copied.");
+    else toast.error("Couldn't copy — copy the link from the address bar.");
   };
 
   const closeShare = () => {

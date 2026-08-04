@@ -50,3 +50,36 @@ function legacyCopy(text: string): boolean {
     document.body.removeChild(textarea);
   }
 }
+
+// Copy text that does not exist yet — a URL that needs a network round-trip to
+// mint. Clipboard writes are only allowed during transient user activation,
+// and Safari revokes that at the first await (Chrome after a few seconds), so
+// copying after the request finishes silently fails there. The fix the
+// Clipboard API provides: hand the clipboard a ClipboardItem wrapping a
+// PROMISE, synchronously inside the click, and the write is permitted when the
+// promise resolves. Falls back to awaiting the text and copying best-effort
+// where ClipboardItem promises are unsupported.
+export function copyTextWhenReady(text: Promise<string>): Promise<boolean> {
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.clipboard &&
+    typeof window !== "undefined" &&
+    window.isSecureContext &&
+    typeof ClipboardItem !== "undefined" &&
+    "write" in navigator.clipboard
+  ) {
+    try {
+      const item = new ClipboardItem({
+        "text/plain": text.then((value) => new Blob([value], { type: "text/plain" })),
+      });
+      // write() must be invoked now, while the user activation is live.
+      return navigator.clipboard.write([item]).then(
+        () => true,
+        () => text.then(copyText, () => false)
+      );
+    } catch {
+      // Constructing the item can throw on older engines; fall through.
+    }
+  }
+  return text.then(copyText, () => false);
+}

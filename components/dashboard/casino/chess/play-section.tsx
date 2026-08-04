@@ -954,7 +954,10 @@ export function PlaySection({
                           onClick={async () => {
                             if (!inviteUrl) return;
                             const copied = await copyText(inviteUrl);
+                            // A dead-silent failure reads as a broken button;
+                            // the URL is on screen, so point at it.
                             if (copied) toast.success(tCreate("linkCopied"));
+                            else toast.error("Couldn't copy — long-press the link to copy it.");
                           }}
                           className="cursor-pointer rounded-[12px] border border-white/12 bg-white/6 px-4 py-3 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12"
                         >

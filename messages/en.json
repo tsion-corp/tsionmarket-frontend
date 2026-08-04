@@ -1916,8 +1916,6 @@
     "unknownDate": "Earlier",
     "recentEyebrow": "Recent activity",
     "viewAll": "View all activity",
-    "toastReceived": "Received {amount} {symbol} on {network}",
-    "toastSent": "Sent {amount} {symbol} on {network}",
     "bought": "Bought {symbol}",
     "sold": "Sold {symbol}",
     "swapped": "Swapped for {symbol}",
@@ -1925,12 +1923,7 @@
     "withdrew": "Withdrew {symbol}",
     "received": "Received {symbol}",
     "sent": "Sent {symbol}",
-    "toastBought": "Bought {amount} {symbol}",
-    "toastSold": "Sold {amount} {symbol}",
-    "toastDeposited": "Deposited {amount} {symbol} on {network}",
-    "toastWithdrew": "Withdrew {amount} {symbol} on {network}",
     "moved": "Moved {symbol}",
-    "toastMoved": "Moved {amount} {symbol}",
     "notifications": "Notifications",
     "newCount": "{count} new"
   }
