@@ -268,3 +268,18 @@ export const CATEGORY_LABEL: Record<PerpCategory, string> = {
   equities: "Equities",
   other: "Other",
 };
+
+// Market stats (skew, depth, open interest) are USDC figures that reach nine
+// digits, and spelled out they overflow the third-width stat boxes they sit
+// in — QA caught 78,897,816.75 spilling past the card edge. Compact notation
+// keeps any magnitude to a handful of characters, and unlike the RWA helper
+// this one keeps the sign, because skew is long-minus-short and negative is
+// half its meaning. Zero is a real reading; only a missing value is a dash.
+export function formatCompactUsdc(value: number | null | undefined): string {
+  if (value == null || !Number.isFinite(value)) return "—";
+  const compact = Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(Math.abs(value));
+  return `${value < 0 ? "-" : ""}${compact}`;
+}

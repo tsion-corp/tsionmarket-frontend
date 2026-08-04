@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   collateralBaseUnits,
+  formatCompactUsdc,
   isLikelyClosed,
   isPositiveWireDecimal,
   isUnsetLevel,
@@ -232,5 +233,28 @@ describe("toWirePrice", () => {
     expect(toWirePrice(-1)).toBeNull();
     expect(toWirePrice(NaN)).toBeNull();
     expect(toWirePrice(1e-9)).toBeNull();
+  });
+});
+
+describe("formatCompactUsdc", () => {
+  it("compacts the magnitudes that overflowed the stat boxes", () => {
+    // The QA screenshot: depth 78,897,816.75 spilling past the card edge.
+    expect(formatCompactUsdc(78897816.75)).toBe("78.9M");
+    expect(formatCompactUsdc(853512.88)).toBe("853.51K");
+  });
+
+  it("keeps the sign — skew is long minus short", () => {
+    expect(formatCompactUsdc(-61480.14)).toBe("-61.48K");
+  });
+
+  it("leaves small readings literal and zero as a real value", () => {
+    expect(formatCompactUsdc(914.5)).toBe("914.5");
+    expect(formatCompactUsdc(0)).toBe("0");
+  });
+
+  it("dashes only what is missing", () => {
+    expect(formatCompactUsdc(null)).toBe("—");
+    expect(formatCompactUsdc(undefined)).toBe("—");
+    expect(formatCompactUsdc(Number.NaN)).toBe("—");
   });
 });

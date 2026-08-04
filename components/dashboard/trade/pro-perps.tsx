@@ -21,6 +21,7 @@ import type { OpenTradeRequest } from "@/lib/perp/types";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
 import {
   CATEGORY_ORDER,
+  formatCompactUsdc,
   isPositiveWireDecimal,
   orderFieldValidity,
   pairSymbol,
@@ -370,10 +371,10 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
               <div className="mt-3.5">
                 <div className="mb-1 flex justify-between text-[11.5px] font-normal text-white/45">
                   <span className="tnum">
-                    {t("long")} {formatAmount(oi.long)} USDC
+                    {t("long")} {formatCompactUsdc(oi.long)} USDC
                   </span>
                   <span className="tnum">
-                    {t("short")} {formatAmount(oi.short)} USDC
+                    {t("short")} {formatCompactUsdc(oi.short)} USDC
                   </span>
                 </div>
                 <div className="flex h-1.5 overflow-hidden rounded-full bg-white/8">
@@ -391,14 +392,16 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
 
             <div className="mt-3 grid grid-cols-3 gap-2 text-center">
               {[
-                { k: t("skew"), v: market?.skew != null ? formatAmount(market.skew) : "—" },
+                { k: t("skew"), v: formatCompactUsdc(market?.skew) },
                 {
                   k: t("spread"),
                   v: market?.spread != null ? `${(market.spread * 100).toFixed(3)}%` : "—",
                 },
                 {
                   k: t("depth"),
-                  v: market?.depth ? formatAmount(market.depth.above + market.depth.below) : "—",
+                  v: market?.depth
+                    ? formatCompactUsdc(market.depth.above + market.depth.below)
+                    : "—",
                 },
               ].map((s) => (
                 <div key={s.k} className="ws-inset px-2 py-2">
