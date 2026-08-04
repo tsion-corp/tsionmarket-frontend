@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import type { Board, Move, PieceColor, PieceType, Square } from "@/lib/casino/chess/engine";
 import { DEFAULT_THEME, type BoardTheme } from "@/lib/casino/chess/board-theme";
 
@@ -150,7 +150,11 @@ interface ChessBoardProps {
 
 const FILES = [0, 1, 2, 3, 4, 5, 6, 7];
 
-export function ChessBoard({
+// Memoized: the spectate and play screens re-render four times a second for
+// the clock tick, and the board — 64 squares of JSX — only actually changes
+// when a prop does. Callers keep board/checkSquare identities stable across
+// ticks for this to bite.
+export const ChessBoard = memo(function ChessBoard({
   board,
   selected = null,
   legalTargets = [],
@@ -290,4 +294,4 @@ export function ChessBoard({
       </div>
     </div>
   );
-}
+});

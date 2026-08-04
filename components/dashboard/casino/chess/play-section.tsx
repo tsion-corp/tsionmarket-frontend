@@ -763,6 +763,7 @@ export function PlaySection({
                 youLabel: t("you"),
               })
             }
+            viewer={wallet.address ?? null}
             emptyHint={
               waiting
                 ? t("chatWaiting")
@@ -1158,6 +1159,7 @@ export function PlaySection({
                               youLabel: t("you"),
                             })
                           }
+                          viewer={wallet.address ?? null}
                           emptyHint={
                             activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")
                           }
