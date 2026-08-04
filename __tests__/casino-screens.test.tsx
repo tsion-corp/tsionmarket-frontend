@@ -582,7 +582,10 @@ describe("a drawn game", () => {
     render(<PlaySection matchId="m1" />, { wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Chat" }));
-    expect(await screen.findByText("gl hf")).toBeInTheDocument();
+    // The line renders twice: once in the laptop live-feed rail beside the
+    // board and once in the in-tab feed shown below xl; CSS keeps exactly one
+    // visible per breakpoint.
+    expect((await screen.findAllByText("gl hf")).length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByPlaceholderText("Say something about the game…"), {
       target: { value: "nice move" },

@@ -15,6 +15,7 @@ import { BoardThemePicker } from "@/components/dashboard/casino/chess/board-them
 import { useBoardTheme } from "@/lib/casino/chess/board-theme";
 import { QrCode } from "@/components/dashboard/funds/qr-code";
 import { formatChatTime, matchActorLabel, playerDisplayName } from "@/lib/casino/chess/social";
+import { LiveChatFeed } from "@/components/dashboard/casino/chess/live-chat-feed";
 import { identifyOpening } from "@/lib/casino/chess/openings";
 import { formatEngineScore, pvToSan, uciToSan } from "@/lib/casino/chess/engine-analysis";
 import {
@@ -740,7 +741,38 @@ export function PlaySection({
       <div className="mb-6 xl:hidden">
         <ChessCashierLauncher compact />
       </div>
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,944px)_430px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(212px,264px)_minmax(0,944px)_430px]">
+        {/* The live chat rail. On a laptop the room's messages float up here,
+            livestream-style, beside the board instead of over it; the input
+            stays in the right rail's chat tab. Below xl the same feed renders
+            inside that tab, where this column has no room of its own. */}
+        <aside className="hidden min-h-0 xl:flex xl:flex-col">
+          <div className="mb-3 flex items-center gap-2 text-[11.5px] font-semibold tracking-[0.05em] text-white/45 uppercase">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/70" />
+            {t("chatTitle")}
+          </div>
+          <LiveChatFeed
+            messages={chatMessages}
+            labelFor={(line) =>
+              matchActorLabel({
+                actor: line.author,
+                match,
+                walletAddress: wallet.address ?? null,
+                whiteDisplayName,
+                blackDisplayName,
+                youLabel: t("you"),
+              })
+            }
+            emptyHint={
+              waiting
+                ? t("chatWaiting")
+                : activeChatRoom === "player"
+                  ? t("chatPlayerEmpty")
+                  : t("chatEmpty")
+            }
+            className="min-h-0 flex-1"
+          />
+        </aside>
         <section
           className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
           style={{ background: CHESS_SURFACE_BG }}
@@ -1108,37 +1140,29 @@ export function PlaySection({
                           ? t("chatPlayersHint")
                           : t("chatSpectatorsHint")}
                     </div>
-                    <div className="space-y-2">
+                    <div className="xl:hidden">
                       {chatLoading ? (
                         <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
                           {t("chatLoading")}
                         </div>
-                      ) : chatMessages.length === 0 ? (
-                        <div className="rounded-[10px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
-                          {activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")}
-                        </div>
                       ) : (
-                        chatMessages.map((line) => (
-                          <div
-                            key={line.id}
-                            className="rounded-[10px] border border-white/6 bg-black/10 px-3 py-2.5"
-                          >
-                            <div className="mb-1 flex items-center justify-between gap-3 text-[11px] text-white/42">
-                              <span className="truncate">
-                                {matchActorLabel({
-                                  actor: line.author,
-                                  match,
-                                  walletAddress: wallet.address ?? null,
-                                  whiteDisplayName,
-                                  blackDisplayName,
-                                  youLabel: t("you"),
-                                })}
-                              </span>
-                              <span className="shrink-0">{formatChatTime(line.createdAt)}</span>
-                            </div>
-                            <div className="text-[13px] leading-6 text-white/78">{line.text}</div>
-                          </div>
-                        ))
+                        <LiveChatFeed
+                          messages={chatMessages}
+                          labelFor={(line) =>
+                            matchActorLabel({
+                              actor: line.author,
+                              match,
+                              walletAddress: wallet.address ?? null,
+                              whiteDisplayName,
+                              blackDisplayName,
+                              youLabel: t("you"),
+                            })
+                          }
+                          emptyHint={
+                            activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")
+                          }
+                          className="h-[240px]"
+                        />
                       )}
                     </div>
                     <div className="mt-4 space-y-2">
