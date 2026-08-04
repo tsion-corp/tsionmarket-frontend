@@ -39,6 +39,31 @@ describe("chess identity helper", () => {
     expect(walletOfUser(null)).toBeNull();
   });
 
+  it("prefers the embedded Privy wallet over an external wallet listed first", () => {
+    const user = userWithWallet("0xembedded");
+    (user as unknown as { linked_accounts: unknown[] }).linked_accounts.unshift({
+      type: "wallet",
+      chain_type: "ethereum",
+      wallet_client_type: "metamask",
+      connector_type: "injected",
+      address: "0xexternal",
+      first_verified_at: 0,
+      latest_verified_at: 0,
+      id: "wallet_ext",
+    });
+    expect(walletOfUser(user)).toBe("0xembedded");
+  });
+
+  it("falls back to any ethereum wallet when no embedded wallet exists", () => {
+    const user = userWithWallet("0xembedded");
+    const record = user as unknown as {
+      linked_accounts: { type: string; wallet_client_type?: string }[];
+    };
+    const wallet = record.linked_accounts.find((a) => a.type === "wallet");
+    if (wallet) wallet.wallet_client_type = "metamask";
+    expect(walletOfUser(user)).toBe("0xembedded");
+  });
+
   it("marks per-caller chess reads as session-bound", () => {
     expect(chessReadNeedsSession("cashier/players/0xabc/balance")).toBe(true);
     expect(chessReadNeedsSession("cashier/config")).toBe(false);

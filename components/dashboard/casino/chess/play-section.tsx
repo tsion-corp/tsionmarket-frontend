@@ -1128,7 +1128,6 @@ export function PlaySection({
                                 {matchActorLabel({
                                   actor: line.author,
                                   match,
-                                  walletName: wallet.name,
                                   walletAddress: wallet.address ?? null,
                                   whiteDisplayName,
                                   blackDisplayName,
@@ -1270,7 +1269,6 @@ export function PlaySection({
                                   {matchActorLabel({
                                     actor: comment.author,
                                     match,
-                                    walletName: wallet.name,
                                     walletAddress: wallet.address ?? null,
                                     whiteDisplayName,
                                     blackDisplayName,

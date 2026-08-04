@@ -706,7 +706,6 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                             const label = matchActorLabel({
                               actor: line.author,
                               match,
-                              walletName: wallet.name,
                               walletAddress: wallet.address ?? null,
                               whiteDisplayName: whiteChatLabel,
                               blackDisplayName: blackChatLabel,

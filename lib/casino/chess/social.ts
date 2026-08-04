@@ -35,10 +35,11 @@ export function playerDisplayName(
   return displayName(player.username, player.walletAddress) ?? fallback;
 }
 
+const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/u;
+
 export function matchActorLabel({
   actor,
   match,
-  walletName,
   walletAddress,
   whiteDisplayName,
   blackDisplayName,
@@ -46,7 +47,6 @@ export function matchActorLabel({
 }: {
   actor: string;
   match: ChessMatch;
-  walletName: string | null | undefined;
   walletAddress: string | null | undefined;
   whiteDisplayName: string;
   blackDisplayName: string;
@@ -56,5 +56,7 @@ export function matchActorLabel({
   if (walletAddress && normalizedActor === walletAddress.toLowerCase()) return youLabel;
   if (match.white?.walletAddress.toLowerCase() === normalizedActor) return whiteDisplayName;
   if (match.black?.walletAddress.toLowerCase() === normalizedActor) return blackDisplayName;
-  return displayName(walletName, actor) ?? displayName(undefined, actor) ?? actor;
+  // An actor who is neither the viewer nor a seated player is labelled by
+  // their own identity — a truncated wallet, or a tournament seat name as-is.
+  return EVM_WALLET.test(actor) ? truncateAddress(actor) : actor;
 }
