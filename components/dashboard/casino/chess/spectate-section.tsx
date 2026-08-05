@@ -403,7 +403,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
                 <div className="text-[13px] leading-6 text-white/60">
-                  Watching is free. Betting here uses your chess balance, not the Base wallet
+                  Watching is free. Staking here uses your chess balance, not the Base wallet
                   directly.
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-black/10 px-3 py-2.5">
