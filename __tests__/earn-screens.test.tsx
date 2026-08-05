@@ -546,11 +546,21 @@ describe("sponsor onboarding", () => {
       target: { value: "We build things." },
     });
     fireEvent.change(screen.getByLabelText(/industry/i), { target: { value: "DeFi" } });
+    fireEvent.change(screen.getByLabelText(/website/i), {
+      target: { value: "https://acme.example" },
+    });
+    fireEvent.change(screen.getByLabelText(/x profile/i), {
+      target: { value: "https://x.com/acme" },
+    });
+    fireEvent.change(screen.getByLabelText(/legal entity name/i), {
+      target: { value: "Acme Inc." },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
-    // The company step is done, logo and all: a logo is optional, so its
-    // absence must not hold the form here. Nothing is created yet either way,
-    // since the service takes the company and the owner together.
+    // The company step is done, logo and all: a logo is the one optional
+    // field here, so its absence must not hold the form. Nothing is created
+    // yet either way, since the service takes the company and the owner
+    // together.
     expect(await screen.findByText("Your details")).toBeInTheDocument();
     expect(sponsorsApi.createSponsor).not.toHaveBeenCalled();
   });
