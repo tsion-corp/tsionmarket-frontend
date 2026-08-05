@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import { SidePanel } from "@/components/ui/side-panel";
 import { useMarkNotificationsRead, useNotifications } from "@/hooks/use-earn-notifications";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import type { EarnNotification } from "@/lib/earn/api/types";
@@ -24,24 +25,12 @@ export function NotificationBell() {
   const { items, unread } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const [open, setOpen] = useState(false);
-  const wrapper = useRef<HTMLDivElement>(null);
-
-  // Clicking away closes it, the way any open popover behaves. Bound on
-  // pointerdown so it fires before a link inside the page reacts.
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent) => {
-      if (!wrapper.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, [open]);
 
   return (
-    <div ref={wrapper} className="relative">
+    <>
       <button
         type="button"
-        onClick={() => setOpen((was) => !was)}
+        onClick={() => setOpen(true)}
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
         aria-expanded={open}
         className="ws-inset relative cursor-pointer rounded-full px-4 py-2.5 font-sans text-[12.5px] font-semibold text-white/75 transition-colors hover:text-white"
@@ -54,48 +43,45 @@ export function NotificationBell() {
         ) : null}
       </button>
 
-      {open ? (
-        <div className="ws-card absolute right-0 z-50 mt-2 flex max-h-[70vh] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[16px]">
-          <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
-            <span className="ws-display text-[14px] text-white">Notifications</span>
-            {unread > 0 ? (
-              <button
-                type="button"
-                onClick={() => markRead.mutate(undefined)}
-                disabled={markRead.isPending}
-                className="cursor-pointer font-sans text-[12px] font-medium text-white/55 transition-colors hover:text-white disabled:opacity-40"
-              >
-                Mark all read
-              </button>
-            ) : null}
+      <SidePanel open={open} onClose={() => setOpen(false)} title="Notifications">
+        {unread > 0 ? (
+          <div className="flex justify-end border-b border-white/8 px-5 py-2.5">
+            <button
+              type="button"
+              onClick={() => markRead.mutate(undefined)}
+              disabled={markRead.isPending}
+              className="cursor-pointer font-sans text-[12px] font-medium text-white/55 transition-colors hover:text-white disabled:opacity-40"
+            >
+              Mark all read
+            </button>
           </div>
+        ) : null}
 
-          <div className="overflow-y-auto">
-            {items.length === 0 ? (
-              <p className="px-4 py-8 text-center font-sans text-[12.5px] font-normal text-white/40">
-                Nothing yet. You&apos;ll hear here when a sponsor picks winners.
-              </p>
-            ) : (
-              <ul className="flex flex-col">
-                {items.map((item) => (
-                  <li key={item.id}>
-                    <NotificationRow
-                      item={item}
-                      onOpen={() => {
-                        if (!item.isRead) markRead.mutate([item.id]);
-                        setOpen(false);
-                      }}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <PushPrompt />
+        <div className="flex-1 overflow-y-auto">
+          {items.length === 0 ? (
+            <p className="px-4 py-8 text-center font-sans text-[12.5px] font-normal text-white/40">
+              Nothing yet. You&apos;ll hear here when a sponsor picks winners.
+            </p>
+          ) : (
+            <ul className="flex flex-col">
+              {items.map((item) => (
+                <li key={item.id}>
+                  <NotificationRow
+                    item={item}
+                    onOpen={() => {
+                      if (!item.isRead) markRead.mutate([item.id]);
+                      setOpen(false);
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
-      ) : null}
-    </div>
+
+        <PushPrompt />
+      </SidePanel>
+    </>
   );
 }
 
