@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { wsapiService } from "@/lib/wsapi-base";
 
 // Proxy for the prediction-market read + metadata service. The gateway sends no
 // CORS headers, so browser calls route through our origin like every other
 // service. The service is keyless: reads are public and the write endpoints
 // (metadata, image) only attach off-chain data, so we forward Authorization and
 // the idempotency key untouched and inject no identity of our own.
-const BASE = process.env.NEXT_PUBLIC_PREDICTION_API_URL;
+// Override for a local prediction service; unset, the shared gateway serves it.
+const BASE = process.env.NEXT_PUBLIC_PREDICTION_API_URL ?? wsapiService("prediction-market");
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 // Public market/category reads only. Short TTL to collapse concurrent list

@@ -1,5 +1,6 @@
 import "server-only";
 import { dextopusRequest } from "@/lib/server/dextopus";
+import { wsapiService } from "@/lib/wsapi-base";
 
 // The tokens a user can buy and have delivered, grouped by Alchemy network id as
 // a set of lowercased addresses. This extends the portfolio allowlist so a bought
@@ -36,8 +37,7 @@ interface RawDestination {
   currency?: string;
 }
 
-const TRADE_BASE =
-  process.env.NEXT_PUBLIC_TRADE_API_URL ?? "https://api.worldstreetwebservices.com/v1/trade";
+const TRADE_BASE = process.env.NEXT_PUBLIC_TRADE_API_URL ?? wsapiService("trade");
 
 // Memecoins from the trade service's catalog: a bought token is a legitimate
 // holding the Dextopus catalog doesn't know about. Catalog entries persist

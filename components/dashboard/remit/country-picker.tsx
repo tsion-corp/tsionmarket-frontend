@@ -9,16 +9,19 @@ import { countryCurrency, searchPayoutCountries, type PayoutCountry } from "@/li
 interface CountryPickerProps {
   selected: PayoutCountry | null;
   onSelect: (country: PayoutCountry) => void;
+  // Corridor codes the payout rail is live for (lowercase ISO alpha-2). Null
+  // while loading; when present, the list narrows to what can actually pay.
+  allowed?: Set<string> | null;
 }
 
 // Destination-country selector. Collapsed it shows the current choice; expanded
 // it is a searchable list of corridors. Kept self-contained so the destination
 // step stays focused on assembling the payout target.
-export function CountryPicker({ selected, onSelect }: CountryPickerProps) {
+export function CountryPicker({ selected, onSelect, allowed }: CountryPickerProps) {
   const t = useTranslations("remit");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const results = searchPayoutCountries(query);
+  const results = searchPayoutCountries(query).filter((c) => !allowed || allowed.has(c.code));
 
   if (open) {
     return (

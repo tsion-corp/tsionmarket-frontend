@@ -1,8 +1,9 @@
 import "server-only";
+import { WSAPI_BASE } from "@/lib/wsapi-base";
 
 // World Street backend gateway. Public API, standard { success, data | error }
 // envelope. RWA endpoints live under /v1/rwa/*, perp endpoints under /v1/perp/*.
-const BASE = process.env.WSAPI_BASE_URL ?? "https://api.worldstreetwebservices.com";
+const BASE = WSAPI_BASE;
 
 // The perp service can be pointed elsewhere while it is being stood up; it
 // falls back to the shared gateway once deployed there.

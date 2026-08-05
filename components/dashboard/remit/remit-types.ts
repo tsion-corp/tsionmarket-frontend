@@ -1,7 +1,7 @@
 import type { PayoutCountry, PayoutMethodId, MobileNetwork } from "@/lib/cross-border";
+import type { PayoutBank } from "@/lib/payment/offramp";
 
-// The wizard steps, in order. "review" is the final honest gate while the payout
-// provider is not yet wired.
+// The wizard steps, in order. Review quotes the live rail and sends.
 export type RemitStep = "destination" | "recipient" | "amount" | "review";
 
 // Everything the flow collects. Built up across steps and read whole at review.
@@ -13,10 +13,20 @@ export interface RemitForm {
   recipientName: string;
   // Local part of a mobile number (no dial code) or a bank account number.
   accountNumber: string;
-  // Free-text bank name for the bank method. Empty for mobile money.
-  bankName: string;
+  // The payout bank picked from the rail's own list — the id is the bankCode
+  // the order is created with. Null for mobile money.
+  bank: PayoutBank | null;
+  // Recipient's mobile number (local part). The payout partner requires one on
+  // every order, bank or wallet; for mobile money it doubles as the wallet.
+  recipientPhone: string;
+  // Sender identity the payout partner requires (compliance).
+  senderName: string;
+  senderPhone: string;
   // Send amount in USD, as the raw input string so conversion stays exact.
   amountUsd: string;
+  // Account holder resolved by the rail's name enquiry; null when the check
+  // was skipped or failed. Display-only reassurance, never an identity input.
+  verifiedAccountName: string | null;
 }
 
 export const EMPTY_REMIT_FORM: RemitForm = {
@@ -25,6 +35,10 @@ export const EMPTY_REMIT_FORM: RemitForm = {
   network: null,
   recipientName: "",
   accountNumber: "",
-  bankName: "",
+  bank: null,
+  recipientPhone: "",
+  senderName: "",
+  senderPhone: "",
   amountUsd: "",
+  verifiedAccountName: null,
 };

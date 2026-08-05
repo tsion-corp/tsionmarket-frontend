@@ -1,12 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { wsapiService } from "@/lib/wsapi-base";
 
 // Proxy for the Base token-trading service (memecoins). The gateway sends no
 // CORS headers, so browser calls route through our origin like every other
 // service. Unlike the chess proxy this one injects no identity: the trade
 // backend verifies the forwarded Privy access token itself, so Authorization
 // and Idempotency-Key pass through untouched.
-const BASE =
-  process.env.NEXT_PUBLIC_TRADE_API_URL ?? "https://api.worldstreetwebservices.com/v1/trade";
+const BASE = process.env.NEXT_PUBLIC_TRADE_API_URL ?? wsapiService("trade");
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 // Public token reads only; authed reads (swaps, balances) are per-caller and

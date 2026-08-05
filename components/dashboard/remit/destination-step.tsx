@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { CountryPicker } from "@/components/dashboard/remit/country-picker";
+import { useCorridors } from "@/hooks/use-offramp";
+import { liveCountryCodes } from "@/lib/payment/offramp";
 import { WalletIcon, BankIcon } from "@/components/ui/icons";
 import {
   defaultMethod,
@@ -38,6 +40,10 @@ export function DestinationStep({
   onNext,
 }: DestinationStepProps) {
   const t = useTranslations("remit");
+  // Only corridors the payout rail is live for are offered; the static list is
+  // the catalogue, the rail's own corridor list is the truth.
+  const corridors = useCorridors();
+  const allowed = corridors.data ? liveCountryCodes(corridors.data) : null;
   const handleCountry = (c: PayoutCountry) => {
     onCountry(c);
     onMethod(defaultMethod(c));
@@ -58,7 +64,7 @@ export function DestinationStep({
           <div className="mb-2 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
             {t("destination")}
           </div>
-          <CountryPicker selected={country} onSelect={handleCountry} />
+          <CountryPicker selected={country} onSelect={handleCountry} allowed={allowed} />
         </div>
 
         {country ? (

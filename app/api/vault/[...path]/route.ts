@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the world-street-vault game API. The gateway does not
 // send CORS headers today, so a direct browser fetch is blocked even though
 // the endpoint returns 200. Routing through our own origin sidesteps CORS and
 // keeps the vault consistent with every other external API in this app, which
 // is also proxied. Read-only: only game/* GETs are forwarded.
-const BASE = process.env.NEXT_PUBLIC_VAULT_API_URL;
+// Override for a local vault service; unset, the shared gateway serves it.
+const BASE = process.env.NEXT_PUBLIC_VAULT_API_URL ?? wsapiService("world-street-vault");
 
 // The gateway rate-limits ~100 requests/min per IP, and every user's polls now
 // share this server's IP. A short cache collapses concurrent/near-simultaneous

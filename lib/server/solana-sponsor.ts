@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { wsapiService } from "@/lib/wsapi-base";
 
-const WSAPI_BASE = process.env.WSAPI_BASE_URL ?? "https://api.worldstreetwebservices.com";
-const GAS_SPONSOR_BASE = process.env.GAS_SPONSOR_API_URL ?? `${WSAPI_BASE}/v1/gas-sponsor`;
+const GAS_SPONSOR_BASE = process.env.GAS_SPONSOR_API_URL ?? wsapiService("gas-sponsor");
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 
 interface SponsorBody {

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the earn service (bounty listings, companies,
 // submissions). The gateway sends no CORS headers, so routing through our own
@@ -10,7 +11,8 @@ import { verifyRequest } from "@/lib/server/auth";
 // only job on an authenticated call is to pass the caller's token through
 // unchanged. It used to inject `x-user-id` and resolve `x-sponsor-id`
 // server-side; both are dead weight now that the service does its own auth.
-const BASE = process.env.EARN_API_URL;
+// Override for a local earn service; unset, the shared gateway serves it.
+const BASE = process.env.EARN_API_URL ?? wsapiService("earn");
 
 // Short cache so concurrent polls for the same path collapse into one upstream
 // call. Only applied to public GETs; anything carrying a token is per-caller

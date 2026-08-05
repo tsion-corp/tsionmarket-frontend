@@ -6,6 +6,7 @@ import {
   withChessReadIdentity,
   withChessIdentity,
 } from "@/lib/casino/chess-identity";
+import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the chess service on the platform gateway. Same
 // arrangement as the other service proxies in this app: routing through our
@@ -18,7 +19,8 @@ import {
 // verified session and the wallet that session owns.
 // Server-only local override first, then the legacy public env so existing
 // deployments keep working unchanged.
-const BASE = process.env.CHESS_API_URL ?? process.env.NEXT_PUBLIC_CHESS_API_URL;
+const BASE =
+  process.env.CHESS_API_URL ?? process.env.NEXT_PUBLIC_CHESS_API_URL ?? wsapiService("chess");
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 // Just long enough to collapse the concurrent polls of two players watching the
