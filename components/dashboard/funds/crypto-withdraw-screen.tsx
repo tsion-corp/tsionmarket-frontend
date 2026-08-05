@@ -7,9 +7,11 @@ import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { DepositStatus } from "@/components/dashboard/funds/deposit-status";
 import { NetworkTabs } from "@/components/dashboard/funds/network-tabs";
 import { TokenList } from "@/components/dashboard/funds/token-list";
+import { QrScanSheet } from "@/components/dashboard/funds/qr-scan-sheet";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { CoinBadge } from "@/components/ui/coin-badge";
+import { QrScanIcon } from "@/components/ui/icons";
 import {
   useDepositChains,
   useDepositStatus,
@@ -27,7 +29,11 @@ import {
   type DepositToken,
   type WithdrawDestination,
 } from "@/lib/deposit";
-import { DETECTABLE_ADDRESS_KINDS, detectAddressKind } from "@/lib/wallet-address";
+import {
+  DETECTABLE_ADDRESS_KINDS,
+  detectAddressKind,
+  extractScannedAddress,
+} from "@/lib/wallet-address";
 import { friendlyError } from "@/lib/errors";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
@@ -148,6 +154,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [depositRequestId, setDepositRequestId] = useState<string | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   // Debounce the amount that feeds the quote so we don't mint a fresh quote on
   // every keystroke; the submit button waits for this to catch up.
@@ -537,10 +544,20 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
       {selectedDestination ? (
         <div className="ws-inset mt-3 p-[15px]">
-          <div className="mb-2 text-xs font-normal text-white/55">
-            {destChainLabel
-              ? t("destinationAddressWithChain", { chain: destChainLabel })
-              : t("destinationAddress")}
+          <div className="mb-2 flex items-center justify-between text-xs font-normal text-white/55">
+            <span>
+              {destChainLabel
+                ? t("destinationAddressWithChain", { chain: destChainLabel })
+                : t("destinationAddress")}
+            </span>
+            <button
+              onClick={() => setScanOpen(true)}
+              disabled={submitting}
+              className="text-accent flex shrink-0 cursor-pointer items-center gap-1 text-[12px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <QrScanIcon size={14} />
+              {t("scanQrCode")}
+            </button>
           </div>
           <input
             value={to}
@@ -645,6 +662,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               ? t("withdrawAsset", { symbol: destSymbol })
               : t("withdrawCryptoTitle")}
       </button>
+
+      <QrScanSheet
+        open={scanOpen}
+        onClose={() => setScanOpen(false)}
+        onScan={(raw) => setTo(extractScannedAddress(raw))}
+      />
     </div>
   );
 }

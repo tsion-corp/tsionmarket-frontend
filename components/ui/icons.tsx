@@ -519,6 +519,20 @@ export function PlayIcon({ size = 16, className }: IconProps) {
   );
 }
 
+export function QrScanIcon({ size = 18, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path
+        d="M4 8V6a2 2 0 012-2h2M4 16v2a2 2 0 002 2h2M20 8V6a2 2 0 00-2-2h-2M20 16v2a2 2 0 01-2 2h-2M4 12h16"
+        stroke={stroke}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export const INTEREST_ICONS: Record<string, (props: IconProps) => React.ReactNode> = {
   "chart-bars": ChartBarsIcon,
   gold: GoldIcon,

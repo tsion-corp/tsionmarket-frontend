@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DETECTABLE_ADDRESS_KINDS, detectAddressKind } from "@/lib/wallet-address";
+import {
+  DETECTABLE_ADDRESS_KINDS,
+  detectAddressKind,
+  extractScannedAddress,
+} from "@/lib/wallet-address";
 import type { AddressKind } from "@/lib/deposit";
 
 // One known-good address per family the detector claims to support.
@@ -41,5 +45,27 @@ describe("DETECTABLE_ADDRESS_KINDS", () => {
     for (const kind of ["near", "stellar", "sui", "litecoin"] as AddressKind[]) {
       expect(DETECTABLE_ADDRESS_KINDS.has(kind)).toBe(false);
     }
+  });
+});
+
+describe("extractScannedAddress", () => {
+  it("passes a bare address through unchanged", () => {
+    expect(extractScannedAddress(SAMPLE.evm)).toBe(SAMPLE.evm);
+  });
+
+  it("strips a BIP21 scheme and query string", () => {
+    expect(extractScannedAddress(`bitcoin:${SAMPLE.bitcoin}?amount=0.1`)).toBe(SAMPLE.bitcoin);
+  });
+
+  it("strips an EIP-681 scheme and chain-id suffix", () => {
+    expect(extractScannedAddress(`ethereum:${SAMPLE.evm}@1`)).toBe(SAMPLE.evm);
+  });
+
+  it("strips a plain chain-name scheme", () => {
+    expect(extractScannedAddress(`solana:${SAMPLE.solana}`)).toBe(SAMPLE.solana);
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(extractScannedAddress(`  ${SAMPLE.tron}  `)).toBe(SAMPLE.tron);
   });
 });

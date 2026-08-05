@@ -42,3 +42,16 @@ export function detectAddressKind(raw: string): AddressKind | null {
   if (SOLANA.test(address)) return "solana";
   return null;
 }
+
+// A wallet's "receive" QR often encodes a URI, not a bare address: BIP21
+// ("bitcoin:bc1...?amount=0.1"), EIP-681 ("ethereum:0xAbc...@1"), or a plain
+// "solana:Addr". Strip a leading scheme and any trailing query/chain-id
+// suffix so a scanned code lands as the same plain string a pasted address
+// would, and detectAddressKind can classify it the same way either time.
+const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i;
+
+export function extractScannedAddress(raw: string): string {
+  const trimmed = raw.trim();
+  const withoutScheme = trimmed.replace(SCHEME_PREFIX, "");
+  return withoutScheme.split(/[?@]/)[0].trim();
+}
