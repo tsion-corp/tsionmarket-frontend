@@ -39,14 +39,16 @@ describe("subscriptZeros", () => {
 });
 
 describe("formatMoney", () => {
-  it("keeps a dust balance short enough for its column", () => {
-    expect(usd(1.751e-16)).toBe("$0.0₁₅1751");
-    expect(usd(1.751e-16).length).toBeLessThan(12);
+  it("rounds a dust balance up to the smallest displayed unit", () => {
+    expect(usd(1.751e-16)).toBe("<$0.01");
+    expect(usd(0.00034514)).toBe("<$0.01");
+    expect(usd(0.0099)).toBe("<$0.01");
   });
 
   it("leaves ordinary amounts alone", () => {
     expect(usd(1.79)).toBe("$1.79");
     expect(usd(0.07)).toBe("$0.07");
+    expect(usd(0.01)).toBe("$0.01");
     expect(usd(0)).toBe("$0.00");
   });
 });

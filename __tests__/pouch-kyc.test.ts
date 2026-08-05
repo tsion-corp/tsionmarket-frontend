@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildKycDocuments,
+  fallbackKycFields,
   fieldsFromRequiredDocs,
   humanizeKey,
   inferFieldKind,
   isFormSubmittable,
+  isNameMismatchMessage,
   kycMaxLength,
   normalizeInitiation,
   normalizeKycState,
@@ -167,5 +169,38 @@ describe("session reuse", () => {
     expect(isReusableSession({ ...base, expiresAt: future, state: "approved" })).toBe(true);
     expect(isReusableSession({ ...base, expiresAt: future, state: "pending" })).toBe(false);
     expect(isReusableSession({ ...base, expiresAt: past, state: "approved" })).toBe(false);
+  });
+});
+
+describe("isNameMismatchMessage", () => {
+  it("flags provider name-match failures", () => {
+    expect(isNameMismatchMessage("Name mismatch with BVN record")).toBe(true);
+    expect(isNameMismatchMessage("The provided name does not match your NIN")).toBe(true);
+    expect(isNameMismatchMessage("Error: name match failed")).toBe(true);
+    expect(isNameMismatchMessage("Invalid name for this BVN")).toBe(true);
+    expect(isNameMismatchMessage("Full name differs from ID records")).toBe(true);
+  });
+
+  it("ignores unrelated failures", () => {
+    expect(isNameMismatchMessage("Invalid BVN number")).toBe(false);
+    expect(isNameMismatchMessage("Verification timed out")).toBe(false);
+    expect(isNameMismatchMessage("")).toBe(false);
+    expect(isNameMismatchMessage(null)).toBe(false);
+    expect(isNameMismatchMessage(undefined)).toBe(false);
+  });
+});
+
+describe("fallbackKycFields", () => {
+  it("covers Nigeria's full document set for a forced resubmission", () => {
+    expect(fallbackKycFields().map((f) => f.key)).toEqual([
+      "FULL_NAME",
+      "EMAIL",
+      "PHONE",
+      "ADDRESS",
+      "DOB",
+      "NIN",
+      "BVN",
+    ]);
+    expect(fallbackKycFields().every((f) => f.required)).toBe(true);
   });
 });

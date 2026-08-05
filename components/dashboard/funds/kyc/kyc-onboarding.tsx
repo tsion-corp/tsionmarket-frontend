@@ -14,13 +14,25 @@ import { OtpInput } from "@/components/auth/otp-input";
 import { KycForm } from "@/components/dashboard/funds/kyc/kyc-form";
 import { useKycInitiate, useKycStatus, useKycVerify } from "@/hooks/use-pouch-kyc";
 import { friendlyError } from "@/lib/errors";
-import { isRetryableState, KYC_COUNTRY_CODE, type KycField, type KycState } from "@/lib/pouch/kyc";
+import {
+  fallbackKycFields,
+  isNameMismatchMessage,
+  isRetryableState,
+  KYC_COUNTRY_CODE,
+  type KycField,
+  type KycState,
+} from "@/lib/pouch/kyc";
 
 interface KycOnboardingProps {
   defaultEmail?: string;
   onBack: () => void;
   // Called once the user is verified, with the reusable JWT.
   onVerified: (token: string, expiresAt: string, email: string) => void;
+  // Always collect the details form after the OTP, even when the provider
+  // reports the user as already verified. Used for an explicit resubmission
+  // (for example after ramp calls fail on a supposedly verified account), so
+  // the only way forward is a fresh, approved submission.
+  forceResubmit?: boolean;
 }
 
 type Step = "email" | "otp" | "form" | "status";
@@ -33,7 +45,12 @@ const SPINNER = "border-ink/30 border-t-ink h-4 w-4 animate-spin rounded-full bo
 // One-time Shared KYC onboarding for the onramp: email, OTP, then the fields
 // Pouch requires. On approval it hands the JWT back so the caller can create the
 // onramp and reuse the verification on every later top-up.
-export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardingProps) {
+export function KycOnboarding({
+  defaultEmail,
+  onBack,
+  onVerified,
+  forceResubmit = false,
+}: KycOnboardingProps) {
   const t = useTranslations("fundsKyc");
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState(defaultEmail ?? "");
@@ -71,8 +88,9 @@ export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardin
       setToken(result.token);
       setExpiresAt(result.expiresAt);
       // A user who already has verified KYC is done the moment they prove the
-      // email is theirs; otherwise collect the fields.
-      if (initialState === "approved") {
+      // email is theirs; otherwise collect the fields. A forced resubmission
+      // never takes that shortcut: the details form is always shown.
+      if (initialState === "approved" && !forceResubmit) {
         onVerified(result.token, result.expiresAt, email.trim());
       } else {
         setStep("form");
@@ -90,6 +108,21 @@ export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardin
     setSubmitState(state);
     setMessage(msg);
     setStep("status");
+  };
+
+  // A full revalidation pass: prove the email again, then resubmit corrected
+  // details. Used when the provider declines a submission, for example a name
+  // that does not match the BVN/NIN record. The email is kept so the user only
+  // re-requests the code.
+  const revalidate = () => {
+    setOtp("");
+    setToken("");
+    setExpiresAt("");
+    setSubmitState("pending");
+    setMessage("");
+    initiate.reset();
+    verify.reset();
+    setStep("email");
   };
 
   if (step === "otp") {
@@ -147,9 +180,12 @@ export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardin
       <KycForm
         token={token}
         countryCode={KYC_COUNTRY_CODE}
-        fields={fields}
+        // Initiate omits requiredDocs for an already-verified user, so a forced
+        // resubmission falls back to the standard NG document set.
+        fields={fields.length > 0 ? fields : fallbackKycFields()}
         prefill={{ EMAIL: email.trim() }}
         onSubmitted={onSubmitted}
+        onRevalidate={revalidate}
       />
     );
   }
@@ -162,6 +198,7 @@ export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardin
         message={message}
         onApproved={() => onVerified(token, expiresAt, email.trim())}
         onRetry={() => setStep("form")}
+        onRevalidate={revalidate}
       />
     );
   }
@@ -230,25 +267,29 @@ export function KycOnboarding({ defaultEmail, onBack, onVerified }: KycOnboardin
 }
 
 // Review outcome for a submitted KYC: poll while pending, offer a retry on the
-// recoverable states, and stop on a final decline.
+// recoverable states, and a full revalidation on a decline. No outcome is a
+// dead end: the user can always correct their details and go again.
 function KycStatusView({
   token,
   initialState,
   message,
   onApproved,
   onRetry,
+  onRevalidate,
 }: {
   token: string;
   initialState: KycState;
   message: string;
   onApproved: () => void;
   onRetry: () => void;
+  onRevalidate: () => void;
 }) {
   const t = useTranslations("fundsKyc");
   const shouldPoll = initialState === "pending";
   const status = useKycStatus(token, KYC_COUNTRY_CODE, { enabled: shouldPoll, pollMs: 5000 });
   const state = status.data?.state ?? initialState;
   const reason = status.data?.failureReason ?? message ?? "";
+  const nameIssue = isNameMismatchMessage(reason);
 
   // Fold straight through once verified: the caller advances to the amount step.
   useEffect(() => {
@@ -264,7 +305,19 @@ function KycStatusView({
         icon={<CloseIcon size={22} />}
         title={t("rejectedTitle")}
         body={reason || t("rejectedBody")}
-      />
+      >
+        {nameIssue ? (
+          <p className="mx-auto mt-3 max-w-[34ch] text-[12.5px] leading-[1.55] font-normal text-white/50">
+            {t("nameMismatchHint")}
+          </p>
+        ) : null}
+        <button
+          onClick={onRevalidate}
+          className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+        >
+          {t("revalidate")}
+        </button>
+      </StatusPanel>
     );
   }
 
@@ -276,11 +329,16 @@ function KycStatusView({
         title={t("retryTitle")}
         body={reason || t("retryBody")}
       >
+        {nameIssue ? (
+          <p className="mx-auto mt-3 max-w-[34ch] text-[12.5px] leading-[1.55] font-normal text-white/50">
+            {t("nameMismatchHint")}
+          </p>
+        ) : null}
         <button
-          onClick={onRetry}
+          onClick={nameIssue ? onRevalidate : onRetry}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >
-          {t("updateDetails")}
+          {nameIssue ? t("revalidate") : t("updateDetails")}
         </button>
       </StatusPanel>
     );

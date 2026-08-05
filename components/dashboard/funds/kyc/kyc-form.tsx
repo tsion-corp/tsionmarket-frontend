@@ -8,6 +8,7 @@ import { friendlyError } from "@/lib/errors";
 import {
   buildKycDocuments,
   isFormSubmittable,
+  isNameMismatchMessage,
   validateKycValue,
   type KycField as KycFieldType,
   type KycFieldError,
@@ -21,12 +22,22 @@ interface KycFormProps {
   // Known values to seed matching fields, for example the verified email.
   prefill?: Record<string, string>;
   onSubmitted: (state: KycState, message: string) => void;
+  // Starts a fresh pass (email OTP, then this form again). Offered when the
+  // provider reports the name not matching the identity records.
+  onRevalidate?: () => void;
 }
 
 // The dynamic KYC form. It renders whatever fields Pouch asked for and submits
 // the assembled documents map. No field is hardcoded, so a change to a country's
 // requirements flows through without a code change.
-export function KycForm({ token, countryCode, fields, prefill, onSubmitted }: KycFormProps) {
+export function KycForm({
+  token,
+  countryCode,
+  fields,
+  prefill,
+  onSubmitted,
+  onRevalidate,
+}: KycFormProps) {
   const t = useTranslations("fundsKyc");
   const submit = useKycSubmit();
 
@@ -107,9 +118,22 @@ export function KycForm({ token, countryCode, fields, prefill, onSubmitted }: Ky
       <p className="mt-3 text-[12px] leading-[1.5] font-normal text-white/45">{t("privacyNote")}</p>
 
       {submit.isError ? (
-        <p className="text-down mt-3 text-[13px]">
-          {friendlyError(submit.error, t("submitFailed"))}
-        </p>
+        <div className="mt-3">
+          <p className="text-down text-[13px]">{friendlyError(submit.error, t("submitFailed"))}</p>
+          {onRevalidate && isNameMismatchMessage(submit.error?.message) ? (
+            <>
+              <p className="mt-1.5 text-[12.5px] leading-normal font-normal text-white/55">
+                {t("nameMismatchHint")}
+              </p>
+              <button
+                onClick={onRevalidate}
+                className="mt-2.5 w-full cursor-pointer rounded-[13px] border border-white/14 bg-white/6 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
+              >
+                {t("revalidate")}
+              </button>
+            </>
+          ) : null}
+        </div>
       ) : null}
 
       <button

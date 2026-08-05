@@ -7,6 +7,7 @@ import {
   normalizeOfframpCreation,
   normalizeVerifiedBank,
   OFFRAMP_MIN_USDC,
+  usdcForNgn,
 } from "@/lib/pouch/offramp";
 
 // Fixture captured verbatim from the live Shared KYC offramp response.
@@ -102,5 +103,25 @@ describe("offramp validation and estimate", () => {
     expect(estimatedPayoutNgn(10, 1380)).toBe(13800);
     expect(estimatedPayoutNgn(0, 1380)).toBeNull();
     expect(estimatedPayoutNgn(10, 0)).toBeNull();
+  });
+});
+
+describe("usdcForNgn", () => {
+  it("converts typed Naira to the USDC withdrawn at the sell rate", () => {
+    expect(usdcForNgn(14010, 1401)).toBe(10);
+    expect(usdcForNgn(5000, 1401)).toBe(3.568879);
+    expect(usdcForNgn(1401, 1401)).toBe(1);
+  });
+
+  it("rounds to USDC's six decimals", () => {
+    expect(usdcForNgn(1000, 1382)).toBe(0.723589);
+  });
+
+  it("rejects unusable amounts and rates", () => {
+    expect(usdcForNgn(0, 1401)).toBeNull();
+    expect(usdcForNgn(-5, 1401)).toBeNull();
+    expect(usdcForNgn(NaN, 1401)).toBeNull();
+    expect(usdcForNgn(5000, 0)).toBeNull();
+    expect(usdcForNgn(5000, NaN)).toBeNull();
   });
 });

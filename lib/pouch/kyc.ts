@@ -72,6 +72,18 @@ export function isTerminalRejectState(state: KycState): boolean {
   return state === "rejected";
 }
 
+// Whether a provider failure message points at the submitted name not matching
+// the identity records (BVN/NIN). A blind resubmit of the same details fails
+// again; the fix is a fresh pass: correct the name, prove the email again, and
+// submit again. Only ever run on failure messages, so "name" plus any match or
+// validity complaint is a safe signal.
+export function isNameMismatchMessage(message: string | null | undefined): boolean {
+  if (!message) return false;
+  const m = message.toLowerCase();
+  if (!m.includes("name")) return false;
+  return ["mismatch", "match", "incorrect", "invalid", "differ"].some((word) => m.includes(word));
+}
+
 // Infer the input control from a Pouch document type. Matched against the
 // uppercased type so provider casing never matters. Presentation only: it never
 // decides whether a field is required.
@@ -110,6 +122,15 @@ export function fieldsFromRequiredDocs(requiredDocs: unknown): KycField[] {
     fields.push({ key, label: humanizeKey(key), required: true, kind: inferFieldKind(key) });
   }
   return fields;
+}
+
+// Nigeria's Shared KYC document set, per Pouch's country requirements. Used
+// when a resubmission is forced but the initiate reply carries no requiredDocs
+// (Pouch omits them once a user is marked verified), so the form is never empty.
+const NG_KYC_DOCS = ["FULL_NAME", "EMAIL", "PHONE", "ADDRESS", "DOB", "NIN", "BVN"];
+
+export function fallbackKycFields(): KycField[] {
+  return fieldsFromRequiredDocs(NG_KYC_DOCS);
 }
 
 // Normalize the initiate response: whether the user already has KYC, their

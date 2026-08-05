@@ -153,3 +153,13 @@ export function estimatedPayoutNgn(amountUsdc: number, usdNgnRate: number): numb
   if (!Number.isFinite(usdNgnRate) || usdNgnRate <= 0) return null;
   return amountUsdc * usdNgnRate;
 }
+
+// The USDC actually withdrawn for a Naira amount typed on the offramp, at the
+// live sell rate, rounded to USDC's 6 decimals. The figure shown and the figure
+// sent are both derived from this, so what the user approves is what moves.
+// Null when the amount or rate is unusable.
+export function usdcForNgn(amountNgn: number, usdNgnRate: number): number | null {
+  if (!Number.isFinite(amountNgn) || amountNgn <= 0) return null;
+  if (!Number.isFinite(usdNgnRate) || usdNgnRate <= 0) return null;
+  return Number((amountNgn / usdNgnRate).toFixed(6));
+}

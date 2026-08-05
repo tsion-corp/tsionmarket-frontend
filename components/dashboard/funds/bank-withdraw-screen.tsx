@@ -5,8 +5,9 @@ import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/dashboard/funds/sheet-nav";
 import { KycOnboarding } from "@/components/dashboard/funds/kyc/kyc-onboarding";
-import { ArrowUpRightIcon, CheckIcon, SearchIcon } from "@/components/ui/icons";
+import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { useCreateOfframp, useOfframpRate, useVerifyBank } from "@/hooks/use-pouch-offramp";
 import { useOnrampStatus } from "@/hooks/use-pouch-onramp";
@@ -21,6 +22,7 @@ import {
   estimatedPayoutNgn,
   isValidOfframpAmount,
   OFFRAMP_MIN_USDC,
+  usdcForNgn,
   type OfframpCreation,
 } from "@/lib/pouch/offramp";
 
@@ -30,6 +32,12 @@ interface BankWithdrawScreenProps {
 
 const DECIMAL = /^\d*\.?\d*$/;
 const BASE = SETTLE_CHAINS.base;
+
+// Refresh the portfolio on Base blocks, rate-limited like the balance card, so
+// the balance shown next to the amount entry is live rather than the slow-poll
+// snapshot.
+const PORTFOLIO_KEY = [["portfolio"]] as const;
+const PORTFOLIO_REFRESH_MIN_MS = 10_000;
 
 // The banks most users reach for, shown first and resolved against the live
 // network list by name. Everything else is one search away. Colours are just a
@@ -86,6 +94,16 @@ function formatNgn(amount: number): string {
   return new Intl.NumberFormat("en-NG", { maximumFractionDigits: 2 }).format(amount);
 }
 
+// Group the integer part with commas for display, keeping any decimals as
+// typed. The state holds the plain decimal string, so the real amount is what
+// gets converted and sent. Mirrors the onramp's formatNgnInput.
+function formatAmountInput(raw: string): string {
+  if (!raw) return "";
+  const [int, dec] = raw.split(".");
+  const grouped = int === "" ? "" : new Intl.NumberFormat("en-US").format(BigInt(int));
+  return raw.includes(".") ? `${grouped}.${dec ?? ""}` : grouped;
+}
+
 interface SelectedBank {
   id: string;
   name: string;
@@ -138,11 +156,15 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const rate = useOfframpRate();
   const verify = useVerifyBank();
   const create = useCreateOfframp();
+  useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
 
   const [query, setQuery] = useState("");
   const [bank, setBank] = useState<SelectedBank | null>(null);
   const [account, setAccount] = useState("");
-  const [amountUsdc, setAmountUsdc] = useState("");
+  // Users type Naira by default (the amount they want in their bank) and can
+  // switch the entry to USDC. The withdrawal itself is always USDC.
+  const [entry, setEntry] = useState<"ngn" | "usdc">("ngn");
+  const [amountInput, setAmountInput] = useState("");
   const [creation, setCreation] = useState<OfframpCreation | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -152,12 +174,37 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     (tk) => tk.network === BASE.alchemyNetwork && tk.symbol.toUpperCase() === "USDC"
   );
   const balance = usdc?.balance ?? 0;
+  const exactBalance = usdc ? fromBaseUnits(BigInt(usdc.rawBalance), usdc.decimals) : "0";
 
   const verifiedName = verify.data?.verified ? verify.data.accountName : "";
-  const amount = Number(amountUsdc);
-  const validAmount = isValidOfframpAmount(amount, balance);
   const ngnRate = rate.data?.rate ?? 0;
+  const typed = Number(amountInput);
+  // The USDC that actually leaves the balance, whichever currency is typed. A
+  // Naira max converts back with rounding dust, so a sub-millionth overshoot
+  // counts as the full balance instead of reading as over-balance.
+  let amount = entry === "usdc" ? typed : (usdcForNgn(typed, ngnRate) ?? NaN);
+  const isFullBalance = Number.isFinite(amount) && amount > balance && amount - balance < 1e-6;
+  if (isFullBalance) amount = balance;
+  // The exact decimal string handed to the token transfer. Typed USDC is used
+  // verbatim; converted Naira uses the 6-decimal figure, or the raw balance
+  // when the amount is the full balance.
+  const amountUsdcText =
+    entry === "usdc" ? amountInput : isFullBalance ? exactBalance : amount.toFixed(6);
+  const validAmount = isValidOfframpAmount(amount, balance);
   const payoutNgn = estimatedPayoutNgn(amount, ngnRate);
+  const minNgn = ngnRate > 0 ? OFFRAMP_MIN_USDC * ngnRate : null;
+
+  // Switching entry currency carries the typed value across at the live rate,
+  // so the withdrawal the user is describing stays the same.
+  const toggleEntry = () => {
+    const next = entry === "ngn" ? "usdc" : "ngn";
+    if (amountInput && Number.isFinite(typed) && typed > 0 && ngnRate > 0) {
+      const converted = next === "usdc" ? typed / ngnRate : typed * ngnRate;
+      const text = converted.toFixed(2);
+      setAmountInput(text.includes(".") ? text.replace(/0+$/, "").replace(/\.$/, "") : text);
+    }
+    setEntry(next);
+  };
 
   const statusQuery = useOnrampStatus(creation?.sessionId ?? null, {
     enabled: Boolean(creation?.sessionId),
@@ -286,7 +333,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         tokenAddress: BASE.usdc,
         decimals: BASE.decimals,
         to: result.walletAddress,
-        amount: toBaseUnits(amountUsdc, BASE.decimals),
+        amount: toBaseUnits(amountUsdcText, BASE.decimals),
       });
       setTxHash(hash);
     } catch (e) {
@@ -414,15 +461,16 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         </div>
       ) : null}
 
-      {/* Step 3: amount */}
+      {/* Step 3: amount, typed in Naira or USDC with a pill toggle between. */}
       {verifiedName ? (
         <div className="ws-inset mt-3 p-[15px]">
           <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
             <span>{t("amountLabel")}</span>
             <button
-              onClick={() =>
-                setAmountUsdc(usdc ? fromBaseUnits(BigInt(usdc.rawBalance), usdc.decimals) : "0")
-              }
+              onClick={() => {
+                if (entry === "usdc") setAmountInput(exactBalance);
+                else if (ngnRate > 0) setAmountInput(String(Math.floor(balance * ngnRate)));
+              }}
               className="tnum cursor-pointer text-white/55 hover:text-white"
             >
               {t("maxBalance", { amount: formatAmount(balance) })}
@@ -431,20 +479,37 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           <div className="flex items-center justify-between gap-3">
             <input
               inputMode="decimal"
-              value={amountUsdc}
-              onChange={(e) => DECIMAL.test(e.target.value) && setAmountUsdc(e.target.value)}
-              placeholder="0.00"
+              value={formatAmountInput(amountInput)}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/,/g, "");
+                if (DECIMAL.test(raw)) setAmountInput(raw);
+              }}
+              placeholder={entry === "ngn" ? "0" : "0.00"}
               className="ws-display tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
             />
-            <span className="shrink-0 font-sans text-[15px] font-medium text-white/70">USDC</span>
+            <button
+              onClick={toggleEntry}
+              aria-label={t("switchCurrency")}
+              className="group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/6 px-3.5 py-2 font-sans text-[13.5px] font-medium text-white/85 transition-all duration-200 hover:border-white/22 hover:bg-white/10 hover:text-white active:scale-[0.96]"
+            >
+              <SwapIcon
+                size={13}
+                className="group-hover:text-accent text-white/45 transition-colors duration-200"
+              />
+              {entry === "ngn" ? "NGN" : "USDC"}
+            </button>
           </div>
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
             <span>
               {amount > balance
                 ? t("overBalance")
-                : payoutNgn != null && amount >= OFFRAMP_MIN_USDC
-                  ? t("youReceive", { amount: `₦${formatNgn(payoutNgn)}` })
-                  : t("enterMin", { amount: OFFRAMP_MIN_USDC })}
+                : validAmount
+                  ? entry === "ngn"
+                    ? t("usdcEquivalent", { amount: formatAmount(amount) })
+                    : t("youReceive", { amount: `₦${formatNgn(payoutNgn ?? 0)}` })
+                  : entry === "ngn" && minNgn != null
+                    ? t("enterMinNgn", { amount: `₦${formatNgn(minNgn)}` })
+                    : t("enterMin", { amount: OFFRAMP_MIN_USDC })}
             </span>
             {ngnRate > 0 ? (
               <span className="tnum shrink-0 text-white/45">

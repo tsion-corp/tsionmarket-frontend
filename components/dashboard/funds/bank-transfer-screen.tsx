@@ -15,7 +15,12 @@ import { getWalletAddress, deriveProfile } from "@/lib/user";
 import { formatAmount } from "@/lib/trade/math";
 import { KYC_COUNTRY_CODE } from "@/lib/pouch/kyc";
 import { clearPendingOnramp, savePendingOnramp } from "@/lib/pouch/pending";
-import { isReusableSession, loadKycSession, saveKycSession } from "@/lib/pouch/session";
+import {
+  clearKycSession,
+  isReusableSession,
+  loadKycSession,
+  saveKycSession,
+} from "@/lib/pouch/session";
 import {
   estimatedUsd,
   isTerminalOnrampStatus,
@@ -104,6 +109,9 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     const session = loadKycSession();
     return isReusableSession(session) ? session.token : "";
   });
+  // Set when the user explicitly asks to resubmit KYC: onboarding must then
+  // collect the details form again even if the provider claims verified.
+  const [kycResubmit, setKycResubmit] = useState(false);
 
   const [amountNgn, setAmountNgn] = useState("");
   // After the user says they have paid, we show a brief confirming state and
@@ -158,6 +166,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
       <KycOnboarding
         defaultEmail={email}
         onBack={onBack}
+        forceResubmit={kycResubmit}
         onVerified={(nextToken, expiresAt, verifiedEmail) => {
           saveKycSession({
             email: verifiedEmail,
@@ -166,6 +175,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             expiresAt,
             state: "approved",
           });
+          setKycResubmit(false);
           setToken(nextToken);
         }}
       />
@@ -230,9 +240,26 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         ) : null}
 
         {create.isError ? (
-          <p className="text-down mt-3 text-[13px]">
-            {friendlyError(create.error, t("createFailed"))}
-          </p>
+          <div className="mt-3">
+            <p className="text-down text-[13px]">
+              {friendlyError(create.error, t("createFailed"))}
+            </p>
+            {/* A stored KYC session can pass the local check yet still be the
+                reason the provider refuses the transfer (verification never
+                went through). Offer a way back into onboarding: drop the
+                session and re-run email, OTP, and details. */}
+            <button
+              onClick={() => {
+                clearKycSession();
+                create.reset();
+                setKycResubmit(true);
+                setToken("");
+              }}
+              className="mt-2.5 w-full cursor-pointer rounded-[13px] border border-white/14 bg-white/6 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
+            >
+              {t("resubmitKyc")}
+            </button>
+          </div>
         ) : null}
 
         <p className="mt-3 text-[12px] leading-[1.5] font-normal text-white/45">
