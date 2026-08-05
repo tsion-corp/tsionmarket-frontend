@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createPublicClient, erc20Abi, http } from "viem";
 import { base } from "viem/chains";
@@ -35,23 +35,31 @@ export function useBaseBlockNumber() {
   });
 }
 
-// Invalidates the given query keys on every new Base block, so balances and
-// winnings react to a deposit, withdrawal, wager or claim within ~2s instead of
+// Invalidates the given query keys on new Base blocks, so balances and
+// winnings react to a deposit, withdrawal, wager or claim quickly instead of
 // waiting for their own long poll. Enable it only where those balances are
-// shown, so idle pages don't poll the chain.
+// shown, so idle pages don't poll the chain. `minIntervalMs` rate-limits the
+// invalidation for queries whose refetch is a real upstream call: every ~2s
+// block forcing a refetch is what drove the portfolio route into Alchemy's
+// rate limit, and a bounded cadence still reacts fast without the pile-up.
 export function useInvalidateOnBlock(
   queryKeys: readonly (readonly unknown[])[],
-  enabled = true
+  enabled = true,
+  minIntervalMs = 0
 ): void {
   const queryClient = useQueryClient();
   const { data: blockNumber } = useBaseBlockNumber();
+  const lastRunRef = useRef(0);
 
   useEffect(() => {
     if (!enabled || blockNumber === undefined) return;
+    const now = Date.now();
+    if (now - lastRunRef.current < minIntervalMs) return;
+    lastRunRef.current = now;
     for (const queryKey of queryKeys) {
       queryClient.invalidateQueries({ queryKey });
     }
     // queryKeys is a stable literal from the caller; block ticks drive this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [blockNumber, enabled, queryClient]);
+  }, [blockNumber, enabled, queryClient, minIntervalMs]);
 }

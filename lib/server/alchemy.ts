@@ -343,12 +343,17 @@ async function alchemyFetch(
 // bursts. In-process only: fine for smoothing load, not meant to survive a
 // restart or span multiple server instances.
 const CACHE_TTL_MS = 15_000;
-// Balances change on every deposit/withdraw/wager/claim, and the client now
-// refetches per Base block (~2s) via the block watcher. A 15s portfolio cache
-// would cap that at 15s stale, so keep it short; premium Alchemy absorbs the
-// extra calls. Prices keep the longer TTL (they move slowly).
+// Balances change on every deposit/withdraw/wager/claim, and the client
+// refetches on Base blocks (throttled client-side). Keep the portfolio TTL
+// short so those refreshes see movement; prices keep the longer TTL (they
+// move slowly).
 const PORTFOLIO_CACHE_TTL_MS = 4_000;
+// How long past expiry a snapshot may still stand in when the upstream call
+// fails. Slightly stale balances beat an error flash — but a snapshot old
+// enough to be from a different world must not.
+const STALE_SERVE_MS = 60_000;
 const responseCache = new Map<string, { expires: number; value: unknown }>();
+const inflight = new Map<string, Promise<unknown>>();
 
 async function cached<T>(
   cacheKey: string,
@@ -359,11 +364,30 @@ async function cached<T>(
   // then holds it until the next poll.
   skipCache = false
 ): Promise<T> {
-  const hit = skipCache ? undefined : responseCache.get(cacheKey);
-  if (hit && hit.expires > Date.now()) return hit.value as T;
-  const value = await load();
-  responseCache.set(cacheKey, { expires: Date.now() + ttlMs, value });
-  return value;
+  const hit = responseCache.get(cacheKey);
+  if (!skipCache) {
+    if (hit && hit.expires > Date.now()) return hit.value as T;
+    // Concurrent misses share one upstream call instead of each firing their
+    // own — the burst pattern that walks straight into a rate limit.
+    const pending = inflight.get(cacheKey);
+    if (pending) return pending as Promise<T>;
+  }
+  const run = (async () => {
+    try {
+      const value = await load();
+      responseCache.set(cacheKey, { expires: Date.now() + ttlMs, value });
+      return value;
+    } catch (error) {
+      // A throttled or failing upstream serves the recent snapshot rather
+      // than erroring every caller for the length of the outage.
+      if (hit && hit.expires > Date.now() - STALE_SERVE_MS) return hit.value as T;
+      throw error;
+    } finally {
+      inflight.delete(cacheKey);
+    }
+  })();
+  if (!skipCache) inflight.set(cacheKey, run);
+  return run;
 }
 
 export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {

@@ -20,6 +20,9 @@ import { spotChartSource } from "@/lib/spot-chart";
 import type { TokenBalance } from "@/lib/server/alchemy";
 
 const PORTFOLIO_KEY = [["portfolio"]] as const;
+// Rate-limits the block-driven refresh: each refetch is an Alchemy round trip,
+// and the raw per-block (~2s) cadence ran the shared key into 429s.
+const PORTFOLIO_REFRESH_MIN_MS = 10_000;
 
 // The markets pinned as one-tap chips in the simple interface, biggest first.
 // A market's badge: built-in icon or real logo when one loads, and the same
@@ -45,7 +48,7 @@ export function MarketsView() {
   const t = useTranslations("spot");
   const { markets, destinations, loading, error: marketsError } = useSpotMarkets();
   const portfolio = usePortfolio();
-  useInvalidateOnBlock(PORTFOLIO_KEY);
+  useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
