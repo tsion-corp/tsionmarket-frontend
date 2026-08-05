@@ -72,11 +72,11 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
               <div className="ws-display tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
                 {mask(money.format(totalUsd))}
               </div>
-              {readyToSpend > 0 ? (
-                <div className="tnum mt-2.5 text-[15.5px] font-normal text-white/60">
-                  {t("readyToSpend", { amount: mask(money.format(readyToSpend)) })}
-                </div>
-              ) : null}
+              {/* Shown even at zero, in the selected currency, so an empty
+                  spendable balance is stated rather than silently missing. */}
+              <div className="tnum mt-2.5 text-[15.5px] font-normal text-white/60">
+                {t("readyToSpend", { amount: mask(money.format(readyToSpend)) })}
+              </div>
             </div>
           )}
         </div>
