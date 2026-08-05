@@ -846,11 +846,32 @@ export function LastStandingSection() {
                 ref={playBtnRef}
                 onClick={() => void onPlay()}
                 disabled={wagering || !status || !address}
-                animate={luring && !reduce ? { opacity: [1, 0.5, 1] } : undefined}
+                animate={
+                  reduce
+                    ? undefined
+                    : luring
+                      ? { opacity: [1, 0.5, 1] }
+                      : canPlay
+                        ? {
+                            // A slow breath of light: the button glows brighter
+                            // and settles, so a live round reads as alive even
+                            // between shimmer sweeps.
+                            boxShadow: [
+                              "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
+                              "0 18px 64px -8px rgba(255,255,255,0.95), inset 0 1px 0 rgba(255,255,255,0.45)",
+                              "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
+                            ],
+                          }
+                        : undefined
+                }
                 transition={
-                  luring && !reduce
-                    ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
-                    : undefined
+                  reduce
+                    ? undefined
+                    : luring
+                      ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
+                      : canPlay
+                        ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+                        : undefined
                 }
                 className={`relative w-full cursor-pointer overflow-hidden rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
                   canPlay || luring
