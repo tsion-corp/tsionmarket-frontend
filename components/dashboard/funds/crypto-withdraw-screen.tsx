@@ -331,7 +331,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         return;
       }
       if (!refundTo) {
-        setError(t("baseWalletNotReady"));
+        setError(t("walletNotReady"));
         toast.dismiss(toastId);
         return;
       }

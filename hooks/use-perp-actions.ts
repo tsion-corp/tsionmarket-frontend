@@ -114,7 +114,7 @@ export function usePerpActions(live = true) {
         }
 
         setPhase("signing");
-        toast.loading(t("confirmingOnBase"), { id: toastId });
+        toast.loading(t("confirmingOnChain"), { id: toastId });
         await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
 
         void portfolio.refetch();
@@ -127,7 +127,7 @@ export function usePerpActions(live = true) {
           // A limit/stop order rests in /orders until its trigger — polling
           // positions for it would just burn the whole settle window. Confirm
           // the order itself appeared.
-          toast.loading(t("confirmingOnBase"), { id: toastId });
+          toast.loading(t("confirmingOnChain"), { id: toastId });
           await waitForOrdersChange((fresh) =>
             fresh.some((o) => !beforeOrders.has(`${o.pairIndex}:${o.index}`) && isOurs(o.pairIndex))
           );
@@ -200,7 +200,7 @@ export function usePerpActions(live = true) {
         }
 
         setPhase("signing");
-        toast.loading(t("confirmingOnBase"), { id: toastId });
+        toast.loading(t("confirmingOnChain"), { id: toastId });
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
 
         setPhase("settling");
@@ -251,7 +251,7 @@ export function usePerpActions(live = true) {
         }
 
         setPhase("signing");
-        toast.loading(t("confirmingOnBase"), { id: toastId });
+        toast.loading(t("confirmingOnChain"), { id: toastId });
         await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
 
         setPhase("settling");
