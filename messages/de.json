@@ -714,6 +714,7 @@
     "fundSolanaTitle": "Zuerst {amount} nach Solana bewegen",
     "fundSolanaBody": "Dein USDC liegt auf Base. Wir bewegen es nach Solana — etwa 30 Sekunden, kostenlos.",
     "fundSolanaWithGas": "Wir bewegen dein USDC nach Solana und richten die Wallet zum Handeln ein — etwa 30 Sekunden, kostenlos.",
+    "fundSolanaGasTitle": "Einmalige Einrichtung deiner Solana-Wallet",
     "fundSolanaCta": "Mittel nach Solana bewegen",
     "fundSolanaWorking": "Wird übertragen…",
     "fundSolanaShort": "Nicht genug USDC auf Base",
@@ -1422,7 +1423,15 @@
       "calcBody": "Es wird entschieden, wer den Pot nimmt. Einen Moment.",
       "calcOnTheLine": "{amount} stehen auf dem Spiel",
       "soundPlay": "Ton",
-      "soundMute": "Stumm"
+      "soundMute": "Stumm",
+      "miniOpen": "Timer auskoppeln",
+      "miniClose": "Pop-out schließen",
+      "miniFailed": "Der schwebende Timer ließ sich in diesem Browser nicht öffnen.",
+      "miniNotifyTitle": "⏳ Noch {clock} bei Last Man Standing",
+      "miniNotifyBody": "Pot {pot}. Jemand kann ihn noch schnappen — tippe, um zurückzukehren.",
+      "miniHintTitle": "Behalte die Uhr im Blick",
+      "miniHintBody": "Schwebt über deinen anderen Fenstern, während du arbeitest. In Vollbild-Apps melden wir uns, wenn die Uhr abläuft.",
+      "miniHintDismiss": "Verstanden"
     },
     "fund": {
       "title": "Geld hinzufügen",
@@ -1760,6 +1769,7 @@
         "panelTabs": "Zuschauerbereiche",
         "liveMarket": "Live-Markt",
         "loadingOdds": "Quoten werden geladen",
+        "marketUnavailable": "Wetten sind für diese Partie gerade nicht verfügbar. Wir prüfen weiter.",
         "whiteWinProbability": "Gewinnwahrscheinlichkeit von Weiß",
         "placeABet": "Wette platzieren",
         "balance": "Guthaben {amount}",

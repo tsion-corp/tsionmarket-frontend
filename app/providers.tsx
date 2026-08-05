@@ -17,6 +17,7 @@ import {
 import { Toaster } from "@/components/ui/toaster";
 import { NetworkStatusProvider } from "@/components/providers/network-status";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
+import { MiniTimerHost } from "@/components/dashboard/casino/last-standing/mini-timer";
 // import { RecordButton } from "@/components/voice/record-button";
 
 // Well-formed placeholder lets the app build before env vars are set.
@@ -100,6 +101,10 @@ export default function Providers({ children }: { children: React.ReactNode }) {
         <NetworkStatusProvider>
           <BalanceVisibilityProvider>
             {children}
+            {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
+                pages, so the floating window survives navigating anywhere in
+                the app; it only subscribes to game data while open. */}
+            <MiniTimerHost />
             {/* Inside BalanceVisibilityProvider so the voice command can read
                 the hide-balances state; needs Privy + React Query too, both of
                 which wrap this. */}

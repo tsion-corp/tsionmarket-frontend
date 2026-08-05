@@ -869,9 +869,13 @@ export function RwaTradePanel({
               <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
                 {progressSteps.length > 0
                   ? t("fundSolanaProgress")
-                  : canFund
-                    ? t("fundSolanaTitle", { amount: formatUsd(solanaPlan.totalBaseUsdc) })
-                    : t("fundSolanaShort")}
+                  : !canFund
+                    ? t("fundSolanaShort")
+                    : solanaPlan.totalBaseUsdc > 0
+                      ? t("fundSolanaTitle", { amount: formatUsd(solanaPlan.totalBaseUsdc) })
+                      : // Nothing moves from Base: the gas leg pays from spare
+                        // Solana USDC, so this is a one-time wallet setup.
+                        t("fundSolanaGasTitle")}
               </div>
               {progressSteps.length > 0 ? (
                 <div className="mt-2.5">

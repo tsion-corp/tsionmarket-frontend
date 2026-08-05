@@ -13,6 +13,10 @@ import { MoneyTicker } from "@/components/ui/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { FundSheet } from "@/components/dashboard/casino/last-standing/fund-sheet";
+import {
+  MiniTimerLauncher,
+  formatCountdown,
+} from "@/components/dashboard/casino/last-standing/mini-timer";
 import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
 import {
   RoundOverlay,
@@ -119,13 +123,6 @@ const COIN_FLIGHTS = [
   { dx: 0, delay: 0.19 },
 ];
 const COIN_FLIGHT_SECONDS = 0.75;
-
-function formatCountdown(totalSeconds: number): string {
-  const clamped = Math.max(0, Math.floor(totalSeconds));
-  const minutes = Math.floor(clamped / 60);
-  const seconds = clamped % 60;
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-}
 
 // Ticks a server-reported "seconds remaining" down locally between updates,
 // resetting whenever a fresh value arrives from the socket or REST poll.
@@ -670,7 +667,10 @@ export function LastStandingSection() {
               <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
                 {t("prizePool")}
               </div>
-              <MusicToggle />
+              <div className="flex items-center gap-2">
+                <MiniTimerLauncher />
+                <MusicToggle />
+              </div>
             </div>
             <motion.div
               ref={potRef}

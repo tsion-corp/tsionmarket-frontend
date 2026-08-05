@@ -714,6 +714,7 @@
     "fundSolanaTitle": "Transférez d'abord {amount} vers Solana",
     "fundSolanaBody": "Vos USDC sont sur Base. Nous les transférerons vers Solana — environ 30 secondes, gratuit.",
     "fundSolanaWithGas": "Nous transférerons vos USDC vers Solana et préparerons le portefeuille — environ 30 secondes, gratuit.",
+    "fundSolanaGasTitle": "Configuration unique de votre portefeuille Solana",
     "fundSolanaCta": "Transférer vers Solana",
     "fundSolanaWorking": "Transfert en cours…",
     "fundSolanaShort": "USDC insuffisants sur Base",
@@ -1422,7 +1423,15 @@
       "calcBody": "On détermine qui remporte le pot. Tenez bon.",
       "calcOnTheLine": "{amount} en jeu",
       "soundPlay": "Son",
-      "soundMute": "Muet"
+      "soundMute": "Muet",
+      "miniOpen": "Minuteur flottant",
+      "miniClose": "Fermer le flottant",
+      "miniFailed": "Impossible d'ouvrir le minuteur flottant dans ce navigateur.",
+      "miniNotifyTitle": "⏳ Il reste {clock} à Last Man Standing",
+      "miniNotifyBody": "Cagnotte {pot}. Quelqu'un peut encore la prendre — touchez pour revenir.",
+      "miniHintTitle": "Gardez l'horloge avec vous",
+      "miniHintBody": "Flotte au-dessus de vos autres fenêtres pendant que vous travaillez. En plein écran, nous vous alertons quand le temps file.",
+      "miniHintDismiss": "Compris"
     },
     "fund": {
       "title": "Ajouter de l'argent",
@@ -1760,6 +1769,7 @@
         "panelTabs": "Panneaux spectateur",
         "liveMarket": "Marché en direct",
         "loadingOdds": "Chargement des cotes",
+        "marketUnavailable": "Les paris ne sont pas disponibles pour cette partie pour le moment. Nous continuons de vérifier.",
         "whiteWinProbability": "Probabilité de victoire des Blancs",
         "placeABet": "Placer un pari",
         "balance": "Solde {amount}",

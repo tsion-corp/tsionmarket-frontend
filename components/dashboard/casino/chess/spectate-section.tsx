@@ -104,7 +104,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
   const wallet = useCasinoWallet();
   const { match, clocks, isLoading, error } = useChessMatch(matchId);
   const theme = useBoardTheme();
-  const { odds, myBets } = useMatchMarket(matchId, wallet.address ?? null);
+  const { odds, myBets, error: oddsError } = useMatchMarket(matchId, wallet.address ?? null);
   const cashier = useChessCashierStatus();
   const placeBet = usePlaceBet();
   // A watcher is a spectator: only the public spectator room, never a seat.
@@ -403,7 +403,17 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
               >
                 {!odds ? (
-                  <CasinoLoading label={t("loadingOdds")} rows={2} />
+                  oddsError ? (
+                    // The odds endpoint failed (e.g. the service has no
+                    // market for this match). An endless skeleton reads as
+                    // a hang; say what happened instead. Polling continues,
+                    // so the card recovers by itself if the market appears.
+                    <div className="ws-inset rounded-[10px] px-3 py-2 text-[12px] text-white/65">
+                      {t("marketUnavailable")}
+                    </div>
+                  ) : (
+                    <CasinoLoading label={t("loadingOdds")} rows={2} />
+                  )
                 ) : (
                   <>
                     {odds.status === "settled" && odds.winningOutcome ? (

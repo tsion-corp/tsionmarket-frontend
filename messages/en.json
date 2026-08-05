@@ -714,6 +714,7 @@
     "fundSolanaTitle": "Move {amount} to Solana first",
     "fundSolanaBody": "Your USDC is on Base. We'll move it to Solana — about 30 seconds, free.",
     "fundSolanaWithGas": "We'll move your USDC to Solana and set the wallet up to trade there — about 30 seconds, free.",
+    "fundSolanaGasTitle": "Quick one-time setup for your Solana wallet",
     "fundSolanaCta": "Move funds to Solana",
     "fundSolanaWorking": "Moving funds…",
     "fundSolanaShort": "Not enough USDC on Base",
@@ -1422,7 +1423,15 @@
       "calcBody": "Deciding who takes the pot. Hold tight.",
       "calcOnTheLine": "{amount} on the line",
       "soundPlay": "Sound",
-      "soundMute": "Mute"
+      "soundMute": "Mute",
+      "miniOpen": "Pop-out timer",
+      "miniClose": "Close pop-out",
+      "miniFailed": "Couldn't open the floating timer in this browser.",
+      "miniNotifyTitle": "⏳ {clock} left in Last Man Standing",
+      "miniNotifyBody": "Pot {pot}. Someone can still snatch it — tap to get back in.",
+      "miniHintTitle": "Keep the clock with you",
+      "miniHintBody": "Floats over your other windows while you browse or work. In fullscreen apps we ping you when the clock runs low.",
+      "miniHintDismiss": "Got it"
     },
     "fund": {
       "title": "Add money",
@@ -1760,6 +1769,7 @@
         "panelTabs": "Spectator panels",
         "liveMarket": "Live market",
         "loadingOdds": "Loading odds",
+        "marketUnavailable": "Betting isn't available for this match right now. We'll keep checking.",
         "whiteWinProbability": "White win probability",
         "placeABet": "Place a bet",
         "balance": "Balance {amount}",
