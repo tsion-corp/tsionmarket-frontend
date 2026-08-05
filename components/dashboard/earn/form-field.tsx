@@ -58,16 +58,25 @@ export function TextAreaField({
   placeholder,
   rows = 5,
   required = false,
-}: FieldProps & { rows?: number }) {
+  maxLength,
+}: FieldProps & { rows?: number; maxLength?: number }) {
   const id = useId();
   return (
-    <Field id={id} label={label} error={error} hint={hint} required={required}>
+    <Field
+      id={id}
+      label={label}
+      error={error}
+      hint={hint}
+      required={required}
+      counter={maxLength ? `${value.length}/${maxLength}` : undefined}
+    >
       <textarea
         id={id}
         value={value}
         rows={rows}
         required={required}
         placeholder={placeholder}
+        maxLength={maxLength}
         aria-invalid={!!error}
         aria-describedby={error ? `${id}-error` : undefined}
         onChange={(event) => onChange(event.target.value)}
@@ -149,6 +158,7 @@ function Field({
   error,
   hint,
   required,
+  counter,
   children,
 }: {
   id: string;
@@ -156,14 +166,22 @@ function Field({
   error?: string;
   hint?: string;
   required?: boolean;
+  counter?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="font-sans text-[12.5px] font-medium text-white/70">
-        {label}
-        {required ? <span className="text-white/35"> *</span> : null}
-      </label>
+      <div className="flex items-baseline justify-between gap-2">
+        <label htmlFor={id} className="font-sans text-[12.5px] font-medium text-white/70">
+          {label}
+          {required ? <span className="text-white/35"> *</span> : null}
+        </label>
+        {counter ? (
+          <span className="tnum shrink-0 font-sans text-[11px] font-normal text-white/35">
+            {counter}
+          </span>
+        ) : null}
+      </div>
       {children}
       {hint && !error ? (
         <span className="font-sans text-[11.5px] font-normal text-white/40">{hint}</span>

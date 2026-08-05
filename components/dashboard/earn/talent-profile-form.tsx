@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { SelectField, TextAreaField, TextField } from "@/components/dashboard/earn/form-field";
 import { ImageUploadField } from "@/components/ui/image-upload-field";
 import { useWallets } from "@privy-io/react-auth";
 import { useCompleteTalentProfile } from "@/hooks/use-earn-talent";
+import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import { SKILL_CATEGORIES, type SkillCategory, type TalentProfile } from "@/lib/earn/api/types";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -73,6 +74,8 @@ function validate(state: FormState): FormErrors {
 export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfileFormProps) {
   const [state, setState] = useState<FormState>(() => initialState(existing));
   const [errors, setErrors] = useState<FormErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useScrollToFirstError(formRef, errors);
   const complete = useCompleteTalentProfile();
   const { wallets } = useWallets();
   // Captured rather than typed. This is where a reward is paid, so a hand-typed
@@ -109,14 +112,18 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
       toast.success("Profile saved.", { id });
       onDone();
     } catch (error) {
-      toast.error(friendlyError(error, "Couldn't save that profile."), { id });
+      const message = friendlyError(error, "Couldn't save that profile.");
+      toast.error(message, { id });
+      // A taken username can only be caught server-side. Route it back to the
+      // field it's about rather than leaving it as a passing toast.
+      if (/username/i.test(message)) setErrors((prev) => ({ ...prev, username: message }));
     }
   }
 
   return (
     // noValidate: the form reports its own errors inline, so the browser's
     // native validation must not block submit before those checks run.
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <TextField
           label="First name"
@@ -154,6 +161,7 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
       <TextAreaField
         label="Short bio"
         rows={3}
+        maxLength={180}
         value={state.bio}
         onChange={(value) => set("bio", value)}
         placeholder="What you build, in a sentence or two."

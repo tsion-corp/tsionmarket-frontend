@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TextAreaField, TextField } from "@/components/dashboard/earn/form-field";
 import { ImageUploadField } from "@/components/ui/image-upload-field";
@@ -9,6 +9,7 @@ import {
   useSponsorNameAvailable,
   useSponsorSlugAvailable,
 } from "@/hooks/use-earn-sponsor";
+import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import { slugify } from "@/lib/earn/listing-form";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -95,6 +96,8 @@ function CompanyStep({
     }
   );
   const [errors, setErrors] = useState<Partial<Record<keyof CompanyState, string>>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useScrollToFirstError(formRef, errors);
   // Once the slug has been edited by hand it stops tracking the name, so a
   // deliberate slug is not overwritten by the next keystroke in the title.
   const [slugTouched, setSlugTouched] = useState(false);
@@ -136,7 +139,7 @@ function CompanyStep({
     // noValidate: this form reports its own errors inline. Leaving the browser's
     // native validation on would block submit before our checks run, and show a
     // second set of messages we do not control.
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <TextField
         label="Company name"
         required
@@ -174,6 +177,7 @@ function CompanyStep({
         label="What your company does"
         required
         rows={4}
+        maxLength={180}
         value={state.bio}
         error={errors.bio}
         onChange={(value) => set("bio", value)}
@@ -231,6 +235,8 @@ function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () =>
     telegram: "",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof ProfileState, string>>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useScrollToFirstError(formRef, errors);
 
   function set<K extends keyof ProfileState>(key: K, value: ProfileState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));
@@ -271,7 +277,11 @@ function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () =>
       toast.success("You're all set.", { id });
       onDone();
     } catch (error) {
-      toast.error(friendlyError(error, "Couldn't set up that company."), { id });
+      const message = friendlyError(error, "Couldn't set up that company.");
+      toast.error(message, { id });
+      // A taken username can only be caught server-side. Route it back to the
+      // field it's about rather than leaving it as a passing toast.
+      if (/username/i.test(message)) setErrors((prev) => ({ ...prev, username: message }));
     }
   }
 
@@ -279,7 +289,7 @@ function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () =>
     // noValidate: this form reports its own errors inline. Leaving the browser's
     // native validation on would block submit before our checks run, and show a
     // second set of messages we do not control.
-    <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
+    <form ref={formRef} onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
       <TextField
         label="First name"
         required

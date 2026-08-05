@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { TextAreaField, TextField } from "@/components/dashboard/earn/form-field";
 import { TalentProfileForm } from "@/components/dashboard/earn/talent-profile-form";
@@ -8,6 +8,7 @@ import { AsyncLoading } from "@/components/dashboard/async-state";
 import { ImageUploadField } from "@/components/ui/image-upload-field";
 import { useCreateSubmission } from "@/hooks/use-earn-submission";
 import { useTalentProfile } from "@/hooks/use-earn-talent";
+import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import { useWallets } from "@privy-io/react-auth";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -58,7 +59,9 @@ export function SubmitSheet({
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [ask, setAsk] = useState("");
-  const [errors, setErrors] = useState<{ link?: string; ask?: string }>({});
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useScrollToFirstError(formRef, errors);
 
   // Only a range asks what you want for the work. A fixed reward is already
   // decided, and the service rejects an ask on one.
@@ -75,16 +78,19 @@ export function SubmitSheet({
     setErrors({});
   }
 
-  const missingAnswer = eligibility.some((q) => !q.optional && !answers[q.id]?.trim());
-
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const found: { link?: string; ask?: string } = {};
+    const found: Record<string, string> = {};
     if (!link.trim()) found.link = "Add a link to your work.";
     if (wantsAsk) {
       const amount = Number(ask);
       if (!ask.trim() || !Number.isFinite(amount) || amount <= 0) {
         found.ask = "Say what you're asking for.";
+      }
+    }
+    for (const question of eligibility) {
+      if (!question.optional && !answers[question.id]?.trim()) {
+        found[question.id] = "This one's required.";
       }
     }
     setErrors(found);
@@ -156,7 +162,7 @@ export function SubmitSheet({
     <ModalShell open={open} onClose={onClose}>
       {/* noValidate: the sheet reports its own errors inline, so the browser's
           native validation must not block submit before those checks run. */}
-      <form onSubmit={onSubmit} noValidate className="flex max-h-[80vh] flex-col">
+      <form ref={formRef} onSubmit={onSubmit} noValidate className="flex max-h-[80vh] flex-col">
         <div className="flex flex-col gap-5 overflow-y-auto p-5">
           <div>
             <h2 className="ws-display text-[18px] text-white">Submit your work</h2>
@@ -216,6 +222,7 @@ export function SubmitSheet({
                 required={!question.optional}
                 rows={3}
                 value={answers[question.id] ?? ""}
+                error={errors[question.id]}
                 onChange={(value) => setAnswers((prev) => ({ ...prev, [question.id]: value }))}
               />
             ))}
@@ -241,7 +248,7 @@ export function SubmitSheet({
           </button>
           <button
             type="submit"
-            disabled={create.isPending || missingAnswer}
+            disabled={create.isPending}
             className="bg-accent text-ink flex-1 cursor-pointer rounded-full px-4 py-2.5 font-sans text-[13px] font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
           >
             {create.isPending ? "Sending…" : "Submit"}

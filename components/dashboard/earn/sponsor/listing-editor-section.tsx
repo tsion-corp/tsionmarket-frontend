@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ListingFormFields } from "@/components/dashboard/earn/sponsor/listing-form-fields";
 import { FundListingSheet } from "@/components/dashboard/earn/sponsor/fund-listing-sheet";
@@ -10,6 +10,7 @@ import {
   useSaveListingDraft,
   useUpdateListing,
 } from "@/hooks/use-earn-sponsor-listings";
+import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import {
   buildListingPayload,
   emptyListingForm,
@@ -51,6 +52,8 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   const router = useRouter();
   const [state, setState] = useState<ListingFormState>(initialState ?? emptyListingForm());
   const [errors, setErrors] = useState<ListingFormErrors>({});
+  const formRef = useRef<HTMLFormElement>(null);
+  useScrollToFirstError(formRef, errors);
   // The id of the draft this editor has already saved, so a second save
   // updates it rather than creating another listing.
   const [draftId, setDraftId] = useState<string | null>(existing?.id ?? null);
@@ -73,7 +76,10 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   async function onSaveDraft() {
     const found = validateListingForm(state, { forPublish: false });
     setErrors(found);
-    if (Object.keys(found).length) return;
+    if (Object.keys(found).length) {
+      toast.error("Fix the highlighted fields first.");
+      return;
+    }
 
     const id = toast.loading("Saving your draft…");
     try {
@@ -178,7 +184,12 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
           : "Save a draft as you go. Nothing is public until you publish."}
       </p>
 
-      <form onSubmit={(event) => event.preventDefault()} className="mt-7" aria-busy={busy}>
+      <form
+        ref={formRef}
+        onSubmit={(event) => event.preventDefault()}
+        className="mt-7"
+        aria-busy={busy}
+      >
         <ListingFormFields
           state={state}
           errors={errors}
