@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
-import { ArkMark } from "@/components/ui/ark-mark";
 import { BRAND } from "@/lib/brand";
 import { markKnownUser } from "@/lib/known-user";
 import { MarketLogo } from "@/components/ui/market-logo";
@@ -117,9 +116,7 @@ export default function AuthPage() {
 
               {busy ? (
                 <div className="mt-[34px] flex items-center gap-3 rounded-[14px] border border-white/14 bg-white/6 p-4">
-                  <span className="animate-pulse">
-                    <ArkMark height={18} />
-                  </span>
+                  <MarketLogo className="h-[15px] w-auto shrink-0" />
                   <span className="text-sm text-white/80">
                     {creating ? t("creatingAccount") : t("signingIn")}
                   </span>

@@ -53,16 +53,14 @@ function detectTier(): PipTier | null {
     typeof document !== "undefined" &&
     document.pictureInPictureEnabled &&
     "captureStream" in HTMLCanvasElement.prototype;
-  // The video tier is preferred wherever it works: its window is the system
-  // floating panel, the only surface every browser reliably keeps above
-  // other applications and desktops. The document tier's window can hold a
-  // working play button, but in several Chromium forks it sinks behind
-  // other apps — losing sight of the clock is losing the game, so it is
-  // only the fallback for browsers without canvas capture. (Neither tier
-  // can appear over another app's FULLSCREEN Space on macOS; the
-  // critical-clock notification covers that.)
-  if (videoCapable) return "video";
+  // The document tier is preferred wherever it exists: its window carries a
+  // WORKING play button, and a wager without returning to the tab is the
+  // whole point of the pop-out. The canvas video is the fallback for
+  // browsers without it (Safari, Firefox) — always floating, never
+  // clickable. (Neither tier can appear over another app's FULLSCREEN Space
+  // on macOS; the critical-clock notification covers that.)
   if ("documentPictureInPicture" in window) return "document";
+  if (videoCapable) return "video";
   return null;
 }
 
@@ -134,7 +132,7 @@ async function openDocumentPip(): Promise<void> {
   const api = (window as Window & { documentPictureInPicture?: DocumentPictureInPictureApi })
     .documentPictureInPicture;
   if (!api) return;
-  const win = await api.requestWindow({ width: 300, height: 260 });
+  const win = await api.requestWindow({ width: 300, height: 310 });
   copyStylesInto(win);
   win.document.body.style.background = "#101013";
   win.document.body.style.margin = "0";
