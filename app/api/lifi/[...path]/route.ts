@@ -38,9 +38,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   if (key) headers["x-lifi-api-key"] = key;
 
   try {
+    // Status is polled every few seconds; a hung upstream must fail fast so
+    // the next poll can succeed, or settled transfers read as still pending.
+    const timeoutMs = path[0] === "status" ? 6_000 : 15_000;
     const res = await fetch(`${LIFI_BASE}/${path.join("/")}?${search.toString()}`, {
       headers,
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });

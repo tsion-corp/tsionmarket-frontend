@@ -1,4 +1,4 @@
-import { createPublicClient, http, type Chain } from "viem";
+import { createPublicClient, fallback, http, type Chain } from "viem";
 import { SPONSORED_EVM_CHAINS } from "@/lib/trade/sponsored-evm";
 
 // Read client per chain for confirming transactions. Reads must go through a
@@ -24,10 +24,26 @@ export function isReceiptChain(chainId: number): boolean {
   return chainId in READ_CHAINS;
 }
 
+// A second public node per chain. The chain's default RPC (mainnet.base.org
+// for Base) is flaky for some networks/ISPs — SSL resets included — and a
+// receipt that cannot be read stalls the whole flow even though the
+// transaction landed. viem's fallback transport moves to the backup the
+// moment the primary errors.
+const FALLBACK_RPCS: Record<number, string> = {
+  8453: "https://base-rpc.publicnode.com",
+  42161: "https://arbitrum-one-rpc.publicnode.com",
+  137: "https://polygon-bor-rpc.publicnode.com",
+  10: "https://optimism-rpc.publicnode.com",
+};
+
 export function publicClientForChain(chainId: number) {
   const chain = READ_CHAINS[chainId];
   if (!chain) throw new Error(`This chain isn't supported yet (${chainId}).`);
-  return createPublicClient({ chain, transport: http() });
+  const backup = FALLBACK_RPCS[chainId];
+  return createPublicClient({
+    chain,
+    transport: backup ? fallback([http(), http(backup)]) : http(),
+  });
 }
 
 // Inferred so it tracks the app's viem version (a second copy is bundled by

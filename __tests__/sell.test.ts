@@ -29,12 +29,14 @@ describe("canSellAsset", () => {
     expect(canSellAsset("solana-mainnet", "somemint")).toBe(true);
   });
 
-  it("allows native ETH but not native POL or SOL", () => {
+  it("allows native ETH and native SOL but not native POL", () => {
     expect(canSellAsset("base-mainnet", null)).toBe(true);
     expect(canSellAsset("eth-mainnet", null)).toBe(true);
     expect(canSellAsset("arb-mainnet", null)).toBe(true);
     expect(canSellAsset("polygon-mainnet", null)).toBe(false);
-    expect(canSellAsset("solana-mainnet", null)).toBe(false);
+    // Native SOL sells via a single sponsored LI.FI leg straight to USDC on
+    // Base — LI.FI takes SOL as an origin where Dextopus does not.
+    expect(canSellAsset("solana-mainnet", null)).toBe(true);
   });
 
   it("rejects everything on an unsupported network", () => {

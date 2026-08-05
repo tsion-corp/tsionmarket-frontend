@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { cosignWithLocalSponsor, localSponsorConfigured } from "@/lib/server/solana-cosigner";
 import { wsapiService } from "@/lib/wsapi-base";
 
 const GAS_SPONSOR_BASE = process.env.GAS_SPONSOR_API_URL ?? wsapiService("gas-sponsor");
@@ -54,6 +55,34 @@ export async function forwardSolanaSponsorRequest(req: NextRequest) {
   }
   if (body.prefundRent != null && typeof body.prefundRent !== "boolean") {
     return NextResponse.json({ error: "prefundRent must be boolean" }, { status: 400 });
+  }
+
+  // With our own sponsor key configured, sponsorship happens right here:
+  // rewrite the fee payer, add the sponsor signature, hand the transaction
+  // back for the user to sign. No backend service in the path.
+  if (localSponsorConfigured()) {
+    try {
+      const result = await cosignWithLocalSponsor(body.serializedTransaction);
+      return NextResponse.json({
+        serializedTransaction: result.transaction,
+        estimatedFeeLamports: null,
+        estimatedRentLamports: null,
+        prefundLamports: null,
+        simulationSlot: null,
+        usesDurableNonce: false,
+        lastValidBlockHeight: null,
+        submittedSignature: null,
+        prefundRent: false,
+        signer: "local-key",
+        sponsorPublicKey: result.sponsorPublicKey,
+        previewOnly: false,
+        configured: true,
+        note: null,
+      });
+    } catch (error) {
+      console.error("Local Solana sponsor failed:", error);
+      return NextResponse.json({ error: "Solana sponsorship failed" }, { status: 502 });
+    }
   }
 
   const headers: Record<string, string> = {

@@ -20,6 +20,9 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": resolve(__dirname, "."),
+      // The Next.js boundary guard throws on import outside a server
+      // component; tests exercise server modules directly, so it is stubbed.
+      "server-only": resolve(__dirname, "vitest.server-only-stub.ts"),
     },
   },
 });

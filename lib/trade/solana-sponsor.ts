@@ -44,24 +44,44 @@ async function parseError(res: Response): Promise<string> {
   return readMessage(body?.error) ?? readMessage(body?.message) ?? "Solana sponsorship failed";
 }
 
+// Sponsorship is a read-modify step, not a submission: the sponsor signs and
+// returns the transaction, and the user still signs and broadcasts after. So a
+// retry can never double-spend, and one transparent retry on a transient
+// failure (network error or 5xx) keeps a single blip from failing a trade the
+// user already confirmed.
+const RETRY_DELAY_MS = 900;
+
 async function requestSolanaSponsorship(
   transaction: string | Uint8Array,
   opts: { prefundRent?: boolean } = {}
 ): Promise<SponsoredSolanaTransactionResult> {
   const serializedTransaction =
     typeof transaction === "string" ? transaction : bytesToBase64(transaction);
-  const res = await apiFetch(
-    "/api/gas-sponsor/solana",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        serializedTransaction,
-        ...(opts.prefundRent ? { prefundRent: true } : {}),
-      }),
-    },
-    { requireAuth: true }
-  );
+  const send = () =>
+    apiFetch(
+      "/api/gas-sponsor/solana",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serializedTransaction,
+          ...(opts.prefundRent ? { prefundRent: true } : {}),
+        }),
+      },
+      { requireAuth: true }
+    );
+
+  let res: Response;
+  try {
+    res = await send();
+    if (res.status >= 500) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      res = await send();
+    }
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    res = await send();
+  }
   if (!res.ok) {
     throw new Error(await parseError(res));
   }

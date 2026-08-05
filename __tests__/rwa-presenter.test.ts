@@ -203,7 +203,9 @@ describe("hasNativeGas", () => {
     expect(requiresNativeGas("arbitrum")).toBe(false);
     expect(requiresNativeGas("polygon")).toBe(false);
     expect(requiresNativeGas("bsc")).toBe(false);
-    expect(requiresNativeGas("solana")).toBe(true);
+    // Solana joined the sponsored set: fee by the platform sponsor, first-time
+    // token-account rent by the funding plan's setup leg.
+    expect(requiresNativeGas("solana")).toBe(false);
   });
 });
 

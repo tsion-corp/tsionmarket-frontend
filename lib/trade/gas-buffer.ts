@@ -14,7 +14,11 @@ const NATIVE_GAS_BUFFER: Record<string, number> = {
   "arb-mainnet": 0.0003,
   "opt-mainnet": 0.0003,
   "polygon-mainnet": 0.01,
-  "solana-mainnet": 0.001,
+  // Not a fee — Solana fees are sponsored. Selling native SOL wraps it into a
+  // temporary token account whose rent-exempt deposit (~0.002 SOL) must come
+  // from the seller; a sale of the entire balance fails simulation with
+  // insufficient funds at the wrap. The reserve keeps a Max sell payable.
+  "solana-mainnet": 0.0025,
 };
 
 // How much of `network`'s native token to hold back when selling it. Zero for

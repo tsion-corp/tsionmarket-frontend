@@ -88,7 +88,10 @@ export function isTradable(a: RwaApiAsset): boolean {
 // Chains the RWA table trades on. Quote and build route both live (verified
 // against the gateway: Jupiter on Solana, aggregators on Base); the catalog's
 // other chains stay hidden until their portfolio and gas support lands.
-export const LIVE_RWA_CHAINS: readonly RwaChain[] = ["base", "solana"];
+// Arbitrum and Polygon qualify like Base: sponsored transactions, USDC
+// defined, balances indexed. Ethereum is excluded on purpose (unsponsored
+// gas) and BSC until the portfolio indexes it.
+export const LIVE_RWA_CHAINS: readonly RwaChain[] = ["base", "arbitrum", "polygon", "solana"];
 
 export function isLiveChain(a: RwaApiAsset): boolean {
   return (LIVE_RWA_CHAINS as readonly string[]).includes(a.chain);
@@ -96,7 +99,7 @@ export function isLiveChain(a: RwaApiAsset): boolean {
 
 // Which chain to keep when the catalog lists one asset on several. Base first:
 // its trades are gas-sponsored, so the same asset costs the user less there.
-const CHAIN_PREFERENCE: readonly RwaChain[] = ["base", "solana"];
+const CHAIN_PREFERENCE: readonly RwaChain[] = ["base", "arbitrum", "polygon", "solana"];
 
 function chainRank(a: RwaApiAsset): number {
   const at = (CHAIN_PREFERENCE as readonly string[]).indexOf(a.chain);
@@ -158,6 +161,11 @@ const PORTFOLIO_NETWORKS = new Set([
 
 export function gasSymbolForChain(chain: RwaChain): string {
   return CHAIN_GAS[chain].symbol;
+}
+
+// The portfolio network id an RWA chain's balances live under.
+export function chainNetwork(chain: RwaChain): string {
+  return CHAIN_GAS[chain].network;
 }
 
 // Alchemy network id -> RWA chain, the reverse of CHAIN_GAS. Null for a network
@@ -224,12 +232,14 @@ export function hasNativeGas(tokens: TokenBalance[], chain: RwaChain): boolean |
   return balance > 0 && balance >= min;
 }
 
-// Sponsored EVM transactions do not require the wallet to hold native gas
-// before the trade can go through. Solana still does.
+// Sponsored transactions do not require the wallet to hold native gas before
+// the trade can go through. Solana joined the sponsored set: the fee payer is
+// the platform sponsor, and first-time token-account rent is covered by the
+// funding plan's silent setup leg — the user never has to hold SOL.
 export function requiresNativeGas(chain: RwaChain): boolean {
   const network = CHAIN_GAS[chain]?.network;
   if (!network) return true;
-  if (network === "solana-mainnet") return true;
+  if (network === "solana-mainnet") return false;
   return !isSponsoredEvmNetwork(network);
 }
 

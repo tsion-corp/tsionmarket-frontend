@@ -208,7 +208,6 @@ describe("planBaseFunding — USDC on Solana, buying on Base", () => {
     const plan = planBaseFunding(solanaHeavy);
     expect(plan?.requiredArrivalUsdc).toBe(3);
     expect(plan?.bridgeUsdc).toBeGreaterThan(3);
-    expect(plan?.needsSolForGas).toBe(false);
   });
 
   it("never asks to send more Solana USDC than the wallet holds", () => {
@@ -221,11 +220,11 @@ describe("planBaseFunding — USDC on Solana, buying on Base", () => {
     expect(plan?.requiredArrivalUsdc).toBe(1);
   });
 
-  it("flags a wallet that holds USDC on Solana but no SOL to send it", () => {
-    // Sending from Solana costs SOL, and there is no way to buy SOL from
-    // Solana without already having some — so this has to be said, not retried.
+  it("plans the hop even for a wallet holding no SOL at all", () => {
+    // The outbound Solana send is sponsored, so a USDC-only wallet can always
+    // bring its funds across — zero SOL is no longer a dead end.
     const plan = planBaseFunding({ ...solanaHeavy, solanaSol: 0 });
-    expect(plan?.needsSolForGas).toBe(true);
+    expect(plan?.bridgeUsdc).toBeGreaterThan(3);
   });
 
   it("ignores float residue on a full-balance spend", () => {
@@ -253,7 +252,6 @@ describe("cross-chain fallback is symmetric", () => {
   it("funds a Base buy from Solana USDC", () => {
     const plan = planBaseFunding({ ...gas, spendUsdc: 3, baseUsdc: 0, solanaUsdc: 10 });
     expect(plan?.bridgeUsdc).toBeGreaterThan(3);
-    expect(plan?.needsSolForGas).toBe(false);
   });
 
   it("has nothing to offer when both chains are empty", () => {

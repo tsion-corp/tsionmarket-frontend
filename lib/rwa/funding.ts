@@ -34,11 +34,6 @@ const BRIDGE_RATE_BUFFER = 1.02;
 // than bridge dust.
 const MIN_BRIDGE_USDC = 2;
 
-// Enough SOL to sign one outbound transfer. Unlike the Base direction there is
-// nothing to bootstrap with: sending anything from Solana costs SOL, so a
-// wallet holding only USDC there cannot move it and has to be told so.
-export const SOL_SIGN_MIN = 0.001;
-
 function roundUpCents(value: number): number {
   return Math.ceil(value * 100) / 100;
 }
@@ -122,17 +117,15 @@ export function planAffordable(plan: FundingPlan, baseUsdc: number): boolean {
 }
 
 // The mirror direction: buying a Base asset while the USDC sits on Solana.
-// Base trades are gas-sponsored, so nothing has to be bought for fees on the
-// receiving side — but the sending side is Solana, which charges the wallet
-// SOL to sign, and that cannot be bootstrapped from Solana itself.
+// Both sides are sponsored — Base trades through the bundler, the outbound
+// Solana send through the platform gas sponsor — so the hop needs nothing
+// from the wallet beyond the USDC itself.
 export interface BaseFundingPlan {
   // USDC to move Solana -> Base. Capped at the Solana balance, so it never
   // asks to send more than there is.
   bridgeUsdc: number;
   // What must land on Base for the buy to be affordable.
   requiredArrivalUsdc: number;
-  // The wallet holds the USDC but not the SOL to send it anywhere.
-  needsSolForGas: boolean;
 }
 
 export interface BaseFundingInputs {
@@ -150,7 +143,6 @@ export function planBaseFunding(input: BaseFundingInputs): BaseFundingPlan | nul
   return {
     bridgeUsdc: Math.min(sizeBridgeSend(shortfall), input.solanaUsdc),
     requiredArrivalUsdc: shortfall,
-    needsSolForGas: input.solanaSol < SOL_SIGN_MIN,
   };
 }
 

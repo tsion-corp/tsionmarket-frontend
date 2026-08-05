@@ -42,7 +42,16 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
   // the catalog lists on both chains is kept once, on Base. Prices the backend
   // omits are filled from the CoinGecko fallback.
   const tradable = useMemo(
-    () => dedupeByChain(assets.filter((a) => isUsableAsset(a) && isTradable(a) && isLiveChain(a))),
+    // Base only: its trades are instant and fully gasless. Everything else
+    // stays wired underneath — Arbitrum and Polygon are sponsored and ready,
+    // Solana works end to end but rides a bridge whose latency reads as
+    // broken — so widening this one chain check is all it takes to list more.
+    () =>
+      dedupeByChain(
+        assets.filter(
+          (a) => isUsableAsset(a) && isTradable(a) && isLiveChain(a) && a.chain === "base"
+        )
+      ),
     [assets]
   );
   const buyable = useRwaEnrichedAssets(tradable);

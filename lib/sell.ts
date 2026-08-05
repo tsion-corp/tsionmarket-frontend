@@ -49,11 +49,13 @@ export function canSell(network: string): boolean {
 const NATIVE_ETH_CHAINS = new Set(["base-mainnet", "eth-mainnet", "arb-mainnet", "opt-mainnet"]);
 
 // Whether a specific held asset can be sold. A token (has an address) is assumed
-// sellable and the quote is the final authority; a native balance is only
-// sellable where the native token is ETH.
+// sellable and the quote is the final authority. A native balance is sellable
+// where the native token is ETH (a direct Dextopus origin) and on Solana,
+// whose sells — native SOL included — ride a single sponsored LI.FI leg
+// straight to USDC on Base (see useSell).
 export function canSellAsset(network: string, address: string | null): boolean {
   if (!canSell(network)) return false;
-  if (address === null) return NATIVE_ETH_CHAINS.has(network);
+  if (address === null) return NATIVE_ETH_CHAINS.has(network) || network === "solana-mainnet";
   return true;
 }
 

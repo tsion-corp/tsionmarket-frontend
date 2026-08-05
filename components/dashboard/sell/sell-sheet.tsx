@@ -7,6 +7,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useDepositStatus } from "@/hooks/use-deposit";
+import { useLifiSettlement } from "@/hooks/use-lifi-settlement";
 import { useSell } from "@/hooks/use-sell";
 import { depositProgress, type DepositStage } from "@/lib/deposit";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
@@ -61,15 +62,20 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const [amount, setAmount] = useState("");
   const sell = useSell();
   const [requestId, setRequestId] = useState<string | null>(null);
+  // Which rail carried the sale: Dextopus polls a deposit request, LI.FI polls
+  // the Solana transaction signature. Both feed the same stage UI below.
+  const [rail, setRail] = useState<"dextopus" | "lifi">("dextopus");
   const [proceeds, setProceeds] = useState<string>("");
-  const status = useDepositStatus(requestId);
+  const status = useDepositStatus(rail === "dextopus" ? requestId : null);
+  const lifiProgress = useLifiSettlement(rail === "lifi" ? requestId : null);
 
   const nativeSym = NATIVE_SYMBOL[payload.network] ?? "";
   const chainLabel = CHAIN_LABEL[payload.network] ?? payload.network;
 
   // Sending the asset needs a little of the chain's native token for the fee,
-  // except on sponsored EVM networks where the bundler covers the gas.
-  const sponsored = isSponsoredEvmNetwork(payload.network);
+  // except where the send is sponsored: EVM networks behind the bundler, and
+  // Solana behind the platform gas sponsor.
+  const sponsored = isSponsoredEvmNetwork(payload.network) || payload.network === "solana-mainnet";
   const hasGas = useMemo(
     () =>
       sponsored ||
@@ -99,13 +105,14 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const noFee = !portfolio.loading && !hasGas;
   const canSell = value > 0 && !overBalance && !noFee && !portfolio.loading && !sell.isPending;
 
-  const progress = useMemo(
+  const dextopusProgress = useMemo(
     () =>
       status.data
         ? depositProgress(status.data.status, status.data.executionStatus)
         : depositProgress("", ""),
     [status.data]
   );
+  const progress = rail === "lifi" ? lifiProgress : dextopusProgress;
   const stage = progress.stage;
 
   const settledRef = useRef(false);
@@ -151,6 +158,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         slippageBps: SLIPPAGE_BPS,
       });
       setProceeds(formatAmount(Number(fromBaseUnits(result.estimatedOutput, 6))));
+      setRail(result.rail);
       setRequestId(result.requestId);
     } catch {
       // The detailed message is surfaced from sell.error below; resolve the toast.
@@ -273,6 +281,11 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       {sell.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
           {friendlyError(sell.error, t("saleFailedFallback"))}
+          {/* The raw reason as fine print: support can act on it, and a masked
+              failure is undebuggable from a screenshot. */}
+          <span className="mt-1 block text-[11px] leading-[1.4] font-normal text-white/40">
+            {sell.error.message}
+          </span>
         </p>
       ) : null}
 
