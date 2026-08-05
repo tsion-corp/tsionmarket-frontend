@@ -27,6 +27,16 @@ export interface PayoutBank {
   country: string;
 }
 
+// A mobile-money operator for a corridor (transactionType "wallet"). The name
+// doubles as the selection id; per-transaction limits may be empty strings
+// when the rail does not publish them.
+export interface WalletProvider {
+  name: string;
+  country: string;
+  minPerTx: string;
+  maxPerTx: string;
+}
+
 interface TokenAmount {
   amount: string;
   chainId: number;
@@ -40,7 +50,8 @@ export interface OfframpQuote {
     fxRate: string;
     receive: { amount: string; currency: string };
     send: { amount: string; currency: string };
-    totalFee: string;
+    // The rail stopped quoting an explicit fee line; present only when it does.
+    totalFee?: string;
   };
   spreadBps: number;
   settlement: TokenAmount;
@@ -96,7 +107,8 @@ export interface CreateOfframpInput {
     receiverName: string;
     receiverSurname?: string;
   };
-  sender: { name: string; country: string; phoneNumber: string };
+  // The fiat sender is the platform's float identity, configured server-side —
+  // an order carries only the recipient and the refund address.
   refundTo: string;
 }
 

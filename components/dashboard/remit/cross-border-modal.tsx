@@ -63,10 +63,7 @@ export function CrossBorderModal() {
   const setMethod = (method: PayoutMethodId) => setForm((f) => ({ ...f, method }));
   const setBank = (bank: PayoutBank) => setForm((f) => ({ ...f, bank, verifiedAccountName: null }));
   const setNetwork = (network: MobileNetwork) => setForm((f) => ({ ...f, network }));
-  const setField = (
-    field: "recipientName" | "accountNumber" | "recipientPhone" | "senderName" | "senderPhone",
-    value: string
-  ) =>
+  const setField = (field: "recipientName" | "accountNumber" | "recipientPhone", value: string) =>
     setForm((f) => ({
       ...f,
       [field]: value,
@@ -115,9 +112,7 @@ export function CrossBorderModal() {
   }
 
   if (step === "review") {
-    return (
-      <ReviewStep form={form} onField={setField} onBack={() => setStep("amount")} onDone={reset} />
-    );
+    return <ReviewStep form={form} onBack={() => setStep("amount")} onDone={reset} />;
   }
 
   return (

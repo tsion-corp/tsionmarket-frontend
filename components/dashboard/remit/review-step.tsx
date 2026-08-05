@@ -11,7 +11,7 @@ import { useSendToken } from "@/hooks/use-withdraw";
 import { formatAmount } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { getWalletAddress } from "@/lib/user";
-import { isValidMobile, isValidName, maskNumber } from "@/lib/cross-border";
+import { maskNumber } from "@/lib/cross-border";
 import {
   OFFRAMP_ORIGIN,
   isTerminalRampStatus,
@@ -27,7 +27,6 @@ import type { RemitForm } from "@/components/dashboard/remit/remit-types";
 
 interface ReviewStepProps {
   form: RemitForm;
-  onField: (field: "senderName" | "senderPhone", value: string) => void;
   onBack: () => void;
   // Resets the wizard once a finished payment is acknowledged.
   onDone: () => void;
@@ -38,15 +37,6 @@ interface ReviewStepProps {
 // funding failure lands in fundFailed with the order kept, so retrying sends
 // to the SAME deposit address instead of minting a fresh order.
 type SendPhase = "idle" | "creating" | "funding" | "fundFailed" | "tracking";
-
-const INPUT_CLASS =
-  "w-full rounded-[13px] border border-white/10 bg-black/35 px-3.5 py-3 font-sans text-[14.5px] text-white outline-none transition-colors placeholder:text-white/30 focus:border-accent/45";
-
-// The sender's own dial code. The payout partner wants a phone for compliance;
-// our senders are overwhelmingly in Nigeria, and normalizePhone accepts a full
-// international number for anyone who is not.
-const SENDER_DIAL_CODE = "+234";
-const SENDER_COUNTRY = "NG";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -80,7 +70,7 @@ function StatusCard({ status }: { status: RampPublicStatus }) {
 // and the order is polled until the payout resolves. Crypto always lands
 // before fiat leaves, so a failure after the send parks the order for support
 // rather than losing anything.
-export function ReviewStep({ form, onField, onBack, onDone }: ReviewStepProps) {
+export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
   const t = useTranslations("remit");
   const { user } = usePrivy();
   const { rate } = useFx();
@@ -117,12 +107,11 @@ export function ReviewStep({ form, onField, onBack, onDone }: ReviewStepProps) {
     : `${bank?.name ?? ""} ${maskNumber(accountNumber)}`;
 
   const refundTo = getWalletAddress(user, "ethereum");
-  const senderOk = isValidName(form.senderName) && isValidMobile(form.senderPhone);
   const status = order.data?.publicStatus ?? null;
   const terminal = status !== null && isTerminalRampStatus(status);
   const sent = phase === "tracking";
   const busy = phase === "creating" || phase === "funding";
-  const canSend = quote.data != null && senderOk && !!refundTo && phase === "idle";
+  const canSend = quote.data != null && !!refundTo && phase === "idle";
 
   // Funds the existing order's deposit address with exactly what the quote
   // asked for. A materially short deposit is not paid out — it parks for
@@ -177,11 +166,6 @@ export function ReviewStep({ form, onField, onBack, onDone }: ReviewStepProps) {
             : { receiverAccountNumber: accountNumber.replace(/\s+/g, ""), bankCode: bank!.id }),
           receiverName: name,
           ...(surname ? { receiverSurname: surname } : {}),
-        },
-        sender: {
-          name: form.senderName.trim(),
-          country: SENDER_COUNTRY,
-          phoneNumber: normalizePhone(form.senderPhone, SENDER_DIAL_CODE),
         },
         refundTo,
       });
@@ -251,13 +235,15 @@ export function ReviewStep({ form, onField, onBack, onDone }: ReviewStepProps) {
             )
           }
         />
-        <div className="border-t border-white/6" />
-        <Row
-          label={t("fee")}
-          value={
-            quote.data ? `${quote.data.fiat.totalFee} ${quote.data.fiat.receive.currency}` : "—"
-          }
-        />
+        {quote.data?.fiat.totalFee ? (
+          <>
+            <div className="border-t border-white/6" />
+            <Row
+              label={t("fee")}
+              value={`${quote.data.fiat.totalFee} ${quote.data.fiat.receive.currency}`}
+            />
+          </>
+        ) : null}
         <div className="border-t border-white/6" />
         <Row
           label={t("youPay")}
@@ -283,33 +269,6 @@ export function ReviewStep({ form, onField, onBack, onDone }: ReviewStepProps) {
           >
             {t("retry")}
           </button>
-        </div>
-      ) : null}
-
-      {/* The payout partner requires the sender's identity on every order. */}
-      {!sent ? (
-        <div className="mt-4 space-y-3">
-          <div className="text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-            {t("senderDetails")}
-          </div>
-          <input
-            value={form.senderName}
-            onChange={(e) => onField("senderName", e.target.value)}
-            placeholder={t("senderNamePlaceholder")}
-            className={INPUT_CLASS}
-          />
-          <div className="flex items-stretch gap-2">
-            <span className="flex shrink-0 items-center rounded-[13px] border border-white/10 bg-white/6 px-3 font-sans text-[14.5px] font-medium text-white/70">
-              {SENDER_DIAL_CODE}
-            </span>
-            <input
-              inputMode="tel"
-              value={form.senderPhone}
-              onChange={(e) => onField("senderPhone", e.target.value)}
-              placeholder="801 234 5678"
-              className={INPUT_CLASS}
-            />
-          </div>
         </div>
       ) : null}
 

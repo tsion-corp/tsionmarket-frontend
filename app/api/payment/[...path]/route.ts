@@ -10,7 +10,12 @@ const BASE = wsapiService("payment");
 
 // The exact off-ramp surface the flow uses; anything else 404s here rather
 // than fanning the whole service out to the client.
-const GET_PATHS = [/^corridors$/, /^corridors\/[A-Za-z]{2}\/banks$/, /^offramp\/orders\/[\w-]+$/];
+const GET_PATHS = [
+  /^corridors$/,
+  /^corridors\/[A-Za-z]{2}\/banks$/,
+  /^corridors\/[A-Za-z]{2}\/wallets$/,
+  /^offramp\/orders\/[\w-]+$/,
+];
 const POST_PATHS = [/^offramp\/quote$/, /^offramp\/orders$/, /^offramp\/verify-recipient$/];
 
 async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", body?: unknown) {

@@ -1282,8 +1282,6 @@
     "banksFailed": "Banken konnten nicht geladen werden — zum Wiederholen tippen",
     "noBanksMatch": "Keine passende Bank",
     "recipientMobile": "Handynummer des Empfängers",
-    "senderDetails": "Deine Angaben",
-    "senderNamePlaceholder": "Dein vollständiger Name",
     "toastCreating": "Auszahlung wird eingerichtet…",
     "toastSending": "Dein Geld wird gesendet…",
     "toastSent": "Gesendet. Die Auszahlung ist unterwegs.",

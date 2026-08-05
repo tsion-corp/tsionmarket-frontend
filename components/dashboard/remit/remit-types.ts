@@ -19,9 +19,6 @@ export interface RemitForm {
   // Recipient's mobile number (local part). The payout partner requires one on
   // every order, bank or wallet; for mobile money it doubles as the wallet.
   recipientPhone: string;
-  // Sender identity the payout partner requires (compliance).
-  senderName: string;
-  senderPhone: string;
   // Send amount in USD, as the raw input string so conversion stays exact.
   amountUsd: string;
   // Account holder resolved by the rail's name enquiry; null when the check
@@ -37,8 +34,6 @@ export const EMPTY_REMIT_FORM: RemitForm = {
   accountNumber: "",
   bank: null,
   recipientPhone: "",
-  senderName: "",
-  senderPhone: "",
   amountUsd: "",
   verifiedAccountName: null,
 };

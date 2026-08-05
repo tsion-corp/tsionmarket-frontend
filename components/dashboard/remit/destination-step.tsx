@@ -1,8 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { CountryPicker } from "@/components/dashboard/remit/country-picker";
-import { useCorridors } from "@/hooks/use-offramp";
+import { useCorridors, usePayoutWallets } from "@/hooks/use-offramp";
 import { liveCountryCodes } from "@/lib/payment/offramp";
 import { WalletIcon, BankIcon } from "@/components/ui/icons";
 import {
@@ -49,8 +50,22 @@ export function DestinationStep({
     onMethod(defaultMethod(c));
   };
 
-  const showNetworks = method === "mobile_money" && (country?.networks.length ?? 0) > 0;
-  const ready = country != null && method != null && (!showNetworks || network != null);
+  // The operators the payout rail actually supports for this corridor. The
+  // static catalogue fills in while the list loads or if the call fails, so
+  // the step never dead-ends on a network hiccup.
+  const wallets = usePayoutWallets(method === "mobile_money" ? (country?.code ?? null) : null);
+  const networks = useMemo<MobileNetwork[]>(() => {
+    if (wallets.data && wallets.data.length > 0) {
+      return wallets.data.map((p) => ({ id: p.name, name: p.name }));
+    }
+    return country?.networks ?? [];
+  }, [wallets.data, country]);
+
+  const showNetworks = method === "mobile_money" && networks.length > 0;
+  // A pick from the static fallback that the live list then replaced is no
+  // longer offerable, so it must be re-picked rather than carried forward.
+  const networkOk = network != null && networks.some((n) => n.id === network.id);
+  const ready = country != null && method != null && (!showNetworks || networkOk);
 
   return (
     <div>
@@ -118,7 +133,7 @@ export function DestinationStep({
               {t("network")}
             </div>
             <div className="flex flex-wrap gap-2">
-              {country!.networks.map((n) => {
+              {networks.map((n) => {
                 const active = network?.id === n.id;
                 return (
                   <button

@@ -1282,8 +1282,6 @@
     "banksFailed": "Não foi possível carregar os bancos — toque para tentar de novo",
     "noBanksMatch": "Nenhum banco corresponde",
     "recipientMobile": "Celular do destinatário",
-    "senderDetails": "Seus dados",
-    "senderNamePlaceholder": "Seu nome completo",
     "toastCreating": "Preparando o pagamento…",
     "toastSending": "Enviando seu dinheiro…",
     "toastSent": "Enviado. O pagamento está a caminho.",

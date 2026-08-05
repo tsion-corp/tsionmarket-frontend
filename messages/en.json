@@ -1282,8 +1282,6 @@
     "banksFailed": "Couldn't load banks — tap to retry",
     "noBanksMatch": "No banks match",
     "recipientMobile": "Recipient's mobile",
-    "senderDetails": "Your details",
-    "senderNamePlaceholder": "Your full name",
     "toastCreating": "Setting up the payout…",
     "toastSending": "Sending your money…",
     "toastSent": "Sent. The payout is on its way.",

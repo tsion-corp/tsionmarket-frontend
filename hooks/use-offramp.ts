@@ -14,6 +14,7 @@ import {
   type RampOrder,
   type VerifyRecipientInput,
   type VerifyRecipientResult,
+  type WalletProvider,
 } from "@/lib/payment/offramp";
 import { OFFRAMP_ORIGIN } from "@/lib/payment/offramp";
 
@@ -68,6 +69,23 @@ export function usePayoutBanks(country: string | null) {
         "Couldn't load banks"
       );
       return data.banks;
+    },
+  });
+}
+
+// Mobile-money operators for a corridor country. Like banks, the rail's own
+// list is the truth for what it can pay out to.
+export function usePayoutWallets(country: string | null) {
+  return useQuery<WalletProvider[]>({
+    queryKey: ["offramp", "wallets", country?.toUpperCase() ?? null],
+    enabled: !!country,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const data = await paymentGet<{ providers: WalletProvider[] }>(
+        `corridors/${(country as string).toUpperCase()}/wallets`,
+        "Couldn't load mobile networks"
+      );
+      return data.providers;
     },
   });
 }
