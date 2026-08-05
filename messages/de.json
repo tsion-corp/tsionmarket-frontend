@@ -1391,6 +1391,7 @@
       "ctaAddMoney": "Geld einzahlen, um zu spielen",
       "yourBalance": "Ihr Guthaben",
       "addMoney": "Geld hinzufügen",
+      "withdraw": "Auszahlen",
       "wonBannerTitle": "Sie haben eine Runde gewonnen, Ihr Geld wird Ihrem Guthaben gutgeschrieben 🎉",
       "wonBannerDetail": "{amount} — Ihr Guthaben wird gerade aktualisiert",
       "toastYoureIn": "Sie sind dabei — der Letzte im Spiel nimmt den Pot.",

@@ -1391,6 +1391,7 @@
       "ctaAddMoney": "Add money to play",
       "yourBalance": "Your balance",
       "addMoney": "Add money",
+      "withdraw": "Withdraw",
       "wonBannerTitle": "You won a round, your money will be added to your balance 🎉",
       "wonBannerDetail": "{amount} — updating your balance now",
       "toastYoureIn": "You're in — last one standing takes the pot.",

@@ -13,6 +13,7 @@ import { MoneyTicker } from "@/components/ui/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { FundSheet } from "@/components/dashboard/casino/last-standing/fund-sheet";
+import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
 import {
   RoundOverlay,
   type RoundPhase,
@@ -155,6 +156,7 @@ export function LastStandingSection() {
   const { status, statusLoading, activities, winners, winnersLoading, resyncGame } = useVaultGame();
   const { wager, wagering, claim, claiming } = useVaultActions();
   const [fundOpen, setFundOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   // One coin flight per wager click: viewport coordinates captured from the
   // button and the pot at the moment of the click. Null when nothing flies.
   const [flight, setFlight] = useState<{
@@ -897,17 +899,29 @@ export function LastStandingSection() {
                   {mask(money.format(balanceUsd))}
                 </div>
               </div>
-              {/* Only a top-up affordance here. When the player can't afford a
-                  play the primary CTA above already reads "Add money to play",
-                  so showing a second "Add money" here would just duplicate it. */}
-              {canPlay ? (
-                <button
-                  onClick={() => setFundOpen(true)}
-                  className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
-                >
-                  {t("addMoney")}
-                </button>
-              ) : null}
+              {/* Withdraw cashes the game balance back out to dollars (the
+                  portfolio's sell flow: ETH on Base -> USDC), because players
+                  don't know the game runs on their ETH balance and need a way
+                  to get their money back. Add money only shows when the play
+                  CTA isn't already saying it. */}
+              <div className="flex shrink-0 items-center gap-2">
+                {balanceEth > 0 ? (
+                  <button
+                    onClick={() => setWithdrawOpen(true)}
+                    className="shrink-0 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap text-white/85 transition-colors hover:bg-white/12"
+                  >
+                    {t("withdraw")}
+                  </button>
+                ) : null}
+                {canPlay ? (
+                  <button
+                    onClick={() => setFundOpen(true)}
+                    className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
+                  >
+                    {t("addMoney")}
+                  </button>
+                ) : null}
+              </div>
             </div>
 
             {/* You won — auto-credited, no claim needed. */}
@@ -1096,6 +1110,29 @@ export function LastStandingSection() {
 
       <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
         <FundSheet onClose={() => setFundOpen(false)} />
+      </ModalShell>
+
+      <ModalShell
+        open={withdrawOpen && !!ethHolding}
+        onClose={() => setWithdrawOpen(false)}
+        contentKey="vault-withdraw"
+      >
+        {ethHolding ? (
+          <SellSheet
+            payload={{
+              symbol: ethHolding.symbol,
+              name: ethHolding.name,
+              network: ethHolding.network,
+              address: ethHolding.address,
+              decimals: ethHolding.decimals,
+              balance: ethHolding.balance,
+              rawBalance: ethHolding.rawBalance,
+              priceUsd: ethHolding.priceUsd,
+              logo: ethHolding.logo,
+            }}
+            onClose={() => setWithdrawOpen(false)}
+          />
+        ) : null}
       </ModalShell>
 
       <RoundOverlay

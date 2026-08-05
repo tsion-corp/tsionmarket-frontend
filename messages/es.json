@@ -1391,6 +1391,7 @@
       "ctaAddMoney": "Añade dinero para jugar",
       "yourBalance": "Tu saldo",
       "addMoney": "Añadir dinero",
+      "withdraw": "Retirar",
       "wonBannerTitle": "Ganaste una ronda, tu dinero se añadirá a tu saldo 🎉",
       "wonBannerDetail": "{amount} — actualizando tu saldo ahora",
       "toastYoureIn": "Estás dentro — el último en pie se lleva el pozo.",

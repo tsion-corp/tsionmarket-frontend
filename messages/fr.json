@@ -1391,6 +1391,7 @@
       "ctaAddMoney": "Ajoutez de l'argent pour jouer",
       "yourBalance": "Votre solde",
       "addMoney": "Ajouter de l'argent",
+      "withdraw": "Retirer",
       "wonBannerTitle": "Vous avez gagné une manche, votre argent va être ajouté à votre solde 🎉",
       "wonBannerDetail": "{amount} — mise à jour de votre solde en cours",
       "toastYoureIn": "Vous êtes en jeu — le dernier en lice remporte le pot.",
