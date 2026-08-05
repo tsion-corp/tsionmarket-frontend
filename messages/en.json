@@ -1325,7 +1325,8 @@
     "done": "Done",
     "trackLater": "Track later",
     "statusTitle": "Payment status",
-    "statusSubtitle": "Your last payment is still in progress."
+    "statusSubtitle": "Your last payment is still in progress.",
+    "comingSoon": "Coming soon"
   },
   "casino": {
     "common": {

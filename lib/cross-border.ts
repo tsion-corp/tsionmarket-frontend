@@ -120,6 +120,46 @@ export const PAYOUT_COUNTRIES: PayoutCountry[] = [
     methods: ["bank"],
     networks: [],
   },
+  {
+    code: "us",
+    name: "United States",
+    currency: "USD",
+    dialCode: "+1",
+    methods: ["bank"],
+    networks: [],
+  },
+  {
+    code: "gb",
+    name: "United Kingdom",
+    currency: "GBP",
+    dialCode: "+44",
+    methods: ["bank"],
+    networks: [],
+  },
+  {
+    code: "de",
+    name: "Germany",
+    currency: "EUR",
+    dialCode: "+49",
+    methods: ["bank"],
+    networks: [],
+  },
+  {
+    code: "cn",
+    name: "China",
+    currency: "CNY",
+    dialCode: "+86",
+    methods: ["bank"],
+    networks: [],
+  },
+  {
+    code: "my",
+    name: "Malaysia",
+    currency: "MYR",
+    dialCode: "+60",
+    methods: ["bank"],
+    networks: [],
+  },
 ];
 
 export const PAYOUT_METHOD_LABEL: Record<PayoutMethodId, string> = {

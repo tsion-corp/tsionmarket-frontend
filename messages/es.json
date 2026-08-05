@@ -1325,7 +1325,8 @@
     "done": "Listo",
     "trackLater": "Seguir más tarde",
     "statusTitle": "Estado del pago",
-    "statusSubtitle": "Tu último pago sigue en curso."
+    "statusSubtitle": "Tu último pago sigue en curso.",
+    "comingSoon": "Próximamente"
   },
   "casino": {
     "common": {

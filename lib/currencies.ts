@@ -26,6 +26,8 @@ export const CURRENCIES: Currency[] = [
   { code: "MUR", name: "Mauritian Rupee", symbol: "₨", region: "Africa" },
   { code: "EUR", name: "Euro", symbol: "€", region: "Global" },
   { code: "GBP", name: "British Pound", symbol: "£", region: "Global" },
+  { code: "CNY", name: "Chinese Yuan", symbol: "¥", region: "Global" },
+  { code: "MYR", name: "Malaysian Ringgit", symbol: "RM", region: "Global" },
 ];
 
 export const DEFAULT_CURRENCY = "USD";
@@ -49,6 +51,8 @@ export const CURRENCY_COUNTRY: Record<string, string> = {
   MUR: "mu",
   EUR: "eu",
   GBP: "gb",
+  CNY: "cn",
+  MYR: "my",
   AUD: "au",
   NZD: "nz",
 };

@@ -1325,7 +1325,8 @@
     "done": "Fertig",
     "trackLater": "Später verfolgen",
     "statusTitle": "Zahlungsstatus",
-    "statusSubtitle": "Deine letzte Zahlung läuft noch."
+    "statusSubtitle": "Deine letzte Zahlung läuft noch.",
+    "comingSoon": "Bald verfügbar"
   },
   "casino": {
     "common": {

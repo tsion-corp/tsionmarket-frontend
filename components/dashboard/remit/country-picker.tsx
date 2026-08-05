@@ -21,7 +21,12 @@ export function CountryPicker({ selected, onSelect, allowed }: CountryPickerProp
   const t = useTranslations("remit");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const results = searchPayoutCountries(query).filter((c) => !allowed || allowed.has(c.code));
+  // Live corridors first and selectable; everything else stays visible but
+  // faded with a coming-soon tag, so the roadmap reads without a dead end.
+  const isLive = (c: PayoutCountry) => !allowed || allowed.has(c.code);
+  const results = [...searchPayoutCountries(query)].sort(
+    (a, b) => Number(isLive(b)) - Number(isLive(a))
+  );
 
   if (open) {
     return (
@@ -54,15 +59,21 @@ export function CountryPicker({ selected, onSelect, allowed }: CountryPickerProp
           ) : (
             results.map((c) => {
               const isSelected = selected?.code === c.code;
+              const live = isLive(c);
               return (
                 <button
                   key={c.code}
+                  disabled={!live}
                   onClick={() => {
                     onSelect(c);
                     setOpen(false);
                     setQuery("");
                   }}
-                  className="flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-white/5"
+                  className={
+                    live
+                      ? "flex w-full cursor-pointer items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-white/5"
+                      : "flex w-full cursor-not-allowed items-center gap-3 px-3.5 py-2.5 text-left opacity-45"
+                  }
                 >
                   <FlagIcon code={c.currency} symbol={c.currency} size={26} />
                   <span className="min-w-0 flex-1">
@@ -73,7 +84,11 @@ export function CountryPicker({ selected, onSelect, allowed }: CountryPickerProp
                       {countryCurrency(c).name}
                     </span>
                   </span>
-                  {isSelected ? (
+                  {!live ? (
+                    <span className="shrink-0 rounded-full border border-white/14 bg-white/6 px-2 py-0.5 text-[10px] font-semibold tracking-[0.05em] text-white/55 uppercase">
+                      {t("comingSoon")}
+                    </span>
+                  ) : isSelected ? (
                     <span className="text-accent">
                       <CheckIcon size={17} />
                     </span>

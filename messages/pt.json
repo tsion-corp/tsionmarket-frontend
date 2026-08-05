@@ -1325,7 +1325,8 @@
     "done": "Concluído",
     "trackLater": "Acompanhar depois",
     "statusTitle": "Status do pagamento",
-    "statusSubtitle": "Seu último pagamento ainda está em andamento."
+    "statusSubtitle": "Seu último pagamento ainda está em andamento.",
+    "comingSoon": "Em breve"
   },
   "casino": {
     "common": {
