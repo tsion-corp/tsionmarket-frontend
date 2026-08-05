@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/dashboard/sidebar";
+import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/dashboard/topbar";
 import { SectionChips } from "@/components/dashboard/section-chips";
 import { DashboardFooter } from "@/components/dashboard/dashboard-footer";
@@ -37,6 +38,12 @@ export function DashboardShell({
   hideFooter = false,
 }: DashboardShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
+
+  // Anyone rendering the shell has an account, including sessions that
+  // predate the flag — so the landing page can greet them with "Log in".
+  useEffect(() => {
+    markKnownUser();
+  }, []);
 
   // Warm the deposit network/token catalog into the store as soon as the user
   // is on the platform, on any page — so "Add funds" always opens with

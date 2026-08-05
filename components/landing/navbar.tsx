@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { LanguageSelect } from "@/components/ui/language-select";
+import { useIsKnownUser } from "@/lib/known-user";
 
 // Each link carries both an anchor (classic landing) and a waypoint index
 // (scroll-film landing). Which one renders depends on whether onNavigate
@@ -35,6 +36,9 @@ interface NavbarProps {
 
 export function Navbar({ onNavigate }: NavbarProps) {
   const t = useTranslations("landingNav");
+  // A browser that has signed in before gets "Log in"; a first-timer gets
+  // "Get started". SSR says "Get started" and hydration corrects it.
+  const known = useIsKnownUser();
   return (
     <nav className="ws-glass fixed top-4 left-1/2 z-[300] flex w-[min(1120px,calc(100%-24px))] -translate-x-1/2 items-center justify-between rounded-full py-[9px] pr-2.5 pl-[18px]">
       {onNavigate ? (
@@ -79,7 +83,7 @@ export function Navbar({ onNavigate }: NavbarProps) {
           href="/auth"
           className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-3 py-2 text-[12px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-[13px] sm:px-5 sm:py-[11px] sm:text-sm"
         >
-          {t("getStarted")}
+          {known ? t("login") : t("getStarted")}
           <ArrowUpRightIcon className="text-arrow hidden min-[400px]:block" />
         </Link>
       </div>

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { BRAND } from "@/lib/brand";
+import { markKnownUser } from "@/lib/known-user";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
@@ -65,6 +66,7 @@ export default function AuthPage() {
   useEffect(() => {
     if (!ready || !authenticated || !user || handled.current) return;
     handled.current = true;
+    markKnownUser();
     const firstTime = !hasEmbeddedWallet(user, "ethereum");
     const after = firstTime ? "/interests" : "/dashboard";
     const hasPasskey = user.linkedAccounts.some((account) => account.type === "passkey");
