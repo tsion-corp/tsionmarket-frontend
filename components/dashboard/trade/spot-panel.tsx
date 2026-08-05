@@ -5,10 +5,12 @@ import { useTranslations } from "next-intl";
 import { useBuy } from "@/hooks/use-buy";
 import { useSell } from "@/hooks/use-sell";
 import { useDepositStatus } from "@/hooks/use-deposit";
+import { useLifiSettlement } from "@/hooks/use-lifi-settlement";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usdcBaseUnits, depositProgress, type DepositStage } from "@/lib/deposit";
 import { canSellAsset } from "@/lib/sell";
 import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
+import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -86,11 +88,16 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const [amount, setAmount] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
+  // Which rail carried a sell: Dextopus settlement polls a deposit request,
+  // LI.FI (Solana sells) polls the transaction signature. Buys are always
+  // Dextopus.
+  const [rail, setRail] = useState<"dextopus" | "lifi">("dextopus");
 
   const buy = useBuy();
   const sell = useSell();
   const portfolio = usePortfolio();
-  const status = useDepositStatus(requestId);
+  const status = useDepositStatus(rail === "dextopus" ? requestId : null);
+  const lifiProgress = useLifiSettlement(rail === "lifi" ? requestId : null);
 
   const base = token?.symbol ?? "";
   const buying = side === "buy";
@@ -102,7 +109,13 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const maxSell = heldToken
     ? maxSellable(heldToken.network, heldToken.address, heldToken.balance)
     : 0;
-  const sellSponsored = heldToken?.network === "base-mainnet";
+  // Same sponsorship rule as the sell sheet: every registered EVM network
+  // sends gas-free, and Solana sells ride the platform co-signer. Hardcoding
+  // Base here is what blocked spot sells of assets the portfolio sheet sold
+  // fine.
+  const sellSponsored =
+    heldToken != null &&
+    (isSponsoredEvmNetwork(heldToken.network) || heldToken.network === "solana-mainnet");
   const sellNativeSym = heldToken ? (NATIVE_SYMBOL[heldToken.network] ?? "") : "";
   const sellHasGas =
     heldToken == null ||
@@ -146,10 +159,11 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     (buying && mark <= 0) ||
     (!buying && (notSellable || sellNeedsGas));
 
-  // Settlement phase for the confirm sheet.
-  const progress = status.data
+  // Settlement phase for the confirm sheet, from whichever rail is live.
+  const dextopusProgress = status.data
     ? depositProgress(status.data.status, status.data.executionStatus)
     : depositProgress("", "");
+  const progress = rail === "lifi" ? lifiProgress : dextopusProgress;
   const stage = progress.stage;
   const phase: SpotOrderPhase = !requestId
     ? "confirm"
@@ -205,6 +219,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
           amount: usdcBaseUnits(amount),
           slippageBps: SLIPPAGE_BPS,
         });
+        setRail("dextopus");
         setRequestId(result.requestId);
       } else {
         if (!heldToken) return;
@@ -220,6 +235,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
           amount: amountUnits,
           slippageBps: SLIPPAGE_BPS,
         });
+        setRail(result.rail);
         setRequestId(result.requestId);
       }
     } catch (e) {
