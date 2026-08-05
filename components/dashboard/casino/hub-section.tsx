@@ -71,22 +71,14 @@ export function HubSection() {
           <p className="mt-1.5 text-[13.5px] font-normal text-white/55">{t("tagline")}</p>
         </div>
 
-        {/* The same balances the rest of the platform shows: games spend from
-            them directly, so there is no separate casino float to top up. */}
+        {/* The same balance the rest of the platform shows: games spend from
+            it directly, so there is no separate casino float to top up. Only
+            USDC is surfaced — the dollar balance is the one players think in. */}
         <div className="ws-inset px-4 py-3">
           <div className="text-[10.5px] font-normal tracking-[0.08em] text-white/45 uppercase">
-            {t("yourBalance")} · Base
+            {t("yourBalance")}
           </div>
           <div className="mt-1 flex items-baseline justify-between gap-6">
-            <span className="text-[12px] font-normal text-white/50">ETH</span>
-            <span className="ws-display tnum text-grey-100 text-[15px]">
-              {wallet.isLoading ? "—" : mask(formatQty(wallet.balance))}
-              <span className="ml-1.5 text-[11.5px] font-normal text-white/45">
-                {wallet.isLoading ? "" : mask(wallet.format(wallet.balanceUsd))}
-              </span>
-            </span>
-          </div>
-          <div className="flex items-baseline justify-between gap-6">
             <span className="text-[12px] font-normal text-white/50">USDC</span>
             <span className="ws-display tnum text-grey-100 text-[15px]">
               {mask(formatQty(usdcBalance))}

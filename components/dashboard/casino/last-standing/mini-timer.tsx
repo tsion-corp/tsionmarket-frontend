@@ -49,18 +49,20 @@ type PipTier = "document" | "video" | "overlay";
 
 function detectTier(): PipTier | null {
   if (typeof window === "undefined") return null;
-  // Phones and tablets get the in-app overlay: iOS has no standard
-  // picture-in-picture for canvas streams and Android's is unreliable for
-  // them, while a fixed in-app card always renders, survives navigation
-  // (the host outlives every page), and keeps the play button tappable —
-  // which no floating video can. It cannot float over OTHER apps; the
-  // critical-clock notification covers that gap, same as fullscreen Spaces
-  // on macOS.
-  if (window.matchMedia("(pointer: coarse)").matches) return "overlay";
   const videoCapable =
     typeof document !== "undefined" &&
     document.pictureInPictureEnabled &&
     "captureStream" in HTMLCanvasElement.prototype;
+  // Phones and tablets: the floating video is the only surface that keeps
+  // the clock visible when the browser itself is minimized (Android), so it
+  // wins wherever it works; a failed open falls back to the in-app overlay
+  // in the click handler. iOS has no usable picture-in-picture for canvas
+  // streams, so it goes straight to the overlay — a fixed in-app card that
+  // survives navigation and keeps the play button tappable, but cannot
+  // float over OTHER apps; the critical-clock notification covers that gap.
+  if (window.matchMedia("(pointer: coarse)").matches) {
+    return videoCapable ? "video" : "overlay";
+  }
   // The document tier is preferred wherever it exists: its window carries a
   // WORKING play button, and a wager without returning to the tab is the
   // whole point of the pop-out. The canvas video is the fallback for
@@ -324,8 +326,10 @@ export function MiniTimerLauncher() {
       });
     } else if (tier === "video") {
       void openVideoPip().catch(() => {
-        setState({ videoActive: false });
-        toast.error(t("miniFailed"));
+        // The floating video can be refused (power saving, browser policy).
+        // The in-app overlay always works, so fall back to it instead of a
+        // dead error toast.
+        setState({ videoActive: false, overlayActive: true });
       });
     } else {
       // In-app overlay: nothing to request, nothing that can fail.
