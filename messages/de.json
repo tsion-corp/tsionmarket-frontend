@@ -1786,6 +1786,7 @@
         "toastPlacing": "Ihre Wette wird platziert…",
         "toastPlaced": "Wette platziert zu {odds}, {payout} möglicher Gewinn.",
         "toastPlaceFailed": "Diese Wette konnte nicht platziert werden.",
+        "chatBetPlaced": "🎰 setzt {stake} auf {selection}",
         "timeControl": "Bedenkzeit",
         "panelTabs": "Zuschauerbereiche",
         "liveMarket": "Live-Markt",

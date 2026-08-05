@@ -1786,6 +1786,7 @@
         "toastPlacing": "Placement de votre pari…",
         "toastPlaced": "Pari placé à {odds}, {payout} à gagner.",
         "toastPlaceFailed": "Impossible de placer ce pari.",
+        "chatBetPlaced": "🎰 a misé {stake} sur {selection}",
         "timeControl": "Cadence",
         "panelTabs": "Panneaux spectateur",
         "liveMarket": "Marché en direct",

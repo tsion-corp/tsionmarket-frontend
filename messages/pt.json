@@ -1786,6 +1786,7 @@
         "toastPlacing": "Registrando sua aposta…",
         "toastPlaced": "Aposta feita a {odds}, {payout} a ganhar.",
         "toastPlaceFailed": "Não foi possível fazer essa aposta.",
+        "chatBetPlaced": "🎰 apostou {stake} em {selection}",
         "timeControl": "Ritmo de jogo",
         "panelTabs": "Painéis do espectador",
         "liveMarket": "Mercado ao vivo",

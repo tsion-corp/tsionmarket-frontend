@@ -235,6 +235,22 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
         t("toastPlaced", { odds: (selectedOdds ?? 0).toFixed(2), payout: usd(estimatedReturn) }),
         { id }
       );
+      // Announce the bet in the spectator chat so everyone watching sees who
+      // staked what, aviator-style. The bet itself already succeeded, so a
+      // failed announcement must not surface as a betting error.
+      social
+        .postChat({
+          room: "spectator",
+          // The canonical decimal string, not toFixed(2): a sub-cent stake
+          // must announce as $0.001, never as $0.00.
+          text: t("chatBetPlaced", {
+            stake: `$${stakeUsdc}`,
+            selection: tCommon(selection),
+          }),
+        })
+        .catch((chatError) => {
+          console.warn("[Spectate] Could not announce bet in chat:", chatError);
+        });
       setStakeInput("");
       setSelection(null);
     } catch (e) {

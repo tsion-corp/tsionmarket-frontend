@@ -25,6 +25,15 @@ const AUTHOR_COLORS = [
   "#e879f9",
 ];
 
+// Bet announcements are composed by the bettor's client with a leading slot
+// machine mark in every locale, so the mark doubles as the wire-level flag
+// that a line is a stake event and should render as a highlight banner, the
+// way a gift lands in a TikTok live rather than as an ordinary comment.
+const BET_MARK = "🎰";
+function isBetLine(line: ChessChatMessage): boolean {
+  return line.text.startsWith(BET_MARK);
+}
+
 function authorColor(author: string, viewer: string | null): string {
   if (viewer && author.toLowerCase() === viewer.toLowerCase()) return OWN_COLOR;
   let hash = 0;
@@ -68,15 +77,33 @@ export function LiveChatFeed({
             // jumping a row.
             <div key={line.id} className="ws-live-slot">
               <div className="min-h-0">
-                <div className="ws-live-bubble mt-2 w-fit max-w-full rounded-2xl bg-black/45 px-3 py-2 backdrop-blur-[2px]">
-                  <span
-                    className="mr-2 text-[11px] font-semibold"
-                    style={{ color: authorColor(line.author, viewer) }}
-                  >
-                    {labelFor(line)}
-                  </span>
-                  <span className="text-[13px] leading-5 break-words text-white">{line.text}</span>
-                </div>
+                {isBetLine(line) ? (
+                  <div className="ws-live-bubble ws-live-bet mt-2 flex w-fit max-w-full items-center gap-2.5 rounded-2xl px-3 py-2">
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-amber-400/20 text-[14px]">
+                      {BET_MARK}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="mr-2 text-[11px] font-semibold text-amber-300">
+                        {labelFor(line)}
+                      </span>
+                      <span className="text-[13px] leading-5 font-semibold break-words text-white">
+                        {line.text.slice(BET_MARK.length).trim()}
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <div className="ws-live-bubble mt-2 w-fit max-w-full rounded-2xl bg-black/45 px-3 py-2 backdrop-blur-[2px]">
+                    <span
+                      className="mr-2 text-[11px] font-semibold"
+                      style={{ color: authorColor(line.author, viewer) }}
+                    >
+                      {labelFor(line)}
+                    </span>
+                    <span className="text-[13px] leading-5 break-words text-white">
+                      {line.text}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ))}
@@ -98,6 +125,34 @@ export function LiveChatFeed({
         }
         .ws-live-slot > div { overflow: hidden; }
         .ws-live-bubble { animation: wsLiveBubble 0.4s ease-out backwards; }
+        /* A bet banner lands with a spring and a passing shine, then keeps
+           a steady amber glow so it stays findable in the column. */
+        @keyframes wsLiveBetIn {
+          0% { opacity: 0; transform: translateY(12px) scale(0.92); }
+          60% { opacity: 1; transform: translateY(-2px) scale(1.03); }
+          100% { opacity: 1; transform: none; }
+        }
+        @keyframes wsLiveBetShine {
+          from { background-position: -160% 0; }
+          to { background-position: 260% 0; }
+        }
+        .ws-live-bet {
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(251, 191, 36, 0.45);
+          background: linear-gradient(100deg, rgba(251, 191, 36, 0.24), rgba(251, 146, 60, 0.12) 55%, rgba(251, 191, 36, 0.2));
+          box-shadow: 0 0 18px rgba(251, 191, 36, 0.18);
+          animation: wsLiveBetIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+        }
+        .ws-live-bet::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.35) 50%, transparent 60%);
+          background-size: 200% 100%;
+          animation: wsLiveBetShine 1.4s ease-out 0.25s backwards;
+        }
       `}</style>
     </div>
   );
