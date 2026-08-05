@@ -4,6 +4,7 @@ import { Geist, Mona_Sans } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import Providers from "./providers";
+import { VividWidgetDock } from "@/components/voice/vivid-widget-dock";
 import "./globals.css";
 
 // Body and normal text. Geist is a variable font, so every weight (we default
@@ -78,6 +79,10 @@ export default async function RootLayout({
           src="https://platformvivid.worldstreetgold.com/widget.js"
           strategy="afterInteractive"
         />
+        {/* Makes the widget's floating orb draggable. Sits next to the script it
+            acts on; it renders nothing and does nothing until that widget has
+            mounted. */}
+        <VividWidgetDock />
       </body>
     </html>
   );

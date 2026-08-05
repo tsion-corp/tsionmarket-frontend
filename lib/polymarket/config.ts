@@ -15,6 +15,10 @@ export const CONTRACTS = {
   conditionalTokens: "0x4D97DCd97eC945f40cF65F87097ACe5EA0476045",
   standardExchange: "0xE111180000d2663C0091e4f400237545B87B996B",
   negRiskExchange: "0xe2222d279d744050d28e00520010520000310F59",
+  // Wraps positions for multi-candidate ("neg-risk") markets. Selling into one
+  // needs this as an ERC-1155 operator, and the SDK's setupTradingApprovals
+  // does not grant it. See useNegRiskApproval in hooks/use-polymarket-cashout.
+  negRiskAdapter: "0xd91E80cF2E7be2e162c6513ceD06f1dD0dA35296",
   // USDC <-> pUSD wrap/unwrap.
   collateralOnramp: "0x93070a847efEf7F70739046A929D47a521F5B8ee",
   collateralOfframp: "0x2957922Eb93258b93368531d39fAcCA3B4dC5854",
@@ -33,3 +37,9 @@ export const DEPOSIT_BRIDGE_URL = "https://bridge.polymarket.com/deposit";
 // browser SDK's remoteBuilderSigning points here; the builder secret never
 // leaves the server.
 export const BUILDER_SIGN_PATH = "/api/polymarket/sign";
+
+// Path of the Polygon JSON-RPC proxy the SDK reads through, replacing the
+// public endpoint it ships with (polygon.drpc.org, which answers 500 often
+// enough to break trading approvals). Shares the app's one EVM RPC proxy on the
+// paid Alchemy key. See app/api/evm-rpc/[network].
+export const POLYGON_RPC_PATH = "/api/evm-rpc/polygon-mainnet";

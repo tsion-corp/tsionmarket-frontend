@@ -147,6 +147,29 @@ body {
   }
 }
 
+/* Prediction: the close-time badge in the last ten minutes. A heartbeat rather
+   than a fade — the badge should read as pressure without the number ever
+   dimming to the point of being hard to read mid-trade.
+
+   Declared as a utility, not a plain class, so it can be driven by a variant
+   (the badge applies it only at data-urgency=imminent, and only under
+   motion-safe). A bare class cannot be composed that way. */
+@keyframes ws-close-urgent-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(246, 165, 165, 0);
+  }
+  50% {
+    opacity: 0.92;
+    box-shadow: 0 0 18px 1px rgba(246, 165, 165, 0.35);
+  }
+}
+
+@utility ws-close-urgent {
+  animation: ws-close-urgent-pulse 1.1s ease-in-out infinite;
+}
+
 /* Voice control: a slow breathing pulse while it waits to be tapped. Animates
    the standalone `scale` property rather than `transform`, because Motion drives
    `transform` on the same element to morph the circle into the listening pill,

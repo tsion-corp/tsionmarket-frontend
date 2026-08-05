@@ -258,14 +258,14 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
 
   const confirmRows: SpotConfirmRow[] = buying
     ? [
-        { label: t("market"), value: `${base}/USDC` },
+        { label: t("market"), value: base },
         { label: t("youPay"), value: formatUsd(amountNum) },
         { label: t("youReceive"), value: `${formatAmount(receive)} ${base}`, tone: "up" },
         { label: t("price"), value: formatUsd(mark) },
         { label: t("estFee"), value: formatUsd(feeUsd) },
       ]
     : [
-        { label: t("market"), value: `${base}/USDC` },
+        { label: t("market"), value: base },
         { label: t("youSellRow"), value: `${formatAmount(amountNum)} ${base}` },
         { label: t("youReceive"), value: formatUsd(receive), tone: "up" },
         { label: t("price"), value: formatUsd(mark) },

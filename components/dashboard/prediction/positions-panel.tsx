@@ -17,6 +17,9 @@ interface PositionsPanelProps {
   onOpenSlip: (position: PolymarketPosition) => void;
   onRedeem: (conditionId: string) => void;
   redeemingId: string | null;
+  // Conditions redeemed in this session. The positions feed is indexed and
+  // lags the transaction, so it is the only way to know a claim has landed.
+  claimedConditionIds: string[];
   onCashOut: () => void;
   cashingOut: boolean;
 }
@@ -48,6 +51,7 @@ export function PositionsPanel({
   onOpenSlip,
   onRedeem,
   redeemingId,
+  claimedConditionIds,
   onCashOut,
   cashingOut,
 }: PositionsPanelProps) {
@@ -100,6 +104,7 @@ export function PositionsPanel({
         positions.map((raw, i) => {
           const p = raw as PositionInfo;
           const claiming = p.conditionId != null && redeemingId === p.conditionId;
+          const claimedHere = p.conditionId != null && claimedConditionIds.includes(p.conditionId);
           return (
             <div
               key={i}
@@ -120,14 +125,23 @@ export function PositionsPanel({
                   </span>
                 </div>
               </div>
-              {isClaimable(p.redeemable, num(p.currentValue)) && p.conditionId ? (
+              {claimedHere ? (
+                // Already redeemed in this session. The positions API is
+                // indexed and lags the confirmed transaction, so it keeps
+                // reporting this position as redeemable with a live value —
+                // which re-armed the button on winnings already paid out, and
+                // a second tap redeemed the same condition twice.
+                <span className="text-accent text-right text-[12.5px] font-medium">
+                  {t("claimed")}
+                </span>
+              ) : isClaimable(p.redeemable, num(p.currentValue)) && p.conditionId ? (
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     onRedeem(p.conditionId as string);
                   }}
                   disabled={claiming}
-                  className="border-accent/45 bg-accent/12 cursor-pointer rounded-lg border px-3 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-60"
+                  className="border-accent/45 bg-accent/12 cursor-pointer rounded-lg border px-3 py-1.5 text-[12.5px] font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {claiming ? t("claiming") : t("claim")}
                 </button>

@@ -1002,7 +1002,20 @@
     "positionConnect": "Connect a wallet to see your position.",
     "noEarlyExitNote": "No early exit. You can redeem once the market resolves.",
     "viewOutcomes": "View outcomes",
-    "moreOutcomes": "+{count} more"
+    "moreOutcomes": "+{count} more",
+    "resolveEventNoteGrouped": "As the creator, pick the one outcome that happened. The rest settle as No in the same transaction.",
+    "resolveEventCta": "Resolve · {winner} wins",
+    "resolveEventPick": "Pick the winning outcome",
+    "resolveEventWarning": "This settles the whole event and can't be undone.",
+    "partOfEvent": "Part of: {title}",
+    "claimableIn": "Claimable in {time}",
+    "claimableSoon": "Claimable shortly",
+    "closesAt": "Closes {when}",
+    "lpReturning": "Returning your liquidity…",
+    "lpReturned": "Your liquidity is back in your wallet.",
+    "lpReturnFailed": "Couldn't return your liquidity. We'll try again next time you open predictions.",
+    "lpAutoReturnNote": "Your liquidity returns to you automatically once this market resolves.",
+    "toastRedeemSuccess": "Winnings redeemed. They're in your claimable balance."
   },
   "perps": {
     "eyebrow": "Perpetuals",
@@ -1519,7 +1532,8 @@
       "claimPrize": "Claim prize",
       "toastClaiming": "Claiming your prize…",
       "toastClaimed": "Prize claimed — added to your balance.",
-      "toastClaimFailed": "Couldn't claim that prize."
+      "toastClaimFailed": "Couldn't claim that prize.",
+      "claimedLabel": "Prize claimed"
     },
     "chess": {
       "common": {

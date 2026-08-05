@@ -125,7 +125,10 @@ export function MarketsView() {
         >
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 font-sans text-[16px] font-semibold">
-              {token ? `${base}/USDC` : loading ? t("loadingMarkets") : t("noMarkets")}
+              {/* The token alone, not a BASE/QUOTE pair. Every spot market here
+                  is quoted in USDC, so naming the quote on every row said
+                  nothing and read as a pair-trading venue this is not. */}
+              {token ? base : loading ? t("loadingMarkets") : t("noMarkets")}
               {markets.length > 0 ? <span className="text-white/40">▾</span> : null}
             </div>
             <div className="truncate text-xs font-normal text-white/50">{token?.name ?? "—"}</div>
@@ -173,9 +176,7 @@ export function MarketsView() {
                 >
                   <SpotCoin sym={t.symbol} logo={t.logo} size={26} />
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-sans text-[13.5px] font-medium">
-                      {t.symbol}/USDC
-                    </div>
+                    <div className="truncate font-sans text-[13.5px] font-medium">{t.symbol}</div>
                     <div className="truncate text-[11.5px] font-normal text-white/45">{t.name}</div>
                   </div>
                   <div className="text-right">

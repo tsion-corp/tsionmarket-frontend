@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMarketPositions } from "@/hooks/use-prediction-portfolio";
 import { usePredictionActions } from "@/hooks/use-prediction-actions";
+import { ClaimWindow } from "@/components/dashboard/prediction/claim-window";
 import { compactUsd, toNumber } from "@/lib/prediction/format";
 import type { Market, Position, Side } from "@/lib/prediction/types";
 
@@ -90,13 +91,20 @@ export function MarketPositions({ market }: MarketPositionsProps) {
           ) : null}
 
           {canRedeem ? (
-            <button
-              onClick={() => actions.redeem(market.marketId, side, shares)}
-              disabled={actions.busy}
-              className="border-up/45 bg-up/16 text-up mt-1 cursor-pointer rounded-xl border py-2.5 text-sm font-semibold disabled:opacity-60"
-            >
-              {t("redeemCta")}
-            </button>
+            // Wrapped like every other redeem: a creator-resolved market is not
+            // claimable until its challenge window closes, and redeeming inside
+            // it reverts. This was the one path that still offered the button.
+            <ClaimWindow marketId={market.marketId}>
+              <button
+                onClick={() => actions.redeem(market.marketId, side, shares)}
+                disabled={actions.busy}
+                className="border-up/45 bg-up/16 text-up mt-1 w-full cursor-pointer rounded-xl border py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {/* Said "Redeem winnings" throughout the transaction, so a slow
+                    confirmation looked like a dead button. */}
+                {actions.busy ? t("claiming") : t("redeemCta")}
+              </button>
+            </ClaimWindow>
           ) : null}
         </div>
       )}

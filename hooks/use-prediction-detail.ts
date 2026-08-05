@@ -97,6 +97,27 @@ export function useGroups(filter?: { category?: string; status?: string }) {
   });
 }
 
+// The event a market is an outcome of, or null when it stands alone.
+//
+// The doc for v1.2.0 proposes a GET /markets/:id/group endpoint for this, but
+// the group list already carries every group's members, so the join is done
+// here instead and the breadcrumb works today. Swap the body for the endpoint
+// when it ships; the shape this returns will not change.
+//
+// `enabled` is the caller's on-chain answer to "is this market grouped at all",
+// so the group list is only fetched for a market that actually has a parent.
+export function useParentEvent(marketId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["prediction", "parent-event", marketId],
+    queryFn: async () => {
+      const groups = await listGroups();
+      return groups.find((g) => g.outcomes.some((o) => o.marketId.toString() === marketId)) ?? null;
+    },
+    enabled: enabled && !!marketId,
+    staleTime: 60_000,
+  });
+}
+
 // Invalidate every detail surface for a market after a write (trade/comment).
 export function useInvalidatePredictionDetail() {
   const qc = useQueryClient();

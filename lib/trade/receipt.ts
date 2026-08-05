@@ -6,10 +6,12 @@ import { SPONSORED_EVM_CHAINS } from "@/lib/trade/sponsored-evm";
 // provider: Privy can leave that provider pointed at a different chain, so a
 // receipt would be polled on the wrong chain and never found, timing the flow
 // out even though the transaction landed.
-const READ_CHAINS: Record<number, Chain> = Object.fromEntries(
+//
+// The network slug rides along so the client can be pointed at our own proxy.
+const READ_CHAINS: Record<number, { chain: Chain; network: string }> = Object.fromEntries(
   SPONSORED_EVM_CHAINS.filter((config) => config.supportsReceiptPolling).map((config) => [
     config.chainId,
-    config.chain,
+    { chain: config.chain, network: config.network },
   ])
 );
 
@@ -24,11 +26,9 @@ export function isReceiptChain(chainId: number): boolean {
   return chainId in READ_CHAINS;
 }
 
-// A second public node per chain. The chain's default RPC (mainnet.base.org
-// for Base) is flaky for some networks/ISPs — SSL resets included — and a
-// receipt that cannot be read stalls the whole flow even though the
-// transaction landed. viem's fallback transport moves to the backup the
-// moment the primary errors.
+// A public node per chain, used only as a backup. The chain's default RPC is
+// flaky for some networks and ISPs, SSL resets included, and a receipt that
+// cannot be read stalls the whole flow even though the transaction landed.
 const FALLBACK_RPCS: Record<number, string> = {
   8453: "https://base-rpc.publicnode.com",
   42161: "https://arbitrum-one-rpc.publicnode.com",
@@ -36,13 +36,24 @@ const FALLBACK_RPCS: Record<number, string> = {
   10: "https://optimism-rpc.publicnode.com",
 };
 
+// Reads go through our own proxy on the paid Alchemy key first, with the public
+// node above as the fallback. `http()` with no URL would use the chain's default
+// public endpoint, which is shared and rate-limited, and this carries every
+// on-chain read in the app. viem's fallback transport moves to the backup the
+// moment the primary errors, so a proxy outage degrades to a slower public node
+// instead of stalling the flow.
+//
+// The proxy is same-origin, so the privy-token cookie authenticates it with no
+// header plumbing. Browser-only by construction: every caller runs in a hook or
+// an event handler.
 export function publicClientForChain(chainId: number) {
-  const chain = READ_CHAINS[chainId];
-  if (!chain) throw new Error(`This chain isn't supported yet (${chainId}).`);
+  const entry = READ_CHAINS[chainId];
+  if (!entry) throw new Error(`This chain isn't supported yet (${chainId}).`);
+  const primary = http(`/api/evm-rpc/${entry.network}`);
   const backup = FALLBACK_RPCS[chainId];
   return createPublicClient({
-    chain,
-    transport: backup ? fallback([http(), http(backup)]) : http(),
+    chain: entry.chain,
+    transport: backup ? fallback([primary, http(backup)]) : primary,
   });
 }
 

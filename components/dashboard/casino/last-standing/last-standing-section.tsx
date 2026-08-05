@@ -663,7 +663,9 @@ export function LastStandingSection() {
             />
           ) : null}
           <div className="relative">
-            <div className="flex items-center justify-between gap-3">
+            {/* Wraps on a narrow phone: the label plus both pills do not fit
+                one line there, and forcing them to overlapped the pot below. */}
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
                 {t("prizePool")}
               </div>

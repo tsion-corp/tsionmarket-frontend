@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useClaimDrawPrize, useMyDrawEntries } from "@/hooks/use-casino-draw";
 import { useCasinoWallet } from "@/hooks/use-casino-wallet";
+import { useClaimedOnce } from "@/hooks/use-claimed-once";
 import {
   CasinoEmpty,
   CasinoError,
@@ -18,14 +20,25 @@ export function EntriesSection() {
   const wallet = useCasinoWallet();
   const { entries, isLoading, error } = useMyDrawEntries();
   const claim = useClaimDrawPrize();
+  // A won entry carries no "claimed" field, so the service reports it as won
+  // and prize-bearing forever. Without this the button came back armed after a
+  // successful claim and could be tapped again on money already paid out.
+  const { hasClaimed, markClaimed } = useClaimedOnce();
+  // Which entry is in flight. The mutation object is shared across every row,
+  // so keying off claim.isPending disabled ALL of them during one claim.
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const onClaim = async (entryId: string) => {
     const id = toast.loading(t("toastClaiming"));
+    setClaimingId(entryId);
     try {
       await claim.mutateAsync(entryId);
+      markClaimed(entryId);
       toast.success(t("toastClaimed"), { id });
     } catch (e) {
       toast.error(friendlyError(e, t("toastClaimFailed")), { id });
+    } finally {
+      setClaimingId(null);
     }
   };
 
@@ -70,13 +83,21 @@ export function EntriesSection() {
                 <NumberChip num={e.bonusNumber} variant="bonus" />
               </div>
               {e.state === "won" && e.prize ? (
-                <button
-                  onClick={() => void onClaim(e.id)}
-                  disabled={claim.isPending}
-                  className="text-ink mt-3 cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[12.5px] font-bold disabled:opacity-50"
-                >
-                  {claim.isPending ? t("claiming") : t("claimPrize")}
-                </button>
+                hasClaimed(e.id) ? (
+                  // Says what happened rather than leaving a blank where the
+                  // button was: a prize that silently vanishes reads as a bug.
+                  <div className="text-up mt-3 text-[12.5px] font-semibold">
+                    {t("claimedLabel")}
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => void onClaim(e.id)}
+                    disabled={claimingId !== null}
+                    className="text-ink mt-3 cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[12.5px] font-bold disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {claimingId === e.id ? t("claiming") : t("claimPrize")}
+                  </button>
+                )
               ) : null}
             </div>
           );

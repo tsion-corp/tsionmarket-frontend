@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useVoiceSession } from "@/hooks/use-voice-session";
+import { useVoiceDock } from "@/hooks/use-voice-dock";
 import { VoiceAvatar } from "@/components/voice/avatar";
 import { AssistantOrb } from "@/components/voice/assistant-orb";
 import { TranscriptPanel } from "@/components/voice/transcript-panel";
@@ -11,7 +12,11 @@ import { VoiceGlow } from "@/components/voice/voice-glow";
 import { CloseIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 
-const ANCHOR = "fixed right-5 bottom-24 z-[200]";
+// The close button and the transcript are positioned relative to the control,
+// so they travel with it when it is dragged. Offsets are the gaps the original
+// fixed classes encoded: the X sits to its left, the transcript above it.
+const STOP_OFFSET = { right: 76, bottom: 8 };
+const TRANSCRIPT_OFFSET = { right: 0, bottom: 80 };
 
 // The floating voice control, mounted once globally and shown only to a
 // signed-in user. Tap once to OPEN a hands-free conversation: from then on just
@@ -29,6 +34,10 @@ export function RecordButton() {
   const { ready, authenticated } = usePrivy();
   const reduceMotion = useReducedMotion();
   const { active, phase, messages, supported, start, stop } = useVoiceSession();
+  // The control floats over every page, so wherever it rests it covers
+  // something. Being able to move it is the way out, and where it is put is
+  // remembered.
+  const { position, dragging, consumeDrag, dragHandlers } = useVoiceDock();
 
   // Tapping anywhere else ends the session, the way any open overlay behaves.
   // Without this the only way out is the X, and a user who has moved on to the
@@ -70,7 +79,17 @@ export function RecordButton() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {active ? <TranscriptPanel active={active} phase={phase} messages={messages} /> : null}
+        {active ? (
+          <TranscriptPanel
+            active={active}
+            phase={phase}
+            messages={messages}
+            anchor={{
+              right: position.right + TRANSCRIPT_OFFSET.right,
+              bottom: position.bottom + TRANSCRIPT_OFFSET.bottom,
+            }}
+          />
+        ) : null}
       </AnimatePresence>
 
       {/* An explicit way out. Tapping the orb also ends the session, but that is
@@ -90,7 +109,11 @@ export function RecordButton() {
             transition={{ type: "spring", stiffness: 320, damping: 26 }}
             // Sits to the left of the orb, which keeps the orb in the spot the
             // launcher occupied so nothing jumps when a session opens.
-            className="fixed right-24 bottom-[104px] z-[201] grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-white/25 bg-black/60 text-white/80 backdrop-blur transition-colors hover:border-white/50 hover:text-white"
+            style={{
+              right: position.right + STOP_OFFSET.right,
+              bottom: position.bottom + STOP_OFFSET.bottom,
+            }}
+            className="fixed z-[201] grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-white/25 bg-black/60 text-white/80 backdrop-blur transition-colors hover:border-white/50 hover:text-white"
           >
             <CloseIcon size={13} />
           </motion.button>
@@ -102,17 +125,29 @@ export function RecordButton() {
         data-voice-ui
         aria-label={label}
         aria-pressed={active}
-        onClick={() => (active ? stop() : void start())}
+        {...dragHandlers}
+        // A drag that ends on the control still fires a click, which would open
+        // or end a session every time it is moved. The gesture is consumed here
+        // so only a genuine tap reaches the session.
+        onClick={() => {
+          if (consumeDrag()) return;
+          if (active) stop();
+          else void start();
+        }}
+        style={{ ...dragHandlers.style, right: position.right, bottom: position.bottom }}
         // Idle: a slow breathing glow so it is noticeable, not hidden. Open: the
         // orb carries its own motion, so the button itself sits still and lets
-        // it do the talking.
-        animate={reduceMotion || active ? { scale: 1 } : { scale: [1, 1.04, 1] }}
-        transition={{ duration: 2.4, repeat: active ? 0 : Infinity, ease: "easeInOut" }}
+        // it do the talking. While being dragged it holds still, so the only
+        // movement on screen is the one the finger is making.
+        animate={reduceMotion || active || dragging ? { scale: 1 } : { scale: [1, 1.04, 1] }}
+        transition={{ duration: 2.4, repeat: active || dragging ? 0 : Infinity, ease: "easeInOut" }}
         className={cn(
-          ANCHOR,
+          "fixed z-[200]",
           // A circle either way, so the control keeps its shape when a session
           // opens and only its contents change.
-          "grid h-16 w-16 cursor-pointer place-items-center rounded-full select-none",
+          "grid h-16 w-16 place-items-center rounded-full select-none",
+          // Last, so twMerge does not resolve it away against an earlier cursor.
+          dragging ? "cursor-grabbing" : "cursor-grab",
           active
             ? // Open: no chrome at all. The orb is the control, and a border
               // around it would read as a button containing a picture.

@@ -1002,7 +1002,20 @@
     "positionConnect": "Connect a wallet to see your position.",
     "noEarlyExitNote": "Kein vorzeitiger Ausstieg. Du kannst einlösen, sobald der Markt aufgelöst ist.",
     "viewOutcomes": "Ergebnisse ansehen",
-    "moreOutcomes": "+{count} mehr"
+    "moreOutcomes": "+{count} mehr",
+    "resolveEventNoteGrouped": "Wählen Sie als Ersteller das eine Ergebnis, das eingetreten ist. Die übrigen werden in derselben Transaktion mit Nein abgerechnet.",
+    "resolveEventCta": "Auflösen · {winner} gewinnt",
+    "resolveEventPick": "Gewinnendes Ergebnis wählen",
+    "resolveEventWarning": "Damit wird das gesamte Ereignis abgerechnet. Das lässt sich nicht rückgängig machen.",
+    "partOfEvent": "Teil von: {title}",
+    "claimableIn": "Auszahlbar in {time}",
+    "claimableSoon": "In Kürze auszahlbar",
+    "closesAt": "Schließt {when}",
+    "lpReturning": "Ihre Liquidität wird zurückgeführt…",
+    "lpReturned": "Ihre Liquidität ist zurück in Ihrer Wallet.",
+    "lpReturnFailed": "Ihre Liquidität konnte nicht zurückgeführt werden. Wir versuchen es beim nächsten Öffnen erneut.",
+    "lpAutoReturnNote": "Ihre Liquidität fließt automatisch an Sie zurück, sobald dieser Markt aufgelöst ist.",
+    "toastRedeemSuccess": "Gewinne eingelöst. Sie liegen in Ihrem abrufbaren Guthaben."
   },
   "perps": {
     "eyebrow": "Perpetuals",
@@ -1519,7 +1532,8 @@
       "claimPrize": "Gewinn abholen",
       "toastClaiming": "Ihr Gewinn wird abgeholt…",
       "toastClaimed": "Gewinn abgeholt — Ihrem Guthaben gutgeschrieben.",
-      "toastClaimFailed": "Dieser Gewinn konnte nicht abgeholt werden."
+      "toastClaimFailed": "Dieser Gewinn konnte nicht abgeholt werden.",
+      "claimedLabel": "Preis eingelöst"
     },
     "chess": {
       "common": {

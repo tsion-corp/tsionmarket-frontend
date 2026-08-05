@@ -29,6 +29,26 @@ class InertWebSocket {
 
 globalThis.WebSocket = InertWebSocket as unknown as typeof WebSocket;
 
+// jsdom does not expose localStorage under this Node build, so every suite that
+// touches a stored preference (interests, perp mode, the voice dock) failed on
+// `window.localStorage` being undefined rather than on anything it asserted.
+// The app only ever uses the synchronous string API, so a small in-memory store
+// is a faithful stand-in and keeps the suite hermetic between files.
+if (typeof window !== "undefined" && !window.localStorage) {
+  const store = new Map<string, string>();
+  const memoryStorage: Storage = {
+    get length() {
+      return store.size;
+    },
+    key: (index) => [...store.keys()][index] ?? null,
+    getItem: (key) => store.get(key) ?? null,
+    setItem: (key, value) => void store.set(key, String(value)),
+    removeItem: (key) => void store.delete(key),
+    clear: () => store.clear(),
+  };
+  Object.defineProperty(window, "localStorage", { value: memoryStorage, configurable: true });
+}
+
 afterEach(() => {
   cleanup();
 });

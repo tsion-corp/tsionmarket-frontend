@@ -17,9 +17,12 @@ import { CommentsPanel } from "@/components/dashboard/prediction/comments-panel"
 import { MarketRules } from "@/components/dashboard/prediction/market-rules";
 import { useMarket, useMarketChart, useMarketTrades } from "@/hooks/use-prediction-markets";
 import { useMyMarkets } from "@/hooks/use-prediction-portfolio";
+import { useMarketGroupId } from "@/hooks/use-prediction-neg-risk";
+import { useParentEvent } from "@/hooks/use-prediction-detail";
 import { usePredictionMarketStream } from "@/hooks/use-prediction-market-stream";
 import { usePredictionActions } from "@/hooks/use-prediction-actions";
-import { compactUsd, priceToCents, priceToPct } from "@/lib/prediction/format";
+import { CloseTimer } from "@/components/dashboard/prediction/close-timer";
+import { compactUsd, formatCloseDateTime, priceToCents, priceToPct } from "@/lib/prediction/format";
 import type { ChartInterval, Side, Trade } from "@/lib/prediction/types";
 
 // A compact set of intervals for the smaller chart.
@@ -58,7 +61,18 @@ export function MarketDetail({ id }: MarketDetailProps) {
   const isCreator =
     createdByMe ||
     (!!market && !!actions.wallet && market.creator.toLowerCase() === actions.wallet.toLowerCase());
-  const canResolve = isCreator && (market?.status === "Open" || market?.status === "Closed");
+
+  // A market inside a neg-risk group cannot be resolved on its own: resolve()
+  // reverts with "neg-risk member" because the whole event settles together.
+  // The creator does it from the event page instead, so hide the control here
+  // rather than offer one that always fails.
+  const { data: groupId } = useMarketGroupId(market?.marketId ?? null);
+  const grouped = groupId != null;
+  const canResolve =
+    isCreator && !grouped && (market?.status === "Open" || market?.status === "Closed");
+
+  // The parent event, for the breadcrumb. Only looked up for a grouped market.
+  const { data: parentEvent } = useParentEvent(id, grouped);
 
   if (isLoading || !market) {
     return (
@@ -71,16 +85,30 @@ export function MarketDetail({ id }: MarketDetailProps) {
   }
 
   const yesPct = priceToPct(market.priceYes);
+  const closeAt = formatCloseDateTime(market.closeTime);
 
   return (
     <div className="mx-auto w-full max-w-[1240px] p-4 sm:p-6 lg:p-8">
-      <Link
-        href="/prediction"
-        className="mb-4 inline-flex items-center gap-1 text-[13px] font-medium text-white/55 hover:text-white"
-      >
-        <ChevronLeftIcon size={14} />
-        {t("backToMarkets")}
-      </Link>
+      {/* An outcome of an event is not a standalone market, so the trail back
+          goes to its event rather than the market list. Falls back to the list
+          while the parent is still loading, or when there is no parent. */}
+      {parentEvent ? (
+        <Link
+          href={`/prediction/event/${parentEvent.slug}`}
+          className="mb-4 inline-flex max-w-full items-center gap-1 text-[13px] font-medium text-white/55 hover:text-white"
+        >
+          <ChevronLeftIcon size={14} />
+          <span className="truncate">{t("partOfEvent", { title: parentEvent.title })}</span>
+        </Link>
+      ) : (
+        <Link
+          href="/prediction"
+          className="mb-4 inline-flex items-center gap-1 text-[13px] font-medium text-white/55 hover:text-white"
+        >
+          <ChevronLeftIcon size={14} />
+          {t("backToMarkets")}
+        </Link>
+      )}
 
       {/* Hero banner: the market image spans the full width with the question and
           live prices laid over a gradient, so the page opens on something rich. */}
@@ -110,6 +138,18 @@ export function MarketDetail({ id }: MarketDetailProps) {
             <span className="rounded-full border border-white/15 bg-black/35 px-2.5 py-1 text-white/75 backdrop-blur-sm">
               {t(`status_${market.status}`)}
             </span>
+            {/* The deadline owns the opposite end of the row from the metadata
+                chips: it is the one value on this page that changes on its own,
+                and it earns the isolation. Larger than the chips beside it, and
+                it escalates as the close approaches — neutral far out, brighter
+                inside the last hour, red and pulsing in the final ten minutes,
+                where a trade may no longer land. Styling keys off the timer's
+                own data-urgency so the thresholds live in one tested place. */}
+            <CloseTimer
+              closeTime={market.closeTime}
+              status={market.status}
+              className="tnum data-[urgency=imminent]:border-down/60 data-[urgency=imminent]:bg-down/20 data-[urgency=imminent]:text-down motion-safe:data-[urgency=imminent]:ws-close-urgent ml-auto rounded-full border px-3.5 py-1.5 text-[13.5px] font-semibold backdrop-blur-sm transition-colors data-[urgency=none]:border-white/20 data-[urgency=none]:bg-black/40 data-[urgency=none]:text-white/85 data-[urgency=soon]:border-white/45 data-[urgency=soon]:bg-white/12 data-[urgency=soon]:text-white sm:text-[15px]"
+            />
             {market.outcome !== "Unresolved" ? (
               <span className="border-accent/40 bg-accent/20 text-accent rounded-full border px-2.5 py-1 backdrop-blur-sm">
                 {t("resolvedOutcome", { outcome: market.outcome })}
@@ -139,6 +179,13 @@ export function MarketDetail({ id }: MarketDetailProps) {
             <div className="mt-2.5 max-w-[520px]">
               <ProgressBar pct={yesPct} color="#7CE7B0" />
             </div>
+            {/* The exact deadline under the prices. The chip above counts down;
+                this says when, which is what a trader needs before committing. */}
+            {closeAt ? (
+              <div className="tnum mt-2 text-[12.5px] font-normal text-white/55">
+                {t("closesAt", { when: closeAt })}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

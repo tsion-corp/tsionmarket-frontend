@@ -1002,7 +1002,20 @@
     "positionConnect": "Connect a wallet to see your position.",
     "noEarlyExitNote": "Sin salida anticipada. Podrás reclamar cuando el mercado se resuelva.",
     "viewOutcomes": "Ver resultados",
-    "moreOutcomes": "+{count} más"
+    "moreOutcomes": "+{count} más",
+    "resolveEventNoteGrouped": "Como creador, elige el único resultado que ocurrió. Los demás se liquidan como No en la misma transacción.",
+    "resolveEventCta": "Resolver · gana {winner}",
+    "resolveEventPick": "Elige el resultado ganador",
+    "resolveEventWarning": "Esto liquida todo el evento y no se puede deshacer.",
+    "partOfEvent": "Parte de: {title}",
+    "claimableIn": "Reclamable en {time}",
+    "claimableSoon": "Reclamable en breve",
+    "closesAt": "Cierra {when}",
+    "lpReturning": "Devolviendo tu liquidez…",
+    "lpReturned": "Tu liquidez ya está de vuelta en tu monedero.",
+    "lpReturnFailed": "No pudimos devolver tu liquidez. Lo intentaremos de nuevo la próxima vez que abras predicciones.",
+    "lpAutoReturnNote": "Tu liquidez vuelve a ti automáticamente cuando este mercado se resuelve.",
+    "toastRedeemSuccess": "Ganancias canjeadas. Están en tu saldo por reclamar."
   },
   "perps": {
     "eyebrow": "Perpetuos",
@@ -1519,7 +1532,8 @@
       "claimPrize": "Reclamar premio",
       "toastClaiming": "Reclamando tu premio…",
       "toastClaimed": "Premio reclamado — añadido a tu saldo.",
-      "toastClaimFailed": "No se pudo reclamar ese premio."
+      "toastClaimFailed": "No se pudo reclamar ese premio.",
+      "claimedLabel": "Premio reclamado"
     },
     "chess": {
       "common": {

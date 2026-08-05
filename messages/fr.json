@@ -1002,7 +1002,20 @@
     "positionConnect": "Connect a wallet to see your position.",
     "noEarlyExitNote": "Pas de sortie anticipée. Vous pourrez récupérer une fois le marché résolu.",
     "viewOutcomes": "Voir les issues",
-    "moreOutcomes": "+{count} de plus"
+    "moreOutcomes": "+{count} de plus",
+    "resolveEventNoteGrouped": "En tant que créateur, choisissez le seul résultat qui s'est produit. Les autres sont réglés sur Non dans la même transaction.",
+    "resolveEventCta": "Résoudre · {winner} gagne",
+    "resolveEventPick": "Choisissez le résultat gagnant",
+    "resolveEventWarning": "Cela règle l'ensemble de l'événement et est irréversible.",
+    "partOfEvent": "Fait partie de : {title}",
+    "claimableIn": "Réclamable dans {time}",
+    "claimableSoon": "Réclamable sous peu",
+    "closesAt": "Clôture {when}",
+    "lpReturning": "Restitution de votre liquidité…",
+    "lpReturned": "Votre liquidité est de retour dans votre portefeuille.",
+    "lpReturnFailed": "Impossible de restituer votre liquidité. Nous réessaierons à votre prochaine visite.",
+    "lpAutoReturnNote": "Votre liquidité vous est restituée automatiquement dès que ce marché est résolu.",
+    "toastRedeemSuccess": "Gains récupérés. Ils sont dans votre solde à réclamer."
   },
   "perps": {
     "eyebrow": "Perpétuels",
@@ -1519,7 +1532,8 @@
       "claimPrize": "Réclamer le gain",
       "toastClaiming": "Réclamation de votre gain…",
       "toastClaimed": "Gain réclamé — ajouté à votre solde.",
-      "toastClaimFailed": "Impossible de réclamer ce gain."
+      "toastClaimFailed": "Impossible de réclamer ce gain.",
+      "claimedLabel": "Prix réclamé"
     },
     "chess": {
       "common": {

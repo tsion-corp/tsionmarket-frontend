@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { timeUntil } from "@/lib/prediction/format";
+import { COUNTDOWN_SECONDS_THRESHOLD, closeUrgency, timeUntil } from "@/lib/prediction/format";
 
 interface CloseTimerProps {
   // Market/event close time, unix SECONDS (0/null → nothing to show).
@@ -35,14 +35,19 @@ export function CloseTimer({ closeTime, status, className }: CloseTimerProps) {
   // countdown is meaningless — the status IS the state. Don't tick, just label.
   const settled = status !== undefined && status !== "Open";
   const remaining = !settled && closeTime ? timeUntil(closeTime, nowMs) : null;
+  // How close the deadline is, surfaced as a data attribute so the call site
+  // decides what pressure looks like. A card can stay quiet while the detail
+  // page's badge escalates, off one shared set of thresholds.
+  const urgency = settled ? "none" : closeUrgency(closeTime, nowMs);
 
   useEffect(() => {
     if (settled || !closeTime) return;
-    // Under a minute out, tick every second (so the final seconds count down);
-    // otherwise every 30s is plenty for a multi-hour/day market.
     const secondsLeft = closeTime - nowMs / 1000;
     if (secondsLeft <= 0) return; // already past close — nothing to tick
-    const intervalMs = secondsLeft < 60 ? 1_000 : 30_000;
+    // Tick in step with the finest unit on screen: every second while the label
+    // carries seconds, otherwise every 30s. A slower tick than the display
+    // means a countdown that visibly sticks.
+    const intervalMs = secondsLeft < COUNTDOWN_SECONDS_THRESHOLD ? 1_000 : 30_000;
     const id = setInterval(() => setNowMs(Date.now()), intervalMs);
     return () => clearInterval(id);
     // `remaining`/`settled` in the deps: when the countdown flips (crosses the
@@ -54,11 +59,15 @@ export function CloseTimer({ closeTime, status, className }: CloseTimerProps) {
   // shows a live countdown, falling back to "Closed" once the clock passes the
   // close time even if the backend hasn't flipped the status yet.
   if (settled) {
-    return <span className={className}>{t(`status_${status}`)}</span>;
+    return (
+      <span data-urgency="none" className={className}>
+        {t(`status_${status}`)}
+      </span>
+    );
   }
   if (!closeTime) return null;
   return (
-    <span className={className}>
+    <span data-urgency={urgency} className={className}>
       {remaining ? `${t("closesIn")} ${remaining}` : t("status_Closed")}
     </span>
   );

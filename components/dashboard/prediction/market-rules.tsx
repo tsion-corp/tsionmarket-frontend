@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { shortAddress } from "@/lib/prediction/format";
+import { formatCloseDateTime, shortAddress } from "@/lib/prediction/format";
 import type { Market } from "@/lib/prediction/types";
 
 // Resolution rules + resolver panel for a market (Polymarket's rules section):
@@ -15,7 +15,6 @@ interface MarketRulesProps {
 
 export function MarketRules({ market }: MarketRulesProps) {
   const t = useTranslations("prediction");
-  const closeDate = new Date(market.closeTime * 1000);
 
   return (
     <div className="ws-card flex flex-col gap-5 p-5 sm:p-6">
@@ -39,14 +38,9 @@ export function MarketRules({ market }: MarketRulesProps) {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Meta label={t("rulesResolver")} value={shortAddress(market.creator) || "—"} mono />
-        <Meta
-          label={t("rulesCloses")}
-          value={closeDate.toLocaleDateString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-          })}
-        />
+        {/* Date AND time: a market can close later today, and a bare date says
+            nothing about the deadline being traded against. */}
+        <Meta label={t("rulesCloses")} value={formatCloseDateTime(market.closeTime) || "—"} />
         {market.resolutionSource ? (
           <div className="sm:col-span-2">
             <Meta label={t("rulesSource")} value={market.resolutionSource} />

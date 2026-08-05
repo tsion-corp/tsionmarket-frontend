@@ -12,6 +12,8 @@ import {
 } from "@/hooks/use-prediction-portfolio";
 import { useMarkets } from "@/hooks/use-prediction-markets";
 import { usePredictionActions } from "@/hooks/use-prediction-actions";
+import { useLpAutoReturn } from "@/hooks/use-lp-auto-return";
+import { ClaimWindow } from "@/components/dashboard/prediction/claim-window";
 import { sideLabel, toNumber } from "@/lib/prediction/format";
 import type { Market, Position } from "@/lib/prediction/types";
 
@@ -23,10 +25,14 @@ export function PortfolioPanel() {
   const t = useTranslations("prediction");
   const money = useMoney();
   const { data: positions, isLoading, isError } = usePositions();
-  const { data: markets } = useMarkets();
+  const { data: markets, isSuccess: marketsLoaded } = useMarkets();
   const { data: myMarkets } = useMyMarkets();
   const withdrawable = usePendingWithdrawals();
   const actions = usePredictionActions();
+  // Seed liquidity from any market of theirs that has resolved comes back here,
+  // without the creator having to ask. Mounted on the portfolio because it is
+  // where the LP and created-market data already live.
+  useLpAutoReturn();
 
   const byId = useMemo(() => {
     const map = new Map<string, Market>();
@@ -34,7 +40,25 @@ export function PortfolioPanel() {
     return map;
   }, [markets]);
 
-  const list = positions ?? [];
+  // A position whose market is not in the read-model is a leftover from an
+  // older contract deployment: the indexer still reports the share balance, but
+  // the market itself is gone. It rendered as a row titled "Market" with no
+  // question, linking to a detail page that does not exist, and no action on it
+  // could succeed. Hide those rather than show a row nobody can use.
+  //
+  // Keyed on the market being ABSENT, not on its question being null: a real
+  // market whose off-chain metadata has not been attached yet also has no
+  // question, and that one has to stay.
+  //
+  // Only filtered once the list has actually loaded. While it is in flight or
+  // after it fails, every position shows: hiding real money because a fetch
+  // failed would be the worse error.
+  const list = useMemo(() => {
+    const all = positions ?? [];
+    if (!marketsLoaded) return all;
+    return all.filter((p) => byId.has(p.marketId.toString()));
+  }, [positions, marketsLoaded, byId]);
+
   const claimable = withdrawable.data ?? 0n;
 
   // Positions the user just redeemed this session, keyed "<marketId>-<side>".
@@ -63,6 +87,21 @@ export function PortfolioPanel() {
       setClaimedKeys((prev) => new Set(prev).add(keyOf(p)));
       void actions.claim();
     }
+  };
+
+  // The pull-payment balance the global Claim button pays out. It is read from
+  // chain state that lags a confirmed claim, so the row would keep offering a
+  // balance that is already in the wallet, and a second tap would revert.
+  //
+  // Remembering the amount claimed (rather than a plain "done" flag) makes this
+  // self-healing: the row reappears as soon as the balance reads as anything
+  // other than what was just taken, including a later win.
+  const [claimedBalance, setClaimedBalance] = useState<bigint | null>(null);
+  const balanceAlreadyClaimed = claimedBalance !== null && claimedBalance === claimable;
+
+  const onClaimBalance = async () => {
+    const amount = claimable;
+    if (await actions.claim()) setClaimedBalance(amount);
   };
 
   const created = myMarkets ?? [];
@@ -127,13 +166,17 @@ export function PortfolioPanel() {
                   </div>
                 </Link>
                 {winner ? (
-                  <button
-                    onClick={() => onRedeem(p)}
-                    disabled={actions.busy}
-                    className="border-accent/45 bg-accent/12 cursor-pointer rounded-lg border px-3 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-60"
-                  >
-                    {actions.busy ? t("claiming") : t("claim")}
-                  </button>
+                  // Creator resolutions carry a 24h challenge window; inside it
+                  // redeem() reverts, so the button waits behind a countdown.
+                  <ClaimWindow marketId={p.marketId}>
+                    <button
+                      onClick={() => onRedeem(p)}
+                      disabled={actions.busy}
+                      className="border-accent/45 bg-accent/12 cursor-pointer rounded-lg border px-3 py-1.5 text-[12.5px] font-medium text-white disabled:opacity-60"
+                    >
+                      {actions.busy ? t("claiming") : t("claim")}
+                    </button>
+                  </ClaimWindow>
                 ) : claimedKeys.has(keyOf(p)) ? (
                   // Just redeemed this session — the shares are burned on-chain;
                   // show a settled label instead of a re-clickable Claim button.
@@ -154,13 +197,13 @@ export function PortfolioPanel() {
           })
         )}
 
-        {claimable > 0n ? (
+        {claimable > 0n && !balanceAlreadyClaimed ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6">
             <span className="text-[12.5px] font-normal text-white/55">
               {t("claimableBalance", { amount: money.format(toNumber(claimable)) })}
             </span>
             <button
-              onClick={() => actions.claim()}
+              onClick={onClaimBalance}
               disabled={actions.busy}
               className="text-ink cursor-pointer rounded-lg bg-white px-3 py-1.5 text-[12.5px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
             >

@@ -64,12 +64,80 @@ export function timeAgo(ms: number, nowMs: number = Date.now()): string {
   return `${d}d`;
 }
 
+// An AMM reserve for display. Never rounds a real balance down to "0".
+//
+// The pools were printed with toFixed(0), so a market trading at 3¢/97¢ (which
+// holds ~0.19 NO shares against ~6 YES) showed "Pool NO 0" and read as though
+// one side had no liquidity at all. The reserves were right; only the rounding
+// was wrong, and on a money surface that is the difference between "thin" and
+// "broken".
+//
+// Precision follows magnitude: whole numbers once a reserve is large enough for
+// decimals to be noise, more places as it gets small, and a floor marker rather
+// than a zero for genuine dust.
+export function formatReserve(raw: bigint, decimals = USDC_DECIMALS): string {
+  const n = toNumber(raw, decimals);
+  if (!Number.isFinite(n) || n <= 0) return "0";
+  if (n >= 1000) return n.toFixed(0);
+  if (n >= 1) return n.toFixed(2);
+  if (n >= 0.0001) return n.toFixed(4);
+  return "<0.0001";
+}
+
+// How close a market is to closing, for the countdown's visual pressure. Pure
+// and threshold-based so the UI never invents its own cutoffs:
+//   imminent — inside the last 10 minutes, the window where a trade may not land
+//   soon     — inside the last hour
+//   none     — anything further out, or already closed (the caller shows a
+//              status label rather than a countdown)
+export type CloseUrgency = "none" | "soon" | "imminent";
+
+const IMMINENT_SECONDS = 10 * 60;
+const SOON_SECONDS = 60 * 60;
+
+export function closeUrgency(
+  closeSeconds: number | null | undefined,
+  nowMs: number = Date.now()
+): CloseUrgency {
+  if (!closeSeconds || !Number.isFinite(closeSeconds)) return "none";
+  const remainingS = closeSeconds - nowMs / 1000;
+  if (remainingS <= 0) return "none";
+  if (remainingS <= IMMINENT_SECONDS) return "imminent";
+  if (remainingS <= SOON_SECONDS) return "soon";
+  return "none";
+}
+
+// The exact moment a market stops trading, as a readable local date AND time.
+// Date alone is not enough: a market can close hours from now, and "Aug 5" next
+// to a nine-minute countdown tells the trader nothing about the deadline they
+// are actually trading against. Returns "" for a missing or unparseable time so
+// the caller can hide the row.
+export function formatCloseDateTime(closeSeconds: number | null | undefined): string {
+  if (!closeSeconds || !Number.isFinite(closeSeconds)) return "";
+  const at = new Date(closeSeconds * 1000);
+  if (Number.isNaN(at.getTime())) return "";
+  return at.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+// Below this the countdown carries seconds and the caller ticks every second.
+// A day out, seconds are noise and a per-second re-render buys nothing.
+export const COUNTDOWN_SECONDS_THRESHOLD = 86_400;
+
 // A forward countdown to a close time, given both as unix SECONDS (the shape
 // prediction close times are stored in). Returns null once the close time has
 // passed (the caller shows "Closed" instead), so a market never shows a stale or
-// negative countdown. Two most-significant units for readability ("2d 4h",
-// "3h 12m", "45m", "30s") — enough precision to feel live without churning every
-// second on a multi-day market.
+// negative countdown.
+//
+// Inside a day the seconds are always shown ("23h 35m 12s", "35m 12s", "12s"):
+// a clock that visibly moves is what makes a closing market feel like one, and
+// a static "23h 35m" reads as a label rather than a deadline. Past a day it
+// falls back to the two most-significant units.
 export function timeUntil(closeSeconds: number, nowMs: number = Date.now()): string | null {
   const remainingS = Math.floor(closeSeconds - nowMs / 1000);
   if (remainingS <= 0) return null;
@@ -78,7 +146,7 @@ export function timeUntil(closeSeconds: number, nowMs: number = Date.now()): str
   const m = Math.floor((remainingS % 3_600) / 60);
   const s = remainingS % 60;
   if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
-  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
-  if (m > 0) return s > 0 ? `${m}m ${s}s` : `${m}m`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
 }

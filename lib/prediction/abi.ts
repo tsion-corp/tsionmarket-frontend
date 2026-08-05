@@ -14,6 +14,61 @@ export const PREDICTION_ABI = [
     ],
     outputs: [],
   },
+  // v1.2.0: a multi-outcome event in one transaction for one creation fee,
+  // instead of one createMarket (and one fee) per outcome.
+  {
+    type: "function",
+    name: "createEvent",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "marketIds", type: "uint256[]" },
+      { name: "closeTime", type: "uint64" },
+      { name: "seedsUsdc", type: "uint256[]" },
+    ],
+    outputs: [],
+  },
+  // v1.2.0 neg-risk groups: the members of an event resolve together, exactly
+  // one Yes and the rest No, atomically. resolve() on a grouped member reverts
+  // with "neg-risk member".
+  {
+    type: "function",
+    name: "registerNegRiskGroup",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "groupId", type: "uint256" },
+      { name: "memberIds", type: "uint256[]" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "resolveNegRiskGroup",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "groupId", type: "uint256" },
+      { name: "winnerMarketId", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "negRiskGroupInfo",
+    stateMutability: "view",
+    inputs: [{ name: "groupId", type: "uint256" }],
+    outputs: [
+      { name: "creator", type: "address" },
+      { name: "resolved", type: "bool" },
+      { name: "members", type: "uint256[]" },
+    ],
+  },
+  // The group a market belongs to, or 0 when it is standalone.
+  {
+    type: "function",
+    name: "groupOfMarket",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
   {
     type: "function",
     name: "buy",
@@ -162,6 +217,11 @@ export const PREDICTION_ABI = [
       { name: "totalLp", type: "uint256" },
       { name: "feeBps", type: "uint16" },
       { name: "collateral", type: "uint256" },
+      // v1.2.0: unix seconds after which a creator-resolved market may be
+      // redeemed, the 24h challenge window. 0 means redeemable now, which is
+      // the case for owner resolutions, invalidated markets, and every market
+      // created before the upgrade.
+      { name: "redeemableAt", type: "uint64" },
     ],
   },
 ] as const;

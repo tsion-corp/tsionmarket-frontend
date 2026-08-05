@@ -86,6 +86,14 @@ export interface RemoveLiquidityInput {
   minUsdcOut?: bigint;
 }
 
+export interface ReturnLiquidityInput {
+  marketId: bigint;
+  // The whole LP position: this is a full exit, never partial.
+  lpIn: bigint;
+  // The side that resolved Yes, whose shares redeem 1:1.
+  side: Side;
+}
+
 export interface CreateMarketInput {
   marketId: bigint;
   closeTime: number; // unix seconds
@@ -417,6 +425,93 @@ export function usePredictionActions() {
     [runSingle]
   );
 
+  // Returns a market creator's seed liquidity after resolution, end to end.
+  //
+  // There is no manual withdrawal any more, so this is the only path that pays a
+  // creator back, and it has to leave nothing behind. Withdrawing LP from a
+  // resolved pool returns USDC plus leftover outcome shares; the winning shares
+  // are worth $1 each but only once redeemed, and redeemed value lands in
+  // pendingWithdrawals rather than the wallet. Stopping after the withdrawal
+  // would strand most of the money one step short.
+  //
+  // Two transactions, not one: the exact share count is only knowable after the
+  // withdrawal has executed, so it is READ from the chain in between rather than
+  // predicted. Redeeming a predicted amount that came out one unit high reverts
+  // and strands the lot.
+  const returnLiquidity = useCallback(
+    async ({ marketId, lpIn, side }: ReturnLiquidityInput): Promise<boolean> => {
+      if (!wallet) {
+        toast.error(t("noWalletConnected"));
+        return false;
+      }
+      const toastId = toast.loading(t("lpReturning"));
+      try {
+        // 1. Burn the LP position. minUsdcOut is 0 because a resolved market's
+        // reserves no longer move: there is no trade left to slip against.
+        toast.loading(t("confirmingOnChain"), { id: toastId });
+        await runBatch([
+          {
+            to: predictionContractAddress(),
+            data: encodeFunctionData({
+              abi: PREDICTION_ABI,
+              functionName: "removeLiquidity",
+              args: [marketId, lpIn, 0n],
+            }),
+          },
+        ]);
+
+        // 2. Redeem whatever winning shares that actually produced, then pull
+        // the credited balance out. Both in one batch so the money cannot come
+        // to rest in pendingWithdrawals if the second leg fails.
+        setPhase("reading");
+        const shares = await readShareBalance(wallet, marketId, side);
+        if (shares > 0n) {
+          await runBatch([
+            {
+              to: predictionContractAddress(),
+              data: encodeFunctionData({
+                abi: PREDICTION_ABI,
+                functionName: "redeem",
+                args: [marketId, sideToUint(side), shares],
+              }),
+            },
+            {
+              to: predictionContractAddress(),
+              data: encodeFunctionData({ abi: PREDICTION_ABI, functionName: "claim", args: [] }),
+            },
+          ]);
+        }
+        toast.success(t("lpReturned"), { id: toastId });
+        return true;
+      } catch (error) {
+        console.error("[prediction] returnLiquidity failed", { marketId, lpIn, side, error });
+        toast.error(friendlyError(error, t("lpReturnFailed")), { id: toastId });
+        return false;
+      } finally {
+        setPhase("idle");
+      }
+    },
+    [wallet, runBatch, t]
+  );
+
+  // Resolves a whole neg-risk event in one transaction: the winner settles Yes
+  // and every sibling settles No, atomically. This is the ONLY way to resolve a
+  // grouped market, since resolve() on a member reverts with "neg-risk member".
+  const resolveEvent = useCallback(
+    (groupId: bigint, winnerMarketId: bigint) =>
+      runSingle(
+        encodeFunctionData({
+          abi: PREDICTION_ABI,
+          functionName: "resolveNegRiskGroup",
+          args: [groupId, winnerMarketId],
+        }),
+        "resolvingMarket",
+        "marketResolved",
+        "resolveFailed"
+      ),
+    [runSingle]
+  );
+
   const closeMarket = useCallback(
     (marketId: bigint) =>
       runSingle(
@@ -428,6 +523,9 @@ export function usePredictionActions() {
     [runSingle]
   );
 
+  // Success copy is this market's own, not the Polymarket flow's: redeeming
+  // here credits the contract's pendingWithdrawals, it does not send USDC to
+  // Base. The old shared string promised a transfer that never happened.
   const redeem = useCallback(
     (marketId: bigint, side: Side, shares: bigint) =>
       runSingle(
@@ -437,7 +535,7 @@ export function usePredictionActions() {
           args: [marketId, sideToUint(side), shares],
         }),
         "toastClaiming",
-        "toastClaimSuccess",
+        "toastRedeemSuccess",
         "toastClaimFailed"
       ),
     [runSingle]
@@ -470,7 +568,9 @@ export function usePredictionActions() {
     addLiquidity,
     removeLiquidity,
     createMarket,
+    returnLiquidity,
     resolveMarket,
+    resolveEvent,
     closeMarket,
     redeem,
     claim,

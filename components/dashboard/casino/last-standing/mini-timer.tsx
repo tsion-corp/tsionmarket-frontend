@@ -339,6 +339,9 @@ export function MiniTimerLauncher() {
 
   if (tier === null) return null;
 
+  // The hint is anchored to this button's right edge, so a fixed width spills
+  // past the card's left edge on a narrow phone and gets clipped. Its width is
+  // capped to the viewport (less the page gutter) for that reason.
   const showHint = !seen && !hintDismissed && !open;
 
   return (
@@ -355,7 +358,7 @@ export function MiniTimerLauncher() {
         {open ? t("miniClose") : t("miniOpen")}
       </button>
       {showHint ? (
-        <div className="absolute top-full right-0 z-30 mt-2 w-[248px] rounded-[12px] border border-white/12 bg-[#1a1a1f] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
+        <div className="absolute top-full right-0 z-30 mt-2 w-[min(248px,calc(100vw-3rem))] rounded-[12px] border border-white/12 bg-[#1a1a1f] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
           <div className="text-[12px] leading-[1.5] font-medium text-white/85">
             {t("miniHintTitle")}
           </div>

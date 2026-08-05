@@ -12,6 +12,9 @@ interface TranscriptPanelProps {
   active: boolean;
   phase: TurnPhase;
   messages: VoiceMessage[];
+  // Where to sit, in px from the viewport's bottom-right corner. The control
+  // below can be dragged anywhere, and the panel has to follow it.
+  anchor: { right: number; bottom: number };
 }
 
 const PHASE_LABEL: Record<TurnPhase, string> = {
@@ -30,7 +33,7 @@ const PHASE_DOT: Record<TurnPhase, string> = {
   speaking: "bg-[#A78BFA]",
 };
 
-export function TranscriptPanel({ active, phase, messages }: TranscriptPanelProps) {
+export function TranscriptPanel({ active, phase, messages, anchor }: TranscriptPanelProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   // Keep the newest line in view as the conversation grows or the phase changes.
@@ -48,8 +51,9 @@ export function TranscriptPanel({ active, phase, messages }: TranscriptPanelProp
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 14, scale: 0.97 }}
       transition={{ type: "spring", stiffness: 300, damping: 28 }}
+      style={{ right: anchor.right, bottom: anchor.bottom }}
       className={cn(
-        "fixed right-5 bottom-44 z-[199] flex max-h-[46vh] w-[min(370px,calc(100vw-2.5rem))] flex-col",
+        "fixed z-[199] flex max-h-[46vh] w-[min(370px,calc(100vw-2.5rem))] flex-col",
         "overflow-hidden rounded-[22px] border border-white/12",
         // A deep tinted glass rather than a flat panel, so it belongs to the
         // orb below it instead of looking like a separate widget.

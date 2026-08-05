@@ -19,6 +19,22 @@ import type { Market, MarketGroup, MarketStatus } from "@/lib/prediction/types";
 // the CPMM market detail page where trading/liquidity/resolution live.
 const STATUS_TABS: MarketStatus[] = ["Open", "Closed", "Resolved"];
 
+// Markets kept out of the browse grid, by on-chain id.
+//
+// A duplicate or test market that is still Open cannot be removed any other way
+// from the frontend: the backend keeps serving it, and only its creator can
+// resolve or invalidate it on-chain. Listing the id here hides the card without
+// touching anyone's position in it, which stays claimable from the portfolio.
+//
+// A stopgap, not a feature. Prefer resolving or invalidating the market so it
+// leaves the grid on its own, and delete the id from here when that happens.
+const HIDDEN_MARKET_IDS = new Set<string>([
+  // "Will the Prime Minister attend today's presentation?" — a never-traded
+  // duplicate of the Loveworld Nation market. Seeded with $2 of liquidity by
+  // its creator and nothing else.
+  "96044488616821290839541457419266907383",
+]);
+
 // A browse-grid entry: either a multi-outcome event (group) or a standalone
 // single market. Events are rendered as one grouped card; single markets as the
 // usual YES/NO tile.
@@ -81,7 +97,9 @@ export function LocalPredictionView() {
       return q.length > 0 && titlePrefixes.some((prefix) => q.startsWith(prefix));
     };
 
-    const standalone = (markets ?? []).filter((m) => !belongsToEvent(m));
+    const standalone = (markets ?? []).filter(
+      (m) => !belongsToEvent(m) && !HIDDEN_MARKET_IDS.has(m.marketId.toString())
+    );
     const events: BrowseItem[] = groupList.map((g) => ({ kind: "event", group: g }));
     const singles: BrowseItem[] = standalone.map((m) => ({ kind: "market", market: m }));
     // Events lead the grid (they're the richer surface), then single markets.

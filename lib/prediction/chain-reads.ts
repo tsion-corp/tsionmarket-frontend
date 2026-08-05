@@ -39,6 +39,35 @@ export async function readPoolState(marketId: bigint): Promise<PoolState> {
   return { rYes, rNo, totalLp, feeBps: Number(feeBps), collateral, creator };
 }
 
+// The neg-risk group a market belongs to, or 0n when it is standalone. Grouped
+// members resolve together through resolveNegRiskGroup; calling resolve() on one
+// reverts, so the UI reads this before offering a per-market resolve.
+//
+// Read on-chain rather than from the read-model: this is the contract's own
+// answer, it needs no indexer backfill, and it is correct the moment the group
+// is registered.
+export async function readGroupOfMarket(marketId: bigint): Promise<bigint> {
+  return client().readContract({
+    address: predictionContractAddress(),
+    abi: PREDICTION_ABI,
+    functionName: "groupOfMarket",
+    args: [marketId],
+  });
+}
+
+// Unix seconds after which a resolved market's winnings may be redeemed. 0 means
+// now: owner resolutions, invalid markets, and everything created before v1.2.0.
+// Redeeming earlier reverts with "challenge window".
+export async function readRedeemableAt(marketId: bigint): Promise<number> {
+  const result = await client().readContract({
+    address: predictionContractAddress(),
+    abi: PREDICTION_ABI,
+    functionName: "markets",
+    args: [marketId],
+  });
+  return Number(result[9]);
+}
+
 // Current USDC allowance granted to the prediction contract by `owner`.
 export async function readUsdcAllowance(owner: string): Promise<bigint> {
   const { data } = await client().call({
