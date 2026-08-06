@@ -1,7 +1,7 @@
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { ArrowUpRightIcon, ClockIcon, GlobeIcon } from "@/components/ui/icons";
 import { CopyLayer, RevealItem } from "@/components/landing/layers/reveal-item";
+import { LaunchCta } from "@/components/landing/launch-cta";
 
 // A darker self-contained glass than the design's white-glass recipe: inside
 // the film stage, ancestor transforms and opacities cut backdrop-filter off
@@ -33,13 +33,10 @@ export function HeroLayer() {
         </p>
       </RevealItem>
       <RevealItem duration={1} className="pointer-events-auto mt-[30px]">
-        <Link
-          href="/auth"
-          className="inline-flex items-center gap-2 rounded-full border border-white/16 bg-white/8 px-6 py-[13px] text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-[50px] hover:bg-white/12"
-        >
+        <LaunchCta className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/16 bg-white/8 px-6 py-[13px] text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-[50px] hover:bg-white/12">
           {t("getStarted")}
           <ArrowUpRightIcon className="text-[#d4d4d8]" />
-        </Link>
+        </LaunchCta>
       </RevealItem>
       <RevealItem duration={1} className="mt-[34px] flex flex-wrap justify-center gap-3.5">
         <div className={STAT_CARD}>

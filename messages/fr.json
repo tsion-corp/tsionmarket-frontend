@@ -2014,5 +2014,10 @@
     "moved": "{symbol} transféré",
     "notifications": "Notifications",
     "newCount": "{count} nouvelles"
+  },
+  "launchGate": {
+    "title": "Bientôt disponible",
+    "body": "Nous apportons les dernières touches à {brand}. Revenez bientôt — cela en vaudra la peine.",
+    "close": "Compris"
   }
 }

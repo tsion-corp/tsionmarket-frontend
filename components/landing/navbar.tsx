@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { LanguageSelect } from "@/components/ui/language-select";
+import { LaunchCta } from "@/components/landing/launch-cta";
 import { useIsKnownUser } from "@/lib/known-user";
 
 // Each link carries both an anchor (classic landing) and a waypoint index
@@ -79,13 +80,10 @@ export function Navbar({ onNavigate }: NavbarProps) {
       </div>
       <div className="flex items-center gap-1 sm:gap-1.5">
         <LanguageSelect />
-        <Link
-          href="/auth"
-          className="text-ink inline-flex items-center gap-[7px] rounded-full bg-white px-3 py-2 text-[12px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-[13px] sm:px-5 sm:py-[11px] sm:text-sm"
-        >
+        <LaunchCta className="text-ink inline-flex cursor-pointer items-center gap-[7px] rounded-full bg-white px-3 py-2 text-[12px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-[13px] sm:px-5 sm:py-[11px] sm:text-sm">
           {known ? t("login") : t("getStarted")}
           <ArrowUpRightIcon className="text-arrow hidden min-[400px]:block" />
-        </Link>
+        </LaunchCta>
       </div>
     </nav>
   );

@@ -1,8 +1,8 @@
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { ArrowUpRightIcon } from "@/components/ui/icons";
 import { CopyLayer, RevealItem } from "@/components/landing/layers/reveal-item";
+import { LaunchCta } from "@/components/landing/launch-cta";
 
 // Waypoint 8 — Final CTA. The closing ask with the solid white button.
 export function CtaLayer() {
@@ -25,13 +25,10 @@ export function CtaLayer() {
           </p>
         </RevealItem>
         <RevealItem duration={1} className="pointer-events-auto mt-8 flex justify-center">
-          <Link
-            href="/auth"
-            className="inline-flex items-center gap-2 rounded-full bg-white px-[26px] py-[15px] text-[15px] font-semibold text-[#0a0a0a] hover:opacity-90"
-          >
+          <LaunchCta className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-[26px] py-[15px] text-[15px] font-semibold text-[#0a0a0a] hover:opacity-90">
             {t("getStarted")}
             <ArrowUpRightIcon className="text-[#8a8a8f]" />
-          </Link>
+          </LaunchCta>
         </RevealItem>
         <RevealItem duration={1}>
           <p className="mt-3.5 text-[13px] font-normal text-[rgba(244,244,244,0.6)]">

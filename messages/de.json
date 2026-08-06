@@ -2014,5 +2014,10 @@
     "moved": "{symbol} bewegt",
     "notifications": "Benachrichtigungen",
     "newCount": "{count} neu"
+  },
+  "launchGate": {
+    "title": "Bald verfügbar",
+    "body": "Wir legen gerade letzte Hand an {brand}. Schauen Sie in Kürze wieder vorbei — es lohnt sich.",
+    "close": "Verstanden"
   }
 }

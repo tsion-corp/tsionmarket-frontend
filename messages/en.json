@@ -2014,5 +2014,10 @@
     "moved": "Moved {symbol}",
     "notifications": "Notifications",
     "newCount": "{count} new"
+  },
+  "launchGate": {
+    "title": "Coming soon",
+    "body": "We're putting the finishing touches on {brand}. Check back shortly — it'll be worth the wait.",
+    "close": "Got it"
   }
 }
