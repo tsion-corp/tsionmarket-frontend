@@ -8,6 +8,7 @@ import { PREDICTION_CHAIN_ID } from "@/lib/prediction/logic";
 const LEGACY_ABI = parseAbi([
   "function shareOf(uint256 tokenId, address holder) view returns (uint256)",
   "function pendingWithdrawals(address account) view returns (uint256)",
+  "function markets(uint256) view returns (uint64 closeTime, uint8 status, uint8 outcome, address creator, uint256 rYes, uint256 rNo, uint256 totalLp, uint16 feeBps, uint256 collateral)",
   "function redeem(uint256 marketId, uint8 side, uint256 shares)",
   "function claim()",
 ]);
@@ -100,11 +101,21 @@ export interface LegacyRedeemable {
   shares: bigint; // USDC owed at 1:1 (6 decimals)
   label: string;
   kind: "winning" | "refund";
+  // Whether the market actually holds enough collateral to pay this position.
+  // The superseded contract over-minted shares on some markets (total owed >
+  // collateral), so redeem() reverts "insolvent" there. We must NOT batch those,
+  // or the whole atomic claim reverts and the user gets nothing — even from their
+  // solvent markets. Insolvent positions are shown but excluded from the tx.
+  solvent: boolean;
 }
 
 export interface LegacyClaimState {
   redeemables: LegacyRedeemable[];
-  totalShares: bigint; // sum owed from un-redeemed shares
+  // Sum of SOLVENT positions — what the claim tx will actually pay out.
+  claimableShares: bigint;
+  // Sum of positions stuck on insolvent markets (shown, but the contract can't
+  // pay them — the market holds less collateral than it owes).
+  blockedShares: bigint;
   pending: bigint; // already-redeemed USDC waiting in pendingWithdrawals
 }
 
@@ -129,13 +140,30 @@ export async function readLegacyClaimState(wallet: string): Promise<LegacyClaimS
       args: [legacyTokenId(marketId, side), owner],
     }) as Promise<bigint>;
 
-  const redeemables: LegacyRedeemable[] = [];
+  // A market's remaining collateral — the ceiling on what redeem() can pay
+  // before it reverts "insolvent". Cached per market so we read it once.
+  const collateralCache = new Map<bigint, bigint>();
+  const collateralOf = async (marketId: bigint): Promise<bigint> => {
+    const hit = collateralCache.get(marketId);
+    if (hit !== undefined) return hit;
+    const m = (await client.readContract({
+      address: LEGACY_CONTRACT,
+      abi: LEGACY_ABI,
+      functionName: "markets",
+      args: [marketId],
+    })) as readonly [bigint, number, number, string, bigint, bigint, bigint, number, bigint];
+    const collateral = m[8];
+    collateralCache.set(marketId, collateral);
+    return collateral;
+  };
+
+  const raw: Array<Omit<LegacyRedeemable, "solvent">> = [];
 
   // Resolved → only the winning side pays.
   for (const m of LEGACY_RESOLVED_MARKETS) {
     const shares = await shareOf(m.marketId, m.winningSide);
     if (shares > 0n)
-      redeemables.push({
+      raw.push({
         marketId: m.marketId,
         side: m.winningSide,
         shares,
@@ -149,8 +177,24 @@ export async function readLegacyClaimState(wallet: string): Promise<LegacyClaimS
     for (const side of [0, 1] as const) {
       const shares = await shareOf(m.marketId, side);
       if (shares > 0n)
-        redeemables.push({ marketId: m.marketId, side, shares, label: m.label, kind: "refund" });
+        raw.push({ marketId: m.marketId, side, shares, label: m.label, kind: "refund" });
     }
+  }
+
+  // Mark each position solvent iff the market can actually pay it. redeem()
+  // reverts "insolvent" when payout (= shares, 1:1) exceeds market collateral.
+  // Collateral is a PER-MARKET pool that every redeem in the batch draws down,
+  // so positions on the same market (both sides of an invalidated one) must
+  // fit together: the check is cumulative, not per-position, or the second
+  // side could pass alone yet revert the whole batch.
+  const redeemables: LegacyRedeemable[] = [];
+  const drawnByMarket = new Map<bigint, bigint>();
+  for (const r of raw) {
+    const collateral = await collateralOf(r.marketId);
+    const drawn = drawnByMarket.get(r.marketId) ?? 0n;
+    const solvent = drawn + r.shares <= collateral;
+    if (solvent) drawnByMarket.set(r.marketId, drawn + r.shares);
+    redeemables.push({ ...r, solvent });
   }
 
   const pending = (await client.readContract({
@@ -160,20 +204,29 @@ export async function readLegacyClaimState(wallet: string): Promise<LegacyClaimS
     args: [owner],
   })) as bigint;
 
-  const totalShares = redeemables.reduce((sum, r) => sum + r.shares, 0n);
-  return { redeemables, totalShares, pending };
+  const claimableShares = redeemables
+    .filter((r) => r.solvent)
+    .reduce((sum, r) => sum + r.shares, 0n);
+  const blockedShares = redeemables
+    .filter((r) => !r.solvent)
+    .reduce((sum, r) => sum + r.shares, 0n);
+  return { redeemables, claimableShares, blockedShares, pending };
 }
 
 /**
- * Batched calls to redeem every held position on the legacy contract, then claim
- * the resulting USDC to the wallet, in one sponsored operation. Each redeem burns
- * THIS wallet's own shares (which is why only the holder can do it); the trailing
+ * Batched calls to redeem the SOLVENT positions and then claim the resulting USDC
+ * to the wallet, in one sponsored operation. Insolvent positions are EXCLUDED:
+ * the whole batch is atomic, so including a market that reverts "insolvent" would
+ * revert everything and the user would get nothing (the bug that gave a $79.51
+ * claimant $0). Skipping them lets the user withdraw every solvent market in full.
+ * Each redeem burns THIS wallet's own shares (only the holder can); the trailing
  * claim() pulls the credited pendingWithdrawals out.
  */
 export function buildLegacyClaimCalls(
   redeemables: LegacyRedeemable[]
 ): Array<{ to: `0x${string}`; data: `0x${string}` }> {
-  const calls = redeemables.map((r) => ({
+  const solvent = redeemables.filter((r) => r.solvent);
+  const calls = solvent.map((r) => ({
     to: LEGACY_CONTRACT,
     data: encodeFunctionData({
       abi: LEGACY_ABI,

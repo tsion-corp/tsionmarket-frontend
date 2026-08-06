@@ -56,27 +56,30 @@ export default function ReclaimPage() {
   }, [authenticated, wallet, load]);
 
   const claim = useCallback(async () => {
-    // Pending-only is claimable too: shares already redeemed but never pulled
-    // out leave redeemables empty with pendingWithdrawals > 0, and the call
-    // builder then emits just the trailing claim().
-    if (!state || (state.redeemables.length === 0 && state.pending === 0n)) return;
+    if (!state) return;
+    const calls = buildLegacyClaimCalls(state.redeemables);
+    // calls always has the trailing claim(); only proceed if there's at least
+    // one solvent redeem to batch with it (or a pre-existing pending balance).
+    const hasSolvent = state.redeemables.some((r) => r.solvent);
+    if (!hasSolvent && state.pending === 0n) return;
     setPhase("claiming");
     setError(null);
     try {
-      const calls = buildLegacyClaimCalls(state.redeemables);
       const hash = await sendBatch(calls, PREDICTION_CHAIN_ID);
       setTxHash(hash);
       await awaitReceipt(publicClientForChain(PREDICTION_CHAIN_ID), hash, "Confirming…");
       setPhase("done");
-      await load(); // refresh — winnings should now be 0, wallet paid
+      await load(); // refresh — solvent winnings now paid to wallet
     } catch (e) {
       setError(e instanceof Error ? e.message : "Claim failed. Please try again.");
       setPhase("error");
     }
   }, [state, sendBatch, load]);
 
-  const owed = state ? state.totalShares + state.pending : 0n;
-  const hasWinnings = state ? state.redeemables.length > 0 || state.pending > 0n : false;
+  // What the claim button will actually pay: solvent positions + any pending.
+  const claimable = state ? state.claimableShares + state.pending : 0n;
+  const blocked = state ? state.blockedShares : 0n;
+  const hasWinnings = state ? claimable > 0n || blocked > 0n : false;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-5 py-16">
@@ -124,13 +127,14 @@ export default function ReclaimPage() {
       ) : (
         <div className="flex flex-col gap-4">
           <div className="rounded-xl border border-white/12 bg-white/5 p-5">
-            <p className="text-sm text-white/60">You&apos;re owed</p>
-            <p className="mt-0.5 text-3xl font-semibold">{USDC(owed)}</p>
+            <p className="text-sm text-white/60">You can claim</p>
+            <p className="mt-0.5 text-3xl font-semibold">{USDC(claimable)}</p>
             {state && state.redeemables.length > 0 ? (
               <ul className="mt-3 space-y-1 text-xs text-white/50">
                 {state.redeemables.map((r) => (
                   <li key={`${r.marketId.toString()}-${r.side}`}>
                     {r.label} ({r.kind === "winning" ? "winnings" : "refund"}): {USDC(r.shares)}
+                    {r.solvent ? null : <span className="text-white/35"> — unavailable</span>}
                   </li>
                 ))}
               </ul>
@@ -140,14 +144,20 @@ export default function ReclaimPage() {
                 Already redeemed, ready to withdraw: {USDC(state.pending)}
               </p>
             ) : null}
+            {blocked > 0n ? (
+              <p className="mt-3 text-xs text-white/40">
+                {USDC(blocked)} from one market can&apos;t be paid out right now (that market is
+                short on funds). We&apos;re looking into it — the rest is claimable now.
+              </p>
+            ) : null}
           </div>
 
           <button
             onClick={claim}
-            disabled={phase === "claiming"}
+            disabled={phase === "claiming" || claimable === 0n}
             className="rounded-xl bg-white py-3 font-semibold text-black disabled:opacity-60"
           >
-            {phase === "claiming" ? "Claiming…" : `Claim ${USDC(owed)}`}
+            {phase === "claiming" ? "Claiming…" : `Claim ${USDC(claimable)}`}
           </button>
         </div>
       )}
