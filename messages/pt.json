@@ -2019,5 +2019,19 @@
     "title": "Em breve",
     "body": "Estamos a dar os últimos retoques no {brand}. Volte em breve — vai valer a pena.",
     "close": "Entendi"
+  },
+  "waitlist": {
+    "eyebrow": "Em breve",
+    "title": "O mercado inteiro, <accent>quase aberto.</accent>",
+    "subtitle": "Ações, ouro, cripto e previsões numa só app, e o seu dinheiro continua seu. Deixe o seu e-mail e avisamos assim que abrirmos.",
+    "placeholder": "Introduza o seu e-mail",
+    "join": "Entrar na lista",
+    "joining": "A entrar…",
+    "privacyNote": "Um e-mail no lançamento. Mais nada, nunca.",
+    "invalidEmail": "Introduza um e-mail válido.",
+    "failed": "Não foi possível guardar agora. Tente novamente.",
+    "doneTitle": "Está na lista.",
+    "doneBody": "Escrevemos-lhe assim que abrirmos as portas.",
+    "alreadyTitle": "Já está na lista."
   }
 }

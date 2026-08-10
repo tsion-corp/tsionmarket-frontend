@@ -2019,5 +2019,19 @@
     "title": "Coming soon",
     "body": "We're putting the finishing touches on {brand}. Check back shortly — it'll be worth the wait.",
     "close": "Got it"
+  },
+  "waitlist": {
+    "eyebrow": "Launching soon",
+    "title": "The whole market, <accent>almost open.</accent>",
+    "subtitle": "Stocks, gold, crypto and predictions in one app, with your money staying yours. Leave your email and we'll tell you the moment the doors open.",
+    "placeholder": "Enter your email",
+    "join": "Join the waitlist",
+    "joining": "Joining…",
+    "privacyNote": "One email when we launch. Nothing else, ever.",
+    "invalidEmail": "Enter a valid email address.",
+    "failed": "Couldn't save that right now. Try again.",
+    "doneTitle": "You're on the list.",
+    "doneBody": "We'll email you the moment we open the doors.",
+    "alreadyTitle": "You're already on the list."
   }
 }

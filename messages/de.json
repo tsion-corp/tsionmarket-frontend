@@ -2019,5 +2019,19 @@
     "title": "Bald verfügbar",
     "body": "Wir legen gerade letzte Hand an {brand}. Schauen Sie in Kürze wieder vorbei — es lohnt sich.",
     "close": "Verstanden"
+  },
+  "waitlist": {
+    "eyebrow": "Startet bald",
+    "title": "Der ganze Markt, <accent>fast geöffnet.</accent>",
+    "subtitle": "Aktien, Gold, Krypto und Prognosen in einer App — und Ihr Geld bleibt Ihres. Hinterlassen Sie Ihre E-Mail, und wir melden uns, sobald wir öffnen.",
+    "placeholder": "E-Mail-Adresse eingeben",
+    "join": "Auf die Warteliste",
+    "joining": "Wird eingetragen…",
+    "privacyNote": "Eine E-Mail zum Start. Sonst nichts, niemals.",
+    "invalidEmail": "Geben Sie eine gültige E-Mail-Adresse ein.",
+    "failed": "Das konnte gerade nicht gespeichert werden. Versuchen Sie es erneut.",
+    "doneTitle": "Sie stehen auf der Liste.",
+    "doneBody": "Wir schreiben Ihnen, sobald wir öffnen.",
+    "alreadyTitle": "Sie stehen bereits auf der Liste."
   }
 }
