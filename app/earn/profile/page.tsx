@@ -1,7 +1,6 @@
 "use client";
 
-import { EarnPage } from "@/components/dashboard/earn/earn-page";
-import { TalentProfileSection } from "@/components/dashboard/earn/talent-profile-section";
+import { EarnPage, TalentProfileSection } from "@/features/earn";
 
 export default function EarnProfilePage() {
   return (

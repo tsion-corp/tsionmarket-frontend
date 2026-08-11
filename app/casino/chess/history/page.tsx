@@ -1,7 +1,6 @@
 "use client";
 
-import { CasinoPage } from "@/components/dashboard/casino/casino-page";
-import { HistorySection } from "@/components/dashboard/casino/chess/history-section";
+import { CasinoPage, HistorySection } from "@/features/casino";
 
 export default function ChessHistoryPage() {
   return (

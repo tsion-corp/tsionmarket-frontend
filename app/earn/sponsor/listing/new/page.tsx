@@ -1,7 +1,6 @@
 "use client";
 
-import { EarnPage } from "@/components/dashboard/earn/earn-page";
-import { ListingEditorSection } from "@/components/dashboard/earn/sponsor/listing-editor-section";
+import { EarnPage, ListingEditorSection } from "@/features/earn";
 
 export default function EarnListingNewPage() {
   return (

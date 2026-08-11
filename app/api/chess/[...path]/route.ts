@@ -5,7 +5,7 @@ import {
   walletOfUser,
   withChessReadIdentity,
   withChessIdentity,
-} from "@/lib/casino/chess-identity";
+} from "@/lib/server/chess-identity";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the chess service on the platform gateway. Same

@@ -1,82 +1,82 @@
-# WSWS Frontend — Worldstreet Web3 SuperApp
+# WSWS Frontend
 
-The frontend for **Worldstreet**, a unified Web3 financial SuperApp. It brings fiat on/off-ramps, crypto spot markets, decentralized trading, Real-World Assets (RWAs), perps, prediction markets, and automated yield into a single, consumer-grade experience — abstracting blockchain complexity so everyday users can earn, save, invest, trade, and move value without depending on centralized gatekeepers.
+The frontend for **Worldstreet**, a Web3 financial super app. Fiat on and off
+ramps, spot markets, real-world assets, perpetuals, prediction markets, chess
+wagering and yield, in one consumer-grade app that hides the chain from the
+person using it.
 
-## Tech Stack
+This app moves real money. That fact sets the bar for everything in it.
 
-- **Framework:** [Next.js 16](https://nextjs.org) (App Router, Turbopack) + React 19
-- **Language:** TypeScript
-- **Styling:** Tailwind CSS v4
-- **Testing:** Vitest + React Testing Library
-- **Tooling:** ESLint (`eslint-config-next`), Prettier
-- **Package manager:** pnpm (pinned via `packageManager`)
-- **Deploy target:** Vercel
+## Requirements
 
-## Getting Started
+- **Node 22 or 24.** CI runs 24. If `pnpm install` fails locally with
+  `FATAL ERROR: invalid array length`, use Node 22.
+- **pnpm**, pinned by `packageManager`. Do not use npm or yarn.
 
-Requires **Node.js 24+** and **pnpm 10+**.
+## Quick start
 
 ```bash
 pnpm install
-pnpm dev
+cp .env.example .env      # fill in the values you need
+pnpm dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app. Edit `app/page.tsx` to start — the page hot-reloads on save.
+`.env` is never committed. Ask a maintainer for values, or pull them from
+Vercel, where deployed secrets live.
 
 ## Scripts
 
-| Command             | Description                                |
-| ------------------- | ------------------------------------------ |
-| `pnpm dev`          | Start the dev server (Turbopack)           |
-| `pnpm build`        | Production build                           |
-| `pnpm start`        | Serve the production build                 |
-| `pnpm lint`         | Run ESLint                                 |
-| `pnpm test`         | Run the Vitest suite once                  |
-| `pnpm test:watch`   | Run Vitest in watch mode                   |
-| `pnpm format`       | Format the codebase with Prettier          |
-| `pnpm format:check` | Check formatting without writing (CI gate) |
+| Command             | What it does                        |
+| ------------------- | ----------------------------------- |
+| `pnpm dev`          | Dev server                          |
+| `pnpm build`        | Production build                    |
+| `pnpm start`        | Serve the production build          |
+| `pnpm format:check` | Prettier, check only                |
+| `pnpm lint`         | ESLint, including boundary rules    |
+| `pnpm typecheck`    | `tsc --noEmit`                      |
+| `pnpm test`         | Vitest, once                        |
+| `pnpm test:watch`   | Vitest, watch mode                  |
+| `pnpm format`       | Prettier, write                     |
+| `npx knip`          | Unused files, exports, dependencies |
 
-## Branching & Contribution Workflow
+The five gates from `format:check` to `build` are exactly what CI runs, in that
+order. Run them before opening a pull request.
 
-We use a **two-branch model**:
-
-- **`main`** — production / deploy branch. Protected.
-- **`dev`** — integration branch. All feature work merges here first. Protected.
-
-**Flow:**
-
-1. Branch off `dev`: `git switch dev && git pull && git switch -c feat/your-feature`
-2. Commit your work and push: `git push -u origin feat/your-feature`
-3. Open a PR **into `dev`**. CI (`quality`) must pass before merge.
-4. PRs are **squash-merged** — one clean commit per feature. The branch is auto-deleted after merge.
-5. When `dev` is release-ready, the lead opens a PR from `dev` → `main` for deployment.
-
-**Rules enforced by branch protection:**
-
-- No direct pushes to `dev` or `main` — a PR is always required.
-- The `quality` CI check (format → lint → test → build) must pass.
-- Branches must be up to date with the base before merging.
-- Linear history (squash-only merges repo-wide).
-
-## Continuous Integration
-
-`.github/workflows/ci.yml` runs on every PR (and push) to `dev` and `main`. The single `quality` job runs, in order:
-
-1. `pnpm format:check` — Prettier
-2. `pnpm lint` — ESLint
-3. `pnpm test` — Vitest
-4. `pnpm build` — Next.js production build
-
-All four must pass for the PR to be mergeable.
-
-## Project Structure
+## Structure
 
 ```
-app/                 # Next.js App Router (routes, layouts, pages)
-public/              # Static assets
-__tests__/           # Vitest test suites
-.github/workflows/   # CI pipelines
-AGENTS.md            # Notes for AI coding agents (read before editing)
+app/          routes and BFF route handlers. Composes features, owns no logic.
+features/     one folder per product area, each owning its whole vertical
+components/   ui/ design system, layout/ the app shell
+hooks/        cross-cutting React hooks
+lib/          pure cross-cutting code: api client, money, format, brand
+messages/     five locales: en, de, es, fr, pt
+config/       chain registries
+docs/         architecture and the restructure log
 ```
 
-> **Note:** This repo runs a build of Next.js with breaking changes vs. common training data. See `AGENTS.md` and the guides in `node_modules/next/dist/docs/` before writing framework code.
+Nine feature slices: `activity`, `casino`, `earn`, `funds`, `portfolio`,
+`prediction`, `remit`, `rwa`, `trade`.
+
+Imports point downward: `app/` → `features/` → `components/ui/` and `hooks/` →
+`lib/`. Features never import each other; the route composes them. This is
+enforced by `eslint-plugin-boundaries`, so a violation fails `pnpm lint`.
+
+## Documentation
+
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — read before your first change. Setup,
+  where code goes, how work gets merged.
+- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — the shape of the codebase
+  and why it is that shape. Read it before adding a directory, a transport, or a
+  shared component.
+- **[docs/RESTRUCTURE-LOG.md](docs/RESTRUCTURE-LOG.md)** — how it got that shape,
+  and what each move taught. Useful when a boundary looks arbitrary.
+- **`.claude/skills/wsws-engineering-standards/SKILL.md`** — the coding bar:
+  correctness, comments, naming, testing.
+
+## A warning about Next.js
+
+This repository runs a Next.js version with breaking changes against most
+tutorials and against what a language model is likely to remember. `middleware.ts`
+is deprecated here in favour of `proxy.ts`, to name one. Read the relevant guide
+in `node_modules/next/dist/docs/` before writing framework code.

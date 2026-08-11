@@ -2,14 +2,19 @@ name: CI
 
 on:
   pull_request:
-    branches: [dev, main]
+    branches: [main]
   push:
-    branches: [dev, main]
+    branches: [main]
 
 # Cancel superseded runs on the same ref to save CI minutes.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# The job only reads the repository and runs checks. Nothing it does needs a
+# writable token, so do not hand it one.
+permissions:
+  contents: read
 
 jobs:
   quality:
@@ -33,11 +38,27 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Next reuses this between runs for compilation and type information. The
+      # key falls back to the newest cache for the same lockfile, so a source
+      # change warm-starts instead of building from cold.
+      - name: Restore Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
+          key: next-${{ hashFiles('pnpm-lock.yaml') }}-${{ github.sha }}
+          restore-keys: |
+            next-${{ hashFiles('pnpm-lock.yaml') }}-
+
       - name: Prettier (format check)
         run: pnpm format:check
 
       - name: ESLint
         run: pnpm lint
+
+      # `next build` only typechecks what the build graph reaches. This covers
+      # tests, unreferenced modules, and anything the bundler tree-shakes out.
+      - name: Typecheck
+        run: pnpm typecheck
 
       - name: Unit tests
         run: pnpm test

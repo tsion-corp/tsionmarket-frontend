@@ -1,7 +1,6 @@
 "use client";
 
-import { CasinoPage } from "@/components/dashboard/casino/casino-page";
-import { HubSection } from "@/components/dashboard/casino/hub-section";
+import { CasinoPage, HubSection } from "@/features/casino";
 
 export default function CasinoHubPage() {
   return (

@@ -540,11 +540,6 @@
     "helpSupport": "Help & support",
     "signOut": "Sign out"
   },
-  "dashFooter": {
-    "tagline": "Self-custody markets for everyone. Your keys, your money, your call.",
-    "rights": "© {year} {brand}. All rights reserved.",
-    "disclaimer": "Crypto, tokenized assets, and prediction markets carry risk, including loss of principal. Nothing here is financial advice."
-  },
   "common": {
     "addressCopied": "Address copied",
     "copied": "Copied",
@@ -1490,34 +1485,6 @@
       "toastRefunded": "Refunded to your balance",
       "errorQuote": "Couldn't do that right now. Try again.",
       "errorSend": "That didn't go through. Please try again."
-    },
-    "draw": {
-      "subject": "the draw",
-      "loading": "Loading the draw",
-      "jackpot": "Jackpot",
-      "nextDrawIn": "Next draw in",
-      "drawingNow": "Drawing now…",
-      "roundClosedNote": "This round has closed",
-      "pickNumbers": "Pick {count} numbers (1–{max})",
-      "quickPick": "Quick pick",
-      "bonusNumber": "Bonus number (1–{max})",
-      "entries": "Entries",
-      "balance": "Balance {amount}",
-      "entryCount": "{count, plural, one {# entry} other {# entries}}",
-      "buying": "Buying…",
-      "roundClosed": "Round closed",
-      "pickMore": "Pick {count} more",
-      "pickBonus": "Pick a bonus number",
-      "notEnoughBalance": "Not enough balance",
-      "confirmEntry": "Confirm entry",
-      "myEntries": "My entries",
-      "prizeTiers": "Prize tiers",
-      "pastDraws": "Past draws",
-      "noDrawsSettled": "No draws have been settled yet.",
-      "toastConnect": "Connect your wallet to enter the draw.",
-      "toastBuying": "Buying your entries…",
-      "toastIn": "You're in this draw. Good luck.",
-      "toastBuyFailed": "Couldn't buy those entries."
     },
     "entries": {
       "title": "My entries",

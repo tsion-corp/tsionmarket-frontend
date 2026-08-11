@@ -6,12 +6,12 @@ import { getWalletAddress } from "@/lib/user";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { publicClientForChain } from "@/lib/trade/receipt";
 import { awaitReceipt } from "@/lib/trade/receipt";
-import { PREDICTION_CHAIN_ID } from "@/lib/prediction/logic";
 import {
+  PREDICTION_CHAIN_ID,
   readLegacyClaimState,
   buildLegacyClaimCalls,
   type LegacyClaimState,
-} from "@/lib/prediction/legacy-claim";
+} from "@/features/prediction";
 
 // Reclaim page for winnings stranded on the SUPERSEDED prediction contract
 // (0xF9A870…). Those markets never show in the normal app (the indexer only
@@ -33,6 +33,9 @@ export default function ReclaimPage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  // Amount the user claimed, captured before the claim so the success screen
+  // can show it even though a refresh would zero the state out.
+  const [claimedAmount, setClaimedAmount] = useState<bigint>(0n);
 
   const load = useCallback(async () => {
     if (!wallet) return;
@@ -62,19 +65,32 @@ export default function ReclaimPage() {
     // one solvent redeem to batch with it (or a pre-existing pending balance).
     const hasSolvent = state.redeemables.some((r) => r.solvent);
     if (!hasSolvent && state.pending === 0n) return;
+    const amount = state.claimableShares + state.pending;
     setPhase("claiming");
     setError(null);
     try {
       const hash = await sendBatch(calls, PREDICTION_CHAIN_ID);
+      // The sponsored batch is submitted: the claim is in. Show success now
+      // instead of blocking on confirmation. awaitReceipt throws on its poll
+      // timeout even when the tx lands, which used to flip us into an error
+      // state and hide the success message. Don't refresh either: reloading
+      // zeroes the now-claimed state and flashes the "no winnings" empty state.
       setTxHash(hash);
-      await awaitReceipt(publicClientForChain(PREDICTION_CHAIN_ID), hash, "Confirming…");
+      setClaimedAmount(amount);
       setPhase("done");
-      await load(); // refresh — solvent winnings now paid to wallet
+      // Confirm in the background only to catch an on-chain revert. A timeout
+      // is not a failure here, so swallow it; only surface an actual revert.
+      awaitReceipt(publicClientForChain(PREDICTION_CHAIN_ID), hash, "Confirming…").catch((e) => {
+        if (e instanceof Error && e.message.includes("failed on-chain")) {
+          setError(e.message);
+          setPhase("error");
+        }
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Claim failed. Please try again.");
       setPhase("error");
     }
-  }, [state, sendBatch, load]);
+  }, [state, sendBatch]);
 
   // What the claim button will actually pay: solvent positions + any pending.
   const claimable = state ? state.claimableShares + state.pending : 0n;
@@ -104,8 +120,11 @@ export default function ReclaimPage() {
         <p className="text-white/50">Checking your winnings…</p>
       ) : phase === "done" ? (
         <div className="border-up/40 bg-up/10 rounded-xl border p-5">
-          <p className="text-up font-semibold">Paid! 🎉</p>
-          <p className="mt-1 text-sm text-white/70">Your winnings were sent to your wallet.</p>
+          <p className="text-up font-semibold">Successfully reclaimed 🎉</p>
+          <p className="mt-1 text-sm text-white/70">
+            {claimedAmount > 0n ? `${USDC(claimedAmount)} was ` : "Your winnings were "}
+            sent to your wallet.
+          </p>
           {txHash ? (
             <a
               href={`https://basescan.org/tx/${txHash}`}

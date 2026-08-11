@@ -9,11 +9,21 @@ These are the rules for building the Worldstreet SuperApp frontend. They apply t
 
 ## Architecture
 
-- Build modular. Every component, hook, and module has one job and a clear boundary. If a component renders UI and also fetches, normalizes, and caches data, split it.
+`docs/ARCHITECTURE.md` holds the layer diagram, the structure, and the enforcement. Read it before adding a directory, a transport, or a shared component. The rules below are the parts that apply to every change.
+
+- Four layers, and every import points downward: `app/` (routes and API route handlers) and `components/layout/` (the shell) to `features/` (one folder per product area) to `components/ui/` and `hooks/` (design system primitives and cross-cutting behaviour) to `lib/` (pure cross-cutting, framework-free). Nothing imports upward.
+- Features never import each other, not even through the index. The route composes them, passing a slot, a callback, or a render prop. `pnpm lint` fails on a cross-feature import. If two slices keep reaching for each other, they are one feature; merge them rather than widening the surface.
+- Anything a route handler needs lives in `lib/server/`. Importing a slice barrel into a route handler pulls client components into the server bundle, and no lint rule catches it.
+- Shared building blocks belong below the feature line. Judge membership of `components/ui/` by whether the component knows anything about a feature, not by how many places import it. A `Switch` is a primitive even if used once. A ticker that understands casino wins is a feature component.
+- `lib/` is for what two or more features need. If only one feature uses it, it lives in that feature.
+- One transport. One `apiFetch`, one envelope unwrapper, one `ApiError`. Do not add a second client with its own base path and error text.
+- Build modular. Every component, hook, and module has one job and a clear boundary. If a component renders UI and also fetches, normalizes, and caches data, split it. A component past roughly 300 lines is usually holding server state, derivation, and layout at once; extract the first two.
 - Abstract at the seams, not everywhere. Define an interface where two tiers meet: UI to data layer, data layer to external API, wallet SDK to app code. Do not wrap code in layers that add no behavior.
 - Dependencies point inward. Domain types and pure logic import nothing from the framework. Components depend on hooks, hooks depend on services, services depend on API clients. Never let a presentational component import an API client directly.
 - Every market segment (Token, Perp, Prediction, NFT, Yield, RWA) follows the same four-pillar module template from the PRD: Execution panel, Portfolio view, Intelligence panel, Creation tooling. Build one segment, then copy its shape. A reviewer should not have to relearn the design per segment.
-- External API payloads never reach components raw. Every indexer, ramp, or market API response passes through a normalization layer that maps it into our typed domain objects. Components only ever see our types.
+- External API payloads never reach components raw. Every upstream response is validated at the proxy boundary and mapped into our typed domain objects. Components only ever see our types.
+- Every upstream call goes through a route handler in `app/api/`. The handler holds the secret, allowlists the path, and verifies the session. A component never calls `fetch` directly and never holds a base URL. If a key would end up in a `NEXT_PUBLIC_` variable, the design is wrong.
+- Service URLs derive from `WSAPI_BASE_URL` through `wsapiService("<service>")`. Do not add a per-service environment variable for a new gateway service; the per-service variables that exist are local overrides only.
 - Keep the same pattern across a tier. If one API adapter uses a given shape, every API adapter uses that shape.
 - Server Components by default. Reach for `"use client"` only when the component needs interactivity, browser APIs, or client state, and push the boundary as deep into the tree as possible.
 - Async work never blocks the UI. Long-running cross-chain or multi-API operations run behind loading and error states, never behind a frozen interface.
@@ -50,10 +60,13 @@ These are the rules for building the Worldstreet SuperApp frontend. They apply t
 
 ## Git and review
 
+- `CONTRIBUTING.md` is the practical workflow: setup, where code goes, and how a change reaches `main`. Point new contributors there first.
 - One issue, one branch, one pull request. Keep the scope of a PR equal to the scope of its issue.
 - Branch off `main`. Never push to `main` directly. Feature branches use a clear prefix: `feat/`, `fix/`, `chore/`.
 - Open PRs against `main`. The `quality` CI check (format, lint, test, build) must pass before a PR can merge. `main` is the single long-lived branch and is protected: no direct pushes (admins included), and only squash merges are allowed.
 - All merges are squash merges. The branch is deleted on merge.
+- Every pull request gets a Vercel preview deployment. Open it. Reading a diff is not reviewing a UI change, and for anything touching money the flow gets exercised in the preview before approval.
+- A cross-feature import, a second transport, or a new per-service environment variable is a blocking review comment, not a nit.
 - Commits are atomic. One logical change per commit, with a message that says what changed and why.
 - Never add AI co-author trailers to commits. Never commit or push on a contributor's behalf without being asked.
 - Do not commit secrets. `.env` files stay out of git. Use Vercel environment variables for deployed secrets.

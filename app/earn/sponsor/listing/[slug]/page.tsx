@@ -2,9 +2,8 @@
 
 import { Suspense, use } from "react";
 import { useSearchParams } from "next/navigation";
-import { EarnPage } from "@/components/dashboard/earn/earn-page";
-import { SponsorListingSection } from "@/components/dashboard/earn/sponsor/sponsor-listing-section";
-import type { ListingType } from "@/lib/earn/api/types";
+import { EarnPage, SponsorListingSection } from "@/features/earn";
+import type { ListingType } from "@/features/earn";
 
 const TYPES: ListingType[] = ["bounty", "project", "hackathon", "grant"];
 

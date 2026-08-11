@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getRequestUser, verifyRequest } from "@/lib/server/auth";
-import { walletOfUser } from "@/lib/casino/chess-identity";
+import { walletOfUser } from "@/lib/server/chess-identity";
 import { isAllowedPerpPath, perpRevalidate, wsapiPerpRequest } from "@/lib/server/wsapi";
 
 // Server-side proxy for the perp gateway (Avantis perpetuals on Base). Reads

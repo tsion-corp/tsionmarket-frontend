@@ -15,7 +15,7 @@ import {
   resizeBridgeSend,
   type FundingLeg,
   type FundingPlan,
-} from "@/lib/rwa/funding";
+} from "@/lib/trade/funding";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { getWalletAddress } from "@/lib/user";
 

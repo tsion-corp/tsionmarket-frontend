@@ -1,7 +1,6 @@
 "use client";
 
-import { EarnPage } from "@/components/dashboard/earn/earn-page";
-import { SponsorOnboardingSection } from "@/components/dashboard/earn/sponsor/sponsor-onboarding-section";
+import { EarnPage, SponsorOnboardingSection } from "@/features/earn";
 
 export default function EarnSponsorNewPage() {
   return (

@@ -1,7 +1,6 @@
 "use client";
 
-import { EarnPage } from "@/components/dashboard/earn/earn-page";
-import { BrowseSection } from "@/components/dashboard/earn/browse-section";
+import { EarnPage, BrowseSection } from "@/features/earn";
 
 export default function EarnBrowsePage() {
   return (

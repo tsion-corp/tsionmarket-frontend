@@ -24,7 +24,7 @@ beforeEach(() => {
 
 describe("chess private reads", () => {
   it("keeps cashier config on the public transport", async () => {
-    const { fetchCashierConfig } = await import("@/lib/casino/api/cashier");
+    const { fetchCashierConfig } = await import("@/features/casino/lib/api/cashier");
 
     await fetchCashierConfig();
 
@@ -33,7 +33,7 @@ describe("chess private reads", () => {
   });
 
   it("sends cashier balance through the auth-aware transport", async () => {
-    const { fetchChessBalance } = await import("@/lib/casino/api/cashier");
+    const { fetchChessBalance } = await import("@/features/casino/lib/api/cashier");
 
     await fetchChessBalance("0xabc");
 
@@ -46,7 +46,7 @@ describe("chess private reads", () => {
   });
 
   it("sends my-bets reads through the auth-aware transport", async () => {
-    const { fetchMyBets } = await import("@/lib/casino/api/betting");
+    const { fetchMyBets } = await import("@/features/casino/lib/api/betting");
 
     await fetchMyBets("match-1", "0xabc");
 

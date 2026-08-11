@@ -4,10 +4,17 @@
    standalone earn app and its binary build artifacts. That produced thousands of
    garbage arbitrary-value utilities from non-UTF-8 bytes and made the PostCSS
    step time out, hanging `next dev` and panicking `next build`. Scan only this
-   app's own source instead. */
+   app's own source instead.
+
+   Every directory holding markup must be listed below. A class used only in an
+   unlisted directory is silently dropped from the stylesheet: no error, no
+   warning, just an unstyled component. `features/` was missed when the slices
+   were created and the whole dashboard rendered without its grid and sizing
+   utilities. */
 @import "tailwindcss" source(none);
 @source "../app";
 @source "../components";
+@source "../features";
 @source "../lib";
 @source "../hooks";
 

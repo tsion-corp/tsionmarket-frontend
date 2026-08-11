@@ -2,31 +2,29 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { buildNav } from "@/components/dashboard/nav-items";
-import { PortfolioView } from "@/components/dashboard/views/portfolio-view";
-import { SpotSection } from "@/components/dashboard/sections/spot-section";
-import { PerpsSection } from "@/components/dashboard/sections/perps-section";
-import { MemeSection } from "@/components/dashboard/sections/meme-section";
-import { ExploreBanners } from "@/components/dashboard/explore-banners";
-import { RecentActivity } from "@/components/dashboard/activity/recent-activity";
-import { RwaSection } from "@/components/dashboard/sections/rwa-section";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { buildNav } from "@/components/layout/nav-items";
+import { PortfolioView } from "@/features/portfolio";
+import { SpotSection } from "@/features/trade/components/spot-section";
+import { PerpsSection } from "@/features/trade/components/perps-section";
+import { MemeSection } from "@/features/trade/components/meme-section";
+import { ExploreBanners } from "@/components/layout/explore-banners";
+import { RecentActivity } from "@/features/activity";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
-import { DetailModal } from "@/components/dashboard/modals/detail-modal";
-import { ConfirmModal } from "@/components/dashboard/modals/confirm-modal";
-import { FundsModal } from "@/components/dashboard/modals/funds-modal";
-import { WithdrawModal } from "@/components/dashboard/modals/withdraw-modal";
-import { CrossBorderModal } from "@/components/dashboard/remit/cross-border-modal";
-import { BuySheet } from "@/components/dashboard/buy/buy-sheet";
-import { SellSheet } from "@/components/dashboard/sell/sell-sheet";
-import { RwaTradeModal } from "@/components/dashboard/rwa/rwa-trade-modal";
+import { DetailModal } from "@/components/layout/modals/detail-modal";
+import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
+import { FundsModal, WithdrawModal } from "@/features/funds";
+import { CrossBorderBanner, CrossBorderModal } from "@/features/remit";
+import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
+import { RwaSection, RwaTradeModal } from "@/features/rwa";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
 import type { DepositPrefill } from "@/lib/voice/intent";
 import { loadInterest } from "@/lib/preferences";
 import type { SectionId } from "@/lib/sections";
+import type { MemeToken } from "@/lib/meme/api";
 import type {
   BuyPayload,
   ConfirmPayload,
@@ -34,8 +32,8 @@ import type {
   DashboardModal,
   RwaTradePayload,
   SellPayload,
-} from "@/components/dashboard/modal-types";
-import { AccountModal } from "@/components/dashboard/modals/account-modal";
+} from "@/lib/modal-types";
+import { AccountModal } from "@/components/layout/modals/account-modal";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
@@ -95,6 +93,10 @@ export default function DashboardPage() {
   );
   const openBuy = useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []);
   const openSell = useCallback((sell: SellPayload) => setModal({ type: "sell", sell }), []);
+  const openMemeSell = useCallback(
+    (memeSell: MemeToken) => setModal({ type: "memeSell", memeSell }),
+    []
+  );
   const openRwaTrade = useCallback(
     (rwaTrade: RwaTradePayload) => setModal({ type: "rwaTrade", rwaTrade }),
     []
@@ -108,10 +110,11 @@ export default function DashboardPage() {
       <Portfolio
         onOpenFunds={openFunds}
         onOpenWithdraw={openWithdraw}
-        onOpenCrossBorder={openCrossBorder}
+        crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
         onOpenDetail={openDetail}
         onOpenBuy={openBuy}
         onOpenSell={openSell}
+        onOpenMemeSell={openMemeSell}
         onOpenRwaTrade={openRwaTrade}
       />
     ),
@@ -158,6 +161,9 @@ export default function DashboardPage() {
         ) : null}
         {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
         {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
+        {modal?.type === "memeSell" ? (
+          <MemeTradeSheet token={modal.memeSell} defaultSide="SELL" onClose={close} />
+        ) : null}
         {modal?.type === "rwaTrade" ? <RwaTradeModal payload={modal.rwaTrade} /> : null}
         {modal?.type === "funds" ? <FundsModal onClose={close} deposit={modal.deposit} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}

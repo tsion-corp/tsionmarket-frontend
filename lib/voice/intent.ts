@@ -50,10 +50,9 @@ export function isDepositChain(value: string): value is DepositChain {
   return /^[a-z0-9 .-]{1,32}$/i.test(value);
 }
 
-// The typed result of understanding one spoken command. The Vivid backend
-// (apps/ai) returns typed frames over the /audio socket; lib/voice/vivid-intent
-// maps them to this union so the rest of the app only ever sees WSWS types,
-// never a raw model payload.
+// The typed result of understanding one command. Kept after the in-house voice
+// pipeline was removed because the prefill types below are what funds, trade and
+// rwa use to open a screen with values already filled in.
 //
 // - navigate: open a section. When `prefill` is present the section opens its
 //   trade form pre-filled from a spoken buy/sell (user confirms).

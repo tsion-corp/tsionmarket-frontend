@@ -1,7 +1,6 @@
 "use client";
 
-import { EarnPage } from "@/components/dashboard/earn/earn-page";
-import { ApplicationsSection } from "@/components/dashboard/earn/applications-section";
+import { EarnPage, ApplicationsSection } from "@/features/earn";
 
 export default function EarnApplicationsPage() {
   return (

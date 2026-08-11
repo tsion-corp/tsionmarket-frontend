@@ -2,10 +2,10 @@
 
 import { use, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { DashboardShell } from "@/components/dashboard/dashboard-shell";
-import { buildNav } from "@/components/dashboard/nav-items";
+import { DashboardShell } from "@/components/layout/dashboard-shell";
+import { buildNav } from "@/components/layout/nav-items";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { MarketDetail } from "@/components/dashboard/prediction/market-detail";
+import { MarketDetail } from "@/features/prediction";
 import { loadInterest } from "@/lib/preferences";
 
 // One prediction market: chart, trade tape, execution and liquidity panels. The

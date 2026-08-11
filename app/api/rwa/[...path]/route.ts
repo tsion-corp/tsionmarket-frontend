@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { checkUpstream } from "@/lib/server/validate-upstream";
+import { rwaSchemaFor } from "@/lib/api/schemas/rwa";
 import { isAllowedRwaPath, rwaRevalidate, wsapiRwaRequest } from "@/lib/server/wsapi";
 
 async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", body?: unknown) {
@@ -36,6 +38,19 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
       clientIp,
     });
     const data = await res.json().catch(() => ({}));
+    // A build response carries the transactions the user is asked to sign, so
+    // a contract change stops here rather than reaching a wallet.
+    const check = checkUpstream(rwaSchemaFor(joined), data, { service: "rwa", path: joined });
+    if (!check.ok) {
+      console.error(check.problem);
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: "BAD_RESPONSE", message: "RWA response was not understood" },
+        },
+        { status: 502 }
+      );
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
     console.error("RWA proxy failed:", error);

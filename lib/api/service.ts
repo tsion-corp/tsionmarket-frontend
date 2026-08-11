@@ -1,0 +1,53 @@
+"use client";
+
+import { apiFetch } from "@/lib/api";
+import { unwrap } from "@/lib/api/envelope";
+
+export type QueryParams = Record<string, string | number | boolean | undefined>;
+
+function buildQuery(params?: QueryParams): string {
+  if (!params) return "";
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined) continue;
+    search.set(key, String(value));
+  }
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
+// Strict servers reject a JSON content-type with an empty body.
+function bodyInit(method: string, body: unknown): RequestInit {
+  if (body === undefined) return { method };
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+}
+
+export interface ServiceClient {
+  get<T>(path: string, params?: QueryParams): Promise<T>;
+  authedGet<T>(path: string, params?: QueryParams): Promise<T>;
+  post<T>(path: string, body?: unknown): Promise<T>;
+  put<T>(path: string, body?: unknown): Promise<T>;
+  del<T>(path: string, body?: unknown): Promise<T>;
+}
+
+export function createServiceClient(basePath: string, fallbackMessage: string): ServiceClient {
+  const url = (path: string, params?: QueryParams) => `${basePath}${path}${buildQuery(params)}`;
+
+  // requireAuth turns a cold Privy token into a retryable error instead of a 401.
+  const authed = <T>(path: string, init: RequestInit): Promise<T> =>
+    apiFetch(path, init, { requireAuth: true }).then((res) => unwrap<T>(res, fallbackMessage));
+
+  return {
+    // Public reads stay on plain fetch so they remain cacheable.
+    get: <T>(path: string, params?: QueryParams) =>
+      fetch(url(path, params)).then((res) => unwrap<T>(res, fallbackMessage)),
+    authedGet: <T>(path: string, params?: QueryParams) => authed<T>(url(path, params), {}),
+    post: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("POST", body)),
+    put: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("PUT", body)),
+    del: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("DELETE", body)),
+  };
+}

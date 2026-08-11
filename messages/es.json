@@ -540,11 +540,6 @@
     "helpSupport": "Ayuda y soporte",
     "signOut": "Cerrar sesión"
   },
-  "dashFooter": {
-    "tagline": "Mercados en autocustodia para todos. Tus llaves, tu dinero, tu decisión.",
-    "rights": "© {year} {brand}. Todos los derechos reservados.",
-    "disclaimer": "La cripto, los activos tokenizados y los mercados de predicción conllevan riesgo, incluida la pérdida del capital. Nada aquí es asesoramiento financiero."
-  },
   "common": {
     "addressCopied": "Dirección copiada",
     "copied": "Copiado",
@@ -1490,34 +1485,6 @@
       "toastRefunded": "Reembolsado a tu saldo",
       "errorQuote": "No se pudo ahora mismo. Inténtalo de nuevo.",
       "errorSend": "Eso no se procesó. Inténtalo de nuevo."
-    },
-    "draw": {
-      "subject": "el sorteo",
-      "loading": "Cargando el sorteo",
-      "jackpot": "Jackpot",
-      "nextDrawIn": "Próximo sorteo en",
-      "drawingNow": "Sorteando ahora…",
-      "roundClosedNote": "Esta ronda ha cerrado",
-      "pickNumbers": "Elige {count} números (1–{max})",
-      "quickPick": "Selección rápida",
-      "bonusNumber": "Número bono (1–{max})",
-      "entries": "Boletos",
-      "balance": "Saldo {amount}",
-      "entryCount": "{count, plural, one {# boleto} other {# boletos}}",
-      "buying": "Comprando…",
-      "roundClosed": "Ronda cerrada",
-      "pickMore": "Elige {count} más",
-      "pickBonus": "Elige un número bono",
-      "notEnoughBalance": "Saldo insuficiente",
-      "confirmEntry": "Confirmar boleto",
-      "myEntries": "Mis boletos",
-      "prizeTiers": "Niveles de premio",
-      "pastDraws": "Sorteos pasados",
-      "noDrawsSettled": "Aún no se ha liquidado ningún sorteo.",
-      "toastConnect": "Conecta tu billetera para entrar al sorteo.",
-      "toastBuying": "Comprando tus boletos…",
-      "toastIn": "Estás en este sorteo. Buena suerte.",
-      "toastBuyFailed": "No se pudieron comprar esos boletos."
     },
     "entries": {
       "title": "Mis boletos",

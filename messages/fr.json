@@ -540,11 +540,6 @@
     "helpSupport": "Aide et assistance",
     "signOut": "Se déconnecter"
   },
-  "dashFooter": {
-    "tagline": "Des marchés en auto-conservation pour tous. Vos clés, votre argent, votre décision.",
-    "rights": "© {year} {brand}. Tous droits réservés.",
-    "disclaimer": "La crypto, les actifs tokenisés et les marchés de prédiction comportent des risques, y compris la perte du capital. Rien ici n'est un conseil financier."
-  },
   "common": {
     "addressCopied": "Adresse copiée",
     "copied": "Copié",
@@ -1490,34 +1485,6 @@
       "toastRefunded": "Remboursé sur votre solde",
       "errorQuote": "Impossible pour le moment. Réessayez.",
       "errorSend": "Ça n'est pas passé. Veuillez réessayer."
-    },
-    "draw": {
-      "subject": "le tirage",
-      "loading": "Chargement du tirage",
-      "jackpot": "Jackpot",
-      "nextDrawIn": "Prochain tirage dans",
-      "drawingNow": "Tirage en cours…",
-      "roundClosedNote": "Cette manche est terminée",
-      "pickNumbers": "Choisissez {count} numéros (1–{max})",
-      "quickPick": "Sélection rapide",
-      "bonusNumber": "Numéro bonus (1–{max})",
-      "entries": "Participations",
-      "balance": "Solde {amount}",
-      "entryCount": "{count, plural, one {# participation} other {# participations}}",
-      "buying": "Achat…",
-      "roundClosed": "Manche terminée",
-      "pickMore": "Choisissez-en {count} de plus",
-      "pickBonus": "Choisissez un numéro bonus",
-      "notEnoughBalance": "Solde insuffisant",
-      "confirmEntry": "Confirmer la participation",
-      "myEntries": "Mes participations",
-      "prizeTiers": "Paliers de gains",
-      "pastDraws": "Tirages passés",
-      "noDrawsSettled": "Aucun tirage réglé pour l'instant.",
-      "toastConnect": "Connectez votre portefeuille pour participer au tirage.",
-      "toastBuying": "Achat de vos participations…",
-      "toastIn": "Vous participez à ce tirage. Bonne chance.",
-      "toastBuyFailed": "Impossible d'acheter ces participations."
     },
     "entries": {
       "title": "Mes participations",

@@ -2,8 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CasinoPage } from "@/components/dashboard/casino/casino-page";
-import { ReviewSection } from "@/components/dashboard/casino/chess/review-section";
+import { CasinoPage, ReviewSection } from "@/features/casino";
 
 function ReviewFromParams() {
   return <ReviewSection matchId={useSearchParams()?.get("match") ?? null} />;

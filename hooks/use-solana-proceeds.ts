@@ -8,8 +8,8 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
 import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
 import { fetchLifiStatus, fetchSolanaBridgeQuote } from "@/lib/trade/lifi";
-import { LIFI_BASE_CHAIN, BASE_USDC } from "@/lib/rwa/funding";
-import { USDC_BY_CHAIN } from "@/lib/rwa-api";
+import { LIFI_BASE_CHAIN, BASE_USDC } from "@/lib/trade/funding";
+import { USDC_BY_CHAIN } from "@/lib/trade/usdc";
 import { getWalletAddress } from "@/lib/user";
 
 export type ProceedsPhase = "idle" | "quoting" | "signing" | "settling" | "done" | "failed";

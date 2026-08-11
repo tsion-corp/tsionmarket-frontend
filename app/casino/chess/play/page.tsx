@@ -2,8 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CasinoPage } from "@/components/dashboard/casino/casino-page";
-import { PlaySection } from "@/components/dashboard/casino/chess/play-section";
+import { CasinoPage, PlaySection } from "@/features/casino";
 
 function PlayFromParams() {
   const params = useSearchParams();

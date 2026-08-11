@@ -1,12 +1,16 @@
 "use client";
 
-import { CasinoPage } from "@/components/dashboard/casino/casino-page";
-import { LastStandingSection } from "@/components/dashboard/casino/last-standing/last-standing-section";
+import { CasinoPage, LastStandingSection } from "@/features/casino";
+import { SellSheet } from "@/features/trade";
 
 export default function LastStandingPage() {
   return (
     <CasinoPage>
-      <LastStandingSection />
+      <LastStandingSection
+        renderWithdrawSheet={(payload, onClose) => (
+          <SellSheet payload={payload} onClose={onClose} />
+        )}
+      />
     </CasinoPage>
   );
 }

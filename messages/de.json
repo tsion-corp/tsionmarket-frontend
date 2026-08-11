@@ -540,11 +540,6 @@
     "helpSupport": "Hilfe & Support",
     "signOut": "Abmelden"
   },
-  "dashFooter": {
-    "tagline": "Selbstverwahrte Märkte für alle. Ihre Schlüssel, Ihr Geld, Ihre Entscheidung.",
-    "rights": "© {year} {brand}. Alle Rechte vorbehalten.",
-    "disclaimer": "Krypto, tokenisierte Vermögenswerte und Prognosemärkte bergen Risiken, einschließlich Kapitalverlust. Nichts hier ist Finanzberatung."
-  },
   "common": {
     "addressCopied": "Adresse kopiert",
     "copied": "Kopiert",
@@ -1490,34 +1485,6 @@
       "toastRefunded": "Auf Ihr Guthaben erstattet",
       "errorQuote": "Gerade nicht möglich. Versuchen Sie es erneut.",
       "errorSend": "Das hat nicht geklappt. Bitte versuchen Sie es erneut."
-    },
-    "draw": {
-      "subject": "Die Ziehung",
-      "loading": "Ziehung wird geladen",
-      "jackpot": "Jackpot",
-      "nextDrawIn": "Nächste Ziehung in",
-      "drawingNow": "Ziehung läuft…",
-      "roundClosedNote": "Diese Runde ist beendet",
-      "pickNumbers": "Wählen Sie {count} Zahlen (1–{max})",
-      "quickPick": "Schnellwahl",
-      "bonusNumber": "Bonuszahl (1–{max})",
-      "entries": "Tipps",
-      "balance": "Guthaben {amount}",
-      "entryCount": "{count, plural, one {# Tipp} other {# Tipps}}",
-      "buying": "Wird gekauft…",
-      "roundClosed": "Runde beendet",
-      "pickMore": "Wählen Sie noch {count}",
-      "pickBonus": "Wählen Sie eine Bonuszahl",
-      "notEnoughBalance": "Guthaben reicht nicht",
-      "confirmEntry": "Tipp bestätigen",
-      "myEntries": "Meine Tipps",
-      "prizeTiers": "Gewinnstufen",
-      "pastDraws": "Vergangene Ziehungen",
-      "noDrawsSettled": "Noch keine Ziehung abgeschlossen.",
-      "toastConnect": "Verbinden Sie Ihre Wallet, um an der Ziehung teilzunehmen.",
-      "toastBuying": "Ihre Tipps werden gekauft…",
-      "toastIn": "Sie sind bei dieser Ziehung dabei. Viel Glück.",
-      "toastBuyFailed": "Diese Tipps konnten nicht gekauft werden."
     },
     "entries": {
       "title": "Meine Tipps",

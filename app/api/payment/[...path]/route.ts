@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { checkUpstream } from "@/lib/server/validate-upstream";
+import { paymentSchemaFor } from "@/lib/api/schemas/payment";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side gateway to the payment service's off-ramp API. The service is
@@ -39,6 +41,16 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
         : { cache: "no-store" as const }),
     });
     const data = await res.json().catch(() => ({}));
+    // Money endpoints: a contract change has to stop here, not surface as an
+    // undefined amount three components away.
+    const check = checkUpstream(paymentSchemaFor(joined), data, {
+      service: "payment",
+      path: joined,
+    });
+    if (!check.ok) {
+      console.error(check.problem);
+      return NextResponse.json({ error: "Provider response was not understood" }, { status: 502 });
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
     console.error("Payment proxy failed:", error);

@@ -1,4 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { checkUpstream } from "@/lib/server/validate-upstream";
+import { tradeSchemaFor } from "@/lib/api/schemas/trade";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Proxy for the Base token-trading service (memecoins). The gateway sends no
@@ -16,6 +18,16 @@ const cache = new Map<string, { expires: number; body: string; status: number }>
 
 function cacheable(joined: string, hasAuth: boolean): boolean {
   return !hasAuth && joined.startsWith("tokens");
+}
+
+// A non-JSON body (an upstream error page) is passed through untouched rather
+// than turned into a validation failure.
+function safeJson(text: string): unknown | null {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 function notConfigured() {
@@ -75,6 +87,21 @@ async function forward(req: NextRequest, method: "GET" | "POST") {
       signal: AbortSignal.timeout(20_000),
     });
     const text = await res.text();
+    const schema = tradeSchemaFor(joined);
+    const parsed = schema ? safeJson(text) : null;
+    if (schema && parsed !== null) {
+      const check = checkUpstream(schema, parsed, { service: "trade", path: joined });
+      if (!check.ok) {
+        console.error(check.problem);
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: "BAD_RESPONSE", message: "Trading response was not understood." },
+          },
+          { status: 502, headers: { "cache-control": NO_STORE } }
+        );
+      }
+    }
     if (method === "GET" && cacheable(joined, !!auth)) {
       cache.set(url, { expires: Date.now() + CACHE_TTL_MS, body: text, status: res.status });
     }
