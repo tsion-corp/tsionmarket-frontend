@@ -2,10 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import {
-  useSignAndSendTransaction,
-  useWallets as useSolanaWallets,
-} from "@privy-io/react-auth/solana";
+import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import {
   address,
   appendTransactionMessageInstructions,
@@ -13,7 +10,6 @@ import {
   createNoopSigner,
   createSolanaRpc,
   createTransactionMessage,
-  getBase58Decoder,
   getTransactionEncoder,
   pipe,
   setTransactionMessageFeePayerSigner,
@@ -36,7 +32,7 @@ import {
   type SettleChain,
   type WalletChainType,
 } from "@/lib/deposit";
-import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
+import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 
 // Public Solana mainnet RPC, the same endpoint Dextopus lists for the chain.
 const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
@@ -131,7 +127,7 @@ async function buildSolanaTokenTransfer(
 export function useSendUsdc() {
   const { user } = usePrivy();
   const evmSend = useEvmSend();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const sendSponsored = useSponsoredSolanaSend();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [sending, setSending] = useState(false);
 
@@ -164,14 +160,12 @@ export function useSendUsdc() {
           settle?.usdc ?? solana.asset,
           settle?.decimals ?? solana.decimals
         );
-        const sponsored = await sponsorSolanaTransaction(transaction);
-        const { signature } = await signAndSendTransaction({ transaction: sponsored, wallet });
-        return getBase58Decoder().decode(signature);
+        return await sendSponsored({ transaction, wallet });
       } finally {
         setSending(false);
       }
     },
-    [user, evmSend, signAndSendTransaction, solanaWallets]
+    [user, evmSend, sendSponsored, solanaWallets]
   );
 
   return { sendUsdc, sending };
@@ -222,7 +216,7 @@ export interface SendTokenParams {
 export function useSendToken() {
   const { user } = usePrivy();
   const evmSend = useEvmSend();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const sendSponsored = useSponsoredSolanaSend();
   const { wallets: solanaWallets } = useSolanaWallets();
   const [sending, setSending] = useState(false);
 
@@ -256,14 +250,12 @@ export function useSendToken() {
           tokenAddress === null
             ? await buildSolanaSolTransfer(from, to, amount)
             : await buildSolanaTokenTransfer(from, to, amount, tokenAddress, decimals);
-        const sponsored = await sponsorSolanaTransaction(transaction);
-        const { signature } = await signAndSendTransaction({ transaction: sponsored, wallet });
-        return getBase58Decoder().decode(signature);
+        return await sendSponsored({ transaction, wallet });
       } finally {
         setSending(false);
       }
     },
-    [user, evmSend, signAndSendTransaction, solanaWallets]
+    [user, evmSend, sendSponsored, solanaWallets]
   );
 
   return { sendToken, sending };

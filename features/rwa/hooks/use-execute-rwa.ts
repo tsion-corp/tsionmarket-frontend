@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
-import { getBase58Decoder } from "@solana/kit";
+import { useWallets } from "@privy-io/react-auth/solana";
 import { awaitReceipt, isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
-import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
+import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import type { RwaAction, RwaChain, RwaStep } from "@/features/rwa/lib/api";
 
@@ -21,12 +20,12 @@ const EVM_CHAIN_ID: Partial<Record<RwaChain, number>> = {
 };
 
 // Executes each step of a built RWA action with the embedded wallet. Solana
-// steps are sponsored first so the backend can rewrite the fee payer when
-// needed, then the embedded wallet signs and broadcasts the sponsored bytes.
-// EVM steps send directly from the wallet.
+// steps go through gas sponsorship: the sponsor takes the fee-payer seat, the
+// embedded wallet signs, and the sponsor submits. EVM steps send directly
+// from the wallet.
 export function useExecuteRwa() {
   const evmSend = useEvmSend();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const sendSponsored = useSponsoredSolanaSend();
   const { wallets: solanaWallets } = useWallets();
 
   return useCallback(
@@ -64,14 +63,7 @@ export function useExecuteRwa() {
           const wallet = solanaWallets[0];
           if (!wallet) throw new Error("No Solana wallet is connected.");
           if (!step.tx.base64) throw new Error("The transaction is missing.");
-          const sponsored = await sponsorSolanaTransaction(step.tx.base64);
-          const { signature } = await signAndSendTransaction({
-            transaction: sponsored,
-            wallet,
-            // Broadcast-only: confirmation is handled below via explicit RPC polling.
-            options: { optimisticBroadcast: true },
-          });
-          lastSolanaSig = getBase58Decoder().decode(signature);
+          lastSolanaSig = await sendSponsored({ transaction: step.tx.base64, wallet });
         } else {
           if (!step.tx.to) throw new Error("The transaction is missing.");
           const chainId = EVM_CHAIN_ID[step.chain];
@@ -100,6 +92,6 @@ export function useExecuteRwa() {
         await confirmSolanaSignature(lastSolanaSig);
       }
     },
-    [evmSend, signAndSendTransaction, solanaWallets]
+    [evmSend, sendSponsored, solanaWallets]
   );
 }

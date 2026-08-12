@@ -2,14 +2,13 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
-import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
-import { getBase58Decoder } from "@solana/kit";
+import { useWallets } from "@privy-io/react-auth/solana";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { getWalletAddress } from "@/lib/user";
 import { fetchSellQuote } from "@/lib/sell";
 import { fetchSolanaBridgeQuote } from "@/lib/trade/lifi";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
-import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
+import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 import { BASE_USDC, LIFI_BASE_CHAIN, LIFI_NATIVE_SOL } from "@/lib/trade/funding";
 
 export interface SellExecuteInput {
@@ -47,7 +46,7 @@ export interface SellExecuteResult {
 export function useSell() {
   const { user } = usePrivy();
   const { sendToken } = useSendToken();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const sendSponsored = useSponsoredSolanaSend();
   const { wallets: solanaWallets } = useWallets();
 
   return useMutation<SellExecuteResult, Error, SellExecuteInput>({
@@ -77,15 +76,7 @@ export function useSell() {
           toAddress: recipient,
           slippage: slippageBps / 10_000,
         });
-        const transaction = await sponsorSolanaTransaction(quote.transaction);
-        const { signature } = await signAndSendTransaction({
-          transaction,
-          wallet,
-          // Broadcast-only: confirmation polls the RPC we send through,
-          // rather than a WebSocket we do not proxy.
-          options: { optimisticBroadcast: true },
-        });
-        const sig = getBase58Decoder().decode(signature);
+        const sig = await sendSponsored({ transaction: quote.transaction, wallet });
         await confirmSolanaSignature(sig).catch(() => {
           // The LI.FI settlement poll is the real signal; a slow RPC
           // confirmation must not fail a sale that is already in flight.

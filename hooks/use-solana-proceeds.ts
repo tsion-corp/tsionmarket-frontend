@@ -2,11 +2,10 @@
 
 import { useCallback, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { useSignAndSendTransaction, useWallets } from "@privy-io/react-auth/solana";
-import { getBase58Decoder } from "@solana/kit";
+import { useWallets } from "@privy-io/react-auth/solana";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
-import { sponsorSolanaTransaction } from "@/lib/trade/solana-sponsor";
+import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 import { fetchLifiStatus, fetchSolanaBridgeQuote } from "@/lib/trade/lifi";
 import { LIFI_BASE_CHAIN, BASE_USDC } from "@/lib/trade/funding";
 import { USDC_BY_CHAIN } from "@/lib/trade/usdc";
@@ -31,7 +30,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 // leftover SOL from the funding hop.
 export function useSolanaProceeds() {
   const { user } = usePrivy();
-  const { signAndSendTransaction } = useSignAndSendTransaction();
+  const sendSponsored = useSponsoredSolanaSend();
   const { wallets: solanaWallets } = useWallets();
   const portfolio = usePortfolio();
   const [phase, setPhase] = useState<ProceedsPhase>("idle");
@@ -75,16 +74,8 @@ export function useSolanaProceeds() {
         });
 
         setPhase("signing");
-        const transaction = await sponsorSolanaTransaction(quote.transaction);
-        const { signature } = await signAndSendTransaction({
-          transaction,
-          wallet,
-          // Broadcast-only: the confirmation below polls the RPC we send
-          // through, rather than a WebSocket we do not proxy.
-          options: { optimisticBroadcast: true },
-        });
+        const sig = await sendSponsored({ transaction: quote.transaction, wallet });
         sentRef.current = true;
-        const sig = getBase58Decoder().decode(signature);
         await confirmSolanaSignature(sig).catch(() => {
           // The bridge poll below is the real settlement signal.
         });
@@ -108,7 +99,7 @@ export function useSolanaProceeds() {
         return false;
       }
     },
-    [user, solanaWallets, signAndSendTransaction, portfolio]
+    [user, solanaWallets, sendSponsored, portfolio]
   );
 
   return {

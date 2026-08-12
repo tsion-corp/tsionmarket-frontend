@@ -44,12 +44,52 @@ async function parseError(res: Response): Promise<string> {
   return readMessage(body?.error) ?? readMessage(body?.message) ?? "Solana sponsorship failed";
 }
 
-// Sponsorship is a read-modify step, not a submission: the sponsor signs and
-// returns the transaction, and the user still signs and broadcasts after. So a
-// retry can never double-spend, and one transparent retry on a transient
-// failure (network error or 5xx) keeps a single blip from failing a trade the
-// user already confirmed.
+// One transparent retry on a transient failure (network error or 5xx) keeps a
+// single blip from failing a trade the user already confirmed. Prepare only
+// rewrites the fee payer, so retrying is trivially safe. Submit resends the
+// same signed bytes, and an identical Solana transaction can only land once,
+// so a retry can never double-spend either.
 const RETRY_DELAY_MS = 900;
+
+// Step one of sponsorship: the server puts the sponsor wallet in the
+// fee-payer seat and returns the still-unsigned transaction for the user to
+// sign. Sponsoring and submitting happen in sponsorAndSubmitSolanaTransaction.
+export async function prepareSponsoredSolanaTransaction(
+  transaction: string | Uint8Array
+): Promise<Uint8Array> {
+  const serializedTransaction =
+    typeof transaction === "string" ? transaction : bytesToBase64(transaction);
+  const send = () =>
+    apiFetch(
+      "/api/gas-sponsor/solana/prepare",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serializedTransaction }),
+      },
+      { requireAuth: true }
+    );
+
+  let res: Response;
+  try {
+    res = await send();
+    if (res.status >= 500) {
+      await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      res = await send();
+    }
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+    res = await send();
+  }
+  if (!res.ok) {
+    throw new Error(await parseError(res));
+  }
+  const body = (await res.json()) as { serializedTransaction?: string };
+  if (!body.serializedTransaction) {
+    throw new Error("Solana sponsor returned no transaction.");
+  }
+  return base64ToBytes(body.serializedTransaction);
+}
 
 async function requestSolanaSponsorship(
   transaction: string | Uint8Array,
@@ -92,14 +132,8 @@ async function requestSolanaSponsorship(
   return body;
 }
 
-export async function sponsorSolanaTransaction(
-  transaction: string | Uint8Array,
-  opts: { prefundRent?: boolean } = {}
-): Promise<Uint8Array> {
-  const body = await requestSolanaSponsorship(transaction, opts);
-  return base64ToBytes(body.serializedTransaction);
-}
-
+// Step two: the user-signed transaction goes to the sponsor, which adds its
+// fee-payer signature and submits. The result carries submittedSignature.
 export async function sponsorAndSubmitSolanaTransaction(
   transaction: string | Uint8Array,
   opts: { prefundRent?: boolean } = {}

@@ -1,10 +1,24 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
-import { cosignWithLocalSponsor, localSponsorConfigured } from "@/lib/server/solana-cosigner";
+import {
+  cosignAndSubmitWithLocalSponsor,
+  localSponsorConfigured,
+  prepareWithLocalSponsor,
+  rewriteFeePayerWithRpc,
+} from "@/lib/server/solana-cosigner";
 import { wsapiService } from "@/lib/wsapi-base";
+
+// Solana gas sponsorship, in the gas-sponsor service's contract: prepare puts
+// the sponsor wallet in the fee-payer seat before the user signs, and sponsor
+// adds the sponsor signature to the user-signed transaction and submits it.
+// Both steps run against the local key when SOLANA_PRIVATE_KEY is set, and
+// against the platform gas-sponsor service otherwise.
 
 const GAS_SPONSOR_BASE = process.env.GAS_SPONSOR_API_URL ?? wsapiService("gas-sponsor");
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
+
+const RPC_URL = () =>
+  `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ""}`;
 
 interface SponsorBody {
   serializedTransaction: string;
@@ -40,12 +54,20 @@ function identityToken(req: NextRequest): string | null {
   return req.headers.get("privy-id-token") ?? req.cookies.get("privy-id-token")?.value ?? null;
 }
 
-export async function forwardSolanaSponsorRequest(req: NextRequest) {
-  const claims = await verifyRequest(req);
-  if (!claims) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+function forwardHeaders(req: NextRequest): Record<string, string> {
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  const authorization = bearerToken(req);
+  if (authorization) headers.authorization = authorization;
+  const privyIdToken = identityToken(req);
+  if (privyIdToken) headers["privy-id-token"] = privyIdToken;
+  const forwardedFor = req.headers.get("x-forwarded-for");
+  if (forwardedFor) headers["x-forwarded-for"] = forwardedFor;
+  const realIp = req.headers.get("x-real-ip");
+  if (realIp) headers["x-real-ip"] = realIp;
+  return headers;
+}
 
+async function readSponsorBody(req: NextRequest): Promise<SponsorBody | NextResponse> {
   const body = (await req.json().catch(() => null)) as SponsorBody | null;
   if (!body || typeof body.serializedTransaction !== "string") {
     return NextResponse.json({ error: "serializedTransaction is required" }, { status: 400 });
@@ -56,13 +78,70 @@ export async function forwardSolanaSponsorRequest(req: NextRequest) {
   if (body.prefundRent != null && typeof body.prefundRent !== "boolean") {
     return NextResponse.json({ error: "prefundRent must be boolean" }, { status: 400 });
   }
+  return body;
+}
 
-  // With our own sponsor key configured, sponsorship happens right here:
-  // rewrite the fee payer, add the sponsor signature, hand the transaction
-  // back for the user to sign. No backend service in the path.
+// The service's sponsor wallet, cached for the process: it only changes with
+// a service redeploy, and prepare runs on every Solana transaction.
+let cachedServiceSponsorKey: string | null = null;
+
+async function serviceSponsorPublicKey(req: NextRequest): Promise<string> {
+  if (cachedServiceSponsorKey) return cachedServiceSponsorKey;
+  const res = await fetch(`${GAS_SPONSOR_BASE}/capabilities`, {
+    headers: forwardHeaders(req),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  const payload = await res.json().catch(() => ({}));
+  const key = payload?.data?.solana?.sponsorPublicKey;
+  if (!res.ok || typeof key !== "string" || !key) {
+    throw new Error("Gas sponsor service did not report a sponsor wallet");
+  }
+  cachedServiceSponsorKey = key;
+  return key;
+}
+
+// Step one of sponsorship: rewrite the fee payer to the sponsor wallet and
+// hand the still-unsigned transaction back for the user's signature.
+export async function prepareSolanaSponsorRequest(req: NextRequest) {
+  const claims = await verifyRequest(req);
+  if (!claims) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const body = await readSponsorBody(req);
+  if (body instanceof NextResponse) return body;
+
+  try {
+    const prepared = localSponsorConfigured()
+      ? await prepareWithLocalSponsor(body.serializedTransaction)
+      : await rewriteFeePayerWithRpc(
+          body.serializedTransaction,
+          await serviceSponsorPublicKey(req),
+          RPC_URL()
+        );
+    return NextResponse.json({
+      serializedTransaction: prepared.transaction,
+      sponsorPublicKey: prepared.sponsorPublicKey,
+    });
+  } catch (error) {
+    console.error("Solana sponsor prepare failed:", error);
+    return NextResponse.json({ error: "Solana sponsorship failed" }, { status: 502 });
+  }
+}
+
+// Step two: the user-signed transaction comes back, the sponsor signs its
+// fee-payer slot and submits. The response always carries submittedSignature.
+export async function forwardSolanaSponsorRequest(req: NextRequest) {
+  const claims = await verifyRequest(req);
+  if (!claims) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const body = await readSponsorBody(req);
+  if (body instanceof NextResponse) return body;
+
   if (localSponsorConfigured()) {
     try {
-      const result = await cosignWithLocalSponsor(body.serializedTransaction);
+      const result = await cosignAndSubmitWithLocalSponsor(body.serializedTransaction);
       return NextResponse.json({
         serializedTransaction: result.transaction,
         estimatedFeeLamports: null,
@@ -71,7 +150,7 @@ export async function forwardSolanaSponsorRequest(req: NextRequest) {
         simulationSlot: null,
         usesDurableNonce: false,
         lastValidBlockHeight: null,
-        submittedSignature: null,
+        submittedSignature: result.submittedSignature,
         prefundRent: false,
         signer: "local-key",
         sponsorPublicKey: result.sponsorPublicKey,
@@ -85,23 +164,10 @@ export async function forwardSolanaSponsorRequest(req: NextRequest) {
     }
   }
 
-  const headers: Record<string, string> = {
-    "content-type": "application/json",
-  };
-  const authorization = bearerToken(req);
-  if (authorization) headers.authorization = authorization;
-  const privyIdToken = identityToken(req);
-  if (privyIdToken) headers["privy-id-token"] = privyIdToken;
-
-  const forwardedFor = req.headers.get("x-forwarded-for");
-  if (forwardedFor) headers["x-forwarded-for"] = forwardedFor;
-  const realIp = req.headers.get("x-real-ip");
-  if (realIp) headers["x-real-ip"] = realIp;
-
   try {
     const res = await fetch(`${GAS_SPONSOR_BASE}/solana/sponsor`, {
       method: "POST",
-      headers,
+      headers: forwardHeaders(req),
       body: JSON.stringify({
         serializedTransaction: body.serializedTransaction,
         ...(body.prefundRent ? { prefundRent: true } : {}),

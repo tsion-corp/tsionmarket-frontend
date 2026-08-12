@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  address,
   compileTransaction,
   createKeyPairFromBytes,
   createSolanaRpc,
@@ -14,12 +15,12 @@ import {
   setTransactionMessageFeePayer,
 } from "@solana/kit";
 
-// In-house Solana fee sponsorship: the transaction's fee payer is rewritten to
-// our sponsor wallet and the sponsor's signature is added server-side, then
-// the client signs with the embedded wallet and broadcasts as usual. Active
-// whenever SOLANA_PRIVATE_KEY is set, replacing the platform gas-sponsor
-// service entirely — the key never leaves this server and nothing here ever
-// submits a transaction.
+// In-house Solana fee sponsorship, following the same contract as the
+// platform gas-sponsor service: the transaction is first prepared with the
+// sponsor wallet as fee payer (a keyless rewrite), the user signs their slots
+// client-side, and only then does the sponsor add its signature and submit
+// the fully signed transaction to the RPC. Active whenever SOLANA_PRIVATE_KEY
+// is set, replacing the platform service; the key never leaves this server.
 //
 // The rewrite is a real decompile/recompile, not a byte patch: v0 messages
 // index their accounts, so swapping the payer address in place would silently
@@ -52,37 +53,90 @@ function base64ToBytes(b64: string): Uint8Array {
   return Uint8Array.from(Buffer.from(b64, "base64"));
 }
 
-export interface CosignResult {
+export async function localSponsorAddress(): Promise<string> {
+  const secret = parseSponsorSecret(process.env.SOLANA_PRIVATE_KEY as string);
+  const keyPair = await createKeyPairFromBytes(secret);
+  return getAddressFromPublicKey(keyPair.publicKey);
+}
+
+export interface PreparedTransaction {
   transaction: string;
   sponsorPublicKey: string;
 }
 
-// Rewrites the fee payer to the sponsor and adds the sponsor's signature.
-// Exposed with an injectable secret so the transform is unit-testable without
-// touching the environment.
-export async function cosignTransactionWithSecret(
+// Rewrites the fee payer to the sponsor without signing anything. The result
+// goes back to the client for the user's signature; sponsorship happens after.
+// Key-independent, so it works the same whichever sponsor signs later.
+export async function rewriteFeePayerWithRpc(
+  serializedTransaction: string,
+  sponsorAddress: string,
+  rpcUrl: string
+): Promise<PreparedTransaction> {
+  const wire = getTransactionDecoder().decode(base64ToBytes(serializedTransaction));
+  const compiled = getCompiledTransactionMessageDecoder().decode(wire.messageBytes);
+  const rpc = createSolanaRpc(rpcUrl);
+  const message = await decompileTransactionMessageFetchingLookupTables(compiled, rpc);
+  const sponsored = setTransactionMessageFeePayer(address(sponsorAddress), message);
+  const recompiled = compileTransaction(sponsored);
+  return {
+    transaction: getBase64EncodedWireTransaction(recompiled),
+    sponsorPublicKey: sponsorAddress,
+  };
+}
+
+export async function prepareWithLocalSponsor(
+  serializedTransaction: string
+): Promise<PreparedTransaction> {
+  return rewriteFeePayerWithRpc(serializedTransaction, await localSponsorAddress(), RPC_URL());
+}
+
+export interface CosignSubmitResult {
+  transaction: string;
+  submittedSignature: string;
+  sponsorPublicKey: string;
+}
+
+// Adds the sponsor's signature to a user-signed transaction whose fee payer is
+// already the sponsor, then submits it. Mirrors the gas-sponsor service's
+// contract so the client flow is identical on both paths. Exposed with an
+// injectable secret so the transform is unit-testable without the environment.
+export async function cosignAndSubmitWithSecret(
   serializedTransaction: string,
   secretKeyBytes: Uint8Array,
   rpcUrl: string
-): Promise<CosignResult> {
+): Promise<CosignSubmitResult> {
   const keyPair = await createKeyPairFromBytes(secretKeyBytes);
   const sponsorAddress = await getAddressFromPublicKey(keyPair.publicKey);
 
   const wire = getTransactionDecoder().decode(base64ToBytes(serializedTransaction));
   const compiled = getCompiledTransactionMessageDecoder().decode(wire.messageBytes);
+  const feePayer = compiled.staticAccounts[0];
+  if (feePayer !== sponsorAddress) {
+    throw new Error("Transaction fee payer must be the configured sponsor wallet");
+  }
+
+  const signed = await partiallySignTransaction([keyPair], wire);
+  const wireTransaction = getBase64EncodedWireTransaction(signed);
+
   const rpc = createSolanaRpc(rpcUrl);
-  const message = await decompileTransactionMessageFetchingLookupTables(compiled, rpc);
-  const sponsored = setTransactionMessageFeePayer(sponsorAddress, message);
-  const recompiled = compileTransaction(sponsored);
-  const signed = await partiallySignTransaction([keyPair], recompiled);
+  const signature = await rpc
+    .sendTransaction(wireTransaction, {
+      encoding: "base64",
+      preflightCommitment: "confirmed",
+      maxRetries: 3n,
+    })
+    .send();
 
   return {
-    transaction: getBase64EncodedWireTransaction(signed),
+    transaction: wireTransaction,
+    submittedSignature: signature,
     sponsorPublicKey: sponsorAddress,
   };
 }
 
-export async function cosignWithLocalSponsor(serializedTransaction: string): Promise<CosignResult> {
+export async function cosignAndSubmitWithLocalSponsor(
+  serializedTransaction: string
+): Promise<CosignSubmitResult> {
   const secret = parseSponsorSecret(process.env.SOLANA_PRIVATE_KEY as string);
-  return cosignTransactionWithSecret(serializedTransaction, secret, RPC_URL());
+  return cosignAndSubmitWithSecret(serializedTransaction, secret, RPC_URL());
 }
