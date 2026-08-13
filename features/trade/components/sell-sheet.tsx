@@ -15,6 +15,7 @@ import { maxSellable } from "@/lib/trade/gas-buffer";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { friendlyError } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
@@ -59,6 +60,8 @@ interface SellSheetProps {
 
 export function SellSheet({ payload, onClose }: SellSheetProps) {
   const t = useTranslations("buySell");
+  // Which spot screen the fill came from, so the two can be compared.
+  const { mode: spotMode } = useSpotMode();
   const portfolio = usePortfolio();
   const [amount, setAmount] = useState("");
   const sell = useSell();
@@ -128,6 +131,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         asset: payload.symbol,
         side: "sell",
         amount_usd: value,
+        mode: spotMode,
       });
       toast.success(t("soldToast", { symbol: payload.symbol }), { id: toastRef.current });
       toastRef.current = undefined;
@@ -138,7 +142,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       toast.error(t("saleRefundedToast"), { id: toastRef.current });
       toastRef.current = undefined;
     }
-  }, [stage, payload.symbol, value, portfolio, t]);
+  }, [stage, payload.symbol, value, portfolio, t, spotMode]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
   // effect that would resolve it, leaving it spinning forever. Every resolution

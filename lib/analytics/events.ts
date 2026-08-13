@@ -148,7 +148,9 @@ export interface AnalyticsEvents {
   game_result: {
     game: Game;
     result: "win" | "loss" | "draw";
-    reason: "checkmate" | "resign" | "timeout" | "draw";
+    // "no_moves" covers a draughts side that is blocked or wiped out, which is
+    // the game's equivalent of checkmate and has no chess name.
+    reason: "checkmate" | "no_moves" | "resign" | "timeout" | "abandoned" | "draw";
     stake_usd: number;
     payout_usd: number;
     fee_usd: number;
@@ -169,7 +171,21 @@ export interface AnalyticsEvents {
   // Cross-border
   send_money_opened: void;
   send_destination_selected: { country: string; currency: string };
-  send_completed: { corridor: string; amount_usd: number; amount_local: number; fee_usd: number };
+  send_completed: {
+    corridor: string;
+    amount_usd: number;
+    amount_local: number;
+    /**
+     * The rail quotes its fee in the currency being received, not in dollars,
+     * and only quotes one at all some of the time. `fee_local` carries that
+     * figure with `fee_currency` to say what it is denominated in; `fee_usd`
+     * stays for a rail that does quote in dollars. All three are omitted when
+     * no fee was quoted, rather than reported as a zero the user did not pay.
+     */
+    fee_usd?: number;
+    fee_local?: number;
+    fee_currency?: string;
+  };
 
   // Withdraw
   withdraw_opened: void;
@@ -178,6 +194,17 @@ export interface AnalyticsEvents {
     asset: string;
     amount_usd: number;
     network?: string;
+    /**
+     * Where a crypto withdrawal was sent. An on-chain address is public by
+     * construction, the same class of value as the wallet address we already
+     * use as the distinct_id, and it is what makes a withdrawal traceable to
+     * the chain.
+     *
+     * Only ever set for `method: "wallet"`. A bank withdrawal's recipient is an
+     * account number, which is on the never-send list, so that rail sends no
+     * recipient at all.
+     */
+    recipient_address?: string;
   };
 
   // Engagement

@@ -15,6 +15,7 @@ import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { friendlyError } from "@/lib/errors";
 import type { BuyPayload } from "@/lib/modal-types";
 
@@ -99,6 +100,9 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   // confirmed on the receipt.
   const preview = value > 0 && payload.priceUsd > 0 ? formatAmount(value / payload.priceUsd) : "";
 
+  // Which spot screen the fill came from, so the two can be compared.
+  const { mode: spotMode } = useSpotMode();
+
   const progress = useMemo(
     () =>
       status.data
@@ -125,6 +129,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
         side: "buy",
         amount_usd: value,
         network: route?.chainName,
+        mode: spotMode,
       });
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
@@ -135,7 +140,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       toast.error(t("purchaseRefundedToast"), { id: toastRef.current });
       toastRef.current = undefined;
     }
-  }, [stage, payload.name, payload.symbol, route?.chainName, value, portfolio, t]);
+  }, [stage, payload.name, payload.symbol, route?.chainName, value, portfolio, t, spotMode]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
   // effect that would resolve it, leaving it spinning forever. Every resolution

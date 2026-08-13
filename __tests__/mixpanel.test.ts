@@ -224,10 +224,10 @@ describe("failure containment", () => {
 
 describe("profile totals derived from events", () => {
   it("counts a completed trade and adds its volume and vertical", async () => {
-    const { initAnalytics, track } = await loadWithToken("test-token");
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
     initAnalytics();
 
-    track("trade_completed", {
+    send("trade_completed", {
       vertical: "spot",
       asset: "ETH",
       side: "buy",
@@ -239,10 +239,10 @@ describe("profile totals derived from events", () => {
   });
 
   it("records the first deposit once, and the running total every time", async () => {
-    const { initAnalytics, track } = await loadWithToken("test-token");
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
     initAnalytics();
 
-    track("bank_transfer_completed", { amount_ngn: 40000, amount_usd: 25, bank: "GTB" });
+    send("bank_transfer_completed", { amount_ngn: 40000, amount_usd: 25, bank: "GTB" });
 
     expect(peopleIncrement).toHaveBeenCalledWith({ total_deposit_usd: 25 });
     expect(peopleSet).toHaveBeenCalledWith({ has_deposited: true });
@@ -253,22 +253,57 @@ describe("profile totals derived from events", () => {
   });
 
   it("leaves the profile alone for an event that implies no total", async () => {
-    const { initAnalytics, track } = await loadWithToken("test-token");
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
     initAnalytics();
 
-    track("page_view", { page: "portfolio" });
+    send("page_view", { page: "portfolio" });
 
     expect(peopleIncrement).not.toHaveBeenCalled();
     expect(peopleUnion).not.toHaveBeenCalled();
   });
 
   it("does not spend a request on a zero amount", async () => {
-    const { initAnalytics, track } = await loadWithToken("test-token");
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
     initAnalytics();
 
     // A free trade still counts as a trade, but zero volume moves nothing.
-    track("trade_completed", { vertical: "spot", asset: "ETH", side: "buy", amount_usd: 0 });
+    send("trade_completed", { vertical: "spot", asset: "ETH", side: "buy", amount_usd: 0 });
 
     expect(peopleIncrement).toHaveBeenCalledWith({ trade_count: 1 });
+  });
+});
+
+describe("withdrawal recipients", () => {
+  it("carries the destination address on a crypto withdrawal", async () => {
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    send("withdraw_completed", {
+      method: "wallet",
+      asset: "USDC",
+      amount_usd: 50,
+      network: "base",
+      recipient_address: "0x1111111111111111111111111111111111111111",
+    });
+
+    expect(track).toHaveBeenCalledWith(
+      "withdraw_completed",
+      expect.objectContaining({
+        recipient_address: "0x1111111111111111111111111111111111111111",
+      })
+    );
+  });
+
+  it("sends no recipient on a bank withdrawal", async () => {
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    // A bank recipient is an account number, which must never be sent. The
+    // property is simply absent rather than blanked, so this asserts the key
+    // is missing entirely.
+    send("withdraw_completed", { method: "bank", asset: "USDC", amount_usd: 50 });
+
+    const [, props] = track.mock.calls.at(-1) as [string, Record<string, unknown>];
+    expect(props).not.toHaveProperty("recipient_address");
   });
 });

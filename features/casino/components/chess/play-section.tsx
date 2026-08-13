@@ -49,6 +49,8 @@ import {
   type Square,
 } from "@/features/casino/lib/chess/engine";
 import { friendlyError, isConflictError } from "@/lib/errors";
+import { track } from "@/lib/analytics/mixpanel";
+import { gamePayout } from "@/lib/analytics/game-result";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import type {
@@ -219,6 +221,9 @@ function CommentEditor({
   );
 }
 
+// The platform takes 5% of winnings on the games.
+const CHESS_FEE_BPS = 500;
+
 export function PlaySection({
   matchId,
   seatName = null,
@@ -336,7 +341,24 @@ export function PlaySection({
     sawResult.current = true;
     const outcome = result.kind === "draw" ? "draw" : result.winner === you ? "win" : "loss";
     playGameEndSound(outcome);
-  }, [result, you]);
+    // Same guards the sound uses: reported once, and only for someone who
+    // watched the game finish rather than opening a settled one.
+    if (you) {
+      track("game_result", {
+        game: "chess",
+        result: outcome,
+        reason:
+          result.kind === "draw"
+            ? "draw"
+            : result.kind === "resignation"
+              ? "resign"
+              : result.kind === "timeout"
+                ? "timeout"
+                : "checkmate",
+        ...gamePayout(match?.stakeUsdc, outcome, CHESS_FEE_BPS),
+      });
+    }
+  }, [result, you, match?.stakeUsdc]);
 
   useEffect(() => {
     if (!awaitingRematchRoute.current || !rematchReadyId) return;

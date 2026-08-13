@@ -340,6 +340,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           asset: "USDC",
           amount_usd: value,
           network: sourceNetwork,
+          recipient_address: to.trim(),
         });
         toast.success(t("withdrewAmount", { amount: formatAmount(value) }), { id: toastId });
         return;
@@ -372,6 +373,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         asset: selectedDestination.symbol,
         amount_usd: value,
         network: sourceNetwork,
+        recipient_address: to.trim(),
       });
       toast.success(
         t("sendingConversion", {

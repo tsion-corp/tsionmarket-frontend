@@ -225,6 +225,10 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   useEffect(() => {
     if (!done || reportedComplete.current) return;
     reportedComplete.current = true;
+    // No recipient here, deliberately: a bank withdrawal's recipient is an
+    // account number, which must never leave the app. The crypto rail sends
+    // recipient_address because an on-chain address is public; this one has no
+    // equivalent that is safe to send.
     track("withdraw_completed", { method: "bank", asset: "USDC", amount_usd: amount });
   }, [done, amount]);
 

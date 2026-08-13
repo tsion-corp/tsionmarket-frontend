@@ -1,8 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DraughtsBoardView } from "@/features/casino/components/draughts/draughts-board";
+import { track } from "@/lib/analytics/mixpanel";
+import { gamePayout } from "@/lib/analytics/game-result";
 import {
   useDraughtsMatch,
   remainingSeconds,
@@ -143,6 +145,38 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
   const joinStake = match?.wager?.stakeUsdc ?? null;
   const shortForJoin = !!joinStake && exceedsUsdcBalance(joinStake, cashier.available);
 
+  // Reported once, when a game the player actually sat in resolves. The board
+  // polls and re-renders after settlement, so without the guard this would fire
+  // again on every tick; spectators are excluded because the result is not
+  // theirs to report.
+  const reportedResult = useRef<string | null>(null);
+  useEffect(() => {
+    if (!match?.result || !seat) return;
+    if (match.state !== "settled" && match.state !== "cancelled") return;
+    if (reportedResult.current === match.id) return;
+    reportedResult.current = match.id;
+
+    const outcome =
+      match.result.kind === "draw" ? "draw" : match.result.winner === seat ? "win" : "loss";
+    const reason =
+      match.result.kind === "draw"
+        ? ("draw" as const)
+        : match.result.reason === "resignation"
+          ? ("resign" as const)
+          : match.result.reason === "timeout"
+            ? ("timeout" as const)
+            : match.result.reason === "abandoned"
+              ? ("abandoned" as const)
+              : ("no_moves" as const);
+
+    track("game_result", {
+      game: "checkers",
+      result: outcome,
+      reason,
+      ...gamePayout(match.wager?.stakeUsdc, outcome, match.wager?.feeBps ?? 500),
+    });
+  }, [seat, match?.id, match?.state, match?.result, match?.wager]);
+
   const [busy, setBusy] = useState(false);
 
   // A half-built move belongs to the position it was started from. Tagging it
@@ -282,6 +316,7 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
   const topClock = remainingSeconds(match, opponent, now);
   const bottomClock = remainingSeconds(match, orientation, now);
   const settled = match.state === "settled" || match.state === "cancelled";
+
   const waiting = match.state === "awaiting_opponent";
   const canJoin = waiting && !seat && !!wallet;
   const drawOfferedToMe = !!seat && match.drawOffered === OTHER[seat];
