@@ -20,6 +20,7 @@ import { SETTLE_CHAINS } from "@/lib/deposit";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 const DECIMAL = /^\d*\.?\d*$/;
 const QUOTE_DEBOUNCE_MS = 450;
@@ -127,6 +128,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
       });
       setDepositRequestId(fresh.data.depositRequestId);
       setSent(true);
+      track("game_wallet_funded", { game: "last_man", amount_usd: value });
       toast.success(t("toastAdded", { amount: money.format(value) }), { id: toastId });
       void refetchPortfolio();
     } catch (e) {

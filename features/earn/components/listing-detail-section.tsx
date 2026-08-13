@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AsyncError, AsyncLoading } from "@/components/ui/async-state";
 import { RewardBadge } from "@/features/earn/components/reward-badge";
 import { SubmissionStatus } from "@/features/earn/components/submission-status";
@@ -10,6 +10,8 @@ import { useSubmissionCheck } from "@/features/earn/hooks/use-earn-submission";
 import { deadlineLabel, formatDeadline } from "@/features/earn/lib/deadline";
 import { ordinal } from "@/features/earn/lib/ordinal";
 import { formatReward } from "@/features/earn/lib/reward";
+import { track } from "@/lib/analytics/mixpanel";
+import type { EarnListingType } from "@/lib/analytics/events";
 import type { Listing } from "@/features/earn/lib/api/types";
 
 const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-6 pb-20 sm:px-6 lg:px-8";
@@ -20,6 +22,18 @@ export function ListingDetailSection({ slug }: { slug: string | null }) {
   const { listing, isLoading, error } = useListingDetail(slug);
   // Only asked once the listing is known, since the check is keyed by id.
   const { check } = useSubmissionCheck(listing?.id ?? null);
+
+  // Reported once the listing resolves, keyed on its id so a refetch of the
+  // same listing does not count as a second view.
+  const listingId = listing?.id ?? null;
+  const listingType = listing?.type;
+  useEffect(() => {
+    if (!listingId) return;
+    track("earn_listing_viewed", {
+      listing_id: listingId,
+      type: listingType as EarnListingType | undefined,
+    });
+  }, [listingId, listingType]);
   const [submitOpen, setSubmitOpen] = useState(false);
 
   if (error) {

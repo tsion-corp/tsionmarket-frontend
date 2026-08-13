@@ -8,6 +8,7 @@ import { useBet } from "@/features/prediction/hooks/use-bet";
 import { usePredictionConsent } from "@/features/prediction/hooks/use-prediction-consent";
 import { predictionPayout } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import type { Prediction } from "@/lib/types";
 
 const AMOUNTS = [5, 10, 25, 50];
@@ -68,6 +69,17 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
     const toastId = toast.loading(t("placingBet"));
     try {
       await placeBet({ tokenId, amountUsd: amount });
+      track("prediction_bet_placed", {
+        // This modal trades the curated Polymarket set; the user-created
+        // markets have their own flow and report scope "local".
+        market_id: prediction?.conditionId ?? tokenId,
+        category: prediction?.tag,
+        scope: "global",
+        side,
+        amount_usd: amount,
+        // The label reads like "62¢"; the catalog wants the number.
+        price_cents: Number(priceCents.replace(/[^0-9.]/gu, "")),
+      });
       toast.success(
         side === "yes"
           ? t("betPlacedYes", { amount: money.format(amount) })

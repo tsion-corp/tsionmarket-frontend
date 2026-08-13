@@ -12,6 +12,7 @@ import {
 import { attachMetadata, newIdempotencyKey, uploadImage } from "@/features/prediction/lib/api";
 import { isImageNotConfigured } from "@/features/prediction/lib/normalize";
 import { toBaseUnits } from "@/lib/trade/math";
+import { track } from "@/lib/analytics/mixpanel";
 import { USDC_DECIMALS } from "@/features/prediction/lib/types";
 import { randomMarketId } from "@/features/prediction/lib/logic";
 import { EventCreatePanel } from "@/features/prediction/components/event-create-panel";
@@ -317,6 +318,14 @@ export function CreateMarketFlow({ onDone }: CreateMarketFlowProps) {
     // Close the create panel immediately, then poll the lists until the indexer
     // has mirrored the new market so it appears (with its question, category, and
     // image) without the user reloading the page.
+    track("prediction_market_created", {
+      market_type: mode,
+      category: category.trim() || undefined,
+      seed_usd: Number(seed),
+      // Single markets are YES/NO; the multi flow is not built yet, so the
+      // count is only honest for the single case.
+      num_outcomes: mode === "single" ? 2 : 0,
+    });
     toast.success(t("marketCreated"));
     onDone();
     void refreshMarketsUntilPresent(queryClient, marketId());

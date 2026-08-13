@@ -26,6 +26,7 @@ import { parseFen, STARTING_FEN } from "@/features/casino/lib/draughts/engine";
 import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import type { DraughtsChallenge } from "@/features/casino/lib/draughts/types";
 
 // The board behind the menu is decoration, so it is the opening position and
@@ -57,6 +58,9 @@ export function CheckersLanding() {
     if (challenge.stakeUsdc && exceedsUsdcBalance(challenge.stakeUsdc, cashier.available)) {
       toast.error(`You need ${challenge.stakeUsdc} USDC to join that game.`);
       return;
+    }
+    if (challenge.stakeUsdc) {
+      track("game_staked", { game: "checkers", amount_usd: Number(challenge.stakeUsdc) });
     }
     setJoining(true);
     try {

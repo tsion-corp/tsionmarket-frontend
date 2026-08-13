@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { MethodTile } from "@/features/funds/components/method-tile";
 import { CryptoDepositScreen } from "@/features/funds/components/crypto-deposit-screen";
 import { BankTransferScreen } from "@/features/funds/components/bank-transfer-screen";
+import { track } from "@/lib/analytics/mixpanel";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowRightIcon, BankIcon } from "@/components/ui/icons";
 import type { DepositPrefill } from "@/lib/voice/intent";
@@ -29,6 +30,19 @@ export function FundsModal({
   const [step, setStep] = useState<Step>(deposit ? "crypto" : "chooser");
   const back = () => setStep("chooser");
 
+  // The modal opening is the top of the funding funnel, so it is reported once
+  // per open rather than on every step change within it.
+  useEffect(() => {
+    track("add_funds_opened");
+  }, []);
+
+  // A step change is the method choice. Going back to the chooser is not a
+  // selection, so only the two funding steps report one.
+  const chooseMethod = (method: "crypto" | "bank") => {
+    track("fund_method_selected", { method });
+    setStep(method);
+  };
+
   if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
   if (step === "bank") return <BankTransferScreen onBack={back} onClose={onClose} />;
 
@@ -40,7 +54,7 @@ export function FundsModal({
         {/* Fund with crypto — a USDC-led row, since that's what deposits settle
             to. Any token on almost any chain arrives as USDC. */}
         <button
-          onClick={() => setStep("crypto")}
+          onClick={() => chooseMethod("crypto")}
           className="flex w-full cursor-pointer items-center gap-3.5 rounded-[16px] border border-white/8 bg-white/4 px-4 py-3.5 text-left transition-colors hover:bg-white/8"
         >
           <AssetIcon sym="USDC" bg={USDC_BLUE} size={42} />
@@ -65,7 +79,7 @@ export function FundsModal({
           icon={<BankIcon size={22} />}
           title={t("bankTitle")}
           subtitle={t("bankSubtitle")}
-          onClick={() => setStep("bank")}
+          onClick={() => chooseMethod("bank")}
         />
       </div>
       <button

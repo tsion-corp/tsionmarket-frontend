@@ -210,10 +210,8 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
     const staged = confirm;
     setConfirm(null);
     if (staged.kind === "open") {
-      const ok = await actions.openTrade(
-        staged.req,
-        pairs.find((p) => pairSymbol(p) === staged.req.pair)?.pairIndex
-      );
+      const staffedPair = pairs.find((p) => pairSymbol(p) === staged.req.pair);
+      const ok = await actions.openTrade(staged.req, staffedPair?.pairIndex, staffedPair?.category);
       if (ok) setCollateral("");
     } else {
       await actions.closeTrade(staged.position, staged.amount);

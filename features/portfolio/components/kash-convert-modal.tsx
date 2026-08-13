@@ -6,6 +6,7 @@ import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import {
   useKashAccount,
   useKashConversion,
@@ -96,6 +97,10 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
         idempotencyKey: attemptKey.current,
       });
       attemptKey.current = null;
+      track("kash_sold", {
+        kash_amount: Number(result.kashBurned),
+        amount_usd: Number(result.usdcPaid),
+      });
       setDone({ usdc: result.usdcPaid, kash: result.kashBurned, txHash: result.burnTxHash });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("convertFailed"));

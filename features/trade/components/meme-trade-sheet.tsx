@@ -9,6 +9,7 @@ import { useMemePreview, useMemeTrade } from "@/features/trade/hooks/use-meme-tr
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { TradeApiError, isValidTradeAmount, type MemeToken } from "@/lib/meme/api";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const PREVIEW_DEBOUNCE_MS = 600;
@@ -111,6 +112,15 @@ export function MemeTradeSheet({
     if (submitDisabled) return;
     try {
       await trade({ side, tokenAddress: token.address, amount: debouncedAmount });
+      // Memecoins always settle on Base, and carry the risk label the screen
+      // showed the user before they confirmed.
+      track("trade_completed", {
+        vertical: "memecoin",
+        token: token.symbol ?? token.address,
+        side: buying ? "buy" : "sell",
+        amount_usd: Number(debouncedAmount),
+        network: "base",
+      });
       toast.success(
         buying
           ? t("toastBought", { symbol: token.symbol ?? "" })
@@ -118,6 +128,11 @@ export function MemeTradeSheet({
       );
       void portfolio.refetchUntilChanged();
     } catch (e) {
+      track("trade_failed", {
+        vertical: "memecoin",
+        asset: token.symbol ?? token.address,
+        reason: "order_failed",
+      });
       toast.error(e instanceof Error ? e.message : t("orderFailed"));
     }
   };

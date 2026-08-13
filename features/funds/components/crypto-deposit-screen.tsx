@@ -9,6 +9,7 @@ import { TokenList } from "@/features/funds/components/token-list";
 import { AddressPanel } from "@/features/funds/components/address-panel";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { friendlyError } from "@/lib/errors";
+import { track } from "@/lib/analytics/mixpanel";
 import {
   isRetryableDextopusError,
   useDepositChains,
@@ -202,6 +203,7 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
             eligibleChainIds={eligibleChains.data ?? new Set()}
             selectedId={originChain?.chainId ?? null}
             onSelect={(c) => {
+              track("deposit_network_selected", { network: c.name });
               setOriginChain(c);
               setOriginToken(null);
             }}

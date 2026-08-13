@@ -37,6 +37,7 @@ import {
 import { friendlyError } from "@/lib/errors";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 const DECIMAL = /^\d*\.?\d*$/;
 const QUOTE_DEBOUNCE_MS = 450;
@@ -334,6 +335,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           amount: sendAmount,
         });
         setTxHash(hash);
+        track("withdraw_completed", {
+          method: "wallet",
+          asset: "USDC",
+          amount_usd: value,
+          network: sourceNetwork,
+        });
         toast.success(t("withdrewAmount", { amount: formatAmount(value) }), { id: toastId });
         return;
       }
@@ -360,6 +367,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       });
       setTxHash(hash);
       setDepositRequestId(fresh.data.depositRequestId);
+      track("withdraw_completed", {
+        method: "wallet",
+        asset: selectedDestination.symbol,
+        amount_usd: value,
+        network: sourceNetwork,
+      });
       toast.success(
         t("sendingConversion", {
           amount: formatAmount(value),

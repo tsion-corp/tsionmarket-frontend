@@ -48,6 +48,7 @@ import {
   setSoundEnabled,
 } from "@/features/casino/lib/last-standing/sound";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 const EXPLORER_TX_URL = "https://basescan.org/tx/";
 const EXPLORER_ADDRESS_URL = "https://basescan.org/address/";
@@ -514,6 +515,11 @@ export function LastStandingSection({ renderWithdrawSheet }: LastStandingSection
     const toastId = toast.loading(t("ctaPlacing"));
     try {
       await wager();
+      // The cost-to-play that just restarted the timer. `game_staked` is the
+      // generic "money went into a game" event the catalog uses across all of
+      // them, so it rides alongside the last-man-specific one.
+      track("last_man_played", { cost_usd: entryFeeUsd });
+      track("game_staked", { game: "last_man", amount_usd: entryFeeUsd });
       toast.success(t("toastYoureIn"), { id: toastId });
       playWagerSound();
       // The wager just landed on-chain, but the backend indexes it a moment

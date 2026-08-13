@@ -15,6 +15,7 @@ import { PasskeyEnroll } from "@/components/auth/passkey-enroll";
 import { VisualPanel } from "@/components/auth/visual-panel";
 import { useEnsureWallets } from "@/hooks/use-ensure-wallets";
 import { hasEmbeddedWallet } from "@/lib/user";
+import { track } from "@/lib/analytics/mixpanel";
 
 // The flow the page walks through. Step 1 is signing in (the wallet
 // provisioning a first-time account needs is derived, not stored). Step 2
@@ -50,6 +51,13 @@ export default function AuthPage() {
   const router = useRouter();
   const handled = useRef(false);
   const [phase, setPhase] = useState<Phase>("signin");
+
+  // The top of the funnel: the sign-in screen was reached. Reported once per
+  // mount, before any method is chosen, so the drop-off to a completed sign-in
+  // is measurable.
+  useEffect(() => {
+    track("auth_started");
+  }, []);
 
   // Where step 2 hands off to: a first-timer continues onboarding at the
   // interest page, a returning user goes back to the dashboard.

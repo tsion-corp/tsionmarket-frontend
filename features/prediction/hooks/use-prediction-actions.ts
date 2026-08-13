@@ -7,6 +7,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { encodeFunctionData } from "viem";
 import { useEvmSend, useEvmSendBatch, type EvmBatchCall } from "@/hooks/use-evm-send";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
+import { track } from "@/lib/analytics/mixpanel";
 import { encodeApprove } from "@/lib/trade/erc20";
 import { getWalletAddress } from "@/lib/user";
 import { friendlyError } from "@/lib/errors";
@@ -280,6 +281,10 @@ export function usePredictionActions() {
         });
         toast.loading(t("confirmingOnChain"), { id: toastId });
         await runBatch(calls);
+        track("prediction_liquidity_provided", {
+          market_id: marketId.toString(),
+          amount_usd: Number(usdcIn) / 1e6,
+        });
         toast.success(t("liquidityAdded"), { id: toastId });
         return true;
       } catch (error) {
@@ -411,8 +416,8 @@ export function usePredictionActions() {
   );
 
   const resolveMarket = useCallback(
-    (marketId: bigint, outcome: Exclude<Outcome, "Unresolved">) =>
-      runSingle(
+    async (marketId: bigint, outcome: Exclude<Outcome, "Unresolved">) => {
+      const ok = await runSingle(
         encodeFunctionData({
           abi: PREDICTION_ABI,
           functionName: "resolve",
@@ -421,7 +426,18 @@ export function usePredictionActions() {
         "resolvingMarket",
         "marketResolved",
         "resolveFailed"
-      ),
+      );
+      if (ok) {
+        // Creator-resolved markets are the local ones; this is the record of
+        // who called which outcome.
+        track("prediction_market_resolved", {
+          market_id: marketId.toString(),
+          outcome: outcome === "Yes" ? "yes" : "no",
+          num_outcomes: 2,
+        });
+      }
+      return ok;
+    },
     [runSingle]
   );
 
@@ -541,16 +557,18 @@ export function usePredictionActions() {
     [runSingle]
   );
 
-  const claim = useCallback(
-    () =>
-      runSingle(
-        encodeFunctionData({ abi: PREDICTION_ABI, functionName: "claim", args: [] }),
-        "toastClaiming",
-        "toastClaimSuccess",
-        "toastClaimFailed"
-      ),
-    [runSingle]
-  );
+  const claim = useCallback(async () => {
+    const ok = await runSingle(
+      encodeFunctionData({ abi: PREDICTION_ABI, functionName: "claim", args: [] }),
+      "toastClaiming",
+      "toastClaimSuccess",
+      "toastClaimFailed"
+    );
+    // The contract pays every settled position at once, so there is no single
+    // market or amount to attribute this to.
+    if (ok) track("prediction_payout_claimed", { scope: "local" });
+    return ok;
+  }, [runSingle]);
 
   // Reads the wallet's share balance for a side, so a "sell all" can pass the
   // exact on-chain amount.

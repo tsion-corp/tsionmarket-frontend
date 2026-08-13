@@ -11,6 +11,7 @@ import { createMatch } from "@/features/casino/lib/api/draughts";
 import { exceedsUsdcBalance, normalizeUsdcAmount } from "@/features/casino/lib/api/cashier";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 // The per-move budgets offered. The service holds an equal base and increment,
 // so each of these is "about this long to make every move" rather than a bank
@@ -62,6 +63,7 @@ export function CheckersLobby() {
     setCreating(true);
     try {
       const match = await createMatch({ timeControl, stakeUsdc: stake }, wallet);
+      if (stake) track("game_staked", { game: "checkers", amount_usd: Number(stake) });
       router.push(`/casino/checkers/play?match=${match.id}`);
     } catch (cause) {
       toast.error(friendlyError(cause, "Couldn't start that game."));

@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { track } from "@/lib/analytics/mixpanel";
+import type { Game } from "@/lib/analytics/events";
 import type { CasinoGame, TileSize } from "@/features/casino/lib/games";
 import type { GamePresence } from "@/features/casino/lib/api/types";
 
@@ -73,6 +75,13 @@ function badgeFor(t: HubTranslate, game: CasinoGame, presence?: GamePresence) {
     return { text: t("badgeNew"), className: "bg-grey-100 text-ink" };
   return null;
 }
+
+// The tile ids that map onto the catalog's game names.
+const TRACKED_GAMES: Record<string, Game | undefined> = {
+  chess: "chess",
+  checkers: "checkers",
+  "last-standing": "last_man",
+};
 
 export function GameTile({ game, presence, headline }: GameTileProps) {
   const t = useTranslations("casino.hub");
@@ -180,6 +189,13 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
   return (
     <Link
       href={game.href}
+      // Only the three games the catalog names report an open; the other tiles
+      // (draw, and anything added later) have no agreed name, so they send
+      // nothing rather than inventing one.
+      onClick={() => {
+        const game_id = TRACKED_GAMES[game.id];
+        if (game_id) track("game_opened", { game: game_id });
+      }}
       className={`${frame} hover:border-accent/60 cursor-pointer hover:-translate-y-0.5`}
     >
       {body}

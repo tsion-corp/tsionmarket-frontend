@@ -1,9 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
+import { MASK_ATTRIBUTE } from "@/lib/analytics/clarity";
+import { track } from "@/lib/analytics/mixpanel";
 import { KycOnboarding } from "@/features/funds/components/kyc/kyc-onboarding";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -216,6 +218,15 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   });
   const status = statusQuery.data?.status ?? creation?.status ?? "awaiting_payment";
   const done = status === "completed";
+
+  // Reported once on settlement. The amount and the rail, never the account it
+  // was paid into.
+  const reportedComplete = useRef(false);
+  useEffect(() => {
+    if (!done || reportedComplete.current) return;
+    reportedComplete.current = true;
+    track("withdraw_completed", { method: "bank", asset: "USDC", amount_usd: amount });
+  }, [done, amount]);
 
   // Search the full static list; popular banks are resolved once above.
   const results = useMemo(() => {
@@ -440,6 +451,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           </div>
           <div className="focus-within:border-accent/45 flex items-center gap-2 rounded-[13px] border border-white/10 bg-black/35 px-3.5 transition-colors">
             <input
+              {...MASK_ATTRIBUTE}
               inputMode="numeric"
               value={account}
               maxLength={10}

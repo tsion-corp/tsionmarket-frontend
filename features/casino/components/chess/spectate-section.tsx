@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
@@ -38,6 +38,7 @@ import {
 } from "@/features/casino/lib/api/cashier";
 import { estimatePariMutuelReturn, impliedProbability } from "@/features/casino/lib/betting-math";
 import { friendlyError, isConflictError } from "@/lib/errors";
+import { track } from "@/lib/analytics/mixpanel";
 import { toast } from "@/lib/toast";
 import type { BetSelection, ChessColor } from "@/features/casino/lib/api/types";
 
@@ -108,6 +109,12 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
   const tPlay = useTranslations("casino.chess.play");
   const wallet = useCasinoWallet();
   const { match, clocks, isLoading, error } = useChessMatch(matchId);
+
+  // Opening a live board to watch. Keyed on the match so switching boards
+  // reports each one, and a re-render of the same board does not.
+  useEffect(() => {
+    if (matchId) track("game_watched", { game: "chess", match_id: matchId });
+  }, [matchId]);
   const theme = useBoardTheme();
   const { odds, myBets, error: oddsError } = useMatchMarket(matchId, wallet.address ?? null);
   const cashier = useChessCashierStatus();

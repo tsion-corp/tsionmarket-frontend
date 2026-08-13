@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useFx } from "@/hooks/use-fx";
+import { track } from "@/lib/analytics/mixpanel";
 import {
   CURRENCIES,
   DEFAULT_CURRENCY,
@@ -78,9 +79,19 @@ export function useCurrency() {
     if (stored !== currentCode) setStoredCode(stored);
   }, []);
 
+  // Wrapped so every switch is reported, wherever the picker is mounted.
+  // Selecting the currency already in use is not a switch.
+  const setCurrency = useCallback(
+    (next: string) => {
+      if (next !== code) track("currency_switched", { currency: next });
+      setStoredCode(next);
+    },
+    [code]
+  );
+
   return {
     currency: findCurrency(code) ?? USD,
-    setCurrency: setStoredCode,
+    setCurrency,
   };
 }
 

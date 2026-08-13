@@ -24,6 +24,7 @@ import { useSolanaFunding } from "@/hooks/use-solana-funding";
 import { planAffordable, planBaseFunding, planSolanaFunding } from "@/lib/trade/funding";
 import { useSolanaProceeds } from "@/hooks/use-solana-proceeds";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
 import {
   buyQuoteRequest,
@@ -451,6 +452,13 @@ export function RwaTradePanel({
       const action = await withTransientRetry(() => buildAsync({ ...req, taker }));
       await execute(action, asset.chain, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
+      });
+      track("trade_completed", {
+        vertical: "real_asset",
+        asset: asset.symbol,
+        side: isBuy ? "buy" : "sell",
+        amount_usd: Number(amount),
+        issuer: asset.issuer,
       });
       toast.success(
         isBuy

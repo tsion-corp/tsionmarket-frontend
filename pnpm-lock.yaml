@@ -11,6 +11,9 @@ importers:
       '@base-ui/react':
         specifier: ^1.6.0
         version: 1.6.0(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@microsoft/clarity':
+        specifier: ^1.0.2
+        version: 1.0.2
       '@polymarket/client':
         specifier: ^0.1.0
         version: 0.1.0(@privy-io/node@0.26.0(@solana/kit@7.0.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10))(viem@2.55.8(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3)))(typescript@5.9.3)(viem@2.55.8(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@4.4.3))
@@ -65,6 +68,9 @@ importers:
       lightweight-charts:
         specifier: ^5.2.0
         version: 5.2.0
+      mixpanel-browser:
+        specifier: ^2.81.0
+        version: 2.81.0
       motion:
         specifier: ^12.42.2
         version: 12.42.2(@emotion/is-prop-valid@1.4.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -825,6 +831,30 @@ packages:
   '@metamask/utils@9.3.0':
     resolution: {integrity: sha512-w8CVbdkDrVXFJbfBSlDfafDR6BAkpDmv1bC1UJVCoVny5tW2RKAdn9i68Xf7asYT4TnUhl/hN4zfUiKQq9II4g==}
     engines: {node: '>=16.0.0'}
+
+  '@microsoft/clarity@1.0.2':
+    resolution: {integrity: sha512-9EZYROFpJxEGmQpHvUFqvD3ZJ7QQSqnibYSWmS+1xusoZfG1QQ1/Al9yVBBc11DWMbJrs1pe1hLT273it/skJg==}
+
+  '@mixpanel/rrdom@2.0.0-alpha.18.5':
+    resolution: {integrity: sha512-RSWgCJmPpAsAs7xwt0+gMeaWytGtsCLEaTTjTCim6CpVUWM+zZSEnGzspz6FDQD69BjIduAah1LVCT/7dI5T+Q==}
+
+  '@mixpanel/rrweb-plugin-console-record@2.0.0-alpha.18.4':
+    resolution: {integrity: sha512-gGxEnNpfWurQht+fpSJbwPV60ug0LAENlk4Ux3XRmYooNJGPBO1TiQHcM7g0yhrKf4tfbTiKKZ4EXzFlOZs/pw==}
+    peerDependencies:
+      '@mixpanel/rrweb': ^2.0.0-alpha.18
+      '@mixpanel/rrweb-utils': ^2.0.0-alpha.18
+
+  '@mixpanel/rrweb-snapshot@2.0.0-alpha.18.5':
+    resolution: {integrity: sha512-Ys5VRrHAG4cWMc5QSZRcmhtX5ySPgid3dofVVL1L6h0tL74vcOXO4y+HebHWV2p/iEQg80fmWKaB6HZ5p7+kbA==}
+
+  '@mixpanel/rrweb-types@2.0.0-alpha.18.5':
+    resolution: {integrity: sha512-upLJEkRB40FGAVJpnfepQXMj/RuBjuC4UGGEKAiZSi17FG4Aqt0F+vXuB+9WicizhQf3vUW89K26Ay0VtbCSiQ==}
+
+  '@mixpanel/rrweb-utils@2.0.0-alpha.18.4':
+    resolution: {integrity: sha512-c3nUbQl19kxHjf8nowFMeXlJw0ZqLesIVBb9t4g1nC4WtaNEPkFotWRdGt5V2cJNQ+aY38/v2uYb8Ren4IcdSQ==}
+
+  '@mixpanel/rrweb@2.0.0-alpha.18.4':
+    resolution: {integrity: sha512-ICpEYDFEEiCoUuQg+de3VvQCsolF4lNHfEM9DBp5Pwuc7EgXqwWV4wUpiRF/NbhoKk+82X1Qe+oqqlKJb/CGFw==}
 
   '@msgpack/msgpack@3.1.2':
     resolution: {integrity: sha512-JEW4DEtBzfe8HvUYecLU9e6+XJnKDlUAIve8FvPzF3Kzs6Xo/KuZkZJsDH0wJXl/qEZbeeE7edxDNY3kMs39hQ==}
@@ -2451,6 +2481,9 @@ packages:
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
+  '@types/css-font-loading-module@0.0.7':
+    resolution: {integrity: sha512-nl09VhutdjINdWyXxHWN/w9zlNCfr60JUqJbd24YXUuCwgeL0TpFSdElCwb6cxfB6ybE19Gjj4g0jsgkXxKv1Q==}
+
   '@types/debug@4.1.13':
     resolution: {integrity: sha512-KSVgmQmzMwPlmtljOomayoR89W4FynCAi3E8PPs7vmDVPe84hT+vGPKkJfThkmXs0x0jAaa9U8uW8bbfyS2fWw==}
 
@@ -2459,6 +2492,9 @@ packages:
 
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+
+  '@types/json-logic-js@2.0.5':
+    resolution: {integrity: sha512-hu/FTi0zwCjQEFfbPur275cNoZj6NsuOBhhYNzqoSdfmMhuxFr58OZ957lyIOWc9+kO+2tFlBthRjcxuytD4HA==}
 
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
@@ -2887,6 +2923,9 @@ packages:
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
+  '@xstate/fsm@1.6.5':
+    resolution: {integrity: sha512-b5o1I6aLNeYlU/3CPlj/Z91ybk1gUsKT+5NAJI+2W4UjvS5KLG28K9v5UvNoFVjHV8PajVZ00RH3vnjyQO7ZAw==}
+
   abitype@1.0.6:
     resolution: {integrity: sha512-MMSqYh4+C/aVqI2RQaWqbvI4Kxo5cQV40WQ4QFtDnNzCkqChm8MuENhElmynZlO0qUy/ObkEUaXtKqYnx1Kp3A==}
     peerDependencies:
@@ -3063,6 +3102,10 @@ packages:
 
   base-x@5.0.1:
     resolution: {integrity: sha512-M7uio8Zt++eg3jPj+rHMfCC+IuygQHHCOU+IYsVtik6FWjuYpVt/+MRKcgsAMHh8mMFAwnB+Bs+mTrFiXjMzKg==}
+
+  base64-arraybuffer@1.0.2:
+    resolution: {integrity: sha512-I3yl4r9QB5ZRY3XuJVEPfc2XhZO6YweFPI+UovAzn+8/hb3oJ6lnysaFcjVpkCPfVWFUDvoZ8kmVDP7WyRtYtQ==}
+    engines: {node: '>= 0.6.0'}
 
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
@@ -4139,6 +4182,9 @@ packages:
   json-buffer@3.0.1:
     resolution: {integrity: sha512-4bV5BfR2mqfQTJm+V5tPPdf+ZpuhiIvTuAB5g8kcrXOZpTT/QwwVRWBywX1ozr6lEuPdbHxwaJlm9G6mI2sfSQ==}
 
+  json-logic-js@2.0.5:
+    resolution: {integrity: sha512-rTT2+lqcuUmj4DgWfmzupZqQDA64AdmYqizzMPWj3DxGdfFNsxPpcNVSaTj4l8W2tG/+hg7/mQhxjU3aPacO6g==}
+
   json-rpc-engine@6.1.0:
     resolution: {integrity: sha512-NEdLrtrq1jUZyfjkr9OCz9EzCNhnRyWtt1PAnvnhwy6e8XETS0Dtc+ZNCO2gvuAoKsIn2+vCSowXTYE4CkgnAQ==}
     engines: {node: '>=10.0.0'}
@@ -4369,6 +4415,12 @@ packages:
     peerDependenciesMeta:
       typescript:
         optional: true
+
+  mitt@3.0.1:
+    resolution: {integrity: sha512-vKivATfr97l2/QBCYAkXYDbrIWPM2IIKEl7YPhjCvKlG3kE2gm+uBo6nEXK3M5/Ffh/FLpKExzOQ3JJoJGFKBw==}
+
+  mixpanel-browser@2.81.0:
+    resolution: {integrity: sha512-FVPaapbpDdZVbU8X6A3N1Ur3PWcr1Kol9sGuHNwExpFYFQVFeeSlaeEyFELvpTp6Q5JgBoLatkDbb/w/81TDJQ==}
 
   motion-dom@12.42.2:
     resolution: {integrity: sha512-5gIMWLp/PycBtJRJWRgjxke5n8dlvkSn2DrYW+tr3XcqAZY1xZh6BJyooJXCM8wdfM7wfMjkBJNLge1CKPUIRA==}
@@ -6815,6 +6867,36 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  '@microsoft/clarity@1.0.2': {}
+
+  '@mixpanel/rrdom@2.0.0-alpha.18.5':
+    dependencies:
+      '@mixpanel/rrweb-snapshot': 2.0.0-alpha.18.5
+
+  '@mixpanel/rrweb-plugin-console-record@2.0.0-alpha.18.4(@mixpanel/rrweb-utils@2.0.0-alpha.18.4)(@mixpanel/rrweb@2.0.0-alpha.18.4)':
+    dependencies:
+      '@mixpanel/rrweb': 2.0.0-alpha.18.4
+      '@mixpanel/rrweb-utils': 2.0.0-alpha.18.4
+
+  '@mixpanel/rrweb-snapshot@2.0.0-alpha.18.5':
+    dependencies:
+      postcss: 8.5.21
+
+  '@mixpanel/rrweb-types@2.0.0-alpha.18.5': {}
+
+  '@mixpanel/rrweb-utils@2.0.0-alpha.18.4': {}
+
+  '@mixpanel/rrweb@2.0.0-alpha.18.4':
+    dependencies:
+      '@mixpanel/rrdom': 2.0.0-alpha.18.5
+      '@mixpanel/rrweb-snapshot': 2.0.0-alpha.18.5
+      '@mixpanel/rrweb-types': 2.0.0-alpha.18.5
+      '@mixpanel/rrweb-utils': 2.0.0-alpha.18.4
+      '@types/css-font-loading-module': 0.0.7
+      '@xstate/fsm': 1.6.5
+      base64-arraybuffer: 1.0.2
+      mitt: 3.0.1
+
   '@msgpack/msgpack@3.1.2': {}
 
   '@msgpack/msgpack@3.1.3': {}
@@ -9002,6 +9084,8 @@ snapshots:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
 
+  '@types/css-font-loading-module@0.0.7': {}
+
   '@types/debug@4.1.13':
     dependencies:
       '@types/ms': 2.1.0
@@ -9009,6 +9093,8 @@ snapshots:
   '@types/deep-eql@4.0.2': {}
 
   '@types/estree@1.0.9': {}
+
+  '@types/json-logic-js@2.0.5': {}
 
   '@types/json-schema@7.0.15': {}
 
@@ -10310,6 +10396,8 @@ snapshots:
       '@web3icons/common': 0.11.48
       react: 19.2.4
 
+  '@xstate/fsm@1.6.5': {}
+
   abitype@1.0.6(typescript@5.9.3)(zod@3.25.76):
     optionalDependencies:
       typescript: 5.9.3
@@ -10506,6 +10594,8 @@ snapshots:
   balanced-match@4.0.4: {}
 
   base-x@5.0.1: {}
+
+  base64-arraybuffer@1.0.2: {}
 
   base64-js@1.5.1: {}
 
@@ -11728,6 +11818,8 @@ snapshots:
 
   json-buffer@3.0.1: {}
 
+  json-logic-js@2.0.5: {}
+
   json-rpc-engine@6.1.0:
     dependencies:
       '@metamask/safe-event-emitter': 2.0.0
@@ -11922,6 +12014,16 @@ snapshots:
   mipd@0.0.7(typescript@5.9.3):
     optionalDependencies:
       typescript: 5.9.3
+
+  mitt@3.0.1: {}
+
+  mixpanel-browser@2.81.0:
+    dependencies:
+      '@mixpanel/rrweb': 2.0.0-alpha.18.4
+      '@mixpanel/rrweb-plugin-console-record': 2.0.0-alpha.18.4(@mixpanel/rrweb-utils@2.0.0-alpha.18.4)(@mixpanel/rrweb@2.0.0-alpha.18.4)
+      '@mixpanel/rrweb-utils': 2.0.0-alpha.18.4
+      '@types/json-logic-js': 2.0.5
+      json-logic-js: 2.0.5
 
   motion-dom@12.42.2:
     dependencies:

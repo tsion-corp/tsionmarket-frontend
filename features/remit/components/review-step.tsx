@@ -27,6 +27,7 @@ import {
 } from "@/features/remit/lib/offramp";
 import { clearPendingRemit, savePendingRemit } from "@/features/remit/lib/pending";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import type { RemitForm } from "@/features/remit/components/remit-types";
 
 interface ReviewStepProps {
@@ -137,6 +138,14 @@ export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
       });
       savePendingRemit({ orderId: target.orderId, createdAt: Date.now(), funded: true });
       setPhase("tracking");
+      // The corridor, the amounts, and the fee. Never the recipient's name,
+      // phone or account number, all of which are on this form.
+      track("send_completed", {
+        corridor: `US-${country.code.toUpperCase()}`,
+        amount_usd: Number(form.amountUsd),
+        amount_local: Number(receiveAmount ?? 0),
+        fee_usd: 0,
+      });
       toast.success(t("toastSent"), { id: toastId });
     } catch (e) {
       // The order exists but its deposit is unfunded; keep it so a retry pays

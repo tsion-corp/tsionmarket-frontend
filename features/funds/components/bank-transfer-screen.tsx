@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
@@ -10,6 +10,8 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { useNgnRate } from "@/hooks/use-ngn-rate";
 import { useCreateOnramp, useOnrampStatus, usePouchOnrampRate } from "@/hooks/use-pouch-onramp";
 import { copyText } from "@/lib/clipboard";
+import { MASK_ATTRIBUTE } from "@/lib/analytics/clarity";
+import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import { getWalletAddress, deriveProfile } from "@/lib/user";
 import { formatAmount } from "@/lib/trade/math";
@@ -152,6 +154,20 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     if (done) refetch();
   }, [status, done, refetch]);
 
+  // Reported once, when the provider confirms the transfer landed. `done` stays
+  // true while the screen is open and the status keeps polling, so the ref is
+  // what keeps this from firing on every poll.
+  const reportedComplete = useRef(false);
+  useEffect(() => {
+    if (!done || reportedComplete.current) return;
+    reportedComplete.current = true;
+    track("bank_transfer_completed", {
+      amount_ngn: ngnAmount,
+      amount_usd: usdAmount ?? 0,
+      bank: creation?.bank?.bankName ?? "",
+    });
+  }, [done, ngnAmount, usdAmount, creation]);
+
   // Hold the confirming state briefly, then move to the reassuring message. This
   // is a UX beat, not a real settlement check, so a fixed pause reads honestly.
   useEffect(() => {
@@ -273,6 +289,13 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
               { token, amountUsd: usdAmount, walletAddress },
               {
                 onSuccess: (result) => {
+                  // The amounts and the rate the user accepted. Never the
+                  // account number that came back with them.
+                  track("bank_account_requested", {
+                    amount_ngn: ngnAmount,
+                    amount_usd: usdAmount,
+                    fx_rate: ngnRate,
+                  });
                   // No provider expiry: stamp our own so the countdown and the
                   // auto-expire still run.
                   if (!result.bank?.expiresAt) {
@@ -420,7 +443,11 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             ) : null}
           </div>
 
-          <div className="ws-inset mt-3 divide-y divide-white/6">
+          {/* The virtual account number and the transfer reference are
+              account-drainage grade: a session replay showing them is the same
+              breach as sending them, so the whole block is masked rather than
+              the two rows individually. */}
+          <div className="ws-inset mt-3 divide-y divide-white/6" {...MASK_ATTRIBUTE}>
             <DetailRow label={t("bank")} value={bank.bankName} />
             <CopyRow
               label={t("accountNumber")}

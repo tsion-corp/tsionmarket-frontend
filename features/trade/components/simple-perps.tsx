@@ -150,7 +150,8 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
           openPrice: price,
           slippagePct: "1",
         },
-        pair?.pairIndex
+        pair?.pairIndex,
+        pair?.category
       );
       if (ok) setCollateral("");
     } else {

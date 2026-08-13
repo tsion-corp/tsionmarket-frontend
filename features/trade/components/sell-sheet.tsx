@@ -14,6 +14,7 @@ import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade
 import { maxSellable } from "@/lib/trade/gas-buffer";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
@@ -122,15 +123,22 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
     if (settledRef.current) return;
     if (stage === "settled") {
       settledRef.current = true;
+      track("trade_completed", {
+        vertical: "spot",
+        asset: payload.symbol,
+        side: "sell",
+        amount_usd: value,
+      });
       toast.success(t("soldToast", { symbol: payload.symbol }), { id: toastRef.current });
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
+      track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
       toast.error(t("saleRefundedToast"), { id: toastRef.current });
       toastRef.current = undefined;
     }
-  }, [stage, payload.symbol, portfolio, t]);
+  }, [stage, payload.symbol, value, portfolio, t]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
   // effect that would resolve it, leaving it spinning forever. Every resolution

@@ -4,6 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { useLinkWithPasskey } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 const subscribeNever = () => () => {};
 
@@ -46,6 +47,7 @@ export function PasskeyEnroll({ onDone }: { onDone: () => void }) {
   );
   const { linkWithPasskey } = useLinkWithPasskey({
     onSuccess: () => {
+      track("passkey_added");
       toast.success(t("passkeyAdded"));
       onDone();
     },
@@ -91,7 +93,10 @@ export function PasskeyEnroll({ onDone }: { onDone: () => void }) {
       ) : null}
 
       <button
-        onClick={onDone}
+        onClick={() => {
+          track("passkey_skipped");
+          onDone();
+        }}
         disabled={busy}
         className="mt-3 w-full cursor-pointer rounded-[14px] border border-white/14 bg-transparent p-3.5 font-sans text-sm font-medium text-white/75 transition-colors hover:border-white/28 hover:bg-white/6 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
       >

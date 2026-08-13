@@ -20,6 +20,8 @@ import {
 } from "@/features/earn/lib/listing-form";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
+import type { EarnListingType } from "@/lib/analytics/events";
 import type { Listing } from "@/features/earn/lib/api/types";
 
 const PAGE = "mx-auto w-full max-w-[720px] px-4 pt-6 pb-20 sm:px-6";
@@ -96,6 +98,14 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
     const id = toast.loading("Publishing…");
     try {
       await publish.mutateAsync(listingId);
+      // The listing's own terms. The company's legal entity name is on this
+      // sponsor flow too and is deliberately never sent.
+      track("earn_listing_published", {
+        type: state.type as EarnListingType,
+        reward_amount: Number(state.rewardAmount),
+        token: state.token,
+        region: state.region,
+      });
       toast.success("Your listing is live.", { id });
       router.push(`/earn/sponsor/listing/${slug}?type=${state.type}`);
     } catch (error) {

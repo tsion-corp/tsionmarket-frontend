@@ -14,6 +14,7 @@ import { routesForSymbol } from "@/lib/buy";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import type { BuyPayload } from "@/lib/modal-types";
 
@@ -116,15 +117,25 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     if (settledRef.current) return;
     if (stage === "settled") {
       settledRef.current = true;
+      // Reported on settlement rather than on confirm, so the number counts
+      // filled orders and not attempts.
+      track("trade_completed", {
+        vertical: "spot",
+        asset: payload.symbol,
+        side: "buy",
+        amount_usd: value,
+        network: route?.chainName,
+      });
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
+      track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
       toast.error(t("purchaseRefundedToast"), { id: toastRef.current });
       toastRef.current = undefined;
     }
-  }, [stage, payload.name, portfolio, t]);
+  }, [stage, payload.name, payload.symbol, route?.chainName, value, portfolio, t]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
   // effect that would resolve it, leaving it spinning forever. Every resolution

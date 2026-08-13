@@ -7,6 +7,7 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { useEvmSend } from "@/hooks/use-evm-send";
+import { track } from "@/lib/analytics/mixpanel";
 import {
   useKashPurchase,
   useKashPurchaseQuote,
@@ -102,6 +103,10 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
       const result = await purchase.mutateAsync({ wallet, usdcAmount: amount, paymentTxHash });
       // Credited — the receipt has been consumed and must not be reused.
       settledPayment.current = null;
+      track("kash_bought", {
+        amount_usd: Number(result.usdcPaid),
+        kash_amount: Number(result.kashReceived),
+      });
       setDone({ kash: result.kashReceived, usdc: result.usdcPaid, txHash: result.mintTxHash });
     } catch (error) {
       // The receipt deliberately survives: the money already moved, and the

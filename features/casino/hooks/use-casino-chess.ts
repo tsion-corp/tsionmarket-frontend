@@ -32,6 +32,7 @@ import {
   upsertMatchComment,
 } from "@/features/casino/lib/api/chess";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
+import { track } from "@/lib/analytics/mixpanel";
 import {
   applyChatLineFrame,
   applyCommentDeletedFrame,
@@ -644,13 +645,35 @@ export function useChessMatchSocial(
   };
 }
 
+// A time control reads as "30s", "2m" or a legacy "5+3". The catalog wants it
+// in minutes, so a per-move budget in seconds becomes a fraction of one.
+//
+// Returns 0 for anything it cannot read. Analytics must never be the reason a
+// join fails, and this runs inside the mutation's onSuccess, where a throw
+// would take the navigation with it.
+function clockMinutes(label: string | undefined): number {
+  const main = label?.split("+")[0]?.trim();
+  if (!main) return 0;
+  if (main.endsWith("m")) return Number(main.slice(0, -1)) || 0;
+  if (main.endsWith("s")) return Number(main.slice(0, -1)) / 60 || 0;
+  return Number(main) || 0;
+}
+
 export function useCreateChallenge() {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
   return useMutation({
     mutationFn: (input: CreateChessChallengeInput) =>
       createChallenge({ ...input, creator: requireWallet(wallet.address) }),
-    onSuccess: ({ match }) => {
+    onSuccess: ({ match }, input) => {
+      const stake = Number(match.stakeUsdc ?? 0);
+      track("chess_game_created", {
+        clock_min: clockMinutes(input.timeControl),
+        stake_usd: stake,
+        // The catalog's "quick" is this app's auto-pairing mode.
+        mode: input.mode === "auto" ? "quick" : "invite",
+      });
+      if (stake > 0) track("game_staked", { game: "chess", amount_usd: stake });
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
     },
@@ -664,6 +687,14 @@ export function useAcceptChallenge() {
     mutationFn: (challengeId: string) =>
       acceptChallenge(challengeId, requireWallet(wallet.address)),
     onSuccess: (match) => {
+      const stake = Number(match.stakeUsdc ?? 0);
+      track("chess_challenge_accepted", {
+        stake_usd: stake,
+        clock_min: clockMinutes(match.timeControl),
+      });
+      // Both seats are filled, so the game is under way.
+      track("chess_game_started", { stake_usd: stake });
+      if (stake > 0) track("game_staked", { game: "chess", amount_usd: stake });
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
     },

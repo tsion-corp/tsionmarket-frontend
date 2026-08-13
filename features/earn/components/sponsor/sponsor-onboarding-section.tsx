@@ -13,6 +13,7 @@ import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import { slugify } from "@/features/earn/lib/listing-form";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
 
 const PAGE = "mx-auto w-full max-w-[620px] px-4 pt-6 pb-20 sm:px-6";
 
@@ -298,6 +299,9 @@ function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () =>
           telegram: state.telegram.trim(),
         },
       });
+      // Deliberately no properties: this form collects a legal entity name,
+      // which must never be sent.
+      track("earn_company_created");
       toast.success("You're all set.", { id });
       onDone();
     } catch (error) {

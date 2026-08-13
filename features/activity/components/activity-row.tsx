@@ -5,6 +5,7 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import type { ActivityEntry } from "@/lib/activity/entries";
+import { track } from "@/lib/analytics/mixpanel";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatQty, truncateAddress } from "@/lib/format";
 
@@ -81,6 +82,10 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
   return (
     <a
       href={explorer ? `${explorer}${item.hash}` : undefined}
+      onClick={() => {
+        if (explorer)
+          track("arktivity_tx_opened", { chain: item.network, direction: item.direction });
+      }}
       target="_blank"
       rel="noopener noreferrer"
       title={fullTimestamp(item.timestamp)}
