@@ -10,6 +10,7 @@ import mixpanel from "mixpanel-browser";
 import type {
   AnalyticsEventName,
   AnalyticsEvents,
+  ProfileCounter,
   SuperProperties,
   UserProfile,
 } from "@/lib/analytics/events";
@@ -52,9 +53,13 @@ export function initAnalytics(): void {
   }
   mixpanel.init(TOKEN, {
     persistence: "localStorage",
-    // Pageviews and clicks come for free; the named events in ./events are the
-    // ones we actually report on.
-    autocapture: true,
+    // Off deliberately. Autocapture reports raw DOM activity as generic
+    // "element clicked" rows, which crowds out the named events in ./events and
+    // double-counts the actions that already send one. It also captures clicks
+    // on screens we mask in session replay, which is the last place to be
+    // recording anything automatically. Every event we report on is sent
+    // explicitly at the point of the action instead.
+    autocapture: false,
     // Honour the browser's Do Not Track signal.
     ignore_dnt: false,
   });
@@ -100,9 +105,57 @@ export function track(name: AnalyticsEventName, properties?: unknown): void {
   // calls sit inside mutation success handlers, where a throw would take the
   // navigation or the toast with it, so nothing here is allowed to escape.
   try {
-    mixpanel.track(name, properties ? compact(properties as Record<string, unknown>) : undefined);
+    const props = properties ? compact(properties as Record<string, unknown>) : undefined;
+    mixpanel.track(name, props);
+    accumulateProfile(name, props ?? {});
   } catch (error) {
     console.warn("[analytics] failed to track", name, error);
+  }
+}
+
+// The profile totals the spec asks for are all restatements of events that
+// already fire, so they are derived here rather than at each call site. A
+// screen sends its event and the running totals follow, which is the only way
+// they cannot drift apart from the events they summarise.
+function accumulateProfile(name: AnalyticsEventName, props: Record<string, unknown>): void {
+  const num = (key: string): number | undefined =>
+    typeof props[key] === "number" ? (props[key] as number) : undefined;
+
+  switch (name) {
+    case "trade_completed": {
+      const amount = num("amount_usd");
+      incrementProfile({ trade_count: 1, total_volume_usd: amount });
+      const vertical = props.vertical;
+      if (typeof vertical === "string") unionProfile("verticals_used", [vertical]);
+      return;
+    }
+    // Either rail arriving is the same fact: money reached the account.
+    case "deposit_completed":
+    case "bank_transfer_completed": {
+      const method = name === "deposit_completed" ? "crypto" : "bank";
+      incrementProfile({ total_deposit_usd: num("amount_usd") });
+      setProfile({ has_deposited: true });
+      // set_once, so these keep describing the first deposit.
+      setProfileOnce({
+        first_deposit_method: method,
+        first_deposit_date: new Date().toISOString(),
+      });
+      return;
+    }
+    // lifetime_kash_earned is not derived here: the Kash engine reports the
+    // authoritative lifetime figure, and adding to it as well would count the
+    // same points twice.
+    case "kash_earned":
+      setProfile({ kash_active: true });
+      return;
+    case "kash_bought":
+      setProfile({ kash_active: true });
+      return;
+    case "referral_completed":
+      incrementProfile({ referral_count: 1 });
+      return;
+    default:
+      return;
   }
 }
 
@@ -123,6 +176,67 @@ export function setSuper(properties: Partial<SuperProperties>): void {
     mixpanel.register(compact(properties as Record<string, unknown>));
   } catch (error) {
     console.warn("[analytics] failed to register super properties", error);
+  }
+}
+
+/**
+ * Updates profile fields on the identified account. Use for values that
+ * describe the account's current state, such as its balance or KYC status.
+ */
+export function setProfile(properties: UserProfile): void {
+  if (!ready()) return;
+  try {
+    mixpanel.people.set(compact(properties as Record<string, unknown>));
+  } catch (error) {
+    console.warn("[analytics] failed to set profile", error);
+  }
+}
+
+/**
+ * Writes profile fields only if they are not already set, so a value that is
+ * true of the account's first time stays true. That is what makes
+ * `signup_method` and `first_deposit_date` mean what they say rather than
+ * drifting to the most recent one.
+ */
+export function setProfileOnce(properties: UserProfile): void {
+  if (!ready()) return;
+  try {
+    mixpanel.people.set_once(compact(properties as Record<string, unknown>));
+  } catch (error) {
+    console.warn("[analytics] failed to set profile defaults", error);
+  }
+}
+
+/**
+ * Adds to a running total on the profile: lifetime volume, trade count,
+ * deposits. Mixpanel keeps the sum server-side, so the client never has to
+ * know the previous value or risk racing another device.
+ */
+export function incrementProfile(properties: Partial<Record<ProfileCounter, number>>): void {
+  if (!ready()) return;
+  try {
+    const amounts = compact(properties as Record<string, unknown>);
+    // A zero moves nothing and only costs a request.
+    for (const [key, value] of Object.entries(amounts)) {
+      if (value === 0) delete amounts[key];
+    }
+    if (Object.keys(amounts).length > 0)
+      mixpanel.people.increment(amounts as Record<string, number>);
+  } catch (error) {
+    console.warn("[analytics] failed to increment profile", error);
+  }
+}
+
+/**
+ * Adds values to a set-valued profile field without duplicating what is
+ * already there, which is how `verticals_used` accumulates across sessions.
+ */
+export function unionProfile(field: "verticals_used", values: string[]): void {
+  if (!ready() || values.length === 0) return;
+  try {
+    mixpanel.people.union({ [field]: values });
+  } catch (error) {
+    console.warn("[analytics] failed to union profile", error);
   }
 }
 

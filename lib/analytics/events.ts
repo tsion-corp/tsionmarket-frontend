@@ -114,7 +114,10 @@ export interface AnalyticsEvents {
   // Kash
   kash_bought: { amount_usd: number; kash_amount: number };
   kash_sold: { kash_amount: number; amount_usd: number };
-  kash_earned: { source: "trading" | "games" | "referral"; kash_amount: number };
+  // `source` is omitted when points are settled in bulk: a weekly claim mixes
+  // trading, games and referral activity, and the engine does not break the
+  // total down, so naming one would be a guess.
+  kash_earned: { source?: "trading" | "games" | "referral"; kash_amount: number };
 
   // Earn marketplace. `earn_company_created` deliberately carries nothing: the
   // form it fires from collects a legal entity name, which must not be sent.
@@ -235,6 +238,16 @@ export interface PerpTradeOpened {
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents;
+
+// Profile fields Mixpanel keeps a running total of. The client sends the
+// delta and the server holds the sum, so two devices cannot race each other
+// into a wrong figure.
+export type ProfileCounter =
+  | "total_deposit_usd"
+  | "total_volume_usd"
+  | "trade_count"
+  | "lifetime_kash_earned"
+  | "referral_count";
 
 // Attached to every event, so any of them can be sliced by who sent it without
 // each call site having to pass these through.

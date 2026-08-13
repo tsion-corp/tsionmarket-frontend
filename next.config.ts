@@ -1,3 +1,4 @@
+import packageJson from "./package.json";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
@@ -6,6 +7,10 @@ import createNextIntlPlugin from "next-intl/plugin";
 const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
+  // Stamped into the client bundle so analytics can attribute an event to the
+  // release it came from. Read from package.json, so it moves with a version
+  // bump instead of being maintained by hand.
+  env: { NEXT_PUBLIC_APP_VERSION: packageJson.version },
   // Pin the Turbopack root to this project. Otherwise Next walks up the tree,
   // finds the stray ~/package-lock.json, and treats the whole home directory as
   // the workspace root — so Turbopack watches far more of the filesystem than it

@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { setSuper } from "@/lib/analytics/mixpanel";
+import { setProfile, setSuper } from "@/lib/analytics/mixpanel";
 import { tagClaritySession } from "@/lib/analytics/clarity";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import type { UserTier } from "@/lib/analytics/events";
@@ -46,6 +46,9 @@ export function AnalyticsSegments(): null {
     const has_deposited = totalUsd > 0;
 
     setSuper({ user_tier, has_deposited, platform: "web" });
+    // The same figures on the profile, so an account can be segmented in
+    // Mixpanel's user views and not just inside a report on its events.
+    setProfile({ portfolio_value_usd: totalUsd, has_deposited });
     void tagClaritySession({ user_tier });
   }, [ready, authenticated, loading, totalUsd]);
 

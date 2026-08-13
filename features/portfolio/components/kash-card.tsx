@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { SyncingValue } from "@/components/ui/syncing-value";
@@ -10,6 +12,7 @@ import {
   useKashSubscription,
 } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount, gateProgress, pointsToKash } from "@/features/portfolio/lib/kash";
+import { setProfile } from "@/lib/analytics/mixpanel";
 
 const COIN = "/kash-coin.jpg";
 
@@ -48,6 +51,18 @@ export function KashCard({
   const { data: subscription } = useKashSubscription();
 
   const balance = account?.balance ?? "0";
+
+  // The engine holds the authoritative Kash figures, so the profile mirrors
+  // them rather than accumulating its own totals from events. Runs whenever the
+  // card has fresh data; re-setting the same values is cheap and idempotent.
+  useEffect(() => {
+    if (!account) return;
+    setProfile({
+      kash_balance: Number(account.balance),
+      lifetime_kash_earned: Number(account.lifetimeEarned),
+      kash_active: Number(account.balance) > 0 || Number(account.lifetimeEarned) > 0,
+    });
+  }, [account]);
   const balanceDisplay = formatKashAmount(balance);
   // Step the type down as the number grows so a six-figure balance stays on one
   // line instead of wrapping under the KASH suffix or overflowing the card.

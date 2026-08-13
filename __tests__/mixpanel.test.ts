@@ -6,6 +6,9 @@ import { pageNameForPath, pageNameForSection } from "@/lib/analytics/page-name";
 const init = vi.fn();
 const identify = vi.fn();
 const peopleSet = vi.fn();
+const peopleSetOnce = vi.fn();
+const peopleIncrement = vi.fn();
+const peopleUnion = vi.fn();
 const reset = vi.fn();
 const track = vi.fn();
 const register = vi.fn();
@@ -14,7 +17,12 @@ vi.mock("mixpanel-browser", () => ({
   default: {
     init,
     identify,
-    people: { set: peopleSet },
+    people: {
+      set: peopleSet,
+      set_once: peopleSetOnce,
+      increment: peopleIncrement,
+      union: peopleUnion,
+    },
     reset,
     track,
     register,
@@ -33,6 +41,9 @@ beforeEach(() => {
   init.mockClear();
   identify.mockClear();
   peopleSet.mockClear();
+  peopleSetOnce.mockClear();
+  peopleIncrement.mockClear();
+  peopleUnion.mockClear();
   reset.mockClear();
   track.mockClear();
   register.mockClear();
@@ -65,14 +76,14 @@ describe("without a configured token", () => {
 });
 
 describe("with a configured token", () => {
-  it("initializes once, with autocapture and DNT honoured", async () => {
+  it("initializes once, with autocapture off and DNT honoured", async () => {
     const { initAnalytics } = await loadWithToken("test_token");
     initAnalytics();
     initAnalytics();
     expect(init).toHaveBeenCalledTimes(1);
     expect(init).toHaveBeenCalledWith(
       "test_token",
-      expect.objectContaining({ autocapture: true, ignore_dnt: false })
+      expect.objectContaining({ autocapture: false, ignore_dnt: false })
     );
   });
 
@@ -208,5 +219,56 @@ describe("failure containment", () => {
     expect(() => send("withdraw_opened")).not.toThrow();
     expect(() => setSuper({ platform: "web" })).not.toThrow();
     expect(() => identifyUser("0xabc")).not.toThrow();
+  });
+});
+
+describe("profile totals derived from events", () => {
+  it("counts a completed trade and adds its volume and vertical", async () => {
+    const { initAnalytics, track } = await loadWithToken("test-token");
+    initAnalytics();
+
+    track("trade_completed", {
+      vertical: "spot",
+      asset: "ETH",
+      side: "buy",
+      amount_usd: 25,
+    });
+
+    expect(peopleIncrement).toHaveBeenCalledWith({ trade_count: 1, total_volume_usd: 25 });
+    expect(peopleUnion).toHaveBeenCalledWith({ verticals_used: ["spot"] });
+  });
+
+  it("records the first deposit once, and the running total every time", async () => {
+    const { initAnalytics, track } = await loadWithToken("test-token");
+    initAnalytics();
+
+    track("bank_transfer_completed", { amount_ngn: 40000, amount_usd: 25, bank: "GTB" });
+
+    expect(peopleIncrement).toHaveBeenCalledWith({ total_deposit_usd: 25 });
+    expect(peopleSet).toHaveBeenCalledWith({ has_deposited: true });
+    // set_once, so a later deposit cannot overwrite which one was first.
+    expect(peopleSetOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ first_deposit_method: "bank" })
+    );
+  });
+
+  it("leaves the profile alone for an event that implies no total", async () => {
+    const { initAnalytics, track } = await loadWithToken("test-token");
+    initAnalytics();
+
+    track("page_view", { page: "portfolio" });
+
+    expect(peopleIncrement).not.toHaveBeenCalled();
+    expect(peopleUnion).not.toHaveBeenCalled();
+  });
+
+  it("does not spend a request on a zero amount", async () => {
+    const { initAnalytics, track } = await loadWithToken("test-token");
+    initAnalytics();
+
+    // A free trade still counts as a trade, but zero volume moves nothing.
+    track("trade_completed", { vertical: "spot", asset: "ETH", side: "buy", amount_usd: 0 });
+
+    expect(peopleIncrement).toHaveBeenCalledWith({ trade_count: 1 });
   });
 });

@@ -2,7 +2,13 @@
 
 import { useEffect, useRef } from "react";
 import { useLogin, usePrivy } from "@privy-io/react-auth";
-import { identifyUser, resetAnalytics, setSuper, track } from "@/lib/analytics/mixpanel";
+import {
+  identifyUser,
+  resetAnalytics,
+  setProfileOnce,
+  setSuper,
+  track,
+} from "@/lib/analytics/mixpanel";
 import type { SignupMethod } from "@/lib/analytics/events";
 import { identifyClarity, tagClaritySession } from "@/lib/analytics/clarity";
 import { deriveProfile, getWalletAddress } from "@/lib/user";
@@ -31,6 +37,9 @@ function authMethod(method: string | null): SignupMethod {
   return "email";
 }
 
+// Ships with the build, so a report can tell which release an event came from.
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
+
 export function AnalyticsIdentity(): null {
   const { ready, authenticated, user } = usePrivy();
 
@@ -43,8 +52,14 @@ export function AnalyticsIdentity(): null {
       // turn every page refresh into a sign-in.
       if (wasAlreadyAuthenticated) return;
       const method = authMethod(loginMethod);
-      if (isNewUser) track("signup_completed", { method });
-      else track("login_completed", { method });
+      if (isNewUser) {
+        track("signup_completed", { method });
+        // set_once, so these keep describing the account's first sign-in
+        // rather than drifting to whichever method was used most recently.
+        setProfileOnce({ signup_method: method, signup_date: new Date().toISOString() });
+      } else {
+        track("login_completed", { method });
+      }
     },
   });
   // Identity is set once per signed-in account. Privy re-renders this on token
@@ -82,7 +97,7 @@ export function AnalyticsIdentity(): null {
     // Super properties ride on every later event. KYC status and deposit
     // history are not known from the Privy session alone, so the screens that
     // learn them call setSuper again rather than this guessing a value.
-    setSuper({ platform: "web" });
+    setSuper({ platform: "web", app_version: APP_VERSION });
 
     void identifyClarity(walletEvm);
     void tagClaritySession({ user_tier: "new" });
