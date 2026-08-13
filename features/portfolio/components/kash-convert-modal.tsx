@@ -13,7 +13,12 @@ import {
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
 import { useKashPermitSigner } from "@/features/portfolio/hooks/use-kash-permit";
-import { isValidKashAmount, newConversionKey } from "@/features/portfolio/lib/kash";
+import {
+  compactAmountLabel,
+  formatKashAmount,
+  isValidKashAmount,
+  newConversionKey,
+} from "@/features/portfolio/lib/kash";
 
 interface KashConvertModalProps {
   open: boolean;
@@ -24,6 +29,9 @@ interface KashConvertModalProps {
 // market, not a market sell, and the modal says so up front: the quote shows
 // both prices and the discount before the user commits. Vesting KSH is not
 // convertible, so the ceiling is the account's `convertible`, never `balance`.
+// KSH presets. Any above the wallet's balance are filtered out at render.
+const QUICK_KASH = ["1000", "10000", "100000"];
+
 export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   const t = useTranslations("kash");
   const [amount, setAmount] = useState("");
@@ -39,6 +47,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   const attemptKey = useRef<string | null>(null);
 
   const convertible = account?.convertible ?? "0";
+  const hasConvertible = Number(convertible) > 0;
   const paused = quote.data?.coverageState === "paused";
   const withinBalance = isValidKashAmount(amount) && Number(amount) <= Number(convertible);
   const busy = conversion.isPending || signing;
@@ -94,7 +103,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   };
 
   return (
-    <ModalShell open={open} onClose={busy ? () => {} : close}>
+    <ModalShell open={open} onClose={busy ? () => {} : close} size="lg">
       <div className="p-5 sm:p-6">
         {done ? (
           <SuccessPanel title={t("convertSuccessTitle")} onDone={close}>
@@ -129,12 +138,9 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                 <label className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
                   {t("amountKash")}
                 </label>
-                <button
-                  onClick={() => setAmountForNewAttempt(convertible)}
-                  className="tnum cursor-pointer text-[12px] font-medium text-amber-200/80 hover:text-amber-200"
-                >
-                  {t("maxConvertible", { amount: convertible })}
-                </button>
+                <span className="tnum text-[12px] font-normal text-white/40">
+                  {t("maxConvertible", { amount: formatKashAmount(convertible) })}
+                </span>
               </div>
               <input
                 inputMode="decimal"
@@ -143,6 +149,38 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                 className="tnum mt-1.5 w-full rounded-[14px] border border-white/12 bg-white/6 px-4 py-3 text-[17px] outline-none focus:border-amber-200/50"
                 placeholder="0"
               />
+
+              {/* Presets above what the wallet holds are hidden rather than
+                  disabled: an amount that cannot be converted is noise, and a
+                  greyed row of them reads as a broken control. */}
+              <div className="mt-2 flex gap-1.5">
+                {QUICK_KASH.filter((preset) => Number(preset) <= Number(convertible)).map(
+                  (preset) => (
+                    <button
+                      key={preset}
+                      onClick={() => setAmountForNewAttempt(preset)}
+                      className={`flex-1 cursor-pointer rounded-xl border px-2 py-1.5 text-[12.5px] font-medium transition-colors ${
+                        amount === preset
+                          ? "border-amber-200/60 bg-amber-200/12 text-amber-200"
+                          : "border-white/12 bg-white/4 text-white/60 hover:bg-white/8"
+                      }`}
+                    >
+                      {compactAmountLabel(preset)}
+                    </button>
+                  )
+                )}
+                <button
+                  onClick={() => setAmountForNewAttempt(convertible)}
+                  disabled={!hasConvertible}
+                  className={`flex-1 cursor-pointer rounded-xl border px-2 py-1.5 text-[12.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                    amount === convertible && hasConvertible
+                      ? "border-amber-200/60 bg-amber-200/12 text-amber-200"
+                      : "border-white/12 bg-white/4 text-white/60 hover:bg-white/8"
+                  }`}
+                >
+                  {t("maxLabel")}
+                </button>
+              </div>
             </div>
 
             <div className="rounded-[14px] border border-white/8 bg-white/4 px-4 py-3">

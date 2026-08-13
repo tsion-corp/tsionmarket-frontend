@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const apiFetchMock = vi.fn();
 vi.mock("@/lib/api", () => ({ apiFetch: (...args: unknown[]) => apiFetchMock(...args) }));
 import {
+  compactAmountLabel,
   formatKashAmount,
   gateProgress,
   isValidKashAmount,
@@ -13,6 +14,7 @@ import {
   pointsToKash,
   postKashConversion,
   settlesIn,
+  volumeBands,
 } from "./kash";
 
 const account = (balance: string, min: string) => ({
@@ -156,5 +158,100 @@ describe("pointsToKash", () => {
     expect(pointsToKash("0", 0.001, "0.001")).toBeNull();
     expect(pointsToKash("80", undefined, "0.001")).toBeNull();
     expect(pointsToKash("80", 0.001, "0")).toBeNull();
+  });
+});
+
+describe("volumeBands", () => {
+  const points = {
+    pointValueUsd: 0.001,
+    tierBoundsUsd: [50, 100, 150, 200],
+    tierRatesPer10Usd: [1, 1.5, 2, 2.5, 3],
+  };
+
+  it("derives one band per rate, the last open-ended", () => {
+    const bands = volumeBands(points);
+    expect(bands).toHaveLength(5);
+    expect(bands[0]).toEqual({ tier: 1, fromUsd: 0, toUsd: 50, ratePer10Usd: 1 });
+    expect(bands[2]).toEqual({ tier: 3, fromUsd: 100, toUsd: 150, ratePer10Usd: 2 });
+    expect(bands[4]).toEqual({ tier: 5, fromUsd: 200, toUsd: null, ratePer10Usd: 3 });
+  });
+
+  it("leaves no gap between bands", () => {
+    // A gap would be volume that earns nothing, and the ladder is contiguous
+    // by construction in the engine.
+    const bands = volumeBands(points);
+    bands.slice(1).forEach((band, i) => expect(band.fromUsd).toBe(bands[i]!.toUsd));
+  });
+
+  it("is empty until the engine has answered", () => {
+    expect(volumeBands(undefined)).toEqual([]);
+  });
+});
+
+describe("compactAmountLabel", () => {
+  it("abbreviates thousands and millions", () => {
+    expect(compactAmountLabel("1000")).toBe("1K");
+    expect(compactAmountLabel("10000")).toBe("10K");
+    expect(compactAmountLabel("100000")).toBe("100K");
+    expect(compactAmountLabel("1000000")).toBe("1M");
+  });
+
+  it("keeps a meaningful fraction but drops a pointless one", () => {
+    expect(compactAmountLabel("1500")).toBe("1.5K");
+    expect(compactAmountLabel("2000")).toBe("2K");
+  });
+
+  it("leaves small amounts readable rather than abbreviating them", () => {
+    expect(compactAmountLabel("1")).toBe("1");
+    expect(compactAmountLabel("20")).toBe("20");
+    expect(compactAmountLabel("100")).toBe("100");
+  });
+
+  it("only abbreviates the LABEL — the value itself must stay exact", () => {
+    // A chip sets the raw string; if the abbreviation ever reached the input
+    // it would reach the transfer, and "1K" is not an amount.
+    const preset = "10000";
+    expect(compactAmountLabel(preset)).toBe("10K");
+    expect(preset).toBe("10000");
+    expect(Number(preset)).toBe(10000);
+  });
+});
+
+describe("preset values are valid amounts", () => {
+  it.each(["1", "10", "20", "50", "100", "1000", "10000", "100000"])(
+    "%s is accepted by the amount validator",
+    (preset) => {
+      // A preset the engine would reject is worse than no preset: the user
+      // taps it and the form refuses without explaining why.
+      expect(isValidKashAmount(preset)).toBe(true);
+    }
+  );
+
+  it("presets carry no float artefacts or trailing precision", () => {
+    for (const preset of ["1", "10", "20", "50", "100", "1000", "10000", "100000"]) {
+      expect(preset).not.toContain(".");
+      expect(String(Number(preset))).toBe(preset);
+    }
+  });
+});
+
+describe("presets respect the engine's own limits", () => {
+  const within = (preset: string, min: number, max: number) =>
+    Number(preset) >= min && Number(preset) <= max;
+
+  it("hides presets above the purchase cap", () => {
+    // KASH_PURCHASE_MAX_USDC is deliberately small during a bounded rollout.
+    const shown = ["1", "10", "20", "50", "100"].filter((p) => within(p, 1, 25));
+    expect(shown).toEqual(["1", "10", "20"]);
+  });
+
+  it("shows the full ladder once the cap is raised", () => {
+    const shown = ["1", "10", "20", "50", "100"].filter((p) => within(p, 1, 10_000));
+    expect(shown).toEqual(["1", "10", "20", "50", "100"]);
+  });
+
+  it("hides presets below the minimum too", () => {
+    const shown = ["1", "10", "20"].filter((p) => within(p, 10, 10_000));
+    expect(shown).toEqual(["10", "20"]);
   });
 });

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { toast } from "@/lib/toast";
 import { useEvmSend } from "@/hooks/use-evm-send";
-import { usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
+import { usdcAmountForPrice, usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
+import { volumeBands } from "@/features/portfolio/lib/kash";
 import {
   useKashAccount,
   useKashStatus,
@@ -27,6 +28,9 @@ interface KashUpgradeModalProps {
 export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
   const t = useTranslations("kash");
   const { data: status } = useKashStatus();
+  // The volume ladder is engine config; deriving it here keeps the prices,
+  // bands and rates from ever disagreeing with what actually pays out.
+  const bands = volumeBands(status?.points);
   const { wallet } = useKashAccount();
   const { data: subscription } = useKashSubscription();
   const tiers = useKashSubscriptionTiers(open);
@@ -40,6 +44,13 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
   const paymentAddress = status?.chain?.paymentAddress;
   const paymentUnsupported = needsPayment && !paymentAddress;
   const [paying, setPaying] = useState(false);
+  /**
+   * A tier payment that settled but has not been credited yet. Same hazard as
+   * the buy modal: the transfer and the subscribe call are separate steps, and
+   * losing the receipt between them charges the user twice for one tier.
+   * Keyed by tier, so choosing a different tier pays fresh.
+   */
+  const settledPayment = useRef<{ tier: number; txHash: string } | null>(null);
   const sendEvm = useEvmSend();
 
   const pick = async (tier: number) => {
@@ -49,27 +60,48 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
       let paymentTxHash: string | undefined;
       if (needsPayment && paymentAddress && status?.chain) {
         if (price === undefined) throw new Error("Tier price is unavailable.");
-        setPaying(true);
-        try {
-          paymentTxHash = await sendEvm({
-            to: status.chain.usdcAddress as `0x${string}`,
-            data: usdcTransferData(paymentAddress, String(price)),
-            chainId: status.chain.chainId,
-          });
-        } finally {
-          setPaying(false);
+        const alreadyPaid =
+          settledPayment.current?.tier === tier ? settledPayment.current.txHash : undefined;
+        if (alreadyPaid) {
+          paymentTxHash = alreadyPaid;
+        } else {
+          setPaying(true);
+          try {
+            paymentTxHash = await sendEvm({
+              to: status.chain.usdcAddress as `0x${string}`,
+              data: usdcTransferData(paymentAddress, usdcAmountForPrice(price)),
+              chainId: status.chain.chainId,
+            });
+            settledPayment.current = { tier, txHash: paymentTxHash };
+          } finally {
+            setPaying(false);
+          }
         }
       }
       await subscribe.mutateAsync({ wallet, tier, paymentTxHash });
+      settledPayment.current = null;
       toast.success(t("upgradeSuccess", { tier }));
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("upgradeFailed"));
+      // Receipt kept on purpose — see settledPayment.
+      toast.error(
+        error instanceof Error
+          ? settledPayment.current
+            ? `${error.message} ${t("paymentHeldForRetry")}`
+            : error.message
+          : t("upgradeFailed")
+      );
     }
   };
 
   return (
-    <ModalShell open={open} onClose={subscribe.isPending || paying ? () => {} : onClose}>
+    <ModalShell
+      open={open}
+      onClose={subscribe.isPending || paying ? () => {} : onClose}
+      // Each row now carries a price, a volume band and a rate. At the default
+      // 440px those collide on the smallest desktop widths.
+      size="lg"
+    >
       <div className="p-5 sm:p-6">
         <div className="ws-display text-[22px]">{t("upgradeTitle")}</div>
         <p className="mt-1 text-[13px] leading-[1.5] font-normal text-white/60">
@@ -85,35 +117,61 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
             {(tiers.data ?? []).map((tier) => {
               const isCurrent = tier.tier === currentTier;
               const isDowngrade = tier.tier < currentTier;
+              const band = bands.find((entry) => entry.tier === tier.tier);
+              const reachable = tier.tier <= currentTier;
               return (
                 <div
                   key={tier.tier}
-                  className={`flex items-center justify-between rounded-[14px] border px-4 py-3 ${
+                  className={`rounded-[14px] border px-4 py-3 ${
                     isCurrent ? "border-amber-200/50 bg-amber-200/8" : "border-white/10 bg-white/4"
                   }`}
                 >
-                  <div>
-                    <div className="text-[14px] font-semibold text-white/90">
-                      {t("tierChip", { tier: tier.tier })}
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-[14px] font-semibold text-white/90">
+                        {t("tierChip", { tier: tier.tier })}
+                      </div>
+                      <div className="tnum mt-0.5 text-[12px] font-normal text-white/50">
+                        {tier.priceUsd === 0
+                          ? t("tierFree")
+                          : t("tierPrice", { price: tier.priceUsd })}
+                      </div>
                     </div>
-                    <div className="tnum mt-0.5 text-[12px] font-normal text-white/50">
-                      {tier.priceUsd === 0
-                        ? t("tierFree")
-                        : t("tierPrice", { price: tier.priceUsd })}
-                    </div>
+                    {isCurrent ? (
+                      <span className="text-[12px] font-medium text-amber-200/80">
+                        {t("tierCurrent")}
+                      </span>
+                    ) : isDowngrade ? null : (
+                      <button
+                        onClick={() => pick(tier.tier)}
+                        disabled={subscribe.isPending || paying || paymentUnsupported}
+                        className="text-ink cursor-pointer rounded-xl bg-white px-3.5 py-2 font-sans text-[12.5px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {t("tierChoose")}
+                      </button>
+                    )}
                   </div>
-                  {isCurrent ? (
-                    <span className="text-[12px] font-medium text-amber-200/80">
-                      {t("tierCurrent")}
-                    </span>
-                  ) : isDowngrade ? null : (
-                    <button
-                      onClick={() => pick(tier.tier)}
-                      disabled={subscribe.isPending || paying || paymentUnsupported}
-                      className="text-ink cursor-pointer rounded-xl bg-white px-3.5 py-2 font-sans text-[12.5px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {t("tierChoose")}
-                    </button>
+
+                  {/* The volume band this tier unlocks, and its rate. Without
+                      these a price is just a price — the whole reason to
+                      upgrade is that volume above your band is being paid at
+                      your tier's rate, not the band's. */}
+                  {band && (
+                    <div className="mt-2.5 flex items-center justify-between border-t border-white/8 pt-2.5">
+                      <span className="tnum text-[12px] font-normal text-white/45">
+                        {band.toUsd === null
+                          ? t("tierBandOpen", { from: band.fromUsd })
+                          : t("tierBand", { from: band.fromUsd, to: band.toUsd })}
+                      </span>
+                      <span
+                        className={`tnum text-[12px] font-medium ${
+                          reachable ? "text-amber-200/90" : "text-white/35"
+                        }`}
+                      >
+                        {t("tierRate", { rate: band.ratePer10Usd })}
+                        {!reachable && <span className="ml-1.5">{t("tierLockedRate")}</span>}
+                      </span>
+                    </div>
                   )}
                 </div>
               );
@@ -126,6 +184,16 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
             {t("buyUnavailableOnchain")}
           </p>
         )}
+        {/* State the cap plainly: it is the single thing that makes a tier
+            worth buying, and it is not guessable from a price list. */}
+        <div className="mt-4 rounded-[12px] border border-white/10 bg-white/4 px-3.5 py-3">
+          <p className="text-[12px] leading-[1.55] font-normal text-white/60">
+            {t("tierCapExplainer")}
+          </p>
+          <p className="mt-2 text-[12px] leading-[1.55] font-normal text-white/45">
+            {t("tierCapExample", { current: currentTier })}
+          </p>
+        </div>
         <p className="mt-3 text-[11.5px] leading-[1.5] font-normal text-white/40">
           {t("upgradeNote")}
         </p>

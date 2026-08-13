@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { markKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
   getKashAccount,
   getKashConversionQuote,
@@ -136,6 +137,10 @@ export function useInvalidateKash() {
   return () => {
     const refresh = () => queryClient.invalidateQueries({ queryKey: ["kash"] });
     refresh();
+    // Hold the "syncing" state open across the whole settle window, so the card
+    // shows the numbers are catching up rather than presenting a stale figure
+    // as final.
+    markKashSyncing(CHAIN_SETTLE_RETRIES_MS[CHAIN_SETTLE_RETRIES_MS.length - 1] ?? 0);
     // A mint or burn is confirmed by the time a mutation resolves, but the RPC
     // replica the engine reads its balances from can still be a block behind.
     // Refetching once more shortly after is what stops a successful claim from

@@ -75,7 +75,7 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
   const shortTo = done ? `${done.to.slice(0, 6)}…${done.to.slice(-4)}` : "";
 
   return (
-    <ModalShell open={open} onClose={sending ? () => {} : close}>
+    <ModalShell open={open} onClose={sending ? () => {} : close} size="lg">
       <div className="p-5 sm:p-6">
         {done ? (
           <SuccessPanel title={t("sendSuccessTitle")} onDone={close}>

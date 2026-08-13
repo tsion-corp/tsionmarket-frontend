@@ -41,6 +41,21 @@ export function usdcTransferData(to: string, usdcAmount: string): `0x${string}` 
   });
 }
 
+/**
+ * A tier price, as a USDC amount string.
+ *
+ * The catalogue sends `priceUsd` as a JSON number, and `String(number)` can
+ * carry float artefacts — `0.30000000000000004` has more precision than USDC
+ * holds, which would make a perfectly valid tier unpurchasable. Fixing to six
+ * decimals is exact for any real price and matches the token exactly.
+ */
+export function usdcAmountForPrice(priceUsd: number): string {
+  if (!Number.isFinite(priceUsd) || priceUsd < 0) {
+    throw new Error(`not a payable price: ${priceUsd}`);
+  }
+  return priceUsd.toFixed(6);
+}
+
 /** USDC is 6-decimal. Parsed from the decimal string, never via a float. */
 export function usdcToAtomic(usdcAmount: string): bigint {
   const trimmed = usdcAmount.trim();

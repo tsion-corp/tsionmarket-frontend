@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isEvmAddress, kashTransferData, usdcToAtomic, usdcTransferData } from "./kash-transfer";
+import {
+  isEvmAddress,
+  kashTransferData,
+  usdcAmountForPrice,
+  usdcToAtomic,
+  usdcTransferData,
+} from "./kash-transfer";
 
 const TO = "0x1111111111111111111111111111111111111111";
 
@@ -62,5 +68,30 @@ describe("usdcTransferData", () => {
 
   it("refuses a malformed destination", () => {
     expect(() => usdcTransferData("not-an-address", "1")).toThrow(/EVM address/);
+  });
+});
+
+describe("usdcAmountForPrice", () => {
+  it("pins a tier price to USDC precision", () => {
+    expect(usdcAmountForPrice(1.5)).toBe("1.500000");
+    expect(usdcAmountForPrice(4.5)).toBe("4.500000");
+    expect(usdcAmountForPrice(0)).toBe("0.000000");
+  });
+
+  it("survives a float artefact that would otherwise be unpayable", () => {
+    // String(0.1 + 0.2) is "0.30000000000000004" — more precision than USDC
+    // holds, which usdcToAtomic rejects, making the tier unbuyable.
+    expect(usdcAmountForPrice(0.1 + 0.2)).toBe("0.300000");
+    expect(usdcToAtomic(usdcAmountForPrice(0.1 + 0.2))).toBe(300_000n);
+  });
+
+  it("round-trips into the exact atomic amount the engine expects", () => {
+    expect(usdcToAtomic(usdcAmountForPrice(1.5))).toBe(1_500_000n);
+    expect(usdcToAtomic(usdcAmountForPrice(2.5))).toBe(2_500_000n);
+  });
+
+  it("refuses a price that cannot be paid", () => {
+    expect(() => usdcAmountForPrice(Number.NaN)).toThrow(/not a payable price/);
+    expect(() => usdcAmountForPrice(-1)).toThrow(/not a payable price/);
   });
 });

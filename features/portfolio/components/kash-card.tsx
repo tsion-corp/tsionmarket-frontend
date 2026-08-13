@@ -2,6 +2,8 @@
 
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
+import { SyncingValue } from "@/components/ui/syncing-value";
+import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
   useKashAccount,
   useKashStatus,
@@ -39,6 +41,9 @@ export function KashCard({
 }: KashCardProps) {
   const t = useTranslations("kash");
   const { data: engineStatus } = useKashStatus();
+  // True only while an action's effects are still landing — not on the
+  // background poll, which would leave the card permanently pulsing.
+  const syncing = useKashSyncing();
   const { data: account } = useKashAccount();
   const { data: subscription } = useKashSubscription();
 
@@ -92,43 +97,59 @@ export function KashCard({
               {t("tierChip", { tier: subscription.tier })}
             </button>
           )}
-          <button
-            onClick={onHistory}
-            className="cursor-pointer text-[12px] font-medium text-white/45 hover:text-white/70"
-          >
-            {t("history")}
-          </button>
+          {syncing ? (
+            <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-white/45">
+              <span className="h-[9px] w-[9px] animate-spin rounded-full border-[1.5px] border-white/25 border-t-white/70" />
+              {t("syncing")}
+            </span>
+          ) : (
+            <button
+              onClick={onHistory}
+              className="cursor-pointer text-[12px] font-medium text-white/45 hover:text-white/70"
+            >
+              {t("history")}
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="mt-2">
+      <div className="mt-3">
         <div
           className={`ws-display tnum flex items-end gap-1.5 leading-none tracking-[-0.02em] ${balanceTextSize}`}
         >
-          {balanceDisplay}{" "}
-          <span className="ml-2 text-[20px] whitespace-nowrap text-amber-200/90">KASH</span>
+          <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>{" "}
+          <span className="ml-2 text-[19px] whitespace-nowrap text-amber-200/90">KASH</span>
         </div>
-        <div className="tnum mt-1 text-[12.5px] font-normal text-white/45">${balanceUsd}</div>
+        <div className="mt-1.5 flex items-baseline gap-2">
+          <span className="tnum text-[13px] font-normal text-white/50">${balanceUsd}</span>
+          {/* The unit price, so the dollar figure above is checkable rather
+              than a second number the user has to trust. */}
+          {engineStatus && (
+            <span className="tnum text-[11.5px] font-normal text-white/30">
+              @ ${engineStatus.price.kashPriceUsd}
+            </span>
+          )}
+        </div>
       </div>
 
-      <div className="mt-4 flex gap-2">
+      <div className="mt-5 flex gap-2">
         <button
           onClick={onBuy}
-          className="flex-1 cursor-pointer rounded-xl bg-amber-200 px-4 py-2.5 font-sans text-[13px] font-semibold text-amber-950 hover:opacity-90"
+          className="flex-1 cursor-pointer rounded-xl bg-amber-200 px-4 py-2.5 font-sans text-[13px] font-semibold text-amber-950 transition-opacity hover:opacity-90"
         >
           {t("buy")}
         </button>
         <button
           onClick={onSend}
           disabled={!hasConvertible}
-          className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white transition-colors hover:border-white/22 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {t("send")}
         </button>
         <button
           onClick={onConvert}
           disabled={!hasConvertible}
-          className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+          className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white transition-colors hover:border-white/22 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {t("convert")}
         </button>
@@ -155,13 +176,14 @@ export function KashCard({
 
         <div className="flex items-end justify-between gap-3">
           <div className="flex items-baseline gap-2">
-            <span
+            <SyncingValue
+              syncing={syncing}
               className={`ws-display tnum text-[28px] leading-none tracking-[-0.02em] ${
                 hasClaimable ? "text-amber-200" : "text-white/35"
               }`}
             >
               {formatKashAmount(unclaimed)}
-            </span>
+            </SyncingValue>
             <span
               className={`text-[12.5px] font-normal ${
                 hasClaimable ? "text-amber-200/60" : "text-white/30"

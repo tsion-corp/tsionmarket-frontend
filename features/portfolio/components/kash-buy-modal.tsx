@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -12,10 +12,12 @@ import {
   useKashPurchaseQuote,
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
-import { isValidKashAmount } from "@/features/portfolio/lib/kash";
+import { compactAmountLabel, isValidKashAmount } from "@/features/portfolio/lib/kash";
 import { usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
 
-const QUICK_AMOUNTS = ["10", "25", "50", "100"];
+// $1 is the floor the engine accepts, and the cheapest way to clear the
+// holding gate — worth being one tap away.
+const QUICK_AMOUNTS = ["1", "10", "20", "50", "100"];
 
 interface KashBuyModalProps {
   open: boolean;
@@ -34,6 +36,17 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   // own pending flag: the mutation is not in flight while the wallet is
   // waiting on a signature.
   const [paying, setPaying] = useState(false);
+  /**
+   * A USDC payment that has already settled but has not yet been credited.
+   *
+   * The payment and the credit are two separate steps, and only the first
+   * moves money. Holding the hash in a local variable meant a failed credit —
+   * a gateway timeout, a restart — took the receipt down with the stack frame:
+   * the user had paid, had nothing, and clicking again paid a SECOND time.
+   *
+   * Keyed by amount so changing the amount is a genuinely new purchase.
+   */
+  const settledPayment = useRef<{ amount: string; txHash: string } | null>(null);
   const sendEvm = useEvmSend();
 
   const { data: status } = useKashStatus();
@@ -66,26 +79,45 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
       // `from == wallet`, so a payment made on their behalf is rejected.
       let paymentTxHash: string | undefined;
       if (needsPayment && paymentAddress && status?.chain) {
-        setPaying(true);
-        try {
-          paymentTxHash = await sendEvm({
-            to: status.chain.usdcAddress as `0x${string}`,
-            data: usdcTransferData(paymentAddress, amount),
-            chainId: status.chain.chainId,
-          });
-        } finally {
-          setPaying(false);
+        // Never pay twice for the same attempt: reuse a receipt the previous
+        // try already produced.
+        const alreadyPaid =
+          settledPayment.current?.amount === amount ? settledPayment.current.txHash : undefined;
+        if (alreadyPaid) {
+          paymentTxHash = alreadyPaid;
+        } else {
+          setPaying(true);
+          try {
+            paymentTxHash = await sendEvm({
+              to: status.chain.usdcAddress as `0x${string}`,
+              data: usdcTransferData(paymentAddress, amount),
+              chainId: status.chain.chainId,
+            });
+            settledPayment.current = { amount, txHash: paymentTxHash };
+          } finally {
+            setPaying(false);
+          }
         }
       }
       const result = await purchase.mutateAsync({ wallet, usdcAmount: amount, paymentTxHash });
+      // Credited — the receipt has been consumed and must not be reused.
+      settledPayment.current = null;
       setDone({ kash: result.kashReceived, usdc: result.usdcPaid, txHash: result.mintTxHash });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("buyFailed"));
+      // The receipt deliberately survives: the money already moved, and the
+      // next attempt must credit that payment rather than make another.
+      toast.error(
+        error instanceof Error
+          ? settledPayment.current
+            ? `${error.message} ${t("paymentHeldForRetry")}`
+            : error.message
+          : t("buyFailed")
+      );
     }
   };
 
   return (
-    <ModalShell open={open} onClose={busy ? () => {} : close}>
+    <ModalShell open={open} onClose={busy ? () => {} : close} size="lg">
       <div className="p-5 sm:p-6">
         {done ? (
           <SuccessPanel title={t("buySuccessTitle")} onDone={close}>
@@ -127,17 +159,23 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
                 placeholder="10"
               />
               <div className="mt-2 flex gap-2">
-                {QUICK_AMOUNTS.map((preset) => (
+                {/* Only presets the engine would actually accept. Offering a
+                    $100 chip while KASH_PURCHASE_MAX_USDC is 25 means the user
+                    taps it and the form refuses, with the reason buried in a
+                    bounds message. */}
+                {QUICK_AMOUNTS.filter(
+                  (preset) => Number(preset) >= min && Number(preset) <= max
+                ).map((preset) => (
                   <button
                     key={preset}
                     onClick={() => setAmount(preset)}
-                    className={`flex-1 cursor-pointer rounded-xl border px-2 py-1.5 text-[12.5px] font-medium ${
+                    className={`flex-1 cursor-pointer rounded-xl border px-2 py-1.5 text-[12.5px] font-medium transition-colors ${
                       amount === preset
                         ? "border-amber-200/60 bg-amber-200/12 text-amber-200"
                         : "border-white/12 bg-white/4 text-white/60 hover:bg-white/8"
                     }`}
                   >
-                    ${preset}
+                    ${compactAmountLabel(preset)}
                   </button>
                 ))}
               </div>

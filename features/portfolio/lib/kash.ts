@@ -24,8 +24,18 @@ export interface KashStatus {
   // The gate is a dollar value of KSH, not a token count, so it holds as the
   // price moves.
   gate: { minHoldingUsd: number };
-  /** Points economics — `pointValueUsd` is what one point settles into. */
-  points: { pointValueUsd: number };
+  /**
+   * Points economics, straight from the engine.
+   *
+   * `tierBoundsUsd` are the VOLUME band edges and `tierRatesPer10Usd` the rate
+   * inside each band — one more rate than bounds, the last being open-ended.
+   * Both are config; restating them in the UI would let the two drift.
+   */
+  points: {
+    pointValueUsd: number;
+    tierBoundsUsd: number[];
+    tierRatesPer10Usd: number[];
+  };
   subscriptions: { periodDays: number; tiers: { tier: number; priceUsd: number }[] };
   desk: {
     purchaseMinUsdc: number;
@@ -256,6 +266,54 @@ export function formatKashAmount(amount: string): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+}
+
+/**
+ * Compact label for a preset chip — `1000` reads as `1K`.
+ *
+ * Only the LABEL is abbreviated. The chip still sets the exact decimal string,
+ * because an abbreviated value reaching the input would reach the transfer.
+ */
+export function compactAmountLabel(amount: string): string {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return amount;
+  if (value >= 1_000_000) return `${trimZeros(value / 1_000_000)}M`;
+  if (value >= 1_000) return `${trimZeros(value / 1_000)}K`;
+  return formatKashAmount(amount);
+}
+
+function trimZeros(value: number): string {
+  // 1.0K reads worse than 1K; 1.5K is worth keeping.
+  return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
+}
+
+/** One volume band: what it covers, what it pays, and what unlocks it. */
+export interface VolumeBand {
+  /** 1-based, and the subscription tier that unlocks this band's rate. */
+  tier: number;
+  fromUsd: number;
+  /** null on the final, open-ended band. */
+  toUsd: number | null;
+  ratePer10Usd: number;
+}
+
+/**
+ * The volume ladder, derived from the engine's bounds and rates.
+ *
+ * Volume is split across these bands like tax brackets, so the first slice
+ * always earns the tier-1 rate no matter how large the trade. A wallet's
+ * SUBSCRIPTION tier caps how high the later bands may reach: trade into band 3
+ * on tier 1 and that slice still pays the tier-1 rate.
+ */
+export function volumeBands(points: KashStatus["points"] | undefined): VolumeBand[] {
+  if (!points) return [];
+  const { tierBoundsUsd: bounds, tierRatesPer10Usd: rates } = points;
+  return rates.map((ratePer10Usd, index) => ({
+    tier: index + 1,
+    fromUsd: index === 0 ? 0 : (bounds[index - 1] ?? 0),
+    toUsd: bounds[index] ?? null,
+    ratePer10Usd,
+  }));
 }
 
 export function gateProgress(account: {
