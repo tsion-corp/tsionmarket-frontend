@@ -24,7 +24,7 @@ import { toBaseUnits } from "@/lib/trade/math";
 // here polls and `configured` stays false, so every cashier surface renders
 // nothing. The moment the backend configures it, the same code lights up.
 
-const CASHIER_KEYS = {
+export const CASHIER_KEYS = {
   config: ["casino", "chess", "cashier", "config"] as const,
   balance: (wallet: string) => ["casino", "chess", "cashier", "balance", wallet] as const,
 };

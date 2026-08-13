@@ -293,6 +293,10 @@ export function CreateSection() {
       const input: CreateChessChallengeInput & { stakeUsdc?: string } = {
         timeControl,
         mode: "invite",
+        // Free friend games expose clock extensions during play. A stake makes
+        // the clock immutable and the match rated, as required by the service.
+        rated: stakeUsdc !== undefined,
+        allowTimeExtensions: stakeUsdc === undefined,
         ...(stakeUsdc !== undefined ? { stakeUsdc } : {}),
       };
       // The clipboard write is armed NOW, inside the click's user activation,

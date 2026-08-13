@@ -16,6 +16,7 @@ interface ModalShellProps {
   // (e.g. the funding flow) more room.
   size?: "md" | "lg";
   panelClassName?: string;
+  contentClassName?: string;
   closeButtonClassName?: string;
 }
 
@@ -31,6 +32,7 @@ export function ModalShell({
   contentKey,
   size = "md",
   panelClassName,
+  contentClassName,
   closeButtonClassName,
 }: ModalShellProps) {
   const reduce = useReducedMotion();
@@ -79,6 +81,7 @@ export function ModalShell({
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={contentKey}
+                className={contentClassName}
                 initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }}
                 animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
                 exit={reduce ? { opacity: 0 } : { opacity: 0, y: -10 }}

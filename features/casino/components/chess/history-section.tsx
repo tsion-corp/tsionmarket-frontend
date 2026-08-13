@@ -10,6 +10,7 @@ import { parseTimeControl } from "@/features/casino/lib/api/chess-wire";
 import { CasinoEmpty, CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { toast } from "@/lib/toast";
 import type { ChessMatch } from "@/features/casino/lib/api/types";
+import { ChessRatingPanel } from "@/features/casino/components/chess/chess-rating-panel";
 
 const DRAW_REASON_KEYS = {
   stalemate: "reasonStalemate",
@@ -80,6 +81,7 @@ export function HistorySection() {
 
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 pt-8 pb-20 sm:px-6">
+      {wallet.connected ? <ChessRatingPanel /> : null}
       <div className="ws-display mb-3 text-[18px]">{t("historyTitle")}</div>
       {error ? (
         <CasinoError error={error} subject={t("historyTitle")} onRetry={refetch} />

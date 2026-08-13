@@ -16,6 +16,7 @@ import { formatTimeControl, isMatchId } from "@/features/casino/lib/api/chess-wi
 
 export type SwissStatusWire = "created" | "started" | "finished";
 export type SwissPairingStatus = "bye" | "ongoing" | "white" | "black" | "draw";
+export type SwissPrizePolicy = "standard" | "highStakes";
 
 export interface SwissTimeControlWire {
   initialSeconds: number;
@@ -42,7 +43,12 @@ export interface SwissSummaryWire {
   participantCount: number;
   ongoingCount: number;
   timeControl: SwissTimeControlWire;
-  entryFeeUsdc: string;
+  entryFeeUsdc?: string;
+  maxPlayers?: number;
+  prizePolicy?: SwissPrizePolicy | "high_stakes";
+  prizePoolBps?: number;
+  platformShareBps?: number;
+  minimumPlayers?: number;
   winner: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -100,6 +106,12 @@ export interface SwissSummary {
   participantCount: number;
   ongoingCount: number;
   timeControl: string;
+  entryFeeUsdc: string;
+  maxPlayers: number;
+  prizePolicy: SwissPrizePolicy;
+  prizePoolBps: number;
+  platformShareBps: number;
+  minimumPlayers: number;
   winner: string | null;
   createdAt: string;
   startedAt: string | null;
@@ -146,6 +158,10 @@ const STATE_BY_STATUS: Record<SwissStatusWire, SwissState> = {
 };
 
 export function toSwissSummary(wire: SwissSummaryWire): SwissSummary {
+  const prizePolicy =
+    wire.prizePolicy === "highStakes" || wire.prizePolicy === "high_stakes"
+      ? "highStakes"
+      : "standard";
   return {
     id: wire.id,
     name: wire.name,
@@ -160,6 +176,12 @@ export function toSwissSummary(wire: SwissSummaryWire): SwissSummary {
       wire.timeControl.initialSeconds,
       wire.timeControl.incrementSeconds
     ),
+    entryFeeUsdc: wire.entryFeeUsdc ?? "0",
+    maxPlayers: wire.maxPlayers ?? 4000,
+    prizePolicy,
+    prizePoolBps: wire.prizePoolBps ?? 10_000,
+    platformShareBps: wire.platformShareBps ?? 0,
+    minimumPlayers: wire.minimumPlayers ?? 2,
     winner: wire.winner,
     createdAt: wire.createdAt,
     startedAt: wire.startedAt,
@@ -213,6 +235,9 @@ export const TOURNAMENT_NAME_MIN = 2;
 export const TOURNAMENT_NAME_MAX = 60;
 export const ROUNDS_MIN = 1;
 export const ROUNDS_MAX = 32;
+export const HIGH_STAKES_ENTRY_MIN_USDC = "2";
+export const HIGH_STAKES_PLAYERS_MIN = 4;
+export const HIGH_STAKES_PLAYERS_MAX = 200;
 
 const PRINTABLE_ASCII_NO_SPACE = /^[\x21-\x7e]+$/;
 
@@ -318,15 +343,15 @@ export interface CreateSwissInput {
   nbRounds: number;
   initialSeconds: number;
   incrementSeconds: number;
+  entryFeeUsdc?: string;
+  maxPlayers?: number;
+  prizePolicy?: SwissPrizePolicy;
   password?: string;
   // Optional newline-separated "A B" lines the service must never pair; passed
   // through to the bbpPairings TRF as forbidden pairings.
   forbiddenPairings?: string;
 }
 
-// Paid tournaments exist in the contract but the cashier behind them is not
-// configured on the service yet (creates answer CONFLICT), so entryFeeUsdc is
-// deliberately never sent and every tournament created here is free.
 export async function createSwiss(input: CreateSwissInput): Promise<SwissSummary> {
   const forbidden = input.forbiddenPairings?.trim();
   const wire = await chessPost<SwissSummaryWire>("/swiss", {
@@ -334,8 +359,11 @@ export async function createSwiss(input: CreateSwissInput): Promise<SwissSummary
     name: input.name.trim(),
     ...(input.game ? { game: input.game } : {}),
     nbRounds: input.nbRounds,
-    initial_seconds: input.initialSeconds,
-    increment_seconds: input.incrementSeconds,
+    initialSeconds: input.initialSeconds,
+    incrementSeconds: input.incrementSeconds,
+    ...(input.entryFeeUsdc ? { entryFeeUsdc: input.entryFeeUsdc } : {}),
+    ...(input.maxPlayers ? { maxPlayers: input.maxPlayers } : {}),
+    ...(input.prizePolicy ? { prizePolicy: input.prizePolicy } : {}),
     ...(input.password ? { password: input.password } : {}),
     ...(forbidden ? { forbiddenPairings: forbidden } : {}),
   });

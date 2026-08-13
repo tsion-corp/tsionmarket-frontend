@@ -35,13 +35,13 @@ function canUseEngine(): boolean {
   );
 }
 
-export function useChessEngine(fen: string | null) {
+export function useChessEngine(fen: string | null, enabled = true) {
   const workerRef = useRef<Worker | null>(null);
   const readyRef = useRef(false);
   const lastFenRef = useRef<string | null>(null);
   const fallbackRef = useRef(0);
   const [state, setState] = useState<ChessEngineState>(() =>
-    canUseEngine()
+    enabled && canUseEngine()
       ? {
           ...EMPTY_ENGINE_INFO,
           bestMove: null,
@@ -59,7 +59,7 @@ export function useChessEngine(fen: string | null) {
   );
 
   useEffect(() => {
-    if (!canUseEngine()) return;
+    if (!enabled || !canUseEngine()) return;
 
     const startWorker = (index: number) => {
       const candidate = ENGINE_CANDIDATES[index];
@@ -160,12 +160,12 @@ export function useChessEngine(fen: string | null) {
       workerRef.current = null;
       readyRef.current = false;
     };
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
     lastFenRef.current = fen;
     const worker = workerRef.current;
-    if (!worker || !fen || !readyRef.current) return;
+    if (!enabled || !worker || !fen || !readyRef.current) return;
 
     setState((current) => ({
       ...current,
@@ -178,7 +178,10 @@ export function useChessEngine(fen: string | null) {
     worker.postMessage("stop");
     worker.postMessage("position fen " + fen);
     worker.postMessage("go movetime " + String(ANALYSIS_TIME_MS));
-  }, [fen]);
+  }, [enabled, fen]);
 
+  if (enabled && canUseEngine() && state.status === "unsupported") {
+    return { ...state, status: "loading" as const };
+  }
   return state;
 }

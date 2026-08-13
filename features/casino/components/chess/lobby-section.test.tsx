@@ -17,6 +17,7 @@ const chessApi = vi.hoisted(() => ({
   submitMove: vi.fn(),
   resignMatch: vi.fn(),
   createChallenge: vi.fn(),
+  createComputerMatch: vi.fn(),
   fetchMatchmakingTicket: vi.fn(),
   cancelMatchmaking: vi.fn(),
   fetchChallengeByInvite: vi.fn(),
@@ -36,8 +37,63 @@ const chessApi = vi.hoisted(() => ({
   upsertMatchComment: vi.fn(),
   deleteMatchComment: vi.fn(),
   cancelChallenge: vi.fn(),
+  requestComputerHint: vi.fn(),
+  extendMatchTime: vi.fn(),
 }));
 vi.mock("@/features/casino/lib/api/chess", () => chessApi);
+
+const chessProducts = vi.hoisted(() => ({
+  access: {
+    player: "0xabc",
+    coachActive: false,
+    coachUntil: null,
+    hintCredits: 0,
+    timeExtensionCredits: 0,
+    premiumReviewCredits: 0,
+    updatedAt: "2026-08-13T00:00:00.000Z",
+  },
+  purchase: vi.fn(),
+}));
+vi.mock("@/features/casino/hooks/use-chess-products", () => ({
+  CHESS_PRODUCT_KEYS: {
+    catalog: ["casino", "chess", "products", "catalog"],
+    access: (player: string) => ["casino", "chess", "products", "access", player],
+  },
+  useChessProducts: () => ({
+    products: [],
+    access: chessProducts.access,
+    isLoading: false,
+    error: null,
+    purchase: chessProducts.purchase,
+    purchasing: false,
+    purchasingKey: null,
+  }),
+}));
+
+const chessSocket = vi.hoisted(() => ({
+  listener: null as ((frame: { type?: string; topic?: string; data?: unknown }) => void) | null,
+}));
+vi.mock("@/features/casino/lib/chess/live-socket", () => ({
+  subscribeChessTopic: vi.fn(
+    (
+      _topic: string,
+      listener: (frame: { type?: string; topic?: string; data?: unknown }) => void
+    ) => {
+      chessSocket.listener = listener;
+      return () => {
+        if (chessSocket.listener === listener) chessSocket.listener = null;
+      };
+    }
+  ),
+}));
+
+vi.mock("@privy-io/react-auth", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@privy-io/react-auth")>();
+  return {
+    ...original,
+    usePrivy: () => ({ ready: true, authenticated: true }),
+  };
+});
 
 const bettingHooks = vi.hoisted(() => ({
   useMatchMarket: vi.fn(),
@@ -52,6 +108,9 @@ vi.mock("@/features/casino/hooks/use-casino-betting", () => ({
 }));
 
 vi.mock("@/features/casino/hooks/use-chess-cashier", () => ({
+  CASHIER_KEYS: {
+    balance: (player: string) => ["casino", "chess", "cashier", "balance", player],
+  },
   useChessCashierStatus: () => ({
     configured: false,
     config: null,
@@ -128,6 +187,8 @@ const activeMatch = (over: Record<string, unknown> = {}) => ({
   white: { id: "0xabc", username: "0xabc", rating: 0, walletAddress: "0xabc" },
   black: { id: "0xdef", username: "GrandmasterKay", rating: 2210, walletAddress: "0xdef" },
   timeControl: "30s",
+  clockMode: "real_time",
+  computer: null,
   fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
   moves: ["e4"],
   clocks: { w: 26, b: 56 },
@@ -137,6 +198,13 @@ const activeMatch = (over: Record<string, unknown> = {}) => ({
   drawOffered: null,
   takeback: { white: false, black: false, takebackable: true },
   rematch: { offeredBy: null, nextMatchId: null },
+  timeExtensions: {
+    allowed: false,
+    used: 0,
+    totalSeconds: 0,
+    maxUses: 3,
+    maxTotalSeconds: 1_800,
+  },
   stakeUsdc: null,
   wagerStatus: null,
   liveTopic: "chess:match:m1",
@@ -146,7 +214,11 @@ const activeMatch = (over: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  chessSocket.listener = null;
   wallet.balance = 10;
+  chessProducts.access.timeExtensionCredits = 0;
+  chessProducts.access.hintCredits = 0;
+  chessProducts.purchase.mockReset();
   chessApi.fetchLobbyChallenges.mockResolvedValue({ challenges: [], myOpenGames: [] });
   chessApi.fetchOpenChallenges.mockResolvedValue([]);
   chessApi.fetchLiveMatches.mockResolvedValue([]);
@@ -180,6 +252,45 @@ describe("chess lobby", () => {
     render(<LobbySection />, { wrapper });
     expect(await screen.findByText(/No games in play yet/)).toBeInTheDocument();
     expect(await screen.findByText(/No open challenges/)).toBeInTheDocument();
+  });
+
+  it("creates an unlimited computer game and opens its board", async () => {
+    chessApi.createComputerMatch.mockResolvedValue(
+      activeMatch({
+        id: "computer-1",
+        timeControl: "Unlimited",
+        clockMode: "unlimited",
+        computer: {
+          player: "0x00000000000000000000000000000000000000b1",
+          name: "Stockfish level 1",
+          side: "black",
+          level: 1,
+        },
+      })
+    );
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up a computer game" }));
+    expect(screen.getByRole("heading", { name: "Game setup" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Unlimited" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("computer-game-setup-scroll-region")).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-y-auto"
+    );
+    expect(screen.getByTestId("computer-game-setup-actions")).toHaveClass("shrink-0");
+    fireEvent.click(screen.getByRole("button", { name: "Play against computer" }));
+
+    await waitFor(() =>
+      expect(chessApi.createComputerMatch).toHaveBeenCalledWith({
+        player: "0xabc",
+        level: 1,
+        color: "random",
+        timeMode: "unlimited",
+        coachEnabled: true,
+      })
+    );
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=computer-1"));
   });
 
   it("lists an open challenge with its time control", async () => {
@@ -343,6 +454,8 @@ describe("create a game", () => {
     expect(sent.timeControl).toBe("15+0");
     expect(sent.mode).toBe("invite");
     expect(sent.creator).toBe("0xabc");
+    expect(sent.rated).toBe(false);
+    expect(sent.allowTimeExtensions).toBe(true);
   });
 
   it("asks for nothing but a time control", () => {
@@ -368,6 +481,55 @@ describe("create a game", () => {
 
     // The creator lands on the board (id c1); the invite link is shared from there.
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=c1"));
+  });
+
+  it("moves the creator from the waiting screen into play when the opponent joins", async () => {
+    const waiting = activeMatch({
+      state: "awaiting_opponent",
+      black: null,
+      moves: [],
+      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+      turn: "w",
+      clocks: { w: 300, b: 300 },
+    });
+    // The second response deliberately remains stale. The socket acceptance
+    // must win even when its Lichess-style follow-up reload races an older
+    // waiting snapshot from HTTP.
+    chessApi.fetchMatch.mockResolvedValue(waiting);
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    expect((await screen.findAllByRole("button", { name: "Abort" })).length).toBeGreaterThan(0);
+    await waitFor(() => expect(chessSocket.listener).not.toBeNull());
+
+    act(() => {
+      chessSocket.listener?.({
+        type: "state",
+        topic: "chess:match:m1",
+        data: {
+          id: "m1",
+          status: "active",
+          fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          turn: "white",
+          ply: 0,
+          timeControl: { initialSeconds: 300, incrementSeconds: 0 },
+          clocks: { whiteMs: 300_000, blackMs: 300_000 },
+          white: "0xabc",
+          black: "0xdef",
+          drawOfferBy: null,
+          result: null,
+          resultReason: null,
+          createdAt: "2026-08-13T09:00:00.000Z",
+          startedAt: "2026-08-13T09:01:00.000Z",
+          finishedAt: null,
+        },
+      });
+    });
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("button", { name: "Offer draw" }).length).toBeGreaterThan(0)
+    );
+    await waitFor(() => expect(chessApi.fetchMatch.mock.calls.length).toBeGreaterThanOrEqual(2));
+    expect(screen.queryAllByRole("button", { name: "Abort" })).toHaveLength(0);
   });
 });
 
@@ -395,6 +557,18 @@ describe("a drawn game", () => {
     drawOffered: null,
     takeback: { white: false, black: false, takebackable: false },
     rematch: { offeredBy: null, nextMatchId: null },
+    clockMode: "real_time",
+    computer: null,
+    timeExtensions: {
+      allowed: false,
+      used: 0,
+      totalSeconds: 0,
+      maxUses: 3,
+      maxTotalSeconds: 1_800,
+    },
+    stakeUsdc: null,
+    wagerStatus: null,
+    liveTopic: "chess:match:m1",
     createdAt: new Date().toISOString(),
     ...over,
   });
@@ -415,12 +589,12 @@ describe("a drawn game", () => {
     );
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Rematch" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Rematch" }))[0]);
     await waitFor(() => expect(chessApi.requestRematch).toHaveBeenCalledWith("m1", "0xabc"));
     expect(push).not.toHaveBeenCalled();
     expect(
-      await screen.findByText(/Rematch offered. Waiting for your opponent./)
-    ).toBeInTheDocument();
+      (await screen.findAllByText(/Rematch offered. Waiting for your opponent./)).length
+    ).toBeGreaterThan(0);
   });
 
   it("accepts the opponent's rematch on the same finished match", async () => {
@@ -432,10 +606,10 @@ describe("a drawn game", () => {
     );
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    expect(await screen.findByText(/Your opponent wants a rematch/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Rematch" })).not.toBeInTheDocument();
+    expect((await screen.findAllByText(/Your opponent wants a rematch/)).length).toBeGreaterThan(0);
+    expect(screen.queryAllByRole("button", { name: "Rematch" })).toHaveLength(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "Accept rematch" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Accept rematch" })[0]);
     await waitFor(() => expect(chessApi.requestRematch).toHaveBeenCalledWith("m1", "0xabc"));
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=rematch-1"));
   });
@@ -449,7 +623,7 @@ describe("a drawn game", () => {
     );
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Cancel rematch" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Cancel rematch" }))[0]);
     await waitFor(() => expect(chessApi.declineRematch).toHaveBeenCalledWith("m1", "0xabc"));
   });
 
@@ -466,7 +640,7 @@ describe("a drawn game", () => {
     });
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Accept takeback" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Accept takeback" }))[0]);
     await waitFor(() => expect(chessApi.requestTakeback).toHaveBeenCalledWith("m1", "0xabc"));
   });
 
@@ -499,22 +673,19 @@ describe("a drawn game", () => {
     // visible per breakpoint.
     expect((await screen.findAllByText("gl hf")).length).toBeGreaterThan(0);
 
-    fireEvent.change(screen.getByPlaceholderText("Say something about the game…"), {
+    fireEvent.change(screen.getByPlaceholderText("Message your opponent…"), {
       target: { value: "nice move" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() =>
-      expect(chessApi.postMatchChatMessage).toHaveBeenCalledWith(
-        "m1",
-        "spectator",
-        "nice move",
-        null
-      )
+      expect(chessApi.postMatchChatMessage).toHaveBeenCalledWith("m1", "player", "nice move", null)
     );
   });
 
   it("loads and saves a private note plus current-position comments", async () => {
+    const previousWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 760 });
     const live = drawnMatch({ state: "in_progress", result: null });
     chessApi.fetchMatch.mockResolvedValue(live);
     chessApi.fetchMatchNote.mockResolvedValue({
@@ -553,7 +724,7 @@ describe("a drawn game", () => {
       createdAt: "2026-08-03T00:02:00.000Z",
       updatedAt: "2026-08-03T00:02:00.000Z",
     });
-    render(<PlaySection matchId="m1" />, { wrapper });
+    const { unmount } = render(<PlaySection matchId="m1" />, { wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Info" }));
     expect(await screen.findByDisplayValue("prep line")).toBeInTheDocument();
@@ -588,6 +759,8 @@ describe("a drawn game", () => {
         null
       )
     );
+    unmount();
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: previousWidth });
   });
 
   it("offers a draw, then answers the one the opponent offered", async () => {
@@ -596,7 +769,7 @@ describe("a drawn game", () => {
     chessApi.offerDraw.mockResolvedValue({ ...live, drawOffered: "w" });
 
     const { unmount } = render(<PlaySection matchId="m1" />, { wrapper });
-    fireEvent.click(await screen.findByRole("button", { name: "Offer draw" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Offer draw" }))[0]);
     await waitFor(() => expect(chessApi.offerDraw).toHaveBeenCalledWith("m1", "0xabc"));
     unmount();
 
@@ -606,7 +779,7 @@ describe("a drawn game", () => {
     chessApi.respondToDraw.mockResolvedValue({ ...live, drawOffered: null });
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Accept draw" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Accept draw" }))[0]);
     await waitFor(() => expect(chessApi.respondToDraw).toHaveBeenCalledWith("m1", "0xabc", true));
   });
 
@@ -616,7 +789,7 @@ describe("a drawn game", () => {
     chessApi.respondToDraw.mockResolvedValue({ ...live, drawOffered: null });
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Decline" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Decline" }))[0]);
     await waitFor(() => expect(chessApi.respondToDraw).toHaveBeenCalledWith("m1", "0xabc", false));
   });
 
@@ -627,7 +800,7 @@ describe("a drawn game", () => {
     chessApi.abortMatch.mockResolvedValue(drawnMatch({ state: "cancelled", result: null }));
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Abort" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Abort" }))[0]);
     await waitFor(() => expect(chessApi.abortMatch).toHaveBeenCalledWith("m1", "0xabc"));
   });
 
@@ -664,7 +837,7 @@ describe("a drawn game", () => {
     );
     render(<PlaySection matchId="m1" />, { wrapper });
 
-    await screen.findByText("Your time ran out");
+    expect((await screen.findAllByText("Your time ran out")).length).toBeGreaterThan(0);
     expect(chessApi.claimTimeout).not.toHaveBeenCalled();
   });
 
@@ -684,6 +857,34 @@ describe("a drawn game", () => {
     render(<PlaySection matchId="m1" />, { wrapper });
 
     await waitFor(() => expect(chessApi.claimTimeout).toHaveBeenCalledWith("m1", "0xabc"));
+  });
+
+  it("extends both clocks from the live action rail", async () => {
+    const live = drawnMatch({
+      state: "in_progress",
+      result: null,
+      timeExtensions: {
+        allowed: true,
+        used: 0,
+        totalSeconds: 0,
+        maxUses: 3,
+        maxTotalSeconds: 1_800,
+      },
+    });
+    chessProducts.access.timeExtensionCredits = 1;
+    chessApi.fetchMatch.mockResolvedValue(live);
+    chessApi.extendMatchTime.mockResolvedValue({
+      ...live,
+      clocks: { w: 360, b: 360 },
+      timeExtensions: { ...live.timeExtensions, used: 1, totalSeconds: 60 },
+    });
+    render(<PlaySection matchId="m1" />, { wrapper });
+
+    fireEvent.click((await screen.findAllByRole("button", { name: "+1m" }))[0]);
+
+    await waitFor(() =>
+      expect(chessApi.extendMatchTime).toHaveBeenCalledWith("m1", "0xabc", 60, expect.any(String))
+    );
   });
 
   it("keeps the same clock running through a tab switch on the same snapshot", async () => {
@@ -715,13 +916,13 @@ describe("a drawn game", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(1);
       });
-      expect(screen.getByText("Your move")).toBeInTheDocument();
+      expect(screen.getAllByText("Your move").length).toBeGreaterThan(0);
       expect(screen.getAllByText("10:00").length).toBeGreaterThan(0);
 
       act(() => {
         vi.advanceTimersByTime(30_000);
       });
-      expect(screen.getByText("09:30")).toBeInTheDocument();
+      expect(screen.getAllByText("09:30").length).toBeGreaterThan(0);
 
       act(() => {
         visibility = "hidden";
@@ -735,7 +936,9 @@ describe("a drawn game", () => {
         document.dispatchEvent(new Event("visibilitychange"));
       });
 
-      expect(screen.queryByText("09:10") ?? screen.queryByText("09:09")).toBeInTheDocument();
+      expect(
+        screen.queryAllByText("09:10").length + screen.queryAllByText("09:09").length
+      ).toBeGreaterThan(0);
     } finally {
       if (originalVisibility) {
         Object.defineProperty(document, "visibilityState", originalVisibility);

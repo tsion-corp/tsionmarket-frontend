@@ -7,6 +7,7 @@ import { useSwissList } from "@/features/casino/hooks/use-casino-swiss";
 import { CasinoEmpty, CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { SwissCreateForm } from "@/features/casino/components/chess/swiss/create-form";
 import type { SwissGameKind, SwissState, SwissSummary } from "@/features/casino/lib/api/swiss";
+import { hasPositiveUsdc } from "@/features/casino/lib/api/cashier";
 
 // Running events lead: they are what a visitor can watch right now. Open ones
 // follow because they are joinable, finished ones close the page as a record.
@@ -37,6 +38,11 @@ function TournamentRow({ tournament }: { tournament: SwissSummary }) {
     >
       <div className="truncate pr-3">
         <div className="truncate">{tournament.name}</div>
+        {hasPositiveUsdc(tournament.entryFeeUsdc) ? (
+          <div className="tnum truncate text-[11.5px] font-normal text-[#91c85c]">
+            {tournament.entryFeeUsdc} USDC entry · 50/50 pool
+          </div>
+        ) : null}
         {tournament.state === "finished" && tournament.winner ? (
           <div className="truncate text-[11.5px] font-normal text-white/50">
             {t("winner", { name: tournament.winner })}

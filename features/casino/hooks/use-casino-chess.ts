@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   deleteMatchComment,
@@ -8,6 +9,8 @@ import {
   acceptChallenge,
   cancelMatchmaking,
   claimTimeout,
+  continueComputerCoachReview,
+  createComputerMatch,
   createChallenge,
   fetchMatchChat,
   fetchMatchComments,
@@ -20,19 +23,28 @@ import {
   fetchPlayerMatches,
   fetchMatch,
   fetchMatchmakingTicket,
+  fetchComputerCoachState,
+  extendMatchTime,
   claimDraw,
   offerDraw,
   postMatchChatMessage,
   requestRematch,
+  requestComputerHint,
+  requestComputerCoachHint,
+  requestComputerCoachMove,
   requestTakeback,
   resignMatch,
   respondToDraw,
   saveMatchNote,
   submitMove,
+  undoComputerCoachReview,
   upsertMatchComment,
 } from "@/features/casino/lib/api/chess";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { track } from "@/lib/analytics/mixpanel";
+import { newChessIdempotencyKey } from "@/features/casino/lib/api/chess-idempotency";
+import { CHESS_PRODUCT_KEYS } from "@/features/casino/hooks/use-chess-products";
+import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
 import {
   applyChatLineFrame,
   applyCommentDeletedFrame,
@@ -42,6 +54,7 @@ import {
   applyRematchTakenFrame,
   applyStateFrame,
   applyTakebackOffersFrame,
+  mergeChessMatchSnapshot,
   type ChessChatMessageWire,
   type ChessCommentDeletedFrame,
   parseTimeControl,
@@ -63,6 +76,7 @@ import type {
   ChessMatch,
   ChessMatchComment,
   ChessMatchState,
+  CreateComputerMatchInput,
   CreateChessChallengeInput,
 } from "@/features/casino/lib/api/types";
 
@@ -99,6 +113,11 @@ export const CHESS_KEYS = {
   comments: (id: string, ply: number) => ["casino", "chess", "match", id, "comments", ply] as const,
   history: (wallet: string) => ["casino", "chess", "history", wallet] as const,
   ticket: (id: string) => ["casino", "chess", "ticket", id] as const,
+  analysis: (id: string) => ["casino", "chess", "analysis", id] as const,
+  insights: (player: string) => ["casino", "chess", "insights", player] as const,
+  coachProgress: (player: string) => ["casino", "chess", "coach-progress", player] as const,
+  coachState: (id: string, player: string) =>
+    ["casino", "chess", "match", id, "coach", player] as const,
 };
 
 interface OptimisticMatchState {
@@ -123,8 +142,9 @@ function optimisticMove(base: ChessMatch, uci: string): OptimisticMatchState | n
   }
   const now = Date.now();
   const since = Date.parse(base.clockUpdatedAt);
-  const elapsed = Number.isFinite(since) ? Math.max(0, (now - since) / 1000) : 0;
-  const bonus = incrementSeconds(base.timeControl);
+  const timed = (base.clockMode ?? "real_time") === "real_time";
+  const elapsed = timed && Number.isFinite(since) ? Math.max(0, (now - since) / 1000) : 0;
+  const bonus = timed ? incrementSeconds(base.timeControl) : 0;
   const nextClocks = {
     ...base.clocks,
     [base.turn]: Math.max(0, base.clocks[base.turn] - elapsed) + bonus,
@@ -210,7 +230,8 @@ function useTickingClocks(match: ChessMatch | undefined) {
   const [visible, setVisible] = useState(
     () => typeof document === "undefined" || document.visibilityState === "visible"
   );
-  const running = match?.state === "in_progress" && visible;
+  const running =
+    match?.state === "in_progress" && (match.clockMode ?? "real_time") === "real_time" && visible;
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -231,7 +252,7 @@ function useTickingClocks(match: ChessMatch | undefined) {
 
   return useMemo(() => {
     if (!match) return null;
-    if (match.state !== "in_progress") return match.clocks;
+    if (match.state !== "in_progress" || match.clockMode === "unlimited") return match.clocks;
     const since = Date.parse(match.clockUpdatedAt);
     const elapsed = Number.isFinite(since) ? Math.max(0, (now - since) / 1000) : 0;
     return {
@@ -257,12 +278,23 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
 
   const query = useQuery({
     queryKey: CHESS_KEYS.match(matchId ?? "none"),
-    queryFn: () =>
-      fetchMatch(
-        matchId as string,
-        matchId ? (queryClient.getQueryData<ChessMatch>(CHESS_KEYS.match(matchId)) ?? null) : null
-      ),
+    queryFn: async () => {
+      const id = matchId as string;
+      const key = CHESS_KEYS.match(id);
+      const previous = queryClient.getQueryData<ChessMatch>(key);
+      const incoming = await fetchMatch(id, previous ?? null);
+      // A join frame may arrive while this request is in flight. Compare with
+      // the cache again after the request so a late waiting response cannot
+      // overwrite the active board the socket already delivered.
+      return mergeChessMatchSnapshot(queryClient.getQueryData<ChessMatch>(key), incoming);
+    },
     enabled: !!matchId,
+    // The create mutation seeds the waiting snapshot before routing here. Read
+    // once immediately anyway, then keep the interval as the socket safety net.
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+    refetchOnWindowFocus: "always",
     refetchInterval: (q) => chessMatchRefetchMs(q.state.data?.state, socketLive),
     // A second browser/tab on the same game must keep moving even when it is
     // backgrounded. If the live socket is absent or silent (local backend with
@@ -281,6 +313,16 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
       ? optimistic.match
       : baseMatch;
   const clocks = useTickingClocks(match);
+  const coachPlayer = seatName ?? wallet.address ?? null;
+  const coachEnabled = baseMatch?.computer?.coachEnabled === true && !baseMatch.stakeUsdc;
+  const coachStateQuery = useQuery({
+    queryKey: CHESS_KEYS.coachState(matchId ?? "none", coachPlayer ?? "none"),
+    queryFn: () => fetchComputerCoachState(matchId as string, coachPlayer as string),
+    enabled: !!matchId && !!coachPlayer && coachEnabled,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
+  });
 
   // Live path: the service publishes state/position/gameOver plus rematch and
   // takeback frames to the ws-gateway on the match's liveTopic. Finished boards
@@ -297,7 +339,10 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
         // live yet: if this topic never starts flowing, the fast poll is the
         // only thing keeping the opponent's move from appearing five seconds
         // late.
-        void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+        void queryClient.refetchQueries({
+          queryKey: CHESS_KEYS.match(matchId),
+          type: "active",
+        });
         return;
       }
       // The socket dropped: speed the poll back up until it reconnects.
@@ -314,7 +359,12 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
         type !== "commentDeleted" &&
         type !== "rematchOffer" &&
         type !== "rematchTaken" &&
-        type !== "takebackOffers"
+        type !== "takebackOffers" &&
+        type !== "coachReview" &&
+        type !== "coachContinued" &&
+        type !== "coachUndone" &&
+        type !== "coachHint" &&
+        type !== "coachSummary"
       ) {
         return;
       }
@@ -328,7 +378,20 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
       // frame missing its payload) still reconciles from the source, because the
       // final result reason and clocks are worth one authoritative read. The poll
       // remains as a safety net that repairs any missed frame.
-      if (type === "position" && data) {
+      if (
+        type === "coachReview" ||
+        type === "coachContinued" ||
+        type === "coachUndone" ||
+        type === "coachHint" ||
+        type === "coachSummary"
+      ) {
+        if (coachPlayer) {
+          void queryClient.invalidateQueries({
+            queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+          });
+        }
+        void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+      } else if (type === "position" && data) {
         queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
           prev ? applyPositionFrame(prev, data as ChessPositionFrame) : prev
         );
@@ -338,6 +401,13 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
             ? applyStateFrame(prev, data as ChessMatchWire)
             : toChessMatch(data as ChessMatchWire)
         );
+        // Challenge acceptance is a lifecycle boundary. Like Lichess's
+        // challenge `reload` event, reconcile once from the authoritative
+        // endpoint after applying the pushed state immediately.
+        void queryClient.refetchQueries({
+          queryKey: CHESS_KEYS.match(matchId),
+          type: "active",
+        });
       } else if (type === "takebackOffers" && data) {
         queryClient.setQueryData<ChessMatch>(CHESS_KEYS.match(matchId), (prev) =>
           prev ? applyTakebackOffersFrame(prev, data as ChessTakebackOffersFrame) : prev
@@ -369,9 +439,14 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
         );
       } else {
         void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+        if (type === "gameOver" && coachPlayer) {
+          void queryClient.invalidateQueries({
+            queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+          });
+        }
       }
     });
-  }, [liveTopic, matchId, queryClient]);
+  }, [coachPlayer, liveTopic, matchId, queryClient]);
 
   useEffect(() => {
     if (!optimistic || !matchId) return;
@@ -416,6 +491,97 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
     },
     onError: () => setOptimistic(null),
     onSuccess: applyMatch,
+  });
+
+  const coachedMove = useMutation({
+    mutationFn: (uci: string) =>
+      requestComputerCoachMove(
+        matchId as string,
+        actingPlayer(),
+        uci,
+        baseMatch?.moves.length ?? 0,
+        newChessIdempotencyKey()
+      ),
+    onSuccess: (review) => {
+      if (review.matchState) applyMatch(review.matchState);
+      if (matchId && coachPlayer) {
+        const awaitingResponse = review.status === "review";
+        queryClient.setQueryData(CHESS_KEYS.coachState(matchId, coachPlayer), {
+          matchId,
+          enabled: true,
+          player: coachPlayer,
+          ply: review.matchState?.moves.length ?? review.ply + 1,
+          canMove: false,
+          awaitingResponse,
+          hintLevel: 0,
+          pendingWarning: null,
+          pendingReview: awaitingResponse ? review : null,
+          summary: null,
+          actions: awaitingResponse ? review.actions : [],
+        });
+        if (!awaitingResponse) {
+          void queryClient.invalidateQueries({
+            queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+          });
+        }
+      }
+    },
+  });
+
+  const continueCoachReview = useMutation({
+    mutationFn: (attemptId: string) =>
+      continueComputerCoachReview(
+        matchId as string,
+        actingPlayer(),
+        attemptId,
+        baseMatch?.moves.length ?? 0
+      ),
+    onSuccess: (review) => {
+      if (review.matchState) applyMatch(review.matchState);
+      if (matchId && coachPlayer) {
+        void queryClient.invalidateQueries({
+          queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+        });
+      }
+      if (matchId) {
+        void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+      }
+    },
+  });
+
+  const undoCoachReview = useMutation({
+    mutationFn: (attemptId: string) =>
+      undoComputerCoachReview(
+        matchId as string,
+        actingPlayer(),
+        attemptId,
+        baseMatch?.moves.length ?? 0
+      ),
+    onSuccess: (review) => {
+      if (review.matchState) applyMatch(review.matchState);
+      if (matchId && coachPlayer) {
+        void queryClient.invalidateQueries({
+          queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+        });
+      }
+    },
+  });
+
+  const coachedHint = useMutation({
+    mutationFn: () =>
+      requestComputerCoachHint(
+        matchId as string,
+        actingPlayer(),
+        baseMatch?.moves.length ?? 0,
+        newChessIdempotencyKey()
+      ),
+    onSuccess: () => {
+      if (matchId && coachPlayer) {
+        void queryClient.invalidateQueries({
+          queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+        });
+      }
+    },
   });
 
   const resign = useMutation({
@@ -470,6 +636,36 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
     onSuccess: applyMatch,
   });
 
+  const hint = useMutation({
+    mutationFn: () =>
+      requestComputerHint(matchId as string, actingPlayer(), newChessIdempotencyKey()),
+    onSuccess: (result) => {
+      if (matchId) {
+        void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
+      }
+      if (wallet.address) {
+        void queryClient.invalidateQueries({
+          queryKey: CHESS_PRODUCT_KEYS.access(wallet.address),
+        });
+      }
+      return result;
+    },
+  });
+
+  const timeExtension = useMutation({
+    mutationFn: (seconds: 60 | 300 | 600) =>
+      extendMatchTime(matchId as string, actingPlayer(), seconds, newChessIdempotencyKey()),
+    onSuccess: (next) => {
+      applyMatch(next);
+      if (wallet.address) {
+        void queryClient.invalidateQueries({
+          queryKey: CHESS_PRODUCT_KEYS.access(wallet.address),
+        });
+        void queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet.address) });
+      }
+    },
+  });
+
   // The service does not end a game when a clock runs out, so the player who is
   // still on the move has to claim it. Only the opponent of the flagged side
   // claims, and only once per match: a repeated claim would be rejected, and
@@ -478,6 +674,7 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
   const opponentFlagged =
     !!match &&
     match.state === "in_progress" &&
+    (match.clockMode ?? "real_time") === "real_time" &&
     you !== null &&
     match.turn !== you &&
     (clocks?.[match.turn] ?? 1) <= 0;
@@ -499,6 +696,16 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
     submitMove: move.mutateAsync,
     moving: move.isPending,
     moveError: move.error,
+    coachState: coachStateQuery.data ?? null,
+    coachStateLoading: coachStateQuery.isLoading,
+    submitCoachedMove: coachedMove.mutateAsync,
+    coachingMove: coachedMove.isPending,
+    continueCoachReview: continueCoachReview.mutateAsync,
+    continuingCoachReview: continueCoachReview.isPending,
+    undoCoachReview: undoCoachReview.mutateAsync,
+    undoingCoachReview: undoCoachReview.isPending,
+    requestCoachHint: coachedHint.mutateAsync,
+    requestingCoachHint: coachedHint.isPending,
     resign: resign.mutateAsync,
     resigning: resign.isPending,
     offerDraw: proposeDraw.mutateAsync,
@@ -517,6 +724,10 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
     requestingTakeback: takeback.isPending,
     declineTakeback: declineTakeback.mutateAsync,
     decliningTakeback: declineTakeback.isPending,
+    requestHint: hint.mutateAsync,
+    requestingHint: hint.isPending,
+    extendTime: timeExtension.mutateAsync,
+    extendingTime: timeExtension.isPending,
     claimingTimeout: flag.isPending,
   };
 }
@@ -530,19 +741,23 @@ export function useChessMatchSocial(
   // wallet-seated games). The chat/note/comment writes are seat-gated exactly
   // like moves, so the caller must name the seat here or the service rejects a
   // real tournament player as a non-player. See the note in chess.ts.
-  seatName: string | null = null
+  seatName: string | null = null,
+  chatEnabled = true
 ) {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
+  const { ready, authenticated } = usePrivy();
   // On a tournament board the caller is their seat name; otherwise the wallet.
   // The note is per-caller, so it is cached under whichever identity acts.
   const viewer = seatName ?? wallet.address?.toLowerCase() ?? "anon";
-  const activeRoom: ChessChatRoom = room === "player" && canUsePlayerRoom ? "player" : "spectator";
+  const privateReadsReady = ready && authenticated && !!wallet.address;
+  const activeRoom: ChessChatRoom =
+    room === "player" && canUsePlayerRoom && privateReadsReady ? "player" : "spectator";
 
   const chat = useQuery({
     queryKey: CHESS_KEYS.chat(matchId ?? "none", activeRoom),
     queryFn: () => fetchMatchChat(matchId as string, { room: activeRoom, limit: 100 }, seatName),
-    enabled: !!matchId && (activeRoom === "spectator" || !!wallet.address),
+    enabled: chatEnabled && !!matchId && (activeRoom === "spectator" || privateReadsReady),
     retry: false,
     refetchInterval: (query) => {
       const gateway = query.state.error as { status?: unknown; code?: unknown } | null;
@@ -562,7 +777,7 @@ export function useChessMatchSocial(
   const note = useQuery({
     queryKey: CHESS_KEYS.note(matchId ?? "none", viewer),
     queryFn: () => fetchMatchNote(matchId as string, seatName),
-    enabled: !!matchId && !!wallet.address,
+    enabled: !!matchId && privateReadsReady,
   });
 
   const comments = useQuery({
@@ -676,6 +891,26 @@ export function useCreateChallenge() {
       if (stake > 0) track("game_staked", { game: "chess", amount_usd: stake });
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
+    },
+  });
+}
+
+export function useCreateComputerMatch() {
+  const queryClient = useQueryClient();
+  const wallet = useCasinoWallet();
+  return useMutation({
+    mutationFn: (input: CreateComputerMatchInput) =>
+      createComputerMatch({
+        ...input,
+        player: requireWallet(wallet.address),
+        ...(input.stakeUsdc ? { idempotencyKey: newChessIdempotencyKey() } : {}),
+      }),
+    onSuccess: (match) => {
+      queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
+      void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.liveMatches });
+      if (wallet.address) {
+        void queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet.address) });
+      }
     },
   });
 }

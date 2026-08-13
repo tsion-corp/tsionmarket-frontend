@@ -33,6 +33,15 @@ function match(over: Partial<ChessMatch> = {}): ChessMatch {
     liveTopic: "chess:match:m1",
     createdAt: "2026-08-02T00:00:00.000Z",
     ...over,
+    clockMode: over.clockMode ?? "real_time",
+    computer: over.computer ?? null,
+    timeExtensions: over.timeExtensions ?? {
+      allowed: false,
+      used: 0,
+      totalSeconds: 0,
+      maxUses: 3,
+      maxTotalSeconds: 1_800,
+    },
   };
 }
 

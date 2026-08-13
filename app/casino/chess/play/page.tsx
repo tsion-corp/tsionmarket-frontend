@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CasinoPage, PlaySection } from "@/features/casino";
+import { ChessRoundPageShell, PlaySection } from "@/features/casino";
 
 function PlayFromParams() {
   const params = useSearchParams();
@@ -13,10 +13,10 @@ function PlayFromParams() {
 
 export default function ChessPlayPage() {
   return (
-    <CasinoPage>
+    <ChessRoundPageShell>
       <Suspense fallback={null}>
         <PlayFromParams />
       </Suspense>
-    </CasinoPage>
+    </ChessRoundPageShell>
   );
 }

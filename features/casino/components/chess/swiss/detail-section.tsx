@@ -10,10 +10,13 @@ import { CasinoError, CasinoLoading } from "@/features/casino/components/casino-
 import { ChessBoard } from "@/features/casino/components/chess/chess-board";
 import { FlagIcon, PlayIcon } from "@/components/ui/icons";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
+import { SwissBettingPanel } from "@/features/casino/components/chess/swiss/betting-panel";
 import { SwissStandings } from "@/features/casino/components/chess/swiss/standings";
 import { SwissRoundPairings } from "@/features/casino/components/chess/swiss/pairings";
 import { BOARD_THEMES, DEFAULT_THEME } from "@/features/casino/lib/chess/board-theme";
 import { initialBoard } from "@/features/casino/lib/chess/engine";
+import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
+import { exceedsUsdcBalance, hasPositiveUsdc } from "@/features/casino/lib/api/cashier";
 import { copyText } from "@/lib/clipboard";
 import {
   currentRound,
@@ -147,18 +150,23 @@ function CompactMessage({ children }: { children: React.ReactNode }) {
 function JoinPanel({
   join,
   joining,
+  entryFeeUsdc,
 }: {
   join: (input: { name: string; password?: string }) => Promise<unknown>;
   joining: boolean;
+  entryFeeUsdc: string;
 }) {
   const t = useTranslations("casino.chess.swiss");
   const wallet = useCasinoWallet();
+  const cashier = useChessCashierStatus();
   const [typedName, setTypedName] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [touched, setTouched] = useState(false);
 
   const name = typedName ?? defaultPlayerName(wallet.address);
   const nameError = playerNameError(name);
+  const paid = hasPositiveUsdc(entryFeeUsdc);
+  const insufficient = paid && exceedsUsdcBalance(entryFeeUsdc, cashier.available);
 
   const onJoin = async () => {
     setTouched(true);
@@ -166,7 +174,7 @@ function JoinPanel({
       toast.error(t("toastConnect"));
       return;
     }
-    if (nameError || joining) return;
+    if (nameError || joining || insufficient || (paid && cashier.balanceLoading)) return;
     const id = toast.loading(t("toastJoining"));
     try {
       await join({ name, password: password || undefined });
@@ -185,6 +193,15 @@ function JoinPanel({
       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
     >
       <div className="mb-3 text-[16px] font-semibold text-white">{t("joinTitle")}</div>
+      {paid ? (
+        <div className="mb-3 rounded-[10px] border border-white/8 bg-black/12 px-3 py-2.5 text-[11.5px] leading-5 text-white/58">
+          Joining locks <strong className="tnum text-white/82">{entryFeeUsdc} USDC</strong> from
+          your chess balance. It is refunded if you leave before round 1 starts.
+          <div className={`mt-1 ${insufficient ? "text-down" : "text-white/42"}`}>
+            Available: {cashier.available} USDC
+          </div>
+        </div>
+      ) : null}
       <div className="space-y-3">
         <div>
           <div className="mb-2 text-[11px] tracking-[0.05em] text-white/38 uppercase">
@@ -219,11 +236,16 @@ function JoinPanel({
       <button
         type="button"
         onClick={() => void onJoin()}
-        disabled={joining}
+        disabled={joining || insufficient || (paid && cashier.balanceLoading)}
         className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-4 w-full px-4 py-3 font-sans text-[13.5px] font-medium`}
       >
         {joining ? t("joiningLabel") : t("joinSubmit")}
       </button>
+      {paid ? (
+        <div className="mt-3">
+          <ChessCashierLauncher compact />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -232,6 +254,7 @@ function OrganizerPanel({
   state,
   round,
   participantCount,
+  minimumPlayers,
   manual,
   setManual,
   onStartRound,
@@ -242,6 +265,7 @@ function OrganizerPanel({
   state: SwissDetail["state"];
   round: number;
   participantCount: number;
+  minimumPlayers: number;
   manual: string;
   setManual: (value: string) => void;
   onStartRound: () => Promise<void>;
@@ -256,6 +280,7 @@ function OrganizerPanel({
     state === "open"
       ? `${t("organizerHint")} Round 1 starts when you click the button below, and Play now appears as soon as the board is paired.`
       : `Round ${round} is live. Start the next round only after every board in the current round is done.`;
+  const ready = state !== "open" || participantCount >= minimumPlayers;
 
   return (
     <div
@@ -266,9 +291,9 @@ function OrganizerPanel({
       <div className="text-[13px] leading-6 text-white/60">{description}</div>
       {state === "open" ? (
         <div className="mt-3 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[13px] text-white/68">
-          {participantCount >= 2
+          {ready
             ? `${participantCount} players are ready. Click Start round 1 now.`
-            : "At least 2 players must join before round 1 can start."}
+            : `At least ${minimumPlayers} players must join before round 1 can start.`}
         </div>
       ) : null}
       <div className="mt-4">
@@ -286,7 +311,7 @@ function OrganizerPanel({
       <button
         type="button"
         onClick={() => void onStartRound()}
-        disabled={startingRound}
+        disabled={startingRound || !ready}
         className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-4 w-full px-4 py-3 font-sans text-[13px] font-medium`}
       >
         {startingRound ? t("startingRound") : ctaLabel}
@@ -409,6 +434,13 @@ function InfoPanel({
             Players join from this page directly. The organizer can copy the tournament page link
             and send it out.
           </div>
+          {hasPositiveUsdc(detail.entryFeeUsdc) ? (
+            <div className="rounded-[10px] border border-white/8 bg-black/12 px-3 py-2.5">
+              <strong className="tnum text-white/82">{detail.entryFeeUsdc} USDC</strong> per entrant
+              · {detail.prizePoolBps / 100}% winner pool · {detail.platformShareBps / 100}% platform
+              · minimum {detail.minimumPlayers} players.
+            </div>
+          ) : null}
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
@@ -662,9 +694,17 @@ export function SwissDetailSection({
 
               <div className="mt-4 grid grid-cols-2 gap-2.5">
                 <SummaryStat label="Rounds" value={`${detail.round}/${detail.nbRounds}`} />
-                <SummaryStat label="Players" value={`${detail.participantCount}`} />
+                <SummaryStat
+                  label="Players"
+                  value={`${detail.participantCount}/${detail.maxPlayers}`}
+                />
                 <SummaryStat label="Time Control" value={detail.timeControl} />
-                <SummaryStat label="Organizer" value={detail.organizer} />
+                <SummaryStat
+                  label="Entry"
+                  value={
+                    hasPositiveUsdc(detail.entryFeeUsdc) ? `${detail.entryFeeUsdc} USDC` : "Free"
+                  }
+                />
               </div>
 
               {detail.state === "finished" && detail.winner ? (
@@ -676,7 +716,7 @@ export function SwissDetailSection({
 
             <div className="mt-4 space-y-4">
               {detail.state === "open" && !joined ? (
-                <JoinPanel join={join} joining={joining} />
+                <JoinPanel join={join} joining={joining} entryFeeUsdc={detail.entryFeeUsdc} />
               ) : null}
 
               {detail.state === "open" && joined && !isOrganizer ? (
@@ -730,6 +770,7 @@ export function SwissDetailSection({
                   state={detail.state}
                   round={detail.round}
                   participantCount={detail.participantCount}
+                  minimumPlayers={detail.minimumPlayers}
                   manual={manual}
                   setManual={setManual}
                   onStartRound={onStartRound}
@@ -768,7 +809,10 @@ export function SwissDetailSection({
             <div className="min-h-0 flex-1 overflow-y-auto pt-4 pr-1">
               <div className="space-y-4">
                 {railTab === "standings" ? (
-                  <SwissStandings standings={detail.standings} yourName={yourName} />
+                  <div className="space-y-4">
+                    <SwissStandings standings={detail.standings} yourName={yourName} />
+                    <SwissBettingPanel detail={detail} yourName={yourName} />
+                  </div>
                 ) : railTab === "games" ? (
                   <div className="space-y-4">
                     {rounds.length > 0 ? (

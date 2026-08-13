@@ -3,10 +3,13 @@ import type { User } from "@privy-io/node";
 const PRIVATE_READ_PATTERNS = [
   /^cashier\/players\/[^/]+\/balance$/u,
   /^betting\/markets\/[^/]+\/bets$/u,
+  /^betting\/swiss\/[^/]+\/bets$/u,
+  /^players\/[^/]+\/product-access$/u,
   /^matches\/[^/]+\/note$/u,
 ];
 
 const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/u;
+const TOURNAMENT_NAME_MAX = 30;
 
 // The match endpoints whose caller identity names a seat: moves, the match
 // actions, and the social surfaces (comments, note, chat) that the service gates
@@ -29,6 +32,15 @@ function isWalletLike(value: unknown): boolean {
 // name (a non-wallet string) on a seat-identity path, which is kept intact.
 function seatOrWallet(joined: string, value: unknown, wallet: string): string {
   return MATCH_SEAT_IDENTITY.test(joined) && !isWalletLike(value) ? (value as string) : wallet;
+}
+
+// Swiss stores its organizer as the same short, ASCII seat name used by the
+// tournament UI. Derive it from the verified wallet so a browser cannot claim
+// somebody else's organizer authority in create/start/reconcile requests.
+function tournamentOrganizer(wallet: string): string {
+  return wallet.length <= TOURNAMENT_NAME_MAX
+    ? wallet
+    : `${wallet.slice(0, 8)}-${wallet.slice(-4)}`;
 }
 
 function parseBody(raw: string): Record<string, unknown> | null {
@@ -88,6 +100,7 @@ export function withChessIdentity(joined: string, raw: string, wallet: string): 
   if ("creator" in record) record.creator = wallet;
   if ("bettor" in record) record.bettor = wallet;
   if ("walletAddress" in record) record.walletAddress = wallet;
+  if ("organizer" in record) record.organizer = tournamentOrganizer(wallet);
   return JSON.stringify(record);
 }
 
@@ -97,6 +110,10 @@ export function withChessReadIdentity(
   wallet: string
 ): URLSearchParams {
   const params = new URLSearchParams(searchParams);
+  if (/^betting\/(?:markets|swiss)\/[^/]+\/bets$/u.test(joined)) {
+    params.set("bettor", wallet);
+    return params;
+  }
   if (/^matches\/[^/]+\/note$/u.test(joined)) {
     if (!params.get("player")) params.set("player", wallet);
     return params;

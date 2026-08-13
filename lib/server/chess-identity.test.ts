@@ -68,6 +68,8 @@ describe("chess identity helper", () => {
     expect(chessReadNeedsSession("cashier/players/0xabc/balance")).toBe(true);
     expect(chessReadNeedsSession("cashier/config")).toBe(false);
     expect(chessReadNeedsSession("betting/markets/match-1/bets")).toBe(true);
+    expect(chessReadNeedsSession("betting/swiss/swiss-1/bets")).toBe(true);
+    expect(chessReadNeedsSession("players/0xabc/product-access")).toBe(true);
     expect(chessReadNeedsSession("matches/123/note")).toBe(true);
     expect(chessReadNeedsSession("matches/123/chat", new URLSearchParams("room=player"))).toBe(
       true
@@ -115,6 +117,24 @@ describe("chess identity helper", () => {
     expect(
       withChessIdentity("matches/123/comments", JSON.stringify({ ply: 4, text: "sharp" }), "0xabc")
     ).toBe(JSON.stringify({ ply: 4, text: "sharp", player: "0xabc" }));
+  });
+
+  it("binds Swiss organizer authority to the verified wallet's tournament name", () => {
+    const wallet = "0xDD07370000000000000000000000000000006C2E";
+    expect(
+      withChessIdentity(
+        "swiss",
+        JSON.stringify({ organizer: "spoofed", name: "Friday Swiss" }),
+        wallet
+      )
+    ).toBe(JSON.stringify({ organizer: "0xDD0737-6C2E", name: "Friday Swiss" }));
+    expect(
+      withChessIdentity(
+        "swiss/123/rounds/next",
+        JSON.stringify({ organizer: "another-player" }),
+        wallet
+      )
+    ).toBe(JSON.stringify({ organizer: "0xDD0737-6C2E" }));
   });
 
   it("keeps a Swiss seat name across the seat-gated endpoints, forcing wallet-shaped ids", () => {
@@ -178,5 +198,12 @@ describe("chess identity helper", () => {
         "0xabc"
       ).toString()
     ).toBe("room=spectator&limit=100");
+    expect(
+      withChessReadIdentity(
+        "betting/swiss/swiss-1/bets",
+        new URLSearchParams("bettor=0xspoof"),
+        "0xabc"
+      ).toString()
+    ).toBe("bettor=0xabc");
   });
 });

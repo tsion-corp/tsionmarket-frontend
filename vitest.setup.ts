@@ -34,7 +34,15 @@ globalThis.WebSocket = InertWebSocket as unknown as typeof WebSocket;
 // `window.localStorage` being undefined rather than on anything it asserted.
 // The app only ever uses the synchronous string API, so a small in-memory store
 // is a faithful stand-in and keeps the suite hermetic between files.
-if (typeof window !== "undefined" && !window.localStorage) {
+const browserStorage = typeof window === "undefined" ? null : window.localStorage;
+const hasUsableLocalStorage =
+  browserStorage !== null &&
+  typeof browserStorage.getItem === "function" &&
+  typeof browserStorage.setItem === "function" &&
+  typeof browserStorage.removeItem === "function" &&
+  typeof browserStorage.clear === "function";
+
+if (typeof window !== "undefined" && !hasUsableLocalStorage) {
   const store = new Map<string, string>();
   const memoryStorage: Storage = {
     get length() {

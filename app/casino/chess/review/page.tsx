@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CasinoPage, ReviewSection } from "@/features/casino";
+import { ChessRoundPageShell, ReviewSection } from "@/features/casino";
 
 function ReviewFromParams() {
   return <ReviewSection matchId={useSearchParams()?.get("match") ?? null} />;
@@ -10,10 +10,10 @@ function ReviewFromParams() {
 
 export default function ChessReviewPage() {
   return (
-    <CasinoPage>
+    <ChessRoundPageShell>
       <Suspense fallback={null}>
         <ReviewFromParams />
       </Suspense>
-    </CasinoPage>
+    </ChessRoundPageShell>
   );
 }

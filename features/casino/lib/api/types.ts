@@ -24,6 +24,27 @@ export type GameId = "chess" | "draw" | "last-standing";
 // game created elsewhere with an unusual control still has to display.
 export type ChessTimeControl = string;
 
+export type ChessClockMode = "real_time" | "unlimited";
+
+export type ChessPerfKey = "ultraBullet" | "bullet" | "blitz" | "rapid" | "classical" | "standard";
+
+export interface ChessComputerWager {
+  stakeUsdc: string;
+  feeBps: number;
+  status: string;
+  payoutUsdc: string;
+}
+
+export interface ChessComputerOpponent {
+  player: string;
+  name: string;
+  side: "white" | "black";
+  level: number;
+  coachEnabled: boolean;
+  hintsUsed: number;
+  wager: ChessComputerWager | null;
+}
+
 // The controls offered on the create screens.
 // These are whole-game clocks, not per-move resets.
 export const TIME_CONTROL_PRESETS: readonly ChessTimeControl[] = ["1+0", "5+0", "10+0", "15+0"];
@@ -33,11 +54,33 @@ export type ChessColor = "w" | "b";
 export interface ChessPlayer {
   id: string;
   username: string;
-  // Null until the service exposes ratings. The chess backend models a game and
-  // nothing else, so there is no honest number to show yet; the UI hides the
-  // rating rather than printing a fabricated zero.
+  // The backend now snapshots seat ratings onto rated matches. Null means the
+  // seat was not rated for this game (for example a casual board or a not-yet-
+  // seeded profile).
   rating: number | null;
+  provisional?: boolean | null;
   walletAddress: string;
+}
+
+export interface ChessMatchRatingSide {
+  rating: number | null;
+  provisional: boolean | null;
+  diff: number | null;
+}
+
+export interface ChessMatchRating {
+  rated: boolean;
+  perfKey: ChessPerfKey | null;
+  white: ChessMatchRatingSide;
+  black: ChessMatchRatingSide;
+}
+
+export interface ChessTimeExtensionState {
+  allowed: boolean;
+  used: number;
+  totalSeconds: number;
+  maxUses: number;
+  maxTotalSeconds: number;
 }
 
 export type ChessMatchState = "awaiting_opponent" | "in_progress" | "settled" | "cancelled";
@@ -98,6 +141,10 @@ export interface ChessMatch {
   white: ChessPlayer | null;
   black: ChessPlayer | null;
   timeControl: ChessTimeControl;
+  clockMode: ChessClockMode;
+  // Present only when the other seat is controlled by the backend Stockfish
+  // worker. The server owns the bot identity, side and strength.
+  computer: ChessComputerOpponent | null;
   // Server-authoritative position. The client renders this; it never decides
   // legality itself.
   fen: string;
@@ -116,6 +163,11 @@ export interface ChessMatch {
   takeback: ChessTakebackState;
   // Lila-style rematch state carried on the finished match.
   rematch: ChessRematchState;
+  // Paid extensions are only available on casual, unstaked, real-time PvP
+  // games that opted in when the challenge was created.
+  timeExtensions: ChessTimeExtensionState;
+  // Rating snapshot for this match, including post-game diffs once settled.
+  rating?: ChessMatchRating;
   // Per-player USDC stake for a wager-backed match, null when played for free.
   // Stakes settle server-side through the chess cashier.
   stakeUsdc: string | null;
@@ -143,6 +195,227 @@ export interface CreateChessChallengeInput {
   timeControl: ChessTimeControl;
   // "invite" produces a shareable link; "auto" pairs with whoever is waiting.
   mode: "invite" | "auto";
+  rated?: boolean;
+  allowTimeExtensions?: boolean;
+}
+
+export interface CreateComputerMatchInput {
+  level: number;
+  color: "white" | "black" | "random";
+  timeMode: ChessClockMode;
+  initialSeconds?: number;
+  incrementSeconds?: number;
+  stakeUsdc?: string | null;
+  coachEnabled?: boolean;
+}
+
+export interface ChessCoachChapter {
+  key: string;
+  title: string;
+  instruction: string;
+  fen: string;
+  side: "white" | "black";
+  targetUci: string;
+  hints: string[];
+  successMessage: string;
+}
+
+export interface ChessCoachLesson {
+  key: string;
+  title: string;
+  summary: string;
+  difficulty: number;
+  maximumPoints: number;
+  prerequisiteLessonKeys: string[];
+  chapters: ChessCoachChapter[];
+}
+
+export interface ChessCoachSection {
+  key: string;
+  title: string;
+  summary: string;
+  lessons: ChessCoachLesson[];
+}
+
+export interface ChessCoachCatalog {
+  version: number;
+  maximumPoints: number;
+  sections: ChessCoachSection[];
+}
+
+export type ChessCoachExperience = "beginner" | "intermediate" | "advanced";
+export type ChessCoachPreferredMode = "learn" | "play" | "train" | "lessons";
+export type ChessCoachLessonStatus = "locked" | "available" | "inProgress" | "completed";
+
+export interface ChessCoachProfile {
+  player: string;
+  experience: ChessCoachExperience;
+  onboardingComplete: boolean;
+  preferredMode: ChessCoachPreferredMode;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChessCoachLessonState {
+  lessonKey: string;
+  status: ChessCoachLessonStatus;
+  earnedPoints: number;
+  maximumPoints: number;
+  completedChapters: number;
+  totalChapters: number;
+}
+
+export interface ChessCoachHome {
+  profile: ChessCoachProfile;
+  earnedPoints: number;
+  maximumPoints: number;
+  trainingPositionCount: number;
+  recommendedLessonKey: string | null;
+  lessons: ChessCoachLessonState[];
+}
+
+export interface ChessCoachTrainingItem {
+  matchId: string;
+  ply: number;
+  side: "white" | "black";
+  phase: ChessAnalysisPhase;
+  motif: ChessAnalysisMotif;
+  classification: Exclude<ChessAnalysisClassification, "best" | "good">;
+  fen: string;
+  playedUci: string;
+  playedSan: string;
+  bestUci: string | null;
+  bestSan: string | null;
+  principalVariation: string | null;
+  centipawnLoss: number | null;
+  createdAt: string;
+}
+
+export interface ChessCoachTraining {
+  player: string;
+  items: ChessCoachTrainingItem[];
+}
+
+export type ChessCoachAction =
+  | { type: "say"; text: string; tone: "neutral" | "positive" | "caution" | "critical" }
+  | {
+      type: "drawArrow";
+      from: string;
+      to: string;
+      tone: "neutral" | "positive" | "caution" | "critical";
+    }
+  | { type: "choice"; id: string; label: string; action: "continue" | "undo" }
+  | { type: "setControls"; hint: boolean; undo: boolean; menu: boolean; next: boolean };
+
+export type ChessCoachMoveStatus =
+  "warning" | "applying" | "accepted" | "overridden" | "review" | "continued" | "undone" | "stale";
+
+export interface ChessCoachMoveReview {
+  attemptId: string;
+  matchId: string;
+  ply: number;
+  status: ChessCoachMoveStatus;
+  classification: ChessAnalysisClassification;
+  motif: ChessAnalysisMotif;
+  attemptedUci: string;
+  attemptedSan: string;
+  message: string;
+  centipawnLoss: number | null;
+  winChanceLoss: number | null;
+  bestUci: string | null;
+  bestSan: string | null;
+  principalVariation: string | null;
+  canRetry: boolean;
+  canOverride: boolean;
+  canUndo: boolean;
+  canContinue: boolean;
+  actions: ChessCoachAction[];
+  matchState: ChessMatch | null;
+  createdAt: string;
+}
+
+export interface ChessComputerCoachState {
+  matchId: string;
+  enabled: boolean;
+  player: string;
+  ply: number;
+  canMove: boolean;
+  awaitingResponse: boolean;
+  hintLevel: number;
+  pendingWarning: ChessCoachMoveReview | null;
+  pendingReview: ChessCoachMoveReview | null;
+  summary: ChessComputerCoachSummary | null;
+  actions: ChessCoachAction[];
+}
+
+export interface ChessComputerCoachSummary {
+  outcome: "win" | "draw" | "loss" | "unresolved";
+  resultReason: string | null;
+  totalPlies: number;
+  playerMoves: number;
+  reviewedMoves: number;
+  moveQuality: {
+    best: number;
+    good: number;
+    inaccuracies: number;
+    mistakes: number;
+    blunders: number;
+    averageCentipawnLoss: number | null;
+    averageWinChanceLoss: number | null;
+  };
+  help: {
+    hints: number;
+    undos: number;
+    usedHelp: boolean;
+  };
+  message: string;
+  finishedAt: string | null;
+}
+
+export interface ChessCoachHint {
+  id: string;
+  matchId: string;
+  ply: number;
+  level: number;
+  message: string;
+  motif: ChessAnalysisMotif;
+  suggestedUci: string | null;
+  suggestedSan: string | null;
+  actions: ChessCoachAction[];
+  createdAt: string;
+}
+
+export interface ChessCoachLessonAttempt {
+  id: string;
+  player: string;
+  lessonKey: string;
+  chapterKey: string;
+  attemptedUci: string;
+  legal: boolean;
+  correct: boolean;
+  score: number;
+  message: string;
+  nextHint: string | null;
+  attempts: number;
+  bestScore: number;
+  completed: boolean;
+  createdAt: string;
+}
+
+export interface ChessCoachTrainingAttempt {
+  id: string;
+  player: string;
+  matchId: string;
+  sourcePly: number;
+  attemptedUci: string;
+  legal: boolean;
+  correct: boolean;
+  attempts: number;
+  hintLevel: number;
+  message: string;
+  suggestedUci: string | null;
+  actions: ChessCoachAction[];
+  createdAt: string;
 }
 
 export interface MatchmakingTicket {
@@ -152,6 +425,193 @@ export interface MatchmakingTicket {
   // Seconds left to accept once matched.
   acceptSecondsRemaining: number | null;
   opponent: ChessPlayer | null;
+}
+
+export type ChessAnalysisStatus = "queued" | "running" | "completed" | "failed";
+
+export type ChessAnalysisPhase = "opening" | "middlegame" | "endgame";
+
+export type ChessAnalysisMotif =
+  | "mate"
+  | "doubleCheck"
+  | "discoveredCheck"
+  | "fork"
+  | "pin"
+  | "skewer"
+  | "trappedPiece"
+  | "removingDefender"
+  | "exploitingPin"
+  | "hangingPiece"
+  | "doubledPawns"
+  | "isolatedPawn"
+  | "openFile"
+  | "openingDeviation"
+  | "endgameTechnique"
+  | "materialLoss"
+  | "tacticalMiss"
+  | "positionalDrift";
+
+export type ChessAnalysisClassification = "best" | "good" | "inaccuracy" | "mistake" | "blunder";
+
+export interface ChessAnalysisMove {
+  ply: number;
+  player: string;
+  side: "white" | "black";
+  openingBucket: string;
+  timeControl: string;
+  phase: ChessAnalysisPhase;
+  motif: ChessAnalysisMotif;
+  classification: ChessAnalysisClassification;
+  fen: string;
+  playedUci: string;
+  playedSan: string;
+  bestUci: string | null;
+  bestSan: string | null;
+  pv: string | null;
+  cpBefore: number | null;
+  cpAfter: number | null;
+  cpLoss: number | null;
+  mateBefore: number | null;
+  mateAfter: number | null;
+  accuracyPercent: number | null;
+  coachComment: string;
+  createdAt: string;
+}
+
+export interface ChessAnalysisPlayerSummary {
+  side: "white" | "black";
+  accuracyPercent: number | null;
+  averageCentipawnLoss: number | null;
+  bestMoves: number;
+  goodMoves: number;
+  inaccuracies: number;
+  mistakes: number;
+  blunders: number;
+}
+
+export interface ChessMatchAnalysis {
+  matchId: string;
+  analysed: boolean;
+  status: ChessAnalysisStatus;
+  requestOrigin: "manual" | "system";
+  requestedBy: string | null;
+  requestCount: number;
+  depth: number;
+  tier: "standard" | "premium";
+  engineName: string | null;
+  failure: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+  summaries: ChessAnalysisPlayerSummary[];
+  moves: ChessAnalysisMove[];
+}
+
+export type ChessProductKey =
+  "coach_monthly" | "hint_credit" | "time_extension_credit" | "premium_review_credit";
+
+export interface ChessProductCatalogItem {
+  key: ChessProductKey;
+  name: string;
+  description: string;
+  priceUsdc: string;
+}
+
+export interface ChessProductAccess {
+  player: string;
+  coachActive: boolean;
+  coachUntil: string | null;
+  hintCredits: number;
+  timeExtensionCredits: number;
+  premiumReviewCredits: number;
+  updatedAt: string;
+}
+
+export interface ChessProductPurchase {
+  id: string;
+  player: string;
+  productKey: ChessProductKey;
+  priceUsdc: string;
+  status: string;
+  createdAt: string;
+  access: ChessProductAccess;
+}
+
+export interface ChessComputerHint {
+  id: string;
+  matchId: string;
+  ply: number;
+  suggestedUci: string;
+  createdAt: string;
+}
+
+export interface ChessPlayerPerf {
+  perfKey: ChessPerfKey;
+  rating: number;
+  deviation: number;
+  provisional: boolean;
+  games: number;
+  latestAt: string | null;
+}
+
+export interface ChessPlayerRatings {
+  player: string;
+  items: ChessPlayerPerf[];
+}
+
+export interface ChessRatingHistoryEntry {
+  matchId: string;
+  perfKey: ChessPerfKey;
+  ratingBefore: number;
+  ratingAfter: number;
+  ratingDiff: number;
+  createdAt: string;
+}
+
+export interface ChessRatingHistory {
+  player: string;
+  perfKey: ChessPerfKey;
+  items: ChessRatingHistoryEntry[];
+}
+
+export interface ChessInsightBucket {
+  key: string;
+  games: number;
+  averageCpLoss: number;
+  maxCpLoss: number;
+  latestAt: string;
+}
+
+export interface ChessWeaknessProfile {
+  player: string;
+  generatedAt: string;
+  totalMistakes: number;
+  openings: ChessInsightBucket[];
+  phases: ChessInsightBucket[];
+  sides: ChessInsightBucket[];
+  timeControls: ChessInsightBucket[];
+  motifs: ChessInsightBucket[];
+}
+
+export interface ChessCoachProgressItem {
+  lessonKey: string;
+  chapterKey: string;
+  bestScore: number;
+  lastScore: number;
+  attempts: number;
+  completed: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChessCoachProgress {
+  player: string;
+  totalEntries: number;
+  completedEntries: number;
+  items: ChessCoachProgressItem[];
 }
 
 // ----- Spectator betting (pari-mutuel) -----

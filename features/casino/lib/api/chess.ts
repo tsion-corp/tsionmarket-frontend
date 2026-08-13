@@ -7,28 +7,49 @@ import {
   applyCommentUpsertedFrame,
   isMatchId,
   parseTimeControl,
+  toChessCoachProgress,
   toChessChatMessage,
   toChessMatchComment,
+  toChessMatchAnalysis,
   toChessMatchNote,
   toChessChallenge,
   toChessMatch,
+  toChessWeaknessProfile,
   type ChessChatMessageWire,
+  type ChessCoachProgressWire,
   type ChessChatMessagesWire,
   type ChessCommentDeletedFrame,
+  type ChessMatchAnalysisWire,
   type ChessMatchWire,
   type ChessMatchCommentWire,
   type ChessMatchCommentsWire,
   type ChessMatchNoteWire,
   type ChessMoveWire,
+  type ChessWeaknessProfileWire,
 } from "@/features/casino/lib/api/chess-wire";
-import { apiError } from "@/lib/api/envelope";
+import { apiError, errorCode } from "@/lib/api/envelope";
 import type {
   ChessChatMessage,
   ChessChatRoom,
   ChessChallenge,
+  ChessCoachProgress,
+  ChessCoachCatalog,
+  ChessCoachExperience,
+  ChessCoachPreferredMode,
+  ChessCoachHome,
+  ChessCoachHint,
+  ChessCoachLessonAttempt,
+  ChessCoachMoveReview,
+  ChessComputerCoachState,
+  ChessCoachTraining,
+  ChessCoachTrainingAttempt,
+  ChessComputerHint,
+  CreateComputerMatchInput,
+  ChessMatchAnalysis,
   ChessMatch,
   ChessMatchComment,
   ChessMatchNote,
+  ChessWeaknessProfile,
   CreateChessChallengeInput,
   MatchmakingTicket,
 } from "@/features/casino/lib/api/types";
@@ -55,6 +76,17 @@ interface MoveResultWire {
   move: ChessMoveWire;
 }
 
+type ChessCoachMoveReviewWire = Omit<ChessCoachMoveReview, "matchState"> & {
+  matchState: ChessMatchWire | null;
+};
+
+function toChessCoachMoveReview(wire: ChessCoachMoveReviewWire): ChessCoachMoveReview {
+  return {
+    ...wire,
+    matchState: wire.matchState ? toChessMatch(wire.matchState) : null,
+  };
+}
+
 interface MatchChatQuery {
   room?: ChessChatRoom;
   limit?: number;
@@ -68,6 +100,13 @@ type UpsertMatchCommentInput = {
 export interface LobbyChallenges {
   challenges: ChessChallenge[];
   myOpenGames: ChessChallenge[];
+}
+
+export interface UpsertCoachProgressInput {
+  lessonKey: string;
+  chapterKey: string;
+  score: number;
+  completed: boolean;
 }
 
 // The service has no server-side expiry for waiting matches, so the public
@@ -107,6 +146,20 @@ function requireMatchId(matchId: string): string {
   return matchId;
 }
 
+function errorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (error instanceof Error) return error.message;
+  if (
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  return "";
+}
+
 async function fetchMatchWire(matchId: string): Promise<ChessMatchWire> {
   return chessGet<ChessMatchWire>(`/matches/${requireMatchId(matchId)}`);
 }
@@ -123,6 +176,15 @@ function canReuseMoveHistory(
   return !!previous && previous.moves.length === wire.ply;
 }
 
+function preserveOptionalMatchState(
+  previous: ChessMatch | null,
+  wire: ChessMatchWire,
+  incoming: ChessMatch
+): ChessMatch {
+  if (!previous || wire.timeExtensions) return incoming;
+  return { ...incoming, timeExtensions: previous.timeExtensions };
+}
+
 // The board and its move history are two endpoints, so they are fetched
 // together on first load. After that, the cached SAN list stays authoritative
 // until the service's ply says there is a gap to repair, so the steady-state
@@ -134,17 +196,24 @@ export async function fetchMatch(
   requireMatchId(matchId);
   const wire = await fetchMatchWire(matchId);
   if (canReuseMoveHistory(previous, wire)) {
-    return toChessMatch(wire, {
-      moveSan: previous.moves,
-      // When no new move landed, the last move timestamp we already have is
-      // still the honest clock reference. A no-move poll must not restart the
-      // displayed countdown.
-      clockUpdatedAt: previous.clockUpdatedAt,
-    });
+    const justStarted = previous.state === "awaiting_opponent" && wire.status === "active";
+    return preserveOptionalMatchState(
+      previous,
+      wire,
+      toChessMatch(wire, {
+        moveSan: previous.moves,
+        // When no new move landed, the last move timestamp we already have is
+        // still the honest clock reference. A no-move poll must not restart the
+        // displayed countdown.
+        // A waiting snapshot is anchored at game creation. Reusing it after join
+        // charges the creator for time spent sharing the invite link.
+        clockUpdatedAt: justStarted ? undefined : previous.clockUpdatedAt,
+      })
+    );
   }
-  if (wire.ply === 0) return toChessMatch(wire);
+  if (wire.ply === 0) return preserveOptionalMatchState(previous, wire, toChessMatch(wire));
   const moves = await fetchMatchMoves(matchId);
-  return toChessMatch(wire, { moves });
+  return preserveOptionalMatchState(previous, wire, toChessMatch(wire, { moves }));
 }
 
 // Public open seats. Old waiting games read as abandoned in the lobby, so the
@@ -156,7 +225,9 @@ export async function fetchOpenChallenges(): Promise<ChessChallenge[]> {
 
 export async function fetchLiveMatches(): Promise<ChessMatch[]> {
   const data = await chessGet<MatchListWire>("/matches", { status: "active", limit: "50" });
-  return data.items.filter(isPlausiblyActiveMatch).map((wire) => toChessMatch(wire));
+  return data.items
+    .filter((wire) => !wire.computer && isPlausiblyActiveMatch(wire))
+    .map((wire) => toChessMatch(wire));
 }
 
 // Every game sitting open, as the service reports it.
@@ -222,6 +293,8 @@ export async function createChallenge(
     color: "random",
     initial_seconds: initialSeconds,
     increment_seconds: incrementSeconds,
+    rated: input.rated ?? true,
+    allow_time_extensions: input.allowTimeExtensions ?? false,
     ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
   });
 
@@ -239,6 +312,113 @@ export async function createChallenge(
           }
         : null,
   };
+}
+
+export async function createComputerMatch(
+  input: CreateComputerMatchInput & { player: string; idempotencyKey?: string }
+): Promise<ChessMatch> {
+  const wire = await chessPost<ChessMatchWire>("/computer/matches", {
+    player: input.player,
+    level: input.level,
+    color: input.color,
+    time_mode: input.timeMode,
+    ...(input.timeMode === "real_time"
+      ? {
+          initial_seconds: input.initialSeconds,
+          increment_seconds: input.incrementSeconds,
+        }
+      : {}),
+    ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
+    ...(input.coachEnabled ? { coach_enabled: true } : {}),
+    ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),
+  });
+  return toChessMatch(wire);
+}
+
+export async function requestComputerHint(
+  matchId: string,
+  player: string,
+  idempotencyKey: string
+): Promise<ChessComputerHint> {
+  return chessPost<ChessComputerHint>(`/computer/matches/${requireMatchId(matchId)}/hint`, {
+    player,
+    idempotencyKey,
+  });
+}
+
+export async function fetchComputerCoachState(
+  matchId: string,
+  player: string
+): Promise<ChessComputerCoachState> {
+  return chessGet<ChessComputerCoachState>(`/computer/matches/${requireMatchId(matchId)}/coach`, {
+    player,
+  });
+}
+
+export async function requestComputerCoachMove(
+  matchId: string,
+  player: string,
+  uci: string,
+  expectedPly: number,
+  idempotencyKey: string
+): Promise<ChessCoachMoveReview> {
+  const wire = await chessPost<ChessCoachMoveReviewWire>(
+    `/computer/matches/${requireMatchId(matchId)}/coach/move`,
+    { player, uci, expectedPly, idempotencyKey }
+  );
+  return toChessCoachMoveReview(wire);
+}
+
+export async function continueComputerCoachReview(
+  matchId: string,
+  player: string,
+  attemptId: string,
+  expectedPly: number
+): Promise<ChessCoachMoveReview> {
+  const wire = await chessPost<ChessCoachMoveReviewWire>(
+    `/computer/matches/${requireMatchId(matchId)}/coach/continue`,
+    { player, attemptId, expectedPly }
+  );
+  return toChessCoachMoveReview(wire);
+}
+
+export async function undoComputerCoachReview(
+  matchId: string,
+  player: string,
+  attemptId: string,
+  expectedPly: number
+): Promise<ChessCoachMoveReview> {
+  const wire = await chessPost<ChessCoachMoveReviewWire>(
+    `/computer/matches/${requireMatchId(matchId)}/coach/undo`,
+    { player, attemptId, expectedPly }
+  );
+  return toChessCoachMoveReview(wire);
+}
+
+export async function requestComputerCoachHint(
+  matchId: string,
+  player: string,
+  expectedPly: number,
+  idempotencyKey: string
+): Promise<ChessCoachHint> {
+  return chessPost<ChessCoachHint>(`/computer/matches/${requireMatchId(matchId)}/coach/hint`, {
+    player,
+    expectedPly,
+    idempotencyKey,
+  });
+}
+
+export async function extendMatchTime(
+  matchId: string,
+  player: string,
+  seconds: 60 | 300 | 600,
+  idempotencyKey: string
+): Promise<ChessMatch> {
+  const wire = await chessPost<ChessMatchWire>(
+    `/matches/${requireMatchId(matchId)}/time-extension`,
+    { player, seconds, idempotencyKey }
+  );
+  return toChessMatch(wire);
 }
 
 // Abandoning a game you opened. The service calls it aborting, which is also
@@ -373,6 +553,127 @@ export async function declineTakeback(matchId: string, player: string): Promise<
 export async function fetchPgn(matchId: string): Promise<string> {
   const data = await chessGet<{ pgn: string }>(`/matches/${requireMatchId(matchId)}/pgn`);
   return data.pgn;
+}
+
+export async function fetchMatchAnalysis(matchId: string): Promise<ChessMatchAnalysis | null> {
+  try {
+    const wire = await chessGet<ChessMatchAnalysisWire>(
+      `/matches/${requireMatchId(matchId)}/analysis`
+    );
+    return toChessMatchAnalysis(wire);
+  } catch (error) {
+    if (
+      errorCode(error) === "NOT_FOUND" &&
+      errorMessage(error).trim().toLowerCase() === "analysis not found"
+    ) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function requestMatchAnalysis(
+  matchId: string,
+  player: string,
+  options: { premium?: boolean; idempotencyKey?: string } = {}
+): Promise<ChessMatchAnalysis> {
+  const wire = await chessPost<ChessMatchAnalysisWire>(
+    `/matches/${requireMatchId(matchId)}/analysis/request`,
+    {
+      player,
+      premium: options.premium ?? false,
+      ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+    }
+  );
+  return toChessMatchAnalysis(wire);
+}
+
+export async function fetchPlayerWeaknessProfile(
+  player: string,
+  limit = 5
+): Promise<ChessWeaknessProfile> {
+  const wire = await chessGet<ChessWeaknessProfileWire>(
+    `/players/${encodeURIComponent(player)}/insights`,
+    { limit }
+  );
+  return toChessWeaknessProfile(wire);
+}
+
+export async function fetchCoachProgress(player: string): Promise<ChessCoachProgress> {
+  const wire = await chessGet<ChessCoachProgressWire>(
+    `/players/${encodeURIComponent(player)}/coach-progress`
+  );
+  return toChessCoachProgress(wire);
+}
+
+export async function fetchCoachCatalog(): Promise<ChessCoachCatalog> {
+  return chessGet<ChessCoachCatalog>("/coach/catalog");
+}
+
+export async function fetchCoachHome(player: string): Promise<ChessCoachHome> {
+  return chessGet<ChessCoachHome>(`/players/${encodeURIComponent(player)}/coach/home`);
+}
+
+export async function updateCoachProfile(
+  player: string,
+  input: {
+    experience: ChessCoachExperience;
+    onboardingComplete: boolean;
+    preferredMode: ChessCoachPreferredMode;
+  }
+): Promise<ChessCoachHome["profile"]> {
+  return chessPut<ChessCoachHome["profile"]>(
+    `/players/${encodeURIComponent(player)}/coach/profile`,
+    input
+  );
+}
+
+export async function fetchCoachTraining(player: string, limit = 20): Promise<ChessCoachTraining> {
+  return chessGet<ChessCoachTraining>(`/players/${encodeURIComponent(player)}/coach/training`, {
+    limit,
+  });
+}
+
+export async function attemptCoachLesson(
+  lessonKey: string,
+  chapterKey: string,
+  player: string,
+  uci: string,
+  idempotencyKey: string
+): Promise<ChessCoachLessonAttempt> {
+  return chessPost<ChessCoachLessonAttempt>(
+    `/coach/lessons/${encodeURIComponent(lessonKey)}/chapters/${encodeURIComponent(chapterKey)}/attempt`,
+    { player, uci, idempotencyKey }
+  );
+}
+
+export async function attemptCoachTraining(
+  player: string,
+  matchId: string,
+  ply: number,
+  uci: string,
+  idempotencyKey: string
+): Promise<ChessCoachTrainingAttempt> {
+  return chessPost<ChessCoachTrainingAttempt>(
+    `/players/${encodeURIComponent(player)}/coach/training/${requireMatchId(matchId)}/${ply}/attempt`,
+    { uci, idempotencyKey }
+  );
+}
+
+export async function saveCoachProgress(
+  player: string,
+  input: UpsertCoachProgressInput
+): Promise<ChessCoachProgress> {
+  const wire = await chessPut<ChessCoachProgressWire>(
+    `/players/${encodeURIComponent(player)}/coach-progress`,
+    {
+      lesson_key: input.lessonKey,
+      chapter_key: input.chapterKey,
+      score: input.score,
+      completed: input.completed,
+    }
+  );
+  return toChessCoachProgress(wire);
 }
 
 export async function fetchPlayerMatches(wallet: string, status?: string): Promise<ChessMatch[]> {

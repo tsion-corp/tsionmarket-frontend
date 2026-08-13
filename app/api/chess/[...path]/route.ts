@@ -19,8 +19,12 @@ import { wsapiService } from "@/lib/wsapi-base";
 // verified session and the wallet that session owns.
 // Server-only local override first, then the legacy public env so existing
 // deployments keep working unchanged.
+const LOCAL_DEV_CHESS_API = "http://127.0.0.1:8082";
 const BASE =
-  process.env.CHESS_API_URL ?? process.env.NEXT_PUBLIC_CHESS_API_URL ?? wsapiService("chess");
+  process.env.CHESS_API_URL ??
+  (process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined) ??
+  process.env.NEXT_PUBLIC_CHESS_API_URL ??
+  wsapiService("chess");
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 // Just long enough to collapse the concurrent polls of two players watching the
@@ -34,13 +38,19 @@ const cache = new Map<
 >();
 
 function cacheTtlMs(joined: string): number {
-  // Live boards and move lists are the last place to add a whole extra second:
-  // when the relay misses a move, these reads are the repair path. Keep only a
-  // tiny collapse window there, while lobby-style reads still collapse for 1s.
-  if (/^matches\/[^/]+(?:\/moves|\/pgn)?$/u.test(joined)) return 250;
+  // The exact match snapshot carries lifecycle transitions. It is the repair
+  // path when a creator misses the opponent-joined socket frame, so even a tiny
+  // cache can replay `waiting` after the game is active. Move history and PGN
+  // are immutable enough for a very short request-collapse window.
+  if (/^matches\/[^/]+$/u.test(joined)) return 0;
+  if (/^matches\/[^/]+\/(?:moves|pgn)$/u.test(joined)) return 250;
   // Per-caller reads are never cached or shared.
   if (joined.startsWith("cashier/")) return 0;
   if (/^betting\/markets\/[^/]+\/bets$/u.test(joined)) return 0;
+  if (/^betting\/swiss\/[^/]+\/bets$/u.test(joined)) return 0;
+  if (/^players\/[^/]+\/product-access$/u.test(joined)) return 0;
+  if (/^players\/[^/]+\/coach(?:\/|$)/u.test(joined)) return 0;
+  if (/^computer\/matches\/[^/]+\/coach$/u.test(joined)) return 0;
   return CACHE_TTL_MS;
 }
 
@@ -110,7 +120,7 @@ async function forward(
     });
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
-    if (method === "GET" && ttl > 0) {
+    if (method === "GET" && res.ok && ttl > 0) {
       cache.set(url, {
         expires: Date.now() + ttl,
         body: text,

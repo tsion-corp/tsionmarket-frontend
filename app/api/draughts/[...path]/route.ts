@@ -20,8 +20,12 @@ import { wsapiService } from "@/lib/wsapi-base";
 // Reads are public: the lobby, a board and its moves are spectator-visible. The
 // exceptions are a player's private note and the player-only chat room, which
 // need the session.
+const LOCAL_DEV_CHESS_API = "http://127.0.0.1:8082";
 const BASE =
-  process.env.CHESS_API_URL ?? process.env.NEXT_PUBLIC_CHESS_API_URL ?? wsapiService("chess");
+  process.env.CHESS_API_URL ??
+  (process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined) ??
+  process.env.NEXT_PUBLIC_CHESS_API_URL ??
+  wsapiService("chess");
 const UPSTREAM_PREFIX = "draughts";
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
@@ -107,7 +111,7 @@ async function forward(
     });
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
-    if (method === "GET" && ttl > 0) {
+    if (method === "GET" && res.ok && ttl > 0) {
       cache.set(url, { expires: Date.now() + ttl, body: text, status: res.status, contentType });
     }
     return new NextResponse(text, {

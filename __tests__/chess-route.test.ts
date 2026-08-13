@@ -33,7 +33,8 @@ function walletUser(address: string) {
 
 async function loadRoute(env: { chessApiUrl?: string; publicChessApiUrl?: string } = {}) {
   vi.resetModules();
-  process.env.CHESS_API_URL = env.chessApiUrl;
+  if (env.chessApiUrl) process.env.CHESS_API_URL = env.chessApiUrl;
+  else delete process.env.CHESS_API_URL;
   process.env.NEXT_PUBLIC_CHESS_API_URL = env.publicChessApiUrl ?? "https://chess.test";
   return import("@/app/api/chess/[...path]/route");
 }
@@ -86,6 +87,58 @@ describe("chess proxy route", () => {
     const [url] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock
       .calls[0];
     expect(url).toBe("http://127.0.0.1:18083/cashier/config");
+  });
+
+  it("uses the Docker chess service by default in development", async () => {
+    vi.stubEnv("NODE_ENV", "development");
+
+    try {
+      const { GET } = await loadRoute({ publicChessApiUrl: "https://prod-chess.test" });
+      const res = await GET(makeReq("https://app.test/api/chess/coach/catalog"), {
+        params: Promise.resolve({ path: ["coach", "catalog"] }),
+      });
+
+      expect(res.status).toBe(200);
+      const [url] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+        .calls[0];
+      expect(url).toBe("http://127.0.0.1:8082/coach/catalog");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("does not cache failed upstream reads", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: false }), {
+          status: 404,
+          headers: { "content-type": "application/json" },
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      ) as unknown as typeof fetch;
+    const { GET } = await loadRoute();
+    const request = () => makeReq("https://app.test/api/chess/coach/catalog");
+    const context = { params: Promise.resolve({ path: ["coach", "catalog"] }) };
+
+    expect((await GET(request(), context)).status).toBe(404);
+    expect((await GET(request(), context)).status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("never caches player coach state", async () => {
+    const { GET } = await loadRoute();
+    const request = () => makeReq("https://app.test/api/chess/players/0xabc/coach/home");
+    const context = { params: Promise.resolve({ path: ["players", "0xabc", "coach", "home"] }) };
+
+    expect((await GET(request(), context)).status).toBe(200);
+    expect((await GET(request(), context)).status).toBe(200);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("requires a session for private chess reads", async () => {

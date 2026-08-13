@@ -12,7 +12,14 @@ const chessClient = vi.hoisted(() => ({
 vi.mock("@/features/casino/lib/api/chess-client", () => chessClient);
 
 import {
+  attemptCoachLesson,
+  attemptCoachTraining,
+  continueComputerCoachReview,
+  createComputerMatch,
   deleteMatchComment,
+  fetchCoachHome,
+  fetchCoachTraining,
+  fetchComputerCoachState,
   fetchMatch,
   fetchMatchChat,
   fetchMatchComments,
@@ -21,8 +28,14 @@ import {
   fetchLobbyChallenges,
   fetchLiveMatches,
   fetchOpenChallenges,
+  extendMatchTime,
   postMatchChatMessage,
+  requestComputerCoachMove,
+  requestComputerHint,
+  requestMatchAnalysis,
   saveMatchNote,
+  undoComputerCoachReview,
+  updateCoachProfile,
   upsertMatchComment,
 } from "@/features/casino/lib/api/chess";
 
@@ -85,6 +98,15 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
     liveTopic: `chess:match:${id}`,
     createdAt: "2026-08-01T18:00:00.000Z",
     ...over,
+    clockMode: over.clockMode ?? "real_time",
+    computer: over.computer ?? null,
+    timeExtensions: over.timeExtensions ?? {
+      allowed: false,
+      used: 0,
+      totalSeconds: 0,
+      maxUses: 3,
+      maxTotalSeconds: 1_800,
+    },
   };
 }
 
@@ -167,9 +189,325 @@ describe("chess live-match filters", () => {
 
     expect(live.map((match) => match.id)).toEqual(["fresh"]);
   });
+
+  it("keeps private computer games out of the public live list", async () => {
+    chessClient.chessGet.mockResolvedValue({
+      items: [
+        activeMatch("human", { startedAt: new Date().toISOString() }),
+        activeMatch("computer", {
+          startedAt: new Date().toISOString(),
+          computer: {
+            player: "0x00000000000000000000000000000000000000b2",
+            name: "Stockfish level 2",
+            side: "black",
+            level: 2,
+          },
+        }),
+      ],
+    });
+
+    const live = await fetchLiveMatches();
+
+    expect(live.map((match) => match.id)).toEqual(["human"]);
+  });
+});
+
+describe("computer matches", () => {
+  it("creates an unlimited game through the backend computer endpoint", async () => {
+    chessClient.chessPost.mockResolvedValue(
+      activeMatch("computer", {
+        timeControl: { mode: "unlimited", initialSeconds: 600, incrementSeconds: 3 },
+        computer: {
+          player: "0x00000000000000000000000000000000000000b4",
+          name: "Stockfish level 4",
+          side: "black",
+          level: 4,
+        },
+      })
+    );
+
+    const match = await createComputerMatch({
+      player: "0xhost",
+      level: 4,
+      color: "white",
+      timeMode: "unlimited",
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith("/computer/matches", {
+      player: "0xhost",
+      level: 4,
+      color: "white",
+      time_mode: "unlimited",
+    });
+    expect(match.timeControl).toBe("Unlimited");
+    expect(match.clockMode).toBe("unlimited");
+    expect(match.computer).toMatchObject({ level: 4, side: "black" });
+    expect(match.black?.username).toBe("Stockfish level 4");
+  });
+
+  it("creates a staked game with the retry key the cashier requires", async () => {
+    chessClient.chessPost.mockResolvedValue(activeMatch("computer-staked"));
+
+    await createComputerMatch({
+      player: "0xhost",
+      level: 8,
+      color: "black",
+      timeMode: "real_time",
+      initialSeconds: 300,
+      incrementSeconds: 3,
+      stakeUsdc: "2.5",
+      idempotencyKey: "computer-create-1",
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith("/computer/matches", {
+      player: "0xhost",
+      level: 8,
+      color: "black",
+      time_mode: "real_time",
+      initial_seconds: 300,
+      increment_seconds: 3,
+      stake_usdc: "2.5",
+      idempotency_key: "computer-create-1",
+    });
+  });
+
+  it("persists coach mode on a free computer game", async () => {
+    chessClient.chessPost.mockResolvedValue(activeMatch("computer-coached"));
+
+    await createComputerMatch({
+      player: "0xhost",
+      level: 2,
+      color: "white",
+      timeMode: "unlimited",
+      coachEnabled: true,
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith("/computer/matches", {
+      player: "0xhost",
+      level: 2,
+      color: "white",
+      time_mode: "unlimited",
+      coach_enabled: true,
+    });
+  });
+
+  it("spends hint and time-extension credits through idempotent requests", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3310";
+    chessClient.chessPost
+      .mockResolvedValueOnce({
+        id: "hint-1",
+        matchId: id,
+        ply: 4,
+        suggestedUci: "g1f3",
+        createdAt: "2026-08-13T01:00:00.000Z",
+      })
+      .mockResolvedValueOnce(activeMatch(id));
+
+    await requestComputerHint(id, "0xhost", "hint-key-1");
+    await extendMatchTime(id, "0xhost", 300, "extension-key-1");
+
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(1, `/computer/matches/${id}/hint`, {
+      player: "0xhost",
+      idempotencyKey: "hint-key-1",
+    });
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(2, `/matches/${id}/time-extension`, {
+      player: "0xhost",
+      seconds: 300,
+      idempotencyKey: "extension-key-1",
+    });
+  });
+});
+
+describe("server coach workflow", () => {
+  const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3399";
+  const review = {
+    attemptId: "6f2504e0-4f89-11d3-9a0c-0305e82c3399",
+    matchId: id,
+    ply: 0,
+    status: "review",
+    classification: "mistake",
+    motif: "tacticalMiss",
+    attemptedUci: "f2f3",
+    attemptedSan: "f3",
+    message: "That move gave the position away. Compare it with the stronger continuation.",
+    centipawnLoss: 180,
+    winChanceLoss: 0.12,
+    bestUci: "e2e4",
+    bestSan: "e4",
+    principalVariation: "e2e4 e7e5",
+    canRetry: true,
+    canOverride: true,
+    canUndo: true,
+    canContinue: true,
+    actions: [
+      { type: "choice", id: "undo", label: "Try again", action: "undo" },
+      { type: "choice", id: "continue", label: "Continue", action: "continue" },
+    ],
+    matchState: null,
+    createdAt: "2026-08-13T01:00:00.000Z",
+  };
+
+  it("uses the server review state and explicit continue/undo actions", async () => {
+    chessClient.chessGet.mockResolvedValue({
+      matchId: id,
+      enabled: true,
+      player: "0xhost",
+      ply: 1,
+      canMove: false,
+      awaitingResponse: true,
+      hintLevel: 0,
+      pendingWarning: null,
+      pendingReview: review,
+      summary: null,
+      actions: review.actions,
+    });
+    chessClient.chessPost.mockResolvedValue(review);
+
+    await fetchComputerCoachState(id, "0xhost");
+    await requestComputerCoachMove(id, "0xhost", "f2f3", 0, "coach-move-1");
+    await continueComputerCoachReview(id, "0xhost", review.attemptId, 1);
+    await undoComputerCoachReview(id, "0xhost", review.attemptId, 1);
+
+    expect(chessClient.chessGet).toHaveBeenCalledWith(`/computer/matches/${id}/coach`, {
+      player: "0xhost",
+    });
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(1, `/computer/matches/${id}/coach/move`, {
+      player: "0xhost",
+      uci: "f2f3",
+      expectedPly: 0,
+      idempotencyKey: "coach-move-1",
+    });
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(
+      2,
+      `/computer/matches/${id}/coach/continue`,
+      { player: "0xhost", attemptId: review.attemptId, expectedPly: 1 }
+    );
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(3, `/computer/matches/${id}/coach/undo`, {
+      player: "0xhost",
+      attemptId: review.attemptId,
+      expectedPly: 1,
+    });
+  });
+
+  it("routes onboarding, lesson scoring, and mistake training through the backend", async () => {
+    chessClient.chessGet.mockResolvedValue({ items: [] });
+    chessClient.chessPut.mockResolvedValue({
+      player: "0xhost",
+      experience: "beginner",
+      onboardingComplete: true,
+      preferredMode: "lessons",
+      createdAt: "2026-08-13T01:00:00.000Z",
+      updatedAt: "2026-08-13T01:00:00.000Z",
+    });
+    chessClient.chessPost.mockResolvedValue({});
+
+    await fetchCoachHome("0xhost");
+    await fetchCoachTraining("0xhost", 12);
+    await updateCoachProfile("0xhost", {
+      experience: "beginner",
+      onboardingComplete: true,
+      preferredMode: "lessons",
+    });
+    await attemptCoachLesson("core.rook", "straight-lines", "0xhost", "d4d8", "lesson-1");
+    await attemptCoachTraining("0xhost", id, 3, "e2e4", "training-1");
+
+    expect(chessClient.chessGet).toHaveBeenNthCalledWith(1, "/players/0xhost/coach/home");
+    expect(chessClient.chessGet).toHaveBeenNthCalledWith(2, "/players/0xhost/coach/training", {
+      limit: 12,
+    });
+    expect(chessClient.chessPut).toHaveBeenCalledWith("/players/0xhost/coach/profile", {
+      experience: "beginner",
+      onboardingComplete: true,
+      preferredMode: "lessons",
+    });
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(
+      1,
+      "/coach/lessons/core.rook/chapters/straight-lines/attempt",
+      { player: "0xhost", uci: "d4d8", idempotencyKey: "lesson-1" }
+    );
+    expect(chessClient.chessPost).toHaveBeenNthCalledWith(
+      2,
+      `/players/0xhost/coach/training/${id}/3/attempt`,
+      { uci: "e2e4", idempotencyKey: "training-1" }
+    );
+  });
+});
+
+describe("premium analysis", () => {
+  it("requests the premium tier with a retry-safe credit key", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3311";
+    chessClient.chessPost.mockResolvedValue({
+      matchId: id,
+      analysed: false,
+      status: "queued",
+      requestOrigin: "manual",
+      requestedBy: "0xhost",
+      requestCount: 1,
+      depth: 21,
+      tier: "premium",
+      engineName: null,
+      failure: null,
+      queuedAt: "2026-08-13T01:00:00.000Z",
+      startedAt: null,
+      completedAt: null,
+      updatedAt: "2026-08-13T01:00:00.000Z",
+      createdAt: "2026-08-13T01:00:00.000Z",
+      summaries: [],
+      moves: [],
+    });
+
+    const analysis = await requestMatchAnalysis(id, "0xhost", {
+      premium: true,
+      idempotencyKey: "review-key-1",
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(`/matches/${id}/analysis/request`, {
+      player: "0xhost",
+      premium: true,
+      idempotencyKey: "review-key-1",
+    });
+    expect(analysis.tier).toBe("premium");
+  });
 });
 
 describe("match fetch reconciliation", () => {
+  it("resets the creator clock to the server start when an opponent joins", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3300";
+    chessClient.chessGet.mockResolvedValue(
+      activeMatch(id, {
+        ply: 0,
+        clocks: { whiteMs: 300_000, blackMs: 300_000 },
+        startedAt: "2026-08-01T18:01:00.000Z",
+      })
+    );
+    const waiting = cachedMatch(id, [], {
+      state: "awaiting_opponent",
+      black: null,
+      clockUpdatedAt: "2026-08-01T18:00:00.000Z",
+    });
+
+    const match = await fetchMatch(id, waiting);
+
+    expect(match.state).toBe("in_progress");
+    expect(match.clockUpdatedAt).toBe("2026-08-01T18:01:00.000Z");
+  });
+
+  it("uses the backend clock anchor on every browser snapshot", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3309";
+    chessClient.chessGet.mockResolvedValue(
+      activeMatch(id, {
+        clockUpdatedAt: "2026-08-01T18:01:07.250Z",
+      })
+    );
+
+    const match = await fetchMatch(
+      id,
+      cachedMatch(id, [], { clockUpdatedAt: "2026-08-01T18:00:00.000Z" })
+    );
+
+    expect(match.clockUpdatedAt).toBe("2026-08-01T18:01:07.250Z");
+  });
+
   it("reuses cached san history when the server ply already matches it", async () => {
     const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
     chessClient.chessGet.mockImplementation(async (path: string) => {
@@ -192,6 +530,24 @@ describe("match fetch reconciliation", () => {
     expect(chessClient.chessGet).toHaveBeenCalledTimes(1);
     expect(match.moves).toEqual(["e4"]);
     expect(match.clockUpdatedAt).toBe("2026-08-01T18:02:00.000Z");
+  });
+
+  it("preserves clock-extension capability when a repair snapshot omits it", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3310";
+    chessClient.chessGet.mockResolvedValue(activeMatch(id));
+    const previous = cachedMatch(id, [], {
+      timeExtensions: {
+        allowed: true,
+        used: 0,
+        totalSeconds: 0,
+        maxUses: 3,
+        maxTotalSeconds: 1_800,
+      },
+    });
+
+    const match = await fetchMatch(id, previous);
+
+    expect(match.timeExtensions.allowed).toBe(true);
   });
 
   it("reloads /moves only when the cached history is short", async () => {

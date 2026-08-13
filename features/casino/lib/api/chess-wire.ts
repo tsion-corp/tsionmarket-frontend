@@ -2,24 +2,36 @@
 // maps them into our domain types. Components and hooks only ever see
 // ChessMatch, so a change to the service contract stops here.
 //
-// The service models a game and nothing else: no stakes, no ratings, no
-// spectator counts. Identity is a wallet address. Fields we have no source for
-// are filled with honest neutral values, never invented data.
+// The service owns game state plus the wager/rating snapshots attached to that
+// game. Identity is a wallet address. Fields we have no source for are filled
+// with honest neutral values, never invented data.
 
 import { truncateAddress } from "@/lib/format";
 import { formatTimeControl, parseTimeControl } from "@/features/casino/lib/time-control";
 import type {
+  ChessAnalysisMove,
+  ChessAnalysisPlayerSummary,
   ChessChatMessage,
   ChessChatRoom,
   ChessChallenge,
+  ChessClockMode,
+  ChessComputerOpponent,
+  ChessCoachProgress,
+  ChessCoachProgressItem,
   ChessColor,
   ChessMatch,
+  ChessMatchAnalysis,
   ChessMatchComment,
+  ChessMatchRating,
+  ChessMatchRatingSide,
   ChessMatchNote,
+  ChessPerfKey,
   ChessRematchState,
   ChessMatchState,
   ChessPlayer,
   ChessResult,
+  ChessWeaknessProfile,
+  ChessInsightBucket,
   ChessTakebackState,
 } from "@/features/casino/lib/api/types";
 
@@ -33,8 +45,26 @@ export interface ChessClocksWire {
 }
 
 export interface ChessTimeControlWire {
+  mode?: ChessClockMode;
   initialSeconds: number;
   incrementSeconds: number;
+}
+
+export interface ChessComputerOpponentWire {
+  player: string;
+  name: string;
+  side: ChessSideWire;
+  level: number;
+  coachEnabled?: boolean;
+  hintsUsed?: number;
+  wager?: ChessComputerWagerWire | null;
+}
+
+export interface ChessComputerWagerWire {
+  stakeUsdc: string;
+  feeBps: number;
+  status: string;
+  payoutUsdc: string;
 }
 
 // A wager attached to a staked match. Stakes lock at create/join, draws and
@@ -57,6 +87,27 @@ export interface ChessRematchWire {
   nextMatchId: string | null;
 }
 
+export interface ChessMatchPlayerRatingWire {
+  rating: number | null;
+  provisional: boolean | null;
+  diff: number | null;
+}
+
+export interface ChessMatchRatingWire {
+  rated: boolean;
+  perfKey?: ChessPerfKey | null;
+  white: ChessMatchPlayerRatingWire;
+  black: ChessMatchPlayerRatingWire;
+}
+
+export interface ChessTimeExtensionsWire {
+  allowed: boolean;
+  used: number;
+  totalSeconds: number;
+  maxUses: number;
+  maxTotalSeconds: number;
+}
+
 export interface ChessMatchWire {
   id: string;
   // The service currently sets this to the match id; carried so a future
@@ -70,11 +121,17 @@ export interface ChessMatchWire {
   ply: number;
   timeControl: ChessTimeControlWire;
   clocks: ChessClocksWire;
+  timeExtensions?: ChessTimeExtensionsWire;
+  // Shared backend timestamp at which these clock banks were current.
+  // Optional while older service instances are still rolling out.
+  clockUpdatedAt?: string;
   white: string | null;
   black: string | null;
   drawOfferBy: string | null;
   takeback?: ChessTakebackWire;
   rematch?: ChessRematchWire;
+  rating?: ChessMatchRatingWire | null;
+  computer?: ChessComputerOpponentWire | null;
   result: ChessResultWire | null;
   resultReason: string | null;
   wager?: ChessWagerWire | null;
@@ -129,6 +186,118 @@ export interface ChessMatchCommentsWire {
   items: ChessMatchCommentWire[];
 }
 
+export interface ChessAnalysisMoveWire {
+  ply: number;
+  player: string;
+  side: "white" | "black";
+  openingBucket: string;
+  timeControl: string;
+  phase: "opening" | "middlegame" | "endgame";
+  motif:
+    | "mate"
+    | "doubleCheck"
+    | "discoveredCheck"
+    | "fork"
+    | "pin"
+    | "skewer"
+    | "trappedPiece"
+    | "removingDefender"
+    | "exploitingPin"
+    | "hangingPiece"
+    | "doubledPawns"
+    | "isolatedPawn"
+    | "openFile"
+    | "openingDeviation"
+    | "endgameTechnique"
+    | "materialLoss"
+    | "tacticalMiss"
+    | "positionalDrift";
+  classification: "best" | "good" | "inaccuracy" | "mistake" | "blunder";
+  fen: string;
+  playedUci: string;
+  playedSan: string;
+  bestUci: string | null;
+  bestSan: string | null;
+  pv: string | null;
+  cpBefore: number | null;
+  cpAfter: number | null;
+  cpLoss: number | null;
+  mateBefore: number | null;
+  mateAfter: number | null;
+  accuracyPercent?: number | null;
+  coachComment?: string;
+  createdAt: string;
+}
+
+export interface ChessAnalysisPlayerSummaryWire {
+  side: "white" | "black";
+  accuracyPercent: number | null;
+  averageCentipawnLoss: number | null;
+  bestMoves: number;
+  goodMoves: number;
+  inaccuracies: number;
+  mistakes: number;
+  blunders: number;
+}
+
+export interface ChessMatchAnalysisWire {
+  matchId: string;
+  analysed: boolean;
+  status: "queued" | "running" | "completed" | "failed";
+  requestOrigin: "manual" | "system";
+  requestedBy: string | null;
+  requestCount: number;
+  depth: number;
+  tier?: "standard" | "premium";
+  engineName: string | null;
+  failure: string | null;
+  queuedAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+  summaries?: ChessAnalysisPlayerSummaryWire[];
+  moves: ChessAnalysisMoveWire[];
+}
+
+export interface ChessInsightBucketWire {
+  key: string;
+  games: number;
+  averageCpLoss: number;
+  maxCpLoss: number;
+  latestAt: string;
+}
+
+export interface ChessWeaknessProfileWire {
+  player: string;
+  generatedAt: string;
+  totalMistakes: number;
+  openings: ChessInsightBucketWire[];
+  phases: ChessInsightBucketWire[];
+  sides: ChessInsightBucketWire[];
+  timeControls: ChessInsightBucketWire[];
+  motifs: ChessInsightBucketWire[];
+}
+
+export interface ChessCoachProgressItemWire {
+  lessonKey: string;
+  chapterKey: string;
+  bestScore: number;
+  lastScore: number;
+  attempts: number;
+  completed: boolean;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChessCoachProgressWire {
+  player: string;
+  totalEntries: number;
+  completedEntries: number;
+  items: ChessCoachProgressItemWire[];
+}
+
 const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/;
 
 // Match ids are UUIDs. A malformed id makes the gateway answer with plain text
@@ -156,6 +325,27 @@ const EMPTY_TAKEBACK: ChessTakebackState = {
 const EMPTY_REMATCH: ChessRematchState = {
   offeredBy: null,
   nextMatchId: null,
+};
+
+const EMPTY_TIME_EXTENSIONS = {
+  allowed: false,
+  used: 0,
+  totalSeconds: 0,
+  maxUses: 3,
+  maxTotalSeconds: 1_800,
+} as const;
+
+const EMPTY_MATCH_RATING_SIDE: ChessMatchRatingSide = {
+  rating: null,
+  provisional: null,
+  diff: null,
+};
+
+const EMPTY_MATCH_RATING: ChessMatchRating = {
+  rated: false,
+  perfKey: null,
+  white: EMPTY_MATCH_RATING_SIDE,
+  black: EMPTY_MATCH_RATING_SIDE,
 };
 
 export function toColor(side: ChessSideWire): ChessColor {
@@ -197,13 +387,36 @@ export function toResult(
 
 // A seat holds a wallet address and nothing else. The address doubles as the
 // display name until the service has profiles.
-export function toPlayer(wallet: string | null): ChessPlayer | null {
+function toMatchRatingSide(rating?: ChessMatchPlayerRatingWire | null): ChessMatchRatingSide {
+  return rating
+    ? {
+        rating: rating.rating,
+        provisional: rating.provisional,
+        diff: rating.diff,
+      }
+    : EMPTY_MATCH_RATING_SIDE;
+}
+
+function toMatchRating(rating?: ChessMatchRatingWire | null): ChessMatchRating {
+  if (!rating) return EMPTY_MATCH_RATING;
+  return {
+    rated: rating.rated,
+    perfKey: rating.perfKey ?? null,
+    white: toMatchRatingSide(rating.white),
+    black: toMatchRatingSide(rating.black),
+  };
+}
+
+export function toPlayer(
+  wallet: string | null,
+  rating?: ChessMatchPlayerRatingWire | null
+): ChessPlayer | null {
   if (!wallet) return null;
   return {
     id: wallet,
     username: EVM_WALLET.test(wallet) ? truncateAddress(wallet) : wallet,
-    // No rating source yet, so leave it unknown rather than inventing a zero.
-    rating: null,
+    rating: rating?.rating ?? null,
+    provisional: rating?.provisional ?? null,
     walletAddress: wallet,
   };
 }
@@ -235,15 +448,46 @@ function normalizeClocks(wire: ChessMatchWire): Record<ChessColor, number> {
   };
 }
 
+function toComputerOpponent(
+  computer?: ChessComputerOpponentWire | null
+): ChessComputerOpponent | null {
+  if (!computer) return null;
+  return {
+    player: computer.player,
+    name: computer.name,
+    side: computer.side,
+    level: computer.level,
+    coachEnabled: computer.coachEnabled ?? false,
+    hintsUsed: computer.hintsUsed ?? 0,
+    wager: computer.wager
+      ? {
+          stakeUsdc: computer.wager.stakeUsdc,
+          feeBps: computer.wager.feeBps,
+          status: computer.wager.status,
+          payoutUsdc: computer.wager.payoutUsdc,
+        }
+      : null,
+  };
+}
+
+function nameComputerSeat(
+  player: ChessPlayer | null,
+  side: ChessSideWire,
+  computer?: ChessComputerOpponentWire | null
+): ChessPlayer | null {
+  if (!player || !computer || computer.side !== side) return player;
+  return { ...player, username: computer.name, rating: null, provisional: null };
+}
+
 export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions = {}): ChessMatch {
   const moveWires = options.moves ?? [];
   const moves = options.moveSan ?? moveWires.map((m) => m.san);
 
-  // When the clocks were last true. The service has no "as of" field and does
-  // not charge time on a read, so the last move is the only honest reference
-  // point; using the moment the response arrived would restart the countdown on
-  // every poll and freeze the displayed clock.
+  // When the clocks were last true. Prefer the backend's shared anchor so both
+  // browsers count from the same instant. The move/start fallbacks support an
+  // older backend during a rolling deploy.
   const clockUpdatedAt =
+    wire.clockUpdatedAt ??
     options.clockUpdatedAt ??
     (moveWires.length > 0
       ? moveWires[moveWires.length - 1].createdAt
@@ -261,12 +505,14 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
   return {
     id: wire.id,
     state: STATE_BY_STATUS[wire.status],
-    white: toPlayer(wire.white),
-    black: toPlayer(wire.black),
-    timeControl: formatTimeControl(
-      wire.timeControl.initialSeconds,
-      wire.timeControl.incrementSeconds
-    ),
+    white: nameComputerSeat(toPlayer(wire.white, wire.rating?.white), "white", wire.computer),
+    black: nameComputerSeat(toPlayer(wire.black, wire.rating?.black), "black", wire.computer),
+    timeControl:
+      wire.timeControl.mode === "unlimited"
+        ? "Unlimited"
+        : formatTimeControl(wire.timeControl.initialSeconds, wire.timeControl.incrementSeconds),
+    clockMode: wire.timeControl.mode ?? "real_time",
+    computer: toComputerOpponent(wire.computer),
     fen: wire.fen,
     moves,
     clocks: normalizeClocks(wire),
@@ -282,9 +528,11 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
       ...EMPTY_REMATCH,
       ...(wire.rematch ?? {}),
     },
+    timeExtensions: wire.timeExtensions ?? EMPTY_TIME_EXTENSIONS,
+    rating: toMatchRating(wire.rating),
     // A staked match carries its per-player USDC stake; null = played for free.
-    stakeUsdc: wire.wager?.stakeUsdc ?? null,
-    wagerStatus: wire.wager?.status ?? null,
+    stakeUsdc: wire.wager?.stakeUsdc ?? wire.computer?.wager?.stakeUsdc ?? null,
+    wagerStatus: wire.wager?.status ?? wire.computer?.wager?.status ?? null,
     // The doc says to take the topic from the response, never recompute it;
     // the fallback only covers an older service that predates the field.
     liveTopic: wire.liveTopic ?? `chess:match:${wire.id}`,
@@ -338,6 +586,7 @@ export interface ChessPositionFrame {
   ply: number;
   lastMove?: { uci: string; san: string } | null;
   clocks: ChessClocksWire;
+  clockUpdatedAt?: string;
   status: ChessStatusWire;
 }
 
@@ -355,11 +604,30 @@ export function applyPositionFrame(prev: ChessMatch, frame: ChessPositionFrame):
     turn: toColor(frame.turn),
     state: STATE_BY_STATUS[frame.status],
     clocks: { w: frame.clocks.whiteMs / 1000, b: frame.clocks.blackMs / 1000 },
-    // The frame reflects the clocks as of now, so now is the honest reference the
-    // local tick counts down from.
-    clockUpdatedAt: new Date().toISOString(),
+    clockUpdatedAt: frame.clockUpdatedAt ?? new Date().toISOString(),
     moves,
   };
+}
+
+const MATCH_STATE_ORDER: Record<ChessMatchState, number> = {
+  awaiting_opponent: 0,
+  in_progress: 1,
+  settled: 2,
+  cancelled: 2,
+};
+
+// A REST repair can finish after a newer socket frame. Never let that older
+// response move a board backwards from active to waiting (or from finished to
+// active). This is the client-side equivalent of Lichess's socket-version check
+// before it accepts a reloaded round snapshot.
+export function mergeChessMatchSnapshot(
+  previous: ChessMatch | undefined,
+  incoming: ChessMatch
+): ChessMatch {
+  if (!previous || previous.id !== incoming.id) return incoming;
+  return MATCH_STATE_ORDER[incoming.state] < MATCH_STATE_ORDER[previous.state]
+    ? previous
+    : incoming;
 }
 
 // Fold a `state` frame (a full match snapshot: join, draw-offer changes, terminal
@@ -367,7 +635,17 @@ export function applyPositionFrame(prev: ChessMatch, frame: ChessPositionFrame):
 // history is kept and the poll reconciles any gap.
 export function applyStateFrame(prev: ChessMatch, wire: ChessMatchWire): ChessMatch {
   const next = toChessMatch(wire);
-  return { ...next, moves: prev.moves, clockUpdatedAt: new Date().toISOString() };
+  const justStarted = prev.state === "awaiting_opponent" && next.state === "in_progress";
+  return mergeChessMatchSnapshot(prev, {
+    ...next,
+    moves: prev.moves,
+    // A rolling deployment can send a compact state packet without newer
+    // capabilities. Absence means "unchanged", not "disabled".
+    timeExtensions: wire.timeExtensions ? next.timeExtensions : prev.timeExtensions,
+    // Joining is anchored to server startedAt. Later state-only frames retain
+    // the last move anchor on old backends instead of using browser receipt time.
+    clockUpdatedAt: wire.clockUpdatedAt || justStarted ? next.clockUpdatedAt : prev.clockUpdatedAt,
+  });
 }
 
 export interface ChessTakebackOffersFrame {
@@ -461,13 +739,17 @@ export function applyCommentDeletedFrame(
 // A waiting match, presented as a joinable challenge. The creator is whichever
 // seat is already taken, and the match id is what an invite link carries.
 export function toChessChallenge(wire: ChessMatchWire): ChessChallenge {
-  const creator = toPlayer(wire.white ?? wire.black);
+  const creator = toPlayer(
+    wire.white ?? wire.black,
+    wire.white ? wire.rating?.white : wire.black ? wire.rating?.black : null
+  );
   return {
     id: wire.id,
     creator: creator ?? {
       id: wire.id,
       username: "Open seat",
       rating: null,
+      provisional: null,
       walletAddress: "",
     },
     timeControl: formatTimeControl(
@@ -479,5 +761,115 @@ export function toChessChallenge(wire: ChessMatchWire): ChessChallenge {
     // a future short-code scheme needs no client change.
     inviteCode: wire.inviteCode ?? wire.id,
     stakeUsdc: wire.wager?.stakeUsdc ?? null,
+  };
+}
+
+export function toChessAnalysisMove(wire: ChessAnalysisMoveWire): ChessAnalysisMove {
+  return {
+    ply: wire.ply,
+    player: wire.player,
+    side: wire.side,
+    openingBucket: wire.openingBucket,
+    timeControl: wire.timeControl,
+    phase: wire.phase,
+    motif: wire.motif,
+    classification: wire.classification,
+    fen: wire.fen,
+    playedUci: wire.playedUci,
+    playedSan: wire.playedSan,
+    bestUci: wire.bestUci,
+    bestSan: wire.bestSan,
+    pv: wire.pv,
+    cpBefore: wire.cpBefore,
+    cpAfter: wire.cpAfter,
+    cpLoss: wire.cpLoss,
+    mateBefore: wire.mateBefore,
+    mateAfter: wire.mateAfter,
+    accuracyPercent: wire.accuracyPercent ?? null,
+    coachComment: wire.coachComment ?? "",
+    createdAt: wire.createdAt,
+  };
+}
+
+function toChessAnalysisPlayerSummary(
+  wire: ChessAnalysisPlayerSummaryWire
+): ChessAnalysisPlayerSummary {
+  return {
+    side: wire.side,
+    accuracyPercent: wire.accuracyPercent,
+    averageCentipawnLoss: wire.averageCentipawnLoss,
+    bestMoves: wire.bestMoves,
+    goodMoves: wire.goodMoves,
+    inaccuracies: wire.inaccuracies,
+    mistakes: wire.mistakes,
+    blunders: wire.blunders,
+  };
+}
+
+export function toChessMatchAnalysis(wire: ChessMatchAnalysisWire): ChessMatchAnalysis {
+  return {
+    matchId: wire.matchId,
+    analysed: wire.analysed,
+    status: wire.status,
+    requestOrigin: wire.requestOrigin,
+    requestedBy: wire.requestedBy,
+    requestCount: wire.requestCount,
+    depth: wire.depth,
+    tier: wire.tier ?? "standard",
+    engineName: wire.engineName,
+    failure: wire.failure,
+    queuedAt: wire.queuedAt,
+    startedAt: wire.startedAt,
+    completedAt: wire.completedAt,
+    updatedAt: wire.updatedAt,
+    createdAt: wire.createdAt,
+    summaries: (wire.summaries ?? []).map(toChessAnalysisPlayerSummary),
+    moves: wire.moves.map(toChessAnalysisMove),
+  };
+}
+
+export function toChessInsightBucket(wire: ChessInsightBucketWire): ChessInsightBucket {
+  return {
+    key: wire.key,
+    games: wire.games,
+    averageCpLoss: wire.averageCpLoss,
+    maxCpLoss: wire.maxCpLoss,
+    latestAt: wire.latestAt,
+  };
+}
+
+export function toChessWeaknessProfile(wire: ChessWeaknessProfileWire): ChessWeaknessProfile {
+  return {
+    player: wire.player,
+    generatedAt: wire.generatedAt,
+    totalMistakes: wire.totalMistakes,
+    openings: wire.openings.map(toChessInsightBucket),
+    phases: wire.phases.map(toChessInsightBucket),
+    sides: wire.sides.map(toChessInsightBucket),
+    timeControls: wire.timeControls.map(toChessInsightBucket),
+    motifs: wire.motifs.map(toChessInsightBucket),
+  };
+}
+
+export function toChessCoachProgressItem(wire: ChessCoachProgressItemWire): ChessCoachProgressItem {
+  return {
+    lessonKey: wire.lessonKey,
+    chapterKey: wire.chapterKey,
+    bestScore: wire.bestScore,
+    lastScore: wire.lastScore,
+    attempts: wire.attempts,
+    completed: wire.completed,
+    completedAt: wire.completedAt,
+    createdAt: wire.createdAt,
+    updatedAt: wire.updatedAt,
+  };
+}
+
+export function toChessCoachProgress(wire: ChessCoachProgressWire): ChessCoachProgress {
+  return {
+    player: wire.player,
+    totalEntries: wire.totalEntries,
+    completedEntries: wire.completedEntries,
+    items: wire.items.map(toChessCoachProgressItem),
   };
 }

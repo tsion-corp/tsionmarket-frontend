@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
+  applyPositionFrame,
+  applyStateFrame,
   applyChatLineFrame,
   applyCommentDeletedFrame,
   applyCommentUpsertedFrame,
   applyRematchOfferFrame,
   applyRematchTakenFrame,
   applyTakebackOffersFrame,
+  mergeChessMatchSnapshot,
   formatTimeControl,
   isMatchId,
   parseTimeControl,
@@ -151,6 +154,14 @@ describe("match", () => {
     expect(toChessMatch(wire()).clockUpdatedAt).toBe("2026-07-30T09:01:00.000Z");
   });
 
+  it("prefers the backend clock anchor over browser-local history", () => {
+    expect(
+      toChessMatch(wire({ clockUpdatedAt: "2026-07-30T09:01:12.345Z" }), {
+        clockUpdatedAt: "2026-07-30T09:01:20.000Z",
+      }).clockUpdatedAt
+    ).toBe("2026-07-30T09:01:12.345Z");
+  });
+
   it("falls back to creation time for a game that never started", () => {
     expect(toChessMatch(wire({ status: "waiting", startedAt: null })).clockUpdatedAt).toBe(
       "2026-07-30T09:00:00.000Z"
@@ -161,6 +172,26 @@ describe("match", () => {
     const match = toChessMatch(wire({ status: "waiting", black: null }));
     expect(match.black).toBeNull();
     expect(match.white).toMatchObject({ walletAddress: "0xwhite", rating: null });
+  });
+
+  it("maps an unlimited computer match and names the engine seat", () => {
+    const match = toChessMatch(
+      wire({
+        timeControl: { mode: "unlimited", initialSeconds: 600, incrementSeconds: 3 },
+        computer: {
+          player: "0x00000000000000000000000000000000000000b6",
+          name: "Stockfish level 6",
+          side: "black",
+          level: 6,
+        },
+        black: "0x00000000000000000000000000000000000000b6",
+      })
+    );
+
+    expect(match.clockMode).toBe("unlimited");
+    expect(match.timeControl).toBe("Unlimited");
+    expect(match.computer).toMatchObject({ level: 6, side: "black" });
+    expect(match.black).toMatchObject({ username: "Stockfish level 6", rating: null });
   });
 
   it("keeps non-wallet seat names readable for managed tournament games", () => {
@@ -210,6 +241,109 @@ describe("match", () => {
       })
     );
     expect(staked.stakeUsdc).toBe("10");
+  });
+});
+
+describe("live game frames", () => {
+  it("uses the same server clock anchor for a pushed move in every browser", () => {
+    const active = toChessMatch(wire());
+    const next = applyPositionFrame(active, {
+      fen: active.fen,
+      turn: "black",
+      ply: 1,
+      lastMove: { uci: "e2e4", san: "e4" },
+      clocks: { whiteMs: 294_000, blackMs: 300_000 },
+      clockUpdatedAt: "2026-07-30T09:01:06.000Z",
+      status: "active",
+    });
+
+    expect(next.clockUpdatedAt).toBe("2026-07-30T09:01:06.000Z");
+  });
+
+  it("never lets a late waiting snapshot overwrite an accepted challenge", () => {
+    const waiting = toChessMatch(wire({ status: "waiting", black: null, startedAt: null }));
+    const active = toChessMatch(wire({ status: "active" }));
+    const finished = toChessMatch(
+      wire({
+        status: "finished",
+        result: "white",
+        resultReason: "checkmate",
+        finishedAt: "2026-07-30T09:03:00.000Z",
+      })
+    );
+
+    expect(mergeChessMatchSnapshot(waiting, active)).toBe(active);
+    expect(mergeChessMatchSnapshot(active, waiting)).toBe(active);
+    expect(mergeChessMatchSnapshot(finished, active)).toBe(finished);
+  });
+
+  it("keeps move history while applying the authoritative terminal snapshot", () => {
+    const active = toChessMatch(wire(), { moveSan: ["f3", "e5", "g4"] });
+    const afterMatePosition = applyPositionFrame(active, {
+      fen: "rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3",
+      turn: "white",
+      ply: 4,
+      lastMove: { uci: "d8h4", san: "Qh4#" },
+      clocks: { whiteMs: 281_000, blackMs: 286_000 },
+      status: "finished",
+    });
+
+    // The compact position frame ends interaction immediately but intentionally
+    // carries no result/rating metadata. The following full state frame does.
+    expect(afterMatePosition.state).toBe("settled");
+    expect(afterMatePosition.result).toBeNull();
+    expect(afterMatePosition.moves).toEqual(["f3", "e5", "g4", "Qh4#"]);
+
+    const terminal = applyStateFrame(
+      afterMatePosition,
+      wire({
+        status: "finished",
+        fen: afterMatePosition.fen,
+        turn: "white",
+        ply: 4,
+        clocks: { whiteMs: 281_000, blackMs: 286_000 },
+        result: "black",
+        resultReason: "checkmate",
+        finishedAt: "2026-07-30T09:03:00.000Z",
+        takeback: { white: false, black: false, takebackable: false },
+        rematch: { offeredBy: "0xblack", nextMatchId: null },
+        rating: {
+          rated: true,
+          perfKey: "blitz",
+          white: { rating: 1500, provisional: true, diff: -181 },
+          black: { rating: 1500, provisional: true, diff: 181 },
+        },
+      })
+    );
+
+    expect(terminal.moves).toEqual(["f3", "e5", "g4", "Qh4#"]);
+    expect(terminal.result).toEqual({ kind: "checkmate", winner: "b" });
+    expect(terminal.clocks).toEqual({ w: 281, b: 286 });
+    expect(terminal.rating?.white.diff).toBe(-181);
+    expect(terminal.rating?.black.diff).toBe(181);
+    expect(terminal.rematch.offeredBy).toBe("0xblack");
+    expect(terminal.takeback.takebackable).toBe(false);
+  });
+
+  it("preserves clock-extension capability when a compact state frame omits it", () => {
+    const active = toChessMatch(
+      wire({
+        timeExtensions: {
+          allowed: true,
+          used: 0,
+          totalSeconds: 0,
+          maxUses: 3,
+          maxTotalSeconds: 1_800,
+        },
+      })
+    );
+    const compact = wire({ clocks: { whiteMs: 290_000, blackMs: 289_000 } });
+    delete compact.timeExtensions;
+
+    const next = applyStateFrame(active, compact);
+
+    expect(next.timeExtensions.allowed).toBe(true);
+    expect(next.timeExtensions.maxUses).toBe(3);
   });
 });
 

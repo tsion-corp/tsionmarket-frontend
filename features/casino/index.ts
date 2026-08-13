@@ -5,8 +5,10 @@ export { LastStandingSection } from "./components/last-standing/last-standing-se
 export { CreateSection } from "./components/chess/create-section";
 export { HistorySection } from "./components/chess/history-section";
 export { InviteSection } from "./components/chess/invite-section";
+export { LearnSection } from "./components/chess/learn-section";
 export { LobbySection } from "./components/chess/lobby-section";
 export { MatchmakingSection } from "./components/chess/matchmaking-section";
+export { ChessRoundPageShell } from "./components/chess/chess-round-page-shell";
 export { PlaySection } from "./components/chess/play-section";
 export { ReviewSection } from "./components/chess/review-section";
 export { SpectateSection } from "./components/chess/spectate-section";

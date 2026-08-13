@@ -15,6 +15,7 @@ import {
   withdrawSwiss,
   type SwissDetail,
   type SwissGameKind,
+  type SwissPrizePolicy,
   type SwissSummary,
 } from "@/features/casino/lib/api/swiss";
 import { parseTimeControl } from "@/features/casino/lib/api/chess-wire";
@@ -90,6 +91,9 @@ export interface CreateSwissFormInput {
   game?: SwissGameKind;
   nbRounds: number;
   timeControl: ChessTimeControl;
+  entryFeeUsdc?: string;
+  maxPlayers?: number;
+  prizePolicy?: SwissPrizePolicy;
   password?: string;
   forbiddenPairings?: string;
 }
@@ -109,6 +113,9 @@ export function useCreateSwiss() {
         nbRounds: input.nbRounds,
         initialSeconds,
         incrementSeconds,
+        entryFeeUsdc: input.entryFeeUsdc,
+        maxPlayers: input.maxPlayers,
+        prizePolicy: input.prizePolicy,
         password: input.password,
         forbiddenPairings: input.forbiddenPairings,
       });

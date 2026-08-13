@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist, Mona_Sans } from "next/font/google";
+import { Geist, Mona_Sans, Noto_Sans, Roboto } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import Providers from "./providers";
@@ -19,6 +19,21 @@ const monaSans = Mona_Sans({
   subsets: ["latin"],
   weight: ["500", "600", "700"],
   variable: "--font-display",
+});
+
+// Chess round uses the same type families Lichess does: Noto Sans for the
+// surrounding table text and Roboto light for clocks. Kept as local variables
+// so only chess opts into them.
+const chessSans = Noto_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
+  variable: "--font-chess-body",
+});
+
+const chessClock = Roboto({
+  subsets: ["latin"],
+  weight: ["300", "400"],
+  variable: "--font-chess-clock",
 });
 
 // No `icons` here: app/icon.svg is picked up by file convention and emits the
@@ -50,7 +65,10 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang={locale} className={`${geist.variable} ${monaSans.variable} h-full antialiased`}>
+    <html
+      lang={locale}
+      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased`}
+    >
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>
           <Providers>{children}</Providers>

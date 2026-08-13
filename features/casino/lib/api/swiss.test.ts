@@ -151,6 +151,42 @@ describe("summary mapping", () => {
     const done = toSwissSummary(summaryWire({ status: "finished", winner: "alice" }));
     expect(done.winner).toBe("alice");
   });
+
+  it("keeps older free-tournament responses compatible", () => {
+    const summary = summaryWire();
+    delete summary.entryFeeUsdc;
+
+    expect(toSwissSummary(summary)).toMatchObject({
+      entryFeeUsdc: "0",
+      maxPlayers: 4000,
+      prizePolicy: "standard",
+      prizePoolBps: 10_000,
+      platformShareBps: 0,
+      minimumPlayers: 2,
+    });
+  });
+
+  it("maps the fixed high-stakes tournament terms", () => {
+    expect(
+      toSwissSummary(
+        summaryWire({
+          entryFeeUsdc: "2",
+          maxPlayers: 100,
+          prizePolicy: "high_stakes",
+          prizePoolBps: 5_000,
+          platformShareBps: 5_000,
+          minimumPlayers: 4,
+        })
+      )
+    ).toMatchObject({
+      entryFeeUsdc: "2",
+      maxPlayers: 100,
+      prizePolicy: "highStakes",
+      prizePoolBps: 5_000,
+      platformShareBps: 5_000,
+      minimumPlayers: 4,
+    });
+  });
 });
 
 describe("detail mapping", () => {

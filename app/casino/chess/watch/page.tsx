@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { CasinoPage, SpectateSection } from "@/features/casino";
+import { ChessRoundPageShell, SpectateSection } from "@/features/casino";
 
 function WatchFromParams() {
   return <SpectateSection matchId={useSearchParams()?.get("match") ?? null} />;
@@ -10,10 +10,10 @@ function WatchFromParams() {
 
 export default function ChessWatchPage() {
   return (
-    <CasinoPage>
+    <ChessRoundPageShell>
       <Suspense fallback={null}>
         <WatchFromParams />
       </Suspense>
-    </CasinoPage>
+    </ChessRoundPageShell>
   );
 }

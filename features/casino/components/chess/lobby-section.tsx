@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useAcceptChallenge, useChessLobby } from "@/features/casino/hooks/use-casino-chess";
 import { ChessLiveNowDialog } from "@/features/casino/components/chess/chess-live-now-dialog";
+import { ChessComputerDialog } from "@/features/casino/components/chess/chess-computer-dialog";
 import { ChessTournamentsDialog } from "@/features/casino/components/chess/chess-tournaments-dialog";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
@@ -18,7 +19,7 @@ import {
   PlayerBar,
   StateRow,
 } from "@/features/casino/components/game-menu";
-import { FlagIcon, FlameIcon, GameArrowsIcon } from "@/components/ui/icons";
+import { BulbIcon, FlagIcon, FlameIcon, GameArrowsIcon } from "@/components/ui/icons";
 import { BOARD_THEMES, DEFAULT_THEME } from "@/features/casino/lib/chess/board-theme";
 import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
@@ -26,6 +27,20 @@ import { initialBoard } from "@/features/casino/lib/chess/engine";
 import { CHESS_SURFACE_BG } from "@/features/casino/lib/chess/ui";
 import { toast } from "@/lib/toast";
 import type { ChessChallenge } from "@/features/casino/lib/api/types";
+
+function ComputerIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="4" y="6" width="16" height="13" rx="2.5" stroke="currentColor" strokeWidth="1.7" />
+      <path
+        d="M9 3h6M12 3v3M8 12h.01M16 12h.01M9 16h6"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
 
 const SURFACE_BG = CHESS_SURFACE_BG;
 const SHELL_BG = "rgba(0, 0, 0, 0.20)";
@@ -56,11 +71,13 @@ export function LobbySection() {
   const t = useTranslations("casino.chess.lobby");
   const tCommon = useTranslations("casino.chess.common");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const wallet = useCasinoWallet();
   const { challenges, myActiveGames, myOpenGames, liveMatches, isLoading, error, refetch } =
     useChessLobby(wallet.address ?? null);
   const accept = useAcceptChallenge();
   const [liveOpen, setLiveOpen] = useState(false);
+  const [computerOpen, setComputerOpen] = useState(() => searchParams.get("computer") === "1");
   const [tournamentsOpen, setTournamentsOpen] = useState(false);
 
   const activeGame = myActiveGames[0] ?? null;
@@ -128,6 +145,19 @@ export function LobbySection() {
             <div className="space-y-3 p-4 sm:p-5">
               <ChessCashierLauncher />
               <div className="space-y-2">
+                <MenuActionButton
+                  title="Play against computer"
+                  note="Choose a Stockfish level from 1 to 8"
+                  icon={<ComputerIcon size={20} />}
+                  onClick={() => setComputerOpen(true)}
+                  ariaLabel="Set up a computer game"
+                />
+                <MenuActionLink
+                  title="Learn how to play chess"
+                  note="Master every piece with interactive lessons"
+                  icon={<BulbIcon size={20} />}
+                  href="/casino/chess/learn"
+                />
                 <MenuActionButton
                   title="Live Now"
                   note="Watch active games and open the live market"
@@ -206,6 +236,7 @@ export function LobbySection() {
         myMatches={myActiveGames}
         matches={liveMatches}
       />
+      <ChessComputerDialog open={computerOpen} onClose={() => setComputerOpen(false)} />
       <ChessTournamentsDialog open={tournamentsOpen} onClose={() => setTournamentsOpen(false)} />
     </>
   );
