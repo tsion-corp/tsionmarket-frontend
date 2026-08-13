@@ -2,11 +2,16 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { useEvmSend } from "@/hooks/use-evm-send";
-import { useKashAccount, useKashStatus } from "@/features/portfolio/hooks/use-kash";
+import {
+  useInvalidateKash,
+  useKashAccount,
+  useKashStatus,
+} from "@/features/portfolio/hooks/use-kash";
 import { isValidKashAmount } from "@/features/portfolio/lib/kash";
 import { isEvmAddress, kashTransferData } from "@/features/portfolio/lib/kash-transfer";
 
@@ -29,6 +34,7 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
   const { data: status } = useKashStatus();
   const { data: account, wallet } = useKashAccount();
   const sendEvm = useEvmSend();
+  const invalidateKash = useInvalidateKash();
 
   const onChain = status?.chainMode === "ethers" && Boolean(status.chain);
   const balance = account?.balance ?? "0";
@@ -55,6 +61,9 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
         data: kashTransferData(recipient, amount),
         chainId: status.chain.chainId,
       });
+      // The tokens have left the wallet; the card reads its balance from the
+      // chain, so refresh rather than leave the pre-send figure on screen.
+      invalidateKash();
       setDone({ kash: amount, to: recipient.trim(), txHash });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("sendFailed"));
@@ -147,7 +156,14 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
               disabled={!canSubmit}
               className="text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {sending ? t("sendingKash") : t("sendCta")}
+              {sending ? (
+                <>
+                  <ButtonSpinner />
+                  {t("sendingKash")}
+                </>
+              ) : (
+                t("sendCta")
+              )}
             </button>
           </div>
         )}

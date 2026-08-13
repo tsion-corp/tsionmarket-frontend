@@ -24,6 +24,8 @@ export interface KashStatus {
   // The gate is a dollar value of KSH, not a token count, so it holds as the
   // price moves.
   gate: { minHoldingUsd: number };
+  /** Points economics — `pointValueUsd` is what one point settles into. */
+  points: { pointValueUsd: number };
   subscriptions: { periodDays: number; tiers: { tier: number; priceUsd: number }[] };
   desk: {
     purchaseMinUsdc: number;
@@ -33,8 +35,20 @@ export interface KashStatus {
   };
   coverage: { state: "normal" | "throttled" | "paused" };
   chainMode: "mock" | "ethers" | "off";
-  // Present only in ethers mode: what a conversion's permit signature targets.
-  chain?: { chainId: number; tokenAddress: string; controllerAddress: string };
+  // Present only in ethers mode: what a conversion's permit signature targets,
+  // and — for a purchase — where the buyer's USDC has to be sent.
+  chain?: {
+    chainId: number;
+    tokenAddress: string;
+    controllerAddress: string;
+    /**
+     * Destination for the USDC payment leg. The engine verifies the transfer
+     * came `from` the buying wallet, so the payment cannot be made on the
+     * user's behalf and this address must be known client-side.
+     */
+    paymentAddress?: string;
+    usdcAddress?: string;
+  };
 }
 
 export interface KashSettlement {
@@ -53,8 +67,12 @@ export interface KashAccount {
   lifetimeEarned: string;
   purchased: string;
   convertible: string;
-  // The open week's live points and when they convert to KSH.
-  week: { weekKey: string; points: string; settlesAt: string };
+  /**
+   * The open week. `points` is the cumulative XP total and does not fall when
+   * points are claimed; `unclaimed` is what a claim would actually convert, so
+   * any "claim now" control must read that one.
+   */
+  week: { weekKey: string; points: string; unclaimed: string; settlesAt: string };
   // Past weekly payouts, newest first.
   settlements: KashSettlement[];
   gate: { minHoldingUsd: string; minHoldingKash: string; met: boolean; shortfall: string };
@@ -115,6 +133,16 @@ export interface KashConversion {
   payoutTxHash?: string;
 }
 
+/** Result of settling a wallet's points into KSH. */
+export interface KashClaim {
+  weekKey: string;
+  priceUsd: string;
+  wallets: number;
+  kashMinted: string;
+  failed: number;
+  skipped?: string;
+}
+
 export interface KashLedgerEntry {
   id: string;
   wallet: string;
@@ -129,6 +157,13 @@ export interface KashLedgerEntry {
   txHash?: string;
   createdAt: string;
 }
+
+/**
+ * Settle this wallet's accrued points into KSH now, instead of waiting for the
+ * weekly batch. Only ever affects the caller's own wallet.
+ */
+export const postKashClaim = (wallet: string) =>
+  kash.post<KashClaim>("/settlements/claim", { wallet });
 
 export const getKashStatus = () => kash.get<KashStatus>("/status");
 
@@ -156,15 +191,73 @@ export const getKashConversionQuote = (kashAmount: string) =>
 export const postKashPurchase = (wallet: string, usdcAmount: string, paymentTxHash?: string) =>
   kash.post<KashPurchase>("/purchases", { wallet, usdcAmount, paymentTxHash });
 
+// `idempotencyKey` is not optional in practice, only in the type: a conversion
+// is three sequential Base transactions (permit, burn, payout) measuring ~7s
+// against the gateway's 10s proxy timeout. A caller can therefore receive a
+// timeout for a conversion that ALREADY burned and ALREADY paid, and a retry
+// without a key burns a second time. Same key ⇒ the engine returns the
+// original conversion instead.
 export const postKashConversion = (
   wallet: string,
   kashAmount: string,
-  permit?: { deadline: number; v: number; r: string; s: string }
-) => kash.post<KashConversion>("/conversions", { wallet, kashAmount, permit });
+  permit?: { deadline: number; v: number; r: string; s: string },
+  idempotencyKey?: string
+) => kash.post<KashConversion>("/conversions", { wallet, kashAmount, permit, idempotencyKey });
+
+/**
+ * A retry key for one conversion ATTEMPT.
+ *
+ * Must be generated where the user's intent begins, not inside the request:
+ * a key minted per request changes on every retry, which is precisely the
+ * behaviour it exists to prevent.
+ */
+export function newConversionKey(): string {
+  return `convert-${globalThis.crypto.randomUUID()}`;
+}
 
 // Progress toward the holding gate as a 0..1 fraction, from the account's own
 // decimal strings. Used for the progress bar, so it clamps rather than throws:
 // a malformed value renders an empty bar, not a crash in the balance card.
+/**
+ * KSH a points balance would settle into, at the current price.
+ *
+ * Mirrors what the engine does at settlement: points carry a fixed USD value,
+ * and that USD buys KSH at the live price. Showing the points figure on a
+ * button labelled in KASH would promise a number the claim does not deliver,
+ * so this is derived rather than assumed 1:1 — they are only equal while
+ * pointValueUsd and the price happen to match.
+ *
+ * Returns null when either input is missing or unusable, so the caller can
+ * fall back rather than render "NaN KASH".
+ */
+export function pointsToKash(
+  points: string,
+  pointValueUsd: number | undefined,
+  kashPriceUsd: string | undefined
+): string | null {
+  const pts = Number(points);
+  const price = Number(kashPriceUsd);
+  if (!Number.isFinite(pts) || pts <= 0) return null;
+  if (!pointValueUsd || !Number.isFinite(price) || price <= 0) return null;
+  return formatKashAmount(String((pts * pointValueUsd) / price));
+}
+
+/**
+ * A KSH amount for display: thousands separators, and no more precision than a
+ * reader can use. Balances run to five or six figures, and an unseparated
+ * 1994000 is unreadable at a glance.
+ */
+export function formatKashAmount(amount: string): string {
+  const value = Number(amount);
+  if (!Number.isFinite(value)) return amount;
+  // Whole tokens above 1,000 — decimals there are noise. Below it, keep two.
+  const decimals = value >= 1000 || Number.isInteger(value) ? 0 : 2;
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+}
+
 export function gateProgress(account: {
   balance: string;
   gate: { minHoldingKash: string };

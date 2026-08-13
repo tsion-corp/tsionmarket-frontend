@@ -20,7 +20,7 @@ import { KashConvertModal } from "@/features/portfolio/components/kash-convert-m
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
 import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-modal";
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
-import { useKashAccount } from "@/features/portfolio/hooks/use-kash";
+import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
 import { Switch } from "@/components/ui/switch";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { tokenBg } from "@/lib/trade/assets";
@@ -133,6 +133,7 @@ export function PortfolioView({
   const money = useMoney();
   const t = useTranslations("portfolio");
   const { wallet: kashWallet } = useKashAccount();
+  const claimPoints = useKashClaim();
   const [kashModal, setKashModal] = useState<
     "buy" | "send" | "convert" | "history" | "upgrade" | null
   >(null);
@@ -294,6 +295,8 @@ export function PortfolioView({
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
         <KashCard
           onBuy={() => setKashModal("buy")}
+          onClaim={kashWallet ? () => claimPoints.mutate({ wallet: kashWallet }) : undefined}
+          claiming={claimPoints.isPending}
           onSend={() => setKashModal("send")}
           onConvert={() => setKashModal("convert")}
           onHistory={() => setKashModal("history")}

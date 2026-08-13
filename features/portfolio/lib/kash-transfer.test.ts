@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEvmAddress, kashTransferData } from "./kash-transfer";
+import { isEvmAddress, kashTransferData, usdcToAtomic, usdcTransferData } from "./kash-transfer";
 
 const TO = "0x1111111111111111111111111111111111111111";
 
@@ -31,5 +31,36 @@ describe("kashTransferData", () => {
 
   it("rejects a bad recipient before encoding", () => {
     expect(() => kashTransferData("0x123", "1")).toThrow();
+  });
+});
+
+describe("usdcToAtomic", () => {
+  it("scales by 6 decimals, not 18", () => {
+    // Reusing the KSH 18-decimal helper here would overpay by 10^12.
+    expect(usdcToAtomic("1")).toBe(1_000_000n);
+    expect(usdcToAtomic("10")).toBe(10_000_000n);
+    expect(usdcToAtomic("0.5")).toBe(500_000n);
+    expect(usdcToAtomic("1.234567")).toBe(1_234_567n);
+  });
+
+  it("rejects more precision than USDC can hold", () => {
+    expect(() => usdcToAtomic("1.1234567")).toThrow(/6 decimals/);
+  });
+
+  it("rejects a non-decimal string", () => {
+    expect(() => usdcToAtomic("1e6")).toThrow();
+    expect(() => usdcToAtomic("")).toThrow();
+  });
+});
+
+describe("usdcTransferData", () => {
+  it("encodes a transfer to the payment address", () => {
+    const data = usdcTransferData("0x289CF343dE1CeC91E144a6E34E0BBcbceBfFA879", "1");
+    expect(data.startsWith("0xa9059cbb")).toBe(true);
+    expect(data.toLowerCase()).toContain("289cf343de1cec91e144a6e34e0bbcbcebffa879");
+  });
+
+  it("refuses a malformed destination", () => {
+    expect(() => usdcTransferData("not-an-address", "1")).toThrow(/EVM address/);
   });
 });

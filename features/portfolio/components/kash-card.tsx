@@ -1,31 +1,21 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
-import { useKashAccount, useKashSubscription } from "@/features/portfolio/hooks/use-kash";
-import { gateProgress, settlesIn } from "@/features/portfolio/lib/kash";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
+import {
+  useKashAccount,
+  useKashStatus,
+  useKashSubscription,
+} from "@/features/portfolio/hooks/use-kash";
+import { formatKashAmount, gateProgress, pointsToKash } from "@/features/portfolio/lib/kash";
 
 const COIN = "/kash-coin.jpg";
 
-// Clock for the settlement countdown, read as an external store so render
-// stays pure. The snapshot is floored to the minute, which keeps it stable
-// between ticks; hour-level granularity needs nothing finer. Null on the
-// server, where there is no clock to subscribe to.
-function subscribeMinuteTick(onTick: () => void) {
-  const id = setInterval(onTick, 60_000);
-  return () => clearInterval(id);
-}
-
-function useNowMs(): number | null {
-  return useSyncExternalStore(
-    subscribeMinuteTick,
-    () => Math.floor(Date.now() / 60_000) * 60_000,
-    () => null
-  );
-}
-
 interface KashCardProps {
   onBuy: () => void;
+  /** Settle accrued points into KSH now. Absent while there is nothing to claim. */
+  onClaim?: () => void;
+  claiming?: boolean;
   onSend: () => void;
   onConvert: () => void;
   onHistory: () => void;
@@ -35,25 +25,55 @@ interface KashCardProps {
 // The Kash balance card, fed by the rewards engine. The model is points-first:
 // activity earns points live (like XP) and they convert to KSH once a week at
 // settlement, so the card keeps the two numbers visibly separate — spendable
-// KSH on top, this week's points with a countdown below. Below the holding
+// KSH on top, claimable points below. Below the holding
 // gate it shows progress toward it, since "75% there" invites the next buy in
 // a way a bare lock never does.
-export function KashCard({ onBuy, onSend, onConvert, onHistory, onUpgrade }: KashCardProps) {
+export function KashCard({
+  onBuy,
+  onClaim,
+  claiming,
+  onSend,
+  onConvert,
+  onHistory,
+  onUpgrade,
+}: KashCardProps) {
   const t = useTranslations("kash");
+  const { data: engineStatus } = useKashStatus();
   const { data: account } = useKashAccount();
   const { data: subscription } = useKashSubscription();
 
   const balance = account?.balance ?? "0";
+  const balanceDisplay = formatKashAmount(balance);
+  // Step the type down as the number grows so a six-figure balance stays on one
+  // line instead of wrapping under the KASH suffix or overflowing the card.
+  const balanceTextSize =
+    balanceDisplay.length > 12
+      ? "text-[22px]"
+      : balanceDisplay.length > 9
+        ? "text-[26px]"
+        : "text-[34px]";
   const balanceUsd = account?.balanceUsd ?? "0";
   const gateMet = account?.gate.met ?? false;
   const shortfall = account?.gate.shortfall ?? "0";
   const progress = account ? gateProgress(account) : 0;
   const hasConvertible = Number(account?.convertible ?? "0") > 0;
 
-  const nowMs = useNowMs();
-  const weekPoints = account?.week.points ?? "0";
-  const countdown = account && nowMs !== null ? settlesIn(nowMs, account.week.settlesAt) : null;
-  const lastPayout = account?.settlements[0];
+  // Claimable, not cumulative — see KashAccount.week.
+  const unclaimed = account?.week.unclaimed ?? "0";
+  // What the claim actually pays out. Falls back to the points figure only if
+  // the price is unavailable — never renders an empty or NaN amount.
+  const hasClaimable = Number(unclaimed) > 0;
+  const claimableKash = pointsToKash(
+    unclaimed,
+    engineStatus?.points.pointValueUsd,
+    engineStatus?.price.kashPriceUsd
+  );
+  // Total KSH already claimed, summarised here and itemised in history.
+  const claimedKash = account?.settlements.length
+    ? formatKashAmount(
+        String(account.settlements.reduce((total, row) => total + Number(row.kash || 0), 0))
+      )
+    : null;
 
   return (
     <div className="ws-card flex h-full flex-col p-5 sm:p-[26px]">
@@ -82,8 +102,11 @@ export function KashCard({ onBuy, onSend, onConvert, onHistory, onUpgrade }: Kas
       </div>
 
       <div className="mt-2">
-        <div className="ws-display tnum flex items-end gap-1.5 text-[34px] leading-none tracking-[-0.02em]">
-          {balance} <span className="ml-2 text-[20px] text-amber-200/90">KASH</span>
+        <div
+          className={`ws-display tnum flex items-end gap-1.5 leading-none tracking-[-0.02em] ${balanceTextSize}`}
+        >
+          {balanceDisplay}{" "}
+          <span className="ml-2 text-[20px] whitespace-nowrap text-amber-200/90">KASH</span>
         </div>
         <div className="tnum mt-1 text-[12.5px] font-normal text-white/45">${balanceUsd}</div>
       </div>
@@ -111,36 +134,49 @@ export function KashCard({ onBuy, onSend, onConvert, onHistory, onUpgrade }: Kas
         </button>
       </div>
 
-      {/* The points counter is ALWAYS visible: an XP meter people can see
-          before they qualify sells the mechanic; hiding it behind the gate
-          made points look like they didn't exist. Below the gate it renders
-          muted with a locked badge, and the progress bar explains the path. */}
-      <div className="mt-4 border-t border-white/8 pt-3">
-        <div className="mb-2 flex items-baseline justify-between">
+      {/* Points section.
+          The headline is what the user can CLAIM, not a lifetime total: a
+          cumulative counter that never falls made a claimed balance look
+          unclaimed, and the number stopped meaning anything actionable.
+          Everything already converted lives in history. */}
+      <div className="mt-4 border-t border-white/8 pt-3.5">
+        <div className="mb-2.5 flex items-baseline justify-between">
           <span className="text-[11px] font-normal tracking-[0.05em] text-white/40 uppercase">
             {t("weekPointsTitle")}
           </span>
-          <span className="tnum text-[11.5px] font-normal text-white/50">
-            {countdown
-              ? countdown.days > 0
-                ? t("settlesInDays", { days: countdown.days, hours: countdown.hours })
-                : t("settlesInHours", { hours: countdown.hours })
-              : t("settlingSoon")}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
           <span
-            className={`tnum text-[22px] leading-none font-semibold ${
-              gateMet ? "text-amber-200" : "text-white/35"
+            className={`text-[11.5px] font-medium ${
+              hasClaimable ? "text-amber-200/90" : "text-white/45"
             }`}
           >
-            {weekPoints}{" "}
+            {hasClaimable ? t("pointsReady") : t("pointsEarnAsYouTrade")}
+          </span>
+        </div>
+
+        <div className="flex items-end justify-between gap-3">
+          <div className="flex items-baseline gap-2">
             <span
-              className={`text-[13px] font-normal ${gateMet ? "text-amber-200/70" : "text-white/30"}`}
+              className={`ws-display tnum text-[28px] leading-none tracking-[-0.02em] ${
+                hasClaimable ? "text-amber-200" : "text-white/35"
+              }`}
+            >
+              {formatKashAmount(unclaimed)}
+            </span>
+            <span
+              className={`text-[12.5px] font-normal ${
+                hasClaimable ? "text-amber-200/60" : "text-white/30"
+              }`}
             >
               pts
             </span>
-          </span>
+            {/* What the points are actually worth, next to the points, so the
+                claim button never states a number the card has not shown. */}
+            {hasClaimable && claimableKash && (
+              <span className="tnum text-[12.5px] font-normal text-white/45">
+                ≈ {claimableKash} KASH
+              </span>
+            )}
+          </div>
           {!gateMet && (
             <span className="rounded-full border border-white/12 bg-white/6 px-2 py-0.5 text-[10.5px] font-medium text-white/50">
               {t("pointsLocked")}
@@ -148,23 +184,49 @@ export function KashCard({ onBuy, onSend, onConvert, onHistory, onUpgrade }: Kas
           )}
         </div>
 
+        {/* Claiming converts THIS wallet's points at the current price. */}
+        {onClaim && hasClaimable && (
+          <button
+            onClick={onClaim}
+            disabled={claiming}
+            className="mt-3 flex w-full cursor-pointer items-center justify-center rounded-xl bg-amber-200 px-4 py-2.5 font-sans text-[13px] font-semibold text-amber-950 transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {claiming ? (
+              <>
+                <ButtonSpinner />
+                {t("claimingPoints")}
+              </>
+            ) : (
+              t("claimPoints", { kash: claimableKash ?? formatKashAmount(unclaimed) })
+            )}
+          </button>
+        )}
+
         {gateMet ? (
           <>
-            {lastPayout && (
-              <div className="mt-2.5 flex items-center justify-between border-t border-white/8 pt-2 text-[12px]">
-                <span className="font-normal text-white/45">
-                  {t("lastPayout", { week: lastPayout.weekKey })}
+            {/* Everything already converted, summarised — the detail is in
+                history rather than stacked onto the live number. */}
+            {claimedKash !== null && (
+              <button
+                onClick={onHistory}
+                className="mt-3 flex w-full cursor-pointer items-center justify-between border-t border-white/8 pt-2.5 text-[12px] hover:opacity-80"
+              >
+                <span className="font-normal text-white/45">{t("claimedSoFar")}</span>
+                <span className="tnum flex items-center gap-1 text-white/70">
+                  {claimedKash} KASH
+                  <span className="text-white/35">›</span>
                 </span>
-                <span className="tnum text-up">+{lastPayout.kash} KASH</span>
-              </div>
+              </button>
             )}
-            <p className="mt-2.5 text-[11.5px] leading-[1.5] font-normal text-white/40">
-              {t("weekPointsHint")}
-            </p>
+            {!hasClaimable && (
+              <p className="mt-2.5 text-[11.5px] leading-[1.5] font-normal text-white/40">
+                {t("weekPointsHint")}
+              </p>
+            )}
           </>
         ) : (
           <>
-            <div className="mt-3 mb-1.5 flex items-baseline justify-between">
+            <div className="mt-3.5 mb-1.5 flex items-baseline justify-between">
               <span className="text-[11px] font-normal tracking-[0.05em] text-white/40 uppercase">
                 {t("gateTitle")}
               </span>

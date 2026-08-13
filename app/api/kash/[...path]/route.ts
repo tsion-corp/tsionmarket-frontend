@@ -34,7 +34,16 @@ function isPublicGet(path: string[]): boolean {
 // Wallet-scoped writes. The demo endpoint (POST /activities) is deliberately
 // absent: it mints rewards for free and must never be reachable from the
 // public internet, even behind a session.
-const WALLET_POST_PATHS = new Set(["purchases", "conversions", "subscriptions"]);
+// `settlements/claim` settles only the named wallet's own points, so it is a
+// wallet-scoped write like any other — the ownership check below is what stops
+// one user claiming another's. The operator's whole-week `settlements/run` is
+// deliberately NOT here: it prices every wallet at once and needs the admin key.
+const WALLET_POST_PATHS = new Set([
+  "purchases",
+  "conversions",
+  "subscriptions",
+  "settlements/claim",
+]);
 
 // Short cache so concurrent polls for the same public path collapse into one
 // upstream call. Bounded and swept on write so unauthenticated quote spam

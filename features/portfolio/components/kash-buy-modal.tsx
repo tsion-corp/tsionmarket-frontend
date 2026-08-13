@@ -1,16 +1,19 @@
 "use client";
 
 import { useState } from "react";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
+import { useEvmSend } from "@/hooks/use-evm-send";
 import {
   useKashPurchase,
   useKashPurchaseQuote,
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
 import { isValidKashAmount } from "@/features/portfolio/lib/kash";
+import { usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
 
 const QUICK_AMOUNTS = ["10", "25", "50", "100"];
 
@@ -27,20 +30,28 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   const t = useTranslations("kash");
   const [amount, setAmount] = useState("10");
   const [done, setDone] = useState<{ kash: string; usdc: string; txHash?: string } | null>(null);
+  // Paying is a separate on-chain step before the engine call, so it needs its
+  // own pending flag: the mutation is not in flight while the wallet is
+  // waiting on a signature.
+  const [paying, setPaying] = useState(false);
+  const sendEvm = useEvmSend();
 
   const { data: status } = useKashStatus();
   const quote = useKashPurchaseQuote(amount);
   const purchase = useKashPurchase();
 
-  // The real-USDC purchase flow needs an on-chain payment leg the app does not
-  // ship yet, so in that mode buying is disabled with an honest message rather
-  // than a request that can only fail.
-  const paymentUnsupported = status?.treasury.usdcMode === "ethers";
+  // In real-USDC mode the buyer pays on-chain first and the engine verifies
+  // that transfer. It can only be built if the engine told us WHERE to pay, so
+  // a missing paymentAddress — not the mode itself — is what disables buying.
+  const needsPayment = status?.treasury.usdcMode === "ethers";
+  const paymentAddress = status?.chain?.paymentAddress;
+  const paymentUnsupported = needsPayment && !paymentAddress;
 
   const min = status?.desk.purchaseMinUsdc ?? 1;
   const max = status?.desk.purchaseMaxUsdc ?? 10_000;
   const valid = isValidKashAmount(amount) && Number(amount) >= min && Number(amount) <= max;
-  const canSubmit = Boolean(wallet) && valid && !paymentUnsupported && !purchase.isPending;
+  const busy = purchase.isPending || paying;
+  const canSubmit = Boolean(wallet) && valid && !paymentUnsupported && !busy;
 
   const close = () => {
     setDone(null);
@@ -51,7 +62,22 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   const submit = async () => {
     if (!wallet || !canSubmit) return;
     try {
-      const result = await purchase.mutateAsync({ wallet, usdcAmount: amount });
+      // The buyer signs the USDC transfer themselves — the engine requires
+      // `from == wallet`, so a payment made on their behalf is rejected.
+      let paymentTxHash: string | undefined;
+      if (needsPayment && paymentAddress && status?.chain) {
+        setPaying(true);
+        try {
+          paymentTxHash = await sendEvm({
+            to: status.chain.usdcAddress as `0x${string}`,
+            data: usdcTransferData(paymentAddress, amount),
+            chainId: status.chain.chainId,
+          });
+        } finally {
+          setPaying(false);
+        }
+      }
+      const result = await purchase.mutateAsync({ wallet, usdcAmount: amount, paymentTxHash });
       setDone({ kash: result.kashReceived, usdc: result.usdcPaid, txHash: result.mintTxHash });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("buyFailed"));
@@ -59,7 +85,7 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   };
 
   return (
-    <ModalShell open={open} onClose={purchase.isPending ? () => {} : close}>
+    <ModalShell open={open} onClose={busy ? () => {} : close}>
       <div className="p-5 sm:p-6">
         {done ? (
           <SuccessPanel title={t("buySuccessTitle")} onDone={close}>
@@ -167,7 +193,14 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
               disabled={!canSubmit}
               className="text-ink w-full cursor-pointer rounded-[14px] bg-amber-200 p-3.5 font-sans text-[15px] font-semibold text-amber-950 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {purchase.isPending ? t("buying") : t("buyCta")}
+              {busy ? (
+                <>
+                  <ButtonSpinner />
+                  {paying ? t("buyPaying") : t("buying")}
+                </>
+              ) : (
+                t("buyCta")
+              )}
             </button>
           </div>
         )}

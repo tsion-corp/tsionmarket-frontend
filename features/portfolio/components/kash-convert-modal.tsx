@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useTranslations } from "next-intl";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
@@ -12,7 +13,7 @@ import {
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
 import { useKashPermitSigner } from "@/features/portfolio/hooks/use-kash-permit";
-import { isValidKashAmount } from "@/features/portfolio/lib/kash";
+import { isValidKashAmount, newConversionKey } from "@/features/portfolio/lib/kash";
 
 interface KashConvertModalProps {
   open: boolean;
@@ -34,6 +35,8 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   const conversion = useKashConversion();
   const signPermit = useKashPermitSigner();
   const [signing, setSigning] = useState(false);
+  // Survives re-renders and retries; see submit().
+  const attemptKey = useRef<string | null>(null);
 
   const convertible = account?.convertible ?? "0";
   const paused = quote.data?.coverageState === "paused";
@@ -44,8 +47,16 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   const close = () => {
     setDone(null);
     setAmount("");
+    attemptKey.current = null;
     conversion.reset();
     onClose();
+  };
+
+  const setAmountForNewAttempt = (next: string) => {
+    // A different amount is a different intent — reusing the key would return
+    // the earlier conversion and silently ignore what the user just typed.
+    if (next !== amount) attemptKey.current = null;
+    setAmount(next);
   };
 
   const submit = async () => {
@@ -63,7 +74,19 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
           setSigning(false);
         }
       }
-      const result = await conversion.mutateAsync({ wallet, kashAmount: amount, permit });
+      // Held across attempts on purpose. A conversion is three sequential Base
+      // transactions and can exceed the gateway timeout, so "it failed, click
+      // again" is a real user path — and the first attempt may in fact have
+      // burned and paid. Reusing the key makes the retry return that original
+      // conversion instead of burning a second time.
+      attemptKey.current ??= newConversionKey();
+      const result = await conversion.mutateAsync({
+        wallet,
+        kashAmount: amount,
+        permit,
+        idempotencyKey: attemptKey.current,
+      });
+      attemptKey.current = null;
       setDone({ usdc: result.usdcPaid, kash: result.kashBurned, txHash: result.burnTxHash });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("convertFailed"));
@@ -107,7 +130,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                   {t("amountKash")}
                 </label>
                 <button
-                  onClick={() => setAmount(convertible)}
+                  onClick={() => setAmountForNewAttempt(convertible)}
                   className="tnum cursor-pointer text-[12px] font-medium text-amber-200/80 hover:text-amber-200"
                 >
                   {t("maxConvertible", { amount: convertible })}
@@ -116,7 +139,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               <input
                 inputMode="decimal"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmountForNewAttempt(e.target.value)}
                 className="tnum mt-1.5 w-full rounded-[14px] border border-white/12 bg-white/6 px-4 py-3 text-[17px] outline-none focus:border-amber-200/50"
                 placeholder="0"
               />
@@ -168,11 +191,14 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               disabled={!canSubmit}
               className="text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {signing
-                ? t("signingPermit")
-                : conversion.isPending
-                  ? t("converting")
-                  : t("convertCta")}
+              {busy ? (
+                <>
+                  <ButtonSpinner />
+                  {signing ? t("signingPermit") : t("converting")}
+                </>
+              ) : (
+                t("convertCta")
+              )}
             </button>
           </div>
         )}

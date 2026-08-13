@@ -1,5 +1,19 @@
-import { describe, expect, it } from "vitest";
-import { gateProgress, isValidKashAmount, settlesIn } from "./kash";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// `post` goes through apiFetch, which demands a Privy token and never reaches
+// the network in a unit test. Mocking the transport keeps the assertion on what
+// this module is responsible for: what it puts on the wire.
+const apiFetchMock = vi.fn();
+vi.mock("@/lib/api", () => ({ apiFetch: (...args: unknown[]) => apiFetchMock(...args) }));
+import {
+  formatKashAmount,
+  gateProgress,
+  isValidKashAmount,
+  newConversionKey,
+  pointsToKash,
+  postKashConversion,
+  settlesIn,
+} from "./kash";
 
 const account = (balance: string, min: string) => ({
   balance,
@@ -59,5 +73,88 @@ describe("settlesIn", () => {
 
   it("is null for a malformed timestamp", () => {
     expect(settlesIn(now, "not-a-date")).toBeNull();
+  });
+});
+
+describe("newConversionKey", () => {
+  it("is unique per call", () => {
+    const keys = new Set(Array.from({ length: 50 }, () => newConversionKey()));
+    expect(keys.size).toBe(50);
+  });
+
+  it("meets the engine's minimum key length", () => {
+    // The engine rejects anything under 8 characters, and a rejected key means
+    // the conversion runs with no retry protection at all.
+    expect(newConversionKey().length).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("postKashConversion", () => {
+  function bodyOf(call: number): Record<string, unknown> {
+    const init = apiFetchMock.mock.calls[call]?.[1] as RequestInit | undefined;
+    return JSON.parse(String(init?.body));
+  }
+
+  beforeEach(() => {
+    apiFetchMock.mockClear();
+    // A fresh Response per call: a body can only be read once, so a shared
+    // instance makes the second call fail on an already-consumed stream.
+    apiFetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true, data: { id: "1" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      )
+    );
+  });
+
+  it("puts the idempotency key on the wire", async () => {
+    // Without this the engine cannot recognise a retry, and a conversion that
+    // timed out after burning would burn a second time.
+    await postKashConversion("0xabc", "500", undefined, "convert-fixed-key");
+    expect(bodyOf(0).idempotencyKey).toBe("convert-fixed-key");
+  });
+
+  it("sends the SAME key when the caller retries the same attempt", async () => {
+    const key = newConversionKey();
+    await postKashConversion("0xabc", "500", undefined, key);
+    await postKashConversion("0xabc", "500", undefined, key);
+    expect(bodyOf(0).idempotencyKey).toBe(bodyOf(1).idempotencyKey);
+  });
+});
+
+describe("formatKashAmount", () => {
+  it("separates thousands so a large balance is readable", () => {
+    expect(formatKashAmount("1994")).toBe("1,994");
+    expect(formatKashAmount("1234567")).toBe("1,234,567");
+  });
+
+  it("keeps cents on small amounts but drops noise on large ones", () => {
+    expect(formatKashAmount("12.5")).toBe("12.50");
+    expect(formatKashAmount("1994.37")).toBe("1,994");
+  });
+
+  it("returns the input unchanged when it is not a number", () => {
+    expect(formatKashAmount("—")).toBe("—");
+  });
+});
+
+describe("pointsToKash", () => {
+  it("converts at the live price, not 1:1", () => {
+    // Points carry a fixed USD value; that USD buys KSH at the current price.
+    // A button labelled in KASH must not promise the points figure.
+    expect(pointsToKash("500", 0.001, "0.0005")).toBe("1,000");
+    expect(pointsToKash("500", 0.001, "0.002")).toBe("250");
+  });
+
+  it("is 1:1 only when the point value equals the price", () => {
+    expect(pointsToKash("80", 0.001, "0.001")).toBe("80");
+  });
+
+  it("returns null rather than NaN when inputs are missing", () => {
+    expect(pointsToKash("0", 0.001, "0.001")).toBeNull();
+    expect(pointsToKash("80", undefined, "0.001")).toBeNull();
+    expect(pointsToKash("80", 0.001, "0")).toBeNull();
   });
 });
