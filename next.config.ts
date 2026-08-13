@@ -6,6 +6,19 @@ import createNextIntlPlugin from "next-intl/plugin";
 // localizes via a cookie, not locale URLs, so routing is untouched.
 const withNextIntl = createNextIntlPlugin();
 
+// Without this id every wallet, login and signature in the app is dead, so a
+// production build that is missing it should not produce a bundle at all.
+//
+// The check belongs here because this file runs during the build. The same
+// throw inside app/providers.tsx does nothing: that is a client module, its
+// scope is not evaluated while building, and the failure would surface as a
+// blank page in the browser instead.
+if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_PRIVY_APP_ID) {
+  throw new Error(
+    "NEXT_PUBLIC_PRIVY_APP_ID is not set. Set it in the environment before building for production."
+  );
+}
+
 const nextConfig: NextConfig = {
   // Stamped into the client bundle so analytics can attribute an event to the
   // release it came from. Read from package.json, so it moves with a version
