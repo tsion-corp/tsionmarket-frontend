@@ -1,13 +1,21 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { ButtonSpinner } from "@/components/ui/button-spinner";
 
 import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { toast } from "@/lib/toast";
+import { friendlyError } from "@/lib/errors";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { usdcAmountForPrice, usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
-import { volumeBands } from "@/features/portfolio/lib/kash";
+import {
+  formatUsdMicro,
+  spendableUsdcMicro,
+  usdToMicro,
+  volumeBands,
+} from "@/features/portfolio/lib/kash";
+import { usePortfolio } from "@/hooks/use-portfolio";
 import {
   useKashAccount,
   useKashStatus,
@@ -45,6 +53,14 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
   const paymentUnsupported = needsPayment && !paymentAddress;
   const [paying, setPaying] = useState(false);
   /**
+   * The tier currently being bought.
+   *
+   * `subscribe.isPending` alone cannot say WHICH row is working, so every
+   * button dimmed at once and the user could not tell whether their click
+   * registered — on a paid action that reads as a failure.
+   */
+  const [pendingTier, setPendingTier] = useState<number | null>(null);
+  /**
    * A tier payment that settled but has not been credited yet. Same hazard as
    * the buy modal: the transfer and the subscribe call are separate steps, and
    * losing the receipt between them charges the user twice for one tier.
@@ -53,8 +69,27 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
   const settledPayment = useRef<{ tier: number; txHash: string } | null>(null);
   const sendEvm = useEvmSend();
 
+  // What the wallet can pay a tier with. Only a real-USDC upgrade moves a
+  // token, so in mock mode there is no balance to be short of.
+  // `tokens` falls back to [] while the portfolio loads or errors, which would
+  // read as "no USDC" and disable the button for a funded wallet. Pass
+  // undefined in both windows so the balance stays UNKNOWN rather than zero.
+  const { tokens, loading: portfolioLoading, error: portfolioError } = usePortfolio();
+  const knownTokens = portfolioLoading || portfolioError ? undefined : tokens;
+  const balanceMicro = needsPayment ? spendableUsdcMicro(knownTokens) : null;
+  const affordableMicro = (price: number): boolean => {
+    const priceMicro = usdToMicro(String(price));
+    // Unknown balance is not "cannot afford": a portfolio still loading must
+    // never disable a tier the wallet can in fact pay for.
+    return balanceMicro === null || priceMicro === null || priceMicro <= balanceMicro;
+  };
+  const someTierUnaffordable = (tiers.data ?? []).some(
+    (tier) => tier.tier > currentTier && !affordableMicro(tier.priceUsd)
+  );
+
   const pick = async (tier: number) => {
     if (!wallet || subscribe.isPending || paying || paymentUnsupported) return;
+    setPendingTier(tier);
     try {
       const price = tiers.data?.find((entry) => entry.tier === tier)?.priceUsd;
       let paymentTxHash: string | undefined;
@@ -84,13 +119,10 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
       onClose();
     } catch (error) {
       // Receipt kept on purpose — see settledPayment.
-      toast.error(
-        error instanceof Error
-          ? settledPayment.current
-            ? `${error.message} ${t("paymentHeldForRetry")}`
-            : error.message
-          : t("upgradeFailed")
-      );
+      const message = friendlyError(error, t("upgradeFailed"));
+      toast.error(settledPayment.current ? `${message} ${t("paymentHeldForRetry")}` : message);
+    } finally {
+      setPendingTier(null);
     }
   };
 
@@ -119,6 +151,7 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
               const isDowngrade = tier.tier < currentTier;
               const band = bands.find((entry) => entry.tier === tier.tier);
               const reachable = tier.tier <= currentTier;
+              const unaffordable = !affordableMicro(tier.priceUsd);
               return (
                 <div
                   key={tier.tier}
@@ -144,10 +177,21 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
                     ) : isDowngrade ? null : (
                       <button
                         onClick={() => pick(tier.tier)}
-                        disabled={subscribe.isPending || paying || paymentUnsupported}
-                        className="text-ink cursor-pointer rounded-xl bg-white px-3.5 py-2 font-sans text-[12.5px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={
+                          subscribe.isPending || paying || paymentUnsupported || unaffordable
+                        }
+                        className="text-ink flex min-w-[104px] cursor-pointer items-center justify-center rounded-xl bg-white px-3.5 py-2 font-sans text-[12.5px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
                       >
-                        {t("tierChoose")}
+                        {pendingTier === tier.tier ? (
+                          <>
+                            <ButtonSpinner />
+                            {paying ? t("upgradePaying") : t("upgrading")}
+                          </>
+                        ) : unaffordable ? (
+                          t("tierUnaffordable")
+                        ) : (
+                          t("tierChoose")
+                        )}
                       </button>
                     )}
                   </div>
@@ -182,6 +226,13 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
         {paymentUnsupported && (
           <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
             {t("buyUnavailableOnchain")}
+          </p>
+        )}
+        {/* A disabled row says "Not enough" but not what would be enough.
+            Shown once for the whole list rather than per row. */}
+        {balanceMicro !== null && someTierUnaffordable && (
+          <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
+            {t("insufficientUsd", { balance: formatUsdMicro(balanceMicro) })}
           </p>
         )}
         {/* State the cap plainly: it is the single thing that makes a tier

@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { SyncingValue } from "@/components/ui/syncing-value";
+import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
 import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
   useKashAccount,
@@ -125,6 +126,7 @@ export function KashCard({
               {t("history")}
             </button>
           )}
+          <AddToMetaMaskButton />
         </div>
       </div>
 

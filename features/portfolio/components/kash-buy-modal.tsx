@@ -13,8 +13,16 @@ import {
   useKashPurchaseQuote,
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
-import { compactAmountLabel, isValidKashAmount } from "@/features/portfolio/lib/kash";
+import {
+  compactAmountLabel,
+  formatUsdMicro,
+  isValidKashAmount,
+  spendableUsdcMicro,
+  usdToMicro,
+} from "@/features/portfolio/lib/kash";
 import { usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
+import { usePortfolio } from "@/hooks/use-portfolio";
+import { friendlyError } from "@/lib/errors";
 
 // $1 is the floor the engine accepts, and the cheapest way to clear the
 // holding gate — worth being one tap away.
@@ -64,8 +72,23 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   const min = status?.desk.purchaseMinUsdc ?? 1;
   const max = status?.desk.purchaseMaxUsdc ?? 10_000;
   const valid = isValidKashAmount(amount) && Number(amount) >= min && Number(amount) <= max;
+
+  // What the wallet can actually pay with. Only a real-USDC purchase moves a
+  // token, so in mock mode there is no balance to be short of.
+  // `tokens` falls back to [] while the portfolio loads or errors, which would
+  // read as "no USDC" and disable the button for a funded wallet. Pass
+  // undefined in both windows so the balance stays UNKNOWN rather than zero.
+  const { tokens, loading: portfolioLoading, error: portfolioError } = usePortfolio();
+  const knownTokens = portfolioLoading || portfolioError ? undefined : tokens;
+  const balanceMicro = needsPayment ? spendableUsdcMicro(knownTokens) : null;
+  const wantedMicro = usdToMicro(amount);
+  // Strictly `false` only when both numbers are known: a portfolio still
+  // loading is unknown, not empty, and must not block a funded buyer.
+  const affordable =
+    balanceMicro === null || wantedMicro === null ? true : wantedMicro <= balanceMicro;
+
   const busy = purchase.isPending || paying;
-  const canSubmit = Boolean(wallet) && valid && !paymentUnsupported && !busy;
+  const canSubmit = Boolean(wallet) && valid && affordable && !paymentUnsupported && !busy;
 
   const close = () => {
     setDone(null);
@@ -111,13 +134,8 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
     } catch (error) {
       // The receipt deliberately survives: the money already moved, and the
       // next attempt must credit that payment rather than make another.
-      toast.error(
-        error instanceof Error
-          ? settledPayment.current
-            ? `${error.message} ${t("paymentHeldForRetry")}`
-            : error.message
-          : t("buyFailed")
-      );
+      const message = friendlyError(error, t("buyFailed"));
+      toast.error(settledPayment.current ? `${message} ${t("paymentHeldForRetry")}` : message);
     }
   };
 
@@ -199,6 +217,17 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
                   {quote.data ? `$${quote.data.kashPriceUsd}` : quote.isFetching ? "…" : "–"}
                 </span>
               </div>
+              {quote.data && (
+                // The buy fee is taken off the amount before any KASH is
+                // priced, so it is charged whether or not it is displayed.
+                // Showing it keeps "you receive" from looking like a bad rate.
+                <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                  <span className="font-normal text-white/45">
+                    {t("purchaseFee", { pct: quote.data.feePct })}
+                  </span>
+                  <span className="tnum text-white/60">${quote.data.feeUsd}</span>
+                </div>
+              )}
               {quote.isError && (
                 <div className="mt-2 border-t border-white/8 pt-2 text-[12px] font-normal text-amber-200/80">
                   {t("quoteFailed")}
@@ -228,6 +257,13 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
             {!valid && amount.trim() !== "" && (
               <p className="text-[12.5px] font-normal text-white/50">
                 {t("amountBounds", { min, max })}
+              </p>
+            )}
+            {/* Only when the amount itself is fine — showing both this and the
+                bounds hint at once would give two reasons for one problem. */}
+            {valid && !affordable && balanceMicro !== null && (
+              <p className="text-[12.5px] font-normal text-amber-200/80">
+                {t("insufficientUsd", { balance: formatUsdMicro(balanceMicro) })}
               </p>
             )}
 

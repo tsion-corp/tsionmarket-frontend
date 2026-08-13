@@ -7,6 +7,7 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { friendlyError } from "@/lib/errors";
 import {
   useKashAccount,
   useKashConversion,
@@ -103,7 +104,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
       });
       setDone({ usdc: result.usdcPaid, kash: result.kashBurned, txHash: result.burnTxHash });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("convertFailed"));
+      toast.error(friendlyError(error, t("convertFailed")));
     }
   };
 
@@ -201,20 +202,15 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                 </div>
               )}
               {quote.data && (
-                <>
-                  <div className="mt-1.5 flex items-center justify-between text-[12px]">
-                    <span className="font-normal text-white/45">{t("redemptionPrice")}</span>
-                    <span className="tnum text-white/60">
-                      ${quote.data.redemptionPriceUsd}{" "}
-                      <span className="text-white/40">
-                        {t("vsMarket", { price: quote.data.marketPriceUsd })}
-                      </span>
-                    </span>
-                  </div>
-                  <div className="mt-2 border-t border-white/8 pt-2 text-[12px] font-normal text-white/50">
-                    {t("discountNote", { pct: quote.data.discountPct })}
-                  </div>
-                </>
+                // The fee in dollars, not a discounted unit price: at 0.5% the
+                // two prices differ in the fourth decimal, which reads as a
+                // glitch rather than a charge.
+                <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                  <span className="font-normal text-white/45">
+                    {t("withdrawalFee", { pct: quote.data.feePct })}
+                  </span>
+                  <span className="tnum text-white/60">${quote.data.feeUsd}</span>
+                </div>
               )}
             </div>
 

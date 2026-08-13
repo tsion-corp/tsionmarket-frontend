@@ -93,9 +93,12 @@ export interface KashSubscription {
   wallet: string;
   tier: number;
   paidTier: number;
+  /** Null when tiers are owned outright — there is nothing to expire. */
   expiresAt: string | null;
   active: boolean;
   periodDays: number;
+  /** True when a tier is bought once and kept, rather than rented. */
+  lifetime: boolean;
 }
 
 export interface KashSubscriptionTier {
@@ -108,6 +111,9 @@ export interface KashPurchaseQuote {
   usdcAmount: string;
   kashReceived: string;
   kashPriceUsd: string;
+  feePct: number;
+  /** Fee in dollars, priced by the engine — never re-derived on the client. */
+  feeUsd: string;
   meetsHoldingGate: boolean;
 }
 
@@ -127,7 +133,9 @@ export interface KashConversionQuote {
   usdcPayout: string;
   marketPriceUsd: string;
   redemptionPriceUsd: string;
-  discountPct: number;
+  feePct: number;
+  /** Fee in dollars, priced by the engine — never re-derived on the client. */
+  feeUsd: string;
   coverageState: "normal" | "throttled" | "paused";
   epochCapRemainingUsd: string;
 }
@@ -330,6 +338,61 @@ export function gateProgress(account: {
 // places, the only shape the engine accepts.
 export function isValidKashAmount(raw: string): boolean {
   return /^\d+(\.\d{1,6})?$/.test(raw.trim()) && Number(raw) > 0;
+}
+
+// Buying KSH and buying a tier both send USDC on Base. `readyToSpendUsd` is the
+// wrong measure for that: it sums every stablecoin on every network, so a
+// wallet holding USDT on Solana looks funded for a transfer that will revert.
+const BASE_NETWORK = "base-mainnet";
+const USDC_SYMBOL = "USDC";
+
+/**
+ * Exactly what the wallet can spend on Base, in USDC micro-units.
+ *
+ * Uses `rawBalance` — the precise on-chain integer — rather than the display
+ * float, so a "spend it all" comparison cannot round above what is really
+ * there and send a transfer that reverts for a fraction of a cent.
+ *
+ * Null when the portfolio has not loaded: a missing balance is unknown, not
+ * zero, and blocking the button on it would strand a funded user behind a
+ * slow request.
+ */
+export function spendableUsdcMicro(
+  tokens: { network: string; symbol: string; rawBalance: string; decimals: number }[] | undefined
+): bigint | null {
+  if (!tokens) return null;
+  const usdc = tokens.find((t) => t.network === BASE_NETWORK && t.symbol === USDC_SYMBOL);
+  if (!usdc) return 0n; // Loaded, and there is no USDC on Base in it.
+  try {
+    // Normalise to 6dp rather than assuming: the same symbol carries different
+    // decimals across chains, and a wrong assumption here is a 10^12 error.
+    const raw = BigInt(usdc.rawBalance);
+    if (usdc.decimals === 6) return raw;
+    return usdc.decimals > 6
+      ? raw / 10n ** BigInt(usdc.decimals - 6)
+      : raw * 10n ** BigInt(6 - usdc.decimals);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * USDC micro-units as a plain dollar string, rounded DOWN to cents.
+ *
+ * Down, never nearest: this figure is shown as "you have $X", and rounding
+ * $4.999 up to $5.00 invites the user to spend five dollars they do not have
+ * and land on the revert this whole check exists to prevent.
+ */
+export function formatUsdMicro(micro: bigint): string {
+  const cents = micro / 10_000n;
+  return `${cents / 100n}.${String(cents % 100n).padStart(2, "0")}`;
+}
+
+/** A decimal USD string as micro-units, or null when it is not a valid amount. */
+export function usdToMicro(amount: string): bigint | null {
+  if (!isValidKashAmount(amount)) return null;
+  const [whole, fraction = ""] = amount.trim().split(".");
+  return BigInt(whole) * 1_000_000n + BigInt(fraction.padEnd(6, "0"));
 }
 
 // Time until the week settles, as coarse day/hour buckets for the countdown.

@@ -6,6 +6,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const apiFetchMock = vi.fn();
 vi.mock("@/lib/api", () => ({ apiFetch: (...args: unknown[]) => apiFetchMock(...args) }));
 import {
+  formatUsdMicro,
+  spendableUsdcMicro,
+  usdToMicro,
   compactAmountLabel,
   formatKashAmount,
   gateProgress,
@@ -253,5 +256,75 @@ describe("presets respect the engine's own limits", () => {
   it("hides presets below the minimum too", () => {
     const shown = ["1", "10", "20"].filter((p) => within(p, 10, 10_000));
     expect(shown).toEqual(["10", "20"]);
+  });
+});
+
+describe("spendableUsdcMicro", () => {
+  const usdc = (rawBalance: string, over: Record<string, unknown> = {}) => ({
+    network: "base-mainnet",
+    symbol: "USDC",
+    rawBalance,
+    decimals: 6,
+    ...over,
+  });
+
+  it("reads the exact on-chain integer, not the display float", () => {
+    expect(spendableUsdcMicro([usdc("4999999")])).toBe(4_999_999n);
+  });
+
+  it("returns null while the portfolio is unknown, so nothing is blocked", () => {
+    // The distinction that matters: unknown must never be treated as zero, or
+    // a funded wallet is locked out for as long as the request takes.
+    expect(spendableUsdcMicro(undefined)).toBeNull();
+  });
+
+  it("returns zero for a loaded portfolio holding no USDC on Base", () => {
+    expect(spendableUsdcMicro([])).toBe(0n);
+  });
+
+  it("ignores USDC on another network", () => {
+    // A Solana balance cannot settle a Base transfer; counting it would enable
+    // a button whose transaction is guaranteed to fail.
+    expect(spendableUsdcMicro([usdc("5000000", { network: "solana-mainnet" })])).toBe(0n);
+  });
+
+  it("ignores a different stablecoin on Base", () => {
+    expect(spendableUsdcMicro([usdc("5000000", { symbol: "USDT" })])).toBe(0n);
+  });
+
+  it("rescales a token that does not use 6 decimals", () => {
+    // 1.5 units at 18dp is $1.50, not 1.5e18 — the assumption this guards is a
+    // 10^12 error in the user's favour, which is the dangerous direction.
+    expect(spendableUsdcMicro([usdc("1500000000000000000", { decimals: 18 })])).toBe(1_500_000n);
+  });
+
+  it("returns null rather than throwing on a malformed balance", () => {
+    expect(spendableUsdcMicro([usdc("not-a-number")])).toBeNull();
+  });
+});
+
+describe("usdToMicro / formatUsdMicro", () => {
+  it("converts a decimal amount without floating-point drift", () => {
+    // 0.1 + 0.2 arithmetic in float would not survive this.
+    expect(usdToMicro("0.30")).toBe(300_000n);
+    expect(usdToMicro("1234.567891")).toBe(1_234_567_891n);
+  });
+
+  it("pads a short fraction rather than misreading its scale", () => {
+    expect(usdToMicro("1.5")).toBe(1_500_000n);
+  });
+
+  it("rejects an invalid amount", () => {
+    expect(usdToMicro("")).toBeNull();
+    expect(usdToMicro("-1")).toBeNull();
+    expect(usdToMicro("abc")).toBeNull();
+  });
+
+  it("rounds a displayed balance DOWN, never up", () => {
+    // Rounding $4.999 up to $5.00 would invite the user to spend a dollar they
+    // do not have and hit the revert this check exists to prevent.
+    expect(formatUsdMicro(4_999_900n)).toBe("4.99");
+    expect(formatUsdMicro(0n)).toBe("0.00");
+    expect(formatUsdMicro(70_000n)).toBe("0.07");
   });
 });

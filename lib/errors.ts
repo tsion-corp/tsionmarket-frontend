@@ -39,6 +39,42 @@ function looksSafeServerMessage(message: string): boolean {
   );
 }
 
+/**
+ * Solidity custom errors arrive as a 4-byte selector, so a revert reaches the
+ * UI as raw hex — "execution reverted … data: 0xe450d38c0000…" — which is the
+ * worst thing a non-crypto user can be shown. These are the OpenZeppelin v5
+ * ERC-20/ERC-2612 errors reachable from a token transfer, a permit, or a burn.
+ *
+ * Selectors are `keccak256(signature)[0:4]`; the signature is kept beside each
+ * one so it can be re-derived rather than trusted.
+ */
+const CUSTOM_ERROR_MESSAGES: Record<string, string> = {
+  // ERC20InsufficientBalance(address,uint256,uint256)
+  "0xe450d38c": "You don't have enough of this asset for that. Try a smaller amount.",
+  // ERC20InsufficientAllowance(address,uint256,uint256)
+  "0xfb8f41b2": "This transfer hasn't been approved yet. Approve it and try again.",
+  // ERC20InvalidSender(address)
+  "0x96c6fd1e": "That transfer came from an unexpected account. Reconnect your wallet and retry.",
+  // ERC20InvalidReceiver(address)
+  "0xec442f05": "That destination address can't receive this asset.",
+  // ERC2612ExpiredSignature(uint256)
+  "0x62791302": "The approval you signed has expired. Please try again.",
+  // ERC2612InvalidSigner(address,address)
+  "0x4b800e46": "That approval was signed by a different wallet. Reconnect and try again.",
+};
+
+/** The custom-error message for a revert, if its selector is one we know. */
+function customErrorMessage(raw: string): string | null {
+  // Any 0x-prefixed 4-byte word in the text: providers wrap the payload
+  // differently (`data:`, `reason:`, nested `cause`), so matching the selector
+  // itself is more robust than matching any one provider's phrasing.
+  for (const match of raw.matchAll(/0x[0-9a-fA-F]{8}/g)) {
+    const known = CUSTOM_ERROR_MESSAGES[match[0].toLowerCase()];
+    if (known) return known;
+  }
+  return null;
+}
+
 // Map an error to a friendly message. Pass a `fallback` tailored to the action
 // (e.g. "We couldn't complete your purchase.") — it is used only when the error
 // isn't one of the known cases.
@@ -50,6 +86,12 @@ export function friendlyError(
   const m = raw.toLowerCase();
   if (!m) return fallback;
   const gateway = gatewayMeta(e);
+
+  // Before the text patterns: a custom-error revert often ALSO contains the
+  // word "reverted", which no pattern below would translate, so the hex would
+  // survive all the way to the toast.
+  const custom = customErrorMessage(raw);
+  if (custom) return custom;
 
   // The user dismissed the request in their wallet.
   if (
@@ -91,6 +133,14 @@ export function friendlyError(
     )
   ) {
     return "We couldn't complete this right now. Try again, or a different amount or asset.";
+  }
+  // An unrecognised revert. The selector is not in the table above, so there is
+  // nothing meaningful to say about it — but the raw text carries calldata, and
+  // showing a user "0x4e487b710000000000000000000000000000000000000000000000000000000000000011"
+  // is worse than saying nothing. Must precede the server-message passthrough,
+  // which would otherwise judge a short revert string "safe" and print it.
+  if (/execution reverted|call revert|\breverted\b|0x[0-9a-fA-F]{8,}/.test(raw)) {
+    return "The network rejected this transaction. Nothing was charged — please try again.";
   }
   // For typed server responses (like chess cashier failures), keep the message
   // when it is already plain English and not obviously an infrastructure dump.

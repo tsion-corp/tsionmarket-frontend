@@ -70,3 +70,55 @@ describe("friendlyError", () => {
     expect(friendlyError(new Error("nope"))).toBe("Something went wrong. Please try again.");
   });
 });
+
+describe("contract reverts never reach the user as hex", () => {
+  // Real shapes: viem/ethers wrap the selector differently, so each provider's
+  // phrasing is exercised rather than one canonical string.
+  it("translates ERC20InsufficientBalance from viem's wrapper", () => {
+    const raw =
+      'The contract function "transfer" reverted with the following signature:\n' +
+      "0xe450d38c000000000000000000000000ab5801a7d398351b8be11c439e05c5b3259aec9b";
+    expect(friendlyError(new Error(raw))).toBe(
+      "You don't have enough of this asset for that. Try a smaller amount."
+    );
+  });
+
+  it("translates ERC20InsufficientAllowance", () => {
+    expect(friendlyError(new Error("execution reverted, data: 0xfb8f41b2"))).toBe(
+      "This transfer hasn't been approved yet. Approve it and try again."
+    );
+  });
+
+  it("translates an expired permit signature", () => {
+    expect(friendlyError(new Error("reverted: 0x62791302"))).toBe(
+      "The approval you signed has expired. Please try again."
+    );
+  });
+
+  it("says something plain for a revert whose selector we do not know", () => {
+    // The point of the catch-all: an unmapped selector must still not print.
+    const message = friendlyError(new Error("execution reverted, data: 0xdeadbeef"));
+    expect(message).toBe(
+      "The network rejected this transaction. Nothing was charged — please try again."
+    );
+    expect(message).not.toContain("0x");
+  });
+
+  it("never leaks calldata for a bare panic code", () => {
+    const panic = "0x4e487b710000000000000000000000000000000000000000000000000000000000000011";
+    expect(friendlyError(new Error(panic))).not.toContain("0x");
+  });
+
+  it("still prefers a cancellation over the revert catch-all", () => {
+    // A wallet that reports both must read as "you cancelled", not "rejected
+    // by the network" — one is the user's doing, the other looks like a fault.
+    expect(friendlyError(new Error("User rejected the request. execution reverted"))).toBe(
+      "You cancelled the request, so nothing was sent."
+    );
+  });
+
+  it("does not treat a plain server sentence as a revert", () => {
+    const e = Object.assign(new Error("That tier is already owned."), { status: 409 });
+    expect(friendlyError(e)).toBe("That tier is already owned.");
+  });
+});
