@@ -2,6 +2,7 @@ export { CasinoPage } from "./components/casino-page";
 export { HubSection } from "./components/hub-section";
 export { MiniTimerHost } from "./components/last-standing/mini-timer";
 export { LastStandingSection } from "./components/last-standing/last-standing-section";
+export { LastStandingLobby } from "./components/last-standing/last-standing-lobby";
 export { CreateSection } from "./components/chess/create-section";
 export { HistorySection } from "./components/chess/history-section";
 export { InviteSection } from "./components/chess/invite-section";

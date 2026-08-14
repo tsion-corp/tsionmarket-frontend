@@ -7,14 +7,9 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { RwaAssetList } from "@/features/rwa/components/rwa-asset-list";
 import { RwaTradePanel } from "@/features/rwa/components/rwa-trade-panel";
 import { RwaDetailSheet } from "@/features/rwa/components/rwa-detail-sheet";
-import { useRwaAssets } from "@/features/rwa/hooks/use-rwa-assets";
+import { useListedRwaAssets } from "@/features/rwa/hooks/use-rwa-assets";
 import { useTradePrefill } from "@/hooks/use-trade-prefill";
-import {
-  dedupeByChain,
-  isLiveChain,
-  isTradable,
-  isUsableAsset,
-} from "@/features/rwa/lib/presenter";
+import { dedupeByChain } from "@/features/rwa/lib/presenter";
 import { useRwaEnrichedAssets } from "@/features/rwa/hooks/use-rwa-prices";
 import type { RwaApiAsset } from "@/features/rwa/lib/api";
 import type { TradePrefill } from "@/lib/voice/intent";
@@ -31,7 +26,7 @@ export interface RwaSectionProps {
 
 export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
   const t = useTranslations("rwa");
-  const { assets, loading, error } = useRwaAssets();
+  const { assets, loading, error } = useListedRwaAssets();
 
   // The table owns the full view; a row opens the detail modal, and "Trade"
   // opens the trade modal — the same modal-driven flow the Markets tab uses,
@@ -42,27 +37,11 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
   // asset already held.
   const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
 
-  // Buyable assets on the live chains (Base + Solana): issuer-only assets and
-  // other catalog chains are filtered out, so every row is actionable. An asset
-  // the catalog lists on both chains is kept once, on Base. Prices the backend
-  // omits are filled from the CoinGecko fallback.
-  const tradable = useMemo(
-    // Base and Solana: Base trades are instant and fully gasless, and Solana
-    // is gasless now too through the gas-sponsor service. Arbitrum and
-    // Polygon stay wired underneath, so widening this check is all it takes
-    // to list more.
-    () =>
-      dedupeByChain(
-        assets.filter(
-          (a) =>
-            isUsableAsset(a) &&
-            isTradable(a) &&
-            isLiveChain(a) &&
-            (a.chain === "base" || a.chain === "solana")
-        )
-      ),
-    [assets]
-  );
+  // What is listable is decided by the data layer, not here, so no screen can
+  // widen it by accident. All that is left is collapsing an asset the catalog
+  // lists more than once. Prices the backend omits come from the CoinGecko
+  // fallback below.
+  const tradable = useMemo(() => dedupeByChain(assets), [assets]);
   const buyable = useRwaEnrichedAssets(tradable);
 
   const openTrade = (asset: RwaApiAsset, mode: "buy" | "sell" = "buy") => {

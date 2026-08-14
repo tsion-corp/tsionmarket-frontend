@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useMarketTokens } from "@/features/trade/hooks/use-market-tokens";
-import { rwaLogoUrl, useRwaAssets } from "@/features/rwa";
+import { rwaLogoUrl, useListedRwaAssets } from "@/features/rwa";
 
 export type SearchKind = "holding" | "rwa" | "market";
 
@@ -41,7 +41,8 @@ function matches(q: string, ...fields: string[]): boolean {
 // market tokens. All three sources are already cached, so this reuses them.
 export function useGlobalSearch(query: string): SearchGroups {
   const { tokens } = usePortfolio();
-  const { assets } = useRwaAssets();
+  // Search offers things to buy, so it shows the same set the table does.
+  const { assets } = useListedRwaAssets();
   const { data: markets = [] } = useMarketTokens("popular");
 
   return useMemo(() => {

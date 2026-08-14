@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchRwaAssets, fetchRwaCategories } from "@/features/rwa/lib/api";
+import type { RwaApiAsset } from "@/features/rwa/lib/api";
+import { isListedAsset } from "@/features/rwa/lib/presenter";
 import { PERSISTED_GC_TIME } from "@/lib/query-persist";
 
 const SIXTY_SECONDS = 60 * 1000;
@@ -40,4 +42,29 @@ export function useRwaCategories() {
     gcTime: PERSISTED_GC_TIME,
   });
   return data ?? EMPTY_CATEGORIES;
+}
+
+/**
+ * The assets the table may offer: the same registry request, narrowed to what
+ * a user can actually buy.
+ *
+ * Applied here rather than in a component so every screen that lists assets
+ * gets the same answer and none of them can widen it by accident. It shares
+ * `useRwaAssets`'s query key, so this is a filter over one fetch, not a second.
+ *
+ * Selling is deliberately not routed through this: someone holding an asset on
+ * a chain we no longer list still has to be able to sell it, and that path
+ * resolves against the full registry.
+ */
+export function useListedRwaAssets() {
+  const { data, isPending, isError, refetch } = useQuery({
+    queryKey: ["rwa-assets", {}],
+    queryFn: () => fetchRwaAssets({}),
+    staleTime: SIXTY_SECONDS,
+    gcTime: PERSISTED_GC_TIME,
+    refetchInterval: SIXTY_SECONDS,
+    select: (all: RwaApiAsset[]) => all.filter(isListedAsset),
+  });
+  const assets = data ?? EMPTY_ASSETS;
+  return { assets, loading: isPending, error: isError && assets.length === 0, refetch };
 }

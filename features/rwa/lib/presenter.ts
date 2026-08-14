@@ -97,6 +97,20 @@ export function isLiveChain(a: RwaApiAsset): boolean {
   return (LIVE_RWA_CHAINS as readonly string[]).includes(a.chain);
 }
 
+// The one chain the table lists. Gas sponsorship is only handled on Base, so a
+// row on any other chain asks the user for gas they do not have: it looks
+// buyable and the buy cannot complete.
+//
+// Deliberately narrower than LIVE_RWA_CHAINS. That says which chains are wired
+// end to end, which still matters for selling something already held; this says
+// which we offer to buy.
+export const LISTED_RWA_CHAIN: RwaChain = "base";
+
+/** Whether an asset earns a row in the table: complete, buyable, and on Base. */
+export function isListedAsset(a: RwaApiAsset): boolean {
+  return isUsableAsset(a) && isTradable(a) && isLiveChain(a) && a.chain === LISTED_RWA_CHAIN;
+}
+
 // Which chain to keep when the catalog lists one asset on several. Base first:
 // its trades are gas-sponsored, so the same asset costs the user less there.
 const CHAIN_PREFERENCE: readonly RwaChain[] = ["base", "arbitrum", "polygon", "solana"];

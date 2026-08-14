@@ -29,8 +29,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   }
 
   const joined = path.join("/");
-  // Only the public read endpoints are proxied.
-  if (!joined.startsWith("game/")) {
+  // Only the public read endpoints are proxied. `games` and `games/:id` are the
+  // v4 multi-game reads (the lobby and one game); `game/...` carries the feeds
+  // that stayed singular, winners and activities.
+  if (!joined.startsWith("game/") && joined !== "games" && !/^games\/\d+$/.test(joined)) {
     return NextResponse.json(
       { success: false, error: { code: "NOT_FOUND", message: "Not found" } },
       { status: 404 }
@@ -53,7 +55,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
       signal: AbortSignal.timeout(10_000),
     });
     const body = await res.text();
-    const ttl = joined === "game/status" ? STATUS_TTL_MS : CACHE_TTL_MS;
+    // The lobby and a single game are the hot paths at round end: a pot and a
+    // timer have to converge within a second or two of settlement. The feeds
+    // move slowly enough to sit on the longer cache.
+    const live = joined === "games" || /^games\/\d+$/.test(joined);
+    const ttl = live ? STATUS_TTL_MS : CACHE_TTL_MS;
     cache.set(url, { expires: Date.now() + ttl, body, status: res.status });
     return new NextResponse(body, {
       status: res.status,

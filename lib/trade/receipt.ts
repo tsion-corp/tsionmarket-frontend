@@ -64,11 +64,14 @@ export type ChainReadClient = ReturnType<typeof publicClientForChain>;
 // Waits for a transaction to confirm on its own chain. `label` names the step so
 // a timeout or revert reports the step that actually failed rather than a
 // generic or misattributed message.
+// Returns the confirmed receipt so a caller that needs something out of the
+// logs, such as the gameId a factory emitted, can read it without paying for a
+// second round trip. Callers that only care that it landed ignore the value.
 export async function awaitReceipt(
   client: ChainReadClient,
   hash: string,
   label: string
-): Promise<void> {
+): Promise<Awaited<ReturnType<ChainReadClient["waitForTransactionReceipt"]>>> {
   let receipt;
   try {
     receipt = await client.waitForTransactionReceipt({
@@ -84,4 +87,5 @@ export async function awaitReceipt(
   if (receipt.status === "reverted") {
     throw new Error(`${label} failed on-chain. Try again.`);
   }
+  return receipt;
 }

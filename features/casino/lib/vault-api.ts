@@ -1,6 +1,10 @@
 "use client";
 
-// REST client for the Last Man Standing vault game (world-street-vault service).
+// REST client for the Last Man Standing vault game (world-street-vault v4).
+//
+// v4 runs many games at once, each with its own `gameId`, pot, timer and king.
+// The reads here are the lobby (`/games`), one game (`/games/:id`) and the two
+// cross-game feeds that stayed singular (winners, activities).
 
 import { createServiceClient } from "@/lib/api/service";
 
@@ -11,28 +15,33 @@ export interface TokenAmount {
   formattedUsd: string;
 }
 
-export interface VaultGameStatus {
+// One running or settled game. `endTime` is unix seconds, which is what makes a
+// countdown correct across a device that slept or a tab that was backgrounded:
+// the clock is derived from it rather than counted down from a snapshot.
+export interface VaultGame {
+  gameId: number;
+  starter: string;
+  king: string;
+  pot: TokenAmount;
+  minWager: TokenAmount;
+  endTime: number;
   timeRemaining: number;
-  isGameStarted: boolean;
-  lastPlayer: string | null;
-  vaultBalance: TokenAmount;
-  entryFee: TokenAmount;
-  timerDuration: number;
-  gameActive: boolean;
+  settled: boolean;
+  active: boolean;
 }
 
 export interface VaultWinner {
-  id: string;
-  contractAddress: string;
-  networkId: number;
-  tokenName: string;
-  winnerAddress: string;
-  winnerPrizeWei: string;
-  playerCount: number;
-  endedAt: string;
+  gameId: number;
+  winner: string;
+  starter: string;
+  pot: TokenAmount;
+  toWinner: TokenAmount;
+  settlementTx: string;
+  settledAt: string;
 }
 
-export type VaultActivityAction = "joined" | "won";
+// "started" is new in v4: opening a game is now an action in its own right.
+export type VaultActivityAction = "started" | "joined" | "won";
 
 export interface VaultActivity {
   id: string;
@@ -49,15 +58,15 @@ export interface VaultActivity {
 // Every read here is public, so none of them need the caller's session.
 const vault = createServiceClient("/api/vault", "The vault is unavailable right now.");
 
-export async function fetchVaultStatus(): Promise<VaultGameStatus> {
-  return vault.get<VaultGameStatus>("/game/status");
+// The lobby: games currently accepting joins, newest first.
+export async function fetchActiveGames(): Promise<VaultGame[]> {
+  const data = await vault.get<{ games: VaultGame[] }>("/games");
+  return data.games;
 }
 
-export async function fetchPendingWinnings(address: string): Promise<TokenAmount> {
-  const data = await vault.get<{ pendingWinnings: TokenAmount }>(
-    `/game/pending-winnings/${encodeURIComponent(address)}`
-  );
-  return data.pendingWinnings;
+export async function fetchGame(gameId: number): Promise<VaultGame> {
+  const data = await vault.get<{ game: VaultGame }>(`/games/${gameId}`);
+  return data.game;
 }
 
 export async function fetchVaultWinners(): Promise<VaultWinner[]> {

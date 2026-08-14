@@ -1,0 +1,123 @@
+"use client";
+
+import { useCallback, useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { usePrivy } from "@privy-io/react-auth";
+import { getWalletAddress } from "@/lib/user";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { ModalShell } from "@/components/ui/modal-shell";
+import { useCurrency } from "@/components/ui/currency-select";
+import { useFx } from "@/hooks/use-fx";
+import { formatMoney } from "@/lib/currencies";
+import { useVaultLobby } from "@/features/casino/hooks/use-vault-lobby";
+import { GameCard } from "@/features/casino/components/last-standing/game-card";
+import { StartGameSheet } from "@/features/casino/components/last-standing/start-game-sheet";
+import { DEFAULT_ENTRY_USD } from "@/features/casino/lib/last-standing/stake";
+
+// The lobby: every game currently taking joins, and the way to open one.
+//
+// v4 runs many games at once, so this is the screen the nav lands on; a game
+// itself lives at /casino/last-standing/[gameId], which is also the link a
+// player shares.
+export function LastStandingLobby() {
+  const t = useTranslations("casino.lastStanding");
+  const { user } = usePrivy();
+  const address = getWalletAddress(user, "ethereum");
+  const { games, gamesLoading, gamesError, refetchGames, connected, resync } = useVaultLobby();
+
+  const [startOpen, setStartOpen] = useState(false);
+
+  // One formatter for the whole list, so switching currency re-renders the
+  // rows once rather than each row holding its own subscription.
+  const { currency } = useCurrency();
+  const { rate } = useFx();
+  const formatUsd = useCallback(
+    (usd: number) => formatMoney(usd, currency, rate(currency.code) ?? 1),
+    [currency, rate]
+  );
+
+  const defaultEntry = useMemo(() => formatUsd(DEFAULT_ENTRY_USD), [formatUsd]);
+
+  return (
+    // The same page frame the rest of the casino and the dashboard use, so the
+    // lobby sits off the sidebar and its right-hand status pill is not clipped.
+    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <Eyebrow>{t("eyebrow")}</Eyebrow>
+          <h1 className="ws-display mt-1.5 text-[26px] tracking-[-0.01em]">{t("title")}</h1>
+        </div>
+        <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] font-normal text-white/45">
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-up animate-pulse" : "bg-white/25"}`}
+          />
+          {connected ? t("live") : t("offline")}
+        </span>
+      </div>
+
+      {/* Opening a game is the only way to earn the starter's 10%, so it is
+          sold rather than tucked away as a secondary button. */}
+      <div className="ws-inset mt-5 px-4 py-4">
+        <div className="ws-display text-[17px] tracking-[-0.01em]">{t("starterPitchTitle")}</div>
+        <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/60">
+          {t("starterPitchBody")}
+        </p>
+        <button
+          type="button"
+          onClick={() => setStartOpen(true)}
+          className="bg-accent mt-3.5 cursor-pointer rounded-[12px] px-5 py-2.5 text-[13.5px] font-semibold text-black"
+        >
+          {t("startCtaShort", { amount: defaultEntry })}
+        </button>
+      </div>
+
+      <div className="mt-7 flex items-center justify-between">
+        <Eyebrow>{t("liveGames")}</Eyebrow>
+        {games.length > 0 ? (
+          <span className="tnum text-[12px] font-normal text-white/40">
+            {t("gamesCount", { count: games.length })}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex flex-col gap-2">
+        {gamesLoading ? (
+          // Fixed-height skeletons so the list does not jump when they resolve.
+          Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="ws-inset h-[86px] animate-pulse bg-white/[0.03]" />
+          ))
+        ) : gamesError ? (
+          <div className="ws-inset px-4 py-6 text-center">
+            <p className="text-[13.5px] font-normal text-white/60">{t("lobbyError")}</p>
+            <button
+              type="button"
+              onClick={() => void refetchGames()}
+              className="text-accent mt-2 cursor-pointer text-[13px] font-semibold hover:underline"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        ) : games.length === 0 ? (
+          <div className="ws-inset px-4 py-8 text-center">
+            <p className="text-[14px] font-medium text-white">{t("lobbyEmptyTitle")}</p>
+            <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/55">
+              {t("lobbyEmptyBody")}
+            </p>
+          </div>
+        ) : (
+          games.map((game) => (
+            <GameCard key={game.gameId} game={game} address={address} formatUsd={formatUsd} />
+          ))
+        )}
+      </div>
+
+      <ModalShell open={startOpen} onClose={() => setStartOpen(false)}>
+        <StartGameSheet
+          onClose={() => setStartOpen(false)}
+          onStarted={resync}
+          formatUsd={formatUsd}
+        />
+      </ModalShell>
+    </div>
+  );
+}

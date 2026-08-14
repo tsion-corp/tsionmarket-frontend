@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  LISTED_RWA_CHAIN,
+  LIVE_RWA_CHAINS,
   apyPercent,
   buildPayOptions,
   buyQuoteRequest,
@@ -17,14 +19,14 @@ import {
   gasSymbolForChain,
   gradientFor,
   hasNativeGas,
-  requiresNativeGas,
   isIssuerAccess,
+  isListedAsset,
+  isLiveChain,
   isRateLimitError,
   isSellableChain,
-  isLiveChain,
-  isUsableAsset,
   isTradable,
   isTransientRwaError,
+  isUsableAsset,
   minReceiveTokens,
   networkToRwaChain,
   pageCount,
@@ -32,6 +34,7 @@ import {
   pctOfRawBalance,
   priceImpactPercent,
   quoteReceiveTokens,
+  requiresNativeGas,
   routeLabel,
   rwaErrorInfo,
   sellQuoteRequest,
@@ -623,5 +626,39 @@ describe("formatApy", () => {
 
   it("renders basis points as a percent", () => {
     expect(formatApy(355)).toBe("3.55%");
+  });
+});
+
+describe("isListedAsset", () => {
+  it("lists a buyable Base asset", () => {
+    expect(isListedAsset(asset({ chain: "base", freelyTradable: true }))).toBe(true);
+  });
+
+  it("does not list Solana, however tradable it is", () => {
+    // Gas sponsorship is Base-only, so a Solana row looks buyable and cannot
+    // complete. This is the regression the table shipped with.
+    expect(isListedAsset(asset({ chain: "solana", freelyTradable: true }))).toBe(false);
+  });
+
+  it("does not list the other wired chains either", () => {
+    // LIVE_RWA_CHAINS is wider on purpose: it says what is wired, not what is
+    // offered. Anything but Base stays out of the table.
+    for (const chain of LIVE_RWA_CHAINS) {
+      expect(isListedAsset(asset({ chain, freelyTradable: true }))).toBe(
+        chain === LISTED_RWA_CHAIN
+      );
+    }
+  });
+
+  it("does not list an issuer-only asset on Base", () => {
+    expect(isListedAsset(asset({ chain: "base", accessMode: "issuer" }))).toBe(false);
+  });
+
+  it("does not list an untradable asset on Base", () => {
+    expect(isListedAsset(asset({ chain: "base", freelyTradable: false }))).toBe(false);
+  });
+
+  it("does not list an incomplete row", () => {
+    expect(isListedAsset(asset({ chain: "base", address: "" }))).toBe(false);
   });
 });

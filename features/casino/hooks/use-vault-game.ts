@@ -1,213 +1,139 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
-import {
-  fetchVaultActivities,
-  fetchVaultStatus,
-  fetchVaultWinners,
-  type VaultActivity,
-  type VaultActivityAction,
-  type VaultGameStatus,
-  type VaultWinner,
-} from "@/features/casino/lib/vault-api";
+import { usePrices } from "@/hooks/use-prices";
+import { useVaultSocket } from "@/features/casino/hooks/use-vault-socket";
+import { readGame } from "@/features/casino/hooks/use-vault-actions";
+import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
+import { fetchGame, type VaultGame } from "@/features/casino/lib/vault-api";
 
-const STATUS_KEY = ["vault-status"] as const;
-const ACTIVITIES_KEY = ["vault-activities"] as const;
-const WINNERS_KEY = ["vault-winners"] as const;
-// The game mirrors the vault contract on Base, so refreshing on each new block
-// syncs every device within ~a block of any play; the proxy's 1s/4s caches cap
-// the upstream cost.
-const BLOCK_WATCH_KEYS = [STATUS_KEY, ACTIVITIES_KEY, WINNERS_KEY] as const;
-
-// The realtime hub is a generic pub/sub gateway: open one socket at the root
-// and subscribe to this game's topic. It does not replay state on subscribe,
-// so we bootstrap from the REST snapshot (below) and apply socket frames as
-// deltas.
-const GAME_TOPIC = "vault:king-of-night";
-
-// The socket is the live path — the server pushes gameState roughly every 10s
-// and again after every wager/settle. REST carries the game while the socket
-// is down. The gateway rate-limits ~100/min shared, but our proxy caps
-// upstream calls with its own short cache (1s for status, 4s for feeds), so
-// these client cadences can be game-speed without multiplying upstream load:
-// a 15s status poll made an offline game feel frozen after every play.
 const FALLBACK_POLL_MS = 5_000;
-const FALLBACK_FEED_POLL_MS = 15_000;
-const RECONNECT_MS = 2_000;
-const PING_MS = 25_000;
-const MAX_ACTIVITIES = 30;
 
-interface RawActivityFrame {
-  action: VaultActivityAction;
-  address: string;
-  amountWei: string;
-  transactionHash: string;
+// The contract deals in wei; the screen shows money. Converting here is not
+// inventing a figure, it is the same conversion the indexed row does, at the
+// same price the rest of the app uses. Leaving usdValue at zero was worse: a
+// pot of 0.0002 ETH rendered as "$0.00", which reads as an empty game.
+function money(ethAmount: string, ethPriceUsd: number) {
+  const usd = Number(ethAmount) * ethPriceUsd;
+  return {
+    amount: ethAmount,
+    tokenSymbol: "ETH",
+    usdValue: Number.isFinite(usd) ? usd : 0,
+    formattedUsd: Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "",
+  };
 }
 
-interface WinnerDeclaredFrame {
-  winner: string;
-  prize: { amount: string };
+// The contract's record of a game, in the shape the screen reads.
+function fromChain(
+  gameId: number,
+  chain: NonNullable<Awaited<ReturnType<typeof readGame>>>,
+  previous?: VaultGame
+): VaultGame {
+  const now = Math.floor(Date.now() / 1000);
+  return {
+    gameId,
+    starter: chain.starter,
+    king: chain.king,
+    // A price we already have beats a stale indexed figure, so the chain read
+    // wins here rather than deferring to `previous`.
+    // Amounts only; `withUsd` in the hook prices them.
+    pot: previous?.pot ?? money(String(Number(chain.potWei) / 1e18), 0),
+    minWager: previous?.minWager ?? money(String(Number(chain.minWagerWei) / 1e18), 0),
+    endTime: chain.endTime,
+    timeRemaining: Math.max(0, chain.endTime - now),
+    settled: chain.settled,
+    // Joinable only while the clock has time on it and nothing settled it. A
+    // finished game keeps its page; it just cannot be joined.
+    active: !chain.settled && chain.endTime > now,
+  };
 }
 
-export interface LastWinner {
-  address: string;
-  prizeWei: string;
-}
-
-// Live state for the Last Standing vault game: a WebSocket connection feeds
-// the same react-query caches a plain REST poll would, so every consumer
-// just reads useQuery-shaped state regardless of which source is currently
-// updating it. Falls back to REST-only polling if the socket never connects.
-export function useVaultGame() {
+/**
+ * One game, live.
+ *
+ * Reads come from the indexed REST endpoint, which trails the chain by the
+ * keeper's confirmation depth. That is fine for watching, and wrong for the
+ * seconds right after the user's own transaction: a game they just started is
+ * not indexed yet and would 404. `confirmFromChain` covers that gap by reading
+ * the contract directly and seeding the cache, so their own action lands
+ * immediately instead of looking like it failed.
+ */
+export function useVaultGame(gameId: number | null) {
   const queryClient = useQueryClient();
-  const [connected, setConnected] = useState(false);
-  const [lastWinner, setLastWinner] = useState<LastWinner | null>(null);
-  useInvalidateOnBlock(BLOCK_WATCH_KEYS);
+  const connected = useVaultSocket();
 
-  // Forces a fresh REST read of the whole game state (status, feed, winners)
-  // regardless of the socket. The round-end sequence uses it to converge fast:
-  // the socket's ~10s gameState cadence is far too slow for the seconds right
-  // after the clock hits zero.
-  const resyncGame = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: STATUS_KEY });
-    void queryClient.invalidateQueries({ queryKey: ACTIVITIES_KEY });
-    void queryClient.invalidateQueries({ queryKey: WINNERS_KEY });
-  }, [queryClient]);
+  const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
 
-  const status = useQuery<VaultGameStatus>({
-    queryKey: STATUS_KEY,
-    queryFn: fetchVaultStatus,
-    staleTime: FALLBACK_POLL_MS,
-    // When the socket is live it pushes gameState; poll only as a fallback
-    // while disconnected, so we don't burn the shared REST rate limit.
-    refetchInterval: connected ? false : FALLBACK_POLL_MS,
-  });
-  // When the socket is down these carry the live feed, so poll them on a slow
-  // fallback; when it's up, socket frames drive them and we stop polling.
-  const activities = useQuery<VaultActivity[]>({
-    queryKey: ACTIVITIES_KEY,
-    queryFn: fetchVaultActivities,
-    staleTime: FALLBACK_POLL_MS,
-    refetchInterval: connected ? false : FALLBACK_FEED_POLL_MS,
-  });
-  const winners = useQuery<VaultWinner[]>({
-    queryKey: WINNERS_KEY,
-    queryFn: fetchVaultWinners,
-    staleTime: 60_000,
-    refetchInterval: connected ? false : FALLBACK_FEED_POLL_MS,
-  });
-
-  useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_VAULT_WS_URL;
-    if (!url) return;
-
-    let socket: WebSocket | null = null;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    let pingTimer: ReturnType<typeof setInterval> | null = null;
-    let closedByUs = false;
-    let everConnected = false;
-
-    const connect = () => {
-      socket = new WebSocket(url);
-
-      socket.onopen = () => {
-        setConnected(true);
-        socket?.send(JSON.stringify({ type: "subscribe", topics: [GAME_TOPIC] }));
-        // The hub doesn't replay state on subscribe, so on every reconnect
-        // resync the snapshot from REST; the very first connect already has it
-        // from the queries above.
-        if (everConnected) {
-          void queryClient.invalidateQueries({ queryKey: STATUS_KEY });
-          void queryClient.invalidateQueries({ queryKey: ACTIVITIES_KEY });
-          void queryClient.invalidateQueries({ queryKey: WINNERS_KEY });
-        }
-        everConnected = true;
-        pingTimer = setInterval(() => {
-          if (socket?.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ type: "ping" }));
+  // The chain knows the wei, not the dollars, so a game read from it comes back
+  // with no USD. Filling that in here rather than in the fetch keeps the price
+  // out of the query key: it re-prices on the next render instead of refetching
+  // every time the price ticks.
+  const withUsd = useCallback(
+    (game: VaultGame): VaultGame =>
+      ethPrice > 0 && game.pot.usdValue === 0
+        ? {
+            ...game,
+            pot: money(game.pot.amount, ethPrice),
+            minWager: money(game.minWager.amount, ethPrice),
           }
-        }, PING_MS);
-      };
+        : game,
+    [ethPrice]
+  );
 
-      socket.onmessage = (event) => {
-        let frame: { type: string; data: unknown };
-        try {
-          frame = JSON.parse(event.data);
-        } catch {
-          return;
-        }
+  useInvalidateOnBlock(gameId === null ? [] : [VAULT_KEYS.game(gameId)]);
 
-        // Control acks (welcome/subscribed/unsubscribed/pong/error) carry no
-        // game data; only the three game frames update state.
-        if (frame.type === "gameState") {
-          const incoming = frame.data as VaultGameStatus;
-          queryClient.setQueryData<VaultGameStatus>(STATUS_KEY, (prev) => {
-            // A push computed before settlement — "active" with a dead clock —
-            // must not overwrite a fresher settled snapshot, or the pot and
-            // timer snap back to the finished round until the next update.
-            if (prev && !prev.gameActive && incoming.gameActive && incoming.timeRemaining <= 0) {
-              return prev;
-            }
-            return incoming;
-          });
-        } else if (frame.type === "playerActivity") {
-          const incoming =
-            (frame.data as { activities?: RawActivityFrame[] } | undefined)?.activities ?? [];
-          if (incoming.length === 0) return;
-          const now = new Date().toISOString();
-          queryClient.setQueryData<VaultActivity[]>(ACTIVITIES_KEY, (prev = []) => {
-            const seen = new Set(prev.map((p) => p.transactionHash));
-            const mapped: VaultActivity[] = incoming
-              .filter((a) => !seen.has(a.transactionHash))
-              .map((a) => ({
-                id: a.transactionHash,
-                action: a.action,
-                address: a.address,
-                amountWei: a.amountWei,
-                transactionHash: a.transactionHash,
-                createdAt: now,
-              }));
-            return [...mapped, ...prev].slice(0, MAX_ACTIVITIES);
-          });
-        } else if (frame.type === "winnerDeclared") {
-          const data = frame.data as WinnerDeclaredFrame;
-          setLastWinner({ address: data.winner, prizeWei: data.prize.amount });
-          void queryClient.invalidateQueries({ queryKey: WINNERS_KEY });
-        }
-      };
+  const game = useQuery<VaultGame>({
+    queryKey: gameId === null ? VAULT_KEYS.game(-1) : VAULT_KEYS.game(gameId),
+    // The index 404s for a game it has not caught up with, and drops games it
+    // considers finished. Either way the chain still has the record, and a
+    // game someone paid for should never show as missing.
+    queryFn: async () => {
+      const id = gameId as number;
+      try {
+        return await fetchGame(id);
+      } catch (error) {
+        const chain = await readGame(id);
+        if (!chain?.exists) throw error;
+        return fromChain(id, chain);
+      }
+    },
+    enabled: gameId !== null,
+    staleTime: FALLBACK_POLL_MS,
+    refetchInterval: connected ? false : FALLBACK_POLL_MS,
+    select: withUsd,
+  });
 
-      socket.onclose = () => {
-        setConnected(false);
-        if (pingTimer) clearInterval(pingTimer);
-        pingTimer = null;
-        socket = null;
-        if (!closedByUs) reconnectTimer = setTimeout(connect, RECONNECT_MS);
-      };
+  /**
+   * Seeds this game's cache from the contract, for the window where the
+   * indexer has not caught up. Returns false if the read failed, so the caller
+   * can fall back to waiting rather than showing an empty game.
+   */
+  const confirmFromChain = useCallback(
+    async (id: number): Promise<boolean> => {
+      const chain = await readGame(id);
+      if (!chain?.exists) return false;
+      queryClient.setQueryData<VaultGame>(VAULT_KEYS.game(id), (prev) =>
+        fromChain(id, chain, prev)
+      );
+      return true;
+    },
+    [queryClient]
+  );
 
-      socket.onerror = () => socket?.close();
-    };
-
-    connect();
-
-    return () => {
-      closedByUs = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (pingTimer) clearInterval(pingTimer);
-      socket?.close();
-    };
-  }, [queryClient]);
+  const resync = useCallback(() => {
+    if (gameId === null) return;
+    void queryClient.invalidateQueries({ queryKey: VAULT_KEYS.game(gameId) });
+    void queryClient.invalidateQueries({ queryKey: VAULT_KEYS.activities });
+  }, [queryClient, gameId]);
 
   return {
-    status: status.data ?? null,
-    statusLoading: status.isPending,
-    statusError: status.isError,
-    activities: activities.data ?? [],
-    winners: winners.data ?? [],
-    winnersLoading: winners.isPending,
+    game: game.data ?? null,
+    loading: game.isPending,
+    error: game.isError,
     connected,
-    lastWinner,
-    resyncGame,
+    confirmFromChain,
+    resync,
   };
 }

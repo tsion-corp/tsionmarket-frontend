@@ -7,7 +7,14 @@ import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
+import { parseEther } from "viem";
 import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
+import { secondsUntil } from "@/features/casino/lib/last-standing/clock";
+import {
+  followedGameServerSnapshot,
+  followedGameSnapshot,
+  subscribeFollowedGame,
+} from "@/features/casino/lib/last-standing/followed-game";
 import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
@@ -437,7 +444,28 @@ function MiniTimerLive({
   const { user } = usePrivy();
   const money = useMoney();
   const { mask } = useBalanceVisibility();
-  const { status, resyncGame } = useVaultGame();
+  // The game this timer follows: the last one the user put money into. With
+  // many games running, tracking anything else would show a stranger's clock.
+  const followedGameId = useSyncExternalStore(
+    subscribeFollowedGame,
+    followedGameSnapshot,
+    followedGameServerSnapshot
+  );
+  const { game, resync: resyncGame } = useVaultGame(followedGameId);
+  const status = game
+    ? {
+        gameActive: game.active,
+        timeRemaining: secondsUntil(game.endTime),
+        lastPlayer: game.king,
+        vaultBalance: game.pot,
+        entryFee: game.minWager,
+        // v4 does not report the round length, and the pop-out only uses it to
+        // rest the dial between rounds. The current countdown is close enough
+        // for that, and exact while a round is live.
+        timerDuration: secondsUntil(game.endTime),
+        isGameStarted: true,
+      }
+    : null;
   const { wager, wagering } = useVaultActions();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
 
@@ -486,12 +514,17 @@ function MiniTimerLive({
       // Funding needs the full page (deposit sheet). Bring the app forward
       // and land on the arena instead of dead-ending in the mini window.
       window.focus();
-      router.push("/casino/last-standing");
+      router.push(
+        followedGameId === null
+          ? "/casino/last-standing"
+          : `/casino/last-standing/${followedGameId}`
+      );
       return;
     }
     const toastId = toast.loading(t("ctaPlacing"));
     try {
-      await wager();
+      if (followedGameId === null || !game) return;
+      await wager(followedGameId, parseEther(game.minWager.amount));
       toast.success(t("toastYoureIn"), { id: toastId });
       resyncGame();
       void refetchPortfolio();
