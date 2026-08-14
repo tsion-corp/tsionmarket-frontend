@@ -21,6 +21,7 @@ import {
 import { parseTimeControl } from "@/features/casino/lib/api/chess-wire";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import type { ChessTimeControl } from "@/features/casino/lib/api/types";
+import { track } from "@/lib/analytics/mixpanel";
 
 // Like the rest of chess, tournaments have no socket, so polling is the live
 // path. The list can lag a little; a detail page someone is playing from
@@ -169,6 +170,10 @@ export function useSwissTournament(tournamentId: string | null) {
       rememberJoinedName(tournamentId as string, wallet.address, name);
       setNameVersion((v) => v + 1);
       applyDetail(next);
+      track("tournament_joined", {
+        game: "chess",
+        entry_usd: Number(next.entryFeeUsdc),
+      });
     },
   });
 

@@ -413,9 +413,21 @@ export function RwaTradePanel({
   // straight into it: the build re-prices server-side, so the staleness gate
   // is about what the USER last saw, and a purchase they already committed to
   // by funding must not stop to ask again.
+  useEffect(() => {
+    track("market_viewed", { vertical: "real_asset", asset: asset.symbol });
+  }, [asset.symbol]);
+
   const executeTrade = async () => {
     const req = buildReq(amount);
     if (!req) return;
+
+    // The attempt. `trade_completed` below only counts the ones that execute.
+    track("trade_previewed", {
+      vertical: "real_asset",
+      asset: asset.symbol,
+      side: isBuy ? "buy" : "sell",
+      amount_usd: Number(amount),
+    });
 
     // Sponsored chains never gate on native gas; the check only applies where
     // the wallet really pays its own fee.

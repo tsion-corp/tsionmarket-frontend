@@ -76,14 +76,31 @@ describe("without a configured token", () => {
 });
 
 describe("with a configured token", () => {
-  it("initializes once, with autocapture off and DNT honoured", async () => {
+  it("initializes once, with DNT honoured", async () => {
     const { initAnalytics } = await loadWithToken("test_token");
     initAnalytics();
     initAnalytics();
     expect(init).toHaveBeenCalledTimes(1);
+    expect(init).toHaveBeenCalledWith("test_token", expect.objectContaining({ ignore_dnt: false }));
+  });
+
+  it("autocaptures activity but never the text inside an element", async () => {
+    // capture_text_content is the one that would copy an account number or a
+    // document number out of the DOM, so it stays off while the rest is on.
+    const { initAnalytics } = await loadWithToken("test_token");
+    initAnalytics();
     expect(init).toHaveBeenCalledWith(
       "test_token",
-      expect.objectContaining({ autocapture: false, ignore_dnt: false })
+      expect.objectContaining({
+        autocapture: expect.objectContaining({
+          click: true,
+          submit: true,
+          capture_text_content: false,
+          // Path only: a query string has nothing worth recording and can
+          // carry values we would rather not keep.
+          pageview: "url-with-path",
+        }),
+      })
     );
   });
 

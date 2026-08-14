@@ -53,7 +53,7 @@ export type PerpPhase = "idle" | "building" | "signing" | "settling";
 // catalog's are singular and have no such bucket. An unmapped category returns
 // undefined so the property is omitted rather than reported as something it is
 // not.
-const MARKET_TYPE: Partial<Record<PerpCategory, MarketType>> = {
+export const MARKET_TYPE: Partial<Record<PerpCategory, MarketType>> = {
   crypto: "crypto",
   forex: "forex",
   commodities: "commodity",

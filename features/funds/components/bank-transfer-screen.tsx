@@ -10,7 +10,7 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { useNgnRate } from "@/hooks/use-ngn-rate";
 import { useCreateOnramp, useOnrampStatus, usePouchOnrampRate } from "@/hooks/use-pouch-onramp";
 import { copyText } from "@/lib/clipboard";
-import { MASK_ATTRIBUTE } from "@/lib/analytics/clarity";
+import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import { getWalletAddress, deriveProfile } from "@/lib/user";
@@ -447,7 +447,10 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
               account-drainage grade: a session replay showing them is the same
               breach as sending them, so the whole block is masked rather than
               the two rows individually. */}
-          <div className="ws-inset mt-3 divide-y divide-white/6" {...MASK_ATTRIBUTE}>
+          <div
+            className={`ws-inset mt-3 divide-y divide-white/6 ${NO_AUTOCAPTURE_CLASS}`}
+            {...MASK_ATTRIBUTE}
+          >
             <DetailRow label={t("bank")} value={bank.bankName} />
             <CopyRow
               label={t("accountNumber")}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Pager } from "@/components/ui/pager";
 import { usePaged } from "@/hooks/use-paged";
@@ -8,6 +8,8 @@ import { SearchIcon } from "@/components/ui/icons";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/features/trade/components/flash-price";
 import { ConfirmDialog, type ConfirmRow } from "@/components/ui/confirm-dialog";
+import { track } from "@/lib/analytics/mixpanel";
+import { MARKET_TYPE } from "@/features/trade/hooks/use-perp-actions";
 import { PerpOrders } from "@/features/trade/components/perp-orders";
 import { PerpPositions } from "@/features/trade/components/perp-positions";
 import { PerpPairIcon } from "@/features/trade/components/perp-pair-icon";
@@ -103,6 +105,16 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
 
   const pair = pairs.find((p) => pairSymbol(p) === selected) ?? null;
   const baseSym = selected.split("/")[0];
+
+  // Which market is on screen. Keyed by symbol, so switching markets reports
+  // once per market and a re-render reports nothing.
+  const marketType = pair?.category ? MARKET_TYPE[pair.category] : undefined;
+  const viewedMarket = useRef<string | null>(null);
+  useEffect(() => {
+    if (!selected || viewedMarket.current === selected) return;
+    viewedMarket.current = selected;
+    track("perp_market_viewed", { market: selected, market_type: marketType });
+  }, [selected, marketType]);
   const markPrice = market?.price ?? priceOf(selected);
   const markNum = num(markPrice);
 

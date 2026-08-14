@@ -25,6 +25,14 @@ let initialized = false;
  */
 export const MASK_ATTRIBUTE = { "data-clarity-mask": "true" } as const;
 
+/**
+ * The class Mixpanel's autocapture honours to skip an element and everything
+ * inside it. Put it on the same containers that carry MASK_ATTRIBUTE: the two
+ * tools record different things, but the screens that must not be recorded are
+ * the same ones, and autocapture reaches DOM that no `track` call names.
+ */
+export const NO_AUTOCAPTURE_CLASS = "mp-no-track";
+
 // Call once, client-side. A no-op without a project id, so local dev records
 // nothing and never contacts Clarity.
 export async function initClarity(): Promise<void> {

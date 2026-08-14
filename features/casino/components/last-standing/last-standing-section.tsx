@@ -471,9 +471,18 @@ export function LastStandingSection({ renderWithdrawSheet }: LastStandingSection
     claimRef.current = () => void onClaim();
   });
   const wonPendingRef = useRef(false);
+  // Reported once per win. The reveal effect below re-runs as the claim
+  // settles, and a second event would double the pot in any total built on it.
+  const wonReportedRef = useRef(false);
   useEffect(() => {
-    if (phase === "won" && youWon) wonPendingRef.current = true;
-  }, [phase, youWon]);
+    if (phase === "won" && youWon) {
+      wonPendingRef.current = true;
+      if (!wonReportedRef.current) {
+        wonReportedRef.current = true;
+        track("last_man_won", { pot_usd: lastPotRef.current || potUsd });
+      }
+    }
+  }, [phase, youWon, potUsd]);
   useEffect(() => {
     if (wonPendingRef.current && pendingWei > 0n && !claiming) {
       wonPendingRef.current = false;

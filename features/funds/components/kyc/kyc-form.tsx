@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { KycField } from "@/features/funds/components/kyc/kyc-field";
 import { useKycSubmit } from "@/features/funds/hooks/use-pouch-kyc";
 import { friendlyError } from "@/lib/errors";
-import { MASK_ATTRIBUTE, tagClaritySession } from "@/lib/analytics/clarity";
+import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS, tagClaritySession } from "@/lib/analytics/clarity";
 import { setSuper, track } from "@/lib/analytics/mixpanel";
 import {
   buildKycDocuments,
@@ -135,7 +135,7 @@ export function KycForm({
           identity-document data (NIN, BVN, date of birth), a session replay of
           it would be the same breach as sending it, and masking the container
           covers any field added here later. */}
-      <div className="mt-4 space-y-3.5" {...MASK_ATTRIBUTE}>
+      <div className={`mt-4 space-y-3.5 ${NO_AUTOCAPTURE_CLASS}`} {...MASK_ATTRIBUTE}>
         {fields.map((field) => {
           const raw = effective[field.key] ?? "";
           const show = attempted || touched[field.key];

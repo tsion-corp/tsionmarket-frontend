@@ -111,6 +111,18 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 
   const staticAddr = useStaticDepositAddress(req);
 
+  // Without an address the user cannot deposit at all, so a mint failure is a
+  // failed deposit even though no money moved. Keyed by chain and token so a
+  // retry on a different pair can report again while the same one stays quiet.
+  const reportedFailure = useRef<string | null>(null);
+  useEffect(() => {
+    if (!staticAddr.isError || !originChain || !originToken) return;
+    const key = `${originChain.chainId}:${originToken.address}`;
+    if (reportedFailure.current === key) return;
+    reportedFailure.current = key;
+    track("deposit_failed", { method: "crypto", reason: "address_unavailable" });
+  }, [staticAddr.isError, originChain, originToken]);
+
   const resetToken = () => setOriginToken(null);
 
   // Address view: a token is picked and its permanent address has been minted.

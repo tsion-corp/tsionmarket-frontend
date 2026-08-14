@@ -108,8 +108,18 @@ export function MemeTradeSheet({
 
   // Toasts fire even after the sheet is dismissed mid-confirmation, so the
   // terminal result always reaches the user.
+  useEffect(() => {
+    track("market_viewed", { vertical: "memecoin", asset: token.symbol ?? token.address });
+  }, [token.symbol, token.address]);
+
   const onTrade = async () => {
     if (submitDisabled) return;
+    track("trade_previewed", {
+      vertical: "memecoin",
+      asset: token.symbol ?? token.address,
+      side: buying ? "buy" : "sell",
+      amount_usd: Number(debouncedAmount),
+    });
     try {
       await trade({ side, tokenAddress: token.address, amount: debouncedAmount });
       // Memecoins always settle on Base, and carry the risk label the screen

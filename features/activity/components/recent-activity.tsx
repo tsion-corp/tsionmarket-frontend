@@ -7,6 +7,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { ClockIcon } from "@/components/ui/icons";
 import { ActivityRow } from "@/features/activity/components/activity-row";
 import { useActivity } from "@/features/activity/hooks/use-activity";
+import { useDepositAnalytics } from "@/features/activity/hooks/use-deposit-analytics";
 import { usePortfolio } from "@/hooks/use-portfolio";
 
 const PREVIEW_COUNT = 5;
@@ -17,6 +18,10 @@ export function RecentActivity() {
   const t = useTranslations("activity");
   const { items, loading } = useActivity();
   const portfolio = usePortfolio();
+
+  // A settled deposit is only visible as an inbound transfer, and this is the
+  // one place on the dashboard already watching for those.
+  useDepositAnalytics(items);
 
   const priceBySymbol = useMemo(() => {
     const map = new Map<string, number>();

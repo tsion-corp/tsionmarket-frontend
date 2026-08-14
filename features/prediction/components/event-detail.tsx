@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 import { useGroup, useGroupChart } from "@/features/prediction/hooks/use-prediction-detail";
@@ -11,6 +11,7 @@ import { EventResolvePanel } from "@/features/prediction/components/event-resolv
 import { OutcomeRow } from "@/features/prediction/components/outcome-row";
 import { compactUsd } from "@/features/prediction/lib/format";
 import type { ChartInterval } from "@/features/prediction/lib/types";
+import { track } from "@/lib/analytics/mixpanel";
 
 const INTERVALS: ChartInterval[] = ["1h", "4h", "1d"];
 
@@ -26,6 +27,13 @@ export function EventDetail({ idOrSlug }: EventDetailProps) {
   const t = useTranslations("prediction");
   const [interval, setInterval] = useState<ChartInterval>("1h");
   const { data: group, isLoading } = useGroup(idOrSlug);
+
+  const viewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!group || viewed.current === idOrSlug) return;
+    viewed.current = idOrSlug;
+    track("prediction_market_viewed", { market_id: idOrSlug, scope: "local" });
+  }, [idOrSlug, group]);
   const { data: chart } = useGroupChart(idOrSlug, interval);
 
   if (isLoading || !group) {

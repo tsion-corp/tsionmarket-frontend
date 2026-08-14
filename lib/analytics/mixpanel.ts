@@ -53,13 +53,25 @@ export function initAnalytics(): void {
   }
   mixpanel.init(TOKEN, {
     persistence: "localStorage",
-    // Off deliberately. Autocapture reports raw DOM activity as generic
-    // "element clicked" rows, which crowds out the named events in ./events and
-    // double-counts the actions that already send one. It also captures clicks
-    // on screens we mask in session replay, which is the last place to be
-    // recording anything automatically. Every event we report on is sent
-    // explicitly at the point of the action instead.
-    autocapture: false,
+    // On, so an action nobody remembered to instrument still shows up. The
+    // named events in ./events stay the ones we report on; autocapture is the
+    // safety net underneath them, and it does not collide with them because
+    // Mixpanel files it under its own `$mp_web_*` names.
+    //
+    // capture_text_content is the one that stays off: it copies the text inside
+    // the element that was clicked, which on the bank and KYC screens is the
+    // account number and the document number. Those screens also carry
+    // `mp-no-track`, which takes them out of autocapture entirely.
+    autocapture: {
+      // Path only. "full-url" would carry query strings into the data, and
+      // nothing is gained by recording them.
+      pageview: "url-with-path",
+      click: true,
+      input: true,
+      scroll: true,
+      submit: true,
+      capture_text_content: false,
+    },
     // Honour the browser's Do Not Track signal.
     ignore_dnt: false,
   });

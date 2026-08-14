@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { track } from "@/lib/analytics/mixpanel";
+import { MARKET_TYPE } from "@/features/trade/hooks/use-perp-actions";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/features/trade/components/flash-price";
@@ -59,6 +61,16 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
   const pair = simplePairs.find((p) => pairSymbol(p) === selected) ?? simplePairs[0] ?? null;
   const symbol = pair ? pairSymbol(pair) : selected;
   const baseSym = symbol.split("/")[0];
+
+  // Which market is on screen. Keyed by symbol, so switching markets reports
+  // once per market and a re-render reports nothing.
+  const marketType = pair?.category ? MARKET_TYPE[pair.category] : undefined;
+  const viewedMarket = useRef<string | null>(null);
+  useEffect(() => {
+    if (!symbol || viewedMarket.current === symbol) return;
+    viewedMarket.current = symbol;
+    track("perp_market_viewed", { market: symbol, market_type: marketType });
+  }, [symbol, marketType]);
 
   const [side, setSide] = useState<"long" | "short">("long");
   // The confirm step before money moves; null = no dialog.

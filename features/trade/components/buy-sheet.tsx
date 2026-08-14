@@ -153,8 +153,22 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     []
   );
 
+  // Opening the sheet is opening that market. Keyed by symbol so it reports
+  // once per asset rather than on every re-render of the same sheet.
+  useEffect(() => {
+    track("market_viewed", { vertical: "spot", asset: payload.symbol });
+  }, [payload.symbol]);
+
   const confirm = async () => {
     if (!route) return;
+    // The attempt, as opposed to the fill reported on settlement. The two
+    // together are what make the drop-off between them visible.
+    track("trade_previewed", {
+      vertical: "spot",
+      asset: payload.symbol,
+      side: "buy",
+      amount_usd: value,
+    });
     toastRef.current = toast.loading(t("buyingToast", { name: payload.name }));
     try {
       const result = await buy.mutateAsync({

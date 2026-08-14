@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
-import { MASK_ATTRIBUTE } from "@/lib/analytics/clarity";
+import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
 import { KycOnboarding } from "@/features/funds/components/kyc/kyc-onboarding";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
@@ -461,7 +461,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
               maxLength={10}
               onChange={(e) => onAccountChange(e.target.value)}
               placeholder="0123456789"
-              className="tnum w-full bg-transparent py-3 font-sans text-[14.5px] text-white outline-none placeholder:text-white/30"
+              className={`tnum w-full bg-transparent py-3 font-sans text-[14.5px] text-white outline-none placeholder:text-white/30 ${NO_AUTOCAPTURE_CLASS}`}
             />
             {verify.isPending ? (
               <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />

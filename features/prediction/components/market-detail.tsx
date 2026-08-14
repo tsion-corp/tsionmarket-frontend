@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { ChevronLeftIcon } from "@/components/ui/icons";
@@ -33,6 +33,7 @@ import {
   priceToPct,
 } from "@/features/prediction/lib/format";
 import type { ChartInterval, Side, Trade } from "@/features/prediction/lib/types";
+import { track } from "@/lib/analytics/mixpanel";
 
 // A compact set of intervals for the smaller chart.
 const INTERVALS: ChartInterval[] = ["1h", "4h", "1d"];
@@ -52,6 +53,20 @@ export function MarketDetail({ id }: MarketDetailProps) {
   const [tab, setTab] = useState<DetailTab>("activity");
 
   const { data: market, isLoading } = useMarket(id);
+
+  // Reported once the market resolves, so the category is real rather than
+  // omitted while it loads. Keyed by id: re-renders and live trades coming in
+  // must not each count as another view.
+  const viewed = useRef<string | null>(null);
+  useEffect(() => {
+    if (!market || viewed.current === id) return;
+    viewed.current = id;
+    track("prediction_market_viewed", {
+      market_id: id,
+      category: market.category ?? undefined,
+      scope: "global",
+    });
+  }, [id, market]);
   const { data: chart } = useMarketChart(id, interval);
   const { data: restTrades } = useMarketTrades(id);
   const { liveTrades } = usePredictionMarketStream(id);

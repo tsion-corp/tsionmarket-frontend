@@ -155,7 +155,17 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
     []
   );
 
+  useEffect(() => {
+    track("market_viewed", { vertical: "spot", asset: payload.symbol });
+  }, [payload.symbol]);
+
   const confirm = async () => {
+    track("trade_previewed", {
+      vertical: "spot",
+      asset: payload.symbol,
+      side: "sell",
+      amount_usd: value,
+    });
     toastRef.current = toast.loading(t("sellingToast", { symbol: payload.symbol }));
     try {
       // Clamp to the exact on-chain balance so a "max" never sends more than the
