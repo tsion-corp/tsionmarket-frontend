@@ -12,6 +12,7 @@ const peopleUnion = vi.fn();
 const reset = vi.fn();
 const track = vi.fn();
 const register = vi.fn();
+const hasOptedOut = vi.fn(() => false);
 
 vi.mock("mixpanel-browser", () => ({
   default: {
@@ -26,6 +27,7 @@ vi.mock("mixpanel-browser", () => ({
     reset,
     track,
     register,
+    has_opted_out_tracking: hasOptedOut,
   },
 }));
 
@@ -47,6 +49,8 @@ beforeEach(() => {
   reset.mockClear();
   track.mockClear();
   register.mockClear();
+  hasOptedOut.mockClear();
+  hasOptedOut.mockReturnValue(false);
 });
 
 afterEach(() => {
@@ -84,24 +88,37 @@ describe("with a configured token", () => {
     expect(init).toHaveBeenCalledWith("test_token", expect.objectContaining({ ignore_dnt: false }));
   });
 
-  it("autocaptures activity but never the text inside an element", async () => {
-    // capture_text_content is the one that would copy an account number or a
-    // document number out of the DOM, so it stays off while the rest is on.
+  it("keeps autocapture off, so only the named catalog is reported", async () => {
     const { initAnalytics } = await loadWithToken("test_token");
     initAnalytics();
     expect(init).toHaveBeenCalledWith(
       "test_token",
-      expect.objectContaining({
-        autocapture: expect.objectContaining({
-          click: true,
-          submit: true,
-          capture_text_content: false,
-          // Path only: a query string has nothing worth recording and can
-          // carry values we would rather not keep.
-          pageview: "url-with-path",
-        }),
-      })
+      expect.objectContaining({ autocapture: false })
     );
+  });
+
+  it("says so when the browser is opted out, rather than going quietly silent", async () => {
+    // Do Not Track disables the SDK and Mixpanel persists that, so the browser
+    // stays silent on later visits. Without this line that is indistinguishable
+    // from a broken integration.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    hasOptedOut.mockReturnValue(true);
+    const { initAnalytics } = await loadWithToken("test_token");
+    initAnalytics();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("opted out of tracking"));
+    warn.mockRestore();
+  });
+
+  it("boots even if the SDK has no opt-out method to ask", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    hasOptedOut.mockImplementation(() => {
+      throw new Error("not available");
+    });
+    const { initAnalytics, track: send } = await loadWithToken("test_token");
+    expect(() => initAnalytics()).not.toThrow();
+    send("withdraw_opened");
+    expect(track).toHaveBeenCalledWith("withdraw_opened", undefined);
+    warn.mockRestore();
   });
 
   it("identifies by the EVM wallet address", async () => {

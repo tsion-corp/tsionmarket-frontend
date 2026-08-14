@@ -53,29 +53,36 @@ export function initAnalytics(): void {
   }
   mixpanel.init(TOKEN, {
     persistence: "localStorage",
-    // On, so an action nobody remembered to instrument still shows up. The
-    // named events in ./events stay the ones we report on; autocapture is the
-    // safety net underneath them, and it does not collide with them because
-    // Mixpanel files it under its own `$mp_web_*` names.
+    // Off: the catalog in ./events is a deliberate taxonomy, and autocapture
+    // adds click, scroll and pageview rows that report nothing the named events
+    // do not already say, while spending quota to do it.
     //
-    // capture_text_content is the one that stays off: it copies the text inside
-    // the element that was clicked, which on the bank and KYC screens is the
-    // account number and the document number. Those screens also carry
-    // `mp-no-track`, which takes them out of autocapture entirely.
-    autocapture: {
-      // Path only. "full-url" would carry query strings into the data, and
-      // nothing is gained by recording them.
-      pageview: "url-with-path",
-      click: true,
-      input: true,
-      scroll: true,
-      submit: true,
-      capture_text_content: false,
-    },
-    // Honour the browser's Do Not Track signal.
+    // The cost of having it off is diagnostic, and the warning below covers it:
+    // autocapture used to be the sign that the SDK was alive at all, so without
+    // it a silenced session and a broken one look the same from the outside.
+    autocapture: false,
+    // Honour the browser's Do Not Track signal. Note what this means in
+    // practice: a browser sending DNT gets no events at all, and Mixpanel
+    // persists that decision, so the browser stays silent on later visits too.
     ignore_dnt: false,
   });
   initialized = true;
+
+  // A session that sends nothing looks identical from the outside whether the
+  // SDK failed or is doing exactly what it was told. Mixpanel disables itself
+  // when the browser sends Do Not Track, and persists that under
+  // `__mp_opt_in_out_<token>`, so the browser stays silent on every later visit
+  // too. Saying so costs one line and turns "Mixpanel is broken on this
+  // account" into an answer instead of an investigation.
+  try {
+    if (mixpanel.has_opted_out_tracking()) {
+      console.warn(
+        "[analytics] this browser is opted out of tracking (Do Not Track, or a stored opt-out from an earlier visit). No events will be sent."
+      );
+    }
+  } catch {
+    // A diagnostic must never be the reason boot fails.
+  }
 }
 
 /**

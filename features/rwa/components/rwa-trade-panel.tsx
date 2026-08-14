@@ -484,6 +484,13 @@ export function RwaTradePanel({
       void portfolio.refetchUntilChanged();
     } catch (e) {
       const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
+      // The provider's own code, which is already a coded string. The raw
+      // message is never sent: it can quote back what the user typed.
+      track("trade_failed", {
+        vertical: "real_asset",
+        asset: asset.symbol,
+        reason: errorCode(e) ?? "trade_failed",
+      });
       setSignStep(null);
       setNotice({ kind: "error", message: info.message });
       toast.error(info.message, { id: toastId });
