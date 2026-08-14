@@ -293,9 +293,9 @@ export function CreateSection() {
       const input: CreateChessChallengeInput & { stakeUsdc?: string } = {
         timeControl,
         mode: "invite",
-        // Free friend games expose clock extensions during play. A stake makes
-        // the clock immutable and the match rated, as required by the service.
-        rated: stakeUsdc !== undefined,
+        // Human PvP is rated whether the game is free or staked. Free games can
+        // still opt into equal clock extensions; stakes keep clocks immutable.
+        rated: true,
         allowTimeExtensions: stakeUsdc === undefined,
         ...(stakeUsdc !== undefined ? { stakeUsdc } : {}),
       };

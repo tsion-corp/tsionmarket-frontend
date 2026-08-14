@@ -3,32 +3,44 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DraughtsBoardView } from "@/features/casino/components/draughts/draughts-board";
-import { track } from "@/lib/analytics/mixpanel";
-import { gamePayout } from "@/lib/analytics/game-result";
+import { DraughtsMoveTable } from "@/features/casino/components/draughts/draughts-move-table";
 import {
-  useDraughtsMatch,
+  DRAUGHTS_PANEL_BUTTON_CLASS,
+  DRAUGHTS_PANEL_HEADER_CLASS,
+  DraughtsWorkspace,
+} from "@/features/casino/components/draughts/draughts-workspace";
+import { MatchChat } from "@/features/casino/components/draughts/match-chat";
+import { MatchComments } from "@/features/casino/components/draughts/match-comments";
+import { SpectatorBetting } from "@/features/casino/components/draughts/spectator-betting";
+import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
+import { armAudioUnlock, playGameEndSound, playMoveSound } from "@/features/casino/lib/chess/sound";
+import {
   remainingSeconds,
+  useDraughtsMatch,
   useSeat,
 } from "@/features/casino/hooks/use-draughts-match";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
+import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import {
   abortMatch,
   claimTimeout,
+  continueComputerCoachReview,
   declineTakeback,
+  extendMatchTime,
+  fetchComputerCoachState,
   fetchPdn,
   joinMatch,
   offerDraw,
+  requestComputerCoachHint,
+  requestComputerHint,
   requestRematch,
   requestTakeback,
   resignMatch,
   respondToDraw,
+  submitComputerCoachMove,
   submitMove,
+  undoComputerCoachReview,
 } from "@/features/casino/lib/api/draughts";
-import { MatchSocial } from "@/features/casino/components/draughts/match-social";
-import { MatchChat } from "@/features/casino/components/draughts/match-chat";
-import { SpectatorBetting } from "@/features/casino/components/draughts/spectator-betting";
-import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
-import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import { exceedsUsdcBalance } from "@/features/casino/lib/api/cashier";
 import { downloadText } from "@/features/casino/lib/draughts/download";
 import {
@@ -44,17 +56,28 @@ import {
   type DraughtsMove,
   type DraughtsSide,
 } from "@/features/casino/lib/draughts/engine";
-import type { DraughtsMatch } from "@/features/casino/lib/draughts/types";
-import { friendlyError } from "@/lib/errors";
+import { variantOption } from "@/features/casino/lib/draughts/variants";
+import type {
+  DraughtsCoachHint,
+  DraughtsCoachMoveReview,
+  DraughtsComputerCoachState,
+  DraughtsMatch,
+  DraughtsPlayerRating,
+} from "@/features/casino/lib/draughts/types";
+import { gamePayout } from "@/lib/analytics/game-result";
+import { track } from "@/lib/analytics/mixpanel";
 import { copyText } from "@/lib/clipboard";
+import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
 const OTHER: Record<DraughtsSide, DraughtsSide> = { white: "black", black: "white" };
-
-// One shared empty path, so "nothing selected" keeps a stable identity.
 const EMPTY_PATH: number[] = [];
+const EXTENSION_SECONDS = 300;
 
-function formatClock(seconds: number): string {
+type PanelTab = "game" | "chat" | "comments" | "market";
+
+function formatClock(seconds: number, unlimited: boolean): string {
+  if (unlimited) return "∞";
   const total = Math.max(0, Math.ceil(seconds));
   const minutes = Math.floor(total / 60);
   const rest = total % 60;
@@ -71,7 +94,7 @@ function resultLine(match: DraughtsMatch, seat: DraughtsSide | null): string {
         : result.reason === "repetition"
           ? "by repetition"
           : "by the move rule";
-    return `Drawn ${why}.`;
+    return `Draw ${why}`;
   }
   const why =
     result.reason === "resignation"
@@ -80,54 +103,192 @@ function resultLine(match: DraughtsMatch, seat: DraughtsSide | null): string {
         ? "on time"
         : result.reason === "abandoned"
           ? "by abandonment"
-          : "with no moves left";
-  const side = result.winner === "white" ? "White" : "Black";
-  if (!seat) return `${side} wins ${why}.`;
-  return result.winner === seat ? `You win ${why}.` : `You lose ${why}.`;
+          : "with no legal moves";
+  if (!seat) return `${result.winner === "white" ? "White" : "Black"} wins ${why}`;
+  return result.winner === seat ? `You win ${why}` : `You lose ${why}`;
 }
 
-interface SeatBarProps {
-  label: string;
+function ratingText(rating?: DraughtsPlayerRating): string | null {
+  if (!rating) return null;
+  if (rating.rating === null) return null;
+  return `${rating.rating}${rating.provisional ? "?" : ""}`;
+}
+
+function PlayerClock({
+  name,
+  side,
+  rating,
+  captured,
+  clock,
+  unlimited,
+  active,
+  compact = false,
+  desktopOnly = false,
+}: {
+  name: string;
   side: DraughtsSide;
+  rating?: DraughtsPlayerRating;
   captured: number;
   clock: number;
+  unlimited: boolean;
   active: boolean;
-  low: boolean;
-}
-
-function SeatBar({ label, side, captured, clock, active, low }: SeatBarProps) {
+  compact?: boolean;
+  desktopOnly?: boolean;
+}) {
+  const shownRating = ratingText(rating);
   return (
     <div
-      className={`flex items-center justify-between rounded-xl border px-3 py-2 transition-colors ${
-        active ? "border-white/25 bg-white/[0.07]" : "border-white/10 bg-white/[0.02]"
+      className={`${desktopOnly ? "hidden md:flex" : "flex"} min-w-0 items-stretch border-white/10 ${
+        compact ? "border-y bg-black/20" : "border-b"
       }`}
     >
-      <div className="flex min-w-0 items-center gap-2.5">
+      <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2.5">
         <span
           aria-hidden
-          className="h-3.5 w-3.5 shrink-0 rounded-full border border-black/40"
-          style={{
-            background:
-              side === "white"
-                ? "radial-gradient(circle at 32% 28%, #fff 0%, #e8e4d9 100%)"
-                : "radial-gradient(circle at 32% 28%, #55555c 0%, #17171b 100%)",
-          }}
+          className={`h-2.5 w-2.5 shrink-0 rounded-full border ${
+            side === "white" ? "border-black/20 bg-zinc-100" : "border-white/25 bg-zinc-950"
+          }`}
         />
-        <span className="truncate font-sans text-[14px] text-white/85">{label}</span>
-        {captured > 0 ? (
-          <span className="shrink-0 font-sans text-[12px] text-white/45 tabular-nums">
-            +{captured}
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-semibold text-white/82">{name}</p>
+          <p className="mt-0.5 text-[11px] text-white/35">
+            {shownRating ? `${shownRating} rating` : side === "white" ? "White" : "Black"}
+            {rating?.diff !== null && rating?.diff !== undefined ? (
+              <span className={rating.diff >= 0 ? "ml-1 text-emerald-400" : "ml-1 text-red-400"}>
+                {rating.diff >= 0 ? "+" : ""}
+                {rating.diff}
+              </span>
+            ) : null}
+            {captured > 0 ? <span className="ml-1">· +{captured}</span> : null}
+          </p>
+        </div>
+      </div>
+      <div
+        className={`flex min-w-[92px] items-center justify-end px-3 font-mono tabular-nums transition-colors ${
+          compact ? "text-[18px]" : "text-[22px]"
+        } ${active ? "bg-white text-zinc-950" : "bg-white/[0.055] text-white/45"}`}
+      >
+        {formatClock(clock, unlimited)}
+      </div>
+    </div>
+  );
+}
+
+function Feedback({
+  match,
+  seat,
+  myTurn,
+  spectating,
+  mustCapture,
+  review,
+  hint,
+  onContinue,
+  onTryAgain,
+  busy,
+}: {
+  match: DraughtsMatch;
+  seat: DraughtsSide | null;
+  myTurn: boolean;
+  spectating: boolean;
+  mustCapture: boolean;
+  review: DraughtsCoachMoveReview | null;
+  hint: DraughtsCoachHint | null;
+  onContinue: () => void;
+  onTryAgain: () => void;
+  busy: boolean;
+}) {
+  const settled = match.state === "settled" || match.state === "cancelled";
+  const waiting = match.state === "awaiting_opponent";
+  const computerThinking =
+    match.state === "in_progress" && match.computer !== null && match.turn === match.computer.side;
+  const reviewIsBad = review?.status === "review";
+  const icon = reviewIsBad ? "×" : settled ? (match.result?.kind === "draw" ? "=" : "✓") : "";
+  const title = reviewIsBad
+    ? review.classification === "blunder"
+      ? "That loses too much"
+      : "There is a better move"
+    : settled
+      ? resultLine(match, seat)
+      : waiting
+        ? "Waiting for an opponent"
+        : computerThinking
+          ? `${match.computer?.name ?? "Computer"} is thinking…`
+          : myTurn
+            ? mustCapture
+              ? "Your turn · capture required"
+              : "Your turn"
+            : spectating
+              ? `${match.turn === "white" ? "White" : "Black"} to move`
+              : "Opponent's turn";
+  const detail = reviewIsBad
+    ? review.message
+    : (hint?.message ??
+      (waiting
+        ? "Share the invite link. The board starts for both players as soon as the second seat joins."
+        : settled
+          ? match.rating?.rated
+            ? "The result and rating change are final."
+            : "The result is final."
+          : mustCapture
+            ? "Draughts requires a capture whenever one is available."
+            : ""));
+
+  return (
+    <div className="border-b border-white/10 px-4 py-4">
+      <div className="flex items-start gap-3">
+        {icon ? (
+          <span
+            aria-hidden
+            className={`text-[38px] leading-none ${reviewIsBad ? "text-red-400" : "text-lime-400"}`}
+          >
+            {icon}
           </span>
         ) : null}
+        <div className="min-w-0 flex-1">
+          <p className="text-[16px] font-semibold text-white/88">{title}</p>
+          {detail ? <p className="mt-1 text-[12px] leading-5 text-white/45">{detail}</p> : null}
+        </div>
       </div>
-      <span
-        className={`shrink-0 font-mono text-[15px] tabular-nums ${
-          low && active ? "text-red-400" : active ? "text-white" : "text-white/50"
-        }`}
-      >
-        {formatClock(clock)}
-      </span>
+      {reviewIsBad ? (
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={busy || !review.canUndo}
+            onClick={onTryAgain}
+            className={DRAUGHTS_PANEL_BUTTON_CLASS}
+          >
+            Try again
+          </button>
+          <button
+            type="button"
+            disabled={busy || !review.canContinue}
+            onClick={onContinue}
+            className={DRAUGHTS_PANEL_BUTTON_CLASS}
+          >
+            Play it anyway
+          </button>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  children,
+  onClick,
+}: React.PropsWithChildren<{ active: boolean; onClick: () => void }>) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`relative h-12 cursor-pointer px-4 text-[12px] font-semibold transition-colors ${
+        active ? "text-white" : "text-white/38 hover:text-white/70"
+      }`}
+    >
+      {children}
+      {active ? <span className="absolute inset-x-3 bottom-0 h-0.5 bg-white/75" /> : null}
+    </button>
   );
 }
 
@@ -138,24 +299,41 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
   const { match, loading, error, now, live, refresh, apply } = useDraughtsMatch(matchId);
   const { seat, myTurn, spectating } = useSeat(match, wallet);
   const cashier = useChessCashierStatus();
-
-  // Joining a staked game locks the same amount the creator put up, so the
-  // shortfall is caught here rather than as an upstream rejection after the
-  // click. The service locks it on join; nothing is sent but the match id.
   const joinStake = match?.wager?.stakeUsdc ?? null;
   const shortForJoin = !!joinStake && exceedsUsdcBalance(joinStake, cashier.available);
 
-  // Reported once, when a game the player actually sat in resolves. The board
-  // polls and re-renders after settlement, so without the guard this would fire
-  // again on every tick; spectators are excluded because the result is not
-  // theirs to report.
+  useEffect(() => {
+    armAudioUnlock();
+  }, []);
+
+  const previousPly = useRef<number | null>(null);
+  const currentPly = match?.ply ?? null;
+  const latestSan = match?.moves[match.moves.length - 1] ?? "";
+  useEffect(() => {
+    if (currentPly === null) return;
+    if (previousPly.current !== null && currentPly > previousPly.current) {
+      playMoveSound(latestSan.includes("x") ? "capture" : "move");
+    }
+    previousPly.current = currentPly;
+  }, [currentPly, latestSan]);
+
+  const soundedResult = useRef<string | null>(null);
+  useEffect(() => {
+    if (!match?.result || !seat) return;
+    if (match.state !== "settled" && match.state !== "cancelled") return;
+    if (soundedResult.current === match.id) return;
+    soundedResult.current = match.id;
+    const outcome =
+      match.result.kind === "draw" ? "draw" : match.result.winner === seat ? "win" : "loss";
+    playGameEndSound(outcome);
+  }, [match?.id, match?.result, match?.state, seat]);
+
   const reportedResult = useRef<string | null>(null);
   useEffect(() => {
     if (!match?.result || !seat) return;
     if (match.state !== "settled" && match.state !== "cancelled") return;
     if (reportedResult.current === match.id) return;
     reportedResult.current = match.id;
-
     const outcome =
       match.result.kind === "draw" ? "draw" : match.result.winner === seat ? "win" : "loss";
     const reason =
@@ -168,7 +346,6 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
             : match.result.reason === "abandoned"
               ? ("abandoned" as const)
               : ("no_moves" as const);
-
     track("game_result", {
       game: "checkers",
       result: outcome,
@@ -178,77 +355,96 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
   }, [seat, match?.id, match?.state, match?.result, match?.wager]);
 
   const [busy, setBusy] = useState(false);
+  const [panelTab, setPanelTab] = useState<PanelTab>("game");
+  const [coachState, setCoachState] = useState<DraughtsComputerCoachState | null>(null);
+  const [coachReview, setCoachReview] = useState<DraughtsCoachMoveReview | null>(null);
+  const [coachHint, setCoachHint] = useState<DraughtsCoachHint | null>(null);
+  const [hintPath, setHintPath] = useState<number[]>([]);
 
-  // A half-built move belongs to the position it was started from. Tagging it
-  // with that FEN means the board moving on under it (the opponent replying, a
-  // takeback) drops it during render, with no effect to clear it afterwards.
   const fen = match?.fen ?? null;
+  const variant = match?.variant ?? "standard";
   const [selection, setSelection] = useState<{ fen: string | null; path: number[] }>({
     fen: null,
     path: [],
   });
-  // Memoized so the derived board state below keeps a stable identity across
-  // the clock's re-renders.
   const path = useMemo(
     () => (selection.fen === fen ? selection.path : EMPTY_PATH),
     [selection, fen]
   );
   const setPath = useCallback((next: number[]) => setSelection({ fen, path: next }), [fen]);
-
-  const position = useMemo(() => (fen ? parseFen(fen) : null), [fen]);
+  const position = useMemo(() => (fen ? parseFen(fen, variant) : null), [fen, variant]);
   const turn = match?.turn ?? null;
-
-  // Every legal move for the side to move. Only computed for the player whose
-  // turn it is, since that is the only time the board is interactive.
   const moves = useMemo<DraughtsMove[]>(
-    () => (position && myTurn ? legalMoves(position) : []),
-    [position, myTurn]
+    () =>
+      position && myTurn && !coachReview?.status?.includes("review") ? legalMoves(position) : [],
+    [position, myTurn, coachReview]
   );
-
-  // A move in progress is drawn on the board before it is sent, so the player
-  // sees the jump they are building.
   const preview = useMemo(() => {
     if (!position || path.length < 2) return null;
     const move = completedMove(moves, path);
     return move ? applyMove(position, move) : null;
   }, [position, moves, path]);
-
   const board = preview?.board ?? position?.board ?? null;
   const targets = useMemo(() => nextTargets(moves, path), [moves, path]);
   const movable = useMemo(() => movableFields(moves), [moves]);
-
-  // The pieces the path so far would take, marked while the player builds it.
   const doomed = useMemo(() => {
     if (path.length < 2) return [];
     const partial = moves.filter(
-      (move) => path.every((field, i) => move.path[i] === field) && move.path.length >= path.length
+      (move) =>
+        path.every((field, index) => move.path[index] === field) && move.path.length >= path.length
     );
-    // Only the captures common to every continuation are certain.
-    const first = partial[0];
-    if (!first) return [];
-    const taken = first.captured.slice(0, path.length - 1);
-    return taken;
+    return partial[0]?.captured.slice(0, path.length - 1) ?? [];
   }, [moves, path]);
-
   const history = match?.moves;
   const lastMove = useMemo(() => {
     const san = history?.[history.length - 1];
     if (!san) return [];
-    return parseUci(san.replace(/[^0-9]/gu, "")) ?? [];
-  }, [history]);
+    return parseUci(san.replace(/[^0-9]/gu, ""), variant) ?? [];
+  }, [history, variant]);
+
+  const coachEnabled = !!match?.computer?.coachEnabled && !!wallet;
+  const activeMatchId = match?.id;
+  const activeMatchPly = match?.ply;
+  useEffect(() => {
+    if (!coachEnabled || !activeMatchId || !wallet) return;
+    let current = true;
+    fetchComputerCoachState(activeMatchId, wallet)
+      .then((state) => {
+        if (!current) return;
+        setCoachState(state);
+        setCoachReview(state.pendingReview);
+      })
+      .catch(() => {
+        // Live play remains usable if the optional coach snapshot is unavailable.
+      });
+    return () => {
+      current = false;
+    };
+  }, [activeMatchId, activeMatchPly, coachEnabled, wallet]);
 
   const send = useCallback(
     async (move: DraughtsMove) => {
       if (!wallet || !match) return;
       setBusy(true);
+      setCoachHint(null);
+      setHintPath([]);
       try {
-        const next = await submitMove(match.id, wallet, moveToUci(move), match);
-        apply(next);
+        if (match.computer?.coachEnabled) {
+          const review = await submitComputerCoachMove(
+            match.id,
+            wallet,
+            moveToUci(move),
+            match.ply,
+            crypto.randomUUID()
+          );
+          setCoachReview(review);
+          if (review.matchState) apply(review.matchState);
+        } else {
+          apply(await submitMove(match.id, wallet, moveToUci(move), match));
+        }
         setPath([]);
       } catch (cause) {
         toast.error(friendlyError(cause, "That move was refused."));
-        // The server is the authority: reload rather than keep a board it
-        // disagreed with.
         setPath([]);
         refresh();
       } finally {
@@ -260,9 +456,7 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
 
   const onFieldClick = useCallback(
     (field: number) => {
-      if (!myTurn || busy || !position) return;
-
-      // Starting again on one of your own pieces always restarts the move.
+      if (!myTurn || busy || !position || coachReview?.status === "review") return;
       const piece = position.board[field];
       if (piece && piece.side === turn) {
         setPath(movable.includes(field) ? [field] : []);
@@ -273,14 +467,12 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
         setPath([]);
         return;
       }
-
       const next = [...path, field];
       const done = completedMove(moves, next);
-      // A jump with more to take leaves the path open for the next click.
+      setPath(next);
       if (done && nextTargets(moves, next).length === 0) void send(done);
-      else setPath(next);
     },
-    [myTurn, busy, position, turn, movable, path, targets, moves, send, setPath]
+    [myTurn, busy, position, coachReview, turn, movable, path, targets, moves, send, setPath]
   );
 
   const act = useCallback(
@@ -298,133 +490,200 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
     [busy, apply]
   );
 
+  const resolveCoachReview = useCallback(
+    async (choice: "continue" | "undo") => {
+      if (!wallet || !match || !coachReview || busy) return;
+      setBusy(true);
+      try {
+        const next = await (choice === "continue"
+          ? continueComputerCoachReview(match.id, wallet, coachReview.attemptId, match.ply)
+          : undoComputerCoachReview(match.id, wallet, coachReview.attemptId, match.ply));
+        setCoachReview(next.status === "review" ? next : null);
+        if (next.matchState) apply(next.matchState);
+        else refresh();
+      } catch (cause) {
+        toast.error(friendlyError(cause, "The coach could not resolve that move."));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [wallet, match, coachReview, busy, apply, refresh]
+  );
+
+  const askForHint = useCallback(async () => {
+    if (!wallet || !match || busy) return;
+    setBusy(true);
+    try {
+      if (match.computer?.coachEnabled) {
+        const hint = await requestComputerCoachHint(
+          match.id,
+          wallet,
+          match.ply,
+          crypto.randomUUID()
+        );
+        setCoachHint(hint);
+        setHintPath(hint.suggestedUci ? (parseUci(hint.suggestedUci, match.variant) ?? []) : []);
+      } else {
+        const hint = await requestComputerHint(match.id, wallet, crypto.randomUUID());
+        setCoachHint({
+          id: hint.id,
+          matchId: hint.matchId,
+          ply: hint.ply,
+          level: 1,
+          message: "Try the highlighted move.",
+          motif: "best_move",
+          suggestedUci: hint.suggestedUci,
+          suggestedSan: null,
+          actions: [],
+          createdAt: hint.createdAt,
+        });
+        setHintPath(parseUci(hint.suggestedUci, match.variant) ?? []);
+      }
+    } catch (cause) {
+      toast.error(friendlyError(cause, "A hint is not available right now."));
+    } finally {
+      setBusy(false);
+    }
+  }, [wallet, match, busy]);
+
   if (loading && !match) {
-    return <p className="py-16 text-center font-sans text-[14px] text-white/50">Loading game…</p>;
+    return <p className="py-16 text-center text-[14px] text-white/50">Loading game…</p>;
   }
   if (error && !match) {
-    return <p className="py-16 text-center font-sans text-[14px] text-red-400">{error}</p>;
+    return <p className="py-16 text-center text-[14px] text-red-400">{error}</p>;
   }
   if (!match || !board) return null;
 
   const orientation: DraughtsSide = seat ?? "white";
-  const captured = capturedCounts(board);
   const opponent = OTHER[orientation];
+  const captured = capturedCounts(board, match.variant);
   const whiteName = match.white?.username ?? "Open seat";
   const blackName = match.black?.username ?? "Open seat";
   const nameOf = (side: DraughtsSide) => (side === "white" ? whiteName : blackName);
-
   const topClock = remainingSeconds(match, opponent, now);
   const bottomClock = remainingSeconds(match, orientation, now);
+  const unlimited = match.clockMode === "unlimited";
   const settled = match.state === "settled" || match.state === "cancelled";
-
   const waiting = match.state === "awaiting_opponent";
   const canJoin = waiting && !seat && !!wallet;
   const drawOfferedToMe = !!seat && match.drawOffered === OTHER[seat];
   const mustCapture = myTurn && moves.some((move) => move.captured.length > 0);
+  const canExtend =
+    !!seat &&
+    match.state === "in_progress" &&
+    match.timeExtensions.allowed &&
+    match.timeExtensions.used < match.timeExtensions.maxUses &&
+    match.timeExtensions.totalSeconds + EXTENSION_SECONDS <= match.timeExtensions.maxTotalSeconds;
+  const boardLastMove = hintPath.length ? hintPath : lastMove;
 
-  return (
-    // Board and chat sit side by side once there is room for both, the way the
-    // chess screens read. Below that the chat drops under the board instead.
-    <div className="mx-auto grid w-full max-w-[520px] grid-cols-1 gap-8 px-4 pb-10 xl:max-w-[980px] xl:grid-cols-[minmax(0,520px)_minmax(0,1fr)] xl:items-start">
-      <div className="min-w-0">
-        <div className="mb-3 flex items-center justify-between">
-          <button
-            onClick={() => router.push("/casino/checkers")}
-            className="cursor-pointer font-sans text-[13px] text-white/50 hover:text-white/80"
-          >
-            ← Lobby
-          </button>
-          <span className="flex items-center gap-2 font-sans text-[12px] text-white/40">
-            <span
-              aria-hidden
-              className={`h-1.5 w-1.5 rounded-full ${live ? "bg-emerald-400" : "bg-white/25"}`}
-            />
-            {match.timeControl}
-            {match.wager ? ` · ${match.wager.stakeUsdc} USDC` : ""}
-          </span>
+  const playerPanel = (
+    <>
+      <PlayerClock
+        desktopOnly
+        name={nameOf(opponent)}
+        side={opponent}
+        captured={captured[OTHER[opponent]]}
+        rating={match.rating?.[opponent]}
+        clock={topClock}
+        unlimited={unlimited}
+        active={match.state === "in_progress" && match.turn === opponent}
+      />
+      <div className={`${DRAUGHTS_PANEL_HEADER_CLASS} justify-between px-2`}>
+        <div className="flex">
+          <TabButton active={panelTab === "game"} onClick={() => setPanelTab("game")}>
+            Game
+          </TabButton>
+          {!match.computer ? (
+            <TabButton active={panelTab === "chat"} onClick={() => setPanelTab("chat")}>
+              Chat
+            </TabButton>
+          ) : null}
+          {!match.computer ? (
+            <TabButton active={panelTab === "comments"} onClick={() => setPanelTab("comments")}>
+              Comments
+            </TabButton>
+          ) : null}
+          {spectating ? (
+            <TabButton active={panelTab === "market"} onClick={() => setPanelTab("market")}>
+              Market
+            </TabButton>
+          ) : null}
         </div>
-
-        <SeatBar
-          label={nameOf(opponent)}
-          side={opponent}
-          captured={captured[OTHER[opponent]]}
-          clock={topClock}
-          active={match.state === "in_progress" && match.turn === opponent}
-          low={topClock <= 10}
+        <span
+          className={`mr-2 h-2 w-2 rounded-full ${live ? "bg-emerald-400" : "bg-white/20"}`}
+          title={live ? "Live updates connected" : "Using repair polling"}
         />
+      </div>
 
-        <div className="my-2">
-          <DraughtsBoardView
-            board={board}
-            path={path}
-            targets={targets}
-            movable={myTurn ? movable : []}
-            lastMove={lastMove}
-            doomed={doomed}
-            orientation={orientation}
-
-            onFieldClick={myTurn && !busy ? onFieldClick : undefined}
+      {panelTab === "chat" ? (
+        <MatchChat match={match} wallet={wallet} className="min-h-0 flex-1 p-4" />
+      ) : panelTab === "comments" ? (
+        <MatchComments match={match} wallet={wallet} className="min-h-0 flex-1 p-4" />
+      ) : panelTab === "market" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <SpectatorBetting match={match} wallet={wallet} />
+        </div>
+      ) : (
+        <>
+          <DraughtsMoveTable moves={match.moves} />
+          <Feedback
+            match={match}
+            seat={seat}
+            myTurn={myTurn}
+            spectating={spectating}
+            mustCapture={mustCapture}
+            review={coachReview}
+            hint={coachHint}
+            onContinue={() => void resolveCoachReview("continue")}
+            onTryAgain={() => void resolveCoachReview("undo")}
+            busy={busy}
           />
-        </div>
-
-        <SeatBar
-          label={seat ? "You" : nameOf(orientation)}
-          side={orientation}
-          captured={captured[OTHER[orientation]]}
-          clock={bottomClock}
-          active={match.state === "in_progress" && match.turn === orientation}
-          low={bottomClock <= 10}
-        />
-
-        {/* Status line: one sentence about what the board is waiting for. */}
-        <p className="mt-3 min-h-[20px] text-center font-sans text-[13px] text-white/60">
-          {settled
-            ? resultLine(match, seat)
-            : waiting
-              ? "Waiting for an opponent to join."
-              : myTurn
-                ? mustCapture
-                  ? "Your move. A capture is available, so you have to take."
-                  : "Your move."
-                : spectating
-                  ? `${nameOf(match.turn)} to move.`
-                  : "Waiting for your opponent."}
-        </p>
-
-        {/* Actions. Only what is possible right now is offered, so the bar never
-          shows a button that would be refused. */}
-        <div className="mt-4 flex flex-wrap justify-center gap-2">
-          {canJoin ? (
-            <button
-              disabled={busy || shortForJoin}
-              onClick={() =>
-                act(() => joinMatch(match.id, wallet as string), "Couldn't join that game.")
-              }
-              className="text-ink cursor-pointer rounded-[14px] bg-white px-5 py-2.5 font-sans text-[14px] font-semibold hover:opacity-90 disabled:opacity-50"
-            >
-              {shortForJoin
-                ? `Need ${joinStake} USDC`
-                : joinStake
-                  ? `Stake ${joinStake} USDC & join`
-                  : "Join game"}
-            </button>
-          ) : null}
-
-          {waiting && seat ? (
-            <button
-              onClick={async () => {
-                await copyText(`${window.location.origin}/casino/checkers/play?match=${match.id}`);
-                toast.success("Invite link copied.");
-              }}
-              className="cursor-pointer rounded-[14px] border border-white/15 px-4 py-2.5 font-sans text-[14px] text-white/80 hover:bg-white/5"
-            >
-              Copy invite
-            </button>
-          ) : null}
-
-          {drawOfferedToMe ? (
-            <>
+          <div className="grid grid-cols-2 bg-black/15">
+            {canJoin ? (
               <button
+                type="button"
+                disabled={busy || shortForJoin}
+                onClick={() =>
+                  act(() => joinMatch(match.id, wallet as string), "Couldn't join that game.")
+                }
+                className={`${DRAUGHTS_PANEL_BUTTON_CLASS} col-span-2`}
+              >
+                {shortForJoin
+                  ? `Need ${joinStake} USDC`
+                  : joinStake
+                    ? `Stake ${joinStake} USDC and join`
+                    : "Join game"}
+              </button>
+            ) : null}
+            {waiting && seat ? (
+              <button
+                type="button"
+                onClick={async () => {
+                  await copyText(
+                    `${window.location.origin}/casino/checkers/play?match=${match.id}`
+                  );
+                  toast.success("Invite link copied.");
+                }}
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                Copy invite
+              </button>
+            ) : null}
+            {waiting && seat ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  act(() => abortMatch(match.id, wallet as string), "Couldn't cancel the game.")
+                }
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                Cancel
+              </button>
+            ) : null}
+            {drawOfferedToMe ? (
+              <button
+                type="button"
                 disabled={busy}
                 onClick={() =>
                   act(
@@ -432,11 +691,14 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
                     "Couldn't accept the draw."
                   )
                 }
-                className="text-ink cursor-pointer rounded-[14px] bg-white px-4 py-2.5 font-sans text-[14px] font-semibold hover:opacity-90 disabled:opacity-50"
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
               >
                 Accept draw
               </button>
+            ) : null}
+            {drawOfferedToMe ? (
               <button
+                type="button"
                 disabled={busy}
                 onClick={() =>
                   act(
@@ -444,161 +706,257 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
                     "Couldn't decline the draw."
                   )
                 }
-                className="cursor-pointer rounded-[14px] border border-white/15 px-4 py-2.5 font-sans text-[14px] text-white/80 hover:bg-white/5"
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
               >
-                Decline
+                Decline draw
               </button>
-            </>
-          ) : null}
-
-          {seat && match.state === "in_progress" && !drawOfferedToMe ? (
-            <>
+            ) : null}
+            {seat && match.state === "in_progress" && !drawOfferedToMe ? (
               <button
+                type="button"
                 disabled={busy || match.drawOffered === seat}
                 onClick={() =>
                   act(() => offerDraw(match.id, wallet as string), "Couldn't offer a draw.")
                 }
-                className="cursor-pointer rounded-[14px] border border-white/15 px-4 py-2.5 font-sans text-[14px] text-white/80 hover:bg-white/5 disabled:opacity-40"
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
               >
                 {match.drawOffered === seat ? "Draw offered" : "Offer draw"}
               </button>
-              {match.takeback.takebackable ? (
-                <button
-                  disabled={busy || match.takeback[seat]}
-                  onClick={() =>
-                    act(
-                      () => requestTakeback(match.id, wallet as string),
-                      "Couldn't ask for a takeback."
-                    )
-                  }
-                  className="cursor-pointer rounded-[14px] border border-white/15 px-4 py-2.5 font-sans text-[14px] text-white/80 hover:bg-white/5 disabled:opacity-40"
-                >
-                  Takeback
-                </button>
-              ) : null}
-              {match.takeback[OTHER[seat]] ? (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    act(
-                      () => declineTakeback(match.id, wallet as string),
-                      "Couldn't decline the takeback."
-                    )
-                  }
-                  className="cursor-pointer rounded-[14px] border border-white/15 px-4 py-2.5 font-sans text-[14px] text-white/80 hover:bg-white/5"
-                >
-                  Decline takeback
-                </button>
-              ) : null}
-              {/* Only offered once the opponent has actually run out, so it can
-                never be used to nudge a player who still has time. */}
-              {remainingSeconds(match, OTHER[seat], now) <= 0 ? (
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    act(() => claimTimeout(match.id, wallet as string), "Couldn't claim the win.")
-                  }
-                  className="text-ink cursor-pointer rounded-[14px] bg-white px-4 py-2.5 font-sans text-[14px] font-semibold hover:opacity-90"
-                >
-                  Claim win on time
-                </button>
-              ) : null}
+            ) : null}
+            {seat && match.state === "in_progress" && match.takeback.takebackable ? (
               <button
+                type="button"
+                disabled={busy || match.takeback[seat]}
+                onClick={() =>
+                  act(
+                    () => requestTakeback(match.id, wallet as string),
+                    "Couldn't request a takeback."
+                  )
+                }
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                {match.takeback[seat] ? "Takeback offered" : "Takeback"}
+              </button>
+            ) : null}
+            {seat && match.state === "in_progress" && match.takeback[OTHER[seat]] ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  act(
+                    () => declineTakeback(match.id, wallet as string),
+                    "Couldn't decline the takeback."
+                  )
+                }
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                Decline takeback
+              </button>
+            ) : null}
+            {match.computer && !match.computer.wager && seat && match.state === "in_progress" ? (
+              <button
+                type="button"
+                disabled={busy || !myTurn || coachState?.awaitingResponse === true}
+                onClick={() => void askForHint()}
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                Hint{match.computer.hintsUsed ? ` · ${match.computer.hintsUsed} used` : ""}
+              </button>
+            ) : null}
+            {canExtend ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  act(
+                    () =>
+                      extendMatchTime(
+                        match.id,
+                        wallet as string,
+                        EXTENSION_SECONDS,
+                        crypto.randomUUID()
+                      ),
+                    "Couldn't add time."
+                  )
+                }
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                +5 minutes to both
+              </button>
+            ) : null}
+            {seat &&
+            match.state === "in_progress" &&
+            remainingSeconds(match, OTHER[seat], now) <= 0 ? (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  act(() => claimTimeout(match.id, wallet as string), "Couldn't claim the timeout.")
+                }
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                Claim timeout
+              </button>
+            ) : null}
+            {seat && match.state === "in_progress" ? (
+              <button
+                type="button"
                 disabled={busy}
                 onClick={() =>
                   act(() => resignMatch(match.id, wallet as string), "Couldn't resign.")
                 }
-                className="cursor-pointer rounded-[14px] border border-red-500/30 px-4 py-2.5 font-sans text-[14px] text-red-400 hover:bg-red-500/10 disabled:opacity-40"
+                className={`${DRAUGHTS_PANEL_BUTTON_CLASS} text-red-300`}
               >
                 Resign
               </button>
-            </>
-          ) : null}
-
-          {seat && waiting ? (
-            <button
-              disabled={busy}
-              onClick={() =>
-                act(() => abortMatch(match.id, wallet as string), "Couldn't abort the game.")
-              }
-              className="cursor-pointer rounded-[14px] border border-white/15 px-4 py-2.5 font-sans text-[14px] text-white/70 hover:bg-white/5"
-            >
-              Cancel game
-            </button>
-          ) : null}
-
-          {seat && settled ? (
-            match.rematch.nextMatchId ? (
+            ) : null}
+            {seat && settled && !match.rematch.nextMatchId ? (
               <button
-                onClick={() =>
-                  router.push(`/casino/checkers/play?match=${match.rematch.nextMatchId as string}`)
-                }
-                className="text-ink cursor-pointer rounded-[14px] bg-white px-5 py-2.5 font-sans text-[14px] font-semibold hover:opacity-90"
-              >
-                Go to rematch
-              </button>
-            ) : (
-              <button
+                type="button"
                 disabled={busy || match.rematch.offeredBy === wallet}
                 onClick={() =>
                   act(() => requestRematch(match.id, wallet as string), "Couldn't offer a rematch.")
                 }
-                className="text-ink cursor-pointer rounded-[14px] bg-white px-5 py-2.5 font-sans text-[14px] font-semibold hover:opacity-90 disabled:opacity-50"
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
               >
                 {match.rematch.offeredBy === wallet ? "Rematch offered" : "Rematch"}
               </button>
-            )
-          ) : null}
-        </div>
-
-        {/* Move history in the service's own notation, which is what the PDN
-          export and any analysis will show. */}
-        {match.moves.length > 0 ? (
-          <div className="mt-6">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="font-sans text-[12px] tracking-wide text-white/40 uppercase">Moves</h2>
+            ) : null}
+            {seat && settled && match.rematch.nextMatchId ? (
               <button
-                onClick={async () => {
-                  try {
-                    const pdn = await fetchPdn(match.id);
-                    downloadText(`checkers-${match.id.slice(0, 8)}.pdn`, pdn);
-                  } catch (cause) {
-                    toast.error(friendlyError(cause, "Couldn't export this game."));
-                  }
-                }}
-                className="cursor-pointer font-sans text-[12px] text-white/40 hover:text-white/80"
+                type="button"
+                onClick={() =>
+                  router.push(`/casino/checkers/play?match=${match.rematch.nextMatchId as string}`)
+                }
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
               >
-                Download PDN
+                Open rematch
               </button>
-            </div>
-            <ol className="flex flex-wrap gap-x-3 gap-y-1 font-mono text-[13px] text-white/60">
-              {match.moves.map((san, i) => (
-                <li key={`${i}-${san}`} className="tabular-nums">
-                  <span className="text-white/30">{Math.floor(i / 2) + 1}.</span> {san}
-                </li>
-              ))}
-            </ol>
+            ) : null}
+            {settled ? (
+              <button
+                type="button"
+                onClick={() => router.push(`/casino/checkers/review?match=${match.id}`)}
+                className={DRAUGHTS_PANEL_BUTTON_CLASS}
+              >
+                Analyse game
+              </button>
+            ) : null}
           </div>
-        ) : null}
+        </>
+      )}
 
-        {/* A staked game locks funds, and a rematch asks for them again, so the
-            balance stays reachable from the board itself. */}
-        <div className="mt-6">
-          <ChessCashierLauncher compact />
+      <PlayerClock
+        desktopOnly
+        name={seat ? "You" : nameOf(orientation)}
+        side={orientation}
+        captured={captured[OTHER[orientation]]}
+        rating={match.rating?.[orientation]}
+        clock={bottomClock}
+        unlimited={unlimited}
+        active={match.state === "in_progress" && match.turn === orientation}
+      />
+    </>
+  );
+
+  return (
+    <DraughtsWorkspace
+      aside={
+        <div className="space-y-4">
+          <button
+            type="button"
+            onClick={() => router.push("/casino/checkers")}
+            className="cursor-pointer text-[13px] text-white/45 transition-colors hover:text-white/80"
+          >
+            ← Checkers
+          </button>
+          <div className="border border-white/10 bg-white/[0.025] p-4 shadow-[0_10px_28px_rgba(0,0,0,0.18)]">
+            <p className="text-[11px] font-semibold tracking-[0.08em] text-white/30 uppercase">
+              {variantOption(match.variant).label}
+            </p>
+            <p className="mt-2 text-[18px] font-semibold text-white/85">
+              {match.computer ? `Level ${match.computer.level} computer` : "Live draughts"}
+            </p>
+            <div className="mt-3 space-y-1.5 text-[12px] text-white/45">
+              <p>{match.rating?.rated ? "Rated" : "Casual"}</p>
+              <p>{unlimited ? "Unlimited time" : match.timeControl}</p>
+              {match.wager ? <p>{match.wager.stakeUsdc} USDC each</p> : null}
+              {match.computer?.wager ? <p>{match.computer.wager.stakeUsdc} USDC stake</p> : null}
+              {match.timeExtensions.allowed ? (
+                <p>
+                  Time extensions {match.timeExtensions.used}/{match.timeExtensions.maxUses}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          {match.wager || match.computer?.wager ? <ChessCashierLauncher compact /> : null}
         </div>
-
-        <MatchSocial matchId={match.id} wallet={wallet} isPlayer={!!seat} ply={match.ply} />
-      </div>
-
-      {/* The market and the live room. Sticky on the wide layout so both stay
-          beside the board while the move list and notes scroll past. */}
-      <aside className="flex min-w-0 flex-col gap-4 xl:sticky xl:top-6 xl:h-[calc(100vh-6rem)]">
-        {/* Watchers get the market; the two seats cannot stake on their own game. */}
-        {spectating ? (
-          <SpectatorBetting match={match} wallet={wallet} className="shrink-0" />
-        ) : null}
-        <MatchChat match={match} wallet={wallet} className="h-[26rem] xl:min-h-0 xl:flex-1" />
-      </aside>
-    </div>
+      }
+      board={
+        <div className="min-w-0">
+          <div className="mb-2 md:hidden">
+            <PlayerClock
+              compact
+              name={nameOf(opponent)}
+              side={opponent}
+              captured={captured[OTHER[opponent]]}
+              rating={match.rating?.[opponent]}
+              clock={topClock}
+              unlimited={unlimited}
+              active={match.state === "in_progress" && match.turn === opponent}
+            />
+          </div>
+          <DraughtsBoardView
+            board={board}
+            variant={match.variant}
+            path={path}
+            targets={targets}
+            lastMove={boardLastMove}
+            doomed={doomed}
+            orientation={orientation}
+            onFieldClick={
+              myTurn && !busy && coachReview?.status !== "review" ? onFieldClick : undefined
+            }
+          />
+          <div className="mt-2 md:hidden">
+            <PlayerClock
+              compact
+              name={seat ? "You" : nameOf(orientation)}
+              side={orientation}
+              captured={captured[OTHER[orientation]]}
+              rating={match.rating?.[orientation]}
+              clock={bottomClock}
+              unlimited={unlimited}
+              active={match.state === "in_progress" && match.turn === orientation}
+            />
+          </div>
+        </div>
+      }
+      panel={<div className="flex h-full min-h-0 flex-col">{playerPanel}</div>}
+      controls={
+        <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 pr-[2.6%] text-[12px] text-white/38">
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                downloadText(`checkers-${match.id.slice(0, 8)}.pdn`, await fetchPdn(match.id));
+              } catch (cause) {
+                toast.error(friendlyError(cause, "Couldn't export this game."));
+              }
+            }}
+            className="cursor-pointer hover:text-white/75"
+          >
+            Download PDN
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push("/casino/checkers/learn")}
+            className="cursor-pointer hover:text-white/75"
+          >
+            Learn draughts
+          </button>
+        </div>
+      }
+    />
   );
 }

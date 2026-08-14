@@ -53,6 +53,23 @@ describe("toMarketOdds", () => {
     expect(odds.winningOutcome).toBe("white");
   });
 
+  it("maps the native draughts market shape", () => {
+    const odds = toMarketOdds({
+      status: "open",
+      totalPoolUsdc: "12.5",
+      rakeBps: 500,
+      white: { poolUsdc: "5", decimalOdds: "2.500" },
+      draw: { poolUsdc: "2.5", decimalOdds: "5.000" },
+      black: { poolUsdc: "5", decimalOdds: "2.500" },
+    });
+
+    expect(odds.total).toBe("12.5");
+    expect(odds.rakeBps).toBe(500);
+    expect(odds.outcomes.white).toEqual({ pool: "5", odds: 2.5 });
+    expect(odds.outcomes.draw).toEqual({ pool: "2.5", odds: 5 });
+    expect(odds.outcomes.black).toEqual({ pool: "5", odds: 2.5 });
+  });
+
   it("carries a void reason and defaults an unknown status to open", () => {
     const odds = toMarketOdds({ status: "weird", total: "0", void_reason: "one-sided pool" });
     expect(odds.status).toBe("open");
@@ -88,6 +105,11 @@ describe("toBetSlip", () => {
     expect(bet.payoutUsdc).toBeNull();
     expect(bet.matchId).toBe("m1");
     expect(bet.stakeUsdc).toBe("2");
+  });
+
+  it("treats the service's zero active payout as unsettled", () => {
+    const bet = toBetSlip({ status: "active", payoutUsdc: "0.000000" });
+    expect(bet.payoutUsdc).toBeNull();
   });
 });
 

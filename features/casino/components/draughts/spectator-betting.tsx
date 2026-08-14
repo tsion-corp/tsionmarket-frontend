@@ -1,7 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useMatchMarket, usePlaceBet } from "@/features/casino/hooks/use-casino-betting";
+import {
+  useDraughtsMatchMarket,
+  usePlaceDraughtsBet,
+} from "@/features/casino/hooks/use-draughts-betting";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
 import { impliedProbability, pariMutuelBreakdown } from "@/features/casino/lib/betting-math";
@@ -10,7 +13,6 @@ import {
   normalizeUsdcAmount,
   parseUsdcAmount,
 } from "@/features/casino/lib/api/cashier";
-import { DRAUGHTS_BETTING_ENABLED } from "@/features/casino/lib/draughts/betting-readiness";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { BetSelection } from "@/features/casino/lib/api/types";
@@ -65,14 +67,12 @@ interface SpectatorBettingProps {
  * Pari-mutuel spectator betting on a live board: back White, Black, or a draw,
  * and share the losing pool if you are right.
  *
- * The market is only queried once the service can resolve a draughts match, so
- * until then this renders as a preview and never fires a request that would
- * come back "match not found". See lib/casino/draughts/betting-readiness.ts.
+ * The draughts module owns a native market, so this never crosses into the
+ * chess match tables even though both games share the same cashier balance.
  */
 export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBettingProps) {
-  const live = DRAUGHTS_BETTING_ENABLED;
-  const { odds, myBets, error } = useMatchMarket(live ? match.id : null, wallet);
-  const placeBet = usePlaceBet();
+  const { odds, myBets, error } = useDraughtsMatchMarket(match.id, wallet);
+  const placeBet = usePlaceDraughtsBet();
   const cashier = useChessCashierStatus();
 
   const [selection, setSelection] = useState<BetSelection | null>(null);
@@ -85,7 +85,7 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
       (seat) => !!seat && seat.toLowerCase() === wallet.toLowerCase()
     );
 
-  const marketOpen = live && odds?.status === "open" && match.state === "in_progress";
+  const marketOpen = odds?.status === "open" && match.state === "in_progress";
   const stakeUsdc = normalizeUsdcAmount(stakeInput);
   const stakeValid = stakeUsdc !== null;
   const overBalance =
@@ -95,7 +95,7 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
 
   // The rake the service takes off the losing pool. It comes from the cashier
   // config so the panel never states a fee the backend does not charge.
-  const rakeBps = cashier.config?.platformFeeBps ?? 500;
+  const rakeBps = odds?.rakeBps ?? cashier.config?.platformFeeBps ?? 500;
   const rakePct = rakeBps / 100;
   const breakdown =
     odds && selection && stakeValid
@@ -103,7 +103,6 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
       : { stake: 0, profit: 0, rake: 0, total: 0, refundOnly: false };
 
   const canBet =
-    live &&
     marketOpen &&
     !isPlayer &&
     !!wallet &&
@@ -133,19 +132,12 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
   return (
     <section className={`rounded-2xl border border-white/10 bg-white/[0.02] ${className}`}>
       <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
-        <span
-          className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-white/70" : "bg-white/25"}`}
-        />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white/70" />
         <span className="font-sans text-[13px] font-semibold text-white">Live market</span>
       </div>
 
       <div className="space-y-4 p-4">
-        {!live ? (
-          <p className="rounded-[10px] bg-white/[0.04] px-3 py-2.5 font-sans text-[12px] leading-relaxed text-white/55">
-            Staking on checkers is not open yet. The board and the payouts are ready; the service
-            still has to price a draughts market.
-          </p>
-        ) : error ? (
+        {error ? (
           <p className="rounded-[10px] bg-white/[0.04] px-3 py-2.5 font-sans text-[12px] text-white/55">
             No market for this game yet.
           </p>
@@ -156,7 +148,7 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
           pool.
         </p>
 
-        {live ? <ChessCashierLauncher compact /> : null}
+        <ChessCashierLauncher compact />
 
         {/* Outcomes. Prices show as em dashes until a real market exists. */}
         <div className="grid grid-cols-3 gap-2">

@@ -5,6 +5,8 @@ const PRIVATE_READ_PATTERNS = [
   /^betting\/markets\/[^/]+\/bets$/u,
   /^betting\/swiss\/[^/]+\/bets$/u,
   /^players\/[^/]+\/product-access$/u,
+  /^players\/[^/]+\/coach\/(?:home|training)$/u,
+  /^computer\/matches\/[^/]+\/coach$/u,
   /^matches\/[^/]+\/note$/u,
 ];
 

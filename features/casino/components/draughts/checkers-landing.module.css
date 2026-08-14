@@ -1,0 +1,336 @@
+.page {
+  min-height: calc(100dvh - 60px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% -20%, rgb(98 103 110 / 16%), transparent 42%),
+    linear-gradient(145deg, #0d0e0f 0%, #090a0b 58%, #050506 100%);
+  padding: clamp(10px, 1.35vw, 20px);
+}
+
+.topline {
+  display: flex;
+  width: min(1390px, 100%);
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  margin-inline: auto;
+  color: rgb(255 255 255 / 28%);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 3px;
+  background: linear-gradient(180deg, #2a2c2f, #17181a);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 8%),
+    0 5px 14px rgb(0 0 0 / 28%);
+  padding: 6px 10px;
+  color: rgb(255 255 255 / 66%);
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  transition:
+    border-color 120ms ease,
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.back:hover,
+.back:focus-visible {
+  border-color: rgb(255 255 255 / 28%);
+  background: linear-gradient(180deg, #35383c, #202225);
+  color: white;
+  outline: none;
+}
+
+.stage {
+  --board-size: min(820px, calc(100dvh - 122px), calc(100vw - 720px));
+  display: grid;
+  grid-template-columns: minmax(210px, 250px) var(--board-size) minmax(320px, 470px);
+  gap: clamp(12px, 1.2vw, 20px);
+  width: min(1580px, 100%);
+  align-items: start;
+  justify-content: center;
+  margin: 8px auto 0;
+}
+
+.puzzleSide {
+  min-width: 0;
+}
+
+.puzzleType,
+.puzzleCard,
+.fullCoachLink {
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 3px;
+  background: linear-gradient(145deg, #242629, #17191b);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 6%),
+    0 10px 24px rgb(0 0 0 / 28%);
+}
+
+.puzzleType {
+  padding: 10px 13px;
+  color: rgb(255 255 255 / 64%);
+  font-size: 13px;
+}
+
+.puzzleCard {
+  display: flex;
+  min-height: 150px;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 22px 18px;
+}
+
+.targetIcon {
+  flex: none;
+  color: rgb(255 255 255 / 48%);
+  font-size: 52px;
+  line-height: 0.8;
+}
+
+.puzzleCard strong {
+  display: block;
+  color: #7dc4f2;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.puzzleCard p {
+  margin-top: 5px;
+  color: rgb(255 255 255 / 48%);
+  font-size: 12px;
+}
+
+.puzzleCard b {
+  color: rgb(255 255 255 / 78%);
+}
+
+.fullCoachLink {
+  display: block;
+  margin-top: 12px;
+  padding: 10px 13px;
+  color: rgb(255 255 255 / 48%);
+  font-size: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.fullCoachLink:hover {
+  color: white;
+}
+
+.board {
+  width: var(--board-size);
+  min-width: 0;
+}
+
+.panel {
+  display: flex;
+  height: var(--board-size);
+  min-width: 0;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #3a3d41;
+  border-radius: 3px;
+  background: linear-gradient(145deg, #202225 0%, #151719 48%, #101113 100%);
+  box-shadow:
+    inset 0 1px rgb(255 255 255 / 7%),
+    inset 1px 0 rgb(255 255 255 / 3%),
+    0 14px 38px rgb(0 0 0 / 38%);
+}
+
+.panelHeader {
+  display: flex;
+  min-height: 54px;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  background: linear-gradient(180deg, rgb(255 255 255 / 6%), rgb(255 255 255 / 2%));
+  padding: 8px 14px;
+}
+
+.panelHeader div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.panelHeader span {
+  color: rgb(255 255 255 / 35%);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.panelHeader strong {
+  color: rgb(255 255 255 / 78%);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.panelHeader button {
+  cursor: pointer;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 2px;
+  background: linear-gradient(180deg, #303338, #202225);
+  padding: 6px 10px;
+  color: rgb(255 255 255 / 58%);
+  font-size: 11px;
+}
+
+.panelHeader button:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 24%);
+  color: white;
+}
+
+.panelHeader button:disabled {
+  cursor: default;
+  opacity: 0.3;
+}
+
+.feedback {
+  position: relative;
+  display: flex;
+  min-height: clamp(150px, 22%, 190px);
+  flex: none;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  background: linear-gradient(100deg, rgb(255 255 255 / 3%), transparent 56%);
+  padding: clamp(18px, 2vw, 28px);
+  padding-bottom: 54px;
+}
+
+.feedback img {
+  width: clamp(58px, 7vw, 78px);
+  height: clamp(58px, 7vw, 78px);
+  flex: none;
+  filter: drop-shadow(0 8px 9px rgb(0 0 0 / 42%));
+}
+
+.feedback strong {
+  display: block;
+  color: rgb(255 255 255 / 88%);
+  font-size: clamp(20px, 2vw, 27px);
+  line-height: 1.15;
+}
+
+.feedback p {
+  max-width: 32ch;
+  margin-top: 5px;
+  color: rgb(255 255 255 / 47%);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.feedback button {
+  position: absolute;
+  right: 24px;
+  bottom: 18px;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: #72bdf0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.feedback button:hover {
+  color: #b9e1fb;
+}
+
+.feedback[data-state="fail"] strong {
+  color: #f87171;
+}
+
+.feedback[data-state="good"] strong,
+.feedback[data-state="complete"] strong {
+  color: #6ee7b7;
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .stage {
+    --board-size: min(720px, calc(100dvh - 122px), calc(100vw - 390px));
+    grid-template-columns: var(--board-size) minmax(300px, 370px);
+  }
+
+  .puzzleSide {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .page {
+    min-height: calc(100dvh - 54px);
+    overflow: visible;
+    padding-inline: 10px;
+  }
+
+  .stage {
+    --board-size: min(760px, calc(100vw - 20px));
+    grid-template-columns: minmax(0, var(--board-size));
+  }
+
+  .puzzleSide {
+    display: grid;
+    width: var(--board-size);
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .puzzleType,
+  .puzzleCard,
+  .fullCoachLink {
+    margin: 0;
+  }
+
+  .puzzleCard {
+    min-height: 0;
+    padding: 12px;
+  }
+
+  .targetIcon,
+  .fullCoachLink {
+    display: none;
+  }
+
+  .panel {
+    width: var(--board-size);
+    height: min(500px, calc(100dvh - 80px));
+    min-height: 360px;
+  }
+}
+
+@media (max-width: 520px) {
+  .topline > span {
+    display: none;
+  }
+
+  .feedback {
+    min-height: 132px;
+    padding: 16px;
+  }
+
+  .feedback img {
+    width: 54px;
+    height: 54px;
+  }
+
+  .feedback strong {
+    font-size: 20px;
+  }
+}

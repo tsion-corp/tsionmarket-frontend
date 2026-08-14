@@ -52,7 +52,7 @@ describe("server auth helpers", () => {
 
     const user = await getRequestUser(makeReq(), {
       userId: "user_claim",
-      sessionId: "session_1",
+      sessionId: "session_2",
       issuedAt: 1,
       expiration: 2,
     });
@@ -60,5 +60,22 @@ describe("server auth helpers", () => {
     expect(privy.getByToken).not.toHaveBeenCalled();
     expect(privy.getById).toHaveBeenCalledWith("user_claim");
     expect(user).toEqual({ id: "user_claim" });
+  });
+
+  it("reuses the resolved user for repeated requests in one verified session", async () => {
+    privy.getByToken.mockResolvedValue({ id: "user_cached" });
+    const claims = {
+      userId: "user_cached",
+      sessionId: "session_cached",
+      issuedAt: 1,
+      expiration: 2,
+    };
+
+    const first = await getRequestUser(makeReq({ "privy-id-token": "id-token" }), claims);
+    const second = await getRequestUser(makeReq({ "privy-id-token": "id-token" }), claims);
+
+    expect(first).toEqual({ id: "user_cached" });
+    expect(second).toEqual({ id: "user_cached" });
+    expect(privy.getByToken).toHaveBeenCalledTimes(1);
   });
 });

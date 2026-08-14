@@ -32,6 +32,12 @@ function wire(overrides: Partial<DraughtsMatchWire> = {}): DraughtsMatchWire {
     timeControl: { initialSeconds: 30, incrementSeconds: 30 },
     clocks: { whiteMs: 30_000, blackMs: 30_000 },
     drawOfferBy: null,
+    rating: {
+      rated: true,
+      perfKey: "bullet",
+      white: { rating: 1_500, provisional: true, diff: null },
+      black: { rating: 1_625, provisional: false, diff: null },
+    },
     createdAt: "2026-08-10T10:00:00.000Z",
     startedAt: "2026-08-10T10:00:05.000Z",
     finishedAt: null,
@@ -48,14 +54,15 @@ describe("match ids", () => {
 });
 
 describe("variants", () => {
-  it("keeps the two the engine actually implements", () => {
+  it("keeps every supported draughts variant", () => {
     expect(toVariant("standard")).toBe("standard");
     expect(toVariant("from_position")).toBe("from_position");
+    expect(toVariant("frisian")).toBe("frisian");
+    expect(toVariant("russian")).toBe("russian");
   });
 
-  it("reads an unimplemented variant as standard rather than inventing a mode", () => {
-    expect(toVariant("frisian")).toBe("standard");
-    expect(toVariant("russian")).toBe("standard");
+  it("reads an unknown variant as standard", () => {
+    expect(toVariant("unknown")).toBe("standard");
   });
 });
 
@@ -106,6 +113,27 @@ describe("normalizing a match", () => {
     expect(match.state).toBe("in_progress");
     expect(match.white?.username).toMatch(/^0x1111/u);
     expect(match.white?.walletAddress).toBe("0x1111111111111111111111111111111111111111");
+  });
+
+  it("carries the service rating packet independently of a wager", () => {
+    const match = toDraughtsMatch(wire());
+    expect(match.wager).toBeNull();
+    expect(match.rating).toEqual({
+      rated: true,
+      perfKey: "bullet",
+      white: { rating: 1_500, provisional: true, diff: null },
+      black: { rating: 1_625, provisional: false, diff: null },
+    });
+  });
+
+  it("keeps matches created before ratings playable", () => {
+    const match = toDraughtsMatch(wire({ rating: undefined }));
+    expect(match.rating).toEqual({
+      rated: false,
+      perfKey: null,
+      white: { rating: null, provisional: null, diff: null },
+      black: { rating: null, provisional: null, diff: null },
+    });
   });
 
   it("shows an equal base and increment as one per-move budget", () => {

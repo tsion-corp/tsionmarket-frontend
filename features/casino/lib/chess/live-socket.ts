@@ -15,7 +15,11 @@
 // match id. Connection-level control frames (welcome/subscribed/pong/error) are
 // topic-less and ignored here.
 
-const WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL ?? "wss://ws.worldstreetwebservices.com";
+const DEFAULT_WS_URL =
+  process.env.NODE_ENV === "development"
+    ? "ws://127.0.0.1:8100"
+    : "wss://ws.worldstreetwebservices.com";
+const WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL ?? DEFAULT_WS_URL;
 
 export interface GatewayFrame {
   type?: string;

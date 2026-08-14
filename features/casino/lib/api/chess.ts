@@ -293,7 +293,8 @@ export async function createChallenge(
     color: "random",
     initial_seconds: initialSeconds,
     increment_seconds: incrementSeconds,
-    rated: input.rated ?? true,
+    // Rating is a property of human PvP, not of whether USDC is at stake.
+    rated: true,
     allow_time_extensions: input.allowTimeExtensions ?? false,
     ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
   });

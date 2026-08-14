@@ -454,7 +454,7 @@ describe("create a game", () => {
     expect(sent.timeControl).toBe("15+0");
     expect(sent.mode).toBe("invite");
     expect(sent.creator).toBe("0xabc");
-    expect(sent.rated).toBe(false);
+    expect(sent.rated).toBe(true);
     expect(sent.allowTimeExtensions).toBe(true);
   });
 

@@ -25,7 +25,7 @@ function PlayRoute() {
 
 export default function CheckersPlayPage() {
   return (
-    <CasinoPage hideBackLink>
+    <CasinoPage hideBackLink immersive>
       <Suspense
         fallback={<p className="py-16 text-center font-sans text-[14px] text-white/50">Loading…</p>}
       >

@@ -132,6 +132,8 @@ describe("chess proxy route", () => {
   });
 
   it("never caches player coach state", async () => {
+    auth.verifyRequest.mockResolvedValue({ userId: "user_1" });
+    auth.getRequestUser.mockResolvedValue(walletUser("0xabc"));
     const { GET } = await loadRoute();
     const request = () => makeReq("https://app.test/api/chess/players/0xabc/coach/home");
     const context = { params: Promise.resolve({ path: ["players", "0xabc", "coach", "home"] }) };

@@ -1,15 +1,15 @@
 "use client";
 
 import { memo, useMemo, useState } from "react";
+import Image from "next/image";
 import {
-  DEFAULT_DRAUGHTS_THEME,
-  type DraughtsBoardTheme,
-} from "@/features/casino/lib/draughts/board-theme";
-import {
+  boardSizeForVariant,
+  fieldCountForVariant,
   fieldToRc,
   rcToField,
   type DraughtsBoard,
   type DraughtsSide,
+  type DraughtsVariant,
 } from "@/features/casino/lib/draughts/engine";
 
 // Draughts has no piece art to load: a man is a disc and a king is a disc with
@@ -23,8 +23,6 @@ import {
 // is never remounted, so a piece glides across a multi-jump instead of blinking
 // from one square to the next.
 const PIECE_TRANSITION = "transform .32s cubic-bezier(.2, .7, .3, 1)";
-
-const CELLS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 // A piece on the board with an identity that survives across positions, so
 // React reconciles a moved piece to the same DOM node.
@@ -43,9 +41,9 @@ interface Placement {
 
 // One character per field, so a re-render with an identical position (a clock
 // tick) can be told apart from a real move without comparing objects.
-function serialize(board: DraughtsBoard): string {
+function serialize(board: DraughtsBoard, fieldCount: number): string {
   let out = "";
-  for (let field = 1; field <= 50; field++) {
+  for (let field = 1; field <= fieldCount; field++) {
     const piece = board[field];
     out += !piece
       ? "."
@@ -60,18 +58,18 @@ function serialize(board: DraughtsBoard): string {
   return out;
 }
 
-function collect(board: DraughtsBoard): Omit<Placed, "id">[] {
+function collect(board: DraughtsBoard, fieldCount: number): Omit<Placed, "id">[] {
   const cells: Omit<Placed, "id">[] = [];
-  for (let field = 1; field <= 50; field++) {
+  for (let field = 1; field <= fieldCount; field++) {
     const piece = board[field];
     if (piece) cells.push({ field, side: piece.side, king: piece.kind === "king" });
   }
   return cells;
 }
 
-function initialPlacement(board: DraughtsBoard, serial: string): Placement {
+function initialPlacement(board: DraughtsBoard, serial: string, fieldCount: number): Placement {
   let nextId = 0;
-  const placed = collect(board).map((cell) => ({ id: nextId++, ...cell }));
+  const placed = collect(board, fieldCount).map((cell) => ({ id: nextId++, ...cell }));
   return { placed, serial, nextId };
 }
 
@@ -80,8 +78,13 @@ function initialPlacement(board: DraughtsBoard, serial: string): Placement {
 // a vacated piece of the same colour, so it glides from that square; a man that
 // was crowned keeps its identity and simply gains the crown. Captured pieces
 // fall out of the list.
-function reconcile(prev: Placement, board: DraughtsBoard, serial: string): Placement {
-  const cells = collect(board);
+function reconcile(
+  prev: Placement,
+  board: DraughtsBoard,
+  serial: string,
+  fieldCount: number
+): Placement {
+  const cells = collect(board, fieldCount);
   const old = prev.placed;
   const used = new Array(old.length).fill(false);
   const kept: Placed[] = [];
@@ -117,19 +120,17 @@ function reconcile(prev: Placement, board: DraughtsBoard, serial: string): Place
 
 interface DraughtsBoardProps {
   board: DraughtsBoard;
+  variant?: DraughtsVariant;
   /** The squares the player has clicked so far, origin first. */
   path?: readonly number[];
   /** Squares the piece may move to next. */
   targets?: readonly number[];
-  /** Squares whose pieces have a legal move, hinted when nothing is selected. */
-  movable?: readonly number[];
   /** The previous move's path, kept lit until the next one. */
   lastMove?: readonly number[];
   /** Pieces about to be taken by the path in progress. */
   doomed?: readonly number[];
   /** Which side sits at the bottom. */
   orientation?: DraughtsSide;
-  theme?: DraughtsBoardTheme;
   /** Omit to render a read-only board. */
   onFieldClick?: (field: number) => void;
 }
@@ -138,23 +139,30 @@ interface DraughtsBoardProps {
 // the board only actually changes when a prop does.
 export const DraughtsBoardView = memo(function DraughtsBoardView({
   board,
+  variant = "standard",
   path = [],
   targets = [],
-  movable = [],
   lastMove = [],
   doomed = [],
   orientation = "white",
-  theme = DEFAULT_DRAUGHTS_THEME,
   onFieldClick,
 }: DraughtsBoardProps) {
   const flipped = orientation === "black";
+  const size = boardSizeForVariant(variant);
+  const fieldCount = fieldCountForVariant(variant);
+  const cells = useMemo(() => Array.from({ length: size }, (_, index) => index), [size]);
 
-  const serial = useMemo(() => serialize(board), [board]);
-  const [placement, setPlacement] = useState<Placement>(() => initialPlacement(board, serial));
+  const serial = useMemo(
+    () => `${variant}:${serialize(board, fieldCount)}`,
+    [board, fieldCount, variant]
+  );
+  const [placement, setPlacement] = useState<Placement>(() =>
+    initialPlacement(board, serial, fieldCount)
+  );
   // Adjusting state during render, guarded by the previous serial: React's
   // pattern for deriving from a changed prop without an effect's extra pass.
   if (placement.serial !== serial) {
-    setPlacement(reconcile(placement, board, serial));
+    setPlacement(reconcile(placement, board, serial, fieldCount));
   }
 
   const selected = path.length > 0 ? path[path.length - 1] : null;
@@ -162,29 +170,24 @@ export const DraughtsBoardView = memo(function DraughtsBoardView({
 
   // Black reads the board from the far side, so both axes flip. The true field
   // number stays on the click handler so a click always names its own square.
-  const display = (n: number) => (flipped ? 9 - n : n);
-  const rows = flipped ? [...CELLS].reverse() : CELLS;
-  const cols = flipped ? [...CELLS].reverse() : CELLS;
+  const display = (n: number) => (flipped ? size - 1 - n : n);
+  const rows = flipped ? [...cells].reverse() : cells;
+  const cols = flipped ? [...cells].reverse() : cells;
+  const cellPercent = 100 / size;
+
+  const boardTexture = size === 10 ? "/draughts/board/wood-100.jpg" : "/draughts/board/wood-64.jpg";
 
   return (
-    // The frame of a real set, drawn as padding on a wrapper rather than a
-    // border: a percentage scales with the board, and border-width has no
-    // relative unit that would. The inner box stays the true board area, so the
-    // piece layer's percentage offsets keep lining up with the squares.
-    <div
-      className="w-full overflow-hidden rounded-[7px]"
-      style={{ background: theme.frame, padding: "1.4%" }}
-    >
+    <div className="relative w-full pr-[2.6%] pb-[3.4%]" style={{ containerType: "inline-size" }}>
       <div
-        className="relative w-full overflow-hidden rounded-[2px]"
-        // The query container the pieces size their bevel and grooves against.
-        style={{ containerType: "inline-size" }}
+        className="relative aspect-square w-full overflow-visible rounded-[2px] bg-cover shadow-[0_8px_30px_rgba(0,0,0,0.32)]"
+        style={{ backgroundImage: `url(${boardTexture})` }}
       >
         {/* Square layer: colours, highlights, field numbers and click targets. */}
-        <div className="grid grid-cols-10">
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}>
           {rows.map((row) =>
             cols.map((col) => {
-              const field = rcToField(row, col);
+              const field = rcToField(row, col, variant);
               const playable = field !== null;
               const isDark = (row + col) % 2 === 1;
 
@@ -193,17 +196,14 @@ export const DraughtsBoardView = memo(function DraughtsBoardView({
               const isTarget = field !== null && targets.includes(field);
               const isLast = field !== null && lastMove.includes(field);
               const isDoomed = field !== null && doomed.includes(field);
-              const isMovable = field !== null && path.length === 0 && movable.includes(field);
-
-              let background = isDark ? theme.dark : theme.light;
-              if (isLast) background = isDark ? theme.darkLast : theme.lightLast;
-              if (isOrigin || isSelected) {
-                background = isDark ? theme.darkSelected : theme.lightSelected;
-              }
+              let background = "transparent";
+              if (isLast) background = "rgba(174, 174, 24, 0.44)";
+              if (isOrigin || isSelected) background = "rgba(194, 191, 24, 0.58)";
 
               const marker = isDark ? "rgba(244,244,244,0.55)" : "rgba(15,15,15,0.4)";
-              const numberColor = isDark ? theme.light : theme.dark;
               const clickable = !!onFieldClick && playable;
+              const edgeNumber = playable && display(col) === size - 1;
+              const bottomNumber = playable && display(row) === size - 1;
 
               return (
                 <div
@@ -214,13 +214,20 @@ export const DraughtsBoardView = memo(function DraughtsBoardView({
                   }`}
                   style={{ background, containerType: "size" }}
                 >
-                  {/* Field numbers only on the playing squares: draughts notation
-                    is numeric, so they double as a reading aid. */}
-                  {playable ? (
+                  {edgeNumber ? (
                     <span
                       aria-hidden
-                      className="pointer-events-none absolute leading-none font-medium tabular-nums opacity-25"
-                      style={{ color: numberColor, fontSize: "15cqw", left: "7cqw", top: "5cqw" }}
+                      className="pointer-events-none absolute top-1/2 z-20 -translate-y-1/2 font-sans font-semibold text-white/65 tabular-nums select-none"
+                      style={{ fontSize: "17cqw", right: "-28cqw" }}
+                    >
+                      {field}
+                    </span>
+                  ) : null}
+                  {bottomNumber ? (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 font-sans font-semibold text-white/65 tabular-nums select-none"
+                      style={{ bottom: "-28cqw", fontSize: "17cqw" }}
                     >
                       {field}
                     </span>
@@ -246,17 +253,6 @@ export const DraughtsBoardView = memo(function DraughtsBoardView({
                       style={{ background: marker }}
                     />
                   ) : null}
-
-                  {/* A quiet hint on the pieces that have a legal move. With a
-                    forced capture on the board this is the shortlist, which is
-                    how a player learns the rule without being told. */}
-                  {isMovable ? (
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-[9%] rounded-full border-2"
-                      style={{ borderColor: marker, opacity: 0.5 }}
-                    />
-                  ) : null}
                 </div>
               );
             })
@@ -268,14 +264,14 @@ export const DraughtsBoardView = memo(function DraughtsBoardView({
           fall through to the square handler. */}
         <div className="pointer-events-none absolute inset-0">
           {placement.placed.map((piece) => {
-            const { row, col } = fieldToRc(piece.field);
+            const { row, col } = fieldToRc(piece.field, variant);
             return (
               <div
                 key={piece.id}
                 className="absolute top-0 left-0 flex items-center justify-center"
                 style={{
-                  width: "10%",
-                  height: "10%",
+                  width: `${cellPercent}%`,
+                  height: `${cellPercent}%`,
                   transform: `translate(${display(col) * 100}%, ${display(row) * 100}%)`,
                   transition: PIECE_TRANSITION,
                   willChange: "transform",
@@ -291,85 +287,19 @@ export const DraughtsBoardView = memo(function DraughtsBoardView({
   );
 });
 
-// The two piece colours. Each is a lit disc: a highlight off the top-left, a
-// darker rim, and a drop shadow that lifts it off the square.
-const DISC: Record<
-  DraughtsSide,
-  { face: string; rim: string; crown: string; groove: string; grooveShadow: string }
-> = {
-  // Ivory and ebony, the two colours a draughts set actually comes in. Both
-  // read against every square in the palettes, which red-on-red would not.
-  white: {
-    face: "radial-gradient(circle at 32% 26%, #fffdf7 0%, #f4eddc 45%, #cdc0a4 100%)",
-    rim: "rgba(94,80,56,0.6)",
-    crown: "#8a6d2f",
-    groove: "rgba(120,102,72,0.3)",
-    grooveShadow: "rgba(120,102,72,0.25)",
-  },
-  black: {
-    face: "radial-gradient(circle at 32% 26%, #4a4a52 0%, #26262c 45%, #101014 100%)",
-    rim: "rgba(0,0,0,0.7)",
-    crown: "#d9b45a",
-    groove: "rgba(255,255,255,0.13)",
-    grooveShadow: "rgba(0,0,0,0.5)",
-  },
-};
-
 function Disc({ side, king }: { side: DraughtsSide; king: boolean }) {
-  const skin = DISC[side];
+  const file = `${side === "white" ? "w" : "b"}${king ? "K" : "M"}.svg`;
   return (
-    <div
-      className="relative flex items-center justify-center rounded-full"
-      style={{
-        width: "78%",
-        height: "78%",
-        background: skin.face,
-        border: `1px solid ${skin.rim}`,
-        // Container units so the bevel and the lift scale with the board
-        // instead of turning into a smudge on a phone.
-        boxShadow: "inset 0 -1.5cqw 2.5cqw rgba(0,0,0,0.3), 0 1cqw 1.6cqw rgba(0,0,0,0.4)",
-      }}
-    >
-      {/* The concentric grooves a real draughts piece is moulded with: a wide
-          outer step, then the ring the crown sits inside. Two rings rather than
-          one is what reads as a moulded counter instead of a flat dot. */}
-      <span
-        aria-hidden
-        className="absolute rounded-full"
-        style={{
-          inset: "9%",
-          border: `0.4cqw solid ${skin.groove}`,
-          boxShadow: `inset 0 0.35cqw 0.5cqw ${skin.grooveShadow}`,
-        }}
-      />
-      <span
-        aria-hidden
-        className="absolute rounded-full"
-        style={{ inset: "20%", border: `0.35cqw solid ${skin.groove}` }}
-      />
-      {king ? <Crown color={skin.crown} /> : null}
-    </div>
-  );
-}
-
-// A crown marks a king. Drawn rather than typed so it scales with the board and
-// never depends on an emoji font.
-function Crown({ color }: { color: string }) {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 24 24"
-      className="relative"
-      style={{ width: "52%", height: "52%" }}
-      fill="none"
-    >
-      <path
-        d="M4 17.5h16M4.6 7.2l3.5 3.1L12 5l3.9 5.3 3.5-3.1-1.3 8.3H5.9L4.6 7.2Z"
-        fill={color}
-        stroke={color}
-        strokeWidth="1.1"
-        strokeLinejoin="round"
-      />
-    </svg>
+    // These are Lidraughts' wide set from the supplied source tree. Keeping
+    // them as SVG images preserves its raised-counter silhouette at every size.
+    <Image
+      alt=""
+      draggable={false}
+      src={`/draughts/pieces/${file}`}
+      width={100}
+      height={100}
+      unoptimized
+      className="h-full w-full object-contain select-none"
+    />
   );
 }

@@ -1,184 +1,253 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
-import { useDraughtsLobby } from "@/features/casino/hooks/use-draughts-match";
-import { joinMatch } from "@/features/casino/lib/api/draughts";
-import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
-import { exceedsUsdcBalance } from "@/features/casino/lib/api/cashier";
-import { DraughtsBoardView } from "@/features/casino/components/draughts/draughts-board";
+import { useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeftIcon } from "@/components/ui/icons";
+import { CheckersComputerDialog } from "@/features/casino/components/draughts/checkers-computer-dialog";
 import { CheckersLiveNowDialog } from "@/features/casino/components/draughts/checkers-live-now-dialog";
-import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
-import { CasinoError } from "@/features/casino/components/casino-state";
+import { useDraughtsLiveMatches } from "@/features/casino/hooks/use-draughts-match";
 import {
-  EmptyHint,
-  MenuActionButton,
-  MenuActionLink,
-  MenuHeader,
-  MENU_SHELL_BG,
-  MENU_SURFACE_BG,
-  PlayerBar,
-  StateRow,
-} from "@/features/casino/components/game-menu";
-import { FlagIcon, FlameIcon, GameArrowsIcon } from "@/components/ui/icons";
-import { parseFen, STARTING_FEN } from "@/features/casino/lib/draughts/engine";
-import { friendlyError } from "@/lib/errors";
-import { truncateAddress } from "@/lib/format";
-import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
-import type { DraughtsChallenge } from "@/features/casino/lib/draughts/types";
+  DraughtsMoveTable,
+  DraughtsReplayControls,
+} from "@/features/casino/components/draughts/draughts-move-table";
+import { DraughtsTrainingBoard } from "@/features/casino/components/draughts/draughts-training-board";
+import {
+  applyMove,
+  exportFen,
+  legalMoves,
+  moveToSan,
+  moveToUci,
+  parseFen,
+  parseUci,
+  STARTING_FEN,
+  type DraughtsMove,
+} from "@/features/casino/lib/draughts/engine";
+import { DRAUGHTS_HOME_PUZZLE_LINE } from "@/features/casino/lib/draughts/home-puzzle";
+import styles from "@/features/casino/components/draughts/checkers-landing.module.css";
 
-// The board behind the menu is decoration, so it is the opening position and
-// never changes. Parsed once at module scope rather than per render.
-const LANDING_BOARD = parseFen(STARTING_FEN).board;
-
-function selfLabel(name: string | null, address: string | null): string {
-  if (name) return name;
-  if (address) return truncateAddress(address);
-  return "You";
+interface PuzzlePosition {
+  fen: string;
+  move: string | null;
+  path: readonly number[];
 }
+
+type PuzzleStatus = "playing" | "good" | "fail" | "complete";
+
+const INITIAL_POSITION: PuzzlePosition = {
+  fen: STARTING_FEN,
+  move: null,
+  path: [],
+};
 
 export function CheckersLanding() {
   const router = useRouter();
-  const wallet = useCasinoWallet();
-  const address = wallet.address ?? null;
-  const { challenges, mine, live, error, refetch } = useDraughtsLobby(address);
-  const cashier = useChessCashierStatus();
-  const [liveOpen, setLiveOpen] = useState(false);
-  const [joining, setJoining] = useState(false);
+  const params = useSearchParams();
+  const liveOpen = params.get("live") === "1";
+  const live = useDraughtsLiveMatches(liveOpen);
+  const [timeline, setTimeline] = useState<PuzzlePosition[]>([INITIAL_POSITION]);
+  const [activePly, setActivePly] = useState(0);
+  const [step, setStep] = useState(0);
+  const [status, setStatus] = useState<PuzzleStatus>("playing");
+  const [solutionVisible, setSolutionVisible] = useState(false);
 
-  const onJoin = async (challenge: DraughtsChallenge) => {
-    if (!address) {
-      toast.error("Sign in to join a game.");
+  const current = timeline[activePly] ?? INITIAL_POSITION;
+  const position = useMemo(() => parseFen(current.fen, "standard"), [current.fen]);
+  const atLatestPosition = activePly === timeline.length - 1;
+  const expectedMove = DRAUGHTS_HOME_PUZZLE_LINE[step]?.player ?? null;
+  const moves = useMemo(
+    () => timeline.slice(1).flatMap((entry) => (entry.move ? [entry.move] : [])),
+    [timeline]
+  );
+  const marks = useMemo<Record<number, { symbol: string; tone: "good" }>>(() => {
+    const result: Record<number, { symbol: string; tone: "good" }> = {};
+    for (let ply = 1; ply <= moves.length; ply += 2) {
+      result[ply] = { symbol: "✓", tone: "good" };
+    }
+    return result;
+  }, [moves.length]);
+  const hintPath = useMemo(
+    () => (solutionVisible && expectedMove ? (parseUci(expectedMove) ?? []) : []),
+    [expectedMove, solutionVisible]
+  );
+
+  const playMove = (move: DraughtsMove) => {
+    if (!atLatestPosition || !expectedMove || status === "complete") return;
+    if (moveToUci(move) !== expectedMove) {
+      setStatus("fail");
+      setSolutionVisible(false);
       return;
     }
-    // Joining a staked game locks the same amount the creator put up. Checking
-    // here turns a rejected request into a clear message plus a way to top up.
-    if (challenge.stakeUsdc && exceedsUsdcBalance(challenge.stakeUsdc, cashier.available)) {
-      toast.error(`You need ${challenge.stakeUsdc} USDC to join that game.`);
+
+    let nextPosition = applyMove(position, move);
+    const nextTimeline: PuzzlePosition[] = [
+      ...timeline,
+      {
+        fen: exportFen(nextPosition),
+        move: moveToSan(move),
+        path: [...move.path],
+      },
+    ];
+
+    const replyUci = DRAUGHTS_HOME_PUZZLE_LINE[step]?.reply;
+    const reply = replyUci
+      ? legalMoves(nextPosition).find((candidate) => moveToUci(candidate) === replyUci)
+      : null;
+    if (replyUci && !reply) {
+      setStatus("fail");
       return;
     }
-    if (challenge.stakeUsdc) {
-      track("game_staked", { game: "checkers", amount_usd: Number(challenge.stakeUsdc) });
+    if (reply) {
+      nextPosition = applyMove(nextPosition, reply);
+      nextTimeline.push({
+        fen: exportFen(nextPosition),
+        move: moveToSan(reply),
+        path: [...reply.path],
+      });
     }
-    setJoining(true);
-    try {
-      await joinMatch(challenge.id, address);
-      router.push(`/casino/checkers/play?match=${challenge.id}`);
-    } catch (cause) {
-      toast.error(friendlyError(cause, "Couldn't join that game."));
-    } finally {
-      setJoining(false);
-    }
+
+    const nextStep = step + 1;
+    setTimeline(nextTimeline);
+    setActivePly(nextTimeline.length - 1);
+    setStep(nextStep);
+    setStatus(nextStep === DRAUGHTS_HOME_PUZZLE_LINE.length ? "complete" : "good");
+    setSolutionVisible(false);
   };
 
-  const quiet = !error && challenges.length === 0 && mine.length === 0 && live.length === 0;
+  const reset = () => {
+    setTimeline([INITIAL_POSITION]);
+    setActivePly(0);
+    setStep(0);
+    setStatus("playing");
+    setSolutionVisible(false);
+  };
+
+  const reviewing = !atLatestPosition;
+  const title = reviewing
+    ? `Reviewing move ${activePly}`
+    : status === "complete"
+      ? "Puzzle complete"
+      : status === "fail"
+        ? "Try again"
+        : status === "good"
+          ? "Good move"
+          : "Your turn";
+  const instruction = reviewing
+    ? "Return to the last position to continue the puzzle."
+    : status === "complete"
+      ? "You found the complete forcing line."
+      : status === "fail"
+        ? "That move is legal, but it misses the strongest continuation."
+        : step === 0
+          ? "Find the best move for white."
+          : "Black replied. Find white's next move.";
 
   return (
     <>
-      <div className="mx-auto w-full max-w-[1264px] px-4 pb-10">
-        {/* Board pinned on the left below the sticky topbar while the menu
-            column scrolls on its own, the same arrangement as chess. */}
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,840px)_392px]">
-          <section
-            className="rounded-[8px] p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[84px] xl:self-start"
-            style={{ background: MENU_SURFACE_BG }}
-          >
-            <div className="mx-auto w-full max-w-[var(--board-max)] [--board-max:min(100%,780px,calc(100vh_-_255px))] xl:[--board-max:min(100%,780px,calc(100vh_-_350px))]">
-              <PlayerBar label="Opponent" />
-              <div className="mt-4 overflow-hidden rounded-[2px]">
-                <DraughtsBoardView board={LANDING_BOARD} orientation="white" />
+      <main className={styles.page}>
+        <div className={styles.topline}>
+          <Link href="/casino" className={styles.back}>
+            <ChevronLeftIcon size={14} />
+            Back
+          </Link>
+          <span>International draughts</span>
+        </div>
+
+        <div className={styles.stage}>
+          <aside className={styles.puzzleSide}>
+            <div className={styles.puzzleType}>♛ Standard puzzles</div>
+            <section className={styles.puzzleCard}>
+              <span className={styles.targetIcon} aria-hidden>
+                ◎
+              </span>
+              <div>
+                <strong>Coach puzzle</strong>
+                <p>Rating: hidden</p>
+                <p>
+                  Step <b>{Math.min(step + 1, DRAUGHTS_HOME_PUZZLE_LINE.length)}</b> of{" "}
+                  {DRAUGHTS_HOME_PUZZLE_LINE.length}
+                </p>
               </div>
-              <div className="mt-4">
-                <PlayerBar label={selfLabel(wallet.name, address)} active={wallet.connected} />
-              </div>
-            </div>
+            </section>
+            <Link href="/casino/checkers/learn" className={styles.fullCoachLink}>
+              Open full lessons
+            </Link>
+          </aside>
+
+          <section className={styles.board} aria-label="Interactive draughts coach puzzle">
+            <DraughtsTrainingBoard
+              fen={current.fen}
+              variant="standard"
+              orientation="white"
+              enabled={atLatestPosition && status !== "complete"}
+              lastMove={current.path}
+              hintPath={hintPath}
+              onMove={playMove}
+            />
           </section>
 
-          <aside
-            className="overflow-hidden rounded-[8px] shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:sticky xl:top-[84px] xl:max-h-[calc(100vh-116px)] xl:self-start xl:overflow-y-auto"
-            style={{ background: MENU_SHELL_BG }}
-          >
-            <MenuHeader title="Play Checkers" />
-            <div className="space-y-3 p-4 sm:p-5">
-              <ChessCashierLauncher />
-              <div className="space-y-2">
-                <MenuActionButton
-                  title="Live Now"
-                  note="Watch active games and open the live market"
-                  icon={<FlameIcon size={20} />}
-                  onClick={() => setLiveOpen(true)}
-                  ariaLabel="Open live games"
-                />
-                <MenuActionLink
-                  title="Play a Friend"
-                  note="Invite a friend to a game of checkers"
-                  icon={<GameArrowsIcon size={20} />}
-                  href="/casino/checkers/create"
-                />
-                <MenuActionLink
-                  title="Tournaments"
-                  note="Browse current events and create a Swiss tournament"
-                  icon={<FlagIcon size={20} />}
-                  href="/casino/checkers/tournaments"
-                />
+          <aside className={styles.panel}>
+            <header className={styles.panelHeader}>
+              <div>
+                <span>Coach puzzle</span>
+                <strong>Moves</strong>
               </div>
+              <button type="button" onClick={reset} disabled={timeline.length === 1}>
+                Reset
+              </button>
+            </header>
 
-              {/* Your own waiting seats first: the action is to reopen them. */}
-              {mine.length > 0 ? (
-                <div className="space-y-2">
-                  {mine.map((match) => (
-                    <StateRow
-                      key={match.id}
-                      label={
-                        match.state === "awaiting_opponent"
-                          ? "Waiting for an opponent"
-                          : "Your game in progress"
-                      }
-                      meta={
-                        match.wager
-                          ? `${match.wager.stakeUsdc} USDC · ${match.timeControl}`
-                          : match.timeControl
-                      }
-                      action="Open"
-                      onAction={() => router.push(`/casino/checkers/play?match=${match.id}`)}
-                    />
-                  ))}
-                </div>
+            <DraughtsMoveTable
+              moves={moves}
+              activePly={activePly}
+              marks={marks}
+              onSelect={setActivePly}
+            />
+
+            <section className={styles.feedback} data-state={status} aria-live="polite">
+              <Image
+                src="/draughts/pieces/wK.svg"
+                alt=""
+                width={78}
+                height={78}
+                unoptimized
+                aria-hidden
+              />
+              <div>
+                <strong>{title}</strong>
+                <p>{instruction}</p>
+              </div>
+              {!reviewing && status !== "complete" ? (
+                <button type="button" onClick={() => setSolutionVisible(true)}>
+                  {solutionVisible ? "Solution shown" : "View solution"}
+                </button>
               ) : null}
-
-              {challenges.length > 0 ? (
-                <div className="space-y-2">
-                  <span className="sr-only">Open games</span>
-                  {challenges.map((challenge) => (
-                    <StateRow
-                      key={challenge.id}
-                      label={challenge.creator?.username ?? "Open seat"}
-                      meta={
-                        challenge.stakeUsdc
-                          ? `Stake ${challenge.stakeUsdc} USDC · ${challenge.timeControl}`
-                          : `Free · ${challenge.timeControl}`
-                      }
-                      action={challenge.stakeUsdc ? `Stake ${challenge.stakeUsdc}` : "Join"}
-                      disabled={joining}
-                      onAction={() => void onJoin(challenge)}
-                    />
-                  ))}
-                </div>
+              {status === "complete" ? (
+                <button type="button" onClick={reset}>
+                  Solve again
+                </button>
               ) : null}
+            </section>
 
-              {error ? <CasinoError error={error} subject="checkers" onRetry={refetch} /> : null}
-
-              {quiet ? (
-                <EmptyHint lines={["No games running yet.", "Start one and share the link."]} />
-              ) : null}
-            </div>
+            <DraughtsReplayControls
+              activePly={activePly}
+              totalPlies={moves.length}
+              onSelect={setActivePly}
+            />
           </aside>
         </div>
-      </div>
+      </main>
 
-      <CheckersLiveNowDialog open={liveOpen} onClose={() => setLiveOpen(false)} matches={live} />
+      <CheckersComputerDialog
+        open={params.get("computer") === "1"}
+        onClose={() => router.replace("/casino/checkers", { scroll: false })}
+      />
+      <CheckersLiveNowDialog
+        open={liveOpen}
+        onClose={() => router.replace("/casino/checkers", { scroll: false })}
+        matches={live.matches}
+      />
     </>
   );
 }

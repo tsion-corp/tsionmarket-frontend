@@ -28,16 +28,34 @@ import {
   type DraughtsMatchWire,
   type DraughtsMoveWire,
 } from "@/features/casino/lib/api/draughts-wire";
-import { apiError } from "@/lib/api/envelope";
+import { apiError, errorCode } from "@/lib/api/envelope";
 import { parseTimeControl } from "@/features/casino/lib/time-control";
 import type {
   CreateDraughtsMatchInput,
+  CreateDraughtsComputerMatchInput,
+  DraughtsCoachCatalog,
+  DraughtsCoachExperience,
+  DraughtsCoachHint,
+  DraughtsCoachHome,
+  DraughtsCoachLessonAttempt,
+  DraughtsCoachMoveReview,
+  DraughtsCoachPreferredMode,
+  DraughtsCoachProgress,
+  DraughtsCoachTraining,
+  DraughtsCoachTrainingAttempt,
+  DraughtsComputerCoachState,
+  DraughtsComputerHint,
   DraughtsChallenge,
   DraughtsChatMessage,
   DraughtsChatRoom,
   DraughtsMatch,
   DraughtsMatchComment,
   DraughtsMatchNote,
+  DraughtsMatchAnalysis,
+  DraughtsInsights,
+  DraughtsPerfKey,
+  DraughtsPlayerRatings,
+  DraughtsRatingHistory,
   UpsertDraughtsCommentInput,
 } from "@/features/casino/lib/draughts/types";
 
@@ -60,6 +78,15 @@ interface ChatMessagesWire {
 
 interface CommentsWire {
   items: DraughtsMatchCommentWire[];
+}
+
+type DraughtsCoachMoveReviewWire = Omit<DraughtsCoachMoveReview, "matchState"> & {
+  matchState: DraughtsMatchWire | null;
+};
+type DraughtsCoachProfile = DraughtsCoachHome["profile"];
+
+function toCoachMoveReview(wire: DraughtsCoachMoveReviewWire): DraughtsCoachMoveReview {
+  return { ...wire, matchState: wire.matchState ? toDraughtsMatch(wire.matchState) : null };
 }
 
 // The service has no server-side expiry for waiting matches, so the public
@@ -139,14 +166,130 @@ export async function createMatch(
   const wire = await draughtsPost<DraughtsMatchWire>("/matches", {
     creator,
     color: input.color ?? "random",
-    // Only the two implemented variants are ever sent. A starting position
-    // makes it from_position; anything else is the standard game.
-    variant: input.startingFen ? "from_position" : "standard",
+    variant: input.startingFen ? "from_position" : (input.variant ?? "standard"),
     ...(input.startingFen ? { startingFen: input.startingFen } : {}),
     initialSeconds,
     incrementSeconds,
+    // Every human PvP match is rated; stake only controls escrow.
+    rated: true,
+    allowTimeExtensions: input.allowTimeExtensions ?? false,
     ...(input.stakeUsdc ? { stakeUsdc: input.stakeUsdc } : {}),
   });
+  return toDraughtsMatch(wire);
+}
+
+export async function createComputerMatch(
+  input: CreateDraughtsComputerMatchInput,
+  player: string,
+  idempotencyKey?: string
+): Promise<DraughtsMatch> {
+  const wire = await draughtsPost<DraughtsMatchWire>("/computer/matches", {
+    player,
+    level: input.level,
+    color: input.color,
+    variant: input.startingFen ? "from_position" : input.variant,
+    ...(input.startingFen ? { startingFen: input.startingFen } : {}),
+    timeMode: input.timeMode,
+    ...(input.timeMode === "real_time"
+      ? { initialSeconds: input.initialSeconds, incrementSeconds: input.incrementSeconds }
+      : {}),
+    ...(input.stakeUsdc ? { stakeUsdc: input.stakeUsdc } : {}),
+    coachEnabled: input.coachEnabled ?? false,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+  });
+  return toDraughtsMatch(wire);
+}
+
+export function requestComputerHint(
+  matchId: string,
+  player: string,
+  idempotencyKey: string
+): Promise<DraughtsComputerHint> {
+  return draughtsPost<DraughtsComputerHint>(`/computer/matches/${requireMatchId(matchId)}/hint`, {
+    player,
+    idempotencyKey,
+  });
+}
+
+export function fetchComputerCoachState(
+  matchId: string,
+  player: string
+): Promise<DraughtsComputerCoachState> {
+  return draughtsGet<DraughtsComputerCoachState>(
+    `/computer/matches/${requireMatchId(matchId)}/coach`,
+    { player },
+    { requireAuth: true }
+  );
+}
+
+export async function submitComputerCoachMove(
+  matchId: string,
+  player: string,
+  uci: string,
+  expectedPly: number,
+  idempotencyKey: string
+): Promise<DraughtsCoachMoveReview> {
+  const wire = await draughtsPost<DraughtsCoachMoveReviewWire>(
+    `/computer/matches/${requireMatchId(matchId)}/coach/move`,
+    { player, uci, expectedPly, idempotencyKey }
+  );
+  return toCoachMoveReview(wire);
+}
+
+async function resolveCoachReview(
+  matchId: string,
+  actionName: "continue" | "undo",
+  player: string,
+  attemptId: string,
+  expectedPly: number
+): Promise<DraughtsCoachMoveReview> {
+  const wire = await draughtsPost<DraughtsCoachMoveReviewWire>(
+    `/computer/matches/${requireMatchId(matchId)}/coach/${actionName}`,
+    { player, attemptId, expectedPly }
+  );
+  return toCoachMoveReview(wire);
+}
+
+export function continueComputerCoachReview(
+  matchId: string,
+  player: string,
+  attemptId: string,
+  expectedPly: number
+): Promise<DraughtsCoachMoveReview> {
+  return resolveCoachReview(matchId, "continue", player, attemptId, expectedPly);
+}
+
+export function undoComputerCoachReview(
+  matchId: string,
+  player: string,
+  attemptId: string,
+  expectedPly: number
+): Promise<DraughtsCoachMoveReview> {
+  return resolveCoachReview(matchId, "undo", player, attemptId, expectedPly);
+}
+
+export function requestComputerCoachHint(
+  matchId: string,
+  player: string,
+  expectedPly: number,
+  idempotencyKey: string
+): Promise<DraughtsCoachHint> {
+  return draughtsPost<DraughtsCoachHint>(
+    `/computer/matches/${requireMatchId(matchId)}/coach/hint`,
+    { player, expectedPly, idempotencyKey }
+  );
+}
+
+export async function extendMatchTime(
+  matchId: string,
+  player: string,
+  seconds: number,
+  idempotencyKey: string
+): Promise<DraughtsMatch> {
+  const wire = await draughtsPost<DraughtsMatchWire>(
+    `/matches/${requireMatchId(matchId)}/time-extension`,
+    { player, seconds, idempotencyKey }
+  );
   return toDraughtsMatch(wire);
 }
 
@@ -238,6 +381,117 @@ export function declineTakeback(matchId: string, player: string): Promise<Draugh
 export async function fetchPdn(matchId: string): Promise<string> {
   const data = await draughtsGet<{ pdn: string }>(`/matches/${requireMatchId(matchId)}/pdn`);
   return data.pdn;
+}
+
+export async function fetchMatchAnalysis(matchId: string): Promise<DraughtsMatchAnalysis | null> {
+  try {
+    return await draughtsGet<DraughtsMatchAnalysis>(`/matches/${requireMatchId(matchId)}/analysis`);
+  } catch (error) {
+    if (errorCode(error) === "NOT_FOUND") return null;
+    throw error;
+  }
+}
+
+export function requestMatchAnalysis(
+  matchId: string,
+  player: string,
+  options: { premium?: boolean; idempotencyKey?: string } = {}
+): Promise<DraughtsMatchAnalysis> {
+  return draughtsPost<DraughtsMatchAnalysis>(
+    `/matches/${requireMatchId(matchId)}/analysis/request`,
+    {
+      player,
+      premium: options.premium ?? false,
+      ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+    }
+  );
+}
+
+export function fetchPlayerInsights(player: string, limit = 10): Promise<DraughtsInsights> {
+  return draughtsGet<DraughtsInsights>(`/players/${encodeURIComponent(player)}/insights`, {
+    limit,
+  });
+}
+
+export function fetchCoachProgress(player: string): Promise<DraughtsCoachProgress> {
+  return draughtsGet<DraughtsCoachProgress>(
+    `/players/${encodeURIComponent(player)}/coach-progress`
+  );
+}
+
+export function fetchCoachCatalog(): Promise<DraughtsCoachCatalog> {
+  return draughtsGet<DraughtsCoachCatalog>("/coach/catalog");
+}
+
+export function fetchCoachHome(player: string): Promise<DraughtsCoachHome> {
+  return draughtsGet<DraughtsCoachHome>(
+    `/players/${encodeURIComponent(player)}/coach/home`,
+    undefined,
+    { requireAuth: true }
+  );
+}
+
+export function updateCoachProfile(
+  player: string,
+  input: {
+    experience: DraughtsCoachExperience;
+    onboardingComplete: boolean;
+    preferredMode: DraughtsCoachPreferredMode;
+  }
+): Promise<DraughtsCoachProfile> {
+  return draughtsPut<DraughtsCoachProfile>(
+    `/players/${encodeURIComponent(player)}/coach/profile`,
+    input
+  );
+}
+
+export function fetchCoachTraining(player: string, limit = 20): Promise<DraughtsCoachTraining> {
+  return draughtsGet<DraughtsCoachTraining>(
+    `/players/${encodeURIComponent(player)}/coach/training`,
+    { limit },
+    { requireAuth: true }
+  );
+}
+
+export function attemptCoachLesson(
+  lessonKey: string,
+  chapterKey: string,
+  player: string,
+  uci: string,
+  idempotencyKey: string
+): Promise<DraughtsCoachLessonAttempt> {
+  return draughtsPost<DraughtsCoachLessonAttempt>(
+    `/coach/lessons/${encodeURIComponent(lessonKey)}/chapters/${encodeURIComponent(chapterKey)}/attempt`,
+    { player, uci, idempotencyKey }
+  );
+}
+
+export function attemptCoachTraining(
+  player: string,
+  matchId: string,
+  ply: number,
+  uci: string,
+  idempotencyKey: string
+): Promise<DraughtsCoachTrainingAttempt> {
+  return draughtsPost<DraughtsCoachTrainingAttempt>(
+    `/players/${encodeURIComponent(player)}/coach/training/${requireMatchId(matchId)}/${ply}/attempt`,
+    { uci, idempotencyKey }
+  );
+}
+
+export function fetchPlayerRatings(player: string): Promise<DraughtsPlayerRatings> {
+  return draughtsGet<DraughtsPlayerRatings>(`/players/${encodeURIComponent(player)}/ratings`);
+}
+
+export function fetchRatingHistory(
+  player: string,
+  perf: DraughtsPerfKey,
+  limit = 20
+): Promise<DraughtsRatingHistory> {
+  return draughtsGet<DraughtsRatingHistory>(
+    `/players/${encodeURIComponent(player)}/ratings/${perf}/history`,
+    { limit }
+  );
 }
 
 export async function fetchMatchChat(

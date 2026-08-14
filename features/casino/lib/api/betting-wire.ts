@@ -20,14 +20,28 @@ const SELECTIONS: readonly BetSelection[] = ["white", "draw", "black"];
 // (`{ white, draw, black }`) or a list of `{ outcome, ... }` rows.
 type OutcomeMap<T> = Partial<Record<BetSelection, T>>;
 
+interface OutcomePoolWire {
+  poolUsdc?: string | number;
+  pool_usdc?: string | number;
+  decimalOdds?: string | number | null;
+  decimal_odds?: string | number | null;
+}
+
 export interface MarketOddsWire {
   status?: string;
   total?: string | number;
   totalPool?: string | number;
   total_pool?: string | number;
+  totalPoolUsdc?: string | number;
+  total_pool_usdc?: string | number;
+  rakeBps?: number;
+  rake_bps?: number;
   pools?: OutcomeMap<string | number>;
   odds?: OutcomeMap<string | number>;
   outcomes?: Array<{ outcome?: string; pool?: string | number; odds?: string | number | null }>;
+  white?: OutcomePoolWire;
+  draw?: OutcomePoolWire;
+  black?: OutcomePoolWire;
   winningOutcome?: string | null;
   winning_outcome?: string | null;
   voidReason?: string | null;
@@ -99,7 +113,18 @@ export function toMarketOdds(wire: MarketOddsWire): MarketOdds {
     if (row.odds !== undefined && row.odds !== null) oddsBy[side] = row.odds;
   }
 
-  const total = asString(wire.total ?? wire.totalPool ?? wire.total_pool);
+  for (const side of SELECTIONS) {
+    const direct = wire[side];
+    if (!direct) continue;
+    const pool = direct.poolUsdc ?? direct.pool_usdc;
+    const odds = direct.decimalOdds ?? direct.decimal_odds;
+    if (pool !== undefined) poolBy[side] = pool;
+    if (odds !== undefined && odds !== null) oddsBy[side] = odds;
+  }
+
+  const total = asString(
+    wire.total ?? wire.totalPool ?? wire.total_pool ?? wire.totalPoolUsdc ?? wire.total_pool_usdc
+  );
   const outcomes = SELECTIONS.reduce(
     (acc, side) => {
       const pool = asString(poolBy[side]);
@@ -113,6 +138,7 @@ export function toMarketOdds(wire: MarketOddsWire): MarketOdds {
     status: asMarketStatus(wire.status),
     total,
     outcomes,
+    rakeBps: wire.rakeBps ?? wire.rake_bps,
     winningOutcome: asSelection(wire.winningOutcome ?? wire.winning_outcome),
     voidReason: wire.voidReason ?? wire.void_reason ?? null,
   };
@@ -120,13 +146,17 @@ export function toMarketOdds(wire: MarketOddsWire): MarketOdds {
 
 export function toBetSlip(wire: BetSlipWire): BetSlip {
   const payout = wire.payoutUsdc ?? wire.payout_usdc ?? wire.payout;
+  const state = asBetState(wire.status ?? wire.state);
   return {
     id: wire.id ?? "",
     matchId: wire.matchId ?? wire.match_id ?? "",
     selection: asSelection(wire.outcome ?? wire.selection) ?? "white",
     stakeUsdc: asString(wire.stakeUsdc ?? wire.stake_usdc ?? wire.stake),
-    state: asBetState(wire.status ?? wire.state),
-    payoutUsdc: payout === null || payout === undefined ? null : asString(payout),
+    state,
+    payoutUsdc:
+      payout === null || payout === undefined || (state === "active" && Number(payout) === 0)
+        ? null
+        : asString(payout),
     placedAt: wire.createdAt ?? wire.created_at ?? wire.placedAt ?? null,
   };
 }

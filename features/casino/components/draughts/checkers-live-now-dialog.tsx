@@ -1,10 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChessDialogFrame } from "@/features/casino/components/chess/chess-dialog-frame";
 import { MENU_CARD_BG, MENU_SHADOW } from "@/features/casino/components/game-menu";
 import { FlameIcon } from "@/components/ui/icons";
 import type { DraughtsMatch } from "@/features/casino/lib/draughts/types";
+import {
+  DRAUGHTS_VARIANT_OPTIONS,
+  variantOption,
+  type PlayableDraughtsVariant,
+} from "@/features/casino/lib/draughts/variants";
 
 function seatLabel(match: DraughtsMatch): string {
   const white = match.white?.username ?? "Open seat";
@@ -23,16 +29,34 @@ export function CheckersLiveNowDialog({
   matches: DraughtsMatch[];
 }) {
   const router = useRouter();
+  const [variant, setVariant] = useState<PlayableDraughtsVariant | "all">("all");
+  const visible =
+    variant === "all" ? matches : matches.filter((match) => match.variant === variant);
 
   return (
     <ChessDialogFrame open={open} onClose={onClose} title="Live now" icon={<FlameIcon size={18} />}>
-      {matches.length === 0 ? (
+      <label className="mb-3 block">
+        <span className="sr-only">Filter games by variant</span>
+        <select
+          value={variant}
+          onChange={(event) => setVariant(event.target.value as PlayableDraughtsVariant | "all")}
+          className="h-10 w-full rounded-[6px] border border-white/12 bg-[#171819] px-3 text-[12.5px] text-white/75 outline-none focus:border-white/30"
+        >
+          <option value="all">All variants</option>
+          {DRAUGHTS_VARIANT_OPTIONS.map((option) => (
+            <option key={option.id} value={option.id}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {visible.length === 0 ? (
         <p className="px-1 py-6 text-center font-sans text-[13px] text-white/40">
-          No games are running right now.
+          No {variant === "all" ? "games are" : "games in this variant are"} running right now.
         </p>
       ) : (
         <ul className="space-y-2">
-          {matches.map((match) => (
+          {visible.map((match) => (
             <li
               key={match.id}
               className="flex items-center gap-3 rounded-[8px] px-4 py-3"
@@ -44,7 +68,7 @@ export function CheckersLiveNowDialog({
                 </div>
                 <div className="truncate text-[12px] text-white/64">
                   {match.wager ? `${match.wager.stakeUsdc} USDC · ` : ""}
-                  {match.timeControl}
+                  {variantOption(match.variant).shortLabel} · {match.timeControl}
                 </div>
               </div>
               <button

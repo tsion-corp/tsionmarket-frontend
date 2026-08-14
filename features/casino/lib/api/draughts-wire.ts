@@ -8,7 +8,11 @@
 
 import { truncateAddress } from "@/lib/format";
 import { formatTimeControl } from "@/features/casino/lib/time-control";
-import { STARTING_FEN, type DraughtsSide } from "@/features/casino/lib/draughts/engine";
+import {
+  isDraughtsVariant,
+  STARTING_FEN,
+  type DraughtsSide,
+} from "@/features/casino/lib/draughts/engine";
 import type {
   DraughtsChallenge,
   DraughtsChatMessage,
@@ -17,6 +21,7 @@ import type {
   DraughtsMatch,
   DraughtsMatchComment,
   DraughtsMatchNote,
+  DraughtsMatchRating,
   DraughtsMatchState,
   DraughtsPlayer,
   DraughtsRematchState,
@@ -37,8 +42,32 @@ export interface DraughtsClocksWire {
 }
 
 export interface DraughtsTimeControlWire {
+  mode?: "real_time" | "unlimited";
   initialSeconds: number;
   incrementSeconds: number;
+}
+
+export interface DraughtsTimeExtensionsWire {
+  allowed: boolean;
+  used: number;
+  totalSeconds: number;
+  maxUses: number;
+  maxTotalSeconds: number;
+}
+
+export interface DraughtsComputerWire {
+  player: string;
+  name: string;
+  side: DraughtsSideWire;
+  level: number;
+  coachEnabled: boolean;
+  hintsUsed: number;
+  wager?: {
+    stakeUsdc: string;
+    feeBps: number;
+    status: string;
+    payoutUsdc: string;
+  } | null;
 }
 
 export interface DraughtsWagerWire {
@@ -64,6 +93,19 @@ export interface DraughtsRematchWire {
   nextMatchId: string | null;
 }
 
+export interface DraughtsPlayerRatingWire {
+  rating: number | null;
+  provisional: boolean | null;
+  diff: number | null;
+}
+
+export interface DraughtsMatchRatingWire {
+  rated: boolean;
+  perfKey: DraughtsMatchRating["perfKey"];
+  white: DraughtsPlayerRatingWire;
+  black: DraughtsPlayerRatingWire;
+}
+
 export interface DraughtsMatchWire {
   id: string;
   inviteCode?: string;
@@ -82,10 +124,16 @@ export interface DraughtsMatchWire {
   ply: number;
   timeControl: DraughtsTimeControlWire;
   clocks: DraughtsClocksWire;
+  timeExtensions?: DraughtsTimeExtensionsWire;
+  clockUpdatedAt?: string;
   drawOfferBy: string | null;
   takeback?: DraughtsTakebackWire;
   rematch?: DraughtsRematchWire;
   wager?: DraughtsWagerWire | null;
+  computer?: DraughtsComputerWire | null;
+  // Older deployed matches predate ratings. Keep this optional at the wire
+  // boundary so reopening one cannot crash the play screen.
+  rating?: DraughtsMatchRatingWire;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -158,11 +206,15 @@ const EMPTY_REMATCH: DraughtsRematchState = {
   nextMatchId: null,
 };
 
-// Only the two variants the engine actually implements are surfaced. Anything
-// else the service reports is read as standard rather than shown as a mode the
-// player could pick and then be refused.
+const UNRATED_MATCH: DraughtsMatchRating = {
+  rated: false,
+  perfKey: null,
+  white: { rating: null, provisional: null, diff: null },
+  black: { rating: null, provisional: null, diff: null },
+};
+
 export function toVariant(value: string): DraughtsVariant {
-  return value === "from_position" ? "from_position" : "standard";
+  return isDraughtsVariant(value) ? value : "standard";
 }
 
 // The service reports the winning side and a reason separately, while our
@@ -249,12 +301,11 @@ export function toDraughtsMatch(
   const moveWires = options.moves ?? [];
   const moves = options.moveSan ?? moveWires.map((m) => m.san);
 
-  // When the clocks were last true. The service has no "as of" field and does
-  // not charge time on a read, so the last move is the only honest reference
-  // point; using the moment the response arrived would restart the countdown on
-  // every poll and freeze the displayed clock.
+  // New servers provide the exact instant these clocks were true. The move and
+  // start timestamps remain fallbacks for old snapshots.
   const clockUpdatedAt =
     options.clockUpdatedAt ??
+    wire.clockUpdatedAt ??
     (moveWires.length > 0
       ? moveWires[moveWires.length - 1].createdAt
       : (wire.startedAt ?? wire.createdAt));
@@ -284,13 +335,41 @@ export function toDraughtsMatch(
       wire.timeControl.initialSeconds,
       wire.timeControl.incrementSeconds
     ),
+    clockMode: wire.timeControl.mode ?? "real_time",
     clocks: normalizeClocks(wire),
     clockUpdatedAt,
     result: toResult(wire.result, wire.resultReason),
     drawOffered,
     takeback: { ...EMPTY_TAKEBACK, ...(wire.takeback ?? {}) },
     rematch: { ...EMPTY_REMATCH, ...(wire.rematch ?? {}) },
+    timeExtensions: {
+      allowed: false,
+      used: 0,
+      totalSeconds: 0,
+      maxUses: 0,
+      maxTotalSeconds: 0,
+      ...(wire.timeExtensions ?? {}),
+    },
     wager: toWager(wire.wager),
+    computer: wire.computer
+      ? {
+          player: wire.computer.player,
+          name: wire.computer.name,
+          side: wire.computer.side,
+          level: wire.computer.level,
+          coachEnabled: wire.computer.coachEnabled,
+          hintsUsed: wire.computer.hintsUsed,
+          wager: wire.computer.wager
+            ? {
+                stakeUsdc: wire.computer.wager.stakeUsdc,
+                feeBps: wire.computer.wager.feeBps,
+                status: wire.computer.wager.status,
+                payoutUsdc: wire.computer.wager.payoutUsdc,
+              }
+            : null,
+        }
+      : null,
+    rating: wire.rating ?? UNRATED_MATCH,
     // Take the topic from the response; the fallback only covers an older
     // service that predates the field.
     liveTopic: wire.liveTopic ?? `draughts:match:${wire.id}`,
@@ -358,6 +437,7 @@ export interface DraughtsPositionFrame {
   ply: number;
   lastMove?: { uci: string; san: string } | null;
   clocks?: DraughtsClocksWire;
+  clockUpdatedAt?: string;
   status?: DraughtsStatusWire;
 }
 
@@ -383,7 +463,10 @@ export function applyPositionFrame(
       : prev.clocks,
     // The frame reflects the clocks as of now, so now is the honest reference
     // the local tick counts down from.
-    clockUpdatedAt: new Date().toISOString(),
+    clockUpdatedAt:
+      frame.clockUpdatedAt && Number.isFinite(Date.parse(frame.clockUpdatedAt))
+        ? frame.clockUpdatedAt
+        : new Date().toISOString(),
     moves,
   };
 }

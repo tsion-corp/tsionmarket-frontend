@@ -1,0 +1,91 @@
+.root {
+  container-type: inline-size;
+  width: 100%;
+}
+
+.workspace {
+  --draughts-gap: clamp(12px, 2vmin, 24px);
+  display: grid;
+  grid-template-areas:
+    "board"
+    "controls"
+    "panel"
+    "aside";
+  gap: var(--draughts-gap);
+  width: 100%;
+  max-width: 1520px;
+  margin-inline: auto;
+  padding: 12px 12px 28px;
+}
+
+.aside {
+  grid-area: aside;
+  min-width: 0;
+}
+
+.board {
+  grid-area: board;
+  width: 100%;
+  min-width: 0;
+}
+
+.panel {
+  grid-area: panel;
+  display: flex;
+  min-width: 0;
+  min-height: 320px;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 4px;
+  background: rgb(20 20 21 / 96%);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 28%);
+}
+
+.controls {
+  grid-area: controls;
+  min-width: 0;
+}
+
+@container (min-width: 780px) {
+  .workspace {
+    --draughts-board: min(62cqw, calc(100dvh - 142px), 760px);
+    grid-template-columns: var(--draughts-board) minmax(240px, 1fr);
+    grid-template-areas:
+      "board panel"
+      "controls controls"
+      "aside aside";
+    align-items: start;
+    justify-content: center;
+  }
+
+  .board {
+    width: var(--draughts-board);
+  }
+
+  .panel {
+    height: var(--draughts-board);
+    min-height: 0;
+  }
+}
+
+@container (min-width: 1180px) {
+  .workspace {
+    --draughts-board: min(54cqw, calc(100dvh - 142px), 760px);
+    grid-template-columns: minmax(210px, 1fr) var(--draughts-board) minmax(250px, 380px);
+    grid-template-areas:
+      "aside board panel"
+      ". controls controls";
+  }
+
+  .aside {
+    justify-self: stretch;
+  }
+}
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .workspace {
+    --draughts-board: min(56cqw, calc(100dvh - 92px), 680px);
+    padding-block-start: 6px;
+  }
+}

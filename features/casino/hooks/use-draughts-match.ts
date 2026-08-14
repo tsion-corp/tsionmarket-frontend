@@ -248,6 +248,21 @@ export function useDraughtsLobby(wallet: string | null) {
   };
 }
 
+/** Public games currently under way, without loading any player-private lobby data. */
+export function useDraughtsLiveMatches(enabled = true) {
+  const live = useQuery({
+    queryKey: DRAUGHTS_KEYS.live,
+    queryFn: fetchLiveMatches,
+    enabled,
+    refetchInterval: LOBBY_POLL_MS,
+  });
+  return {
+    matches: live.data ?? EMPTY_MATCHES,
+    loading: live.isPending,
+    error: live.error instanceof Error ? live.error.message : null,
+  };
+}
+
 // Stable empty default so a consumer's memo does not re-run while loading.
 const EMPTY_MATCHES: DraughtsMatch[] = [];
 
@@ -259,9 +274,12 @@ const EMPTY_MATCHES: DraughtsMatch[] = [];
 export function useDraughtsMatchSocial(
   matchId: string | null,
   wallet: string | null,
-  room: DraughtsChatRoom
+  room: DraughtsChatRoom,
+  options: { comments?: boolean; note?: boolean } = {}
 ) {
   const queryClient = useQueryClient();
+  const commentsEnabled = options.comments === true;
+  const noteEnabled = options.note === true;
   // The player room is private to the two seats, so it is only fetched once a
   // wallet is known.
   const chatEnabled = !!matchId && (room === "spectator" || !!wallet);
@@ -275,13 +293,13 @@ export function useDraughtsMatchSocial(
   const comments = useQuery({
     queryKey: DRAUGHTS_KEYS.comments(matchId ?? "none"),
     queryFn: () => fetchMatchComments(matchId as string),
-    enabled: !!matchId,
+    enabled: !!matchId && commentsEnabled,
   });
 
   const note = useQuery({
     queryKey: DRAUGHTS_KEYS.note(matchId ?? "none", wallet ?? "anon"),
     queryFn: () => fetchMatchNote(matchId as string, wallet as string),
-    enabled: !!matchId && !!wallet,
+    enabled: !!matchId && !!wallet && noteEnabled,
   });
 
   // Chat lines and comment edits ride the board's topic, so this subscription
@@ -304,18 +322,20 @@ export function useDraughtsMatchSocial(
         return;
       }
       if (type === "commentUpserted") {
+        if (!commentsEnabled) return;
         queryClient.setQueryData<DraughtsMatchComment[]>(DRAUGHTS_KEYS.comments(matchId), (prev) =>
           applyCommentUpsertedFrame(prev ?? [], data as DraughtsMatchCommentWire)
         );
         return;
       }
       if (type === "commentDeleted") {
+        if (!commentsEnabled) return;
         queryClient.setQueryData<DraughtsMatchComment[]>(DRAUGHTS_KEYS.comments(matchId), (prev) =>
           applyCommentDeletedFrame(prev ?? [], data as DraughtsCommentDeletedFrame)
         );
       }
     });
-  }, [liveTopic, matchId, queryClient]);
+  }, [commentsEnabled, liveTopic, matchId, queryClient]);
 
   const sendChat = useCallback(
     async (text: string) => {

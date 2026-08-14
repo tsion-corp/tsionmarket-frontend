@@ -13,6 +13,7 @@ import {
   useCasinoNavGuard,
 } from "@/features/casino/components/casino-nav-guard";
 import { loadInterest } from "@/lib/preferences";
+import { DraughtsSiteHeader } from "@/features/casino/components/draughts/draughts-site-header";
 
 // Names for the routes that are somewhere to go back to. Anything else falls
 // back to its own last path segment.
@@ -64,16 +65,35 @@ function BackLink({ pathname }: { pathname: string }) {
 export function CasinoPage({
   children,
   hideBackLink,
+  immersive,
 }: {
   children: React.ReactNode;
   // The chess lobby pins its layout to the viewport and the sidebar already
   // points at Arkade, so the back link there is dead height.
   hideBackLink?: boolean;
+  // Live board screens need the full viewport. Keeping this opt-in prevents a
+  // game from inheriting the portfolio rail and search header while every
+  // other Arkade route keeps the normal product shell.
+  immersive?: boolean;
 }) {
   const tSections = useTranslations("sections");
   const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const pathname = usePathname();
   const isHub = pathname === "/casino";
+  const isDraughts = pathname?.startsWith("/casino/checkers") ?? false;
+
+  if (immersive || isDraughts) {
+    return (
+      <AuthGuard>
+        <CasinoNavGuardProvider>
+          <div className="min-h-screen bg-[#0b0b0c] text-white">
+            {isDraughts ? <DraughtsSiteHeader /> : null}
+            {children}
+          </div>
+        </CasinoNavGuardProvider>
+      </AuthGuard>
+    );
+  }
 
   return (
     <AuthGuard>

@@ -1,68 +1,64 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
-import { useDraughtsLobby } from "@/features/casino/hooks/use-draughts-match";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
-import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
-import { createMatch } from "@/features/casino/lib/api/draughts";
 import { exceedsUsdcBalance, normalizeUsdcAmount } from "@/features/casino/lib/api/cashier";
+import { createMatch } from "@/features/casino/lib/api/draughts";
+import {
+  DRAUGHTS_MINUTE_OPTIONS,
+  draughtsTimeControl,
+  type DraughtsMinuteChoice,
+} from "@/features/casino/lib/draughts/clocks";
+import {
+  DRAUGHTS_VARIANT_OPTIONS,
+  type PlayableDraughtsVariant,
+} from "@/features/casino/lib/draughts/variants";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 
-// The per-move budgets offered. The service holds an equal base and increment,
-// so each of these is "about this long to make every move" rather than a bank
-// that runs down across the game.
-const TIME_CONTROLS = ["15s", "30s", "1m", "2m"] as const;
-
-// Per-player stakes. Both sides lock the same amount at create and join; a draw
-// or an abort refunds, and a decisive result pays the winner minus the platform
-// fee. "Free" sends no wager at all rather than a zero one.
 const STAKES = [null, "1", "5", "10"] as const;
-
-function relativeTime(iso: string): string {
-  const seconds = Math.max(0, (Date.now() - Date.parse(iso)) / 1000);
-  if (!Number.isFinite(seconds)) return "";
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  return `${Math.floor(minutes / 60)}h ago`;
-}
 
 export function CheckersLobby() {
   const router = useRouter();
   const { address } = useCasinoWallet();
-  const wallet = address ?? null;
-
-  const { challenges, mine, error } = useDraughtsLobby(wallet);
   const cashier = useChessCashierStatus();
-  const [timeControl, setTimeControl] = useState<string>("30s");
-  // The amount as typed. Empty means a free game; the presets below just fill
-  // this in, so a player can take a shortcut or name their own figure.
+  const [clock, setClock] = useState<DraughtsMinuteChoice>(5);
+  const [customMinutes, setCustomMinutes] = useState("20");
+  const [variant, setVariant] = useState<PlayableDraughtsVariant>("standard");
+  const [allowTimeExtensions, setAllowTimeExtensions] = useState(false);
   const [stakeInput, setStakeInput] = useState("");
   const [creating, setCreating] = useState(false);
 
-  // Parsed in exact base units, never floating point: this is the figure that
-  // gets locked. Null when the box is empty or the text is not a valid amount.
+  const timeControl = draughtsTimeControl(clock, customMinutes);
   const stake = normalizeUsdcAmount(stakeInput);
-  const typed = stakeInput.trim().length > 0;
-  const stakeInvalid = typed && stake === null;
-  // A staked game locks the stake the moment it is created, so an unaffordable
-  // one is blocked here rather than failing upstream after the click.
+  const typedStake = stakeInput.trim().length > 0;
+  const stakeInvalid = typedStake && stake === null;
   const short = !!stake && exceedsUsdcBalance(stake, cashier.available);
-  const blocked = stakeInvalid || short;
+  const blocked = !timeControl || stakeInvalid || short;
 
   const create = async () => {
-    if (!wallet) {
+    if (!address) {
       toast.error("Sign in to start a game.");
+      return;
+    }
+    if (!timeControl) {
+      toast.error("Choose a clock from 1 to 180 minutes.");
       return;
     }
     setCreating(true);
     try {
-      const match = await createMatch({ timeControl, stakeUsdc: stake }, wallet);
+      const match = await createMatch(
+        {
+          timeControl,
+          variant,
+          stakeUsdc: stake,
+          allowTimeExtensions: allowTimeExtensions && !stake,
+        },
+        address
+      );
       if (stake) track("game_staked", { game: "checkers", amount_usd: Number(stake) });
       router.push(`/casino/checkers/play?match=${match.id}`);
     } catch (cause) {
@@ -72,186 +68,164 @@ export function CheckersLobby() {
     }
   };
 
-  const openMatch = (id: string) => router.push(`/casino/checkers/play?match=${id}`);
-
   return (
-    <div className="mx-auto w-full max-w-[520px] px-4 pb-12">
-      <header className="pt-2 pb-5">
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="font-sans text-[22px] font-semibold text-white">Checkers</h1>
-          <Link
-            href="/casino/checkers/tournaments"
-            className="shrink-0 rounded-[12px] border border-white/15 px-3.5 py-1.5 font-sans text-[13px] text-white/70 hover:bg-white/5"
-          >
-            Tournaments
-          </Link>
-        </div>
-        <p className="mt-1 font-sans text-[13px] text-white/50">
-          International draughts on a 10×10 board. Captures are compulsory, and you always have to
-          take the longest one available.
-        </p>
-      </header>
+    <main className="mx-auto w-full max-w-[620px] px-4 py-7">
+      <section className="overflow-hidden rounded-[5px] border border-white/12 bg-[linear-gradient(145deg,#242629,#111214)] shadow-[0_18px_50px_rgba(0,0,0,.4)]">
+        <header className="border-b border-white/10 px-5 py-5 text-center">
+          <h1 className="text-[22px] font-semibold text-white/90">Create a game</h1>
+          <p className="mt-1 text-[12px] text-white/38">Choose the rules, clock and side.</p>
+        </header>
 
-      {/* The balance sits above the form, so a short wallet is topped up before
-          picking a stake rather than after the create button refuses. */}
-      <div className="mb-4">
-        <ChessCashierLauncher compact />
-      </div>
-
-      <section className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <h2 className="mb-3 font-sans text-[12px] tracking-wide text-white/40 uppercase">
-          New game
-        </h2>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {TIME_CONTROLS.map((label) => (
-            <button
-              key={label}
-              onClick={() => setTimeControl(label)}
-              className={`cursor-pointer rounded-[12px] border px-4 py-2 font-sans text-[14px] transition-colors ${
-                timeControl === label
-                  ? "border-white/70 bg-white/10 text-white"
-                  : "border-white/12 text-white/60 hover:bg-white/5"
-              }`}
+        <div className="space-y-6 px-5 py-6 sm:px-7">
+          <label className="block">
+            <span className="mb-2 block text-[12px] font-semibold tracking-[0.08em] text-white/42 uppercase">
+              Variant
+            </span>
+            <select
+              value={variant}
+              onChange={(event) => setVariant(event.target.value as PlayableDraughtsVariant)}
+              className="h-11 w-full rounded-[4px] border border-white/12 bg-[#171819] px-3 text-[13px] text-white/82 outline-none focus:border-white/32"
             >
-              {label}
-            </button>
-          ))}
-        </div>
-        {cashier.configured ? (
-          <>
-            <h2 className="mb-3 font-sans text-[12px] tracking-wide text-white/40 uppercase">
-              Stake
-            </h2>
-            <div className="mb-2.5 flex flex-wrap gap-2">
-              {STAKES.map((amount) => (
+              {DRAUGHTS_VARIANT_OPTIONS.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <fieldset>
+            <legend className="mb-2 text-[12px] font-semibold tracking-[0.08em] text-white/42 uppercase">
+              Minutes per side
+            </legend>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {DRAUGHTS_MINUTE_OPTIONS.map((minutes) => (
                 <button
-                  key={amount ?? "free"}
-                  onClick={() => setStakeInput(amount ?? "")}
-                  className={`cursor-pointer rounded-[12px] border px-4 py-2 font-sans text-[14px] transition-colors ${
-                    (amount ?? "") === (stake ?? "")
-                      ? "border-white/70 bg-white/10 text-white"
-                      : "border-white/12 text-white/60 hover:bg-white/5"
+                  key={minutes}
+                  type="button"
+                  onClick={() => setClock(minutes)}
+                  className={`h-14 rounded-[4px] border text-center transition-colors ${
+                    clock === minutes
+                      ? "border-white/55 bg-white/12 text-white"
+                      : "border-white/10 bg-white/[0.025] text-white/48 hover:border-white/22"
                   }`}
                 >
-                  {amount ? `${amount} USDC` : "Free"}
+                  <strong className="block text-[16px] font-medium">{minutes}</strong>
+                  <span className="text-[9px] tracking-[0.08em] uppercase">min</span>
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => setClock("custom")}
+                className={`h-14 rounded-[4px] border text-[11px] font-semibold uppercase transition-colors ${
+                  clock === "custom"
+                    ? "border-white/55 bg-white/12 text-white"
+                    : "border-white/10 bg-white/[0.025] text-white/48 hover:border-white/22"
+                }`}
+              >
+                Custom
+              </button>
             </div>
+            {clock === "custom" ? (
+              <label className="mt-3 flex h-10 items-center rounded-[4px] border border-white/12 bg-black/15 px-3">
+                <input
+                  inputMode="numeric"
+                  value={customMinutes}
+                  onChange={(event) =>
+                    setCustomMinutes(event.target.value.replace(/\D/gu, "").slice(0, 3))
+                  }
+                  aria-label="Custom minutes per side"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-[13px] text-white outline-none"
+                />
+                <span className="text-[11px] text-white/35">minutes, no increment</span>
+              </label>
+            ) : null}
+          </fieldset>
 
-            {/* Any amount, not just the shortcuts above. */}
-            <div className="mb-1.5 flex items-center gap-2">
-              <input
-                value={stakeInput}
-                onChange={(event) => setStakeInput(event.target.value.replace(/[^0-9.]/gu, ""))}
-                inputMode="decimal"
-                placeholder="Or enter an amount"
-                aria-label="Stake amount in USDC"
-                className="min-w-0 flex-1 rounded-[12px] border border-white/12 bg-transparent px-3 py-2 font-mono text-[14px] text-white tabular-nums placeholder:font-sans placeholder:text-white/25 focus:border-white/30 focus:outline-none"
+          {cashier.configured ? (
+            <fieldset>
+              <legend className="mb-2 text-[12px] font-semibold tracking-[0.08em] text-white/42 uppercase">
+                Optional stake
+              </legend>
+              <div className="grid grid-cols-4 gap-2">
+                {STAKES.map((amount) => (
+                  <button
+                    key={amount ?? "free"}
+                    type="button"
+                    onClick={() => setStakeInput(amount ?? "")}
+                    className={`h-10 rounded-[4px] border text-[11px] ${
+                      (amount ?? "") === (stake ?? "")
+                        ? "border-white/55 bg-white/12 text-white"
+                        : "border-white/10 text-white/45"
+                    }`}
+                  >
+                    {amount ? `$${amount}` : "Free"}
+                  </button>
+                ))}
+              </div>
+              <label className="mt-2 flex h-10 items-center rounded-[4px] border border-white/12 bg-black/15 px-3">
+                <input
+                  value={stakeInput}
+                  onChange={(event) => setStakeInput(event.target.value.replace(/[^0-9.]/gu, ""))}
+                  inputMode="decimal"
+                  placeholder="Custom stake"
+                  aria-label="Stake amount in USDC"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-[13px] text-white outline-none placeholder:text-white/25"
+                />
+                <span className="text-[11px] text-white/35">USDC</span>
+              </label>
+              <p
+                className={`mt-1 text-[10px] ${stakeInvalid || short ? "text-red-400" : "text-white/30"}`}
+              >
+                {stakeInvalid
+                  ? "Enter a valid amount."
+                  : short
+                    ? `Balance ${cashier.available} USDC.`
+                    : `Balance ${cashier.available} USDC.`}
+              </p>
+            </fieldset>
+          ) : null}
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={allowTimeExtensions && !stake}
+            disabled={!!stake}
+            onClick={() => setAllowTimeExtensions((allowed) => !allowed)}
+            className="flex w-full items-center justify-between gap-4 rounded-[4px] border border-white/10 bg-white/[0.025] px-3.5 py-3 text-left disabled:opacity-35"
+          >
+            <span>
+              <strong className="block text-[12px] text-white/72">Allow time extensions</strong>
+              <span className="mt-0.5 block text-[10px] leading-4 text-white/34">
+                Available only in free games.
+              </span>
+            </span>
+            <span
+              className={`relative h-5 w-9 shrink-0 rounded-full ${allowTimeExtensions && !stake ? "bg-white" : "bg-white/14"}`}
+            >
+              <span
+                className={`absolute top-1 h-3 w-3 rounded-full ${allowTimeExtensions && !stake ? "translate-x-5 bg-black" : "translate-x-1 bg-white/70"}`}
               />
-              <span className="shrink-0 font-sans text-[13px] text-white/40">USDC</span>
-            </div>
-            <p className="mb-4 font-sans text-[12px] text-white/35">
-              {stakeInvalid
-                ? "Enter a valid amount."
-                : short
-                  ? `You have ${cashier.available} USDC.`
-                  : `Balance ${cashier.available} USDC`}
-            </p>
-          </>
-        ) : null}
+            </span>
+          </button>
+        </div>
 
-        <button
-          disabled={creating || blocked}
-          onClick={create}
-          className="text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:opacity-50"
-        >
-          {creating
-            ? "Starting…"
-            : stakeInvalid
-              ? "Enter a valid amount"
-              : short
-                ? `Need ${stake} USDC`
-                : stake
-                  ? `Stake ${stake} USDC & create`
-                  : "Create free game"}
-        </button>
-        <p className="mt-2 text-center font-sans text-[12px] text-white/35">
-          You get {timeControl} for every move.
-          {stake
-            ? ` Both players stake ${stake} USDC${cashier.feePct !== null ? `, winner takes the pot minus ${cashier.feePct}%` : ""}.`
-            : ""}
-        </p>
-      </section>
-
-      {mine.length > 0 ? (
-        <section className="mt-6">
-          <h2 className="mb-2 font-sans text-[12px] tracking-wide text-white/40 uppercase">
-            Your games
-          </h2>
-          <ul className="space-y-2">
-            {mine.map((match) => (
-              <li key={match.id}>
-                <button
-                  onClick={() => openMatch(match.id)}
-                  className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-3 text-left hover:bg-white/[0.05]"
-                >
-                  <span className="font-sans text-[14px] text-white/85">
-                    {match.state === "awaiting_opponent"
-                      ? "Waiting for an opponent"
-                      : "In progress"}
-                  </span>
-                  <span className="font-sans text-[13px] text-white/45">{match.timeControl}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      <section className="mt-6">
-        <h2 className="mb-2 font-sans text-[12px] tracking-wide text-white/40 uppercase">
-          Open seats
-        </h2>
-        {error ? (
-          <p className="rounded-xl border border-red-500/20 bg-red-500/5 px-3.5 py-3 font-sans text-[13px] text-red-400">
-            {error}
+        <footer className="border-t border-white/10 bg-black/18 px-5 py-4">
+          <button
+            type="button"
+            disabled={creating || blocked}
+            onClick={() => void create()}
+            className="mx-auto block h-11 min-w-[220px] rounded-full bg-white px-7 text-[13px] font-semibold text-black disabled:opacity-35"
+          >
+            {creating ? "Creating..." : "Create game"}
+          </button>
+          <p className="mt-2 text-center text-[10px] text-white/28">
+            {timeControl
+              ? `${timeControl.replace("+0", " minutes")}, no increment.`
+              : "Enter 1 to 180 minutes."}
           </p>
-        ) : challenges.length === 0 ? (
-          <p className="rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-6 text-center font-sans text-[13px] text-white/40">
-            Nobody is waiting right now. Create a game and share the invite.
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {challenges.map((challenge) => (
-              <li key={challenge.id}>
-                <button
-                  onClick={() => openMatch(challenge.id)}
-                  className="flex w-full cursor-pointer items-center justify-between rounded-xl border border-white/10 bg-white/[0.02] px-3.5 py-3 text-left hover:bg-white/[0.05]"
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-sans text-[14px] text-white/85">
-                      {challenge.creator?.username ?? "Open seat"}
-                    </span>
-                    <span className="font-sans text-[12px] text-white/40">
-                      {relativeTime(challenge.createdAt)}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block font-sans text-[13px] text-white/70">
-                      {challenge.timeControl}
-                    </span>
-                    {challenge.stakeUsdc ? (
-                      <span className="font-sans text-[12px] text-emerald-400">
-                        {challenge.stakeUsdc} USDC
-                      </span>
-                    ) : null}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        </footer>
       </section>
-    </div>
+    </main>
   );
 }

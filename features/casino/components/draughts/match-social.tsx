@@ -38,7 +38,8 @@ export function MatchSocial({ matchId, wallet, isPlayer, ply }: MatchSocialProps
   const { comments, note, saveNote, saveComment, removeComment } = useDraughtsMatchSocial(
     matchId,
     wallet,
-    "spectator"
+    "spectator",
+    { comments: true, note: true }
   );
 
   return (

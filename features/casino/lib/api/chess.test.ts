@@ -15,6 +15,7 @@ import {
   attemptCoachLesson,
   attemptCoachTraining,
   continueComputerCoachReview,
+  createChallenge,
   createComputerMatch,
   deleteMatchComment,
   fetchCoachHome,
@@ -112,6 +113,27 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("human challenge creation", () => {
+  it("rates a free game while preserving its equal-clock extension option", async () => {
+    chessClient.chessPost.mockResolvedValue(waitingMatch("rated-free", "2026-08-01T18:00:00.000Z"));
+
+    await createChallenge({
+      creator: "0x1111111111111111111111111111111111111111",
+      timeControl: "5+0",
+      mode: "invite",
+      allowTimeExtensions: true,
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(
+      "/matches",
+      expect.objectContaining({
+        rated: true,
+        allow_time_extensions: true,
+      })
+    );
+  });
 });
 
 describe("chess waiting-match filters", () => {
