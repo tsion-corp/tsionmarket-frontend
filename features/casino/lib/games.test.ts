@@ -19,6 +19,23 @@ describe("casino game catalogue", () => {
     expect(shown.slice(0, 2).map((g) => g.id)).toEqual(["chess", "last-standing"]);
   });
 
+  it("keeps Draw intact and adds Powerball immediately after Checkers", () => {
+    const draw = CASINO_GAMES.find((game) => game.id === "draw");
+    expect(draw).toMatchObject({
+      name: "Draw",
+      href: null,
+      comingSoon: true,
+      note: "Pick 5 numbers and a bonus",
+    });
+
+    const checkersIndex = CASINO_GAMES.findIndex((game) => game.id === "checkers");
+    expect(CASINO_GAMES[checkersIndex + 1]).toMatchObject({
+      id: "powerball",
+      href: "/casino/powerball",
+      comingSoon: false,
+    });
+  });
+
   it("only links games that are actually playable", () => {
     for (const game of CASINO_GAMES) {
       if (game.comingSoon) expect(game.href).toBeNull();
@@ -27,7 +44,7 @@ describe("casino game catalogue", () => {
   });
 
   it("filters by category and by name search", () => {
-    expect(filterGames(CASINO_GAMES, "Draws", "").map((g) => g.id)).toEqual(["draw"]);
+    expect(filterGames(CASINO_GAMES, "Draws", "").map((g) => g.id)).toEqual(["draw", "powerball"]);
     expect(filterGames(CASINO_GAMES, "All games", "last").map((g) => g.id)).toEqual([
       "last-standing",
     ]);

@@ -71,6 +71,9 @@ describe("chess identity helper", () => {
     expect(chessReadNeedsSession("betting/swiss/swiss-1/bets")).toBe(true);
     expect(chessReadNeedsSession("players/0xabc/product-access")).toBe(true);
     expect(chessReadNeedsSession("matches/123/note")).toBe(true);
+    expect(chessReadNeedsSession("lottery/tickets/ticket-1")).toBe(true);
+    expect(chessReadNeedsSession("lottery/players/0xabc/tickets")).toBe(true);
+    expect(chessReadNeedsSession("lottery/players/0xabc/eligibility")).toBe(true);
     expect(chessReadNeedsSession("matches/123/chat", new URLSearchParams("room=player"))).toBe(
       true
     );
@@ -105,6 +108,35 @@ describe("chess identity helper", () => {
         amountUsdc: "5",
       })
     );
+  });
+
+  it("binds lottery purchases and ticket reads to the verified wallet", () => {
+    expect(
+      withChessIdentity(
+        "lottery/draws/draw-1/tickets",
+        JSON.stringify({
+          player: "0xspoofed",
+          whiteNumbers: [1, 2, 3, 4, 5],
+          powerNumber: 6,
+          idempotencyKey: "request-1",
+        }),
+        "0xabc"
+      )
+    ).toBe(
+      JSON.stringify({
+        player: "0xabc",
+        whiteNumbers: [1, 2, 3, 4, 5],
+        powerNumber: 6,
+        idempotencyKey: "request-1",
+      })
+    );
+    expect(
+      withChessReadIdentity(
+        "lottery/tickets/ticket-1",
+        new URLSearchParams("player=0xspoofed"),
+        "0xabc"
+      ).toString()
+    ).toBe("player=0xabc");
   });
 
   it("adds missing private write identities from the verified wallet", () => {

@@ -1373,6 +1373,10 @@
           "name": "Damas",
           "note": "Partidas rápidas com aposta"
         },
+        "powerball": {
+          "name": "Powerball",
+          "note": "Pick 5 white balls and 1 Powerball"
+        },
         "ayo": {
           "name": "Ayo",
           "note": "Mancala com aposta, um contra um"
@@ -1382,6 +1386,93 @@
         },
         "racing": {
           "name": "Vencedor de corridas"
+        }
+      }
+    },
+    "powerball": {
+      "title": "Powerball",
+      "exactMatch": "Exact 5 + 1 wins",
+      "heroBody": "Build a ticket with five white numbers and one red Powerball. Every ticket is settled from the funded USDC pool after the draw closes.",
+      "pricePill": "{price} USDC per ticket",
+      "oddsPill": "1 in {odds} combinations",
+      "rolloverPill": "No winner means rollover",
+      "unavailableTitle": "Powerball is unavailable right now",
+      "unavailableBody": "The draw service could not be reached. Your balance has not been charged.",
+      "winningNumbers": "Winning numbers",
+      "noCompletedDraw": "No completed draw yet.",
+      "nextDrawing": "Next drawing",
+      "days": "Days",
+      "hours": "Hours",
+      "minutes": "Minutes",
+      "seconds": "Seconds",
+      "fundedJackpot": "Funded jackpot",
+      "cashValueEqualsPool": "Cash value equals the funded pool",
+      "drawActivity": "Draw activity",
+      "tickets": "Tickets",
+      "players": "Players",
+      "jackpotWinners": "{count, plural, one {# jackpot winner} other {# jackpot winners}}",
+      "jackpotRolled": "No exact match. {amount} USDC rolled forward.",
+      "firstDrawPending": "The first verified result will appear here.",
+      "buildTicket": "Build your ticket",
+      "oneCombinationOneTicket": "One 5 + 1 combination per ticket",
+      "quickPick": "Quick Pick",
+      "picking": "Picking...",
+      "clear": "Clear",
+      "whiteBallsStep": "White balls {selected}/5",
+      "powerballStep": "Powerball {selected}/1",
+      "pickFiveWhite": "Pick five white balls",
+      "pickOnePowerball": "Pick one Powerball",
+      "whiteRange": "Choose five unique numbers from 1 to 69.",
+      "powerballRange": "Choose one red number from 1 to 26.",
+      "yourTicket": "Your ticket",
+      "drawNumber": "Draw {id}",
+      "ticketEmpty": "Choose your numbers to build a ticket.",
+      "availableBalance": "Available balance",
+      "ticketPrice": "Ticket price",
+      "salesClosed": "Ticket sales are closed for this draw.",
+      "notEligible": "This wallet is not eligible for the current draw.",
+      "notEnoughUsdc": "Not enough available USDC for this ticket.",
+      "combinationOwned": "You already own this combination in the current draw.",
+      "chooseWhiteRemaining": "{count, plural, one {Choose # more white ball} other {Choose # more white balls}}",
+      "choosePowerball": "Choose one Powerball to complete the ticket.",
+      "quickPickFailed": "Quick Pick could not generate numbers. Try again.",
+      "buyingTicket": "Buying ticket...",
+      "ticketPurchased": "Ticket purchased and locked into the draw.",
+      "ticketPurchaseFailed": "The ticket could not be purchased. Your balance was not charged twice.",
+      "buyTicket": "Buy ticket for {price} USDC",
+      "purchaseDisclosure": "Purchases are final once accepted. An underfilled draw is refunded automatically.",
+      "yourEntries": "Your entries",
+      "myTickets": "My tickets",
+      "loadingTickets": "Loading your tickets...",
+      "noTickets": "No tickets in this draw",
+      "noTicketsBody": "Choose a combination above or use Quick Pick.",
+      "ticketStatus": {
+        "active": "Active",
+        "won": "Won",
+        "lost": "Lost",
+        "refunded": "Refunded"
+      },
+      "verifiedHistory": "Verified history",
+      "previousResults": "Previous results",
+      "winnerCountShort": "{count, plural, one {# winner} other {# winners}}",
+      "rolledOverShort": "Rolled over",
+      "poolValue": "Pool: {amount} USDC",
+      "arkadeBalance": "Arkade balance",
+      "drawIntegrity": "Draw commitment",
+      "drawIntegrityBody": "This commitment is fixed before sales close and can be verified against the published result.",
+      "howItWorks": "How it works",
+      "how": {
+        "choose": {
+          "title": "Choose 5 + 1",
+          "body": "Pick five unique white balls and one red Powerball. Each combination is one ticket."
+        },
+        "pay": {
+          "title": "Pay with USDC",
+          "body": "The ticket price moves from your available Arkade balance into the draw pool."
+        },
+        "settle": {
+          "title": "Exact match wins",
+          "body": "Match all six numbers to share the pool. With no winner, the pool rolls into the next draw."
         }
       }
     },

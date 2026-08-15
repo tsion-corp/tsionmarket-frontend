@@ -6,6 +6,8 @@ import {
   withChessReadIdentity,
   withChessIdentity,
 } from "@/lib/server/chess-identity";
+import { lotterySchemaFor } from "@/lib/api/schemas/lottery";
+import { checkUpstream } from "@/lib/server/validate-upstream";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the chess service on the platform gateway. Same
@@ -120,6 +122,36 @@ async function forward(
     });
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
+    const lotterySchema = lotterySchemaFor(joined);
+    if (res.ok && lotterySchema) {
+      let payload: unknown;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        console.error(`Chess ${joined} returned invalid JSON.`);
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: "UPSTREAM_CONTRACT", message: "Chess returned an invalid response." },
+          },
+          { status: 502, headers: { "cache-control": NO_STORE } }
+        );
+      }
+      const contract = checkUpstream(lotterySchema, payload, {
+        service: "chess",
+        path: joined,
+      });
+      if (!contract.ok) {
+        console.error(contract.problem);
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: "UPSTREAM_CONTRACT", message: "Chess returned an invalid response." },
+          },
+          { status: 502, headers: { "cache-control": NO_STORE } }
+        );
+      }
+    }
     if (method === "GET" && res.ok && ttl > 0) {
       cache.set(url, {
         expires: Date.now() + ttl,

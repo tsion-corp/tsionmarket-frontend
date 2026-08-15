@@ -18,13 +18,18 @@ import { cn } from "@/lib/utils";
 interface ChessCashierLauncherProps {
   className?: string;
   compact?: boolean;
+  title?: string;
 }
 
 // The chess cashier exists behind a sheet, but the chess surfaces need a
 // stable balance entry point so staking, joining, and spectator betting are not
 // dead ends when the wallet is short. This component keeps that entry identical
 // across lobby, create, play, invite, and watch.
-export function ChessCashierLauncher({ className, compact = false }: ChessCashierLauncherProps) {
+export function ChessCashierLauncher({
+  className,
+  compact = false,
+  title,
+}: ChessCashierLauncherProps) {
   const t = useTranslations("casino.chess.cashier");
   const cashier = useChessCashierStatus();
   const [mode, setMode] = useState<CashierMode | null>(null);
@@ -43,7 +48,7 @@ export function ChessCashierLauncher({ className, compact = false }: ChessCashie
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className={cn("font-semibold text-white", compact ? "text-[14px]" : "text-[15px]")}>
-            {t("title")}
+            {title ?? t("title")}
           </div>
         </div>
 

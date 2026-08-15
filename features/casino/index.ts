@@ -1,5 +1,6 @@
 export { CasinoPage } from "./components/casino-page";
 export { HubSection } from "./components/hub-section";
+export { PowerballSection } from "./components/powerball/powerball-section";
 export { MiniTimerHost } from "./components/last-standing/mini-timer";
 export { LastStandingSection } from "./components/last-standing/last-standing-section";
 export { LastStandingLobby } from "./components/last-standing/last-standing-lobby";

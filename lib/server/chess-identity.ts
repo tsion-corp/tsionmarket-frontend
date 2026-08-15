@@ -8,6 +8,8 @@ const PRIVATE_READ_PATTERNS = [
   /^players\/[^/]+\/coach\/(?:home|training)$/u,
   /^computer\/matches\/[^/]+\/coach$/u,
   /^matches\/[^/]+\/note$/u,
+  /^lottery\/tickets\/[^/]+$/u,
+  /^lottery\/players\/[^/]+\/(?:tickets|eligibility)$/u,
 ];
 
 const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/u;
@@ -122,6 +124,10 @@ export function withChessReadIdentity(
   }
   if (/^matches\/[^/]+\/chat$/u.test(joined) && params.get("room") === "player") {
     if (!params.get("player")) params.set("player", wallet);
+    return params;
+  }
+  if (/^lottery\/tickets\/[^/]+$/u.test(joined)) {
+    params.set("player", wallet);
     return params;
   }
   return params;
