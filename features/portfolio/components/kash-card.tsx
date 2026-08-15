@@ -135,7 +135,7 @@ export function KashCard({
           className={`ws-display tnum flex items-end gap-1.5 leading-none tracking-[-0.02em] ${balanceTextSize}`}
         >
           <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>{" "}
-          <span className="ml-2 text-[19px] whitespace-nowrap text-amber-200/90">KASH</span>
+          <span className="ml-2 text-[19px] whitespace-nowrap text-amber-200/90">KASH +</span>
         </div>
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="tnum text-[13px] font-normal text-white/50">${balanceUsd}</span>

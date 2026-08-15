@@ -165,7 +165,14 @@ export interface KashLedgerEntry {
   id: string;
   wallet: string;
   deltaKash: string;
-  kind: "points" | "settlement" | "purchase" | "conversion" | "locked-activity";
+  kind:
+    | "points"
+    | "settlement"
+    | "purchase"
+    | "conversion"
+    | "locked-activity"
+    | "transfer-in"
+    | "transfer-out";
   ref?: string;
   kashPriceUsd?: string;
   notionalUsd?: string;
@@ -173,6 +180,8 @@ export interface KashLedgerEntry {
   points?: string;
   activityType?: string;
   txHash?: string;
+  /** The other wallet in a transfer-in/transfer-out row. Unset otherwise. */
+  counterparty?: string;
   createdAt: string;
 }
 

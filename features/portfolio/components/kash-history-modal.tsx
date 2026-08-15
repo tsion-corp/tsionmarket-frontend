@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { useKashLedger } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount, type KashLedgerEntry } from "@/features/portfolio/lib/kash";
+import { truncateAddress } from "@/lib/format";
 
 interface KashHistoryModalProps {
   open: boolean;
@@ -16,6 +17,8 @@ const KIND_LABEL_KEY: Record<KashLedgerEntry["kind"], string> = {
   purchase: "historyPurchase",
   conversion: "historyConversion",
   "locked-activity": "historyLocked",
+  "transfer-in": "historyTransferIn",
+  "transfer-out": "historyTransferOut",
 };
 
 // A colour per kind, so the eye can scan the column without reading it.
@@ -25,6 +28,8 @@ const KIND_DOT: Record<KashLedgerEntry["kind"], string> = {
   purchase: "bg-white/45",
   conversion: "bg-white/30",
   "locked-activity": "bg-white/15",
+  "transfer-in": "bg-up",
+  "transfer-out": "bg-white/45",
 };
 
 // A points row carries deltaKash "0" (points are not tokens until settlement);
@@ -74,8 +79,9 @@ export function KashHistoryModal({ open, onClose }: KashHistoryModalProps) {
               const href = explorerHref(entry);
               // The trade behind a points row is the useful part — "+275 pts"
               // alone tells the user nothing about where it came from.
-              const detail =
-                entry.notionalUsd && Number(entry.notionalUsd) > 0
+              const detail = entry.counterparty
+                ? `${entry.kind === "transfer-in" ? t("historyFrom") : t("historyTo")} ${truncateAddress(entry.counterparty)}`
+                : entry.notionalUsd && Number(entry.notionalUsd) > 0
                   ? t("historyOnVolume", {
                       volume: formatKashAmount(entry.notionalUsd),
                       type: entry.activityType ?? "",
