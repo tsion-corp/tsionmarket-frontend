@@ -7,4 +7,8 @@ export const VAULT_KEYS = {
   game: (gameId: number) => ["vault", "game", gameId] as const,
   winners: ["vault", "winners"] as const,
   activities: ["vault", "activities"] as const,
+  // The chain-side reads behind the two feeds. Under the same prefix, so a
+  // reconnect resync refreshes them with everything else.
+  chainSettled: ["vault", "chain", "settled"] as const,
+  chainStarts: ["vault", "chain", "starts"] as const,
 };

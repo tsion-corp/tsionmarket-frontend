@@ -44,6 +44,23 @@ export function weiToUsd(wei: bigint, ethPriceUsd: number): number {
 }
 
 /**
+ * A wei amount as the shape the vault API describes money in, so a row built
+ * from the chain renders through the same components as an indexed one.
+ */
+export function weiToTokenAmount(
+  wei: bigint,
+  ethPriceUsd: number
+): { amount: string; tokenSymbol: string; usdValue: number; formattedUsd: string } {
+  const usd = weiToUsd(wei, ethPriceUsd);
+  return {
+    amount: String(Number(wei) / Number(WEI_PER_ETH)),
+    tokenSymbol: "ETH",
+    usdValue: usd,
+    formattedUsd: `$${usd.toFixed(2)}`,
+  };
+}
+
+/**
  * The stake to actually send: what we asked for, or the contract's floor when
  * that is higher.
  *

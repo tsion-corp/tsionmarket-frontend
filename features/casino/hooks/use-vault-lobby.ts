@@ -8,7 +8,7 @@ import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { readActiveGames, type ChainGame } from "@/features/casino/hooks/use-vault-actions";
 import { usePrices } from "@/hooks/use-prices";
-import { weiToUsd } from "@/features/casino/lib/last-standing/stake";
+import { weiToTokenAmount } from "@/features/casino/lib/last-standing/stake";
 import { fetchActiveGames, type VaultGame } from "@/features/casino/lib/vault-api";
 
 // The socket carries the lobby while it is up; these poll only as a fallback
@@ -20,17 +20,6 @@ const CHAIN_POLL_MS = 8_000;
 
 const EMPTY_GAMES: VaultGame[] = [];
 const EMPTY_CHAIN: ChainGame[] = [];
-
-function money(wei: bigint, ethPrice: number) {
-  const amount = Number(wei) / 1e18;
-  const usd = weiToUsd(wei, ethPrice);
-  return {
-    amount: String(amount),
-    tokenSymbol: "ETH",
-    usdValue: usd,
-    formattedUsd: `$${usd.toFixed(2)}`,
-  };
-}
 
 /**
  * The indexed lobby, backed by what the chain actually holds.
@@ -49,8 +38,8 @@ function mergeGames(indexed: VaultGame[], chain: ChainGame[], ethPrice: number):
         gameId: game.gameId,
         starter: game.starter,
         king: game.king,
-        pot: money(game.potWei, ethPrice),
-        minWager: money(game.minWagerWei, ethPrice),
+        pot: weiToTokenAmount(game.potWei, ethPrice),
+        minWager: weiToTokenAmount(game.minWagerWei, ethPrice),
         endTime: game.endTime,
         timeRemaining: Math.max(0, game.endTime - Math.floor(Date.now() / 1000)),
         settled: false,

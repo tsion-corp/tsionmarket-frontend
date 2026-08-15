@@ -136,6 +136,7 @@ export function KashCard({
         >
           <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>{" "}
           <span className="ml-2 text-[19px] whitespace-nowrap text-amber-200/90">KASH +</span>
+          <span className="tnum ml-4 text-[13px] font-normal text-white/50">ESP</span>
         </div>
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="tnum text-[13px] font-normal text-white/50">${balanceUsd}</span>

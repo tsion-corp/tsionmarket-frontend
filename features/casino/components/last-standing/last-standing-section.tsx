@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import type { SellPayload } from "@/lib/modal-types";
@@ -178,7 +179,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
   const { game, loading: statusLoading, connected, resync: resyncGame } = useVaultGame(gameId);
   const { activities, winners, winnersLoading } = useVaultFeeds(connected);
-  const { wager, wagering, claim, claiming } = useVaultActions();
+  const { wager, wagering, claim, claiming, settle, settling } = useVaultActions();
 
   // The round visuals below were written against v3's single-game status. v4
   // gives one game at a time instead, so it is mapped here rather than
@@ -296,6 +297,12 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // Only trust timeRemaining while a round is live; between rounds the backend
   // reports a sentinel, so the timer rests at the round length instead.
   const gameActive = status?.gameActive ?? false;
+  // The clock is out. In v4 a finished game is finished: a wager on it reverts,
+  // so the play button has to give way to what can actually be done — settle
+  // it, if nobody has, and go start another.
+  const roundOver = !!status?.isGameStarted && !gameActive;
+  const iAmKing =
+    !!address && !!status?.lastPlayer && status.lastPlayer.toLowerCase() === address.toLowerCase();
   const countdown = useCountdown(status?.timeRemaining ?? 0, gameActive);
   const timerPct =
     gameActive && status ? Math.min(100, (countdown / Math.max(1, status.timerDuration)) * 100) : 0;
@@ -310,9 +317,12 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   }, [urgent, countdown]);
 
   // Round-end handling. The winner is whoever was the last to play when the
-  // clock ran out, and the contract credits their balance automatically — no
-  // claim needed. The moment a live round ends we show the "calculating"
-  // suspense to everyone; after it, only the winning wallet sees the jackpot.
+  // clock ran out. Nothing is paid until someone calls settle(), and the
+  // contract does not do that itself: it credits the split to
+  // pendingWithdrawals when asked, and the winner then claims. So the moment
+  // a live round ends we show the "calculating" suspense to everyone; after
+  // it, only the winning wallet sees the jackpot, and that wallet settles the
+  // game, which is what makes the auto-claim below have something to collect.
   const potUsd = status?.vaultBalance.usdValue ?? 0;
   const lastPlayer = status?.lastPlayer ?? null;
   // This wallet is the last to have played, so it wins if the clock hits zero.
@@ -524,6 +534,53 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       claimRef.current();
     }
   }, [pendingWei, claiming]);
+
+  // Settle the game I just won, so there is a payout to claim at all. Every
+  // game on this contract sat unsettled with nothing credited until this
+  // existed: the reveal fired, the "updating your balance" banner showed, and
+  // the balance never moved, because nobody had asked the contract to pay.
+  // Anyone may settle once the clock is out; the winner does it here, gasless
+  // like every other vault action, and once per game.
+  const settledGameRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (phase !== "won" || !youWon || settling) return;
+    if (settledGameRef.current === gameId) return;
+    if (game?.settled) return;
+    settledGameRef.current = gameId;
+    const id = toast.loading(t("toastSettling"));
+    void settle(gameId)
+      .then(() => {
+        toast.success(t("toastSettled"), { id });
+        // The credit lands on the next block; nudge the watchers rather than
+        // wait for the poll so the claim follows within seconds.
+        void refetchWinnings();
+        resyncGame();
+      })
+      .catch((e) => {
+        // Let it be tried again: a failed settle has not paid anyone.
+        settledGameRef.current = null;
+        toast.error(friendlyError(e, t("toastSettleFailed")), { id });
+      });
+    // settle/refetchWinnings/resyncGame are stable callbacks; t is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, youWon, gameId, settling, game?.settled]);
+
+  // Settle a finished game from its page. Anyone may; it pays the winner
+  // whoever presses it. The reveal path settles a win as it happens; this is
+  // for coming back to a finished game later, and for every game that ended
+  // before the client knew how to settle at all.
+  const onSettle = async () => {
+    if (settling) return;
+    const id = toast.loading(t("toastSettling"));
+    try {
+      await settle(gameId);
+      toast.success(t("toastSettled"), { id });
+      void refetchWinnings();
+      resyncGame();
+    } catch (e) {
+      toast.error(friendlyError(e, t("toastSettleFailed")), { id });
+    }
+  };
 
   const onPlay = async () => {
     if (!canPlay) {
@@ -868,7 +925,9 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                 {gameActive
                   ? t("hintActive")
                   : status?.isGameStarted
-                    ? t("hintEnded")
+                    ? game?.settled
+                      ? t("hintSettled")
+                      : t("hintEnded")
                     : t("hintIdle")}
               </div>
             </div>
@@ -901,78 +960,104 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                 being nudged to add money. The add-money state carries a coin and
                 blinks to pull the eye. */}
             <div className="relative mt-5">
-              {canPlay || luring ? (
+              {roundOver ? (
+                // The round is over. A play here would revert on-chain, so the
+                // button does what is actually left to do.
+                game?.settled ? (
+                  <Link
+                    href="/casino/last-standing"
+                    className="text-ink block w-full rounded-2xl bg-white p-4 text-center font-sans text-[16.5px] font-bold shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)] transition-[transform] hover:-translate-y-0.5"
+                  >
+                    {t("ctaStartAnother")}
+                  </Link>
+                ) : (
+                  <button
+                    onClick={() => void onSettle()}
+                    disabled={settling || !address}
+                    className="text-ink w-full cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)] p-4 font-sans text-[16.5px] font-bold shadow-[0_18px_44px_-12px_rgba(255,255,255,0.9),inset_0_1px_0_rgba(255,255,255,0.45)] transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {settling
+                      ? t("ctaSettling")
+                      : iAmKing
+                        ? t("ctaSettleCollect")
+                        : t("ctaSettleRound")}
+                  </button>
+                )
+              ) : null}
+              {!roundOver && (canPlay || luring) ? (
                 <div
                   aria-hidden
                   className="bg-accent/40 pointer-events-none absolute -inset-1 animate-pulse rounded-2xl blur-lg"
                 />
               ) : null}
-              <motion.button
-                ref={playBtnRef}
-                onClick={() => void onPlay()}
-                disabled={wagering || !status || !address}
-                animate={
-                  reduce
-                    ? undefined
-                    : luring
-                      ? { opacity: [1, 0.5, 1] }
-                      : canPlay
-                        ? {
-                            // A slow breath of light: the button glows brighter
-                            // and settles, so a live round reads as alive even
-                            // between shimmer sweeps.
-                            boxShadow: [
-                              "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
-                              "0 18px 64px -8px rgba(255,255,255,0.95), inset 0 1px 0 rgba(255,255,255,0.45)",
-                              "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
-                            ],
-                          }
-                        : undefined
-                }
-                transition={
-                  reduce
-                    ? undefined
-                    : luring
-                      ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
-                      : canPlay
-                        ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
-                        : undefined
-                }
-                className={`relative w-full cursor-pointer overflow-hidden rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
-                  canPlay || luring
-                    ? "text-ink shadow-[0_18px_44px_-12px_rgba(255, 255, 255, 0.9),inset_0_1px_0_rgba(255,255,255,0.45)] bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)]"
-                    : "text-ink bg-white shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)]"
-                }`}
-              >
-                {/* Light sweeps across the button whenever it's inviting a press. */}
-                {(canPlay || luring) && !reduce ? (
-                  <motion.span
-                    aria-hidden
-                    className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)]"
-                    animate={{ x: ["0%", "420%"] }}
-                    transition={{
-                      duration: 2.2,
-                      repeat: Infinity,
-                      repeatDelay: 1.2,
-                      ease: "easeInOut",
-                    }}
-                  />
-                ) : null}
-                <span className="relative inline-flex items-center justify-center gap-2">
-                  {luring ? (
-                    <span aria-hidden className="text-xl">
-                      💰
-                    </span>
+              {roundOver ? null : (
+                <motion.button
+                  ref={playBtnRef}
+                  onClick={() => void onPlay()}
+                  disabled={wagering || !status || !address}
+                  animate={
+                    reduce
+                      ? undefined
+                      : luring
+                        ? { opacity: [1, 0.5, 1] }
+                        : canPlay
+                          ? {
+                              // A slow breath of light: the button glows brighter
+                              // and settles, so a live round reads as alive even
+                              // between shimmer sweeps.
+                              boxShadow: [
+                                "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
+                                "0 18px 64px -8px rgba(255,255,255,0.95), inset 0 1px 0 rgba(255,255,255,0.45)",
+                                "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
+                              ],
+                            }
+                          : undefined
+                  }
+                  transition={
+                    reduce
+                      ? undefined
+                      : luring
+                        ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
+                        : canPlay
+                          ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
+                          : undefined
+                  }
+                  className={`relative w-full cursor-pointer overflow-hidden rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
+                    canPlay || luring
+                      ? "text-ink shadow-[0_18px_44px_-12px_rgba(255, 255, 255, 0.9),inset_0_1px_0_rgba(255,255,255,0.45)] bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)]"
+                      : "text-ink bg-white shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)]"
+                  }`}
+                >
+                  {/* Light sweeps across the button whenever it's inviting a press. */}
+                  {(canPlay || luring) && !reduce ? (
+                    <motion.span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)]"
+                      animate={{ x: ["0%", "420%"] }}
+                      transition={{
+                        duration: 2.2,
+                        repeat: Infinity,
+                        repeatDelay: 1.2,
+                        ease: "easeInOut",
+                      }}
+                    />
                   ) : null}
-                  {wagering
-                    ? t("ctaPlacing")
-                    : !status
-                      ? t("loading")
-                      : canPlay
-                        ? t("ctaPlay", { amount: money.format(entryFeeUsd) })
-                        : t("ctaAddMoney")}
-                </span>
-              </motion.button>
+                  <span className="relative inline-flex items-center justify-center gap-2">
+                    {luring ? (
+                      <span aria-hidden className="text-xl">
+                        💰
+                      </span>
+                    ) : null}
+                    {wagering
+                      ? t("ctaPlacing")
+                      : !status
+                        ? t("loading")
+                        : canPlay
+                          ? t("ctaPlay", { amount: money.format(entryFeeUsd) })
+                          : t("ctaAddMoney")}
+                  </span>
+                </motion.button>
+              )}
             </div>
 
             {/* Balance */}
