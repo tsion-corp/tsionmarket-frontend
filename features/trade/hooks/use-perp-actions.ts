@@ -4,11 +4,12 @@ import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { usePerpOrders } from "@/features/trade/hooks/use-perp-orders";
+import { usePerpPairs } from "@/features/trade/hooks/use-perp-markets";
 import { usePerpPositions } from "@/features/trade/hooks/use-perp-positions";
 import { readUsdcAllowance } from "@/lib/perp/allowance";
 import { track } from "@/lib/analytics/mixpanel";
-import type { MarketType } from "@/lib/analytics/events";
-import type { PerpCategory, PerpOrderType } from "@/lib/perp/types";
+import { perpMarketName, perpOpenedProps } from "@/lib/perp/analytics";
+import type { PerpCategory } from "@/lib/perp/types";
 import {
   buildApproveUsdc,
   buildCancelOrder,
@@ -49,32 +50,20 @@ import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/l
 
 export type PerpPhase = "idle" | "building" | "signing" | "settling";
 
-// The app's perp categories are plural and include "other"; the analytics
-// catalog's are singular and have no such bucket. An unmapped category returns
-// undefined so the property is omitted rather than reported as something it is
-// not.
-export const MARKET_TYPE: Partial<Record<PerpCategory, MarketType>> = {
-  crypto: "crypto",
-  forex: "forex",
-  commodities: "commodity",
-  equities: "equity",
-};
-
-// The catalog knows three order types; the app has a fourth zero-fee market
-// variant, which is still a market order as far as reporting goes.
-function orderKind(type: PerpOrderType): "market" | "limit" | "stop" {
-  if (type === "limit") return "limit";
-  if (type === "stop_limit") return "stop";
-  return "market";
-}
-
 export function usePerpActions(live = true) {
   const t = useTranslations("perps");
   const sendBatch = useEvmSendBatch();
   const { positions, waitForChange, trader } = usePerpPositions(live);
   const { orders, waitForChange: waitForOrdersChange } = usePerpOrders(live);
+  const { pairs } = usePerpPairs();
   const portfolio = usePortfolio();
   const [phase, setPhase] = useState<PerpPhase>("idle");
+
+  // An open reports the market the user chose ("ETH/USD"); everything after it
+  // only holds the position's numeric pairIndex. Naming both the same way is
+  // what lets a close be matched to the open it settles. The pairs list is the
+  // same cached query the screens already read, so this costs no extra request.
+  const marketName = useCallback((pairIndex: number) => perpMarketName(pairs, pairIndex), [pairs]);
 
   // Gas is sponsored, but the keeper execution fee on open/close is msg.value
   // from the user's own Base ETH. Checking before signing turns a cryptic
@@ -148,6 +137,11 @@ export function usePerpActions(live = true) {
         void portfolio.refetch();
 
         setPhase("settling");
+
+        // The position is the same whether it filled now or is resting, so the
+        // event is built once and sent from whichever branch confirms it.
+        const opened = perpOpenedProps(req, resting, category);
+
         // Only a matching pair counts as this order's fill.
         const isOurs = (candidatePairIndex: number) =>
           pairIndex == null || candidatePairIndex === pairIndex;
@@ -156,9 +150,13 @@ export function usePerpActions(live = true) {
           // positions for it would just burn the whole settle window. Confirm
           // the order itself appeared.
           toast.loading(t("confirmingOnChain"), { id: toastId });
-          await waitForOrdersChange((fresh) =>
+          const rested = await waitForOrdersChange((fresh) =>
             fresh.some((o) => !beforeOrders.has(`${o.pairIndex}:${o.index}`) && isOurs(o.pairIndex))
           );
+          // Placing a limit or stop order is opening a position, so it counts
+          // here. Without this every perp report was market orders only, which
+          // undercounts opens and reads as if nobody uses limit orders.
+          if (rested) track("perp_trade_opened", opened);
           toast.success(t("orderRestsUntilTrigger", { pair: req.pair }), { id: toastId });
           return true;
         }
@@ -168,16 +166,7 @@ export function usePerpActions(live = true) {
           fresh.some((p) => !before.has(`${p.pairIndex}:${p.index}`) && isOurs(p.pairIndex))
         );
         if (filled) {
-          track("perp_trade_opened", {
-            market: req.pair,
-            market_type: category ? MARKET_TYPE[category] : undefined,
-            side: req.isLong ? "long" : "short",
-            leverage: Number(req.leverage),
-            collateral_usd: Number(req.collateralUsdc),
-            position_size_usd: Number(req.collateralUsdc) * Number(req.leverage),
-            order_type: orderKind(req.orderType),
-            entry_price: req.openPrice ? Number(req.openPrice) : undefined,
-          });
+          track("perp_trade_opened", opened);
           toast.success(t(req.isLong ? "longOpen" : "shortOpen", { pair: req.pair }), {
             id: toastId,
           });
@@ -303,12 +292,18 @@ export function usePerpActions(live = true) {
         void portfolio.refetch();
         if (cleared) {
           track("perp_trade_closed", {
-            market: `pair_${position.pairIndex}`,
+            market: marketName(position.pairIndex),
             // A close that leaves collateral behind is a partial one.
             close_type:
               Number(collateralUsdc) < Number(position.initialCollateralUsdc) ? "partial" : "full",
+            // The user pressed close. A stop, take profit or liquidation never
+            // comes through this path: the keeper settles those on chain.
+            close_reason: "manual",
             pnl_usd: Number(position.unrealizedPnlUsdc ?? 0),
             amount_usd: Number(collateralUsdc),
+            // The leveraged size being closed, so it can be compared with the
+            // position_size_usd the open reported.
+            notional_usd: Number(collateralUsdc) * Number(position.leverage),
           });
           toast.success(t("positionClosed"), { id: toastId });
         } else {
@@ -322,7 +317,7 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, portfolio, t]
+    [sendBatch, waitForChange, ensureExecutionFee, marketName, portfolio, t]
   );
 
   // Both updates move money, so they take the same phase lifecycle as every
@@ -356,7 +351,7 @@ export function usePerpActions(live = true) {
         });
         if (applied) {
           track("perp_tpsl_set", {
-            market: `pair_${position.pairIndex}`,
+            market: marketName(position.pairIndex),
             has_tp: Number(takeProfit ?? 0) > 0,
             has_sl: Number(stopLoss ?? 0) > 0,
           });
@@ -372,7 +367,7 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, t]
+    [sendBatch, waitForChange, ensureExecutionFee, marketName, t]
   );
 
   const updateMargin = useCallback(
@@ -407,7 +402,7 @@ export function usePerpActions(live = true) {
         void portfolio.refetch();
         if (applied) {
           track("perp_margin_adjusted", {
-            market: `pair_${position.pairIndex}`,
+            market: marketName(position.pairIndex),
             action: direction === "deposit" ? "add" : "remove",
             amount_usd: Number(marginUsdc),
           });
@@ -423,7 +418,7 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, portfolio, t]
+    [sendBatch, waitForChange, ensureExecutionFee, marketName, portfolio, t]
   );
 
   return {

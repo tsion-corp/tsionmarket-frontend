@@ -9,7 +9,7 @@ import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/features/trade/components/flash-price";
 import { ConfirmDialog, type ConfirmRow } from "@/components/ui/confirm-dialog";
 import { track } from "@/lib/analytics/mixpanel";
-import { MARKET_TYPE } from "@/features/trade/hooks/use-perp-actions";
+import { MARKET_TYPE } from "@/lib/perp/analytics";
 import { PerpOrders } from "@/features/trade/components/perp-orders";
 import { PerpPositions } from "@/features/trade/components/perp-positions";
 import { PerpPairIcon } from "@/features/trade/components/perp-pair-icon";

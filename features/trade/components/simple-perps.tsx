@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { track } from "@/lib/analytics/mixpanel";
-import { MARKET_TYPE } from "@/features/trade/hooks/use-perp-actions";
+import { MARKET_TYPE } from "@/lib/perp/analytics";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/features/trade/components/flash-price";

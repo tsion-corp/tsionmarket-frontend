@@ -12,6 +12,7 @@ import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier
 import { exceedsUsdcBalance } from "@/features/casino/lib/api/cashier";
 import { WagerSummary } from "@/features/casino/components/chess/wager-summary";
 import { CasinoEmpty, CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
+import { track } from "@/lib/analytics/mixpanel";
 import { BRAND } from "@/lib/brand";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -111,8 +112,11 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       >
         {accept.isPending ? t("takingSeat") : t("accept")}
       </button>
+      {/* Walking away from an invite is the other half of accepting it: without
+          it the funnel only ever shows the seats that were taken. */}
       <Link
         href="/casino"
+        onClick={() => track("chess_challenge_declined")}
         className="block w-full p-1.5 text-[12.5px] font-normal text-white/50 hover:text-white"
       >
         {t("decline")}

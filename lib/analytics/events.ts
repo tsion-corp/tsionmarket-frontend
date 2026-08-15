@@ -80,8 +80,17 @@ export interface AnalyticsEvents {
   perp_trade_closed: {
     market: string;
     close_type: "full" | "partial";
+    /**
+     * What ended the position. Only a close the user asked for reaches this
+     * app: a stop, a take profit and a liquidation are all executed on chain by
+     * the keeper, with nothing to report from the browser. Those three are in
+     * the union so the field does not have to change shape when the backend can
+     * report them, but today every event carries "manual".
+     */
+    close_reason: "manual" | "stop_loss" | "take_profit" | "liquidation";
     pnl_usd: number;
     amount_usd: number;
+    notional_usd: number;
   };
   perp_tpsl_set: { market: string; has_tp: boolean; has_sl: boolean };
   perp_margin_adjusted: { market: string; action: "add" | "remove"; amount_usd: number };
@@ -259,7 +268,21 @@ export interface PerpTradeOpened {
   collateral_usd: number;
   position_size_usd: number;
   order_type: "market" | "limit" | "stop";
+  /**
+   * The price the position actually opened at. A limit or stop order has none
+   * yet: it is resting until the keeper triggers it, and `limit_price` carries
+   * the level it is waiting for instead.
+   */
   entry_price?: number;
+  /** The trigger level, set only when `order_type` is not "market". */
+  limit_price?: number;
+  // Whether the position was opened with an exit already attached, and at what
+  // level. The flags are always sent so "no take profit" is a fact in the data
+  // rather than a missing property; the prices are sent only when they exist.
+  has_take_profit: boolean;
+  take_profit_price?: number;
+  has_stop_loss: boolean;
+  stop_loss_price?: number;
   opening_fee_usd?: number;
   execution_fee_eth?: number;
 }

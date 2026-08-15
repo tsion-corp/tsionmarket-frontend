@@ -36,7 +36,11 @@ globalThis.WebSocket = InertWebSocket as unknown as typeof WebSocket;
 // is a faithful stand-in and keeps the suite hermetic between files.
 const browserStorage = typeof window === "undefined" ? null : window.localStorage;
 const hasUsableLocalStorage =
-  browserStorage !== null &&
+  // Loose on purpose, so an undefined localStorage is caught as well as a null
+  // one. Node 26 leaves the property defined but undefined unless the process
+  // was started with --localstorage-file; a strict null check let that through
+  // and the type checks below then threw, taking every suite in the run with it.
+  browserStorage != null &&
   typeof browserStorage.getItem === "function" &&
   typeof browserStorage.setItem === "function" &&
   typeof browserStorage.removeItem === "function" &&
