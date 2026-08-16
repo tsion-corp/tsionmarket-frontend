@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const user = await getRequestUser(req);
+  const user = await getRequestUser(req, claims);
 
   return NextResponse.json({
     userId: claims.userId,
