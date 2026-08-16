@@ -18,6 +18,10 @@ import { setProfile } from "@/lib/analytics/mixpanel";
 const COIN = "/kash-coin.jpg";
 
 interface KashCardProps {
+  // Pre-launch teaser: static zeros, a "Coming soon" chip, and every action
+  // routed to onBuy (which the view points at a toast). No engine calls are
+  // made — the hooks are disabled behind the same flag.
+  comingSoon?: boolean;
   onBuy: () => void;
   /** Settle accrued points into KSH now. Absent while there is nothing to claim. */
   onClaim?: () => void;
@@ -35,6 +39,7 @@ interface KashCardProps {
 // gate it shows progress toward it, since "75% there" invites the next buy in
 // a way a bare lock never does.
 export function KashCard({
+  comingSoon,
   onBuy,
   onClaim,
   claiming,
@@ -105,7 +110,12 @@ export function KashCard({
           {t("balanceTitle")}
         </div>
         <div className="flex items-center gap-2.5">
-          {subscription && (
+          {comingSoon && (
+            <span className="rounded-full border border-amber-200/30 bg-amber-200/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200/90">
+              {t("comingSoon")}
+            </span>
+          )}
+          {!comingSoon && subscription && (
             <button
               onClick={onUpgrade}
               className="cursor-pointer rounded-full border border-amber-200/30 bg-amber-200/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-200/90 hover:bg-amber-200/16"

@@ -2199,7 +2199,9 @@
     "withdrawalFee": "Comisión de retiro ({pct}%)",
     "purchaseFee": "Comisión de compra ({pct}%)",
     "insufficientUsd": "Tienes ${balance} disponibles. Añade fondos o prueba con un importe menor.",
-    "tierUnaffordable": "Insuficiente"
+    "tierUnaffordable": "Insuficiente",
+    "comingSoon": "Próximamente",
+    "comingSoonToast": "Kash llega pronto. Comprar, ganar y convertir se abrirán en breve."
   },
   "activity": {
     "eyebrow": "Actividad",
@@ -2242,7 +2244,12 @@
     "opensIn": "Las puertas abren en",
     "opening": "Abriendo las puertas…",
     "opensAt": "Abre {time}",
-    "unit": { "days": "Días", "hours": "Horas", "minutes": "Minutos", "seconds": "Segundos" },
+    "unit": {
+      "days": "Días",
+      "hours": "Horas",
+      "minutes": "Minutos",
+      "seconds": "Segundos"
+    },
     "eyebrow": "Muy pronto",
     "title": "Todo el mercado, <accent>casi abierto.</accent>",
     "subtitle": "Acciones, oro, cripto y predicciones en una sola app, y tu dinero sigue siendo tuyo. Déjanos tu correo y te avisamos en cuanto abramos.",

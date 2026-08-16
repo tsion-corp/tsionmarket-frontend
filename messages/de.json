@@ -2199,7 +2199,9 @@
     "withdrawalFee": "Auszahlungsgebühr ({pct}%)",
     "purchaseFee": "Kaufgebühr ({pct}%)",
     "insufficientUsd": "Du hast ${balance} verfügbar. Lade Guthaben auf oder wähle einen kleineren Betrag.",
-    "tierUnaffordable": "Zu wenig"
+    "tierUnaffordable": "Zu wenig",
+    "comingSoon": "Bald verfügbar",
+    "comingSoonToast": "Kash kommt bald. Kaufen, Verdienen und Umwandeln öffnen in Kürze."
   },
   "activity": {
     "eyebrow": "Aktivität",
@@ -2242,7 +2244,12 @@
     "opensIn": "Türen öffnen in",
     "opening": "Die Türen öffnen sich…",
     "opensAt": "Öffnet {time}",
-    "unit": { "days": "Tage", "hours": "Stunden", "minutes": "Minuten", "seconds": "Sekunden" },
+    "unit": {
+      "days": "Tage",
+      "hours": "Stunden",
+      "minutes": "Minuten",
+      "seconds": "Sekunden"
+    },
     "eyebrow": "Startet bald",
     "title": "Der ganze Markt, <accent>fast geöffnet.</accent>",
     "subtitle": "Aktien, Gold, Krypto und Prognosen in einer App — und Ihr Geld bleibt Ihres. Hinterlassen Sie Ihre E-Mail, und wir melden uns, sobald wir öffnen.",

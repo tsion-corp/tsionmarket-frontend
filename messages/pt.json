@@ -2199,7 +2199,9 @@
     "withdrawalFee": "Taxa de levantamento ({pct}%)",
     "purchaseFee": "Taxa de compra ({pct}%)",
     "insufficientUsd": "Tem ${balance} disponíveis. Adicione fundos ou tente um valor menor.",
-    "tierUnaffordable": "Insuficiente"
+    "tierUnaffordable": "Insuficiente",
+    "comingSoon": "Em breve",
+    "comingSoonToast": "Kash chega em breve. Comprar, ganhar e converter abrem em breve."
   },
   "activity": {
     "eyebrow": "Atividade",
@@ -2242,7 +2244,12 @@
     "opensIn": "As portas abrem em",
     "opening": "A abrir as portas…",
     "opensAt": "Abre {time}",
-    "unit": { "days": "Dias", "hours": "Horas", "minutes": "Minutos", "seconds": "Segundos" },
+    "unit": {
+      "days": "Dias",
+      "hours": "Horas",
+      "minutes": "Minutos",
+      "seconds": "Segundos"
+    },
     "eyebrow": "Em breve",
     "title": "O mercado inteiro, <accent>quase aberto.</accent>",
     "subtitle": "Ações, ouro, cripto e previsões numa só app, e o seu dinheiro continua seu. Deixe o seu e-mail e avisamos assim que abrirmos.",
