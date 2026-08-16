@@ -53,9 +53,10 @@ export interface VaultActivity {
 }
 
 // Reads go through our own same-origin proxy (app/api/vault) rather than the
-// vault gateway directly: the gateway sends no CORS headers, so a direct
-// browser fetch is blocked. The proxy forwards server-side and caches briefly.
-// Every read here is public, so none of them need the caller's session.
+// vault gateway directly: the proxy caches briefly, so a thousand users
+// polling the lobby cost the gateway one request per path per second rather
+// than a thousand. Every read here is public, so none need the caller's
+// session.
 const vault = createServiceClient("/api/vault", "The vault is unavailable right now.");
 
 // The lobby: games currently accepting joins, newest first.

@@ -61,7 +61,31 @@ const CUSTOM_ERROR_MESSAGES: Record<string, string> = {
   "0x62791302": "The approval you signed has expired. Please try again.",
   // ERC2612InvalidSigner(address,address)
   "0x4b800e46": "That approval was signed by a different wallet. Reconnect and try again.",
+  // The Last Man Standing vault (King of Night v4 on Base). Selectors from the
+  // compiled ABI in features/casino/lib/last-standing/king-of-night-abi.ts.
+  // StakeBelowMinimum(uint256,uint256)
+  "0x78e030db": "That stake is under the minimum to open a game. Raise it and try again.",
+  // WagerBelowGameMinimum(uint256,uint256)
+  "0x10169bd5": "That wager is under this game's minimum. Raise it and try again.",
+  // GameNotFound(uint256)
+  "0xd13b2677": "That game doesn't exist. Head back to the lobby.",
+  // GameOver(uint256)
+  "0x3496ed15":
+    "This round is over, so it can't take another wager. Start a new game or join another.",
+  // AlreadySettled(uint256)
+  "0x8fec535e": "This round has already been settled and paid.",
+  // TimerNotExpired(uint256,uint256)
+  "0xb52cb3ad": "The clock hasn't run out yet. The round can be settled once it does.",
+  // GamePaused()
+  "0x379a7ed9": "The game is paused right now. Please try again later.",
+  // NothingToClaim(address)
+  "0x64ab3466": "There's nothing left to claim for this wallet.",
 };
+
+/** True when a revert is the vault's AlreadySettled: someone else paid it first. */
+export function isAlreadySettledError(e: unknown): boolean {
+  return /0x8fec535e/i.test(text(e));
+}
 
 /** The custom-error message for a revert, if its selector is one we know. */
 function customErrorMessage(raw: string): string | null {

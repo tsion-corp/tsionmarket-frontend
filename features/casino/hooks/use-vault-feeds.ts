@@ -5,10 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { mergeActivities, mergeWinners } from "@/features/casino/lib/last-standing/merge-feeds";
 import {
-  readRecentStarts,
+  readRecentActivity,
   readSettledGames,
+  type ChainActivity,
   type ChainSettledGame,
-  type ChainStart,
 } from "@/features/casino/hooks/use-vault-actions";
 import { usePrices } from "@/hooks/use-prices";
 import {
@@ -25,7 +25,7 @@ const CHAIN_POLL_MS = 12_000;
 const EMPTY_ACTIVITIES: VaultActivity[] = [];
 const EMPTY_WINNERS: VaultWinner[] = [];
 const EMPTY_SETTLED: ChainSettledGame[] = [];
-const EMPTY_STARTS: ChainStart[] = [];
+const EMPTY_CHAIN_ACTIVITY: ChainActivity[] = [];
 
 /**
  * The two feeds that span every game: recent plays and recent settlements.
@@ -59,9 +59,9 @@ export function useVaultFeeds(connected: boolean) {
     refetchInterval: CHAIN_POLL_MS,
   });
 
-  const startsOnChain = useQuery<ChainStart[]>({
-    queryKey: VAULT_KEYS.chainStarts,
-    queryFn: readRecentStarts,
+  const activityOnChain = useQuery<ChainActivity[]>({
+    queryKey: VAULT_KEYS.chainActivity,
+    queryFn: readRecentActivity,
     staleTime: CHAIN_POLL_MS,
     refetchInterval: CHAIN_POLL_MS,
   });
@@ -72,8 +72,12 @@ export function useVaultFeeds(connected: boolean) {
     [winners.data, settledOnChain.data, ethPrice]
   );
   const mergedActivities = useMemo(
-    () => mergeActivities(activities.data ?? EMPTY_ACTIVITIES, startsOnChain.data ?? EMPTY_STARTS),
-    [activities.data, startsOnChain.data]
+    () =>
+      mergeActivities(
+        activities.data ?? EMPTY_ACTIVITIES,
+        activityOnChain.data ?? EMPTY_CHAIN_ACTIVITY
+      ),
+    [activities.data, activityOnChain.data]
   );
 
   return {

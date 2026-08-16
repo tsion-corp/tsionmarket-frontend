@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { apiError } from "@/lib/api/envelope";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, isAlreadySettledError } from "@/lib/errors";
 
 describe("friendlyError", () => {
   it("maps wallet rejections", () => {
@@ -120,5 +120,32 @@ describe("contract reverts never reach the user as hex", () => {
   it("does not treat a plain server sentence as a revert", () => {
     const e = Object.assign(new Error("That tier is already owned."), { status: 409 });
     expect(friendlyError(e)).toBe("That tier is already owned.");
+  });
+
+  it("names the vault's own reverts in plain words", () => {
+    // Selectors from the compiled King of Night ABI. Before these existed a
+    // wager under the game's minimum showed the player raw calldata.
+    const wrap = (selector: string) =>
+      new Error(`execution reverted (data: ${selector}${"0".repeat(64)}${"0".repeat(64)})`);
+    expect(friendlyError(wrap("0x10169bd5"))).toMatch(/game's minimum/i);
+    expect(friendlyError(wrap("0x78e030db"))).toMatch(/minimum to open/i);
+    expect(friendlyError(wrap("0x3496ed15"))).toMatch(/round is over/i);
+    expect(friendlyError(wrap("0x8fec535e"))).toMatch(/already been settled/i);
+    expect(friendlyError(wrap("0xb52cb3ad"))).toMatch(/clock hasn't run out/i);
+    expect(friendlyError(wrap("0x379a7ed9"))).toMatch(/paused/i);
+    expect(friendlyError(wrap("0xd13b2677"))).toMatch(/doesn't exist/i);
+    expect(friendlyError(wrap("0x64ab3466"))).toMatch(/nothing left to claim/i);
+  });
+
+  it("recognises AlreadySettled so the client can treat the keeper's win as its own", () => {
+    expect(
+      isAlreadySettledError(
+        new Error(
+          "reverted: 0x8fec535e0000000000000000000000000000000000000000000000000000000000000006"
+        )
+      )
+    ).toBe(true);
+    expect(isAlreadySettledError(new Error("reverted: 0xb52cb3ad"))).toBe(false);
+    expect(isAlreadySettledError(null)).toBe(false);
   });
 });

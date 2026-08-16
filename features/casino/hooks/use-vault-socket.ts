@@ -63,10 +63,16 @@ interface WagerPlacedFrame {
   newEndTime: number;
 }
 
+// The split amounts ride along on the frame too, as wei; the winners feed is
+// refetched for the priced row rather than built from them here.
 interface GameSettledFrame {
   gameId: number;
   winner: string;
   starter: string;
+  potWei?: string;
+  toWinnerWei?: string;
+  toTreasuryWei?: string;
+  toStarterWei?: string;
   transactionHash?: string;
 }
 

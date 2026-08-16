@@ -2,120 +2,19 @@
 
 import { useCallback, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { decodeEventLog, encodeFunctionData } from "viem";
+import { decodeEventLog, encodeFunctionData, getAbiItem } from "viem";
 import { base } from "viem/chains";
 import { getWalletAddress } from "@/lib/user";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { useEvmSend } from "@/hooks/use-evm-send";
+import { KING_OF_NIGHT_ABI } from "@/features/casino/lib/last-standing/king-of-night-abi";
 
 // The Last Standing vault contract lives on Base only.
 const VAULT_CHAIN_ID = base.id;
 
-// Matched by hash against the logs the deployed contract emits: three uint256
-// data words, the minimum wager, the opening stake (the pot at that moment) and
-// the end time. An earlier reading had two words and a uint64, which decoded
-// every real log as "not one of ours" and lost the gameId from a fresh start.
-// The type matters: uint64 here hashes to a different topic and matches nothing.
-const GAME_STARTED_EVENT = {
-  type: "event",
-  name: "GameStarted",
-  inputs: [
-    { name: "gameId", type: "uint256", indexed: true },
-    { name: "starter", type: "address", indexed: true },
-    { name: "minWager", type: "uint256", indexed: false },
-    { name: "stake", type: "uint256", indexed: false },
-    { name: "endTime", type: "uint256", indexed: false },
-  ],
-} as const;
-
-// v4 is a factory: anyone opens a game with startGame(), and everyone else
-// joins that game by id. The pot splits 50/40/10 between the last player, the
-// treasury and whoever opened it.
-const VAULT_ABI = [
-  {
-    type: "function",
-    name: "minStartStake",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "startGame",
-    stateMutability: "payable",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "wager",
-    stateMutability: "payable",
-    inputs: [{ name: "gameId", type: "uint256" }],
-    outputs: [],
-  },
-  { type: "function", name: "claim", stateMutability: "nonpayable", inputs: [], outputs: [] },
-  {
-    type: "function",
-    name: "settle",
-    stateMutability: "nonpayable",
-    inputs: [{ name: "gameId", type: "uint256" }],
-    outputs: [],
-  },
-  {
-    type: "function",
-    name: "nextGameId",
-    stateMutability: "view",
-    inputs: [],
-    outputs: [{ type: "uint256" }],
-  },
-  {
-    type: "function",
-    name: "getGameStatus",
-    stateMutability: "view",
-    inputs: [{ name: "gameId", type: "uint256" }],
-    outputs: [
-      { name: "active", type: "bool" },
-      { name: "pot", type: "uint256" },
-      { name: "timeRemaining", type: "uint256" },
-      { name: "king", type: "address" },
-      { name: "starter", type: "address" },
-      { name: "minWager", type: "uint256" },
-    ],
-  },
-  {
-    type: "function",
-    name: "games",
-    stateMutability: "view",
-    inputs: [{ name: "gameId", type: "uint256" }],
-    outputs: [
-      { name: "starter", type: "address" },
-      { name: "endTime", type: "uint64" },
-      { name: "settled", type: "bool" },
-      { name: "king", type: "address" },
-      { name: "minWager", type: "uint256" },
-      { name: "pot", type: "uint256" },
-    ],
-  },
-  {
-    type: "function",
-    name: "previewSplit",
-    stateMutability: "view",
-    inputs: [{ name: "pot", type: "uint256" }],
-    outputs: [
-      { name: "toWinner", type: "uint256" },
-      { name: "toTreasury", type: "uint256" },
-      { name: "toStarter", type: "uint256" },
-    ],
-  },
-  {
-    type: "function",
-    name: "pendingWithdrawals",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-  GAME_STARTED_EVENT,
-] as const;
+// The compiled artifact, never a transcription: a hand-typed GameStarted with
+// four fields hashed to a topic that matched no log and lost every gameId.
+const VAULT_ABI = KING_OF_NIGHT_ABI;
 
 function contractAddress(): `0x${string}` {
   const address = process.env.NEXT_PUBLIC_VAULT_CONTRACT_ADDRESS;
@@ -300,6 +199,10 @@ export interface ChainSettledGame {
   toWinnerWei: bigint;
   /** When the round was won: the clock ran out then, whenever it was settled. */
   endTime: number;
+  /** The settle() transaction, when its log is inside the scanned window. */
+  settlementTx: string | null;
+  /** Unix seconds the settlement landed, when its log is inside the window. */
+  settledAt: number | null;
 }
 
 /**
@@ -308,7 +211,9 @@ export interface ChainSettledGame {
  * The indexed winners feed has never carried a row for this contract, and a
  * settled game's record is a mapping read away, so the Hall of Winners is built
  * from the chain. previewSplit is what settle() paid the winner, so the amount
- * shown is the amount credited rather than the whole pot.
+ * shown is the amount credited rather than the whole pot. Where the settle()
+ * log is still inside the scanned block window, the row also gets its
+ * transaction and the time it landed, so it can link to the explorer.
  */
 export async function readSettledGames(): Promise<ChainSettledGame[]> {
   const client = publicClientForChain(VAULT_CHAIN_ID);
@@ -362,11 +267,14 @@ export async function readSettledGames(): Promise<ChainSettledGame[]> {
     allowFailure: true,
   });
 
+  const settlements = await readSettlementLogs(client, address);
+
   return settled
     .map((g, i) => {
       const split = splits[i];
       const toWinnerWei =
         split.status === "success" ? (split.result as readonly [bigint, bigint, bigint])[0] : 0n;
+      const log = settlements.get(g.gameId);
       return {
         gameId: g.gameId,
         winner: g.king,
@@ -374,59 +282,126 @@ export async function readSettledGames(): Promise<ChainSettledGame[]> {
         potWei: g.potWei,
         toWinnerWei,
         endTime: g.endTime,
+        settlementTx: log?.transactionHash ?? null,
+        settledAt: log?.timestamp ?? null,
       };
     })
     .sort((a, b) => b.gameId - a.gameId);
 }
 
-export interface ChainStart {
-  gameId: number;
-  starter: string;
-  stakeWei: bigint;
-  transactionHash: string;
-  /** Unix seconds, from the block the start landed in. */
-  timestamp: number;
-}
-
 // The public RPC caps eth_getLogs at 10,000 blocks per call, and Base makes a
 // block every two seconds, so this is roughly the last five and a half hours.
 // Enough for a live feed; the indexer is meant to hold history.
-const START_LOG_WINDOW = 9_999n;
+const LOG_WINDOW = 9_999n;
+
+type VaultClient = ReturnType<typeof publicClientForChain>;
+
+async function logWindow(client: VaultClient): Promise<{ fromBlock: bigint; toBlock: bigint }> {
+  const head = await client.getBlockNumber();
+  return { fromBlock: head > LOG_WINDOW ? head - LOG_WINDOW : 0n, toBlock: head };
+}
+
+// A log carries a block number and no time. One block read per distinct block
+// gives a feed real timestamps rather than "just now" on every poll.
+async function blockTimestamps(
+  client: VaultClient,
+  logs: readonly { blockNumber: bigint }[]
+): Promise<Map<bigint, number>> {
+  const numbers = [...new Set(logs.map((log) => log.blockNumber))];
+  const blocks = await Promise.all(numbers.map((blockNumber) => client.getBlock({ blockNumber })));
+  return new Map(blocks.map((b) => [b.number, Number(b.timestamp)]));
+}
+
+async function readSettlementLogs(
+  client: VaultClient,
+  address: `0x${string}`
+): Promise<Map<number, { transactionHash: string; timestamp: number }>> {
+  const logs = await client.getLogs({
+    address,
+    event: getAbiItem({ abi: VAULT_ABI, name: "GameSettled" }),
+    ...(await logWindow(client)),
+  });
+  const timestampOf = await blockTimestamps(client, logs);
+  return new Map(
+    logs.map((log) => [
+      Number(log.args.gameId),
+      { transactionHash: log.transactionHash, timestamp: timestampOf.get(log.blockNumber) ?? 0 },
+    ])
+  );
+}
+
+export type ChainActivityAction = "started" | "joined" | "won";
+
+export interface ChainActivity {
+  gameId: number;
+  action: ChainActivityAction;
+  address: string;
+  /** What moved: the opening stake, the wager, or what the winner was paid. */
+  amountWei: bigint;
+  transactionHash: string;
+  /** Unix seconds, from the block the action landed in. */
+  timestamp: number;
+}
 
 /**
- * Recent game starts, newest first, from the contract's own logs.
+ * Recent player actions, newest first, from the contract's own logs.
  *
- * GameStarted is the only event the contract emits for player actions: wagers
- * and settlements leave no log at all, checked against every log the deployed
- * contract has ever produced. So a chain-side activity feed is a feed of
- * starts, and joins can only come from the indexer once it works.
+ * The contract emits one event per player action: GameStarted for an opening,
+ * WagerPlaced for a join, GameSettled for a win. Read together they are the
+ * activity feed the indexer is meant to serve, over the window the RPC allows.
+ * Three log queries share one block-timestamp lookup.
  */
-export async function readRecentStarts(): Promise<ChainStart[]> {
+export async function readRecentActivity(): Promise<ChainActivity[]> {
   const client = publicClientForChain(VAULT_CHAIN_ID);
-  const head = await client.getBlockNumber();
-  const from = head > START_LOG_WINDOW ? head - START_LOG_WINDOW : 0n;
-  const logs = await client.getLogs({
-    address: contractAddress(),
-    event: GAME_STARTED_EVENT,
-    fromBlock: from,
-    toBlock: head,
-  });
-  // A log carries a block number and no time. One block read per distinct
-  // block gives the feed real timestamps rather than "just now" on every poll.
-  const blockNumbers = [...new Set(logs.map((log) => log.blockNumber))];
-  const blocks = await Promise.all(
-    blockNumbers.map((blockNumber) => client.getBlock({ blockNumber }))
-  );
-  const timestampOf = new Map(blocks.map((b) => [b.number, Number(b.timestamp)]));
-  return logs
-    .map((log) => ({
+  const address = contractAddress();
+  const window = await logWindow(client);
+  const [starts, wagers, settlements] = await Promise.all([
+    client.getLogs({
+      address,
+      event: getAbiItem({ abi: VAULT_ABI, name: "GameStarted" }),
+      ...window,
+    }),
+    client.getLogs({
+      address,
+      event: getAbiItem({ abi: VAULT_ABI, name: "WagerPlaced" }),
+      ...window,
+    }),
+    client.getLogs({
+      address,
+      event: getAbiItem({ abi: VAULT_ABI, name: "GameSettled" }),
+      ...window,
+    }),
+  ]);
+  const timestampOf = await blockTimestamps(client, [...starts, ...wagers, ...settlements]);
+  const at = (log: { blockNumber: bigint }) => timestampOf.get(log.blockNumber) ?? 0;
+
+  const rows: ChainActivity[] = [
+    ...starts.map((log) => ({
       gameId: Number(log.args.gameId),
-      starter: String(log.args.starter),
-      stakeWei: log.args.stake ?? 0n,
+      action: "started" as const,
+      address: String(log.args.starter),
+      amountWei: log.args.pot ?? 0n,
       transactionHash: log.transactionHash,
-      timestamp: timestampOf.get(log.blockNumber) ?? 0,
-    }))
-    .sort((a, b) => b.gameId - a.gameId);
+      timestamp: at(log),
+    })),
+    ...wagers.map((log) => ({
+      gameId: Number(log.args.gameId),
+      action: "joined" as const,
+      address: String(log.args.player),
+      amountWei: log.args.amount ?? 0n,
+      transactionHash: log.transactionHash,
+      timestamp: at(log),
+    })),
+    ...settlements.map((log) => ({
+      gameId: Number(log.args.gameId),
+      action: "won" as const,
+      address: String(log.args.winner),
+      amountWei: log.args.toWinner ?? 0n,
+      transactionHash: log.transactionHash,
+      timestamp: at(log),
+    })),
+  ];
+  return rows.sort((a, b) => b.timestamp - a.timestamp || b.gameId - a.gameId);
 }
 
 /**
@@ -498,9 +473,9 @@ export function useVaultActions() {
     [owner, evmSend]
   );
 
-  // Collects what settle() credited to pendingWithdrawals. Nothing is pushed to
-  // a wallet at settlement; the contract holds every payout until it is
-  // claimed.
+  // Collects a payout that settle() could not push. Settlement pays the winner
+  // and the starter directly; only a transfer that fails (a contract recipient
+  // that rejects ETH) is credited to pendingWithdrawals, and this sweeps it.
   const claim = useCallback(async (): Promise<string> => {
     const address = owner();
     setClaiming(true);
@@ -520,13 +495,14 @@ export function useVaultActions() {
   }, [owner, evmSend]);
 
   /**
-   * Closes a game whose clock has run out and credits the split.
+   * Closes a game whose clock has run out and pays the split.
    *
    * The contract does not settle itself. Until someone calls this, a finished
-   * game stays "unsettled" forever: the winner is never credited, the winners
-   * feed never has a row for it, and pendingWithdrawals stays at zero. Every
-   * one of the first six games on Base sat in exactly that state. Anyone may
-   * call it once the timer is up; the winner does, at the moment they win.
+   * game stays "unsettled" forever: the winner is never paid and the winners
+   * feed never has a row for it. Every one of the first six games on Base sat
+   * in exactly that state for a day. The backend keeper is meant to do this
+   * within seconds of expiry; anyone may, and the winner does here the moment
+   * they win, so a payout never depends on the keeper being up.
    */
   const settle = useCallback(
     async (gameId: number): Promise<string> => {

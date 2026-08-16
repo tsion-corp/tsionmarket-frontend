@@ -1,30 +1,23 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
+import { publicClientForChain } from "@/lib/trade/receipt";
+import { KING_OF_NIGHT_ABI } from "@/features/casino/lib/last-standing/king-of-night-abi";
 
-const client = createPublicClient({ chain: base, transport: http() });
-
-// The vault holds each winner's pot in pendingWinnings[address] until they call
-// claim(); it is not auto-credited. Reading it straight from the contract is
-// the source of truth for "what can I collect", independent of any backend lag.
-const VAULT_ABI = [
-  {
-    type: "function",
-    name: "pendingWinnings",
-    stateMutability: "view",
-    inputs: [{ type: "address" }],
-    outputs: [{ type: "uint256" }],
-  },
-] as const;
+// Settlement pushes each payout straight to the wallet. Only a transfer that
+// fails is credited to pendingWithdrawals[address], and that is what claim()
+// collects. Reading it from the contract is the source of truth for "is there
+// anything left to collect", independent of any backend lag. This read used to
+// call pendingWinnings(), a v3 name that v4 does not have, so it always
+// failed and the claim path could never fire.
 
 function vaultAddress(): `0x${string}` | null {
   const address = process.env.NEXT_PUBLIC_VAULT_CONTRACT_ADDRESS;
   return address ? (address as `0x${string}`) : null;
 }
 
-// This wallet's unclaimed winnings in the vault, in wei. Re-read on each new
+// This wallet's uncollected payout in the vault, in wei. Re-read on each new
 // block via useInvalidateOnBlock(["vault-winnings"]) so it clears within ~2s of
 // a claim landing. Returns 0n while loading or when nothing is claimable.
 export function useVaultPendingWinnings(address: string | null) {
@@ -34,10 +27,10 @@ export function useVaultPendingWinnings(address: string | null) {
     enabled: !!address && !!contract,
     staleTime: 4000,
     queryFn: () =>
-      client.readContract({
+      publicClientForChain(base.id).readContract({
         address: contract as `0x${string}`,
-        abi: VAULT_ABI,
-        functionName: "pendingWinnings",
+        abi: KING_OF_NIGHT_ABI,
+        functionName: "pendingWithdrawals",
         args: [address as `0x${string}`],
       }),
   });

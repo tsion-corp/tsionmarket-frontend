@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mergeActivities, mergeWinners } from "@/features/casino/lib/last-standing/merge-feeds";
-import type { ChainSettledGame, ChainStart } from "@/features/casino/hooks/use-vault-actions";
+import type { ChainActivity, ChainSettledGame } from "@/features/casino/hooks/use-vault-actions";
 import type { VaultActivity, VaultWinner } from "@/features/casino/lib/vault-api";
 
 const ETH = 4000;
@@ -13,6 +13,8 @@ function settled(gameId: number, potWei = 200_000_000_000_000n): ChainSettledGam
     potWei,
     toWinnerWei: potWei / 2n,
     endTime: 1_786_800_000 + gameId,
+    settlementTx: null,
+    settledAt: null,
   };
 }
 
@@ -65,6 +67,18 @@ describe("mergeWinners", () => {
     expect(rows.filter((r) => r.gameId === 2)).toHaveLength(1);
   });
 
+  it("links the settle transaction and dates the row by it when the log is in reach", () => {
+    // Games 1 to 6 were settled 29 hours after they ended; the row should say
+    // when the money moved, and link to the transaction that moved it.
+    const [row] = mergeWinners(
+      [],
+      [{ ...settled(1), settlementTx: "0xsettle1", settledAt: 1_786_920_953 }],
+      ETH
+    );
+    expect(row.settlementTx).toBe("0xsettle1");
+    expect(row.settledAt).toBe(new Date(1_786_920_953 * 1000).toISOString());
+  });
+
   it("gives every row a distinct key", () => {
     // The table keys rows by settlementTx; two rows sharing one collide.
     const rows = mergeWinners([], [settled(1), settled(2)], ETH);
@@ -72,12 +86,35 @@ describe("mergeWinners", () => {
   });
 });
 
-function start(gameId: number, timestamp: number): ChainStart {
+function start(gameId: number, timestamp: number): ChainActivity {
   return {
     gameId,
-    starter: "0xSTARTER",
-    stakeWei: 200_000_000_000_000n,
+    action: "started",
+    address: "0xSTARTER",
+    amountWei: 200_000_000_000_000n,
     transactionHash: `0xstart${gameId}`,
+    timestamp,
+  };
+}
+
+function join(gameId: number, timestamp: number): ChainActivity {
+  return {
+    gameId,
+    action: "joined",
+    address: "0xJOINER",
+    amountWei: 300_000_000_000_000n,
+    transactionHash: `0xjoin${gameId}-${timestamp}`,
+    timestamp,
+  };
+}
+
+function win(gameId: number, timestamp: number): ChainActivity {
+  return {
+    gameId,
+    action: "won",
+    address: "0xKING",
+    amountWei: 100_000_000_000_000n,
+    transactionHash: `0xsettle${gameId}`,
     timestamp,
   };
 }
@@ -117,6 +154,20 @@ describe("mergeActivities", () => {
       [start(6, 1_786_815_155)]
     );
     expect(rows).toHaveLength(1);
+  });
+
+  it("carries joins and wins from the chain, not only starts", () => {
+    // WagerPlaced and GameSettled are in the compiled ABI; a feed built from
+    // starts alone said "no plays" on a game three people had joined.
+    const rows = mergeActivities([], [start(6, 100), join(6, 110), join(6, 120), win(6, 200)]);
+    expect(rows.map((r) => r.action)).toEqual(["won", "joined", "joined", "started"]);
+    expect(rows[0].amountWei).toBe("100000000000000");
+    expect(rows[1].address).toBe("0xJOINER");
+  });
+
+  it("keys every chain row distinctly, even two joins on one game", () => {
+    const rows = mergeActivities([], [join(6, 110), join(6, 120)]);
+    expect(new Set(rows.map((r) => r.id)).size).toBe(2);
   });
 
   it("orders everything newest first, whichever source it came from", () => {

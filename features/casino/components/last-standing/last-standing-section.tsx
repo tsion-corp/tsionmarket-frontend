@@ -50,7 +50,7 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
 import { timeAgo, truncateAddress } from "@/lib/format";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, isAlreadySettledError } from "@/lib/errors";
 import {
   isMusicPlaying,
   setUrgentMode,
@@ -318,11 +318,12 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
 
   // Round-end handling. The winner is whoever was the last to play when the
   // clock ran out. Nothing is paid until someone calls settle(), and the
-  // contract does not do that itself: it credits the split to
-  // pendingWithdrawals when asked, and the winner then claims. So the moment
-  // a live round ends we show the "calculating" suspense to everyone; after
-  // it, only the winning wallet sees the jackpot, and that wallet settles the
-  // game, which is what makes the auto-claim below have something to collect.
+  // contract does not do that itself: the backend keeper is meant to, and the
+  // winner's client does too, so the payout never waits on the keeper. So the
+  // moment a live round ends we show the "calculating" suspense to everyone;
+  // after it, only the winning wallet sees the jackpot, and that wallet
+  // settles the game. settle() pushes the payout straight to the wallet; the
+  // claim path below is only for a push that failed.
   const potUsd = status?.vaultBalance.usdValue ?? 0;
   const lastPlayer = status?.lastPlayer ?? null;
   // This wallet is the last to have played, so it wins if the clock hits zero.
@@ -491,8 +492,9 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     return () => clearTimeout(id);
   }, [recentWinUsd]);
 
-  // Sweep a won pot to the wallet with a gasless claim(); the contract holds it
-  // in pendingWinnings until then. Guarded so it never fires an empty claim.
+  // Sweep a payout the contract could not push, with a gasless claim(). Rare:
+  // settle() pays wallets directly and only a failed transfer is held in
+  // pendingWithdrawals. Guarded so it never fires an empty claim.
   const onClaim = async () => {
     if (pendingWei <= 0n || claiming) return;
     const id = toast.loading(t("toastClaiming"));
@@ -507,10 +509,11 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     }
   };
 
-  // Auto-claim: when a win credits pendingWinnings, collect it automatically so
-  // "winner takes the pot" actually pays out. The persistent banner below is the
-  // fallback for anything left unclaimed. Latest handler kept in a ref, updated
-  // in an effect, so the trigger effect doesn't re-bind every render.
+  // Auto-claim: if a win lands in pendingWithdrawals instead of the wallet,
+  // collect it automatically so "winner takes the pot" actually pays out. The
+  // persistent banner below is the fallback for anything left unclaimed.
+  // Latest handler kept in a ref, updated in an effect, so the trigger effect
+  // doesn't re-bind every render.
   const claimRef = useRef<() => void>(() => {});
   useEffect(() => {
     claimRef.current = () => void onClaim();
@@ -535,10 +538,12 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     }
   }, [pendingWei, claiming]);
 
-  // Settle the game I just won, so there is a payout to claim at all. Every
-  // game on this contract sat unsettled with nothing credited until this
-  // existed: the reveal fired, the "updating your balance" banner showed, and
-  // the balance never moved, because nobody had asked the contract to pay.
+  // Settle the game I just won, so the payout lands. Every game on this
+  // contract sat unsettled for a day until this existed: the reveal fired,
+  // the "updating your balance" banner showed, and the balance never moved,
+  // because nobody had asked the contract to pay. The backend keeper is meant
+  // to settle within seconds of expiry, and when it gets there first this
+  // reverts AlreadySettled, which is the outcome we wanted, not a failure.
   // Anyone may settle once the clock is out; the winner does it here, gasless
   // like every other vault action, and once per game.
   const settledGameRef = useRef<number | null>(null);
@@ -557,6 +562,13 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
         resyncGame();
       })
       .catch((e) => {
+        if (isAlreadySettledError(e)) {
+          // The keeper beat us to it. Paid is paid.
+          toast.success(t("toastSettled"), { id });
+          void refetchWinnings();
+          resyncGame();
+          return;
+        }
         // Let it be tried again: a failed settle has not paid anyone.
         settledGameRef.current = null;
         toast.error(friendlyError(e, t("toastSettleFailed")), { id });
@@ -578,6 +590,11 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       void refetchWinnings();
       resyncGame();
     } catch (e) {
+      if (isAlreadySettledError(e)) {
+        toast.success(t("toastSettled"), { id });
+        resyncGame();
+        return;
+      }
       toast.error(friendlyError(e, t("toastSettleFailed")), { id });
     }
   };
