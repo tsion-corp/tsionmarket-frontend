@@ -15,8 +15,8 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { Pager } from "@/components/ui/pager";
 import { MoneyTicker } from "@/features/casino/components/last-standing/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
-import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
+import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
 import {
   MiniTimerLauncher,
   formatCountdown,
@@ -175,7 +175,6 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   const t = useTranslations("casino.lastStanding");
   const { user } = usePrivy();
   const money = useMoney();
-  const { mask } = useBalanceVisibility();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
   const { game, loading: statusLoading, connected, resync: resyncGame } = useVaultGame(gameId);
   const { activities, winners, winnersLoading } = useVaultFeeds(connected);
@@ -1085,39 +1084,16 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
               )}
             </div>
 
-            {/* Balance */}
-            <div className="ws-inset mt-3 flex items-center justify-between gap-3 px-4 py-3.5">
-              <div className="min-w-0">
-                <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  {t("yourBalance")}
-                </div>
-                <div className="tnum mt-0.5 text-[16px] font-bold text-white/90">
-                  {mask(money.format(balanceUsd))}
-                </div>
-              </div>
-              {/* Withdraw cashes the game balance back out to dollars (the
-                  portfolio's sell flow: ETH on Base -> USDC), because players
-                  don't know the game runs on their ETH balance and need a way
-                  to get their money back. Add money only shows when the play
-                  CTA isn't already saying it. */}
-              <div className="flex shrink-0 items-center gap-2">
-                {balanceEth > 0 ? (
-                  <button
-                    onClick={() => setWithdrawOpen(true)}
-                    className="shrink-0 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap text-white/85 transition-colors hover:bg-white/12"
-                  >
-                    {t("withdraw")}
-                  </button>
-                ) : null}
-                {canPlay ? (
-                  <button
-                    onClick={() => setFundOpen(true)}
-                    className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
-                  >
-                    {t("addMoney")}
-                  </button>
-                ) : null}
-              </div>
+            {/* Balance. Add money only shows when the play CTA isn't already
+                saying it. */}
+            <div className="mt-3">
+              <GameBalanceCard
+                balanceUsd={balanceUsd}
+                canWithdraw={balanceEth > 0}
+                showAddMoney={canPlay}
+                onWithdraw={() => setWithdrawOpen(true)}
+                onAddMoney={() => setFundOpen(true)}
+              />
             </div>
 
             {/* You won — auto-credited, no claim needed. */}

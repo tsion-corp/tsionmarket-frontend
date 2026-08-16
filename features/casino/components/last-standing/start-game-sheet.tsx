@@ -24,6 +24,8 @@ interface StartGameSheetProps {
   onStarted: () => void;
   /** Formats a USD figure in the currency the user picked. */
   formatUsd: (usd: number) => string;
+  /** Opens funding when the wallet is short on ETH; without it the CTA just says so. */
+  onFund?: () => void;
 }
 
 // The pot split, fixed by the contract. Shown before signing because opening a
@@ -35,7 +37,7 @@ const SPLIT = [
   { key: "splitStarter", pct: 10 },
 ] as const;
 
-export function StartGameSheet({ onClose, onStarted, formatUsd }: StartGameSheetProps) {
+export function StartGameSheet({ onClose, onStarted, formatUsd, onFund }: StartGameSheetProps) {
   const t = useTranslations("casino.lastStanding");
   const router = useRouter();
   const { startGame, starting } = useVaultActions();
@@ -169,22 +171,33 @@ export function StartGameSheet({ onClose, onStarted, formatUsd }: StartGameSheet
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => void confirm()}
-        disabled={!ready}
-        className="bg-accent mt-5 w-full cursor-pointer rounded-[13px] py-3.5 text-[14.5px] font-semibold text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {starting
-          ? t("startPending")
-          : floorFailed
-            ? t("startUnavailable")
-            : shortOnEth
-              ? t("startNeedsEthCta")
-              : send > 0n
-                ? t("startCta", { amount: formatUsd(sendUsd) })
-                : t("loading")}
-      </button>
+      {/* Short on ETH with a way to fund: the button becomes the way. */}
+      {shortOnEth && !floorFailed && !starting && onFund ? (
+        <button
+          type="button"
+          onClick={onFund}
+          className="bg-accent mt-5 w-full cursor-pointer rounded-[13px] py-3.5 text-[14.5px] font-semibold text-black"
+        >
+          {t("addMoney")}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void confirm()}
+          disabled={!ready}
+          className="bg-accent mt-5 w-full cursor-pointer rounded-[13px] py-3.5 text-[14.5px] font-semibold text-black transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {starting
+            ? t("startPending")
+            : floorFailed
+              ? t("startUnavailable")
+              : shortOnEth
+                ? t("startNeedsEthCta")
+                : send > 0n
+                  ? t("startCta", { amount: formatUsd(sendUsd) })
+                  : t("loading")}
+        </button>
+      )}
     </div>
   );
 }

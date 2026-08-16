@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "@/lib/toast";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { buildNav } from "@/components/layout/nav-items";
 import { PortfolioView } from "@/features/portfolio";
@@ -15,7 +16,7 @@ import { SuccessPanel } from "@/components/ui/success-panel";
 import { DetailModal } from "@/components/layout/modals/detail-modal";
 import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { FundsModal, WithdrawModal } from "@/features/funds";
-import { CrossBorderBanner, CrossBorderModal } from "@/features/remit";
+import { CrossBorderBanner } from "@/features/remit";
 import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
 import { RwaSection, RwaTradeModal } from "@/features/rwa";
 import { AuthGuard } from "@/components/auth/auth-guard";
@@ -61,6 +62,7 @@ const Rwa = memo(RwaSection);
 export default function DashboardPage() {
   const [modal, setModal] = useState<DashboardModal>(null);
   const tSections = useTranslations("sections");
+  const tRemit = useTranslations("remitBanner");
   const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const scrollSectionIds = useMemo(() => nav.map((n) => n.id).filter(isScrollSection), [nav]);
   const activeSection = useScrollSpy(scrollSectionIds);
@@ -103,7 +105,9 @@ export default function DashboardPage() {
   );
   const openFunds = useCallback(() => setModal({ type: "funds" }), []);
   const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
-  const openCrossBorder = useCallback(() => setModal({ type: "crossBorder" }), []);
+  // Cross-border is not open yet. The banner stays as the announcement; a tap
+  // says so rather than opening a flow that cannot complete.
+  const openCrossBorder = useCallback(() => toast.info(tRemit("comingSoonToast")), [tRemit]);
 
   const sections: Record<ScrollSectionId, React.ReactNode> = {
     portfolio: (
@@ -167,7 +171,6 @@ export default function DashboardPage() {
         {modal?.type === "rwaTrade" ? <RwaTradeModal payload={modal.rwaTrade} /> : null}
         {modal?.type === "funds" ? <FundsModal onClose={close} deposit={modal.deposit} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
-        {modal?.type === "crossBorder" ? <CrossBorderModal /> : null}
         {modal?.type === "account" ? <AccountModal onClose={close} /> : null}
         {modal?.type === "done" ? (
           <SuccessPanel title={modal.title} onDone={close}>

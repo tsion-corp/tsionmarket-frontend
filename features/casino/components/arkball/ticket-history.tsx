@@ -1,7 +1,7 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { LotteryBall } from "@/features/casino/components/powerball/lottery-ball";
+import { LotteryBall } from "@/features/casino/components/arkball/lottery-ball";
 import type { LotteryDraw, LotteryTicket } from "@/features/casino/lib/api/lottery";
 import { formatLotteryUsdc, LOTTERY_TIME_ZONE } from "@/features/casino/lib/lottery";
 
@@ -17,13 +17,13 @@ function Balls({ white, power }: { white: readonly number[]; power: number }) {
       {white.map((number) => (
         <LotteryBall key={number} number={number} size="sm" />
       ))}
-      <LotteryBall number={power} powerball size="sm" />
+      <LotteryBall number={power} arkball size="sm" />
     </div>
   );
 }
 
 export function TicketHistory({ tickets, results, loading }: TicketHistoryProps) {
-  const t = useTranslations("casino.powerball");
+  const t = useTranslations("casino.arkball");
   const format = useFormatter();
 
   return (

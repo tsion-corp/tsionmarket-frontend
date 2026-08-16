@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import type { LotteryDraw } from "@/features/casino/lib/api/lottery";
-import { LotteryBall } from "@/features/casino/components/powerball/lottery-ball";
+import { LotteryBall } from "@/features/casino/components/arkball/lottery-ball";
 import {
   formatLotteryUsdc,
   LOTTERY_TIME_ZONE,
@@ -25,7 +25,7 @@ function DrawDate({ timestamp }: { timestamp: string }) {
 }
 
 function Countdown({ timestamp }: { timestamp: string }) {
-  const t = useTranslations("casino.powerball");
+  const t = useTranslations("casino.arkball");
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ interface DrawOverviewProps {
 }
 
 export function DrawOverview({ current, latest }: DrawOverviewProps) {
-  const t = useTranslations("casino.powerball");
+  const t = useTranslations("casino.arkball");
   const latestResult = latest?.result;
 
   return (
@@ -86,7 +86,7 @@ export function DrawOverview({ current, latest }: DrawOverviewProps) {
               {latestResult.whiteNumbers.map((number) => (
                 <LotteryBall key={number} number={number} size="sm" />
               ))}
-              <LotteryBall number={latestResult.powerNumber} powerball size="sm" />
+              <LotteryBall number={latestResult.powerNumber} arkball size="sm" />
             </div>
           </>
         ) : (

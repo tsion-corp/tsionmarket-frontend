@@ -1,9 +1,9 @@
-import { CasinoPage, PowerballSection } from "@/features/casino";
+import { CasinoPage, ArkBallSection } from "@/features/casino";
 
-export default function ArkballPage() {
+export default function ArkBallPage() {
   return (
     <CasinoPage>
-      <PowerballSection />
+      <ArkBallSection />
     </CasinoPage>
   );
 }

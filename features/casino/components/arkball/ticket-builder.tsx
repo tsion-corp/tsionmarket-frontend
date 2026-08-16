@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { DiceIcon } from "@/components/ui/icons";
-import { LotteryBall } from "@/features/casino/components/powerball/lottery-ball";
+import { LotteryBall } from "@/features/casino/components/arkball/lottery-ball";
 import type {
   LotteryEligibility,
   LotterySelection,
@@ -23,7 +23,7 @@ import { toBaseUnits } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
-type PickerStep = "white" | "powerball";
+type PickerStep = "white" | "arkball";
 
 interface TicketBuilderProps {
   drawId: string;
@@ -55,7 +55,7 @@ export function TicketBuilder({
   quickPicking,
   purchasing,
 }: TicketBuilderProps) {
-  const t = useTranslations("casino.powerball");
+  const t = useTranslations("casino.arkball");
   const [step, setStep] = useState<PickerStep>("white");
   const [whiteNumbers, setWhiteNumbers] = useState<number[]>([]);
   const [powerNumber, setPowerNumber] = useState<number | null>(null);
@@ -100,11 +100,11 @@ export function TicketBuilder({
   const chooseWhite = (number: number) => {
     const next = toggleWhiteBall(whiteNumbers, number);
     setWhiteNumbers(next);
-    if (next.length === WHITE_BALL_COUNT) setStep("powerball");
+    if (next.length === WHITE_BALL_COUNT) setStep("arkball");
     pending.current = null;
   };
 
-  const choosePowerball = (number: number) => {
+  const chooseArkBall = (number: number) => {
     setPowerNumber(number);
     pending.current = null;
   };
@@ -114,7 +114,7 @@ export function TicketBuilder({
       const picked = await quickPick();
       setWhiteNumbers([...picked.whiteNumbers].sort((a, b) => a - b));
       setPowerNumber(picked.powerNumber);
-      setStep("powerball");
+      setStep("arkball");
       pending.current = null;
     } catch (error) {
       toast.error(friendlyError(error, t("quickPickFailed")));
@@ -150,7 +150,7 @@ export function TicketBuilder({
           : selection === null
             ? whiteNumbers.length < WHITE_BALL_COUNT
               ? t("chooseWhiteRemaining", { count: WHITE_BALL_COUNT - whiteNumbers.length })
-              : t("choosePowerball")
+              : t("chooseArkBall")
             : null;
 
   return (
@@ -197,14 +197,14 @@ export function TicketBuilder({
           </button>
           <button
             type="button"
-            onClick={() => setStep("powerball")}
+            onClick={() => setStep("arkball")}
             className={`cursor-pointer px-4 py-3.5 text-[12px] font-bold tracking-[0.04em] transition ${
-              step === "powerball"
+              step === "arkball"
                 ? "bg-[#d91532] text-white"
                 : "bg-red-500/[0.04] text-white/45 hover:text-white"
             }`}
           >
-            {t("powerballStep", { selected: powerNumber === null ? 0 : 1 })}
+            {t("arkballStep", { selected: powerNumber === null ? 0 : 1 })}
           </button>
         </div>
 
@@ -212,10 +212,10 @@ export function TicketBuilder({
           <div className="mb-5 flex items-end justify-between gap-3">
             <div>
               <h2 className="ws-display text-[23px] tracking-[-0.02em] text-white">
-                {step === "white" ? t("pickFiveWhite") : t("pickOnePowerball")}
+                {step === "white" ? t("pickFiveWhite") : t("pickOneArkBall")}
               </h2>
               <p className="mt-1 text-[12px] text-white/42">
-                {step === "white" ? t("whiteRange") : t("powerballRange")}
+                {step === "white" ? t("whiteRange") : t("arkballRange")}
               </p>
             </div>
             <div className="tnum text-[12px] font-semibold text-white/45">
@@ -239,10 +239,10 @@ export function TicketBuilder({
                 <LotteryBall
                   key={number}
                   number={number}
-                  powerball={step === "powerball"}
+                  arkball={step === "arkball"}
                   selected={selected}
                   disabled={disabled}
-                  onClick={() => (step === "white" ? chooseWhite(number) : choosePowerball(number))}
+                  onClick={() => (step === "white" ? chooseWhite(number) : chooseArkBall(number))}
                 />
               );
             })}
@@ -273,9 +273,7 @@ export function TicketBuilder({
               {whiteNumbers.map((number) => (
                 <LotteryBall key={number} number={number} size="sm" />
               ))}
-              {powerNumber !== null ? (
-                <LotteryBall number={powerNumber} powerball size="sm" />
-              ) : null}
+              {powerNumber !== null ? <LotteryBall number={powerNumber} arkball size="sm" /> : null}
             </div>
           )}
         </div>

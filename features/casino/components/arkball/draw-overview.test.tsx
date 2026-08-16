@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
-import { DrawOverview } from "@/features/casino/components/powerball/draw-overview";
+import { DrawOverview } from "@/features/casino/components/arkball/draw-overview";
 import type { LotteryDraw } from "@/features/casino/lib/api/lottery";
 import messages from "@/messages/en.json";
 

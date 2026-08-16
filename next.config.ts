@@ -24,6 +24,11 @@ const nextConfig: NextConfig = {
   // release it came from. Read from package.json, so it moves with a version
   // bump instead of being maintained by hand.
   env: { NEXT_PUBLIC_APP_VERSION: packageJson.version },
+  // Powerball became ArkBall. Shared links and bookmarks to the old slug still
+  // land on the game.
+  async redirects() {
+    return [{ source: "/casino/powerball", destination: "/casino/arkball", permanent: true }];
+  },
   // Pin the Turbopack root to this project. Otherwise Next walks up the tree,
   // finds the stray ~/package-lock.json, and treats the whole home directory as
   // the workspace root — so Turbopack watches far more of the filesystem than it

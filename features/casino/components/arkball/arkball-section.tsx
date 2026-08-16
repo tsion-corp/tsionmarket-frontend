@@ -3,15 +3,15 @@
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
-import { DrawOverview } from "@/features/casino/components/powerball/draw-overview";
-import { TicketBuilder } from "@/features/casino/components/powerball/ticket-builder";
-import { TicketHistory } from "@/features/casino/components/powerball/ticket-history";
+import { DrawOverview } from "@/features/casino/components/arkball/draw-overview";
+import { TicketBuilder } from "@/features/casino/components/arkball/ticket-builder";
+import { TicketHistory } from "@/features/casino/components/arkball/ticket-history";
 import { useLottery } from "@/features/casino/hooks/use-lottery";
 import { formatLotteryUsdc } from "@/features/casino/lib/lottery";
 import { friendlyError } from "@/lib/errors";
 
-export function PowerballSection() {
-  const t = useTranslations("casino.powerball");
+export function ArkBallSection() {
+  const t = useTranslations("casino.arkball");
   const lottery = useLottery();
   const current = lottery.currentDraw;
   const rule = lottery.config?.rule;
@@ -53,8 +53,8 @@ export function PowerballSection() {
       <div className="mx-auto w-full max-w-[1380px] space-y-5 px-4 py-5 sm:px-6 lg:px-8">
         <section className="relative min-h-[310px] overflow-hidden rounded-[28px] border border-white/9 shadow-[0_35px_100px_rgba(0,0,0,0.35)] sm:min-h-[360px]">
           <Image
-            src="/casino/powerball/hero.png"
-            alt="Five white lottery balls and one red Arkball"
+            src="/casino/arkball/hero.png"
+            alt="Five white lottery balls and one red ArkBall"
             fill
             priority
             sizes="(max-width: 1380px) 100vw, 1380px"

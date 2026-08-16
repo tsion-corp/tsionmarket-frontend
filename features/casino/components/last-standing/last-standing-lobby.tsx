@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
+import { usePortfolio } from "@/hooks/use-portfolio";
+import type { SellPayload } from "@/lib/modal-types";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { useCurrency } from "@/components/ui/currency-select";
@@ -12,6 +14,8 @@ import { formatMoney } from "@/lib/currencies";
 import { useVaultLobby } from "@/features/casino/hooks/use-vault-lobby";
 import { GameCard } from "@/features/casino/components/last-standing/game-card";
 import { StartGameSheet } from "@/features/casino/components/last-standing/start-game-sheet";
+import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
+import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
 import { DEFAULT_ENTRY_USD } from "@/features/casino/lib/last-standing/stake";
 
 // The lobby: every game currently taking joins, and the way to open one.
@@ -19,13 +23,31 @@ import { DEFAULT_ENTRY_USD } from "@/features/casino/lib/last-standing/stake";
 // v4 runs many games at once, so this is the screen the nav lands on; a game
 // itself lives at /casino/last-standing/[gameId], which is also the link a
 // player shares.
-export function LastStandingLobby() {
+interface LastStandingLobbyProps {
+  /** The portfolio's sell flow, for cashing the game balance back out. */
+  renderWithdrawSheet: (payload: SellPayload, onClose: () => void) => ReactNode;
+}
+
+export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProps) {
   const t = useTranslations("casino.lastStanding");
   const { user } = usePrivy();
   const address = getWalletAddress(user, "ethereum");
   const { games, gamesLoading, gamesError, refetchGames, connected, resync } = useVaultLobby();
 
   const [startOpen, setStartOpen] = useState(false);
+  const [fundOpen, setFundOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+
+  // The game runs on the wallet's ETH on Base. A player who holds only USDC
+  // cannot open or join a game until some of it becomes ETH, and the lobby is
+  // where they find that out, so the way to fund is here and not only on a
+  // game page they cannot get into yet.
+  const { tokens } = usePortfolio();
+  const ethHolding = tokens.find(
+    (tk) => tk.network === "base-mainnet" && tk.symbol.toUpperCase() === "ETH"
+  );
+  const balanceEth = ethHolding?.balance ?? 0;
+  const balanceUsd = ethHolding?.valueUsd ?? 0;
 
   // One formatter for the whole list, so switching currency re-renders the
   // rows once rather than each row holding its own subscription.
@@ -69,6 +91,15 @@ export function LastStandingLobby() {
         >
           {t("startCtaShort", { amount: defaultEntry })}
         </button>
+      </div>
+
+      <div className="mt-3">
+        <GameBalanceCard
+          balanceUsd={balanceUsd}
+          canWithdraw={balanceEth > 0}
+          onWithdraw={() => setWithdrawOpen(true)}
+          onAddMoney={() => setFundOpen(true)}
+        />
       </div>
 
       <div className="mt-7 flex items-center justify-between">
@@ -116,7 +147,40 @@ export function LastStandingLobby() {
           onClose={() => setStartOpen(false)}
           onStarted={resync}
           formatUsd={formatUsd}
+          // Short on ETH at the stake sheet: hand over to funding rather than
+          // leave a dead button. Back in the lobby with money, they start.
+          onFund={() => {
+            setStartOpen(false);
+            setFundOpen(true);
+          }}
         />
+      </ModalShell>
+
+      <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
+        <FundSheet onClose={() => setFundOpen(false)} />
+      </ModalShell>
+
+      <ModalShell
+        open={withdrawOpen && !!ethHolding}
+        onClose={() => setWithdrawOpen(false)}
+        contentKey="vault-withdraw"
+      >
+        {ethHolding
+          ? renderWithdrawSheet(
+              {
+                symbol: ethHolding.symbol,
+                name: ethHolding.name,
+                network: ethHolding.network,
+                address: ethHolding.address,
+                decimals: ethHolding.decimals,
+                balance: ethHolding.balance,
+                rawBalance: ethHolding.rawBalance,
+                priceUsd: ethHolding.priceUsd,
+                logo: ethHolding.logo,
+              },
+              () => setWithdrawOpen(false)
+            )
+          : null}
       </ModalShell>
     </div>
   );

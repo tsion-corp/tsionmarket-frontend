@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
-import { TicketBuilder } from "@/features/casino/components/powerball/ticket-builder";
+import { TicketBuilder } from "@/features/casino/components/arkball/ticket-builder";
 import messages from "@/messages/en.json";
 
 vi.mock("@/lib/toast", () => ({
