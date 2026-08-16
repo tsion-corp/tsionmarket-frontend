@@ -2,7 +2,12 @@
 
 import { useEffect, useRef } from "react";
 import { track } from "@/lib/analytics/mixpanel";
-import { newDepositArrivals, rememberArrivals } from "@/lib/analytics/deposit-watch";
+import {
+  depositCandidateIds,
+  newDepositArrivals,
+  rememberArrivals,
+} from "@/lib/analytics/deposit-watch";
+import { readSelfInitiated } from "@/lib/analytics/self-initiated";
 import type { ActivityItem } from "@/lib/server/activity";
 
 const STORAGE_KEY = "wsws.analytics.reported-deposits.v1";
@@ -47,8 +52,11 @@ export function useDepositAnalytics(items: ActivityItem[]): void {
     if (items.length === 0) return;
 
     const seen = readSeen();
-    const arrivals = newDepositArrivals(items, seen);
-    if (arrivals.length === 0) return;
+    // Transfers the app itself caused are not deposits, however much they look
+    // like one once the money lands. See lib/analytics/self-initiated.
+    const arrivals = newDepositArrivals(items, seen, readSelfInitiated());
+    const considered = depositCandidateIds(items).filter((id) => !seen.has(id));
+    if (considered.length === 0) return;
 
     const isFirstRun = !seeded.current && seen.size === 0;
     seeded.current = true;
@@ -66,11 +74,8 @@ export function useDepositAnalytics(items: ActivityItem[]): void {
       }
     }
 
-    writeSeen(
-      rememberArrivals(
-        seen,
-        arrivals.map((a) => a.id)
-      )
-    );
+    // Remember everything considered, not just what was reported, so a
+    // self-caused arrival stays ruled out on later visits.
+    writeSeen(rememberArrivals(seen, considered));
   }, [items]);
 }

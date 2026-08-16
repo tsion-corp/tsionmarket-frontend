@@ -8,6 +8,7 @@ import {
   useWallets,
 } from "@privy-io/react-auth";
 import type { EIP1193Provider } from "viem";
+import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
 import { sendSponsoredEvmCalls } from "@/lib/trade/sponsor";
 import { getSponsoredEvmChainById, isSponsoredEvmChainId } from "@/lib/trade/sponsored-evm";
 
@@ -56,7 +57,7 @@ export function useEvmSend() {
         const accessToken = await getAccessToken();
         if (!accessToken) throw new Error("Your session expired. Sign in again.");
         const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-        return sendSponsoredEvmCalls({
+        const sponsoredHash = await sendSponsoredEvmCalls({
           chainId,
           address: wallet.address as `0x${string}`,
           provider,
@@ -64,11 +65,14 @@ export function useEvmSend() {
           accessToken,
           calls: [{ to, data, value }],
         });
+        recordSelfInitiated([sponsoredHash]);
+        return sponsoredHash;
       }
       const { hash } = await sendTransaction(
         { to, data, value, chainId, gasLimit },
         address ? { address } : undefined
       );
+      recordSelfInitiated([hash]);
       return hash as `0x${string}`;
     },
     [sendTransaction, signAuthorization, wallets]
@@ -100,7 +104,7 @@ export function useEvmSendBatch() {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error("Your session expired. Sign in again.");
       const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-      return sendSponsoredEvmCalls({
+      const hash = await sendSponsoredEvmCalls({
         chainId,
         address: wallet.address as `0x${string}`,
         provider,
@@ -108,6 +112,12 @@ export function useEvmSendBatch() {
         accessToken,
         calls,
       });
+      // Anything this transaction pays back to the wallet, a closed perp's
+      // collateral, a game balance being cashed out, a claimed payout, arrives
+      // as inbound stablecoin and is indistinguishable from a deposit in
+      // activity. It is not one: the user signed for it here.
+      recordSelfInitiated([hash]);
+      return hash;
     },
     [signAuthorization, wallets]
   );

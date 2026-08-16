@@ -7,6 +7,7 @@
 // already reported, it says which are new deposits. The hook that owns the
 // stored set is in features/activity.
 
+import { normalizeHash } from "@/lib/analytics/self-initiated";
 import type { ActivityItem } from "@/lib/server/activity";
 
 // Dextopus settles every deposit as USDC, so an arriving stablecoin is a
@@ -25,21 +26,53 @@ export interface DepositArrival {
   amountUsd: number;
 }
 
+// An inbound stablecoin transfer worth a dollar figure. Being one of these does
+// not make it a deposit: that also depends on whether we caused it.
+function isStablecoinArrival(item: ActivityItem): boolean {
+  return (
+    item.direction === "in" && SETTLED_SYMBOLS.has(item.symbol.toUpperCase()) && item.amount > 0
+  );
+}
+
 /**
- * The inbound stablecoin transfers in `items` that `seen` does not already
- * cover, newest last.
+ * Every inbound stablecoin transfer in `items`, whether or not it counts as a
+ * deposit.
+ *
+ * The caller remembers these rather than only the ones it reported, so a
+ * transfer ruled out as self-caused stays ruled out. Without that it would be
+ * reconsidered on every visit and would eventually be reported as a deposit,
+ * once its hash aged out of the self-initiated record.
+ */
+export function depositCandidateIds(items: ActivityItem[]): string[] {
+  return items.filter(isStablecoinArrival).map((item) => item.id);
+}
+
+/**
+ * The inbound stablecoin transfers in `items` that are genuinely deposits and
+ * that `seen` does not already cover, newest last.
+ *
+ * `selfInitiated` holds the hashes of transactions this app sent or settled.
+ * Excluding them is what stops a sale, a conversion, a perp close or a game
+ * withdrawal from being counted as money arriving from outside: all of those
+ * end as inbound stablecoin, and nothing else about the transfer distinguishes
+ * them. Getting this wrong does not just mislabel an event, it marks a user who
+ * never funded the account as a depositor, because the profile totals follow
+ * `deposit_completed`.
  *
  * Ordering matters: callers report these in the order returned, so a user who
  * was away for three deposits gets them in the order they happened.
  */
-export function newDepositArrivals(items: ActivityItem[], seen: Set<string>): DepositArrival[] {
+export function newDepositArrivals(
+  items: ActivityItem[],
+  seen: Set<string>,
+  selfInitiated: Set<string> = new Set()
+): DepositArrival[] {
   return items
     .filter(
       (item) =>
-        item.direction === "in" &&
-        SETTLED_SYMBOLS.has(item.symbol.toUpperCase()) &&
-        item.amount > 0 &&
-        !seen.has(item.id)
+        isStablecoinArrival(item) &&
+        !seen.has(item.id) &&
+        !selfInitiated.has(normalizeHash(item.hash))
     )
     .sort((a, b) => a.timestamp - b.timestamp)
     .map((item) => ({ id: item.id, network: item.network, amountUsd: item.amount }));

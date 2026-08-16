@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
 import { toast } from "@/lib/toast";
 import {
   TERMINAL_STAGES,
@@ -449,12 +450,19 @@ export function useValidateAddress() {
 
 // Polls deposit status until the flow reaches a terminal stage. Pass the
 // depositRequestId returned by a quote; polling stops once settled or failed.
+//
+// Every caller of this hook is an operation the user started in the app: a buy,
+// a sell, a conversion, a withdrawal. The funding flow does not appear here at
+// all, because a deposit lands on a static address and has no request to poll.
+// That makes this the one place the settlement transactions of self-started
+// operations are known, so they are recorded here and the deposit watcher rules
+// them out instead of reporting a sale as money arriving from outside.
 export function useDepositStatus(depositRequestId: string | null) {
-  return useQuery<DepositStatusResult>({
+  const query = useQuery<DepositStatusResult>({
     queryKey: ["dextopus", "status", depositRequestId],
     enabled: depositRequestId !== null,
-    refetchInterval: (query) => {
-      const data = query.state.data;
+    refetchInterval: (q) => {
+      const data = q.state.data;
       if (!data) return POLL_MS;
       const { stage } = depositProgress(data.status, data.executionStatus);
       return TERMINAL_STAGES.has(stage) ? false : POLL_MS;
@@ -465,6 +473,13 @@ export function useDepositStatus(depositRequestId: string | null) {
         "Couldn't check deposit status"
       ),
   });
+
+  const hashes = query.data?.destinationTransactionHashes;
+  useEffect(() => {
+    if (hashes && hashes.length > 0) recordSelfInitiated(hashes);
+  }, [hashes]);
+
+  return query;
 }
 
 export interface TerminalMessages {

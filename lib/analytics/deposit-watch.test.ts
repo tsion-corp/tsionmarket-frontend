@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MAX_REMEMBERED,
+  depositCandidateIds,
   newDepositArrivals,
   rememberArrivals,
 } from "@/lib/analytics/deposit-watch";
@@ -64,6 +65,53 @@ describe("newDepositArrivals", () => {
       new Set(["0xabc:log:1"])
     );
     expect(arrivals.map((a) => a.id)).toEqual(["0xabc:log:2"]);
+  });
+});
+
+describe("newDepositArrivals, transfers the app caused", () => {
+  // These are the flows that were being reported as deposits: the money lands
+  // as inbound USDC exactly like a deposit does, and only the fact that we sent
+  // the transaction tells them apart.
+  it("ignores an arrival from a transaction the app sent", () => {
+    const arrivals = newDepositArrivals([item({ hash: "0xsell" })], new Set(), new Set(["0xsell"]));
+    expect(arrivals).toEqual([]);
+  });
+
+  it("matches the hash whatever its case", () => {
+    const arrivals = newDepositArrivals([item({ hash: "0xSELL" })], new Set(), new Set(["0xsell"]));
+    expect(arrivals).toEqual([]);
+  });
+
+  it("still reports a real deposit, which carries a hash we never sent", () => {
+    const arrivals = newDepositArrivals(
+      [item({ hash: "0xexternal" })],
+      new Set(),
+      new Set(["0xsell"])
+    );
+    expect(arrivals.map((a) => a.amountUsd)).toEqual([25]);
+  });
+
+  it("rules out only the self-caused transfer when both arrive together", () => {
+    const arrivals = newDepositArrivals(
+      [item({ id: "a", hash: "0xsell" }), item({ id: "b", hash: "0xexternal", timestamp: 2_000 })],
+      new Set(),
+      new Set(["0xsell"])
+    );
+    expect(arrivals.map((a) => a.id)).toEqual(["b"]);
+  });
+});
+
+describe("depositCandidateIds", () => {
+  it("covers every inbound stablecoin transfer, reported or ruled out", () => {
+    // The caller remembers these so a ruled-out transfer is not reconsidered
+    // later, once its hash has aged out of the self-initiated record.
+    const ids = depositCandidateIds([
+      item({ id: "a", hash: "0xsell" }),
+      item({ id: "b", hash: "0xexternal" }),
+      item({ id: "c", direction: "out" }),
+      item({ id: "d", symbol: "ETH", amount: 0.01 }),
+    ]);
+    expect(ids).toEqual(["a", "b"]);
   });
 });
 
