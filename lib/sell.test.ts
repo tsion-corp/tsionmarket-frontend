@@ -34,8 +34,8 @@ describe("canSellAsset", () => {
     expect(canSellAsset("eth-mainnet", null)).toBe(true);
     expect(canSellAsset("arb-mainnet", null)).toBe(true);
     expect(canSellAsset("polygon-mainnet", null)).toBe(false);
-    // Native SOL sells via a single sponsored LI.FI leg straight to USDC on
-    // Base — LI.FI takes SOL as an origin where Dextopus does not.
+    // Native SOL prefers a direct sponsored Dextopus deposit and falls back to
+    // LI.FI only when the amount is below the primary route's minimum.
     expect(canSellAsset("solana-mainnet", null)).toBe(true);
   });
 
@@ -63,6 +63,7 @@ describe("buildSellQuoteBody", () => {
       recipient: "0xbase",
       refundTo: "0xarb",
       slippageBps: 100,
+      strict: true,
     });
   });
 
@@ -79,7 +80,7 @@ describe("buildSellQuoteBody", () => {
     expect(body.originChainId).toBe(8453);
   });
 
-  it("uses the wrapped-SOL mint for native SOL", () => {
+  it("uses the system-program sentinel accepted by Dextopus for native SOL", () => {
     const body = buildSellQuoteBody({
       network: "solana-mainnet",
       asset: null,
@@ -88,8 +89,9 @@ describe("buildSellQuoteBody", () => {
       refundTo: "solwallet",
       slippageBps: 100,
     });
-    expect(body.originAsset).toBe("So11111111111111111111111111111111111111112");
+    expect(body.originAsset).toBe("11111111111111111111111111111111");
     expect(body.originChainId).toBe(792703809);
+    expect(body.strict).toBe(true);
   });
 
   it("throws for an unsupported network", () => {

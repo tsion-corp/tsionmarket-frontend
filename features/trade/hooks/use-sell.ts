@@ -2,14 +2,10 @@
 
 import { useMutation } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
-import { useWallets } from "@privy-io/react-auth/solana";
+import { useSolanaToBase } from "@/hooks/use-solana-to-base";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { getWalletAddress } from "@/lib/user";
 import { fetchSellQuote } from "@/lib/sell";
-import { fetchSolanaBridgeQuote } from "@/lib/trade/lifi";
-import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
-import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
-import { BASE_USDC, LIFI_BASE_CHAIN, LIFI_NATIVE_SOL } from "@/lib/trade/funding";
 
 export interface SellExecuteInput {
   // Alchemy network id of the held asset.
@@ -19,6 +15,9 @@ export interface SellExecuteInput {
   decimals: number;
   amount: bigint;
   slippageBps: number;
+  // True when the amount came from a Max action. If confirmed chain state has
+  // changed, the UI can preserve that intent while requiring another review.
+  maxRequested?: boolean;
 }
 
 export interface SellExecuteResult {
@@ -38,16 +37,15 @@ export interface SellExecuteResult {
 // deposit address on its own chain, and Dextopus settles USDC to the user's
 // Base wallet.
 //
-// Solana assets — native SOL included — go through LI.FI in one sponsored
-// leg: LI.FI returns a Solana transaction that swaps/bridges straight to USDC
-// on Base, the platform sponsor pays its fee, the embedded wallet signs, and
-// settlement is polled by the transaction signature. One rail, one signature,
-// no SOL required.
+// Solana assets use Dextopus first: a sponsored direct transfer funds its
+// deposit address and Dextopus settles Base USDC. Amounts below Dextopus's
+// minimum (or assets for which it explicitly has no route) fall back to LI.FI.
+// Both rails end in Base USDC and both preserve the source funds if quoting or
+// preflight fails.
 export function useSell() {
   const { user } = usePrivy();
   const { sendToken } = useSendToken();
-  const sendSponsored = useSponsoredSolanaSend();
-  const { wallets: solanaWallets } = useWallets();
+  const settleSolana = useSolanaToBase();
 
   return useMutation<SellExecuteResult, Error, SellExecuteInput>({
     onError: (error) => {
@@ -55,7 +53,7 @@ export function useSell() {
       // a masked error is never undebuggable.
       console.error("Sell failed:", error);
     },
-    mutationFn: async ({ network, asset, decimals, amount, slippageBps }) => {
+    mutationFn: async ({ network, asset, decimals, amount, slippageBps, maxRequested = false }) => {
       // Proceeds settle as USDC on Base, an EVM asset, so the recipient is the
       // EVM wallet. Refunds go back to the wallet on the asset's own chain.
       const recipient = getWalletAddress(user, "ethereum");
@@ -65,23 +63,7 @@ export function useSell() {
       if (!refundTo) throw new Error("No wallet for this asset's network.");
 
       if (network === "solana-mainnet") {
-        const wallet = solanaWallets[0];
-        if (!wallet) throw new Error("No Solana wallet is connected.");
-        const quote = await fetchSolanaBridgeQuote({
-          fromToken: asset ?? LIFI_NATIVE_SOL,
-          toChain: LIFI_BASE_CHAIN,
-          toToken: BASE_USDC,
-          fromAmount: amount,
-          fromAddress: refundTo,
-          toAddress: recipient,
-          slippage: slippageBps / 10_000,
-        });
-        const sig = await sendSponsored({ transaction: quote.transaction, wallet });
-        await confirmSolanaSignature(sig).catch(() => {
-          // The LI.FI settlement poll is the real signal; a slow RPC
-          // confirmation must not fail a sale that is already in flight.
-        });
-        return { rail: "lifi", requestId: sig, txHash: sig, estimatedOutput: quote.toAmount };
+        return settleSolana({ asset, decimals, amount, slippageBps, maxRequested });
       }
 
       const quote = await fetchSellQuote({

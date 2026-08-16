@@ -22,6 +22,7 @@ const ALLOWED_METHODS = new Set([
   "getGenesisHash",
   "getLatestBlockhash",
   "getSignatureStatuses",
+  "getTokenAccountsByOwner",
   "getTransaction",
   "sendTransaction",
   "simulateTransaction",

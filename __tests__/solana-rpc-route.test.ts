@@ -41,12 +41,14 @@ describe("solana rpc proxy", () => {
       "sendTransaction",
       "simulateTransaction",
       "getAccountInfo",
+      "getBalance",
       "getFeeForMessage",
+      "getTokenAccountsByOwner",
     ]) {
       const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method }));
       expect(res.status, method).toBe(200);
     }
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 
   it("refuses anything outside the allowlist, so it is not a free relay", async () => {

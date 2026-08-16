@@ -3,6 +3,11 @@ import { apiError } from "@/lib/api/envelope";
 import { friendlyError, isAlreadySettledError } from "@/lib/errors";
 
 describe("friendlyError", () => {
+  it("preserves the actionable confirmed-balance message", () => {
+    const message = "Your Solana balance changed. Review the updated Max amount and try again.";
+    expect(friendlyError(new Error(message), "Order rejected")).toBe(message);
+  });
+
   it("maps wallet rejections", () => {
     expect(friendlyError(new Error("User rejected the request"))).toMatch(/cancelled/i);
     expect(friendlyError("MetaMask Tx Signature: User denied transaction")).toMatch(/cancelled/i);

@@ -111,6 +111,11 @@ export function friendlyError(
   if (!m) return fallback;
   const gateway = gatewayMeta(e);
 
+  // The Solana sell executor already replaced the stale amount with confirmed
+  // chain state. Tell the user why another confirmation is required instead
+  // of masking it behind the generic order failure.
+  if (/^your solana balance changed\./i.test(raw)) return raw;
+
   // Before the text patterns: a custom-error revert often ALSO contains the
   // word "reverted", which no pattern below would translate, so the hex would
   // survive all the way to the toast.

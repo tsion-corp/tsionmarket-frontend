@@ -12,6 +12,7 @@ import { useSell } from "@/features/trade/hooks/use-sell";
 import { depositProgress, type DepositStage } from "@/lib/deposit";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
+import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
@@ -64,6 +65,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const { mode: spotMode } = useSpotMode();
   const portfolio = usePortfolio();
   const [amount, setAmount] = useState("");
+  const [maxRequested, setMaxRequested] = useState(false);
   const sell = useSell();
   const [requestId, setRequestId] = useState<string | null>(null);
   // Which rail carried the sale: Dextopus polls a deposit request, LI.FI polls
@@ -178,11 +180,17 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         decimals: payload.decimals,
         amount: entered < max ? entered : max,
         slippageBps: SLIPPAGE_BPS,
+        maxRequested,
       });
       setProceeds(formatAmount(Number(fromBaseUnits(result.estimatedOutput, 6))));
       setRail(result.rail);
       setRequestId(result.requestId);
-    } catch {
+    } catch (error) {
+      if (error instanceof SolanaBalanceChangedError) {
+        setAmount(fromBaseUnits(error.availableAmount, payload.decimals));
+        setMaxRequested(true);
+        void portfolio.refetch();
+      }
       // The detailed message is surfaced from sell.error below; resolve the toast.
       toast.error(t("sellFailedToast", { symbol: payload.symbol }), { id: toastRef.current });
       toastRef.current = undefined;
@@ -249,7 +257,10 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
           <span>{t("amountToSell")}</span>
           <button
-            onClick={() => setAmount(fillAmount(maxSell))}
+            onClick={() => {
+              setAmount(fillAmount(maxSell));
+              setMaxRequested(true);
+            }}
             className="tnum cursor-pointer text-white/55 hover:text-white"
           >
             {t("balanceToken", { amount: formatAmount(payload.balance), symbol: payload.symbol })}
@@ -260,7 +271,11 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
             inputMode="decimal"
             placeholder="0"
             value={amount}
-            onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
+            onChange={(e) => {
+              if (!DECIMAL.test(e.target.value)) return;
+              setAmount(e.target.value);
+              setMaxRequested(false);
+            }}
             className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
           />
           <span className="shrink-0 font-sans text-sm font-medium text-white/70">
@@ -278,7 +293,10 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         {PRESETS.map((p) => (
           <button
             key={p}
-            onClick={() => setAmount(fillAmount(Math.min((payload.balance * p) / 100, maxSell)))}
+            onClick={() => {
+              setAmount(fillAmount(Math.min((payload.balance * p) / 100, maxSell)));
+              setMaxRequested(p === 100);
+            }}
             className="flex-1 cursor-pointer rounded-[12px] border border-white/10 bg-white/4 py-2 font-sans text-[13px] font-medium text-white/75 transition-colors hover:bg-white/8"
           >
             {p === 100 ? t("max") : `${p}%`}

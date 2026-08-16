@@ -535,7 +535,7 @@ export function RwaTradePanel({
   // tap needed. The sheet's "settles to USDC on Base" promise is kept here.
   const autoProceedsRef = useRef(false);
   const showProceeds =
-    phase === "done" && !isBuy && asset.chain === "solana" && solanaUsdcBalance > 0.5;
+    phase === "done" && !isBuy && asset.chain === "solana" && solanaUsdcBalance > 0;
   useEffect(() => {
     if (!showProceeds || autoProceedsRef.current || proceeds.busy || proceeds.phase !== "idle") {
       return;

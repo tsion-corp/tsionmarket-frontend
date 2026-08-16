@@ -11,7 +11,8 @@ import { usdcBaseUnits, depositProgress, type DepositStage } from "@/lib/deposit
 import { canSellAsset } from "@/lib/sell";
 import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
-import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
+import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
+import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { BuyRoute } from "@/lib/buy";
@@ -86,6 +87,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const t = useTranslations("spot");
   const [side, setSide] = useState<Side>("buy");
   const [amount, setAmount] = useState("");
+  const [maxRequested, setMaxRequested] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
   // Which rail carried a sell: Dextopus settlement polls a deposit request,
@@ -132,6 +134,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   if (seen !== key) {
     setSeen(key);
     setAmount("");
+    setMaxRequested(false);
   }
 
   const balance = buying ? usdcBalance : maxSell;
@@ -185,11 +188,14 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
       resolvedRef.current = true;
       toast.error(t("orderFailedNote"));
     }
-  }, [stage, requestId, buying, base, portfolio]);
+  }, [stage, requestId, buying, base, portfolio, t]);
 
   const handleAmount = (raw: string) => {
     const next = raw.replace(/,/g, "");
-    if (next === "" || DECIMAL_INPUT.test(next)) setAmount(next);
+    if (next === "" || DECIMAL_INPUT.test(next)) {
+      setAmount(next);
+      setMaxRequested(false);
+    }
   };
   const setPercent = (pct: number) => {
     if (balance <= 0) return;
@@ -198,11 +204,13 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     // full precision and settle the exact held amount via rawBalance below.
     if (buying) {
       setAmount((Math.floor(v * 100) / 100).toFixed(2));
+      setMaxRequested(false);
       return;
     }
     // String() emits scientific notation for dust, which the regex rejects.
     const fixed = v.toFixed(heldToken?.decimals ?? 18);
     setAmount(fixed.includes(".") ? fixed.replace(/\.?0+$/, "") || "0" : fixed);
+    setMaxRequested(pct === 100);
   };
 
   const submit = () => {
@@ -234,11 +242,17 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
           decimals: heldToken.decimals,
           amount: amountUnits,
           slippageBps: SLIPPAGE_BPS,
+          maxRequested,
         });
         setRail(result.rail);
         setRequestId(result.requestId);
       }
     } catch (e) {
+      if (e instanceof SolanaBalanceChangedError && heldToken) {
+        setAmount(fromBaseUnits(e.availableAmount, heldToken.decimals));
+        setMaxRequested(true);
+        void portfolio.refetch();
+      }
       setConfirmOpen(false);
       toast.error(friendlyError(e, t("orderRejected")));
     }
@@ -253,6 +267,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
       setRequestId(null);
       resolvedRef.current = false;
       if (phase === "settled") setAmount("");
+      if (phase === "settled") setMaxRequested(false);
     }
   };
 

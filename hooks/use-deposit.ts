@@ -98,6 +98,17 @@ export async function dextopusGet<T>(
   return data as T;
 }
 
+export function fetchDepositStatus(
+  depositRequestId: string,
+  purpose: DextopusPurpose = "deposit"
+): Promise<DepositStatusResult> {
+  return dextopusGet<DepositStatusResult>(
+    `deposit/status?depositRequestId=${depositRequestId}`,
+    "Couldn't check deposit status",
+    purpose
+  );
+}
+
 async function dextopusPost<T>(
   path: string,
   body: unknown,
@@ -493,12 +504,7 @@ export function useDepositStatus(
       const { stage } = depositProgress(data.status, data.executionStatus);
       return TERMINAL_STAGES.has(stage) ? false : POLL_MS;
     },
-    queryFn: () =>
-      dextopusGet<DepositStatusResult>(
-        `deposit/status?depositRequestId=${depositRequestId}`,
-        "Couldn't check deposit status",
-        purpose
-      ),
+    queryFn: () => fetchDepositStatus(depositRequestId as string, purpose),
   });
 
   const hashes = query.data?.destinationTransactionHashes;

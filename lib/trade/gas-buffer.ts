@@ -14,12 +14,19 @@ const NATIVE_GAS_BUFFER: Record<string, number> = {
   "arb-mainnet": 0.0003,
   "opt-mainnet": 0.0003,
   "polygon-mainnet": 0.01,
-  // Not a fee — Solana fees are sponsored. Selling native SOL wraps it into a
-  // temporary token account whose rent-exempt deposit (~0.002 SOL) must come
-  // from the seller; a sale of the entire balance fails simulation with
-  // insufficient funds at the wrap. The reserve keeps a Max sell payable.
-  "solana-mainnet": 0.0025,
 };
+
+// LI.FI's native-SOL fallback wraps SOL in a temporary token account. The
+// sponsor pays transaction fees, but the seller still funds this refundable
+// rent deposit. Dextopus's primary route is a direct sponsored SOL transfer and
+// needs no reserve, so this is deliberately not part of gasBufferFor().
+export const SOLANA_LIFI_RESERVE_LAMPORTS = 2_500_000n;
+
+export function maxLifiNativeSolSellable(balanceLamports: bigint): bigint {
+  return balanceLamports > SOLANA_LIFI_RESERVE_LAMPORTS
+    ? balanceLamports - SOLANA_LIFI_RESERVE_LAMPORTS
+    : 0n;
+}
 
 // How much of `network`'s native token to hold back when selling it. Zero for
 // contract tokens (their gas is paid in the native token, not the sold asset)

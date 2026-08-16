@@ -20,7 +20,7 @@ export const POLYGON_CHAIN_ID = 137;
 // We normalize every representation to the last one so a SOL deposit or
 // withdrawal actually goes through.
 const WRAPPED_SOL_MINT = "So11111111111111111111111111111111111111112";
-const NATIVE_SOL_PLACEHOLDER = "11111111111111111111111111111111";
+export const DEXTOPUS_NATIVE_SOL = "11111111111111111111111111111111";
 // The generic "native gas token" address the per-chain token catalog uses.
 const NATIVE_GAS_PLACEHOLDER = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
@@ -38,7 +38,7 @@ const EVM_NATIVE_ETH = "0x0000000000000000000000000000000000000000";
 // endpoint accepts. Only native SOL needs it today.
 export function quoteReadyDestinationAsset(chainId: number, currency: string): string {
   if (chainId === SOLANA_CHAIN_ID && currency === WRAPPED_SOL_MINT) {
-    return NATIVE_SOL_PLACEHOLDER;
+    return DEXTOPUS_NATIVE_SOL;
   }
   return currency;
 }
@@ -51,7 +51,7 @@ export function quoteReadyDestinationAsset(chainId: number, currency: string): s
 // all-zero address the master catalog (and generate/quote) actually use.
 export function depositOriginAsset(chainId: number, address: string): string {
   if (address.toLowerCase() !== NATIVE_GAS_PLACEHOLDER.toLowerCase()) return address;
-  return chainId === SOLANA_CHAIN_ID ? NATIVE_SOL_PLACEHOLDER : EVM_NATIVE_ETH;
+  return chainId === SOLANA_CHAIN_ID ? DEXTOPUS_NATIVE_SOL : EVM_NATIVE_ETH;
 }
 
 // The master eligibility catalog keys native SOL under the wrapped mint, but
@@ -59,7 +59,7 @@ export function depositOriginAsset(chainId: number, address: string): string {
 // maps the placeholder back to the wrapped mint so the eligibility lookup for
 // SOL still matches.
 export function eligibilityLookupAddress(chainId: number, address: string): string {
-  if (chainId === SOLANA_CHAIN_ID && address === NATIVE_SOL_PLACEHOLDER) {
+  if (chainId === SOLANA_CHAIN_ID && address === DEXTOPUS_NATIVE_SOL) {
     return WRAPPED_SOL_MINT;
   }
   return address;

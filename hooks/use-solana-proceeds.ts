@@ -1,43 +1,33 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useWallets } from "@privy-io/react-auth/solana";
+import { fetchDepositStatus } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
-import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
-import { fetchLifiStatus, fetchSolanaBridgeQuote } from "@/lib/trade/lifi";
-import { LIFI_BASE_CHAIN, BASE_USDC } from "@/lib/trade/funding";
+import { useSolanaToBase } from "@/hooks/use-solana-to-base";
+import { depositProgress } from "@/lib/deposit";
+import { fetchLifiStatus } from "@/lib/trade/lifi";
+import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { USDC_BY_CHAIN } from "@/lib/trade/usdc";
-import { getWalletAddress } from "@/lib/user";
 
 export type ProceedsPhase = "idle" | "quoting" | "signing" | "settling" | "done" | "failed";
 
-const SLIPPAGE = 0.005;
+const SLIPPAGE_BPS = 50;
 const POLL_MS = 3_000;
-// Wall-clock, not a poll count: a slow status endpoint would otherwise stretch
-// the wait far past the intended ceiling. The route itself settles in ~7s.
 const SETTLE_DEADLINE_MS = 150_000;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-// Brings USDC on Solana back to Base, where the rest of the account lives —
-// the return half of the funding leg, used after selling a Solana asset.
-//
-// Unlike the outbound legs, this route originates on Solana: LI.FI returns a
-// base64 transaction for the embedded Solana wallet to sponsor, sign, and
-// send. That keeps the return leg gasless too, instead of burning the user's
-// leftover SOL from the funding hop.
+// Brings Solana USDC back to Base after an RWA sale. This deliberately reuses
+// the same Dextopus-first, LI.FI-fallback executor as every other Solana sell,
+// so the app cannot promise Base USDC in one surface while routing to SOL in
+// another.
 export function useSolanaProceeds() {
-  const { user } = usePrivy();
-  const sendSponsored = useSponsoredSolanaSend();
-  const { wallets: solanaWallets } = useWallets();
+  const settleSolana = useSolanaToBase();
   const portfolio = usePortfolio();
   const [phase, setPhase] = useState<ProceedsPhase>("idle");
   const [error, setError] = useState<string | null>(null);
-  // The signature is signed and sent before the bridge settles, so a retry
-  // after a slow settle would send the balance twice — and this leg costs the
-  // user real SOL each time.
+  // A request id means the source transfer has already been submitted. Never
+  // submit a second sweep merely because settlement polling timed out.
   const sentRef = useRef(false);
 
   const reset = useCallback(() => {
@@ -46,60 +36,78 @@ export function useSolanaProceeds() {
     sentRef.current = false;
   }, []);
 
-  // rawUsdc is the exact base-unit string from the holding; the display
-  // float rounds half-up and can ask for more than the wallet holds.
   const bringHome = useCallback(
     async (rawUsdc: string): Promise<boolean> => {
-      const from = getWalletAddress(user, "solana");
-      const to = getWalletAddress(user, "ethereum");
-      const wallet = solanaWallets[0];
-      if (!from || !to || !wallet || BigInt(rawUsdc || "0") <= 0n) {
-        setError("No wallet");
+      const requested = BigInt(rawUsdc || "0");
+      if (requested <= 0n) {
+        setError("No Solana USDC is available to move.");
         setPhase("failed");
         return false;
       }
-
       if (sentRef.current) return false;
+
       setError(null);
+      setPhase("quoting");
       try {
-        setPhase("quoting");
-        const quote = await fetchSolanaBridgeQuote({
-          fromToken: USDC_BY_CHAIN.solana.address,
-          toChain: LIFI_BASE_CHAIN,
-          toToken: BASE_USDC,
-          fromAmount: BigInt(rawUsdc),
-          fromAddress: from,
-          toAddress: to,
-          slippage: SLIPPAGE,
-        });
+        const execute = (amount: bigint) =>
+          settleSolana({
+            asset: USDC_BY_CHAIN.solana.address,
+            decimals: USDC_BY_CHAIN.solana.decimals,
+            amount,
+            slippageBps: SLIPPAGE_BPS,
+            maxRequested: true,
+          });
 
-        setPhase("signing");
-        const sig = await sendSponsored({ transaction: quote.transaction, wallet });
+        let result;
+        try {
+          result = await execute(requested);
+        } catch (cause) {
+          // This is an automatic "bring all proceeds home" sweep, so a newer
+          // confirmed balance is the intended amount rather than an altered
+          // discretionary order. The interactive sell UIs still require a
+          // second confirmation for the same condition.
+          if (!(cause instanceof SolanaBalanceChangedError) || cause.availableAmount <= 0n) {
+            throw cause;
+          }
+          result = await execute(cause.availableAmount);
+        }
+
         sentRef.current = true;
-        await confirmSolanaSignature(sig).catch(() => {
-          // The bridge poll below is the real settlement signal.
-        });
-
         setPhase("settling");
         const deadline = Date.now() + SETTLE_DEADLINE_MS;
         while (Date.now() < deadline) {
           await delay(POLL_MS);
-          const status = await fetchLifiStatus(sig).catch(() => "PENDING" as const);
-          if (status === "DONE") {
+          if (result.rail === "lifi") {
+            const status = await fetchLifiStatus(result.requestId).catch(() => "PENDING" as const);
+            if (status === "DONE") {
+              void portfolio.refetchUntilChanged();
+              setPhase("done");
+              return true;
+            }
+            if (status === "FAILED") throw new Error("The transfer did not complete.");
+            continue;
+          }
+
+          const status = await fetchDepositStatus(result.requestId).catch(() => null);
+          if (!status) continue;
+          const progress = depositProgress(status.status, status.executionStatus);
+          if (progress.stage === "settled") {
             void portfolio.refetchUntilChanged();
             setPhase("done");
             return true;
           }
-          if (status === "FAILED") throw new Error("The transfer did not complete.");
+          if (progress.stage === "failed" || progress.stage === "refunded") {
+            throw new Error("The transfer did not complete.");
+          }
         }
         throw new Error("The transfer is taking longer than expected.");
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "The transfer did not complete.");
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "The transfer did not complete.");
         setPhase("failed");
         return false;
       }
     },
-    [user, solanaWallets, sendSponsored, portfolio]
+    [settleSolana, portfolio]
   );
 
   return {

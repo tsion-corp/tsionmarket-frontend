@@ -8,7 +8,6 @@ import {
   appendTransactionMessageInstructions,
   compileTransaction,
   createNoopSigner,
-  createSolanaRpc,
   createTransactionMessage,
   getTransactionEncoder,
   pipe,
@@ -33,9 +32,7 @@ import {
   type WalletChainType,
 } from "@/lib/deposit";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
-
-// Public Solana mainnet RPC, the same endpoint Dextopus lists for the chain.
-const SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+import { createAppSolanaRpc } from "@/lib/solana-rpc";
 
 export interface SendUsdcParams {
   chainType: WalletChainType;
@@ -54,7 +51,7 @@ const TOKEN_2022_PROGRAM_ADDRESS = address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCX
 // or building a transfer with the wrong program targets accounts that don't
 // exist, so every SPL transfer resolves the program from the mint first.
 async function getMintTokenProgram(
-  rpc: ReturnType<typeof createSolanaRpc>,
+  rpc: ReturnType<typeof createAppSolanaRpc>,
   mint: ReturnType<typeof address>
 ) {
   const { value } = await rpc.getAccountInfo(mint, { encoding: "base64" }).send();
@@ -73,7 +70,7 @@ async function buildSolanaTokenTransfer(
   mintAddress: string,
   decimals: number
 ): Promise<Uint8Array> {
-  const rpc = createSolanaRpc(SOLANA_RPC);
+  const rpc = createAppSolanaRpc();
   const mint = address(mintAddress);
   const owner = address(from);
   const destinationOwner = address(to);
@@ -188,7 +185,7 @@ async function buildSolanaSolTransfer(
   to: string,
   amount: bigint
 ): Promise<Uint8Array> {
-  const rpc = createSolanaRpc(SOLANA_RPC);
+  const rpc = createAppSolanaRpc();
   const source = createNoopSigner(address(from));
   const transfer = getTransferSolInstruction({ source, destination: address(to), amount });
   const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
