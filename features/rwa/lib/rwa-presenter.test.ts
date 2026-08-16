@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  LISTED_RWA_CHAIN,
+  LISTED_RWA_CHAINS,
   LIVE_RWA_CHAINS,
   apyPercent,
   buildPayOptions,
@@ -634,20 +634,21 @@ describe("isListedAsset", () => {
     expect(isListedAsset(asset({ chain: "base", freelyTradable: true }))).toBe(true);
   });
 
-  it("does not list Solana, however tradable it is", () => {
-    // Gas sponsorship is Base-only, so a Solana row looks buyable and cannot
-    // complete. This is the regression the table shipped with.
-    expect(isListedAsset(asset({ chain: "solana", freelyTradable: true }))).toBe(false);
+  it("lists a buyable Solana asset", () => {
+    // Solana buys are sponsored by the gas-sponsor service, so a Solana row
+    // can complete without the wallet holding SOL.
+    expect(isListedAsset(asset({ chain: "solana", freelyTradable: true }))).toBe(true);
   });
 
-  it("does not list the other wired chains either", () => {
+  it("does not list the other wired chains", () => {
     // LIVE_RWA_CHAINS is wider on purpose: it says what is wired, not what is
-    // offered. Anything but Base stays out of the table.
+    // offered. Only the sponsored chains earn a row.
     for (const chain of LIVE_RWA_CHAINS) {
       expect(isListedAsset(asset({ chain, freelyTradable: true }))).toBe(
-        chain === LISTED_RWA_CHAIN
+        LISTED_RWA_CHAINS.includes(chain)
       );
     }
+    expect(LISTED_RWA_CHAINS).toEqual(["base", "solana"]);
   });
 
   it("does not list an issuer-only asset on Base", () => {

@@ -97,22 +97,29 @@ export function isLiveChain(a: RwaApiAsset): boolean {
   return (LIVE_RWA_CHAINS as readonly string[]).includes(a.chain);
 }
 
-// The one chain the table lists. Gas sponsorship is only handled on Base, so a
-// row on any other chain asks the user for gas they do not have: it looks
-// buyable and the buy cannot complete.
+// The chains the table lists. A row is only offered where the buy can
+// complete without asking the user for gas they do not hold: Base, sponsored
+// through the 7702 path, and Solana, sponsored by the platform's gas-sponsor
+// service (fee payer reseated, rent covered by the funding plan's setup leg).
+// Arbitrum and Polygon stay unlisted until their sponsorship is wired.
 //
 // Deliberately narrower than LIVE_RWA_CHAINS. That says which chains are wired
 // end to end, which still matters for selling something already held; this says
 // which we offer to buy.
-export const LISTED_RWA_CHAIN: RwaChain = "base";
+export const LISTED_RWA_CHAINS: readonly RwaChain[] = ["base", "solana"];
 
-/** Whether an asset earns a row in the table: complete, buyable, and on Base. */
-export function isListedAsset(a: RwaApiAsset): boolean {
-  return isUsableAsset(a) && isTradable(a) && isLiveChain(a) && a.chain === LISTED_RWA_CHAIN;
+export function isListedChain(a: RwaApiAsset): boolean {
+  return (LISTED_RWA_CHAINS as readonly string[]).includes(a.chain);
 }
 
-// Which chain to keep when the catalog lists one asset on several. Base first:
-// its trades are gas-sponsored, so the same asset costs the user less there.
+/** Whether an asset earns a row in the table: complete, buyable, on a listed chain. */
+export function isListedAsset(a: RwaApiAsset): boolean {
+  return isUsableAsset(a) && isTradable(a) && isLiveChain(a) && isListedChain(a);
+}
+
+// Which chain to keep when the catalog lists one asset on several. Base first,
+// then Solana: both are sponsored, and Base is where most of a user's USDC
+// sits, so the same asset is one fewer hop there.
 const CHAIN_PREFERENCE: readonly RwaChain[] = ["base", "arbitrum", "polygon", "solana"];
 
 function chainRank(a: RwaApiAsset): number {

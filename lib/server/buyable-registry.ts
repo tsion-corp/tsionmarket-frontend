@@ -81,6 +81,7 @@ export async function fetchBuyableRegistry(): Promise<{
   try {
     const res = await dextopusRequest("deposit/destinations", {
       method: "GET",
+      purpose: "deposit",
       query,
       revalidate: 600,
     });

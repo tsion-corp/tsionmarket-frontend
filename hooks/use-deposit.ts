@@ -76,15 +76,35 @@ export function isRetryableDextopusError(error: unknown): boolean {
   return error.status >= 500;
 }
 
-export async function dextopusGet<T>(path: string, fallback: string): Promise<T> {
-  const res = await apiFetch(`/api/dextopus/${path}`);
+// Deposits and withdrawals are two Dextopus integrations with two API keys.
+// The proxy signs a request with the key of its purpose, and the purpose rides
+// on the path: `withdraw/` in front of a Dextopus path selects the withdrawal
+// key. A request created under one key is only readable under the same key,
+// which is why status polling takes the purpose as well.
+export type DextopusPurpose = "deposit" | "withdrawal";
+
+function purposedPath(path: string, purpose: DextopusPurpose): string {
+  return purpose === "withdrawal" ? `withdraw/${path}` : path;
+}
+
+export async function dextopusGet<T>(
+  path: string,
+  fallback: string,
+  purpose: DextopusPurpose = "deposit"
+): Promise<T> {
+  const res = await apiFetch(`/api/dextopus/${purposedPath(path, purpose)}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new DextopusError(errorMessage(data, fallback), res.status);
   return data as T;
 }
 
-async function dextopusPost<T>(path: string, body: unknown, fallback: string): Promise<T> {
-  const res = await apiFetch(`/api/dextopus/${path}`, {
+async function dextopusPost<T>(
+  path: string,
+  body: unknown,
+  fallback: string,
+  purpose: DextopusPurpose = "deposit"
+): Promise<T> {
+  const res = await apiFetch(`/api/dextopus/${purposedPath(path, purpose)}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -207,7 +227,8 @@ export async function fetchWithdrawDestinations(
 ): Promise<WithdrawDestination[]> {
   const data = await dextopusGet<{ destinations?: RawDestination[] }>(
     `deposit/destinations?originChainId=${originChainId}&originAddress=${encodeURIComponent(originAddress)}`,
-    "Couldn't load withdrawal destinations"
+    "Couldn't load withdrawal destinations",
+    "withdrawal"
   );
   return (data.destinations ?? []).map((d) => ({
     destinationChainId: d.destinationChainId,
@@ -340,7 +361,8 @@ export async function createWithdrawQuote(input: WithdrawQuoteInput): Promise<Qu
   return dextopusPost<QuoteResult>(
     "deposit/quote",
     { ...input, strict: true },
-    "Couldn't get a withdrawal quote"
+    "Couldn't get a withdrawal quote",
+    "withdrawal"
   );
 }
 
@@ -437,13 +459,14 @@ export function useStableStaticAddress(req: StaticAddressRequest | null) {
   });
 }
 
-export function useValidateAddress() {
+export function useValidateAddress(purpose: DextopusPurpose = "deposit") {
   return useMutation<ValidateAddressResult, Error, { address: string; chainType: string }>({
     mutationFn: (input) =>
       dextopusPost<ValidateAddressResult>(
         "deposit/validate-address",
         input,
-        "Couldn't validate that address"
+        "Couldn't validate that address",
+        purpose
       ),
   });
 }
@@ -457,9 +480,12 @@ export function useValidateAddress() {
 // That makes this the one place the settlement transactions of self-started
 // operations are known, so they are recorded here and the deposit watcher rules
 // them out instead of reporting a sale as money arriving from outside.
-export function useDepositStatus(depositRequestId: string | null) {
+export function useDepositStatus(
+  depositRequestId: string | null,
+  purpose: DextopusPurpose = "deposit"
+) {
   const query = useQuery<DepositStatusResult>({
-    queryKey: ["dextopus", "status", depositRequestId],
+    queryKey: ["dextopus", "status", purpose, depositRequestId],
     enabled: depositRequestId !== null,
     refetchInterval: (q) => {
       const data = q.state.data;
@@ -470,7 +496,8 @@ export function useDepositStatus(depositRequestId: string | null) {
     queryFn: () =>
       dextopusGet<DepositStatusResult>(
         `deposit/status?depositRequestId=${depositRequestId}`,
-        "Couldn't check deposit status"
+        "Couldn't check deposit status",
+        purpose
       ),
   });
 

@@ -290,7 +290,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     Boolean(refundTo) &&
     (isDirectSend || Boolean(quote.data));
 
-  const status = useDepositStatus(depositRequestId);
+  const status = useDepositStatus(depositRequestId, "withdrawal");
   useTerminalToast(status.data, depositRequestId, {
     settled: t("withdrawalSettled"),
     failed: t("withdrawalFailedRefunded"),

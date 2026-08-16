@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
-import { cacheSecondsFor, dextopusRequest, isAllowedPath } from "@/lib/server/dextopus";
+import {
+  cacheSecondsFor,
+  dextopusRequest,
+  isAllowedPath,
+  splitPurpose,
+} from "@/lib/server/dextopus";
 
 async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", body?: unknown) {
   const claims = await verifyRequest(req);
@@ -8,7 +13,7 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const joined = path.join("/");
+  const { purpose, path: joined } = splitPurpose(path.join("/"));
   if (!isAllowedPath(joined)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -16,6 +21,7 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
   try {
     const res = await dextopusRequest(joined, {
       method,
+      purpose,
       query: method === "GET" ? req.nextUrl.searchParams : undefined,
       body,
       revalidate: method === "GET" ? cacheSecondsFor(joined) : undefined,
