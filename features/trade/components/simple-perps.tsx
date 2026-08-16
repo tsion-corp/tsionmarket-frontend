@@ -167,7 +167,8 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
       );
       if (ok) setCollateral("");
     } else {
-      await actions.closeTrade(staged.position, staged.amount);
+      const closedPair = pairByIndex.get(staged.position.pairIndex);
+      await actions.closeTrade(staged.position, staged.amount, closedPair?.from);
     }
   };
 
@@ -364,9 +365,9 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
         >
           {cta}
         </button>
-        {live && !hasBaseEth ? (
+        {/* {live && !hasBaseEth ? (
           <p className="mt-2 text-center text-xs font-normal text-white/45">{t("ethFeeHint")}</p>
-        ) : null}
+        ) : null} */}
       </div>
 
       <div className="flex flex-col gap-4">

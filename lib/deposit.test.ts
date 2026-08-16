@@ -1,14 +1,61 @@
 import { describe, expect, it } from "vitest";
 import {
+  ARBITRUM_CHAIN_ID,
   BASE_CHAIN_ID,
   SOLANA_CHAIN_ID,
   addressKindForChain,
+  depositOriginAsset,
   depositProgress,
+  eligibilityLookupAddress,
   encodeErc20Transfer,
   formatCountdown,
   settlementFor,
   usdcBaseUnits,
 } from "@/lib/deposit";
+
+const NATIVE_GAS_PLACEHOLDER = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+const EVM_NATIVE_ETH = "0x0000000000000000000000000000000000000000";
+const WRAPPED_SOL_MINT = "So11111111111111111111111111111111111111112";
+const NATIVE_SOL_PLACEHOLDER = "11111111111111111111111111111111";
+const USDC_ON_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+
+describe("depositOriginAsset", () => {
+  it("normalizes the per-chain native placeholder to the all-zero address on an EVM chain", () => {
+    expect(depositOriginAsset(BASE_CHAIN_ID, NATIVE_GAS_PLACEHOLDER)).toBe(EVM_NATIVE_ETH);
+  });
+
+  it("normalizes the placeholder on Ethereum mainnet too, not just L2s", () => {
+    expect(depositOriginAsset(1, NATIVE_GAS_PLACEHOLDER)).toBe(EVM_NATIVE_ETH);
+  });
+
+  it("is case-insensitive on the placeholder address", () => {
+    expect(depositOriginAsset(ARBITRUM_CHAIN_ID, NATIVE_GAS_PLACEHOLDER.toLowerCase())).toBe(
+      EVM_NATIVE_ETH
+    );
+  });
+
+  it("normalizes the placeholder to the system-program id on Solana", () => {
+    expect(depositOriginAsset(SOLANA_CHAIN_ID, NATIVE_GAS_PLACEHOLDER)).toBe(
+      NATIVE_SOL_PLACEHOLDER
+    );
+  });
+
+  it("leaves an ordinary token address untouched", () => {
+    expect(depositOriginAsset(BASE_CHAIN_ID, USDC_ON_BASE)).toBe(USDC_ON_BASE);
+  });
+});
+
+describe("eligibilityLookupAddress", () => {
+  it("passes an EVM native ETH address through unchanged (already matches the master key)", () => {
+    expect(eligibilityLookupAddress(BASE_CHAIN_ID, EVM_NATIVE_ETH)).toBe(EVM_NATIVE_ETH);
+  });
+
+  it("maps the Solana native placeholder back to the wrapped mint", () => {
+    expect(eligibilityLookupAddress(SOLANA_CHAIN_ID, NATIVE_SOL_PLACEHOLDER)).toBe(
+      WRAPPED_SOL_MINT
+    );
+  });
+});
 
 describe("encodeErc20Transfer", () => {
   it("builds transfer(address,uint256) calldata with the selector and padded args", () => {

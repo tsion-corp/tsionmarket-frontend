@@ -78,6 +78,24 @@ describe("toSignableCalls", () => {
     expect(() => toSignableCalls([badSpender])).toThrow("unexpected spender");
   });
 
+  it("accepts a WETH withdraw step targeting the real WETH contract", () => {
+    const weth = "0x4200000000000000000000000000000000000006";
+    const withdrawData = `0x2e1a7d4d${"0".repeat(63)}1`; // withdraw(1 wei)
+    const genuine: BuildResult = {
+      chainId: 8453,
+      steps: [{ to: weth, data: withdrawData, value: "0", label: "unwrap" }],
+    };
+    expect(toSignableCalls([genuine])).toHaveLength(1);
+  });
+
+  it("rejects a withdraw call that targets anything but the real WETH contract", () => {
+    const lookalike: BuildResult = {
+      chainId: 8453,
+      steps: [{ to: TO, data: `0x2e1a7d4d${"0".repeat(63)}1`, value: "0", label: "unwrap" }],
+    };
+    expect(() => toSignableCalls([lookalike])).toThrow("unexpected contract");
+  });
+
   it("rejects non-hex calldata", () => {
     const bad: BuildResult = {
       chainId: 8453,

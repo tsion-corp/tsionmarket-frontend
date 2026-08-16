@@ -22,7 +22,8 @@ import {
 } from "@/lib/perp/api";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { LARGE_APPROVAL_USDC, PERP_CHAIN_ID, needsApproval } from "@/lib/perp/logic";
-import { stepsTotalValueWei, toSignableCalls } from "@/lib/perp/steps";
+import { toSignableCalls } from "@/lib/perp/steps";
+import { useGasTopUp } from "@/lib/perp/gas-topup";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/lib/perp/types";
@@ -47,8 +48,15 @@ import type { BuildResult, OpenPosition, OpenTradeRequest, PerpOrder } from "@/l
 // Market opens and closes are keeper-executed with a delay, so after the
 // transaction confirms we poll positions until the change is visible and only
 // then report success.
+//
+// Gas is sponsored, but the keeper execution fee (msg.value on open/close) is
+// not — it's real Base ETH the trader must hold. useGasTopUp checks that
+// before every action and, when it's short, swaps a little USDC into ETH
+// first (see lib/perp/gas-topup.ts for why that swap can't ride in the same
+// signature as the action itself). Trades that already have enough ETH are
+// unaffected — one signature, exactly as before.
 
-export type PerpPhase = "idle" | "building" | "signing" | "settling";
+export type PerpPhase = "idle" | "building" | "toppingUp" | "signing" | "settling";
 
 export function usePerpActions(live = true) {
   const t = useTranslations("perps");
@@ -57,6 +65,7 @@ export function usePerpActions(live = true) {
   const { orders, waitForChange: waitForOrdersChange } = usePerpOrders(live);
   const { pairs } = usePerpPairs();
   const portfolio = usePortfolio();
+  const { ensureGas } = useGasTopUp();
   const [phase, setPhase] = useState<PerpPhase>("idle");
 
   // An open reports the market the user chose ("ETH/USD"); everything after it
@@ -64,25 +73,6 @@ export function usePerpActions(live = true) {
   // what lets a close be matched to the open it settles. The pairs list is the
   // same cached query the screens already read, so this costs no extra request.
   const marketName = useCallback((pairIndex: number) => perpMarketName(pairs, pairIndex), [pairs]);
-
-  // Gas is sponsored, but the keeper execution fee on open/close is msg.value
-  // from the user's own Base ETH. Checking before signing turns a cryptic
-  // bundler failure into a plain "you need a little ETH" message. The
-  // portfolio balance is a display float, so the compare allows a hair of
-  // slack rather than blocking on rounding.
-  const ensureExecutionFee = useCallback(
-    (builds: BuildResult[]): string | null => {
-      const totalWei = stepsTotalValueWei(builds);
-      if (totalWei === 0n || portfolio.loading) return null;
-      const needEth = Number(totalWei) / 1e18;
-      const held = portfolio.tokens
-        .filter((tok) => tok.network === "base-mainnet" && tok.symbol.toUpperCase() === "ETH")
-        .reduce((sum, tok) => sum + tok.balance, 0);
-      if (held + 1e-9 >= needEth) return null;
-      return t("needExecutionFee", { amount: needEth.toFixed(5) });
-    },
-    [portfolio.loading, portfolio.tokens, t]
-  );
 
   const openTrade = useCallback(
     async (
@@ -124,9 +114,10 @@ export function usePerpActions(live = true) {
         }
         builds.push(await buildOpenTrade({ ...req, trader }));
 
-        const feeShortfall = ensureExecutionFee(builds);
-        if (feeShortfall) {
-          toast.error(feeShortfall, { id: toastId });
+        setPhase("toppingUp");
+        const topUp = await ensureGas(trader as `0x${string}`, builds);
+        if (!topUp.ok) {
+          toast.error(topUp.error, { id: toastId });
           return false;
         }
 
@@ -192,7 +183,7 @@ export function usePerpActions(live = true) {
       sendBatch,
       waitForChange,
       waitForOrdersChange,
-      ensureExecutionFee,
+      ensureGas,
       t,
     ]
   );
@@ -219,16 +210,18 @@ export function usePerpActions(live = true) {
           pairIndex: order.pairIndex,
           orderIndex: order.index,
         });
+        const builds = [build];
 
-        const feeShortfall = ensureExecutionFee([build]);
-        if (feeShortfall) {
-          toast.error(feeShortfall, { id: toastId });
+        setPhase("toppingUp");
+        const topUp = await ensureGas(trader as `0x${string}`, builds);
+        if (!topUp.ok) {
+          toast.error(topUp.error, { id: toastId });
           return false;
         }
 
         setPhase("signing");
         toast.loading(t("confirmingOnChain"), { id: toastId });
-        await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
+        await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
 
         setPhase("settling");
         const cleared = await waitForOrdersChange(
@@ -256,11 +249,23 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [trader, positions, sendBatch, waitForOrdersChange, ensureExecutionFee, t]
+    [trader, positions, sendBatch, waitForOrdersChange, ensureGas, t]
   );
 
   const closeTrade = useCallback(
-    async (position: OpenPosition, collateralUsdc: string): Promise<boolean> => {
+    async (
+      position: OpenPosition,
+      collateralUsdc: string,
+      // The base asset for the success toast (e.g. "ETH") — passed by the
+      // caller because only it has the pair catalog to resolve pairIndex
+      // against. Falls back to a numbered label so a catalog miss never
+      // blocks the toast.
+      assetSymbol?: string
+    ): Promise<boolean> => {
+      if (!trader) {
+        toast.error(t("noWalletConnected"));
+        return false;
+      }
       const toastId = toast.loading(t("closingPosition"));
       setPhase("building");
       try {
@@ -270,16 +275,18 @@ export function usePerpActions(live = true) {
           tradeIndex: position.index,
           collateralUsdc,
         });
+        const builds = [build];
 
-        const feeShortfall = ensureExecutionFee([build]);
-        if (feeShortfall) {
-          toast.error(feeShortfall, { id: toastId });
+        setPhase("toppingUp");
+        const topUp = await ensureGas(trader as `0x${string}`, builds);
+        if (!topUp.ok) {
+          toast.error(topUp.error, { id: toastId });
           return false;
         }
 
         setPhase("signing");
         toast.loading(t("confirmingOnChain"), { id: toastId });
-        await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
+        await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
 
         setPhase("settling");
         toast.loading(t("waitingCloseSettle"), { id: toastId });
@@ -305,7 +312,9 @@ export function usePerpActions(live = true) {
             // position_size_usd the open reported.
             notional_usd: Number(collateralUsdc) * Number(position.leverage),
           });
-          toast.success(t("positionClosed"), { id: toastId });
+          toast.success(t("positionClosed", { asset: assetSymbol ?? `#${position.pairIndex}` }), {
+            id: toastId,
+          });
         } else {
           toast.info(t("closeTakingLonger"), { id: toastId });
         }
@@ -317,7 +326,7 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, marketName, portfolio, t]
+    [trader, sendBatch, waitForChange, ensureGas, marketName, portfolio, t]
   );
 
   // Both updates move money, so they take the same phase lifecycle as every
@@ -326,6 +335,10 @@ export function usePerpActions(live = true) {
   // withdrawn twice).
   const updateTpSl = useCallback(
     async (position: OpenPosition, takeProfit: string, stopLoss: string): Promise<boolean> => {
+      if (!trader) {
+        toast.error(t("noWalletConnected"));
+        return false;
+      }
       const toastId = toast.loading(t("updatingTpSl"));
       setPhase("building");
       try {
@@ -335,13 +348,15 @@ export function usePerpActions(live = true) {
           takeProfit,
           stopLoss,
         });
-        const feeShortfall = ensureExecutionFee([build]);
-        if (feeShortfall) {
-          toast.error(feeShortfall, { id: toastId });
+        const builds = [build];
+        setPhase("toppingUp");
+        const topUp = await ensureGas(trader as `0x${string}`, builds);
+        if (!topUp.ok) {
+          toast.error(topUp.error, { id: toastId });
           return false;
         }
         setPhase("signing");
-        await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
+        await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
         setPhase("settling");
         const key = `${position.pairIndex}:${position.index}`;
         const applied = await waitForChange((fresh) => {
@@ -367,7 +382,7 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, marketName, t]
+    [trader, sendBatch, waitForChange, ensureGas, marketName, t]
   );
 
   const updateMargin = useCallback(
@@ -376,6 +391,10 @@ export function usePerpActions(live = true) {
       marginUsdc: string,
       direction: "deposit" | "withdraw"
     ): Promise<boolean> => {
+      if (!trader) {
+        toast.error(t("noWalletConnected"));
+        return false;
+      }
       const toastId = toast.loading(t(direction === "deposit" ? "addingMargin" : "removingMargin"));
       setPhase("building");
       try {
@@ -385,13 +404,15 @@ export function usePerpActions(live = true) {
           marginUsdc,
           direction,
         });
-        const feeShortfall = ensureExecutionFee([build]);
-        if (feeShortfall) {
-          toast.error(feeShortfall, { id: toastId });
+        const builds = [build];
+        setPhase("toppingUp");
+        const topUp = await ensureGas(trader as `0x${string}`, builds);
+        if (!topUp.ok) {
+          toast.error(topUp.error, { id: toastId });
           return false;
         }
         setPhase("signing");
-        await sendBatch(toSignableCalls([build]), PERP_CHAIN_ID);
+        await sendBatch(toSignableCalls(builds), PERP_CHAIN_ID);
         setPhase("settling");
         const key = `${position.pairIndex}:${position.index}`;
         const applied = await waitForChange((fresh) => {
@@ -418,7 +439,7 @@ export function usePerpActions(live = true) {
         setPhase("idle");
       }
     },
-    [sendBatch, waitForChange, ensureExecutionFee, marketName, portfolio, t]
+    [trader, sendBatch, waitForChange, ensureGas, marketName, portfolio, t]
   );
 
   return {

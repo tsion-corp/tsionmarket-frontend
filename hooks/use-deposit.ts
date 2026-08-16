@@ -76,7 +76,7 @@ export function isRetryableDextopusError(error: unknown): boolean {
   return error.status >= 500;
 }
 
-async function dextopusGet<T>(path: string, fallback: string): Promise<T> {
+export async function dextopusGet<T>(path: string, fallback: string): Promise<T> {
   const res = await apiFetch(`/api/dextopus/${path}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new DextopusError(errorMessage(data, fallback), res.status);

@@ -15,6 +15,13 @@ export const USDC_DECIMALS = 6;
 export const PERP_CHAIN_ID = 8453;
 export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 export const TRADING_STORAGE_ADDRESS = "0x8a311D7048c35985aa31C131B9A13e03a5f7422d";
+// Canonical Base WETH — the only unwrap target the signing allowlist accepts
+// (see lib/perp/steps.ts). The gas top-up buys native ETH directly via the
+// platform's existing Dextopus buy flow (lib/buy-quote.ts); WETH only
+// matters if a wallet already holds some (e.g. stranded from a partial
+// top-up attempt), which the top-up unwraps rather than leaving stuck.
+export const WETH_ADDRESS = "0x4200000000000000000000000000000000000006";
+export const WETH_DECIMALS = 18;
 
 // One large approval instead of one per trade: the allowance is consumed on
 // every open, so approving the exact collateral would force an approve step

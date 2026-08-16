@@ -24,6 +24,16 @@ const NATIVE_SOL_PLACEHOLDER = "11111111111111111111111111111111";
 // The generic "native gas token" address the per-chain token catalog uses.
 const NATIVE_GAS_PLACEHOLDER = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
+// Native ETH has the same two-address split as SOL, just across fewer forms
+// (verified live against /deposit/tokens for chain 1/8453/42161/10):
+//   - per-chain /deposit/tokens?chainId=X (any EVM chain) -> NATIVE_GAS_PLACEHOLDER
+//   - master /deposit/tokens (no chainId), and /deposit/destinations -> all-zero
+// Left unnormalized, a deposit's origin token carries the per-chain address,
+// which never matches the master eligibility set's all-zero key — so
+// supportsStaticAddress comes back false and native ETH silently disappears
+// from the deposit token picker on every EVM chain, Ethereum included.
+const EVM_NATIVE_ETH = "0x0000000000000000000000000000000000000000";
+
 // Maps a destination currency (from /deposit/destinations) to the id the quote
 // endpoint accepts. Only native SOL needs it today.
 export function quoteReadyDestinationAsset(chainId: number, currency: string): string {
@@ -36,15 +46,12 @@ export function quoteReadyDestinationAsset(chainId: number, currency: string): s
 // Maps an origin token address (from the per-chain /deposit/tokens catalog) to
 // the id the generate/quote endpoints accept. The per-chain catalog lists
 // native SOL as the generic gas placeholder, which generate rejects; the
-// system-program id is the only form it honors.
+// system-program id is the only form it honors. Native ETH on any EVM chain
+// carries the same placeholder per-chain but must be normalized to the
+// all-zero address the master catalog (and generate/quote) actually use.
 export function depositOriginAsset(chainId: number, address: string): string {
-  if (
-    chainId === SOLANA_CHAIN_ID &&
-    address.toLowerCase() === NATIVE_GAS_PLACEHOLDER.toLowerCase()
-  ) {
-    return NATIVE_SOL_PLACEHOLDER;
-  }
-  return address;
+  if (address.toLowerCase() !== NATIVE_GAS_PLACEHOLDER.toLowerCase()) return address;
+  return chainId === SOLANA_CHAIN_ID ? NATIVE_SOL_PLACEHOLDER : EVM_NATIVE_ETH;
 }
 
 // The master eligibility catalog keys native SOL under the wrapped mint, but

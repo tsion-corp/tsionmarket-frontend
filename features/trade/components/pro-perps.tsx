@@ -226,7 +226,8 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
       const ok = await actions.openTrade(staged.req, staffedPair?.pairIndex, staffedPair?.category);
       if (ok) setCollateral("");
     } else {
-      await actions.closeTrade(staged.position, staged.amount);
+      const closedPair = pairByIndex.get(staged.position.pairIndex);
+      await actions.closeTrade(staged.position, staged.amount, closedPair?.from);
     }
   };
 

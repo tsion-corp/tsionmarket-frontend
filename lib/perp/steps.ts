@@ -8,6 +8,7 @@ import {
   PERP_CHAIN_ID,
   TRADING_STORAGE_ADDRESS,
   USDC_ADDRESS,
+  WETH_ADDRESS,
   parseStepValueWei,
 } from "@/lib/perp/logic";
 import type { BuildResult } from "@/lib/perp/types";
@@ -22,6 +23,12 @@ export interface SignableCall {
 // so an approve-shaped step aimed anywhere but the real USDC contract is the
 // classic lookalike-token attack and must never be signed.
 const APPROVE_SELECTOR = "0x095ea7b3";
+
+// WETH9 withdraw(uint256) selector — unwraps WETH back to native ETH. The gas
+// top-up flow (lib/perp/gas-topup.ts) appends this after buying WETH, so it
+// can be signed in the same batch as the perp action it's funding. Allowed
+// only against the real WETH contract, same reasoning as the approve check.
+const WETH_WITHDRAW_SELECTOR = "0x2e1a7d4d";
 
 // Per-step native value cap: the keeper execution fee is ~0.00035 ETH, so a
 // step asking for more than 0.005 ETH is not a perp trade — refuse to attach
@@ -52,6 +59,12 @@ export function toSignableCalls(results: BuildResult[]): SignableCall[] {
         if (spender !== TRADING_STORAGE_ADDRESS.toLowerCase()) {
           throw new Error("Transaction step approves an unexpected spender.");
         }
+      }
+      if (
+        step.data?.toLowerCase().startsWith(WETH_WITHDRAW_SELECTOR) &&
+        step.to.toLowerCase() !== WETH_ADDRESS.toLowerCase()
+      ) {
+        throw new Error("Transaction step calls withdraw on an unexpected contract.");
       }
       const value = parseStepValueWei(step.value);
       if (value > MAX_STEP_VALUE_WEI) {

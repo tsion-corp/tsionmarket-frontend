@@ -26,8 +26,13 @@ export const RQ_PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
 // Bump to invalidate every persisted cache after a shape change. Bumped again
 // here: deposit-tokens' supportsStaticAddress correction and the deposit
 // flow's settle-to-Base change both altered what a persisted entry means, so
-// anything cached under the old shape has to be dropped, not reused.
-export const RQ_PERSIST_BUSTER = "wsws-2026-07-25";
+// anything cached under the old shape has to be dropped, not reused. Bumped
+// again for the EVM-native-ETH eligibility fix in depositOriginAsset — every
+// browser that loaded the deposit screen before this fix has ETH cached under
+// deposit-tokens with supportsStaticAddress: false, which the code fix alone
+// does not correct (the persisted query result is the computed DepositToken[],
+// not the raw API response, so it never re-runs the corrected logic on its own).
+export const RQ_PERSIST_BUSTER = "wsws-2026-08-16";
 
 // Long gcTime for persisted queries so they are not evicted from memory before
 // the throttled write reaches storage, and so a restore has something to hydrate.
