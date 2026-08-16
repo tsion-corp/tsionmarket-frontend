@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { BRAND } from "@/lib/brand";
-import { APP_ACTIVE } from "@/lib/launch-gate";
+import { isAppLive } from "@/lib/launch-gate";
 
 interface LaunchCtaProps {
   className?: string;
@@ -13,13 +13,14 @@ interface LaunchCtaProps {
 }
 
 // Every landing CTA that enters the app renders through this. Live, it is the
-// plain /auth link it always was; with the app deactivated (see
-// lib/launch-gate.ts) the same button opens a coming-soon notice instead, so
-// the page keeps its energy while the doors are closed.
+// plain /auth link it always was; with the app closed (see lib/launch-gate.ts)
+// the same button opens a coming-soon notice instead, so the page keeps its
+// energy while the doors are closed. The film only renders once the gate is
+// open, so in practice this is the takedown switch's backstop.
 export function LaunchCta({ className, children }: LaunchCtaProps) {
   const [open, setOpen] = useState(false);
 
-  if (APP_ACTIVE) {
+  if (isAppLive()) {
     return (
       <Link href="/auth" className={className}>
         {children}

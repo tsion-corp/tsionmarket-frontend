@@ -2237,6 +2237,12 @@
     "close": "Entendido"
   },
   "waitlist": {
+    "countdownTitle": "Todo el mercado, <accent>a punto de abrir.</accent>",
+    "countdownSubtitle": "Acciones, oro, cripto y predicciones en una sola app, con tu dinero siempre tuyo. Las puertas se abren cuando el reloj llegue a cero.",
+    "opensIn": "Las puertas abren en",
+    "opening": "Abriendo las puertas…",
+    "opensAt": "Abre {time}",
+    "unit": { "days": "Días", "hours": "Horas", "minutes": "Minutos", "seconds": "Segundos" },
     "eyebrow": "Muy pronto",
     "title": "Todo el mercado, <accent>casi abierto.</accent>",
     "subtitle": "Acciones, oro, cripto y predicciones en una sola app, y tu dinero sigue siendo tuyo. Déjanos tu correo y te avisamos en cuanto abramos.",

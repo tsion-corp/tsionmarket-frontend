@@ -6,21 +6,31 @@ import { ArkMark } from "@/components/ui/ark-mark";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { WaitlistForm } from "@/components/landing/waitlist/waitlist-form";
+import { LaunchCountdown } from "@/components/landing/waitlist/launch-countdown";
 import { BRAND } from "@/lib/brand";
 
 // The pre-launch page, shown in place of the landing film while the app is
-// deactivated (see lib/launch-gate.ts). One screen: the same waypoint-0
+// closed (see lib/launch-gate.ts). One screen: the same waypoint-0
 // composition the film opens on — the mARKet lockup over the single point of
-// light — then the ask, the form, and the market row. Deliberately short: the
-// only thing to do here is leave an address.
+// light — then the ask, and either the countdown to the scheduled launch or,
+// with no launch scheduled, the waitlist form; then the market row.
+// Deliberately short.
 //
 // The film's nine layers and its ~16MB of video are not loaded; the still
 // alone carries the frame.
 
 const TICKER_KEYS = ["stocks", "gold", "treasuries", "trading", "predictions"] as const;
 
-export function WaitlistPage() {
+interface WaitlistPageProps {
+  /** When the doors open, epoch ms; null shows the waitlist form instead. */
+  launchAt: number | null;
+  /** The server's clock at render, so the countdown's first paint matches. */
+  serverNow: number;
+}
+
+export function WaitlistPage({ launchAt, serverNow }: WaitlistPageProps) {
   const t = useTranslations("waitlist");
+  const counting = launchAt !== null;
   const tHero = useTranslations("hero");
   const tJourney = useTranslations("landing.journey");
   const tFooter = useTranslations("landing.footer");
@@ -66,14 +76,20 @@ export function WaitlistPage() {
         </div>
 
         <h1 className="ws-display mt-9 max-w-[min(94vw,760px)] text-[clamp(32px,5.6vw,58px)] leading-[1.08] tracking-[-0.015em] [text-wrap:balance]">
-          {t.rich("title", { accent: (c) => <span className="text-[#d4d4d8]">{c}</span> })}
+          {t.rich(counting ? "countdownTitle" : "title", {
+            accent: (c) => <span className="text-[#d4d4d8]">{c}</span>,
+          })}
         </h1>
         <p className="mt-[18px] max-w-[52ch] text-[clamp(14.5px,1.5vw,17px)] leading-[1.55] font-light text-[rgba(244,244,244,0.85)]">
-          {t("subtitle")}
+          {t(counting ? "countdownSubtitle" : "subtitle")}
         </p>
 
         <div className="mt-8 flex justify-center">
-          <WaitlistForm />
+          {counting ? (
+            <LaunchCountdown launchAt={launchAt} serverNow={serverNow} />
+          ) : (
+            <WaitlistForm />
+          )}
         </div>
 
         <div className="mt-11 flex flex-wrap justify-center gap-[clamp(18px,4vw,48px)]">
