@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { apiError } from "@/lib/api/envelope";
 import {
   cashierLockBuckets,
+  computerWagerBreakdown,
   exceedsUsdcBalance,
   feePctFromBps,
   hasPositiveUsdc,
@@ -53,6 +54,40 @@ describe("wagerBreakdown", () => {
     expect(b.pot).toBe("0.02");
     expect(b.fee).toBe("0.001");
     expect(b.winnerReceives).toBe("0.019");
+  });
+});
+
+describe("computerWagerBreakdown", () => {
+  it("matches the backend payout table at every staked level", () => {
+    const expected = [
+      [4, "2.5", "0.2", "12.3"],
+      [5, "4", "0.32", "13.68"],
+      [6, "6", "0.48", "15.52"],
+      [7, "8", "0.64", "17.36"],
+      [8, "10", "0.8", "19.2"],
+    ] as const;
+
+    for (const [level, exposure, fee, payout] of expected) {
+      const breakdown = computerWagerBreakdown("10", "20", level);
+      expect(breakdown).toMatchObject({
+        houseExposure: exposure,
+        fee,
+        potentialPayout: payout,
+        balanceAfter: "10",
+        sufficient: true,
+      });
+    }
+  });
+
+  it("keeps levels one through three practice-only", () => {
+    for (const level of [1, 2, 3]) {
+      expect(computerWagerBreakdown("10", "20", level)).toBeNull();
+    }
+  });
+
+  it("rejects a stake whose level reward floors below one micro-USDC", () => {
+    expect(computerWagerBreakdown("0.000001", "1", 4)).toBeNull();
+    expect(computerWagerBreakdown("0.000004", "1", 4)?.houseExposure).toBe("0.000001");
   });
 });
 

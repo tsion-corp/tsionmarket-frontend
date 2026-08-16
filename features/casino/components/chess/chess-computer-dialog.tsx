@@ -7,8 +7,13 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { useCreateComputerMatch } from "@/features/casino/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
-import { exceedsUsdcBalance, normalizeUsdcAmount } from "@/features/casino/lib/api/cashier";
-import { WagerSummary } from "@/features/casino/components/chess/wager-summary";
+import { ComputerWagerSummary } from "@/features/casino/components/computer-wager-summary";
+import {
+  MIN_STAKED_COMPUTER_LEVEL,
+  computerWagerBreakdown,
+  exceedsUsdcBalance,
+  normalizeUsdcAmount,
+} from "@/features/casino/lib/api/cashier";
 import {
   CHESS_MODAL_CLOSE_BUTTON_CLASS,
   CHESS_MODAL_PANEL_CLASS,
@@ -155,7 +160,12 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
   const minutes = MINUTES_PER_SIDE[setup.timeIndex];
   const increment = INCREMENTS[setup.incrementIndex];
   const realTimeValid = minutes > 0 || increment > 0;
-  const stakeUsdc = cashier.configured ? normalizeUsdcAmount(stake) : null;
+  const stakingAllowed = setup.level >= MIN_STAKED_COMPUTER_LEVEL;
+  const stakeUsdc = cashier.configured && stakingAllowed ? normalizeUsdcAmount(stake) : null;
+  const wagerBreakdown = stakeUsdc
+    ? computerWagerBreakdown(stakeUsdc, cashier.available, setup.level)
+    : null;
+  const stakeTooSmall = !!stakeUsdc && !wagerBreakdown;
   const stakeOverBalance = !!stakeUsdc && exceedsUsdcBalance(stakeUsdc, cashier.available);
 
   const onPlay = async () => {
@@ -307,7 +317,10 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
                 key={level}
                 type="button"
                 aria-pressed={setup.level === level}
-                onClick={() => setSetup((current) => ({ ...current, level }))}
+                onClick={() => {
+                  setSetup((current) => ({ ...current, level }));
+                  if (level < MIN_STAKED_COMPUTER_LEVEL) setStake("");
+                }}
                 className={`tnum h-10 cursor-pointer border-r border-white/10 text-[14px] last:border-r-0 ${
                   setup.level === level
                     ? "bg-[#629924] font-semibold text-white"
@@ -393,46 +406,55 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
             <legend className="mb-3 text-[14px] font-semibold text-white/86">
               Stake against Stockfish <span className="font-normal text-white/38">(optional)</span>
             </legend>
-            <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
-              <label className="block">
-                <span className="sr-only">Computer stake in USDC</span>
-                <div className="flex h-11 items-center rounded-[3px] border border-white/10 bg-[#262421] px-3">
-                  <input
-                    inputMode="decimal"
-                    value={stake}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (/^\d*\.?\d{0,6}$/.test(value)) setStake(value);
-                    }}
-                    placeholder="0"
-                    className="tnum min-w-0 flex-1 bg-transparent text-[14px] text-white outline-none placeholder:text-white/28"
-                  />
-                  <span className="text-[11px] font-semibold text-white/44">USDC</span>
-                </div>
-                <span
-                  className={`mt-1 block text-[10.5px] ${stakeOverBalance ? "text-down" : "text-white/36"}`}
-                >
-                  Balance {cashier.available} USDC
-                </span>
-              </label>
-              {stakeUsdc ? (
-                <div>
-                  <WagerSummary
-                    stakeUsdc={stakeUsdc}
-                    availableUsdc={cashier.available}
-                    feeBps={800}
-                  />
-                  <p className="mt-1.5 text-[10.5px] leading-4 text-white/36">
-                    You and the house each fund the stake. A win pays the pot minus 8%; a draw
-                    refunds both sides.
+            {stakingAllowed ? (
+              <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
+                <label className="block">
+                  <span className="sr-only">Computer stake in USDC</span>
+                  <div className="flex h-11 items-center rounded-[3px] border border-white/10 bg-[#262421] px-3">
+                    <input
+                      aria-label="Computer stake in USDC"
+                      inputMode="decimal"
+                      value={stake}
+                      onChange={(event) => {
+                        const value = event.target.value;
+                        if (/^\d*\.?\d{0,6}$/.test(value)) setStake(value);
+                      }}
+                      placeholder="0"
+                      className="tnum min-w-0 flex-1 bg-transparent text-[14px] text-white outline-none placeholder:text-white/28"
+                    />
+                    <span className="text-[11px] font-semibold text-white/44">USDC</span>
+                  </div>
+                  <span
+                    className={`mt-1 block text-[10.5px] ${stakeOverBalance || stakeTooSmall ? "text-down" : "text-white/36"}`}
+                  >
+                    {stakeTooSmall
+                      ? "Stake is too small for this level."
+                      : `Balance ${cashier.available} USDC`}
+                  </span>
+                </label>
+                {stakeUsdc && wagerBreakdown ? (
+                  <div>
+                    <ComputerWagerSummary
+                      stakeUsdc={stakeUsdc}
+                      availableUsdc={cashier.available}
+                      level={setup.level}
+                    />
+                    <p className="mt-1.5 text-[10.5px] leading-4 text-white/36">
+                      A win returns your stake plus the level reward, less 8% of that reward. A draw
+                      refunds your stake.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11.5px] leading-5 text-white/42">
+                    Leave blank for a free game. Hints are disabled whenever money is at stake.
                   </p>
-                </div>
-              ) : (
-                <p className="text-[11.5px] leading-5 text-white/42">
-                  Leave blank for a free game. Hints are disabled whenever money is at stake.
-                </p>
-              )}
-            </div>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-[3px] border border-white/10 bg-[#262421] px-4 py-3 text-[12px] leading-5 text-white/48">
+                Levels 1 to 3 are practice only. Choose level 4 or higher to stake USDC.
+              </p>
+            )}
           </fieldset>
         ) : null}
       </div>
@@ -447,6 +469,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
           disabled={
             create.isPending ||
             stakeOverBalance ||
+            stakeTooSmall ||
             (setup.timeMode === "real_time" && !realTimeValid)
           }
           className="h-12 cursor-pointer rounded-[3px] border border-white/12 bg-[#3a3936] px-6 text-[15px] font-semibold text-white/88 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition-colors hover:bg-[#454441] disabled:cursor-not-allowed disabled:opacity-40"

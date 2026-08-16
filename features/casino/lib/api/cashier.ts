@@ -13,6 +13,16 @@ import type { GatewayApiError } from "@/lib/api/envelope";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 
 export const USDC_DECIMALS = 6;
+export const COMPUTER_WAGER_FEE_BPS = 800;
+export const MIN_STAKED_COMPUTER_LEVEL = 4;
+
+const COMPUTER_REWARD_BPS: Readonly<Record<number, number>> = {
+  4: 2_500,
+  5: 4_000,
+  6: 6_000,
+  7: 8_000,
+  8: 10_000,
+};
 
 export interface CashierConfig {
   chainId: number;
@@ -148,6 +158,51 @@ export function exceedsUsdcBalance(amount: string, balance: string): boolean {
   const units = parseUsdcAmount(amount);
   if (units === null) return false;
   return units > toBaseUnits(balance, USDC_DECIMALS);
+}
+
+export interface ComputerWagerBreakdown {
+  youLock: string;
+  balanceAfter: string;
+  houseExposure: string;
+  fee: string;
+  potentialPayout: string;
+  rewardPercent: number;
+  sufficient: boolean;
+}
+
+// Computer games return the player's principal untouched and charge the fee
+// only against the level-based reward. Keep this separate from the equal-pot
+// PvP calculation below so the two settlement models cannot be mixed.
+export function computerWagerBreakdown(
+  stakeUsdc: string,
+  availableUsdc: string,
+  level: number,
+  feeBps: number = COMPUTER_WAGER_FEE_BPS
+): ComputerWagerBreakdown | null {
+  const rewardBps = COMPUTER_REWARD_BPS[level];
+  if (rewardBps === undefined) return null;
+
+  const stake = toBaseUnits(stakeUsdc, USDC_DECIMALS);
+  if (stake <= 0n) return null;
+
+  const houseExposure = (stake * BigInt(rewardBps)) / 10_000n;
+  if (houseExposure <= 0n) return null;
+
+  const normalizedFeeBps = BigInt(Math.max(0, Math.min(10_000, Math.round(feeBps))));
+  const fee = (houseExposure * normalizedFeeBps) / 10_000n;
+  const potentialPayout = stake + houseExposure - fee;
+  const available = toBaseUnits(availableUsdc, USDC_DECIMALS);
+  const sufficient = available >= stake;
+
+  return {
+    youLock: fromBaseUnits(stake, USDC_DECIMALS),
+    balanceAfter: fromBaseUnits(sufficient ? available - stake : 0n, USDC_DECIMALS),
+    houseExposure: fromBaseUnits(houseExposure, USDC_DECIMALS),
+    fee: fromBaseUnits(fee, USDC_DECIMALS),
+    potentialPayout: fromBaseUnits(potentialPayout, USDC_DECIMALS),
+    rewardPercent: rewardBps / 100,
+    sufficient,
+  };
 }
 
 // What a stake does to the player's balance and pot, computed the way the

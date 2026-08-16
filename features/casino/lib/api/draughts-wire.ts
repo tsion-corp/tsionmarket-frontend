@@ -64,6 +64,8 @@ export interface DraughtsComputerWire {
   hintsUsed: number;
   wager?: {
     stakeUsdc: string;
+    houseExposureUsdc: string;
+    potentialPayoutUsdc: string;
     feeBps: number;
     status: string;
     payoutUsdc: string;
@@ -362,6 +364,8 @@ export function toDraughtsMatch(
           wager: wire.computer.wager
             ? {
                 stakeUsdc: wire.computer.wager.stakeUsdc,
+                houseExposureUsdc: wire.computer.wager.houseExposureUsdc,
+                potentialPayoutUsdc: wire.computer.wager.potentialPayoutUsdc,
                 feeBps: wire.computer.wager.feeBps,
                 status: wire.computer.wager.status,
                 payoutUsdc: wire.computer.wager.payoutUsdc,

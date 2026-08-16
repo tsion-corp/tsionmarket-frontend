@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
-import { exceedsUsdcBalance, normalizeUsdcAmount } from "@/features/casino/lib/api/cashier";
+import { ComputerWagerSummary } from "@/features/casino/components/computer-wager-summary";
+import {
+  MIN_STAKED_COMPUTER_LEVEL,
+  computerWagerBreakdown,
+  exceedsUsdcBalance,
+  normalizeUsdcAmount,
+} from "@/features/casino/lib/api/cashier";
 import { createComputerMatch } from "@/features/casino/lib/api/draughts";
 import {
   DRAUGHTS_MINUTE_OPTIONS,
@@ -57,7 +63,12 @@ export function CheckersComputerDialog({ open, onClose }: CheckersComputerDialog
   const [stake, setStake] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const stakeUsdc = cashier.configured ? normalizeUsdcAmount(stake) : null;
+  const stakingAllowed = level >= MIN_STAKED_COMPUTER_LEVEL;
+  const stakeUsdc = cashier.configured && stakingAllowed ? normalizeUsdcAmount(stake) : null;
+  const wagerBreakdown = stakeUsdc
+    ? computerWagerBreakdown(stakeUsdc, cashier.available, level)
+    : null;
+  const stakeTooSmall = !!stakeUsdc && !wagerBreakdown;
   const stakeOverBalance = !!stakeUsdc && exceedsUsdcBalance(stakeUsdc, cashier.available);
   const minutes = resolveDraughtsMinutes(clock, customMinutes);
 
@@ -138,7 +149,10 @@ export function CheckersComputerDialog({ open, onClose }: CheckersComputerDialog
               <button
                 key={value}
                 type="button"
-                onClick={() => setLevel(value)}
+                onClick={() => {
+                  setLevel(value);
+                  if (value < MIN_STAKED_COMPUTER_LEVEL) setStake("");
+                }}
                 className={`tnum h-10 border-r border-white/10 text-[13px] last:border-r-0 ${
                   level === value
                     ? "bg-white text-black"
@@ -226,28 +240,61 @@ export function CheckersComputerDialog({ open, onClose }: CheckersComputerDialog
         </fieldset>
 
         {cashier.configured ? (
-          <label className="block">
-            <span className="mb-2 block text-[13px] font-semibold text-white/82">
+          <fieldset>
+            <legend className="mb-2 block text-[13px] font-semibold text-white/82">
               Stake against the engine <span className="font-normal text-white/34">(optional)</span>
-            </span>
-            <div className="flex h-11 items-center rounded-[4px] border border-white/10 bg-white/[0.025] px-3">
-              <input
-                inputMode="decimal"
-                value={stake}
-                onChange={(event) => {
-                  if (/^\d*\.?\d{0,6}$/.test(event.target.value)) setStake(event.target.value);
-                }}
-                placeholder="0"
-                className="tnum min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none"
-              />
-              <span className="text-[11px] font-semibold text-white/38">USDC</span>
-            </div>
-            <span
-              className={`mt-1 block text-[10.5px] ${stakeOverBalance ? "text-down" : "text-white/32"}`}
-            >
-              Balance {cashier.available} USDC. Hints are unavailable for staked games.
-            </span>
-          </label>
+            </legend>
+            {stakingAllowed ? (
+              <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
+                <label className="block">
+                  <span className="sr-only">Computer stake in USDC</span>
+                  <div className="flex h-11 items-center rounded-[4px] border border-white/10 bg-white/[0.025] px-3">
+                    <input
+                      aria-label="Computer stake in USDC"
+                      inputMode="decimal"
+                      value={stake}
+                      onChange={(event) => {
+                        if (/^\d*\.?\d{0,6}$/.test(event.target.value)) {
+                          setStake(event.target.value);
+                        }
+                      }}
+                      placeholder="0"
+                      className="tnum min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none"
+                    />
+                    <span className="text-[11px] font-semibold text-white/38">USDC</span>
+                  </div>
+                  <span
+                    className={`mt-1 block text-[10.5px] ${stakeOverBalance || stakeTooSmall ? "text-down" : "text-white/32"}`}
+                  >
+                    {stakeTooSmall
+                      ? "Stake is too small for this level."
+                      : `Balance ${cashier.available} USDC`}
+                  </span>
+                </label>
+                {stakeUsdc && wagerBreakdown ? (
+                  <div>
+                    <ComputerWagerSummary
+                      stakeUsdc={stakeUsdc}
+                      availableUsdc={cashier.available}
+                      level={level}
+                    />
+                    <p className="mt-1.5 text-[10.5px] leading-4 text-white/34">
+                      A win returns your stake plus the level reward, less 8% of that reward. Hints
+                      are unavailable while money is at stake.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11.5px] leading-5 text-white/40">
+                    Leave blank for a free game. Levels 4 to 8 offer progressively larger rewards.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-[4px] border border-white/10 bg-white/[0.025] px-4 py-3 text-[12px] leading-5 text-white/44">
+                Levels 1 to 3 are practice only. Choose level 4 or higher to stake USDC.
+              </p>
+            )}
+          </fieldset>
         ) : null}
       </div>
 
@@ -255,7 +302,7 @@ export function CheckersComputerDialog({ open, onClose }: CheckersComputerDialog
         <button
           type="button"
           onClick={() => void play()}
-          disabled={creating || stakeOverBalance || minutes === null}
+          disabled={creating || stakeOverBalance || stakeTooSmall || minutes === null}
           className="text-ink mx-auto block h-11 min-w-[210px] rounded-full bg-white px-6 text-[14px] font-semibold disabled:opacity-40"
         >
           {creating ? "Starting..." : "Play against computer"}

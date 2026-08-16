@@ -49,7 +49,8 @@ import {
 } from "@/features/casino/lib/chess/engine";
 import { friendlyError, isConflictError } from "@/lib/errors";
 import { track } from "@/lib/analytics/mixpanel";
-import { gamePayout } from "@/lib/analytics/game-result";
+import { computerGamePayout, gamePayout } from "@/lib/analytics/game-result";
+import { hasPositiveUsdc } from "@/features/casino/lib/api/cashier";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import type {
@@ -877,7 +878,9 @@ export function PlaySection({
               : result.kind === "timeout"
                 ? "timeout"
                 : "checkmate",
-        ...gamePayout(match?.stakeUsdc, outcome, CHESS_FEE_BPS),
+        ...(match?.computer?.wager
+          ? computerGamePayout(match.computer.wager, outcome)
+          : gamePayout(match?.stakeUsdc, outcome, CHESS_FEE_BPS)),
       });
     }
   }, [inProgress, match, queryClient, result, terminal, wallet.address, you]);
@@ -1372,23 +1375,36 @@ export function PlaySection({
     setReplayPly(nextReplayPly);
   };
 
-  // One quiet line for staked matches. During play both stakes sit locked; a
-  // draw or abort refunds them, a decisive result settles the pot to the
-  // winner. The service's wagerStatus is free text, so refunds are also read
-  // from the result itself and the fee line only shows once the fee is known.
+  // One quiet line for staked matches. Computer rewards are server quotes and
+  // must not pass through the equal-pot PvP wording or calculation.
   const wagerRefunded =
     match.state === "cancelled" ||
     match.result?.kind === "draw" ||
     (match.wagerStatus ?? "").toLowerCase().includes("refund");
-  const wagerLine = !match.stakeUsdc
-    ? null
-    : !over
-      ? tStake("wagerEach", { amount: match.stakeUsdc })
+  const computerWager = match.computer?.wager ?? null;
+  const wonComputerWager =
+    result !== null && result.kind !== "draw" && you !== null && result.winner === you;
+  const computerPayout =
+    computerWager && hasPositiveUsdc(computerWager.payoutUsdc)
+      ? computerWager.payoutUsdc
+      : computerWager?.potentialPayoutUsdc;
+  const wagerLine = computerWager
+    ? !over
+      ? `Staked ${computerWager.stakeUsdc} USDC · win pays ${computerWager.potentialPayoutUsdc} USDC`
       : wagerRefunded
-        ? tStake("wagerRefunded")
-        : feePct !== null
-          ? tStake("wagerSettled", { pct: feePct })
-          : tStake("wagerEach", { amount: match.stakeUsdc });
+        ? "Your stake was refunded."
+        : wonComputerWager && computerPayout
+          ? `You received ${computerPayout} USDC.`
+          : "Computer wager settled."
+    : !match.stakeUsdc
+      ? null
+      : !over
+        ? tStake("wagerEach", { amount: match.stakeUsdc })
+        : wagerRefunded
+          ? tStake("wagerRefunded")
+          : feePct !== null
+            ? tStake("wagerSettled", { pct: feePct })
+            : tStake("wagerEach", { amount: match.stakeUsdc });
 
   const turnLabel = over
     ? resultLine(t, match, you)

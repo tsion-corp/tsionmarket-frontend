@@ -194,6 +194,36 @@ describe("match", () => {
     expect(match.black).toMatchObject({ username: "Stockfish level 6", rating: null });
   });
 
+  it("keeps the backend computer reward quote intact", () => {
+    const match = toChessMatch(
+      wire({
+        computer: {
+          player: "0x00000000000000000000000000000000000000b4",
+          name: "Stockfish level 4",
+          side: "black",
+          level: 4,
+          wager: {
+            stakeUsdc: "10",
+            houseExposureUsdc: "2.5",
+            potentialPayoutUsdc: "12.3",
+            feeBps: 800,
+            status: "active",
+            payoutUsdc: "0",
+          },
+        },
+      })
+    );
+
+    expect(match.computer?.wager).toEqual({
+      stakeUsdc: "10",
+      houseExposureUsdc: "2.5",
+      potentialPayoutUsdc: "12.3",
+      feeBps: 800,
+      status: "active",
+      payoutUsdc: "0",
+    });
+  });
+
   it("keeps non-wallet seat names readable for managed tournament games", () => {
     const match = toChessMatch(wire({ white: "0xDD0737-6C2E", black: "0x235e47-6278" }));
     expect(match.white?.username).toBe("0xDD0737-6C2E");

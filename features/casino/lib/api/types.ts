@@ -30,6 +30,8 @@ export type ChessPerfKey = "ultraBullet" | "bullet" | "blitz" | "rapid" | "class
 
 export interface ChessComputerWager {
   stakeUsdc: string;
+  houseExposureUsdc: string;
+  potentialPayoutUsdc: string;
   feeBps: number;
   status: string;
   payoutUsdc: string;

@@ -43,6 +43,8 @@ export interface DraughtsWager {
 
 export interface DraughtsComputerWager {
   stakeUsdc: string;
+  houseExposureUsdc: string;
+  potentialPayoutUsdc: string;
   feeBps: number;
   status: string;
   payoutUsdc: string;

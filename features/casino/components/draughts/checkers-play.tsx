@@ -64,7 +64,7 @@ import type {
   DraughtsMatch,
   DraughtsPlayerRating,
 } from "@/features/casino/lib/draughts/types";
-import { gamePayout } from "@/lib/analytics/game-result";
+import { computerGamePayout, gamePayout } from "@/lib/analytics/game-result";
 import { track } from "@/lib/analytics/mixpanel";
 import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
@@ -350,9 +350,11 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
       game: "checkers",
       result: outcome,
       reason,
-      ...gamePayout(match.wager?.stakeUsdc, outcome, match.wager?.feeBps ?? 500),
+      ...(match.computer?.wager
+        ? computerGamePayout(match.computer.wager, outcome)
+        : gamePayout(match.wager?.stakeUsdc, outcome, match.wager?.feeBps ?? 500)),
     });
-  }, [seat, match?.id, match?.state, match?.result, match?.wager]);
+  }, [seat, match?.id, match?.state, match?.result, match?.wager, match?.computer?.wager]);
 
   const [busy, setBusy] = useState(false);
   const [panelTab, setPanelTab] = useState<PanelTab>("game");
@@ -881,7 +883,12 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
               <p>{match.rating?.rated ? "Rated" : "Casual"}</p>
               <p>{unlimited ? "Unlimited time" : match.timeControl}</p>
               {match.wager ? <p>{match.wager.stakeUsdc} USDC each</p> : null}
-              {match.computer?.wager ? <p>{match.computer.wager.stakeUsdc} USDC stake</p> : null}
+              {match.computer?.wager ? (
+                <p>
+                  {match.computer.wager.stakeUsdc} USDC stake · win pays{" "}
+                  {match.computer.wager.potentialPayoutUsdc} USDC
+                </p>
+              ) : null}
               {match.timeExtensions.allowed ? (
                 <p>
                   Time extensions {match.timeExtensions.used}/{match.timeExtensions.maxUses}

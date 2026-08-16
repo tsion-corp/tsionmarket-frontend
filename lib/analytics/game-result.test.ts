@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { gamePayout } from "@/lib/analytics/game-result";
+import { computerGamePayout, gamePayout } from "@/lib/analytics/game-result";
 
 describe("gamePayout", () => {
   it("pays the winner the pot less the platform cut", () => {
@@ -42,6 +42,45 @@ describe("gamePayout", () => {
   it("treats an unparseable stake as unstaked rather than NaN", () => {
     expect(gamePayout("not-a-number", "win", 500)).toEqual({
       stake_usd: 0,
+      payout_usd: 0,
+      fee_usd: 0,
+    });
+  });
+});
+
+describe("computerGamePayout", () => {
+  const wager = {
+    stakeUsdc: "10",
+    houseExposureUsdc: "2.5",
+    potentialPayoutUsdc: "12.3",
+    payoutUsdc: "0",
+    feeBps: 800,
+  };
+
+  it("reports the backend level reward instead of an equal PvP pot", () => {
+    expect(computerGamePayout(wager, "win")).toEqual({
+      stake_usd: 10,
+      payout_usd: 12.3,
+      fee_usd: 0.2,
+    });
+  });
+
+  it("prefers the final backend payout when the wager is settled", () => {
+    expect(computerGamePayout({ ...wager, payoutUsdc: "12.299999" }, "win")).toEqual({
+      stake_usd: 10,
+      payout_usd: 12.299999,
+      fee_usd: 0.2,
+    });
+  });
+
+  it("refunds draws and pays losses nothing", () => {
+    expect(computerGamePayout(wager, "draw")).toEqual({
+      stake_usd: 10,
+      payout_usd: 10,
+      fee_usd: 0,
+    });
+    expect(computerGamePayout(wager, "loss")).toEqual({
+      stake_usd: 10,
       payout_usd: 0,
       fee_usd: 0,
     });

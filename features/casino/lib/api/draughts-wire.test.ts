@@ -190,6 +190,38 @@ describe("normalizing a match", () => {
       winnerPlayer: null,
     });
   });
+
+  it("keeps the backend computer reward quote intact", () => {
+    const match = toDraughtsMatch(
+      wire({
+        computer: {
+          player: "draughts-bot-level-6",
+          name: "Draughts engine level 6",
+          side: "black",
+          level: 6,
+          coachEnabled: false,
+          hintsUsed: 0,
+          wager: {
+            stakeUsdc: "10",
+            houseExposureUsdc: "6",
+            potentialPayoutUsdc: "15.52",
+            feeBps: 800,
+            status: "active",
+            payoutUsdc: "0",
+          },
+        },
+      })
+    );
+
+    expect(match.computer?.wager).toEqual({
+      stakeUsdc: "10",
+      houseExposureUsdc: "6",
+      potentialPayoutUsdc: "15.52",
+      feeBps: 800,
+      status: "active",
+      payoutUsdc: "0",
+    });
+  });
 });
 
 describe("challenges", () => {

@@ -107,16 +107,17 @@ vi.mock("@/features/casino/hooks/use-casino-betting", () => ({
   }),
 }));
 
+const cashierStatus = vi.hoisted(() => ({ configured: false, available: "0" }));
 vi.mock("@/features/casino/hooks/use-chess-cashier", () => ({
   CASHIER_KEYS: {
     balance: (player: string) => ["casino", "chess", "cashier", "balance", player],
   },
   useChessCashierStatus: () => ({
-    configured: false,
+    configured: cashierStatus.configured,
     config: null,
     wallet: "0xabc",
     feePct: null,
-    available: "0",
+    available: cashierStatus.available,
     locked: "0",
     lockBuckets: [],
     balanceLoading: false,
@@ -216,6 +217,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   chessSocket.listener = null;
   wallet.balance = 10;
+  cashierStatus.configured = false;
+  cashierStatus.available = "0";
   chessProducts.access.timeExtensionCredits = 0;
   chessProducts.access.hintCredits = 0;
   chessProducts.purchase.mockReset();
@@ -291,6 +294,25 @@ describe("chess lobby", () => {
       })
     );
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=computer-1"));
+  });
+
+  it("keeps low levels practice-only and quotes the level reward before staking", async () => {
+    cashierStatus.configured = true;
+    cashierStatus.available = "20";
+    render(<LobbySection />, { wrapper });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Set up a computer game" }));
+    expect(screen.getByText(/Levels 1 to 3 are practice only/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Computer stake in USDC" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "4" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USDC" }), {
+      target: { value: "10" },
+    });
+
+    expect(screen.getByText("House reward (25%)")).toBeInTheDocument();
+    expect(screen.getByText("12.3 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Balance after stake")).toBeInTheDocument();
   });
 
   it("lists an open challenge with its time control", async () => {
