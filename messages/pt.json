@@ -1494,6 +1494,7 @@
       "toastSettleFailed": "Não foi possível encerrar a rodada. Tente novamente.",
       "prizePool": "Pote de prêmios",
       "potNote": "O pote inteiro vai para o último jogador de pé.",
+      "potPaidOut": "Pago a {winner}. Comece um novo jogo para jogar de novo.",
       "standingTitle": "Você é o último de pé",
       "standingTitleUrgent": "Aguente firme — você está prestes a ganhar!",
       "standingBody": "Você ganha o pote se o relógio chegar a zero. Não deixe ninguém ultrapassar você.",

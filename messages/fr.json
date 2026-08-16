@@ -1494,6 +1494,7 @@
       "toastSettleFailed": "Impossible de clôturer la manche. Réessayez.",
       "prizePool": "Cagnotte",
       "potNote": "Tout le pot revient au dernier joueur en lice.",
+      "potPaidOut": "Versé à {winner}. Lancez une nouvelle partie pour rejouer.",
       "standingTitle": "Vous êtes le dernier en lice",
       "standingTitleUrgent": "Tenez bon — vous êtes sur le point de gagner !",
       "standingBody": "Vous remportez le pot si le chrono atteint zéro. Ne laissez personne vous doubler.",

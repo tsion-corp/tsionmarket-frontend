@@ -1494,6 +1494,7 @@
       "toastSettleFailed": "Couldn't settle the round. Try again.",
       "prizePool": "Prize pool",
       "potNote": "The whole pot goes to the last player standing.",
+      "potPaidOut": "Paid out to {winner}. Start a new game to play again.",
       "standingTitle": "You're last standing",
       "standingTitleUrgent": "Hold on — you're about to win!",
       "standingBody": "You win the pot if the clock hits zero. Don't let anyone overtake you.",

@@ -1494,6 +1494,7 @@
       "toastSettleFailed": "Runde konnte nicht abgerechnet werden. Versuch es erneut.",
       "prizePool": "Preispool",
       "potNote": "Der ganze Pot geht an den letzten verbleibenden Spieler.",
+      "potPaidOut": "Ausgezahlt an {winner}. Starte ein neues Spiel, um weiterzuspielen.",
       "standingTitle": "Sie sind der Letzte im Spiel",
       "standingTitleUrgent": "Halten Sie durch — Sie stehen kurz vor dem Gewinn!",
       "standingBody": "Sie gewinnen den Pot, wenn die Uhr null erreicht. Lassen Sie sich von niemandem überholen.",

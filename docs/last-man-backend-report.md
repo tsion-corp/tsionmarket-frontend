@@ -5,6 +5,17 @@ done, and again at 03:00 UTC after the redeploy. Every claim below was
 verified against the live gateway, the live socket, or the chain, and every
 section ends with the exact command or read to reproduce it.
 
+**Game 7, played live at 03:24 UTC after the redeploy**, is the cleanest
+evidence yet. Started at 03:24:07 (block 50030650), one wager at 03:24:49
+(block 50030671, `WagerPlaced` fired), clock out at 03:25:49. It was settled at
+03:26:13, 24 seconds after expiry, by the **frontend's own gasless settle**
+(sender is the Alchemy bundler `0xe19635…0ce1`, not the keeper key
+`0x83ba9a…dfb5`), and `GameSettled` fired with `toWinner 0.000201778…`. Ten
+minutes later `GET /games/7` is `404`, `GET /game/activities` is `[]`, and
+`GET /game/winners` is `[]`. So: the keeper did not settle a game that sat
+expired for 24 seconds (item 2), and the indexer did not pick up a start, a
+wager and a settlement that all happened after the redeploy (item 3).
+
 **After the 03:00 redeploy:** the `500` on `GET /games/:id` is gone, but every
 existing game (`/games/1` to `/games/6`) now returns `404 NOT_FOUND "Game not
 found"`, so the chain fallback is still not reading the contract. The three
@@ -346,8 +357,8 @@ a fallback credit could never have been collected; it now reads
 Status as of 16 August 2026, 03:00 UTC, after the redeploy.
 
 - [x] 1. `settle()` games 1–6
-- [ ] 2. Settler running in the keeper (one-off burst seen at 22:55 UTC 15 Aug; nothing since; prove it on a fresh game)
-- [ ] 3. Indexer watching `0x202Af4dB…2684`, backfilled from 49926095; `/game/winners` and `/game/activities` return rows (both still `[]`)
+- [ ] 2. Settler running in the keeper (game 7 sat expired 24 s and was settled by the frontend, not the keeper)
+- [ ] 3. Indexer watching `0x202Af4dB…2684`, backfilled from 49926095; `/game/winners` and `/game/activities` return rows (both still `[]`, including for game 7 played after the redeploy)
 - [x] 4a. Compiled ABI published; Sourcify exact match
 - [ ] 4b. Basescan verification; service's own `GameStarted` ABI confirmed correct
 - [ ] 5. `GET /games/:id` returns the game (after redeploy: `404` for games 1 to 6, request id `e57dd5ec-cc65-478f-ad3f-ca1651622265`)

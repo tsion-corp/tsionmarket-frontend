@@ -1494,6 +1494,7 @@
       "toastSettleFailed": "No se pudo cerrar la ronda. Inténtalo de nuevo.",
       "prizePool": "Pozo de premios",
       "potNote": "Todo el pozo va para el último jugador en pie.",
+      "potPaidOut": "Pagado a {winner}. Empieza una nueva partida para volver a jugar.",
       "standingTitle": "Eres el último en pie",
       "standingTitleUrgent": "Aguanta — ¡estás a punto de ganar!",
       "standingBody": "Ganas el pozo si el reloj llega a cero. No dejes que nadie te supere.",

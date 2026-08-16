@@ -294,8 +294,8 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       ? latestWinner.toWinner.usdValue
       : (roundPrizeUsd ?? 0);
 
-  // Only trust timeRemaining while a round is live; between rounds the backend
-  // reports a sentinel, so the timer rests at the round length instead.
+  // Only trust timeRemaining while a round is live. Once it is over the clock
+  // reads 00:00: a v4 game does not have a next round to rest at.
   const gameActive = status?.gameActive ?? false;
   // The clock is out. In v4 a finished game is finished: a wager on it reverts,
   // so the play button has to give way to what can actually be done — settle
@@ -723,7 +723,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
           <span
             className={`h-1.5 w-1.5 rounded-full ${gameActive ? "bg-up animate-pulse" : "bg-white/25"}`}
           />
-          {gameActive ? t("live") : t("offline")}
+          {gameActive ? t("live") : status ? t("statusRoundEnded") : t("offline")}
         </span>
       </div>
 
@@ -833,12 +833,22 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                   <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
                 </motion.div>
               ) : (
+                // The contract keeps the pot on a settled game's record after
+                // paying it out, so the figure has to be zeroed here or a
+                // finished game reads as money still on the table.
                 <div className="ws-display tnum drop-shadow-[0_0_30px_rgba(255, 255, 255, 0.35)] mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent">
-                  <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
+                  <MoneyTicker
+                    value={game?.settled ? 0 : status.vaultBalance.usdValue}
+                    format={money.format}
+                  />
                 </div>
               )}
             </motion.div>
-            <div className="mt-2 text-[13px] font-normal text-white/50">{t("potNote")}</div>
+            <div className="mt-2 text-[13px] font-normal text-white/50">
+              {game?.settled && game.king
+                ? t("potPaidOut", { winner: truncateAddress(game.king) })
+                : t("potNote")}
+            </div>
 
             {/* Live tension: when this wallet is last to play, it's winning. The
                 banner ramps up in the final seconds. */}
@@ -928,9 +938,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                     : "text-white/30"
                 }`}
               >
-                {gameActive
-                  ? formatCountdown(countdown)
-                  : formatCountdown(status?.timerDuration ?? 0)}
+                {formatCountdown(gameActive ? countdown : 0)}
               </div>
               <div className="mt-4">
                 <ProgressBar
