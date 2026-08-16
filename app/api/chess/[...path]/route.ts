@@ -110,6 +110,10 @@ async function forward(
   const headers: Record<string, string> = { accept: "application/json" };
   if (method !== "GET") headers["content-type"] = "application/json";
   if (wallet) headers["x-wallet-address"] = wallet;
+  if (joined.startsWith("lottery/")) {
+    const authorization = req.headers.get("authorization");
+    if (authorization) headers.authorization = authorization;
+  }
   const ttl = cacheTtlMs(joined);
 
   try {
