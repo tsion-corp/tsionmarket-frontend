@@ -21,7 +21,8 @@ const SECTION_LABEL: Record<string, string> = {
   "/casino": "Arkade",
   "/casino/chess": "Chess",
   "/casino/last-standing": "The Last Man",
-  "/casino/powerball": "Powerball",
+  "/casino/arkball": "Arkball",
+  "/casino/powerball": "Arkball",
 };
 
 function titleCase(segment: string): string {

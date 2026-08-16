@@ -1377,8 +1377,8 @@
           "note": "Schnelle Partien mit Einsatz"
         },
         "powerball": {
-          "name": "Powerball",
-          "note": "Pick 5 white balls and 1 Powerball"
+          "name": "Arkball",
+          "note": "Pick 5 white balls and 1 Arkball"
         },
         "ayo": {
           "name": "Ayo",
@@ -1393,13 +1393,13 @@
       }
     },
     "powerball": {
-      "title": "Powerball",
+      "title": "Arkball",
       "exactMatch": "Exact 5 + 1 wins",
-      "heroBody": "Build a ticket with five white numbers and one red Powerball. Every ticket is settled from the funded USDC pool after the draw closes.",
+      "heroBody": "Build a ticket with five white numbers and one red Arkball. Every ticket is settled from the funded USDC pool after the draw closes.",
       "pricePill": "{price} USDC per ticket",
       "oddsPill": "1 in {odds} combinations",
       "rolloverPill": "No winner means rollover",
-      "unavailableTitle": "Powerball is unavailable right now",
+      "unavailableTitle": "Arkball is unavailable right now",
       "unavailableBody": "The draw service could not be reached. Your balance has not been charged.",
       "winningNumbers": "Winning numbers",
       "noCompletedDraw": "No completed draw yet.",
@@ -1422,9 +1422,9 @@
       "picking": "Picking...",
       "clear": "Clear",
       "whiteBallsStep": "White balls {selected}/5",
-      "powerballStep": "Powerball {selected}/1",
+      "powerballStep": "Arkball {selected}/1",
       "pickFiveWhite": "Pick five white balls",
-      "pickOnePowerball": "Pick one Powerball",
+      "pickOnePowerball": "Pick one Arkball",
       "whiteRange": "Choose five unique numbers from 1 to 69.",
       "powerballRange": "Choose one red number from 1 to 26.",
       "yourTicket": "Your ticket",
@@ -1437,7 +1437,7 @@
       "notEnoughUsdc": "Not enough available USDC for this ticket.",
       "combinationOwned": "You already own this combination in the current draw.",
       "chooseWhiteRemaining": "{count, plural, one {Choose # more white ball} other {Choose # more white balls}}",
-      "choosePowerball": "Choose one Powerball to complete the ticket.",
+      "choosePowerball": "Choose one Arkball to complete the ticket.",
       "quickPickFailed": "Quick Pick could not generate numbers. Try again.",
       "buyingTicket": "Buying ticket...",
       "ticketPurchased": "Ticket purchased and locked into the draw.",
@@ -1467,7 +1467,7 @@
       "how": {
         "choose": {
           "title": "Choose 5 + 1",
-          "body": "Pick five unique white balls and one red Powerball. Each combination is one ticket."
+          "body": "Pick five unique white balls and one red Arkball. Each combination is one ticket."
         },
         "pay": {
           "title": "Pay with USDC",

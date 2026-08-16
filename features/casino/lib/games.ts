@@ -98,15 +98,15 @@ export const CASINO_GAMES: CasinoGame[] = [
   },
   {
     id: "powerball",
-    name: "Powerball",
+    name: "Arkball",
     category: "Draws",
     size: "medium",
     glyph: "●",
     image: "/casino/powerball/hero.png",
     tintRgb: "225 29 53",
     isNew: true,
-    href: "/casino/powerball",
-    note: "Pick 5 white balls and 1 Powerball",
+    href: "/casino/arkball",
+    note: "Pick 5 white balls and 1 Arkball",
     comingSoon: false,
   },
   {

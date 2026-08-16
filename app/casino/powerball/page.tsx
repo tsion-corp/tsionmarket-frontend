@@ -1,9 +1,5 @@
-import { CasinoPage, PowerballSection } from "@/features/casino";
+import { redirect } from "next/navigation";
 
 export default function PowerballPage() {
-  return (
-    <CasinoPage>
-      <PowerballSection />
-    </CasinoPage>
-  );
+  redirect("/casino/arkball");
 }

@@ -54,7 +54,7 @@ export function PowerballSection() {
         <section className="relative min-h-[310px] overflow-hidden rounded-[28px] border border-white/9 shadow-[0_35px_100px_rgba(0,0,0,0.35)] sm:min-h-[360px]">
           <Image
             src="/casino/powerball/hero.png"
-            alt="Five white lottery balls and one red Powerball"
+            alt="Five white lottery balls and one red Arkball"
             fill
             priority
             sizes="(max-width: 1380px) 100vw, 1380px"

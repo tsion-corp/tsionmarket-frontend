@@ -38,7 +38,7 @@ export function LotteryBall({
     <button
       type="button"
       aria-pressed={selected}
-      aria-label={`${powerball ? "Powerball" : "White ball"} ${number}`}
+      aria-label={`${powerball ? "Arkball" : "White ball"} ${number}`}
       disabled={disabled}
       onClick={onClick}
       className={className}

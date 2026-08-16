@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Geist, Mona_Sans, Noto_Sans, Roboto } from "next/font/google";
+import { Geist, Noto_Sans, Roboto } from "next/font/google";
+import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import Providers from "./providers";
@@ -15,9 +16,9 @@ const geist = Geist({
 });
 
 // Headers. Mona Sans, used at bold by the ws-display utility.
-const monaSans = Mona_Sans({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
+const monaSans = localFont({
+  src: "./fonts/mona-sans-latin.woff2",
+  weight: "500 700",
   variable: "--font-display",
 });
 

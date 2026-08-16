@@ -19,7 +19,7 @@ describe("casino game catalogue", () => {
     expect(shown.slice(0, 2).map((g) => g.id)).toEqual(["chess", "last-standing"]);
   });
 
-  it("keeps Draw intact and adds Powerball immediately after Checkers", () => {
+  it("keeps Draw intact and adds Arkball immediately after Checkers", () => {
     const draw = CASINO_GAMES.find((game) => game.id === "draw");
     expect(draw).toMatchObject({
       name: "Draw",
@@ -31,7 +31,8 @@ describe("casino game catalogue", () => {
     const checkersIndex = CASINO_GAMES.findIndex((game) => game.id === "checkers");
     expect(CASINO_GAMES[checkersIndex + 1]).toMatchObject({
       id: "powerball",
-      href: "/casino/powerball",
+      name: "Arkball",
+      href: "/casino/arkball",
       comingSoon: false,
     });
   });
