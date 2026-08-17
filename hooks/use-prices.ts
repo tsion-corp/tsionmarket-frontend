@@ -28,6 +28,11 @@ export function usePrices(symbols: string[]) {
     },
     staleTime: POLL_MS,
     refetchInterval: POLL_MS,
+    // A throttled first load is the one case where consumers see a zero
+    // price (after the first success, errors keep serving the last data).
+    // Retry through the burst with growing waits instead of giving up.
+    retry: 5,
+    retryDelay: (attempt) => Math.min(2_000 * 2 ** attempt, 30_000),
   });
   return data ?? EMPTY_PRICES;
 }
