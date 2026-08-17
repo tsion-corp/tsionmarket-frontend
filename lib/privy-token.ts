@@ -30,10 +30,14 @@ interface TokenResolverDeps {
 // request never carries a token that lapses in flight.
 const REFRESH_SKEW_SECONDS = 60;
 
-// When a token's expiry can't be read (or there is no identity token at all),
-// cache the decision for this long so we don't fall back to refreshing on every
-// call, which would defeat the purpose.
+// When a token's expiry can't be read, cache it briefly instead of refreshing
+// on every request.
 const FALLBACK_TTL_SECONDS = 300;
+
+// Privy can expose the access token before the identity token during session
+// startup. Back off briefly, then try again instead of caching that transient
+// absence for the full fallback TTL.
+const MISSING_IDENTITY_RETRY_SECONDS = 1;
 
 // Reads the `exp` claim (seconds since epoch) from a JWT without verifying its
 // signature. Returns null for anything that is not a well-formed JWT with a
@@ -82,7 +86,11 @@ export function createTokenResolver({
     }
 
     const fresh =
-      cache !== null && cache.access === access && cache.idExpiresAt - REFRESH_SKEW_SECONDS > now();
+      cache !== null &&
+      cache.access === access &&
+      (cache.idToken
+        ? cache.idExpiresAt - REFRESH_SKEW_SECONDS > now()
+        : cache.idExpiresAt > now());
     if (fresh) {
       return { accessToken: access, idToken: cache!.idToken };
     }
@@ -95,7 +103,9 @@ export function createTokenResolver({
           const entry: CacheEntry = {
             access,
             idToken,
-            idExpiresAt: exp ?? now() + FALLBACK_TTL_SECONDS,
+            idExpiresAt: idToken
+              ? (exp ?? now() + FALLBACK_TTL_SECONDS)
+              : now() + MISSING_IDENTITY_RETRY_SECONDS,
           };
           cache = entry;
           return entry;

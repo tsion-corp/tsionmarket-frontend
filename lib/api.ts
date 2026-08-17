@@ -11,17 +11,16 @@ import { resolveAuthTokens } from "@/lib/privy-token";
 // one per request (see lib/privy-token for why that matters).
 //
 // On a cold first load Privy can report "authenticated" a moment before the
-// access token is warm, so the access token is briefly null. Callers of
-// auth-gated routes pass `requireAuth` so that, instead of firing a token-less
-// request that 401s, we throw a retryable error and let the caller's query
-// retry once the token lands.
+// required tokens are warm, so either token can briefly be null. Callers of
+// auth-gated routes pass `requireAuth` so that, instead of firing an incomplete
+// request that 401s, we throw a retryable error and let the caller's query retry.
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
   opts: { requireAuth?: boolean } = {}
 ): Promise<Response> {
   const { accessToken, idToken } = await resolveAuthTokens();
-  if (opts.requireAuth && !accessToken) {
+  if (opts.requireAuth && (!accessToken || !idToken)) {
     throw new Error("Auth not ready, retrying");
   }
   const headers = new Headers(init.headers);

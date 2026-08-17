@@ -125,20 +125,35 @@ describe("createTokenResolver caching", () => {
     expect(getIdentityToken).toHaveBeenCalledTimes(1);
   });
 
-  it("does not hammer when there is no identity token", async () => {
+  it("backs off briefly when the identity token is not ready", async () => {
     const getAccessToken = vi.fn().mockResolvedValue("access-1");
     const getIdentityToken = vi.fn().mockResolvedValue(null);
     const c = clock(1000);
     const resolve = createTokenResolver({ getAccessToken, getIdentityToken, now: c.now });
 
     await resolve();
-    c.advance(100); // within the 300s fallback TTL
+    c.advance(0.5);
     await resolve();
 
     expect(getIdentityToken).toHaveBeenCalledTimes(1);
 
-    c.advance(300); // past the fallback TTL -> one more attempt
+    c.advance(0.5);
     await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(2);
+  });
+
+  it("recovers when the identity token becomes available after startup", async () => {
+    const identityToken = jwt({ exp: 5000 });
+    const getAccessToken = vi.fn().mockResolvedValue("access-1");
+    const getIdentityToken = vi.fn().mockResolvedValueOnce(null).mockResolvedValue(identityToken);
+    const c = clock(1000);
+    const resolve = createTokenResolver({ getAccessToken, getIdentityToken, now: c.now });
+
+    expect(await resolve()).toEqual({ accessToken: "access-1", idToken: null });
+
+    c.advance(1);
+
+    expect(await resolve()).toEqual({ accessToken: "access-1", idToken: identityToken });
     expect(getIdentityToken).toHaveBeenCalledTimes(2);
   });
 });
