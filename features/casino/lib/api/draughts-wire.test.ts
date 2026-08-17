@@ -12,7 +12,7 @@ import {
   type DraughtsMatchWire,
 } from "@/features/casino/lib/api/draughts-wire";
 import { STARTING_FEN } from "@/features/casino/lib/draughts/engine";
-import { toSwissGameKind } from "@/features/casino/lib/api/swiss";
+import { swissSurfaceRoutes, toSwissGameKind } from "@/features/casino/lib/api/swiss";
 
 const MATCH_ID = "6f1c2a3e-1111-4222-8333-444455556666";
 
@@ -298,5 +298,15 @@ describe("swiss game kind", () => {
     expect(toSwissGameKind("chess")).toBe("chess");
     // Tournaments created before draughts existed carry no kind at all.
     expect(toSwissGameKind(undefined)).toBe("chess");
+  });
+
+  it("keeps draughts tournament navigation on the checkers surface", () => {
+    const routes = swissSurfaceRoutes("draughts");
+
+    expect(routes.tournaments).toBe("/casino/checkers/tournaments");
+    expect(routes.detail("tournament-1")).toBe("/casino/checkers/tournaments/tournament-1");
+    expect(routes.play("match-1", "Player")).toBe("/casino/checkers?match=match-1");
+    expect(routes.create).toBe("/casino/checkers/create");
+    expect(routes.home).toBe("/casino/checkers");
   });
 });

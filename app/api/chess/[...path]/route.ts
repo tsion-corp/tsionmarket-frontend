@@ -96,6 +96,17 @@ function noWallet() {
   );
 }
 
+function forwardAuthHeaders(req: NextRequest, headers: Record<string, string>): void {
+  const authorization = req.headers.get("authorization");
+  const accessToken = req.cookies.get("privy-token")?.value;
+  const identityToken =
+    req.headers.get("privy-id-token") ?? req.cookies.get("privy-id-token")?.value;
+
+  if (authorization) headers.authorization = authorization;
+  else if (accessToken) headers.authorization = `Bearer ${accessToken}`;
+  if (identityToken) headers["privy-id-token"] = identityToken;
+}
+
 async function forward(
   req: NextRequest,
   joined: string,
@@ -109,10 +120,9 @@ async function forward(
   const url = `${BASE}/${joined}${query}`;
   const headers: Record<string, string> = { accept: "application/json" };
   if (method !== "GET") headers["content-type"] = "application/json";
-  if (wallet) headers["x-wallet-address"] = wallet;
-  if (joined.startsWith("lottery/")) {
-    const authorization = req.headers.get("authorization");
-    if (authorization) headers.authorization = authorization;
+  if (wallet) {
+    headers["x-wallet-address"] = wallet;
+    forwardAuthHeaders(req, headers);
   }
   const ttl = cacheTtlMs(joined);
 

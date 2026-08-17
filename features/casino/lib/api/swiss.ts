@@ -32,6 +32,44 @@ export function toSwissGameKind(value: string | undefined): SwissGameKind {
   return value === "draughts" ? "draughts" : "chess";
 }
 
+export interface SwissSurfaceRoutes {
+  label: "Chess" | "Checkers";
+  home: string;
+  tournaments: string;
+  create: string;
+  games: string;
+  detail: (tournamentId: string) => string;
+  play: (matchId: string, playerName: string | null) => string;
+}
+
+// The tournament API is shared, but each game owns its own browser surface.
+// Keeping every route in one mapping prevents a draughts tournament from
+// leaking back into chess when a user shares or opens a paired board.
+export function swissSurfaceRoutes(game: SwissGameKind): SwissSurfaceRoutes {
+  if (game === "draughts") {
+    return {
+      label: "Checkers",
+      home: "/casino/checkers",
+      tournaments: "/casino/checkers/tournaments",
+      create: "/casino/checkers/create",
+      games: "/casino/checkers",
+      detail: (tournamentId) => `/casino/checkers/tournaments/${tournamentId}`,
+      play: (matchId) => `/casino/checkers?match=${encodeURIComponent(matchId)}`,
+    };
+  }
+
+  return {
+    label: "Chess",
+    home: "/casino/chess",
+    tournaments: "/casino/chess/swiss",
+    create: "/casino/chess/create",
+    games: "/casino/chess/history",
+    detail: (tournamentId) => `/casino/chess/swiss/${tournamentId}`,
+    play: (matchId, playerName) =>
+      `/casino/chess/play?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerName ?? "")}`,
+  };
+}
+
 export interface SwissSummaryWire {
   id: string;
   name: string;

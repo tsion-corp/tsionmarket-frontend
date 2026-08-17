@@ -8,6 +8,7 @@ import { useSwissTournament } from "@/features/casino/hooks/use-casino-swiss";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { ChessBoard } from "@/features/casino/components/chess/chess-board";
+import { DraughtsBoardView } from "@/features/casino/components/draughts/draughts-board";
 import { FlagIcon, PlayIcon } from "@/components/ui/icons";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
 import { SwissBettingPanel } from "@/features/casino/components/chess/swiss/betting-panel";
@@ -15,6 +16,10 @@ import { SwissStandings } from "@/features/casino/components/chess/swiss/standin
 import { SwissRoundPairings } from "@/features/casino/components/chess/swiss/pairings";
 import { BOARD_THEMES, DEFAULT_THEME } from "@/features/casino/lib/chess/board-theme";
 import { initialBoard } from "@/features/casino/lib/chess/engine";
+import {
+  parseFen as parseDraughtsFen,
+  STARTING_FEN as DRAUGHTS_STARTING_FEN,
+} from "@/features/casino/lib/draughts/engine";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import { exceedsUsdcBalance, hasPositiveUsdc } from "@/features/casino/lib/api/cashier";
 import { copyText } from "@/lib/clipboard";
@@ -25,7 +30,10 @@ import {
   isSeated,
   playerNameError,
   PLAYER_NAME_MAX,
+  swissSurfaceRoutes,
   type SwissDetail,
+  type SwissGameKind,
+  type SwissSurfaceRoutes,
 } from "@/features/casino/lib/api/swiss";
 import {
   CHESS_CARD_BG,
@@ -52,6 +60,7 @@ const STATE_KEY: Record<SwissDetail["state"], string> = {
 
 const TOURNAMENT_THEME = BOARD_THEMES.find((theme) => theme.id === "green") ?? DEFAULT_THEME;
 const TOURNAMENT_BOARD = initialBoard();
+const TOURNAMENT_DRAUGHTS_BOARD = parseDraughtsFen(DRAUGHTS_STARTING_FEN).board;
 
 function headerLine(t: Translator, detail: SwissDetail): string {
   const parts = [
@@ -151,10 +160,12 @@ function JoinPanel({
   join,
   joining,
   entryFeeUsdc,
+  game,
 }: {
   join: (input: { name: string; password?: string }) => Promise<unknown>;
   joining: boolean;
   entryFeeUsdc: string;
+  game: SwissGameKind;
 }) {
   const t = useTranslations("casino.chess.swiss");
   const wallet = useCasinoWallet();
@@ -196,7 +207,8 @@ function JoinPanel({
       {paid ? (
         <div className="mb-3 rounded-[10px] border border-white/8 bg-black/12 px-3 py-2.5 text-[11.5px] leading-5 text-white/58">
           Joining locks <strong className="tnum text-white/82">{entryFeeUsdc} USDC</strong> from
-          your chess balance. It is refunded if you leave before round 1 starts.
+          your {game === "draughts" ? "checkers" : "chess"} balance. It is refunded if you leave
+          before round 1 starts.
           <div className={`mt-1 ${insufficient ? "text-down" : "text-white/42"}`}>
             Available: {cashier.available} USDC
           </div>
@@ -406,11 +418,13 @@ function InfoPanel({
   shareUrl,
   isOrganizer,
   onCopyShare,
+  routes,
 }: {
   detail: SwissDetail;
   shareUrl: string;
   isOrganizer: boolean;
   onCopyShare: () => Promise<void>;
+  routes: SwissSurfaceRoutes;
 }) {
   const t = useTranslations("casino.chess.swiss");
 
@@ -444,16 +458,16 @@ function InfoPanel({
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
-            href="/casino/chess/swiss"
+            href={routes.tournaments}
             className={`${CHESS_SECONDARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[12px] font-semibold`}
           >
             ← {t("allTournaments")}
           </Link>
           <Link
-            href="/casino/chess"
+            href={routes.home}
             className={`${CHESS_SECONDARY_BUTTON_CLASS} px-4 py-2.5 font-sans text-[12px] font-semibold`}
           >
-            Back to Chess
+            Back to {routes.label}
           </Link>
         </div>
       </div>
@@ -464,9 +478,11 @@ function InfoPanel({
 export function SwissDetailSection({
   tournamentId,
   showCreatedShare = false,
+  game,
 }: {
   tournamentId: string;
   showCreatedShare?: boolean;
+  game?: SwissGameKind;
 }) {
   const t = useTranslations("casino.chess.swiss");
   const wallet = useCasinoWallet();
@@ -489,13 +505,15 @@ export function SwissDetailSection({
     reconciling,
   } = useSwissTournament(tournamentId);
 
+  const surfaceGame = detail?.game ?? game ?? "chess";
+  const routes = swissSurfaceRoutes(surfaceGame);
   const [manual, setManual] = useState("");
   const [railTabChoice, setRailTabChoice] = useState<RailTab | null>(null);
   const [shareDismissed, setShareDismissed] = useState(!showCreatedShare);
   const shareUrl =
     typeof window === "undefined"
-      ? `/casino/chess/swiss/${tournamentId}`
-      : `${window.location.origin}/casino/chess/swiss/${tournamentId}`;
+      ? routes.detail(tournamentId)
+      : `${window.location.origin}${routes.detail(tournamentId)}`;
   const shareVisible = !!detail && isOrganizer && detail.state === "open" && !shareDismissed;
 
   const onStartRound = async () => {
@@ -603,8 +621,16 @@ export function SwissDetailSection({
               </div>
             </div>
 
-            <div className="relative overflow-hidden rounded-[2px]">
-              <ChessBoard board={TOURNAMENT_BOARD} theme={TOURNAMENT_THEME} />
+            <div
+              className={`relative rounded-[2px] ${
+                surfaceGame === "draughts" ? "overflow-visible" : "overflow-hidden"
+              }`}
+            >
+              {surfaceGame === "draughts" ? (
+                <DraughtsBoardView board={TOURNAMENT_DRAUGHTS_BOARD} />
+              ) : (
+                <ChessBoard board={TOURNAMENT_BOARD} theme={TOURNAMENT_THEME} />
+              )}
               {shareVisible ? (
                 <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/26 p-5">
                   <ShareCard
@@ -634,7 +660,7 @@ export function SwissDetailSection({
             <div className="mt-3 flex items-center justify-between gap-3">
               <span className="min-w-0 truncate text-[12px] text-white/55">{boardFooter}</span>
               <Link
-                href="/casino/chess/swiss"
+                href={routes.tournaments}
                 className="shrink-0 text-[12px] font-semibold text-white/68 transition-colors hover:text-white"
               >
                 ← {t("allTournaments")}
@@ -653,21 +679,21 @@ export function SwissDetailSection({
               <span className="font-sans text-[14px] font-semibold">Tournament</span>
             </div>
             <Link
-              href="/casino/chess/create"
+              href={routes.create}
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
               <span className="mb-2 block text-[16px] font-medium">+</span>
               <span className="font-sans text-[14px] font-semibold">New Game</span>
             </Link>
             <Link
-              href="/casino/chess/history"
+              href={routes.games}
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
               <span className="mb-2 block text-[16px] font-medium">#</span>
               <span className="font-sans text-[14px] font-semibold">Games</span>
             </Link>
             <Link
-              href="/casino/chess"
+              href={routes.home}
               className="grid min-h-[78px] place-items-center px-4 py-3 text-center text-white/65 transition-colors hover:bg-white/4 hover:text-white"
             >
               <span className="mb-2 block text-[16px] font-medium">U</span>
@@ -716,7 +742,12 @@ export function SwissDetailSection({
 
             <div className="mt-4 space-y-4">
               {detail.state === "open" && !joined ? (
-                <JoinPanel join={join} joining={joining} entryFeeUsdc={detail.entryFeeUsdc} />
+                <JoinPanel
+                  join={join}
+                  joining={joining}
+                  entryFeeUsdc={detail.entryFeeUsdc}
+                  game={surfaceGame}
+                />
               ) : null}
 
               {detail.state === "open" && joined && !isOrganizer ? (
@@ -748,7 +779,7 @@ export function SwissDetailSection({
                     </div>
                   </div>
                   <Link
-                    href={`/casino/chess/play?match=${yourPairing.matchId}&player=${encodeURIComponent(yourName ?? "")}`}
+                    href={routes.play(yourPairing.matchId, yourName)}
                     className={`${CHESS_PRIMARY_BUTTON_CLASS} shrink-0 px-4 py-2.5 font-sans text-[13px] font-medium`}
                   >
                     Play now
@@ -832,6 +863,7 @@ export function SwissDetailSection({
                       shareUrl={shareUrl}
                       isOrganizer={isOrganizer}
                       onCopyShare={onCopyShare}
+                      routes={routes}
                     />
 
                     {joined && detail.state !== "finished" ? (

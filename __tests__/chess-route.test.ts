@@ -205,7 +205,7 @@ describe("chess proxy route", () => {
     expect((init.headers as Record<string, string>)["x-wallet-address"]).toBe("0xabc");
   });
 
-  it("forwards the existing bearer token on private ArkBall reads", async () => {
+  it("forwards signed Privy credentials on authenticated lottery reads", async () => {
     auth.verifyRequest.mockResolvedValue({ userId: "user_1" });
     auth.getRequestUser.mockResolvedValue(walletUser("0xabc"));
     global.fetch = vi.fn(
@@ -218,19 +218,22 @@ describe("chess proxy route", () => {
     const { GET } = await loadRoute();
     const res = await GET(
       makeReq("https://app.test/api/chess/lottery/players/0xabc/tickets?limit=50", {
-        headers: { authorization: "Bearer access-token" },
+        headers: {
+          authorization: "Bearer access-token",
+          "privy-id-token": "identity-token",
+        },
       }),
-      {
-        params: Promise.resolve({
-          path: ["lottery", "players", "0xabc", "tickets"],
-        }),
-      }
+      { params: Promise.resolve({ path: ["lottery", "players", "0xabc", "tickets"] }) }
     );
 
     expect(res.status).toBe(200);
     const [, init] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock
       .calls[0];
-    expect((init.headers as Record<string, string>).authorization).toBe("Bearer access-token");
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer access-token",
+      "privy-id-token": "identity-token",
+      "x-wallet-address": "0xabc",
+    });
   });
 
   it("rejects writes until the proxy can prove the caller's wallet", async () => {

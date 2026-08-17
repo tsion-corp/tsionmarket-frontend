@@ -89,7 +89,9 @@ export function SwissBettingPanel({
       return;
     }
     if (overBalance) {
-      toast.error("Your chess balance is too low for that stake.");
+      toast.error(
+        `Your ${detail.game === "draughts" ? "checkers" : "chess"} balance is too low for that stake.`
+      );
       return;
     }
     retryKey.current ??= newChessIdempotencyKey();

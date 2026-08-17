@@ -12,7 +12,7 @@ export default function CheckersTournamentPage({ params }: { params: Promise<{ i
   const created = useSearchParams().get("created") === "1";
   return (
     <CasinoPage>
-      <SwissDetailSection tournamentId={id} showCreatedShare={created} />
+      <SwissDetailSection tournamentId={id} showCreatedShare={created} game="draughts" />
     </CasinoPage>
   );
 }
