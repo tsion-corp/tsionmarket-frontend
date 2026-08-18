@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { MarketLogo } from "@/components/ui/market-logo";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { SearchIcon } from "@/components/ui/icons";
@@ -18,6 +16,54 @@ interface TopbarProps {
   // Scrolls in-page on /dashboard, or navigates there first from any other
   // page (e.g. /casino) — same dispatcher the sidebar uses.
   onSelectSection: (id: string) => void;
+  /** The phone drawer: whether it is open, and the button that flips it. */
+  menuOpen: boolean;
+  onToggleMenu: () => void;
+}
+
+// The phone menu button: three bars that fold into a cross while the drawer is
+// open, so the same control reads as "open" and "close". Pure CSS transitions,
+// no icon swap.
+function MenuToggle({
+  open,
+  onClick,
+  label,
+}: {
+  open: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  const bar = "block h-[2px] rounded-full bg-white/85 transition-all duration-200 ease-in-out";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-controls="app-sidebar"
+      aria-expanded={open}
+      className="grid size-[38px] shrink-0 cursor-pointer place-items-center rounded-full border border-white/14 bg-white/5 text-white/85 transition-colors hover:bg-white/10 md:hidden"
+    >
+      <span className="relative block h-[14px] w-[18px]">
+        {/* The three bars, which shrink to nothing as the cross grows. */}
+        <span
+          className={`${bar} absolute top-0 left-0 ${open ? "w-0 delay-0" : "w-full delay-300"}`}
+        />
+        <span
+          className={`${bar} absolute top-[6px] left-0 ${open ? "w-0 delay-75" : "w-full delay-[350ms]"}`}
+        />
+        <span
+          className={`${bar} absolute top-[12px] left-0 ${open ? "w-0 delay-150" : "w-full delay-[400ms]"}`}
+        />
+        {/* The cross, drawn as two rotated bars from the centre. */}
+        <span
+          className={`${bar} absolute top-[6px] left-0 origin-center rotate-45 ${open ? "w-full delay-300" : "w-0 delay-0"}`}
+        />
+        <span
+          className={`${bar} absolute top-[6px] left-0 origin-center -rotate-45 ${open ? "w-full delay-[400ms]" : "w-0 delay-100"}`}
+        />
+      </span>
+    </button>
+  );
 }
 
 const GROUPS: {
@@ -84,7 +130,7 @@ function SearchResults({
   );
 }
 
-export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
+export function Topbar({ onOpenAccount, onSelectSection, menuOpen, onToggleMenu }: TopbarProps) {
   const { user } = usePrivy();
   const profile = deriveProfile(user);
   const t = useTranslations("topbar");
@@ -101,11 +147,11 @@ export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
 
   return (
     <div className="relative z-[2] flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
-      <Link href="/dashboard" className="flex items-center md:hidden">
-        <MarketLogo className="h-[15px] w-auto" />
-      </Link>
+      {/* On a phone the menu opens the drawer, which is where the logo lives;
+          the bar itself is search, notifications and the account. */}
+      <MenuToggle open={menuOpen} onClick={onToggleMenu} label={t("menu")} />
 
-      <div className="relative max-w-[230px] min-w-0 flex-1 md:max-w-[420px]">
+      <div className="relative min-w-0 flex-1 md:max-w-[420px]">
         <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
           <SearchIcon />
           <input

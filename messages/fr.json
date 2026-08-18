@@ -131,6 +131,8 @@
   },
   "topbar": {
     "searchPlaceholder": "Rechercher actifs, marchés, tickers",
+    "menu": "Menu",
+    "closeMenu": "Fermer le menu",
     "noMatches": "Aucun résultat pour « {query} »",
     "groupHoldings": "Vos avoirs",
     "groupRwa": "Actifs du monde réel",

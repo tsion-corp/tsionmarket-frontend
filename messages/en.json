@@ -131,6 +131,8 @@
   },
   "topbar": {
     "searchPlaceholder": "Search assets, markets, tickers",
+    "menu": "Menu",
+    "closeMenu": "Close menu",
     "noMatches": "No matches for “{query}”",
     "groupHoldings": "Your holdings",
     "groupRwa": "Real-world assets",

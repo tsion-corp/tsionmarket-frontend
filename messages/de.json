@@ -131,6 +131,8 @@
   },
   "topbar": {
     "searchPlaceholder": "Assets, Märkte, Ticker suchen",
+    "menu": "Menü",
+    "closeMenu": "Menü schließen",
     "noMatches": "Keine Treffer für „{query}“",
     "groupHoldings": "Ihre Bestände",
     "groupRwa": "Reale Vermögenswerte",

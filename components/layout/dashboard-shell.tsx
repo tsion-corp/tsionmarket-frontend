@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
-import { SectionChips } from "@/components/layout/section-chips";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
@@ -18,8 +17,8 @@ interface DashboardShellProps {
   children: React.ReactNode;
 }
 
-// The persistent chrome around every top-level app screen: sidebar, topbar,
-// mobile section chips, and the account modal. Shared by /dashboard
+// The persistent chrome around every top-level app screen: sidebar (a drawer
+// on phones), topbar, and the account modal. Shared by /dashboard
 // (the scroll-spy sections) and any standalone section page like /casino, so
 // moving between them feels like one app, not a different shell per page.
 //
@@ -29,6 +28,7 @@ interface DashboardShellProps {
 // there and otherwise navigates to /dashboard#id first.
 export function DashboardShell({ nav, activeSection, children }: DashboardShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Anyone rendering the shell has an account, including sessions that
   // predate the flag — so the landing page can greet them with "Log in".
@@ -51,12 +51,18 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         activeSection={activeSection}
         onNavigate={(id) => navigate(id)}
         onOpenAccount={() => setAccountOpen(true)}
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
       />
 
       <main className="min-h-screen md:ml-[248px]">
         <div className="sticky top-0 z-[60]">
-          <Topbar onOpenAccount={() => setAccountOpen(true)} onSelectSection={navigate} />
-          <SectionChips sections={nav} activeId={activeSection} onSelect={navigate} />
+          <Topbar
+            onOpenAccount={() => setAccountOpen(true)}
+            onSelectSection={navigate}
+            menuOpen={menuOpen}
+            onToggleMenu={() => setMenuOpen((v) => !v)}
+          />
         </div>
 
         {children}

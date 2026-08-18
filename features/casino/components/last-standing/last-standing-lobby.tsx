@@ -214,7 +214,15 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
               <div className="text-[12px] font-normal text-white/50">{t("historySubtitle")}</div>
             </div>
           </div>
-          <WinnersList winners={winners} loading={winnersLoading} emptyLabel={t("hallEmpty")} />
+          {/* Five to a page, one column: on a phone ten rows filled the screen
+              and pushed the close out of reach. */}
+          <WinnersList
+            winners={winners}
+            loading={winnersLoading}
+            emptyLabel={t("hallEmpty")}
+            pageSize={5}
+            columns={1}
+          />
         </div>
       </ModalShell>
 

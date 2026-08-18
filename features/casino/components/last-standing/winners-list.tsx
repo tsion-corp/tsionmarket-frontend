@@ -9,7 +9,6 @@ import { timeAgo, truncateAddress } from "@/lib/format";
 import type { VaultWinner } from "@/features/casino/lib/vault-api";
 
 const EXPLORER_ADDRESS_URL = "https://basescan.org/address/";
-const PAGE_SIZE = 10;
 
 interface WinnersListProps {
   winners: VaultWinner[];
@@ -18,6 +17,10 @@ interface WinnersListProps {
   emptyLabel: string;
   /** Marks the newest row as the latest result, with the light sweep. */
   highlightLatest?: boolean;
+  /** Rows per page. A modal on a phone wants fewer, so its close stays in reach. */
+  pageSize?: number;
+  /** Two columns on wide screens (the game page card), or one (a modal). */
+  columns?: 1 | 2;
 }
 
 // The settled rounds, newest first: who won, which game, when, and what they
@@ -30,15 +33,18 @@ export function WinnersList({
   loading = false,
   emptyLabel,
   highlightLatest = true,
+  pageSize = 10,
+  columns = 2,
 }: WinnersListProps) {
   const t = useTranslations("casino.lastStanding");
   const money = useMoney();
   const reduce = useReducedMotion();
-  const paged = usePaged(winners, PAGE_SIZE);
+  const paged = usePaged(winners, pageSize);
+  const grid = columns === 2 ? "mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5" : "mt-4 grid gap-2";
 
   if (loading) {
     return (
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5">
+      <div className={grid}>
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="h-[52px] animate-pulse rounded-[14px] bg-white/6" />
         ))}
@@ -56,7 +62,7 @@ export function WinnersList({
 
   return (
     <>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5">
+      <div className={grid}>
         {paged.pageItems.map((w, idx) => {
           const isLatest = highlightLatest && paged.page === 0 && idx === 0;
           return (
@@ -113,7 +119,7 @@ export function WinnersList({
           );
         })}
       </div>
-      {paged.total > PAGE_SIZE ? (
+      {paged.total > pageSize ? (
         <Pager
           from={paged.from}
           to={paged.to}
