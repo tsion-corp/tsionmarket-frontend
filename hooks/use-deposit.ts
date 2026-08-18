@@ -76,15 +76,24 @@ export function isRetryableDextopusError(error: unknown): boolean {
   return error.status >= 500;
 }
 
-// Deposits and withdrawals are two Dextopus integrations with two API keys.
-// The proxy signs a request with the key of its purpose, and the purpose rides
-// on the path: `withdraw/` in front of a Dextopus path selects the withdrawal
-// key. A request created under one key is only readable under the same key,
-// which is why status polling takes the purpose as well.
-export type DextopusPurpose = "deposit" | "withdrawal";
+// Deposits, withdrawals and trades are three Dextopus integrations with three
+// API keys. The proxy signs a request with the key of its purpose, and the
+// purpose rides on the path: `withdraw/` in front of a Dextopus path selects
+// the withdrawal key, `trade/` the trade key (spot buys and sells, the buy
+// catalog, gas top-ups, the casino fund sheet, prediction settlement), and a
+// bare path is a deposit. A request created under one key is only readable
+// under the same key, which is why status polling takes the purpose as well.
+export type DextopusPurpose = "deposit" | "withdrawal" | "trade";
 
-function purposedPath(path: string, purpose: DextopusPurpose): string {
-  return purpose === "withdrawal" ? `withdraw/${path}` : path;
+const PURPOSE_PREFIX: Record<DextopusPurpose, string> = {
+  deposit: "",
+  withdrawal: "withdraw/",
+  trade: "trade/",
+};
+
+/** The proxied path for a Dextopus call, carrying its purpose. */
+export function purposedPath(path: string, purpose: DextopusPurpose): string {
+  return `${PURPOSE_PREFIX[purpose]}${path}`;
 }
 
 export async function dextopusGet<T>(
@@ -368,12 +377,15 @@ export interface WithdrawQuoteInput {
 // "if the swap can't complete, funds return to the sender" guarantee. The
 // returned depositAddress is where the origin token is sent to trigger the
 // cross-chain settlement Dextopus performs under the hood.
-export async function createWithdrawQuote(input: WithdrawQuoteInput): Promise<QuoteResult> {
+export async function createWithdrawQuote(
+  input: WithdrawQuoteInput,
+  purpose: DextopusPurpose = "withdrawal"
+): Promise<QuoteResult> {
   return dextopusPost<QuoteResult>(
     "deposit/quote",
     { ...input, strict: true },
     "Couldn't get a withdrawal quote",
-    "withdrawal"
+    purpose
   );
 }
 
@@ -383,9 +395,14 @@ export async function createWithdrawQuote(input: WithdrawQuoteInput): Promise<Qu
 // is minted per fetch, so we never refetch on focus/reconnect — only on input
 // change or an explicit refetch at execution time. `retry: false` so an
 // unroutable destination surfaces immediately instead of retrying.
-export function useWithdrawQuote(input: WithdrawQuoteInput | null) {
+// `purpose` defaults to the withdrawal key; the casino fund sheet reuses this
+// quote shape to turn USDC into ETH, which is a trade, and says so.
+export function useWithdrawQuote(
+  input: WithdrawQuoteInput | null,
+  purpose: DextopusPurpose = "withdrawal"
+) {
   return useQuery<QuoteResult>({
-    queryKey: ["withdraw-quote", input],
+    queryKey: ["withdraw-quote", purpose, input],
     enabled: input !== null,
     staleTime: 45_000,
     gcTime: 60_000,
@@ -393,7 +410,7 @@ export function useWithdrawQuote(input: WithdrawQuoteInput | null) {
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-    queryFn: () => createWithdrawQuote(input as WithdrawQuoteInput),
+    queryFn: () => createWithdrawQuote(input as WithdrawQuoteInput, purpose),
   });
 }
 

@@ -39,7 +39,7 @@ Socket: `wss://ws.worldstreetwebservices.com/`, topic `vault:king-of-night`.
 | 2   | Settler running in the keeper                                         | **Not shown**, one-off burst only   |
 | 3   | Indexer watching the proxy and backfilled; feeds return rows          | **Not done**, every feed still `[]` |
 | 4   | `GameStarted` ABI corrected; canonical ABI published; source verified | **Partly done**, ABI published      |
-| 5   | `GET /games/:id` returns the game                                     | **Not done**, `404` for real games  |
+| 5   | `GET /games/:id` returns the game                                     | **Done** (18:52 UTC re-check)       |
 | 6   | Index `GameSettled` and `WagerPlaced`                                 | **Not done**, both events exist     |
 | 7   | Socket frames confirmed                                               | **Hub up; no frame ever observed**  |
 | 8   | Contract parameters in the API docs                                   | **Not received**                    |
@@ -181,47 +181,20 @@ guide hashes to a topic that matches no log.
 
 ---
 
-## 5. `GET /games/:id`: not done, `404` for games that exist
+## 5. `GET /games/:id`: done
 
-**After the 03:00 redeploy** the handler no longer throws, but every real id
-is reported as not found:
+**Re-checked 16 August, 18:52 UTC.** Fixed. `/games/1`, `/games/7` and
+`/games/8` return `200` with the full game object, and every field matches
+the contract: game 8 reports `endTime 1786893739`, `settled: true`,
+`pot 0.0002018227783561 ETH`, exactly what `games(8)` reads on-chain.
+`/games/9` (`nextGameId` is 9) is a clean `404 NOT_FOUND`, `/games/abc` a
+`400`. The frontend keeps reading the contract for its own hot path (a game
+the user just started is not indexed yet), and can now trust this endpoint
+for everything else.
 
-```
-GET /games/1        404  {"success":false,"error":{"code":"NOT_FOUND","message":"Game not found"}}
-GET /games/6        404  {"success":false,"error":{"code":"NOT_FOUND","message":"Game not found"}}
-GET /games/7        404  {"success":false,"error":{"code":"NOT_FOUND","message":"Game not found"}}   (correct: nextGameId = 7)
-GET /games/999      404  {"success":false,"error":{"code":"NOT_FOUND","message":"Game not found"}}   (correct)
-GET /games/abc      400  {"success":false,"error":{"code":"VALIDATION_ERROR","message":"gameId must be a positive integer"}}
-```
-
-`x-request-id e57dd5ec-cc65-478f-ad3f-ca1651622265` for `/games/6` at
-02:59:50 UTC. Games 1 to 6 exist: `games(6)` on the contract returns
-`starter=0x6Fe0c92D…, endTime=1786815155, settled=true, king=0x6Fe0c92D…,
-minWager=pot=0.000201979398101393 ETH`. So either the handler answers only
-from the (empty) index with no chain fallback, or the fallback reads the wrong
-address or ABI and treats a revert as "not found".
-
-Before the redeploy (01:49 UTC) the same requests were `500 INTERNAL_ERROR`,
-request id `d747f764-31de-4d43-9270-74baa711c451`.
-
-Expected behaviour:
-
-- id in `[1, nextGameId)`: `200` with the game, from the index if present,
-  otherwise from `games(id)` and `getGameStatus(id)` on the contract
-- id `>= nextGameId`: `404 NOT_FOUND` (already correct)
-- non-integer or `< 1`: `400 VALIDATION_ERROR` (already correct)
-
-The frontend does not currently call this endpoint because it has never
-returned a game; it reads the contract instead. It will switch back when it
-works.
-
-Reproduce:
-
-```
-curl -s -D - https://api.worldstreetwebservices.com/v1/world-street-vault/games/6
-```
-
----
+The two earlier states, for the record: `500 INTERNAL_ERROR` at 01:49 UTC
+(request id `d747f764-31de-4d43-9270-74baa711c451`), then `404` for real
+games at 03:00 UTC after the first redeploy.
 
 ## 6. Events: both exist, neither is indexed
 
@@ -357,11 +330,11 @@ a fallback credit could never have been collected; it now reads
 Status as of 16 August 2026, 03:00 UTC, after the redeploy.
 
 - [x] 1. `settle()` games 1–6
-- [ ] 2. Settler running in the keeper (game 7 sat expired 24 s and was settled by the frontend, not the keeper)
-- [ ] 3. Indexer watching `0x202Af4dB…2684`, backfilled from 49926095; `/game/winners` and `/game/activities` return rows (both still `[]`, including for game 7 played after the redeploy)
+- [ ] 2. Settler running in the keeper (games 7 and 8 were both settled by the frontend's own client, 24 s and 6 s after expiry; the keeper key `0x83ba9a…dfb5` has not sent a transaction since the 15 Aug burst)
+- [ ] 3. Indexer watching `0x202Af4dB…2684`, backfilled from 49926095; `/game/winners` and `/game/activities` return rows (both still `[]` at 18:52 UTC with eight settled games on-chain, two of them played after the redeploys)
 - [x] 4a. Compiled ABI published; Sourcify exact match
 - [ ] 4b. Basescan verification; service's own `GameStarted` ABI confirmed correct
-- [ ] 5. `GET /games/:id` returns the game (after redeploy: `404` for games 1 to 6, request id `e57dd5ec-cc65-478f-ad3f-ca1651622265`)
+- [x] 5. `GET /games/:id` returns the game (fixed by 18:52 UTC; matches the chain field for field)
 - [ ] 6. `GameSettled` and `WagerPlaced` indexed (both exist; the upgrade ask is withdrawn)
 - [ ] 7. Socket frames captured on a real game and confirmed against the table
 - [ ] 8. Parameters, payout behaviour, `GameOver` vs `AlreadySettled`, and the `gameSettled` frame's field names in the API docs

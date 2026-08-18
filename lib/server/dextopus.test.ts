@@ -15,6 +15,14 @@ describe("splitPurpose", () => {
     });
   });
 
+  it("routes a trade-prefixed path to the trade key", () => {
+    // Spot buys, sells, the catalog and gas top-ups are a third integration.
+    expect(splitPurpose("trade/deposit/quote")).toEqual({
+      purpose: "trade",
+      path: "deposit/quote",
+    });
+  });
+
   it("still allowlists what is left after the prefix", () => {
     expect(isAllowedPath(splitPurpose("withdraw/deposit/quote").path)).toBe(true);
     expect(isAllowedPath(splitPurpose("withdraw/admin/keys").path)).toBe(false);

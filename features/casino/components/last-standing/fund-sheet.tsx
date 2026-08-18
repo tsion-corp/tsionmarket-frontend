@@ -80,7 +80,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
           refundTo: wallet,
         }
       : null;
-  const quote = useWithdrawQuote(quoteInput);
+  const quote = useWithdrawQuote(quoteInput, "trade");
 
   // Dollar value of what actually lands in the balance after conversion, so
   // the player sees the real net amount (never a token quantity).
@@ -90,7 +90,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
     return eth * ethPrice;
   }, [quote.data, ethPrice]);
 
-  const status = useDepositStatus(depositRequestId);
+  const status = useDepositStatus(depositRequestId, "trade");
   useTerminalToast(
     status.data,
     depositRequestId,

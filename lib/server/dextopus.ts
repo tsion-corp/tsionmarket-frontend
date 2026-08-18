@@ -12,25 +12,38 @@ export function isAllowedPath(path: string): boolean {
   return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
-// Dextopus issues one key per integration, and deposits and withdrawals are
-// two integrations with their own settlement and reporting. Every request
-// names its purpose and is signed with that purpose's key; a withdrawal
-// created under one key cannot be polled under the other, so the status read
-// carries the purpose too.
-export type DextopusPurpose = "deposit" | "withdrawal";
+// Dextopus issues one key per integration, and we run three: deposits into
+// the platform, withdrawals out of it, and everything else that moves money
+// through their rails (spot buys and sells, the buy catalog, gas top-ups, the
+// casino fund sheet, prediction settlement), which is "trade". Every request
+// names its purpose and is signed with that purpose's key; a request created
+// under one key cannot be polled under another, so status reads carry the
+// purpose too.
+export type DextopusPurpose = "deposit" | "withdrawal" | "trade";
 
 // The client says which by prefixing the proxied path: `withdraw/deposit/quote`
-// is a withdrawal quote. The prefix is stripped before the request goes out.
-const WITHDRAW_PREFIX = "withdraw/";
+// is a withdrawal quote, `trade/deposit/quote` a trade quote, and a bare
+// Dextopus path is a deposit. The prefix is stripped before the request goes out.
+const PREFIXES: Array<[string, DextopusPurpose]> = [
+  ["withdraw/", "withdrawal"],
+  ["trade/", "trade"],
+];
 
 export function splitPurpose(joined: string): { purpose: DextopusPurpose; path: string } {
-  return joined.startsWith(WITHDRAW_PREFIX)
-    ? { purpose: "withdrawal", path: joined.slice(WITHDRAW_PREFIX.length) }
-    : { purpose: "deposit", path: joined };
+  for (const [prefix, purpose] of PREFIXES) {
+    if (joined.startsWith(prefix)) return { purpose, path: joined.slice(prefix.length) };
+  }
+  return { purpose: "deposit", path: joined };
 }
 
+const KEY_ENV: Record<DextopusPurpose, string> = {
+  deposit: "DEXTOPUS_API_KEY",
+  withdrawal: "DEXTOPUS_WITHDRAW_API_KEY",
+  trade: "DEXTOPUS_TRADE_API_KEY",
+};
+
 function apiKeyFor(purpose: DextopusPurpose): string {
-  const name = purpose === "withdrawal" ? "DEXTOPUS_WITHDRAW_API_KEY" : "DEXTOPUS_API_KEY";
+  const name = KEY_ENV[purpose];
   const key = process.env[name];
   if (!key) throw new Error(`${name} is not set`);
   return key;

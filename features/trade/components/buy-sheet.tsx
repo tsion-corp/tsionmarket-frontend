@@ -10,6 +10,7 @@ import { useDepositChains, useDepositStatus } from "@/hooks/use-deposit";
 import { useBuyDestinations } from "@/features/trade/hooks/use-buy-catalog";
 import { useBuy } from "@/features/trade/hooks/use-buy";
 import { NetworkPicker, NetworkSelect } from "@/features/trade/components/network-select";
+import { belowMinimumBuy, isSolanaChainId, minimumBuyUsd } from "@/lib/trade/minimums";
 import { routesForSymbol } from "@/lib/buy";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
@@ -22,7 +23,6 @@ import type { BuyPayload } from "@/lib/modal-types";
 // 1% price tolerance, kept out of the UI. Non-crypto users should not have to
 // reason about slippage.
 const SLIPPAGE_BPS = 100;
-const MIN_USD = 1;
 const PRESETS = [10, 50, 100];
 const DECIMAL = /^\d*\.?\d*$/;
 
@@ -74,7 +74,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [bought, setBought] = useState<string>("");
   const [picking, setPicking] = useState(false);
-  const status = useDepositStatus(requestId);
+  const status = useDepositStatus(requestId, "trade");
 
   // Your spendable dollars: the USDC balance on Base, shown as a plain balance.
   const balance = useMemo(
@@ -89,11 +89,13 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   // Only flag a shortfall once the balance has actually loaded; until then we
   // don't know it, and a zero must block like any other insufficient balance.
   const notEnough = !portfolio.loading && value > balance;
-  const belowMin = value > 0 && value < MIN_USD;
+  // Solana buys start at 2 USDC, everything else at 1 (lib/trade/minimums).
+  const minUsd = minimumBuyUsd(isSolanaChainId(route?.destinationChainId));
+  const belowMin = belowMinimumBuy(value, isSolanaChainId(route?.destinationChainId));
   // A buy is always a USDC send on Base, and every Base send is gas-sponsored
   // (EIP-7702 through our bundler), so no native ETH is ever required here.
   const canBuy =
-    Boolean(route) && value >= MIN_USD && !portfolio.loading && value <= balance && !buy.isPending;
+    Boolean(route) && value >= minUsd && !portfolio.loading && value <= balance && !buy.isPending;
 
   // Instant estimate from market price: dollars spent divided by the asset's
   // unit price. This is a preview; the exact amount is quoted at buy time and
@@ -323,7 +325,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
           : value <= 0
             ? t("enterAmount")
             : belowMin
-              ? t("minimumUsd", { amount: MIN_USD })
+              ? t("minimumUsd", { amount: minUsd })
               : notEnough
                 ? t("notEnoughBalance")
                 : buy.isPending

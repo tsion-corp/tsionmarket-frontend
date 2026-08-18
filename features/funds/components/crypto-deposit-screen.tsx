@@ -152,11 +152,7 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
           </button>
         </div>
 
-        <AddressPanel
-          address={staticAddr.data.depositAddress}
-          tokenSymbol={originToken.symbol}
-          chainName={originChain.name}
-        />
+        <AddressPanel address={staticAddr.data.depositAddress} />
 
         {/* Minimum-deposit caution, styled as a warning banner. */}
         <div className="mt-3 flex items-start gap-2.5 rounded-[14px] border border-[#d8d8dc]/25 bg-[#d8d8dc]/8 px-4 py-3">
@@ -176,16 +172,6 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
         <div className="mt-3 flex items-center justify-center gap-2 text-[13px] font-normal text-white/55">
           <span className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full" />
           {t("waitingForDeposit")}
-        </div>
-
-        <div className="ws-inset mt-3 px-4 py-3">
-          <p className="text-[12.5px] leading-normal font-normal text-white/70">
-            {t.rich("depositNote", {
-              symbol: originToken.symbol,
-              chain: originChain.name,
-              strong: (chunks) => <span className="font-semibold text-white">{chunks}</span>,
-            })}
-          </p>
         </div>
 
         <button

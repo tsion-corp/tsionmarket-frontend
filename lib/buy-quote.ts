@@ -86,7 +86,7 @@ export function normalizeBuyQuote(raw: RawBuyQuote, decimals: number): BuyQuote 
 }
 
 export async function fetchBuyQuote(input: BuyQuoteInput): Promise<BuyQuote> {
-  const res = await apiFetch("/api/dextopus/deposit/quote", {
+  const res = await apiFetch("/api/dextopus/trade/deposit/quote", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildBuyQuoteBody(input)),

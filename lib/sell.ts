@@ -158,7 +158,7 @@ export function shouldFallbackFromSellQuote(error: unknown): boolean {
 }
 
 export async function fetchSellQuote(input: SellQuoteInput): Promise<BuyQuote> {
-  const res = await apiFetch("/api/dextopus/deposit/quote", {
+  const res = await apiFetch("/api/dextopus/trade/deposit/quote", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildSellQuoteBody(input)),

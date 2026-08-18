@@ -26,6 +26,7 @@ import { useSolanaProceeds } from "@/hooks/use-solana-proceeds";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
+import { belowMinimumBuy, minimumBuyUsd } from "@/lib/trade/minimums";
 import {
   buyQuoteRequest,
   chainLabel,
@@ -287,6 +288,11 @@ export function RwaTradePanel({
   const sellRaw = holding?.rawBalance ?? null;
   const sellDecimals = holding?.decimals ?? null;
 
+  // Solana buys start at 2 USDC (lib/trade/minimums); Base keeps the default.
+  const settlesOnSolana = asset.chain === "solana";
+  const minBuyUsd = minimumBuyUsd(settlesOnSolana);
+  const belowMin = isBuy && belowMinimumBuy(payValue, settlesOnSolana);
+
   const overBalance = isBuy
     ? payValue > 0 && spendableUsd > 0 && payValue > spendableUsd + 1e-6
     : payValue > 0 &&
@@ -317,6 +323,12 @@ export function RwaTradePanel({
       const num = Number.parseFloat(value);
       const req = buildReq(value);
       if (!(num > 0) || !req) return;
+      // Under the floor there is nothing to price: the button says the minimum.
+      if (isBuy && belowMinimumBuy(num, asset.chain === "solana")) {
+        setQuote(null);
+        setPhase("idle");
+        return;
+      }
       const seq = ++quoteSeqRef.current;
       setPhase("quoting");
       setNotice(null);
@@ -340,7 +352,7 @@ export function RwaTradePanel({
         setNotice({ kind: "error", message: info.message });
       }
     },
-    [quoteAsync, buildReq]
+    [quoteAsync, buildReq, isBuy, asset.chain]
   );
 
   // A stable identity for the current quote request; portfolio refetches hand
@@ -561,6 +573,7 @@ export function RwaTradePanel({
     quote != null &&
     !busy &&
     !overBalance &&
+    !belowMin &&
     (!isBuy || !needsFunding || (canFund && !alreadyFunded) || basePlan != null);
 
   const sellBlockedMessage = !sellable
@@ -807,15 +820,17 @@ export function RwaTradePanel({
                   : funding.busy || proceeds.busy
                     ? t("fundSolanaWorking")
                     : t("buildingOrder")
-                : overBalance
-                  ? tBuySell("notEnoughBalance")
-                  : phase === "quoting"
-                    ? t("fetchingBestPrice")
-                    : quote
-                      ? isBuy
-                        ? t("buySymbol", { symbol: asset.symbol })
-                        : t("sellSymbol", { symbol: asset.symbol })
-                      : t("enterAmount")}
+                : belowMin
+                  ? tBuySell("minimumUsd", { amount: minBuyUsd })
+                  : overBalance
+                    ? tBuySell("notEnoughBalance")
+                    : phase === "quoting"
+                      ? t("fetchingBestPrice")
+                      : quote
+                        ? isBuy
+                          ? t("buySymbol", { symbol: asset.symbol })
+                          : t("sellSymbol", { symbol: asset.symbol })
+                        : t("enterAmount")}
             </button>
           ) : null}
         </>

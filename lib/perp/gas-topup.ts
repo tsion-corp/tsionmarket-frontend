@@ -263,7 +263,8 @@ async function pollDepositSettled(depositRequestId: string): Promise<boolean> {
   while (Date.now() < deadline) {
     const status = await dextopusGet<DepositStatusResult>(
       `deposit/status?depositRequestId=${depositRequestId}`,
-      "Couldn't check deposit status"
+      "Couldn't check deposit status",
+      "trade"
     ).catch(() => null);
     if (status) {
       const { stage } = depositProgress(status.status, status.executionStatus);

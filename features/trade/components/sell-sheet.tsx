@@ -72,7 +72,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   // the Solana transaction signature. Both feed the same stage UI below.
   const [rail, setRail] = useState<"dextopus" | "lifi">("dextopus");
   const [proceeds, setProceeds] = useState<string>("");
-  const status = useDepositStatus(rail === "dextopus" ? requestId : null);
+  const status = useDepositStatus(rail === "dextopus" ? requestId : null, "trade");
   const lifiProgress = useLifiSettlement(rail === "lifi" ? requestId : null);
 
   const nativeSym = NATIVE_SYMBOL[payload.network] ?? "";

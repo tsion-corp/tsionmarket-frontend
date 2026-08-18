@@ -43,7 +43,7 @@ export async function fetchBuyDestinations(): Promise<BuyRoute[]> {
     originChainId: String(BUY_ORIGIN.chainId),
     originAddress: BUY_ORIGIN.asset,
   });
-  const res = await apiFetch(`/api/dextopus/deposit/destinations?${params.toString()}`);
+  const res = await apiFetch(`/api/dextopus/trade/deposit/destinations?${params.toString()}`);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error("Couldn't load buyable assets");
 

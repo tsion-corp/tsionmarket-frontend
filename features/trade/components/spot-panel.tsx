@@ -13,6 +13,7 @@ import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
+import { belowMinimumBuy, isSolanaChainId, minimumBuyUsd } from "@/lib/trade/minimums";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { BuyRoute } from "@/lib/buy";
@@ -70,7 +71,6 @@ const CHAIN_LABEL: Record<string, string> = {
 // Indicative taker fee shown on the ticket. The real price tolerance is applied
 // by the quote at execution.
 const FEE_PCT = 0.001;
-const MIN_BUY_USD = 1;
 const SLIPPAGE_BPS = 100;
 
 // Plain-language settlement stage message keys for the confirm sheet.
@@ -98,7 +98,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const buy = useBuy();
   const sell = useSell();
   const portfolio = usePortfolio();
-  const status = useDepositStatus(rail === "dextopus" ? requestId : null);
+  const status = useDepositStatus(rail === "dextopus" ? requestId : null, "trade");
   const lifiProgress = useLifiSettlement(rail === "lifi" ? requestId : null);
 
   const base = token?.symbol ?? "";
@@ -151,7 +151,10 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
 
   const notBuyable = buying && !canBuy;
   const overBalance = amountNum > balance + 1e-9;
-  const belowMin = buying && amountNum > 0 && amountNum < MIN_BUY_USD;
+  // Solana buys start at 2 USDC, everything else at 1 (lib/trade/minimums).
+  const minBuyUsd = minimumBuyUsd(isSolanaChainId(buyRoute?.destinationChainId));
+  const belowMin =
+    buying && belowMinimumBuy(amountNum, isSolanaChainId(buyRoute?.destinationChainId));
   // A missing mark only blocks buys; a sell prices at the quote.
   const invalid =
     amountNum <= 0 ||
@@ -301,7 +304,7 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
           : amountNum <= 0
             ? t("ctaEnterAmount")
             : belowMin
-              ? t("ctaMin", { amount: formatUsd(MIN_BUY_USD) })
+              ? t("ctaMin", { amount: formatUsd(minBuyUsd) })
               : overBalance
                 ? t("ctaNoBalance")
                 : buying
