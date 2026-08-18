@@ -8,6 +8,7 @@ import { getWalletAddress } from "@/lib/user";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { KING_OF_NIGHT_ABI } from "@/features/casino/lib/last-standing/king-of-night-abi";
+import { winnerPayoutWei, type SplitBps } from "@/features/casino/lib/last-standing/split";
 
 // The Last Standing vault contract lives on Base only.
 const VAULT_CHAIN_ID = base.id;
@@ -20,6 +21,20 @@ function contractAddress(): `0x${string}` {
   const address = process.env.NEXT_PUBLIC_VAULT_CONTRACT_ADDRESS;
   if (!address) throw new Error("Vault isn't configured yet");
   return address as `0x${string}`;
+}
+
+/**
+ * The contract's current split, in basis points. Owner-tunable, so the live
+ * estimate a winner sees before settlement reads it rather than assuming.
+ */
+export async function readSplitBps(): Promise<SplitBps> {
+  const client = publicClientForChain(VAULT_CHAIN_ID);
+  const address = contractAddress();
+  const [winner, starter] = await Promise.all([
+    client.readContract({ address, abi: VAULT_ABI, functionName: "winnerBps" }),
+    client.readContract({ address, abi: VAULT_ABI, functionName: "starterBps" }),
+  ]);
+  return { winner: Number(winner), starter: Number(starter) };
 }
 
 /** The global floor a new game's stake has to clear. */
@@ -196,6 +211,7 @@ export interface ChainSettledGame {
   winner: string;
   starter: string;
   potWei: bigint;
+  /** Everything the winner was paid: their share plus the starter's when they opened it. */
   toWinnerWei: bigint;
   /** When the round was won: the clock ran out then, whenever it was settled. */
   endTime: number;
@@ -272,8 +288,15 @@ export async function readSettledGames(): Promise<ChainSettledGame[]> {
   return settled
     .map((g, i) => {
       const split = splits[i];
+      // What the winner was paid: their share, plus the starter's when the
+      // same wallet opened the game, which is what settle() actually sends.
       const toWinnerWei =
-        split.status === "success" ? (split.result as readonly [bigint, bigint, bigint])[0] : 0n;
+        split.status === "success"
+          ? (() => {
+              const [toWinner, , toStarter] = split.result as readonly [bigint, bigint, bigint];
+              return winnerPayoutWei(toWinner, toStarter, g.king, g.starter);
+            })()
+          : 0n;
       const log = settlements.get(g.gameId);
       return {
         gameId: g.gameId,
@@ -396,7 +419,12 @@ export async function readRecentActivity(): Promise<ChainActivity[]> {
       gameId: Number(log.args.gameId),
       action: "won" as const,
       address: String(log.args.winner),
-      amountWei: log.args.toWinner ?? 0n,
+      amountWei: winnerPayoutWei(
+        log.args.toWinner ?? 0n,
+        log.args.toStarter ?? 0n,
+        String(log.args.winner),
+        String(log.args.starter)
+      ),
       transactionHash: log.transactionHash,
       timestamp: at(log),
     })),

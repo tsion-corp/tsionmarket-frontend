@@ -28,20 +28,25 @@ export function mergeWinners(
   ethPrice: number
 ): VaultWinner[] {
   const byId = new Map(indexed.map((w) => [w.gameId, w]));
-  const merged = chain.map(
-    (g) =>
-      byId.get(g.gameId) ?? {
-        gameId: g.gameId,
-        winner: g.winner,
-        starter: g.starter,
-        pot: weiToTokenAmount(g.potWei, ethPrice),
-        toWinner: weiToTokenAmount(g.toWinnerWei, ethPrice),
-        // Without the log the id keeps the row keyed and deduplicated, which
-        // is all the table needs from it.
-        settlementTx: g.settlementTx ?? `game-${g.gameId}`,
-        settledAt: new Date((g.settledAt ?? g.endTime) * 1000).toISOString(),
-      }
-  );
+  const merged = chain.map((g) => {
+    const row = byId.get(g.gameId);
+    // The indexed row keeps its settlement tx and time, but the payout is the
+    // chain's: it is what settle() sent, including the starter's share when
+    // the winner opened the game, which the indexed feed reports as the
+    // winner's share alone.
+    if (row) return { ...row, toWinner: weiToTokenAmount(g.toWinnerWei, ethPrice) };
+    return {
+      gameId: g.gameId,
+      winner: g.winner,
+      starter: g.starter,
+      pot: weiToTokenAmount(g.potWei, ethPrice),
+      toWinner: weiToTokenAmount(g.toWinnerWei, ethPrice),
+      // Without the log the id keeps the row keyed and deduplicated, which
+      // is all the table needs from it.
+      settlementTx: g.settlementTx ?? `game-${g.gameId}`,
+      settledAt: new Date((g.settledAt ?? g.endTime) * 1000).toISOString(),
+    };
+  });
   // Anything the index knows that the chain tail no longer reaches.
   const seen = new Set(merged.map((w) => w.gameId));
   for (const w of indexed) if (!seen.has(w.gameId)) merged.push(w);
@@ -61,6 +66,7 @@ export function mergeActivities(indexed: VaultActivity[], chain: ChainActivity[]
     .filter((s) => !seenTx.has(s.transactionHash.toLowerCase()))
     .map((s) => ({
       id: `chain-${s.action}-${s.gameId}-${s.transactionHash}`,
+      gameId: s.gameId,
       action: s.action,
       address: s.address,
       amountWei: s.amountWei.toString(),

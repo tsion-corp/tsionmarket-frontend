@@ -68,13 +68,15 @@ export function ShareGame({ gameId }: { gameId: number }) {
         {t("shareBody")}
       </p>
 
-      <div className="mt-3 flex items-center gap-2">
+      {/* On a phone the link takes its own row and the buttons sit beneath it;
+          squeezed onto one line the link collapsed to a couple of letters. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {/* The link itself copies, which is what people try first. */}
         <button
           type="button"
           onClick={() => void copy()}
           title={t("shareCopyCta")}
-          className="tnum min-w-0 flex-1 cursor-pointer truncate rounded-[12px] border border-white/10 bg-black/25 px-3 py-2.5 text-left text-[12px] text-white/70 transition-colors hover:border-white/20 hover:text-white/90"
+          className="tnum min-w-0 basis-full cursor-pointer truncate rounded-[12px] border border-white/10 bg-black/25 px-3 py-2.5 text-left text-[12px] text-white/70 transition-colors hover:border-white/20 hover:text-white/90 sm:flex-1 sm:basis-auto"
         >
           {url}
         </button>

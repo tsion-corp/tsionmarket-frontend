@@ -348,6 +348,33 @@ body {
   animation: ws-close-urgent-pulse 1.1s ease-in-out infinite;
 }
 
+/* Last Man lobby: a live game's card breathes so the eye finds what is running.
+   Background and a soft green ring, slow, never a flash: it should read as a
+   pulse from across the room, not a warning. */
+@keyframes ws-live-card-pulse {
+  0%,
+  100% {
+    background-color: rgba(124, 231, 176, 0.04);
+    box-shadow: 0 0 0 0 rgba(124, 231, 176, 0);
+  }
+  50% {
+    background-color: rgba(124, 231, 176, 0.11);
+    box-shadow: 0 0 22px 2px rgba(124, 231, 176, 0.22);
+  }
+}
+
+@utility ws-live-card {
+  animation: ws-live-card-pulse 2.2s ease-in-out infinite;
+}
+
+/* Under reduced motion the live card holds the tint instead of pulsing. */
+@media (prefers-reduced-motion: reduce) {
+  .ws-live-card {
+    animation: none;
+    background-color: rgba(124, 231, 176, 0.08);
+  }
+}
+
 /* Voice control: a slow breathing pulse while it waits to be tapped. Animates
    the standalone `scale` property rather than `transform`, because Motion drives
    `transform` on the same element to morph the circle into the listening pill,

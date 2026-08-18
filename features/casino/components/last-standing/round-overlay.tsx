@@ -19,6 +19,12 @@ interface RoundOverlayProps {
   // True when this wallet is the one that took the pot. Switches the reveal
   // from a personal jackpot to a "someone won" announcement.
   youWon?: boolean;
+  // The winner also opened the game, so their payout carries the starter's
+  // share as well; the card says so, because the number is bigger than half.
+  winnerIsStarter?: boolean;
+  // The contract's split in whole percents, for the share line.
+  winnerPct?: number;
+  starterPct?: number;
   // Truncated winner address (e.g. "0x12…34"). Only ever a shortened form —
   // never the full address — so the winner is named without exposing them.
   winnerLabel?: string | null;
@@ -38,6 +44,9 @@ interface RoundOverlayProps {
 export function RoundOverlay({
   phase,
   youWon = false,
+  winnerIsStarter = false,
+  winnerPct = 50,
+  starterPct = 10,
   winnerLabel = null,
   prizeLabel,
   prizeValue,
@@ -220,6 +229,12 @@ export function RoundOverlay({
                       </div>
                     ) : null}
                     <div className="mt-3 text-[13.5px] font-normal text-white/60">
+                      {t(winnerIsStarter ? "revealShareStarter" : "revealShareWinner", {
+                        winner: winnerPct,
+                        starter: starterPct,
+                      })}
+                    </div>
+                    <div className="mt-1 text-[12.5px] font-normal text-white/45">
                       {t("revealPotAdded")}
                     </div>
                     <button

@@ -174,7 +174,9 @@ export interface AnalyticsEvents {
   };
   game_staked: { game: Game; amount_usd: number };
   last_man_played: { cost_usd: number };
-  last_man_won: { pot_usd: number };
+  // What the round paid the winner, which is their share of the pot, not the
+  // pot; started_it says the starter's share is in it too.
+  last_man_won: { pot_usd: number; winnings_usd: number; started_it: boolean };
   tournament_joined: { game: Game; entry_usd: number };
 
   // Cross-border

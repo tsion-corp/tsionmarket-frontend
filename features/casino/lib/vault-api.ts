@@ -45,6 +45,10 @@ export type VaultActivityAction = "started" | "joined" | "won";
 
 export interface VaultActivity {
   id: string;
+  // Which game the action belongs to. The chain always knows; the indexed
+  // feed does not carry it yet, so a game's own feed can only show rows the
+  // chain attributed.
+  gameId?: number;
   action: VaultActivityAction;
   address: string;
   amountWei: string;

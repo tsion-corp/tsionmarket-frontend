@@ -34,21 +34,23 @@ export function GameBalanceCard({
   const { mask } = useBalanceVisibility();
 
   return (
-    <div className="ws-inset flex items-center justify-between gap-3 px-4 py-3.5">
+    <div className="ws-inset flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
       <div className="min-w-0">
-        <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
+        <div className="text-[11px] font-normal tracking-[0.04em] whitespace-nowrap text-white/45 uppercase">
           {t("yourBalance")}
         </div>
         <div className="tnum mt-0.5 text-[16px] font-bold text-white/90">
           {mask(money.format(balanceUsd))}
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      {/* Beside the balance where there is room; a full row of their own on a
+          phone, so neither the label nor the buttons get squeezed. */}
+      <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0">
         {canWithdraw ? (
           <button
             type="button"
             onClick={onWithdraw}
-            className="shrink-0 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap text-white/85 transition-colors hover:bg-white/12"
+            className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap text-white/85 transition-colors hover:bg-white/12 sm:flex-none"
           >
             {t("withdraw")}
           </button>
@@ -57,7 +59,7 @@ export function GameBalanceCard({
           <button
             type="button"
             onClick={onAddMoney}
-            className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors"
+            className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 flex-1 cursor-pointer rounded-xl border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors sm:flex-none"
           >
             {t("addMoney")}
           </button>

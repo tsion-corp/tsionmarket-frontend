@@ -17,6 +17,8 @@ import { StartGameSheet } from "@/features/casino/components/last-standing/start
 import { LAST_MAN_START_LIVE } from "@/features/casino/lib/last-standing/start-gate";
 import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
 import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
+import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
+import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { DEFAULT_ENTRY_USD } from "@/features/casino/lib/last-standing/stake";
 
 // The lobby: every game currently taking joins, and the way to open one.
@@ -36,7 +38,11 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
   const { games, gamesLoading, gamesError, refetchGames, connected, resync } = useVaultLobby();
 
   const [startOpen, setStartOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
+  // Every settled game, for the history. The same feed the game pages scope
+  // down to one game.
+  const { winners, winnersLoading } = useVaultFeeds(connected);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   // The game runs on the wallet's ETH on Base. A player who holds only USDC
@@ -65,17 +71,32 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
     // The same page frame the rest of the casino and the dashboard use, so the
     // lobby sits off the sidebar and its right-hand status pill is not clipped.
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <div className="flex items-center justify-between gap-4">
-        <div>
+      {/* Stacked on a phone: the title block first, then the history button
+          and the status pill on their own row. Side by side the eyebrow and
+          the title were breaking into three lines each. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="min-w-0">
           <Eyebrow>{t("eyebrow")}</Eyebrow>
           <h1 className="ws-display mt-1.5 text-[26px] tracking-[-0.01em]">{t("title")}</h1>
         </div>
-        <span className="flex shrink-0 items-center gap-1.5 text-[11.5px] font-normal text-white/45">
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-up animate-pulse" : "bg-white/25"}`}
-          />
-          {connected ? t("live") : t("offline")}
-        </span>
+        <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="cursor-pointer rounded-full border border-white/12 bg-white/5 px-3.5 py-2 text-[12.5px] font-semibold text-white/85 transition-colors hover:bg-white/10"
+          >
+            🏆 {t("historyButton")}
+          </button>
+          {/* What is running, not whether the socket is up: the lobby polls the
+              chain either way, and a reader takes this pill as the state of the
+              games. */}
+          <span className="flex items-center gap-1.5 text-[11.5px] font-normal text-white/45">
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${games.length > 0 ? "bg-up animate-pulse" : "bg-white/25"}`}
+            />
+            {games.length > 0 ? t("gamesCount", { count: games.length }) : t("lobbyEmptyTitle")}
+          </span>
+        </div>
       </div>
 
       {/* Opening a game is the only way to earn the starter's 10%, so it is
@@ -178,6 +199,23 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
             setFundOpen(true);
           }}
         />
+      </ModalShell>
+
+      <ModalShell
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        contentKey="vault-history"
+      >
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="text-[28px]">👑</span>
+            <div>
+              <div className="ws-display text-[20px] tracking-[-0.01em]">{t("historyTitle")}</div>
+              <div className="text-[12px] font-normal text-white/50">{t("historySubtitle")}</div>
+            </div>
+          </div>
+          <WinnersList winners={winners} loading={winnersLoading} emptyLabel={t("hallEmpty")} />
+        </div>
       </ModalShell>
 
       <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">

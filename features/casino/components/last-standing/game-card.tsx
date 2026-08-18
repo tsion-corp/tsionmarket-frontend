@@ -26,7 +26,9 @@ function GameCardBase({ game, address, formatUsd }: GameCardProps) {
   return (
     <Link
       href={`/casino/last-standing/${game.gameId}`}
-      className="ws-inset group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.06]"
+      className={`ws-inset group flex items-center gap-4 px-4 py-3.5 transition-colors hover:bg-white/[0.06] ${
+        game.active ? "ws-live-card" : ""
+      }`}
     >
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">

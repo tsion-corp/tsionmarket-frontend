@@ -35,7 +35,7 @@ const EMPTY_CHAIN_ACTIVITY: ChainActivity[] = [];
  * two. `connected` comes from the caller's socket so the polls stop while the
  * socket is carrying the same data.
  */
-export function useVaultFeeds(connected: boolean) {
+export function useVaultFeeds(connected: boolean, gameId?: number) {
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
 
   const activities = useQuery<VaultActivity[]>({
@@ -80,9 +80,20 @@ export function useVaultFeeds(connected: boolean) {
     [activities.data, activityOnChain.data]
   );
 
+  // A game's own page shows that game: its plays and its result. Without a
+  // gameId the feeds span every game, which is what the lobby's history is.
+  const scopedWinners = useMemo(
+    () => (gameId == null ? mergedWinners : mergedWinners.filter((w) => w.gameId === gameId)),
+    [mergedWinners, gameId]
+  );
+  const scopedActivities = useMemo(
+    () => (gameId == null ? mergedActivities : mergedActivities.filter((a) => a.gameId === gameId)),
+    [mergedActivities, gameId]
+  );
+
   return {
-    activities: mergedActivities,
-    winners: mergedWinners,
+    activities: scopedActivities,
+    winners: scopedWinners,
     winnersLoading: winners.isPending && settledOnChain.isPending,
   };
 }

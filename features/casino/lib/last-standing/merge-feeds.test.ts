@@ -55,6 +55,16 @@ describe("mergeWinners", () => {
     expect(rows.find((r) => r.gameId === 1)?.settlementTx).toBe("game-1");
   });
 
+  it("takes the payout from the chain even where the index has a row", () => {
+    // The index reports the winner's share alone; the chain row carries what
+    // settle() sent, the starter's share included when the winner opened the
+    // game. 0.0002 ETH pot at $4000: 60% is $0.48, not the index's $0.80 guess.
+    const chainRow = { ...settled(2), toWinnerWei: (200_000_000_000_000n * 6n) / 10n };
+    const [row] = mergeWinners([indexedWinner(2)], [chainRow], ETH);
+    expect(row.settlementTx).toBe("0xtx2");
+    expect(row.toWinner.usdValue).toBeCloseTo(0.48, 6);
+  });
+
   it("keeps indexed rows the chain tail no longer reaches", () => {
     // The chain scan is a bounded tail; history older than that is the
     // indexer's to remember.
