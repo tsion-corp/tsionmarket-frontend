@@ -346,9 +346,11 @@ export function MiniTimerLauncher() {
 
   if (tier === null) return null;
 
-  // The hint is anchored to this button's right edge, so a fixed width spills
-  // past the card's left edge on a narrow phone and gets clipped. Its width is
-  // capped to the viewport (less the page gutter) for that reason.
+  // On a phone the hint is pinned to the viewport (a bottom snackbar), not to
+  // this button: the button can sit anywhere across the card, and a popover
+  // hanging off its right edge clips at the screen edge no matter how its
+  // width is capped. From sm: up there is room, so it anchors under the
+  // button like a normal popover.
   const showHint = !seen && !hintDismissed && !open;
 
   return (
@@ -365,7 +367,7 @@ export function MiniTimerLauncher() {
         {open ? t("miniClose") : t("miniOpen")}
       </button>
       {showHint ? (
-        <div className="absolute top-full right-0 z-30 mt-2 w-[min(248px,calc(100vw-3rem))] rounded-[12px] border border-white/12 bg-[#1a1a1f] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.5)]">
+        <div className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 rounded-[12px] border border-white/12 bg-[#1a1a1f] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.5)] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:bottom-auto sm:mt-2 sm:w-[min(248px,calc(100vw-3rem))]">
           <div className="text-[12px] leading-[1.5] font-medium text-white/85">
             {t("miniHintTitle")}
           </div>
