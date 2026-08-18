@@ -80,23 +80,38 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
 
       {/* Opening a game is the only way to earn the starter's 10%, so it is
           sold rather than tucked away as a secondary button — but only once
-          the start gate is open; until then the deployed app keeps the room
-          count where ops put it. */}
-      {LAST_MAN_START_LIVE && (
-        <div className="ws-inset mt-5 px-4 py-4">
-          <div className="ws-display text-[17px] tracking-[-0.01em]">{t("starterPitchTitle")}</div>
-          <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/60">
-            {t("starterPitchBody")}
-          </p>
-          <button
-            type="button"
-            onClick={() => setStartOpen(true)}
-            className="bg-accent mt-3.5 cursor-pointer rounded-[12px] px-5 py-2.5 text-[13.5px] font-semibold text-black"
-          >
-            {t("startCtaShort", { amount: defaultEntry })}
-          </button>
-        </div>
-      )}
+          the start gate is open, and only while NO game is live: the admin
+          rule is one room at a time, so while one runs the pitch gives way to
+          a note pointing at it. The list must have actually loaded before the
+          pitch shows, or a stale empty frame would offer a start that the
+          rule forbids. */}
+      {LAST_MAN_START_LIVE &&
+        (games.length > 0 ? (
+          <div className="ws-inset mt-5 px-4 py-4">
+            <div className="ws-display text-[17px] tracking-[-0.01em]">
+              {t("startBlockedLiveTitle")}
+            </div>
+            <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/60">
+              {t("startBlockedLiveBody")}
+            </p>
+          </div>
+        ) : gamesLoading || gamesError ? null : (
+          <div className="ws-inset mt-5 px-4 py-4">
+            <div className="ws-display text-[17px] tracking-[-0.01em]">
+              {t("starterPitchTitle")}
+            </div>
+            <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/60">
+              {t("starterPitchBody")}
+            </p>
+            <button
+              type="button"
+              onClick={() => setStartOpen(true)}
+              className="bg-accent mt-3.5 cursor-pointer rounded-[12px] px-5 py-2.5 text-[13.5px] font-semibold text-black"
+            >
+              {t("startCtaShort", { amount: defaultEntry })}
+            </button>
+          </div>
+        ))}
 
       <div className="mt-3">
         <GameBalanceCard
@@ -149,6 +164,10 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
 
       <ModalShell open={startOpen} onClose={() => setStartOpen(false)}>
         <StartGameSheet
+          ensureCanStart={async () => {
+            const fresh = await refetchGames();
+            return (fresh.data ?? []).length === 0;
+          }}
           onClose={() => setStartOpen(false)}
           onStarted={resync}
           formatUsd={formatUsd}

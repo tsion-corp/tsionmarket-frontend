@@ -22,6 +22,9 @@ import {
 interface StartGameSheetProps {
   onClose: () => void;
   onStarted: () => void;
+  /** Last look before the transaction: resolves false to abort the start
+   *  (e.g. another game went live while the sheet was open). */
+  ensureCanStart?: () => Promise<boolean>;
   /** Formats a USD figure in the currency the user picked. */
   formatUsd: (usd: number) => string;
   /** Opens funding when the wallet is short on ETH; without it the CTA just says so. */
@@ -37,7 +40,13 @@ const SPLIT = [
   { key: "splitStarter", pct: 10 },
 ] as const;
 
-export function StartGameSheet({ onClose, onStarted, formatUsd, onFund }: StartGameSheetProps) {
+export function StartGameSheet({
+  onClose,
+  onStarted,
+  formatUsd,
+  onFund,
+  ensureCanStart,
+}: StartGameSheetProps) {
   const t = useTranslations("casino.lastStanding");
   const router = useRouter();
   const { startGame, starting } = useVaultActions();
@@ -102,6 +111,11 @@ export function StartGameSheet({ onClose, onStarted, formatUsd, onFund }: StartG
   const confirm = async () => {
     if (!ready) return;
     try {
+      if (ensureCanStart && !(await ensureCanStart())) {
+        toast.error(t("toastStartBlockedLive"));
+        onClose();
+        return;
+      }
       const { gameId } = await startGame(send);
       // The pop-out timer follows whatever you last put money into.
       if (gameId !== null) followGame(gameId);

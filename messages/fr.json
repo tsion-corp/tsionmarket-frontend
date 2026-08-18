@@ -1605,7 +1605,10 @@
       "shareText": "Rejoins ma partie : le dernier debout rafle le pot.",
       "potLabel": "Pot",
       "startedBy": "Lancée par {who}",
-      "you": "vous"
+      "you": "vous",
+      "startBlockedLiveTitle": "Une partie est en cours",
+      "startBlockedLiveBody": "Une salle à la fois. Rejoignez la partie en cours ci-dessous. On pourra en ouvrir une autre quand elle se terminera.",
+      "toastStartBlockedLive": "Quelqu'un a ouvert une partie avant vous. Une salle à la fois : rejoignez celle en cours."
     },
     "fund": {
       "title": "Ajouter de l'argent",

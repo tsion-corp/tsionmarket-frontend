@@ -1605,7 +1605,10 @@
       "shareText": "Spiel mit — wer zuletzt steht, nimmt den Pot.",
       "potLabel": "Pot",
       "startedBy": "Gestartet von {who}",
-      "you": "dir"
+      "you": "dir",
+      "startBlockedLiveTitle": "Gerade läuft ein Spiel",
+      "startBlockedLiveBody": "Ein Raum zur Zeit. Treten Sie dem laufenden Spiel unten bei. Neue Spiele öffnen, wenn es endet.",
+      "toastStartBlockedLive": "Jemand war schneller. Ein Raum zur Zeit — treten Sie dem laufenden Spiel bei."
     },
     "fund": {
       "title": "Geld hinzufügen",

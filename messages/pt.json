@@ -1605,7 +1605,10 @@
       "shareText": "Entra no meu jogo — o último de pé leva o pote.",
       "potLabel": "Pote",
       "startedBy": "Iniciado por {who}",
-      "you": "si"
+      "you": "si",
+      "startBlockedLiveTitle": "Há um jogo ao vivo agora",
+      "startBlockedLiveBody": "Uma sala por vez. Entre no jogo ao vivo abaixo. Criar um novo abre quando este terminar.",
+      "toastStartBlockedLive": "Alguém abriu um jogo primeiro. Uma sala por vez: entre no que está ao vivo."
     },
     "fund": {
       "title": "Adicionar dinheiro",

@@ -1605,7 +1605,10 @@
       "shareText": "Entra en mi partida: el último en pie se lleva el bote.",
       "potLabel": "Bote",
       "startedBy": "Iniciada por {who}",
-      "you": "ti"
+      "you": "ti",
+      "startBlockedLiveTitle": "Hay una partida en vivo",
+      "startBlockedLiveBody": "Una sala a la vez. Únete a la partida en vivo abajo. Se podrá crear otra cuando termine.",
+      "toastStartBlockedLive": "Alguien abrió una partida primero. Una sala a la vez: únete a la que está en vivo."
     },
     "fund": {
       "title": "Añadir dinero",

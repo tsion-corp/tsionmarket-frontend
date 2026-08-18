@@ -1605,7 +1605,10 @@
       "shareText": "Join my game — last player standing takes the pot.",
       "potLabel": "Pot",
       "startedBy": "Started by {who}",
-      "you": "you"
+      "you": "you",
+      "startBlockedLiveTitle": "A game is live right now",
+      "startBlockedLiveBody": "One room at a time. Join the live game below. Starting opens again when it ends.",
+      "toastStartBlockedLive": "Someone opened a game first. One room at a time — join the live one."
     },
     "fund": {
       "title": "Add money",
