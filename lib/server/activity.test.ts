@@ -123,6 +123,40 @@ describe("buildActivityEntries", () => {
   });
 });
 
+describe("dust", () => {
+  it("drops a stablecoin movement worth less than a cent", () => {
+    // The refund a Dextopus settlement hands back after a withdrawal: real,
+    // and worthless, and it read as "Deposited USDC +0" in the feed and the
+    // bell after every single withdrawal.
+    const entries = buildActivityEntries([
+      transfer({ hash: "0x1", symbol: "USDC", direction: "out", amount: 20 }),
+      transfer({ hash: "0x2", symbol: "USDC", direction: "in", amount: 0.00003 }),
+      transfer({ hash: "0x3", symbol: "USDC", direction: "in", amount: 0.0001 }),
+    ]);
+    expect(entries.map((e) => [e.kind, e.amount])).toEqual([["withdrew", 20]]);
+  });
+
+  it("keeps a cent, and keeps small amounts of anything that is not money", () => {
+    const entries = buildActivityEntries([
+      transfer({ hash: "0x1", symbol: "USDC", direction: "in", amount: 0.01 }),
+      transfer({ hash: "0x2", symbol: "SOL", direction: "in", amount: 0.000001 }),
+    ]);
+    expect(entries.map((e) => e.kind).sort()).toEqual(["deposited", "received"]);
+  });
+
+  it("does not break a trade apart over a dust leg", () => {
+    // A buy's own transaction can carry a rounding remainder of USDC back in;
+    // the trade still reads as one buy.
+    const entries = buildActivityEntries([
+      transfer({ hash: "0x9", symbol: "USDC", direction: "out", amount: 50 }),
+      transfer({ hash: "0x9", symbol: "GLDx", direction: "in", amount: 0.5 }),
+      transfer({ hash: "0x9", symbol: "USDC", direction: "in", amount: 0.000001 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].kind).toBe("bought");
+  });
+});
+
 describe("isStable", () => {
   it("treats the money assets as money, case-insensitively", () => {
     expect(isStable("usdc")).toBe(true);

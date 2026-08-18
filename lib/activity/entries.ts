@@ -50,6 +50,18 @@ export function isStable(symbol: string): boolean {
   return STABLES.has(symbol.toUpperCase());
 }
 
+// A stablecoin movement worth less than a cent is dust: the change a
+// settlement or a route hands back, not something the user did. Shown, it read
+// as "Deposited USDC +0" after every withdrawal, in the feed and in the bell,
+// and it counted as an arrival for the deposit analytics. Only standalone
+// stablecoin movements are judged; a trade is kept whole, and other assets are
+// left alone because their price is not known here.
+export const DUST_STABLE_AMOUNT = 0.01;
+
+function isDust(item: ActivityItem): boolean {
+  return isStable(item.symbol) && item.amount < DUST_STABLE_AMOUNT;
+}
+
 // The transfer that best represents its side of a trade: the largest by value
 // we can see. A swap can emit several hops of the same asset; the biggest is
 // the one the user meant.
@@ -130,7 +142,7 @@ export function buildActivityEntries(items: ActivityItem[]): ActivityEntry[] {
         continue;
       }
     }
-    for (const item of group) entries.push(movement(item));
+    for (const item of group) if (!isDust(item)) entries.push(movement(item));
   }
 
   return entries.sort((a, b) => b.timestamp - a.timestamp);
