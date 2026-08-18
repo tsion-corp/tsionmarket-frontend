@@ -19,6 +19,7 @@ interface ChessCashierLauncherProps {
   className?: string;
   compact?: boolean;
   title?: string;
+  productName?: string;
 }
 
 // The chess cashier exists behind a sheet, but the chess surfaces need a
@@ -29,6 +30,7 @@ export function ChessCashierLauncher({
   className,
   compact = false,
   title,
+  productName,
 }: ChessCashierLauncherProps) {
   const t = useTranslations("casino.chess.cashier");
   const cashier = useChessCashierStatus();
@@ -100,7 +102,11 @@ export function ChessCashierLauncher({
         panelClassName={CHESS_MODAL_PANEL_CLASS}
         closeButtonClassName={CHESS_MODAL_CLOSE_BUTTON_CLASS}
       >
-        <CashierSheet onClose={() => setMode(null)} initialMode={mode ?? "deposit"} />
+        <CashierSheet
+          onClose={() => setMode(null)}
+          initialMode={mode ?? "deposit"}
+          productName={productName}
+        />
       </ModalShell>
     </>
   );

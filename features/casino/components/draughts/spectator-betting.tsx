@@ -148,7 +148,7 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
           pool.
         </p>
 
-        <ChessCashierLauncher compact />
+        <ChessCashierLauncher compact productName="Checkers" />
 
         {/* Outcomes. Prices show as em dashes until a real market exists. */}
         <div className="grid grid-cols-3 gap-2">

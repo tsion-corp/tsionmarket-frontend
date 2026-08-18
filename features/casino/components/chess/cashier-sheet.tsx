@@ -24,13 +24,12 @@ export type CashierMode = "deposit" | "withdraw";
 interface CashierSheetProps {
   onClose: () => void;
   initialMode?: CashierMode;
+  productName?: string;
 }
 
-// Moves USDC between the player's Base wallet and their chess balance. A
-// deposit is a gas-sponsored USDC send to the cashier's deposit address which
-// the service then credits; a withdrawal is entirely server-side. Both forms
-// validate in exact base units before anything is sent.
-export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetProps) {
+// The USDC ledger is shared between ArkBall, chess, and checkers. The product
+// name only changes the surrounding copy so the sheet matches its launch point.
+export function CashierSheet({ onClose, initialMode = "deposit", productName }: CashierSheetProps) {
   const t = useTranslations("casino.chess.cashier");
   // Borrowed for the one message this namespace lacks: a deposit larger than
   // the wallet's Base USDC holding.
@@ -43,6 +42,19 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
   // Set when a deposit was sent but the cashier has not credited it within
   // the retry window. The money is safe; this tells the player so.
   const [awaitingCredit, setAwaitingCredit] = useState(false);
+
+  const balanceTitle = productName ? `${productName} balance` : t("title");
+  const depositTitle = productName ? `Add ${productName} funds` : t("depositTitle");
+  const depositBody = productName
+    ? `Moves {amount} USDC from your wallet into your ${productName} balance.`
+    : t("depositBody", { amount: "{amount}" });
+  const withdrawTitle = productName ? `Withdraw ${productName} funds` : t("withdrawTitle");
+  const withdrawBody = productName
+    ? `Sends USDC from your ${productName} balance back to your wallet.`
+    : t("withdrawBody");
+  const notEnough = productName
+    ? `That's more than your available ${productName} balance.`
+    : t("notEnough");
 
   const baseUsdc =
     tokens.find((tk) => tk.network === "base-mainnet" && tk.symbol.toUpperCase() === "USDC")
@@ -101,7 +113,7 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
   if (!cashier.configured) {
     return (
       <div>
-        <SheetNav title={t("title")} onBack={onClose} />
+        <SheetNav title={balanceTitle} onBack={onClose} />
         <div className="ws-inset px-4 py-4 text-[13px] font-normal text-white/60">
           {t("unavailable")}
         </div>
@@ -130,8 +142,8 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
   return (
     <div>
       <SheetNav
-        title={isDeposit ? t("depositTitle") : t("withdrawTitle")}
-        subtitle={isDeposit ? undefined : t("withdrawBody")}
+        title={isDeposit ? depositTitle : withdrawTitle}
+        subtitle={isDeposit ? undefined : withdrawBody}
         onBack={onClose}
       />
 
@@ -194,13 +206,13 @@ export function CashierSheet({ onClose, initialMode = "deposit" }: CashierSheetP
           <div className="text-down mt-1.5 text-[12px] font-normal">{tFund("overBalance")}</div>
         ) : null}
         {overAvailable ? (
-          <div className="text-down mt-1.5 text-[12px] font-normal">{t("notEnough")}</div>
+          <div className="text-down mt-1.5 text-[12px] font-normal">{notEnough}</div>
         ) : null}
       </div>
 
       {isDeposit && normalized !== null && !overWallet ? (
         <div className="mt-3 text-[12.5px] leading-normal font-normal text-white/55">
-          {t("depositBody", { amount: normalized })}
+          {depositBody.replace("{amount}", normalized)}
         </div>
       ) : null}
 

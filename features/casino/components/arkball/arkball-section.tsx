@@ -102,7 +102,7 @@ export function ArkBallSection() {
             purchasing={lottery.purchasing}
           />
           <div className="space-y-4">
-            <ChessCashierLauncher compact title={t("arkadeBalance")} />
+            <ChessCashierLauncher compact productName={t("title")} title={t("arkadeBalance")} />
             <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
               <div className="text-[10px] font-semibold tracking-[0.13em] text-white/38 uppercase">
                 {t("drawIntegrity")}

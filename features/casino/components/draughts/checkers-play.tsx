@@ -896,7 +896,9 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
               ) : null}
             </div>
           </div>
-          {match.wager || match.computer?.wager ? <ChessCashierLauncher compact /> : null}
+          {match.wager || match.computer?.wager ? (
+            <ChessCashierLauncher compact productName="Checkers" />
+          ) : null}
         </div>
       }
       board={
