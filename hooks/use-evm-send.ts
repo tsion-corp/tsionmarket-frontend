@@ -22,8 +22,8 @@ export interface EvmSendInput {
   // Which embedded wallet to send from (non-Base path). Defaults to the account
   // Privy picks; Base always uses the embedded Privy wallet.
   address?: string;
-  // Optional gas-limit hint for the non-sponsored path (e.g. from a LI.FI
-  // quote). The sponsored path ignores it, the bundler estimates its own userOp gas.
+  // Optional gas-limit hint for a non-sponsored provider transaction. The
+  // sponsored path ignores it; the bundler estimates its own userOp gas.
   gasLimit?: bigint;
 }
 

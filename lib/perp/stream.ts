@@ -53,6 +53,11 @@ export const PING_MESSAGE = JSON.stringify({ type: "ping" });
 export const STREAM_PING_MS = 25_000;
 export const STREAM_RECONNECT_MS = 2_000;
 
+// REST is the authoritative fallback when the stream gateway is unavailable.
+// Do not keep reconnecting indefinitely from every open tab: after an initial
+// failure we make one backoff retry, then leave prices to the REST poller.
+export const STREAM_MAX_RECONNECTS = 1;
+
 // A frame this recent means the stream is delivering and REST polling can
 // slow to a background safety net.
 export const STREAM_FRESH_MS = 10_000;

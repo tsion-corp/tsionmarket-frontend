@@ -125,6 +125,7 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
             initialMode={prefill?.mode ?? tradeMode}
             initialAmount={prefill?.amount ?? ""}
             onAddFunds={onAddFunds}
+            onContinueInBackground={closeModal}
           />
         ) : modalMode === "detail" && detailAsset ? (
           <RwaDetailSheet asset={detailAsset} onTrade={openTrade} />

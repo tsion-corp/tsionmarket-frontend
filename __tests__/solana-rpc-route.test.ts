@@ -18,6 +18,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.verifyRequest.mockResolvedValue({ sub: "user" });
   process.env.ALCHEMY_API_KEY = "test-key";
+  delete process.env.SOLANA_RPC_URL;
   // A fresh Response per call: a body can only be read once.
   fetchMock.mockImplementation(
     async () =>
@@ -72,5 +73,32 @@ describe("solana rpc proxy", () => {
     const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getLatestBlockhash" }));
     expect(await res.text()).not.toContain("test-key");
     expect(String(fetchMock.mock.calls[0][0])).toContain("test-key");
+  });
+
+  it("fails over to public mainnet when Alchemy is unavailable", async () => {
+    fetchMock
+      .mockImplementationOnce(async () => new Response("upstream down", { status: 502 }))
+      .mockImplementationOnce(
+        async () =>
+          new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "fallback-ok" }), {
+            status: 200,
+          })
+      );
+
+    const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getLatestBlockhash" }));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ result: "fallback-ok" });
+    expect(String(fetchMock.mock.calls[0][0])).toContain("test-key");
+    expect(fetchMock.mock.calls[1][0]).toBe("https://api.mainnet-beta.solana.com");
+  });
+
+  it("uses a configured Solana RPC before the shared providers", async () => {
+    process.env.SOLANA_RPC_URL = "https://rpc.example.test";
+
+    const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getBalance" }));
+
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://rpc.example.test");
   });
 });

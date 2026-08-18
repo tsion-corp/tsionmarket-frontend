@@ -12,6 +12,7 @@ import { verifyRequest } from "@/lib/server/auth";
 // needed on the client.
 
 const UPSTREAM_TIMEOUT_MS = 15_000;
+const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 
 // Only what the wallet flows actually call. An open proxy would be a free
 // Alchemy relay for anyone who found it.
@@ -32,6 +33,16 @@ interface RpcCall {
   method?: unknown;
 }
 
+function upstreams(): string[] {
+  const configured = process.env.SOLANA_RPC_URL;
+  const key = process.env.ALCHEMY_API_KEY;
+  return [
+    configured,
+    key ? `https://solana-mainnet.g.alchemy.com/v2/${key}` : undefined,
+    PUBLIC_SOLANA_RPC,
+  ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
+}
+
 function methodsAllowed(body: unknown): boolean {
   const calls: RpcCall[] = Array.isArray(body) ? body : [body as RpcCall];
   if (calls.length === 0 || calls.length > 10) return false;
@@ -44,32 +55,35 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) {
-    return NextResponse.json({ error: "Solana RPC is not configured" }, { status: 503 });
-  }
-
   const body = await req.json().catch(() => null);
   if (!body || !methodsAllowed(body)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  try {
-    const res = await fetch(`https://solana-mainnet.g.alchemy.com/v2/${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      cache: "no-store",
-    });
-    // Pass the payload through untouched: it is a JSON-RPC envelope, and an
-    // error inside it is the caller's to interpret, not ours to rewrite.
-    return new NextResponse(await res.text(), {
-      status: res.status,
-      headers: { "Content-Type": "application/json" },
-    });
-  } catch (error) {
-    console.error("Solana RPC proxy failed:", error);
-    return NextResponse.json({ error: "Solana RPC unreachable" }, { status: 502 });
+  const serialized = JSON.stringify(body);
+  let lastFailure: unknown;
+  for (const upstream of upstreams()) {
+    try {
+      const res = await fetch(upstream, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: serialized,
+        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        cache: "no-store",
+      });
+      const payload = await res.text();
+      if (res.ok || (res.status < 500 && res.status !== 429)) {
+        // Pass JSON-RPC envelopes through untouched, including method errors.
+        return new NextResponse(payload, {
+          status: res.status,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      lastFailure = new Error(`Solana RPC returned ${res.status}`);
+    } catch (error) {
+      lastFailure = error;
+    }
   }
+  console.error("Solana RPC proxy failed:", lastFailure);
+  return NextResponse.json({ error: "Solana RPC unreachable" }, { status: 502 });
 }

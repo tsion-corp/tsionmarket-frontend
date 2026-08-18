@@ -21,10 +21,7 @@ export interface SellExecuteInput {
 }
 
 export interface SellExecuteResult {
-  // Which rail carried the sale, deciding how settlement is tracked: a
-  // Dextopus deposit is polled by requestId, a LI.FI transfer by the Solana
-  // transaction signature.
-  rail: "dextopus" | "lifi";
+  rail: "dextopus";
   requestId: string;
   txHash: string;
   // Expected USDC proceeds, in base units (6 decimals).
@@ -37,11 +34,9 @@ export interface SellExecuteResult {
 // deposit address on its own chain, and Dextopus settles USDC to the user's
 // Base wallet.
 //
-// Solana assets use Dextopus first: a sponsored direct transfer funds its
-// deposit address and Dextopus settles Base USDC. Amounts below Dextopus's
-// minimum (or assets for which it explicitly has no route) fall back to LI.FI.
-// Both rails end in Base USDC and both preserve the source funds if quoting or
-// preflight fails.
+// Solana assets use the same Dextopus route: a sponsored direct transfer funds
+// its deposit address and Dextopus settles Base USDC. Quote or preflight
+// failures stop before funds move; they are never rerouted to another provider.
 export function useSell() {
   const { user } = usePrivy();
   const { sendToken } = useSendToken();

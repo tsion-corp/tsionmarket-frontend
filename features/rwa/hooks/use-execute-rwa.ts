@@ -63,7 +63,11 @@ export function useExecuteRwa() {
           const wallet = solanaWallets[0];
           if (!wallet) throw new Error("No Solana wallet is connected.");
           if (!step.tx.base64) throw new Error("The transaction is missing.");
-          lastSolanaSig = await sendSponsored({ transaction: step.tx.base64, wallet });
+          lastSolanaSig = await sendSponsored({
+            transaction: step.tx.base64,
+            wallet,
+            prefundRent: true,
+          });
         } else {
           if (!step.tx.to) throw new Error("The transaction is missing.");
           const chainId = EVM_CHAIN_ID[step.chain];

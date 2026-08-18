@@ -20,6 +20,7 @@ describe("alchemy-bundler proxy route", () => {
     verifyRequest.mockReset();
     global.fetch = vi.fn(async () => ({
       status: 200,
+      headers: new Headers(),
       json: async () => ({ result: "0x1" }),
     })) as unknown as typeof fetch;
   });
@@ -34,17 +35,29 @@ describe("alchemy-bundler proxy route", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
-  it("forwards allowed methods to the selected network host with the policy header", async () => {
+  it("adds the server-side BSO policy only to user-operation submission", async () => {
     verifyRequest.mockResolvedValue({ sub: "user" });
     const { POST } = await loadRoute();
-    const res = await POST(makeReq({ method: "eth_sendUserOperation", params: [] }), {
-      params: Promise.resolve({ network: "arb-mainnet" }),
-    });
+    const res = await POST(
+      makeReq({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_sendUserOperation",
+        params: [{ sender: "0x1" }, "0xentrypoint"],
+      }),
+      { params: Promise.resolve({ network: "arb-mainnet" }) }
+    );
     expect(res.status).toBe(200);
     expect(global.fetch).toHaveBeenCalledOnce();
     const [url, init] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } })
       .mock.calls[0];
     expect(url).toContain("arb-mainnet.g.alchemy.com/v2/test-key");
+    expect(JSON.parse(init.body as string)).toEqual({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "eth_sendUserOperation",
+      params: [{ sender: "0x1" }, "0xentrypoint"],
+    });
     expect((init.headers as Record<string, string>)["x-alchemy-policy-id"]).toBe("test-policy");
   });
 

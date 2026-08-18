@@ -5,8 +5,8 @@ import { useTranslations } from "next-intl";
 import { useBuy } from "@/features/trade/hooks/use-buy";
 import { useSell } from "@/features/trade/hooks/use-sell";
 import { useDepositStatus } from "@/hooks/use-deposit";
-import { useLifiSettlement } from "@/hooks/use-lifi-settlement";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { usdcBaseUnits, depositProgress, type DepositStage } from "@/lib/deposit";
 import { canSellAsset } from "@/lib/sell";
 import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
@@ -90,16 +90,11 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
   const [maxRequested, setMaxRequested] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [requestId, setRequestId] = useState<string | null>(null);
-  // Which rail carried a sell: Dextopus settlement polls a deposit request,
-  // LI.FI (Solana sells) polls the transaction signature. Buys are always
-  // Dextopus.
-  const [rail, setRail] = useState<"dextopus" | "lifi">("dextopus");
 
   const buy = useBuy();
   const sell = useSell();
   const portfolio = usePortfolio();
-  const status = useDepositStatus(rail === "dextopus" ? requestId : null, "trade");
-  const lifiProgress = useLifiSettlement(rail === "lifi" ? requestId : null);
+  const status = useDepositStatus(requestId, "trade");
 
   const base = token?.symbol ?? "";
   const buying = side === "buy";
@@ -165,11 +160,12 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
     (buying && mark <= 0) ||
     (!buying && (notSellable || sellNeedsGas));
 
-  // Settlement phase for the confirm sheet, from whichever rail is live.
+  // Buy settlement stays in the confirm sheet. Sells are handed to the
+  // dashboard-level Dextopus tracker as soon as their source transfer lands.
   const dextopusProgress = status.data
     ? depositProgress(status.data.status, status.data.executionStatus)
     : depositProgress("", "");
-  const progress = rail === "lifi" ? lifiProgress : dextopusProgress;
+  const progress = dextopusProgress;
   const stage = progress.stage;
   const phase: SpotOrderPhase = !requestId
     ? "confirm"
@@ -230,7 +226,6 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
           amount: usdcBaseUnits(amount),
           slippageBps: SLIPPAGE_BPS,
         });
-        setRail("dextopus");
         setRequestId(result.requestId);
       } else {
         if (!heldToken) return;
@@ -247,8 +242,17 @@ export function SpotPanel({ token, mark, usdcBalance, heldToken, buyRoute }: Spo
           slippageBps: SLIPPAGE_BPS,
           maxRequested,
         });
-        setRail(result.rail);
-        setRequestId(result.requestId);
+        savePendingRwaSettlement({
+          requestId: result.requestId,
+          direction: "solana-to-base",
+          assetSymbol: base,
+          createdAt: Date.now(),
+        });
+        setConfirmOpen(false);
+        setAmount("");
+        setMaxRequested(false);
+        toast.success(t("workingNote"));
+        void portfolio.refetchUntilChanged();
       }
     } catch (e) {
       if (e instanceof SolanaBalanceChangedError && heldToken) {

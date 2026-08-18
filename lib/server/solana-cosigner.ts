@@ -27,8 +27,50 @@ import {
 // re-point every instruction. Lookup tables are fetched when the message uses
 // them (Jupiter routes always do).
 
-const RPC_URL = () =>
-  `https://solana-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY ?? ""}`;
+const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
+const RPC_URLS = () => {
+  const configured = process.env.SOLANA_RPC_URL;
+  const key = process.env.ALCHEMY_API_KEY;
+  return [
+    configured,
+    key ? `https://solana-mainnet.g.alchemy.com/v2/${key}` : undefined,
+    PUBLIC_SOLANA_RPC,
+  ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
+};
+const ASSOCIATED_TOKEN_PROGRAM_ADDRESS = "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL";
+const COMPUTE_BUDGET_PROGRAM_ADDRESS = "ComputeBudget111111111111111111111111111111";
+const DEFAULT_COMPUTE_UNIT_LIMIT = 1_400_000n;
+// Keep sponsored priority spend close to the normal Solana fee instead of
+// accepting a provider-built 0.0001 SOL priority fee for every small trade.
+const MAX_PRIORITY_FEE_LAMPORTS = 10_000n;
+
+interface ReadonlyBytes {
+  readonly length: number;
+  readonly [index: number]: number;
+}
+
+function readU32Le(data: ReadonlyBytes): bigint {
+  return (
+    BigInt(data[1]) | (BigInt(data[2]) << 8n) | (BigInt(data[3]) << 16n) | (BigInt(data[4]) << 24n)
+  );
+}
+
+function readU64Le(data: ReadonlyBytes): bigint {
+  let value = 0n;
+  for (let index = 8; index >= 1; index -= 1) value = (value << 8n) | BigInt(data[index]);
+  return value;
+}
+
+function computeUnitPriceData(microLamports: bigint): Uint8Array {
+  const data = new Uint8Array(9);
+  data[0] = 3;
+  let remaining = microLamports;
+  for (let index = 1; index <= 8; index += 1) {
+    data[index] = Number(remaining & 0xffn);
+    remaining >>= 8n;
+  }
+  return data;
+}
 
 export function localSponsorConfigured(): boolean {
   return (
@@ -70,14 +112,79 @@ export interface PreparedTransaction {
 export async function rewriteFeePayerWithRpc(
   serializedTransaction: string,
   sponsorAddress: string,
-  rpcUrl: string
+  rpcUrl: string | readonly string[],
+  prefundRent = false
 ): Promise<PreparedTransaction> {
   const wire = getTransactionDecoder().decode(base64ToBytes(serializedTransaction));
   const compiled = getCompiledTransactionMessageDecoder().decode(wire.messageBytes);
-  const rpc = createSolanaRpc(rpcUrl);
-  const message = await decompileTransactionMessageFetchingLookupTables(compiled, rpc);
+  const rpcUrls = typeof rpcUrl === "string" ? [rpcUrl] : rpcUrl;
+  let message: Awaited<ReturnType<typeof decompileTransactionMessageFetchingLookupTables>> | null =
+    null;
+  let lastError: unknown;
+  for (const url of rpcUrls) {
+    try {
+      message = await decompileTransactionMessageFetchingLookupTables(
+        compiled,
+        createSolanaRpc(url)
+      );
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!message) throw lastError ?? new Error("No Solana RPC is configured");
   const sponsored = setTransactionMessageFeePayer(address(sponsorAddress), message);
-  const recompiled = compileTransaction(sponsored);
+  const originalFeePayer = compiled.staticAccounts[0];
+  let computeUnitLimit: ReadonlyBytes | null = null;
+  for (const instruction of sponsored.instructions) {
+    if (
+      instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS &&
+      instruction.data?.length === 5 &&
+      instruction.data[0] === 2
+    ) {
+      computeUnitLimit = instruction.data;
+      break;
+    }
+  }
+  const requestedUnits = computeUnitLimit
+    ? readU32Le(computeUnitLimit)
+    : DEFAULT_COMPUTE_UNIT_LIMIT;
+  const maxUnitPrice = (MAX_PRIORITY_FEE_LAMPORTS * 1_000_000n) / requestedUnits;
+  // Token-account creation names its rent payer inside the instruction; merely
+  // changing the transaction fee payer does not change it. Seat the sponsor in
+  // that payer account directly instead of transferring a fixed SOL reserve to
+  // the user. The user's other signer roles (token authority/owner) are untouched.
+  const prepared = {
+    ...sponsored,
+    instructions: Array.from(sponsored.instructions, (instruction) => {
+      let next = instruction;
+      if (
+        instruction.programAddress === COMPUTE_BUDGET_PROGRAM_ADDRESS &&
+        instruction.data?.length === 9 &&
+        instruction.data[0] === 3
+      ) {
+        const requestedPrice = readU64Le(instruction.data);
+        if (requestedPrice > maxUnitPrice) {
+          next = { ...next, data: computeUnitPriceData(maxUnitPrice) };
+        }
+      }
+      if (
+        prefundRent &&
+        instruction.programAddress === ASSOCIATED_TOKEN_PROGRAM_ADDRESS &&
+        instruction.accounts?.[0]?.address === originalFeePayer
+      ) {
+        next = {
+          ...next,
+          accounts: [
+            { ...instruction.accounts[0], address: address(sponsorAddress) },
+            ...instruction.accounts.slice(1),
+          ],
+        };
+      }
+      return next;
+    }),
+  };
+  const recompiled = compileTransaction(prepared);
   return {
     transaction: getBase64EncodedWireTransaction(recompiled),
     sponsorPublicKey: sponsorAddress,
@@ -85,9 +192,15 @@ export async function rewriteFeePayerWithRpc(
 }
 
 export async function prepareWithLocalSponsor(
-  serializedTransaction: string
+  serializedTransaction: string,
+  prefundRent = false
 ): Promise<PreparedTransaction> {
-  return rewriteFeePayerWithRpc(serializedTransaction, await localSponsorAddress(), RPC_URL());
+  return rewriteFeePayerWithRpc(
+    serializedTransaction,
+    await localSponsorAddress(),
+    RPC_URLS(),
+    prefundRent
+  );
 }
 
 export interface CosignSubmitResult {
@@ -103,7 +216,7 @@ export interface CosignSubmitResult {
 export async function cosignAndSubmitWithSecret(
   serializedTransaction: string,
   secretKeyBytes: Uint8Array,
-  rpcUrl: string
+  rpcUrl: string | readonly string[]
 ): Promise<CosignSubmitResult> {
   const keyPair = await createKeyPairFromBytes(secretKeyBytes);
   const sponsorAddress = await getAddressFromPublicKey(keyPair.publicKey);
@@ -118,14 +231,24 @@ export async function cosignAndSubmitWithSecret(
   const signed = await partiallySignTransaction([keyPair], wire);
   const wireTransaction = getBase64EncodedWireTransaction(signed);
 
-  const rpc = createSolanaRpc(rpcUrl);
-  const signature = await rpc
-    .sendTransaction(wireTransaction, {
-      encoding: "base64",
-      preflightCommitment: "confirmed",
-      maxRetries: 3n,
-    })
-    .send();
+  const rpcUrls = typeof rpcUrl === "string" ? [rpcUrl] : rpcUrl;
+  let signature: string | null = null;
+  let lastError: unknown;
+  for (const url of rpcUrls) {
+    try {
+      signature = await createSolanaRpc(url)
+        .sendTransaction(wireTransaction, {
+          encoding: "base64",
+          preflightCommitment: "confirmed",
+          maxRetries: 3n,
+        })
+        .send();
+      break;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  if (!signature) throw lastError ?? new Error("No Solana RPC is configured");
 
   return {
     transaction: wireTransaction,
@@ -138,5 +261,5 @@ export async function cosignAndSubmitWithLocalSponsor(
   serializedTransaction: string
 ): Promise<CosignSubmitResult> {
   const secret = parseSponsorSecret(process.env.SOLANA_PRIVATE_KEY as string);
-  return cosignAndSubmitWithSecret(serializedTransaction, secret, RPC_URL());
+  return cosignAndSubmitWithSecret(serializedTransaction, secret, RPC_URLS());
 }

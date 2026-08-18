@@ -76,6 +76,23 @@ export function isRetryableDextopusError(error: unknown): boolean {
   return error.status >= 500;
 }
 
+// A quote has no funds attached yet, so a small retry budget is safe and
+// avoids making a user restart the flow for a transient proxy/upstream 5xx.
+// Do not use this after the wallet broadcasts a transfer: that path is
+// reconciled by Dextopus's deposit-address watcher and status instead.
+export async function retryDextopusQuote<T>(request: () => Promise<T>): Promise<T> {
+  const delays = [250, 750];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await request();
+    } catch (error) {
+      if (!isRetryableDextopusError(error) || attempt >= delays.length) throw error;
+      const jitter = Math.round(Math.random() * 100);
+      await new Promise<void>((resolve) => setTimeout(resolve, delays[attempt] + jitter));
+    }
+  }
+}
+
 // Deposits, withdrawals and trades are three Dextopus integrations with three
 // API keys. The proxy signs a request with the key of its purpose, and the
 // purpose rides on the path: `withdraw/` in front of a Dextopus path selects
@@ -352,9 +369,12 @@ export function useDepositTokens(chainId: number | null) {
   });
 }
 
-export function useCreateQuote() {
+export function useCreateQuote(purpose: DextopusPurpose = "deposit") {
   return useMutation<QuoteResult, Error, QuoteRequest>({
-    mutationFn: (req) => dextopusPost<QuoteResult>("deposit/quote", req, "Couldn't create a quote"),
+    mutationFn: (req) =>
+      retryDextopusQuote(() =>
+        dextopusPost<QuoteResult>("deposit/quote", req, "Couldn't create a quote", purpose)
+      ),
   });
 }
 

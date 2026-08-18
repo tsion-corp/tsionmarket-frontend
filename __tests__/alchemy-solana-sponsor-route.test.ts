@@ -80,10 +80,9 @@ describe("solana sponsor routes", () => {
       authorization: "Bearer access-token",
       "privy-id-token": "privy-id-token",
     });
-    expect(JSON.parse(String(init.body))).toEqual({
-      serializedTransaction: "AQIDBA==",
-      prefundRent: true,
-    });
+    // Prepare already reassigned token-account rent to the sponsor. Submit
+    // must not ask the backend to transfer another rent reserve to the user.
+    expect(JSON.parse(String(init.body))).toEqual({ serializedTransaction: "AQIDBA==" });
   });
 
   it("keeps the old alias route wired to the same backend", async () => {

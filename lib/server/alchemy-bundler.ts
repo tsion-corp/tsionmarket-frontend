@@ -25,6 +25,15 @@ const ALLOWED_METHODS = new Set([
   "eth_supportedEntryPoints",
 ]);
 
+const SPONSORED_SEND_METHOD = "eth_sendUserOperation";
+
+interface RpcCall {
+  jsonrpc?: string;
+  id?: string | number | null;
+  method: string;
+  params?: unknown[];
+}
+
 export async function forwardAlchemyBundlerRequest(req: NextRequest, network: string) {
   const claims = await verifyRequest(req);
   if (!claims) {
@@ -40,11 +49,15 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
   }
 
   const body = await req.json().catch(() => null);
-  const calls = Array.isArray(body) ? body : [body];
+  const calls = (Array.isArray(body) ? body : [body]) as Array<RpcCall | null>;
   for (const call of calls) {
     if (!call || typeof call.method !== "string" || !ALLOWED_METHODS.has(call.method)) {
       return NextResponse.json({ error: "Method not allowed" }, { status: 403 });
     }
+  }
+  const needsPolicy = calls.some((call) => call?.method === SPONSORED_SEND_METHOD);
+  if (needsPolicy && !POLICY_ID) {
+    return NextResponse.json({ error: "Alchemy gas policy is missing" }, { status: 503 });
   }
 
   try {
@@ -52,15 +65,31 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(POLICY_ID ? { "x-alchemy-policy-id": POLICY_ID } : {}),
+        ...(needsPolicy && POLICY_ID ? { "x-alchemy-policy-id": POLICY_ID } : {}),
       },
       body: JSON.stringify(body),
       signal: AbortSignal.timeout(30000),
     });
     const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    return NextResponse.json(data, {
+      status: res.status,
+      headers: {
+        "Cache-Control": "no-store",
+        ...(res.headers.get("retry-after")
+          ? { "Retry-After": res.headers.get("retry-after") as string }
+          : {}),
+      },
+    });
   } catch (error) {
     console.error(`Alchemy bundler proxy failed for ${network}:`, error);
-    return NextResponse.json({ error: "Bundler request failed" }, { status: 502 });
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    return NextResponse.json(
+      {
+        error: timedOut ? "Alchemy bundler timed out" : "Alchemy bundler is unavailable",
+        provider: "alchemy",
+        retryable: true,
+      },
+      { status: timedOut ? 504 : 502, headers: { "Retry-After": "5" } }
+    );
   }
 }

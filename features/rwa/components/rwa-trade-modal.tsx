@@ -11,7 +11,13 @@ import type { RwaTradePayload } from "@/lib/modal-types";
 // and address, then renders the RWA trade panel, which quotes and builds through
 // the RWA service. This keeps RWA buy/sell off the Dextopus deposit router, which
 // cannot source or deliver RWA tokens.
-export function RwaTradeModal({ payload }: { payload: RwaTradePayload }) {
+export function RwaTradeModal({
+  payload,
+  onContinueInBackground,
+}: {
+  payload: RwaTradePayload;
+  onContinueInBackground?: () => void;
+}) {
   const t = useTranslations("rwa");
   const { assets: rawAssets, loading } = useRwaAssets();
   // Same price fallback the table uses: without it a Solana asset opened from
@@ -20,7 +26,14 @@ export function RwaTradeModal({ payload }: { payload: RwaTradePayload }) {
   const asset = findRwaAsset(assets, payload.network, payload.address);
 
   if (asset) {
-    return <RwaTradePanel asset={asset} initialMode={payload.mode} bare />;
+    return (
+      <RwaTradePanel
+        asset={asset}
+        initialMode={payload.mode}
+        bare
+        onContinueInBackground={onContinueInBackground}
+      />
+    );
   }
 
   return (

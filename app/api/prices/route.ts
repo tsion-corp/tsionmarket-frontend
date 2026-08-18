@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
   } catch (error) {
     console.error("Prices fetch failed:", error);
     if (isRateLimitError(error)) {
-      return NextResponse.json({ error: "Too many requests, try again shortly" }, { status: 429 });
+      return NextResponse.json(
+        { error: "Too many requests, try again shortly" },
+        { status: 429, headers: { "Retry-After": "30" } }
+      );
     }
     return NextResponse.json({ error: "Could not load prices" }, { status: 502 });
   }

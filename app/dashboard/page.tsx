@@ -19,6 +19,7 @@ import { FundsModal, WithdrawModal } from "@/features/funds";
 import { CrossBorderBanner } from "@/features/remit";
 import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
 import { RwaSection, RwaTradeModal } from "@/features/rwa";
+import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
@@ -131,6 +132,7 @@ export default function DashboardPage() {
   return (
     <AuthGuard>
       <DashboardShell nav={nav} activeSection={activeSection}>
+        <RwaSettlementTracker />
         {scrollSectionIds.map((id) => (
           <section key={id} id={id} className={SECTION_CLASS}>
             {sections[id]}
@@ -168,7 +170,9 @@ export default function DashboardPage() {
         {modal?.type === "memeSell" ? (
           <MemeTradeSheet token={modal.memeSell} defaultSide="SELL" onClose={close} />
         ) : null}
-        {modal?.type === "rwaTrade" ? <RwaTradeModal payload={modal.rwaTrade} /> : null}
+        {modal?.type === "rwaTrade" ? (
+          <RwaTradeModal payload={modal.rwaTrade} onContinueInBackground={close} />
+        ) : null}
         {modal?.type === "funds" ? <FundsModal onClose={close} deposit={modal.deposit} /> : null}
         {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
         {modal?.type === "account" ? <AccountModal onClose={close} /> : null}

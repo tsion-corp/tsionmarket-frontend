@@ -7,6 +7,26 @@ import {
   splitPurpose,
 } from "@/lib/server/dextopus";
 
+function providerUnavailableStatus(req: NextRequest) {
+  return NextResponse.json(
+    {
+      success: false,
+      depositRequestId: req.nextUrl.searchParams.get("depositRequestId") ?? "",
+      depositAddress: "",
+      status: "PENDING",
+      executionStatus: "PROVIDER_UNAVAILABLE",
+      originTransactionHashes: [],
+      destinationTransactionHashes: [],
+      providerUnavailable: true,
+      retryAfterMs: 30_000,
+    },
+    {
+      status: 202,
+      headers: { "Cache-Control": "no-store", "Retry-After": "30" },
+    }
+  );
+}
+
 async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", body?: unknown) {
   const claims = await verifyRequest(req);
   if (!claims) {
@@ -27,9 +47,16 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
       revalidate: method === "GET" ? cacheSecondsFor(joined) : undefined,
     });
     const data = await res.json().catch(() => ({}));
+    // Status is reconciliation, not a new money-moving command. During a
+    // provider outage keep the operation pending and tell the state machine
+    // when to check again instead of flooding the browser with 5xx responses.
+    if (joined === "deposit/status" && res.status >= 500) {
+      return providerUnavailableStatus(req);
+    }
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
     console.error("Dextopus proxy failed:", error);
+    if (joined === "deposit/status") return providerUnavailableStatus(req);
     return NextResponse.json({ error: "Provider request failed" }, { status: 502 });
   }
 }

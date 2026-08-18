@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   PING_MESSAGE,
   STREAM_FRESH_MS,
+  STREAM_MAX_RECONNECTS,
   STREAM_PING_MS,
   STREAM_RECONNECT_MS,
   parsePriceFrame,
@@ -22,7 +23,11 @@ import {
 // setState per frame: at ~1 update/sec/pair across a hundred subscribed pairs
 // that difference is what keeps the section from re-rendering constantly.
 
-const WS_URL = process.env.NEXT_PUBLIC_PERP_WS_URL ?? "wss://ws.worldstreetwebservices.com";
+// The public WebSocket host is intentionally opt-in. The old hard-coded host
+// is not a deployed price gateway, so every rendered Perps view opened a
+// failing socket and retried it forever. REST /api/perp/prices remains the
+// production price source until a working gateway URL is configured.
+const WS_URL = process.env.NEXT_PUBLIC_PERP_WS_URL?.trim();
 
 const FLUSH_MS = 1_000;
 
@@ -36,7 +41,8 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
   const symbolsKey = symbols.join(",");
 
   useEffect(() => {
-    if (!enabled || symbolsKey === "") return;
+    const streamUrl = WS_URL;
+    if (!enabled || !streamUrl || symbolsKey === "") return;
     const topics = symbolsKey.split(",");
     // Pairs no longer on screen are pruned at the next flush, so a delisted
     // pair's frozen mark cannot keep beating REST forever.
@@ -49,13 +55,29 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
     const buffer = new Map<string, StreamPrice>();
     let lastFrameAt = 0;
     // Exponential backoff so a downed gateway is not hammered by every open
-    // tab in lockstep; a delivered frame resets it.
+    // tab in lockstep; a delivered frame resets it. A finite retry budget
+    // leaves REST polling in charge when a configured stream is unavailable.
     let reconnectDelay = STREAM_RECONNECT_MS;
+    let reconnects = 0;
+
+    const reconnect = () => {
+      if (disposed || reconnects >= STREAM_MAX_RECONNECTS || reconnectTimer != null) return;
+      // Hidden or offline tabs do not need a live mark; the REST query catches
+      // up when they become active again.
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
+      reconnects += 1;
+      const jitter = Math.round(Math.random() * 250);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        open();
+      }, reconnectDelay + jitter);
+      reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
+    };
 
     const open = () => {
       if (disposed) return;
       try {
-        ws = new WebSocket(WS_URL);
+        ws = new WebSocket(streamUrl);
       } catch {
         // A malformed URL throws synchronously; without the stream the REST
         // fallback carries prices, so fail quiet and don't retry a bad URL.
@@ -72,6 +94,7 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
         if (update == null) return;
         lastFrameAt = Date.now();
         reconnectDelay = STREAM_RECONNECT_MS;
+        reconnects = 0;
         // After a reconnect, frames can arrive out of order; never let an
         // older publish overwrite a newer mark.
         const held = buffer.get(update.pair);
@@ -82,10 +105,7 @@ export function usePerpPriceStream(symbols: readonly string[], enabled: boolean)
       ws.onclose = () => {
         if (pingTimer != null) clearInterval(pingTimer);
         pingTimer = null;
-        if (!disposed) {
-          reconnectTimer = setTimeout(open, reconnectDelay);
-          reconnectDelay = Math.min(reconnectDelay * 2, 30_000);
-        }
+        reconnect();
       };
       // onclose fires after onerror; reconnect handling lives there alone.
       ws.onerror = () => {};

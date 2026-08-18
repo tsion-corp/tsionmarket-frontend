@@ -43,12 +43,24 @@ function balancesSignature(p: Portfolio | undefined): string {
     .join("|");
 }
 
+function tokenRawBalance(
+  portfolio: Portfolio | undefined,
+  network: string,
+  address: string
+): bigint {
+  const token = portfolio?.tokens.find(
+    (item) => item.network === network && item.address?.toLowerCase() === address.toLowerCase()
+  );
+  return BigInt(token?.rawBalance ?? "0");
+}
+
 export function usePortfolio() {
   const { user, ready, authenticated } = usePrivy();
   const queryClient = useQueryClient();
   const evm = getWalletAddress(user, "ethereum");
   const solana = getWalletAddress(user, "solana");
   const enabled = ready && authenticated && Boolean(evm || solana);
+  const queryKey = ["portfolio", evm, solana] as const;
 
   // Set while waiting for a just-made trade to show up, so those reads skip the
   // server's shared cache. A ref because the queryFn must see the current value
@@ -56,7 +68,7 @@ export function usePortfolio() {
   const forceFreshRef = useRef(false);
 
   const query = useQuery<Portfolio>({
-    queryKey: ["portfolio", evm, solana],
+    queryKey,
     enabled,
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -90,6 +102,19 @@ export function usePortfolio() {
   });
 
   const { refetch } = query;
+  // A just-completed wallet transaction must bypass the short server cache.
+  // This keeps the portfolio reactive during an active cross-chain settlement
+  // without shortening the normal background polling interval for everyone.
+  const refetchFresh = useCallback(async (): Promise<Portfolio | undefined> => {
+    forceFreshRef.current = true;
+    try {
+      const result = await refetch();
+      return result.data;
+    } finally {
+      forceFreshRef.current = false;
+    }
+  }, [refetch]);
+
   // Refetch until the balances actually move. A single refetch after a trade
   // races two lags — the shared server cache and Alchemy's balance index — and
   // usually loses, leaving the pre-trade numbers on screen until the next
@@ -115,6 +140,27 @@ export function usePortfolio() {
     }
   }, [refetch, queryClient, evm, solana]);
 
+  // Wait for a particular incoming token amount rather than any portfolio
+  // change. A sell can change the RWA row before its USDC output is indexed;
+  // routing then would otherwise try to spend funds that have not appeared yet.
+  const waitForTokenBalance = useCallback(
+    async (network: string, address: string, atLeast: bigint): Promise<boolean> => {
+      const startedAt = Date.now();
+      forceFreshRef.current = true;
+      try {
+        for (let attempt = 0; Date.now() - startedAt < SETTLE_DEADLINE_MS; attempt++) {
+          await delay(SETTLE_BACKOFF_MS[Math.min(attempt, SETTLE_BACKOFF_MS.length - 1)]);
+          const { data } = await refetch();
+          if (tokenRawBalance(data, network, address) >= atLeast) return true;
+        }
+        return false;
+      } finally {
+        forceFreshRef.current = false;
+      }
+    },
+    [refetch]
+  );
+
   return {
     totalUsd: query.data?.totalUsd ?? 0,
     tokens: query.data?.tokens ?? EMPTY_TOKENS,
@@ -126,6 +172,8 @@ export function usePortfolio() {
     refreshing: enabled && query.isFetching && !query.isPending,
     error: query.isError,
     refetch: query.refetch,
+    refetchFresh,
     refetchUntilChanged,
+    waitForTokenBalance,
   };
 }

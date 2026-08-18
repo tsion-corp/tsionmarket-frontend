@@ -155,6 +155,8 @@ export interface DepositStatusResult {
   executionStatus: string;
   originTransactionHashes: string[];
   destinationTransactionHashes: string[];
+  providerUnavailable?: boolean;
+  retryAfterMs?: number;
 }
 
 export interface ValidateAddressResult {

@@ -4,19 +4,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { ProgressBar } from "@/components/ui/progress-bar";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { useDepositStatus } from "@/hooks/use-deposit";
-import { useLifiSettlement } from "@/hooks/use-lifi-settlement";
 import { useSell } from "@/features/trade/hooks/use-sell";
-import { depositProgress, type DepositStage } from "@/lib/deposit";
+import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
-import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { friendlyError } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
@@ -43,17 +39,6 @@ const CHAIN_LABEL: Record<string, string> = {
   "solana-mainnet": "Solana",
 };
 
-// Plain-language order status, no bridging jargon. Values are message keys in
-// the buySell namespace.
-const STAGE_KEY: Record<DepositStage, string> = {
-  waiting: "stagePlacingOrder",
-  detected: "stageSaleReceived",
-  processing: "stageAlmostThere",
-  settled: "stageAllDone",
-  refunded: "stageAssetReturned",
-  failed: "stageSaleFailed",
-};
-
 interface SellSheetProps {
   payload: SellPayload;
   onClose: () => void;
@@ -61,19 +46,10 @@ interface SellSheetProps {
 
 export function SellSheet({ payload, onClose }: SellSheetProps) {
   const t = useTranslations("buySell");
-  // Which spot screen the fill came from, so the two can be compared.
-  const { mode: spotMode } = useSpotMode();
   const portfolio = usePortfolio();
   const [amount, setAmount] = useState("");
   const [maxRequested, setMaxRequested] = useState(false);
   const sell = useSell();
-  const [requestId, setRequestId] = useState<string | null>(null);
-  // Which rail carried the sale: Dextopus polls a deposit request, LI.FI polls
-  // the Solana transaction signature. Both feed the same stage UI below.
-  const [rail, setRail] = useState<"dextopus" | "lifi">("dextopus");
-  const [proceeds, setProceeds] = useState<string>("");
-  const status = useDepositStatus(rail === "dextopus" ? requestId : null, "trade");
-  const lifiProgress = useLifiSettlement(rail === "lifi" ? requestId : null);
 
   const nativeSym = NATIVE_SYMBOL[payload.network] ?? "";
   const chainLabel = CHAIN_LABEL[payload.network] ?? payload.network;
@@ -111,40 +87,8 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const noFee = !portfolio.loading && !hasGas;
   const canSell = value > 0 && !overBalance && !noFee && !portfolio.loading && !sell.isPending;
 
-  const dextopusProgress = useMemo(
-    () =>
-      status.data
-        ? depositProgress(status.data.status, status.data.executionStatus)
-        : depositProgress("", ""),
-    [status.data]
-  );
-  const progress = rail === "lifi" ? lifiProgress : dextopusProgress;
-  const stage = progress.stage;
-
-  const settledRef = useRef(false);
-  // Id of the processing toast opened on confirm, resolved when the order settles.
+  // Id of the processing toast opened on confirm.
   const toastRef = useRef<string | number | undefined>(undefined);
-  useEffect(() => {
-    if (settledRef.current) return;
-    if (stage === "settled") {
-      settledRef.current = true;
-      track("trade_completed", {
-        vertical: "spot",
-        asset: payload.symbol,
-        side: "sell",
-        amount_usd: value,
-        mode: spotMode,
-      });
-      toast.success(t("soldToast", { symbol: payload.symbol }), { id: toastRef.current });
-      toastRef.current = undefined;
-      void portfolio.refetchUntilChanged();
-    } else if (stage === "failed" || stage === "refunded") {
-      settledRef.current = true;
-      track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
-      toast.error(t("saleRefundedToast"), { id: toastRef.current });
-      toastRef.current = undefined;
-    }
-  }, [stage, payload.symbol, value, portfolio, t, spotMode]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
   // effect that would resolve it, leaving it spinning forever. Every resolution
@@ -182,9 +126,16 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
         slippageBps: SLIPPAGE_BPS,
         maxRequested,
       });
-      setProceeds(formatAmount(Number(fromBaseUnits(result.estimatedOutput, 6))));
-      setRail(result.rail);
-      setRequestId(result.requestId);
+      savePendingRwaSettlement({
+        requestId: result.requestId,
+        direction: "solana-to-base",
+        assetSymbol: payload.symbol,
+        createdAt: Date.now(),
+      });
+      toast.success(t("takesAMoment"), { id: toastRef.current });
+      toastRef.current = undefined;
+      void portfolio.refetchUntilChanged();
+      onClose();
     } catch (error) {
       if (error instanceof SolanaBalanceChangedError) {
         setAmount(fromBaseUnits(error.availableAmount, payload.decimals));
@@ -196,49 +147,6 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       toastRef.current = undefined;
     }
   };
-
-  if (requestId) {
-    const failed = stage === "failed" || stage === "refunded";
-    const done = stage === "settled";
-    const color = failed ? "#f6a5a5" : done ? "#7ce7b0" : "#d4d4d8";
-    return (
-      <div>
-        <Eyebrow>{done ? t("allDone") : t("selling")}</Eyebrow>
-        <div className="mt-3 flex items-center gap-[13px]">
-          <AssetIcon sym={payload.symbol} bg="#26262b" size={44} logo={payload.logo} />
-          <div className="min-w-0 flex-1">
-            <div className="ws-display text-[22px]">{payload.name}</div>
-            <div className="truncate text-[12.5px] font-normal text-white/50">{payload.symbol}</div>
-          </div>
-        </div>
-
-        <div className="ws-inset mt-4 p-4">
-          <div className="mb-2.5 text-[13px] font-medium text-white">{t(STAGE_KEY[stage])}</div>
-          <ProgressBar pct={progress.pct} color={color} />
-          {done ? (
-            <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
-              {proceeds ? t("proceedsAdded", { amount: proceeds }) : t("proceedsAddedFallback")}
-            </p>
-          ) : failed ? (
-            <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
-              {t("saleFailedBody", { symbol: payload.symbol })}
-            </p>
-          ) : (
-            <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/60">
-              {t("takesAMoment")}
-            </p>
-          )}
-        </div>
-
-        <button
-          onClick={onClose}
-          className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
-        >
-          {t("done")}
-        </button>
-      </div>
-    );
-  }
 
   return (
     <div>

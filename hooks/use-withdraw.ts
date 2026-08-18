@@ -21,7 +21,7 @@ import {
   getTransferCheckedInstruction,
 } from "@solana-program/token";
 import { getTransferSolInstruction } from "@solana-program/system";
-import { useCreateQuote } from "@/hooks/use-deposit";
+import { useCreateQuote, type DextopusPurpose } from "@/hooks/use-deposit";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { getWalletAddress } from "@/lib/user";
 import {
@@ -157,7 +157,7 @@ export function useSendUsdc() {
           settle?.usdc ?? solana.asset,
           settle?.decimals ?? solana.decimals
         );
-        return await sendSponsored({ transaction, wallet });
+        return await sendSponsored({ transaction, wallet, prefundRent: true });
       } finally {
         setSending(false);
       }
@@ -247,7 +247,11 @@ export function useSendToken() {
           tokenAddress === null
             ? await buildSolanaSolTransfer(from, to, amount)
             : await buildSolanaTokenTransfer(from, to, amount, tokenAddress, decimals);
-        return await sendSponsored({ transaction, wallet });
+        return await sendSponsored({
+          transaction,
+          wallet,
+          prefundRent: tokenAddress !== null,
+        });
       } finally {
         setSending(false);
       }
@@ -279,6 +283,8 @@ export interface ReroutedWithdrawParams {
 export interface ReroutedWithdrawResult {
   depositRequestId: string;
   txHash: string;
+  amountOut: string;
+  minAmountOut: string;
 }
 
 // Withdraws any held token to a different chain and/or asset by reusing the
@@ -286,8 +292,8 @@ export interface ReroutedWithdrawResult {
 // (strict, so a mismatch auto-refunds to our own wallet instead of getting
 // stuck), then send the origin token to the deposit address the quote
 // returns. Dextopus takes it from there and delivers to `to`.
-export function useReroutedWithdraw() {
-  const quote = useCreateQuote();
+export function useReroutedWithdraw(purpose: DextopusPurpose = "withdrawal") {
+  const quote = useCreateQuote(purpose);
   const { sendToken, sending } = useSendToken();
 
   const withdraw = useCallback(
@@ -319,7 +325,15 @@ export function useReroutedWithdraw() {
         to: result.depositAddress,
         amount,
       });
-      return { depositRequestId: result.depositRequestId, txHash };
+      // Dextopus observes its unique deposit address on-chain. Its current
+      // deposit integration does not expose a submit endpoint for these
+      // requests, so status reconciliation begins after the source transfer.
+      return {
+        depositRequestId: result.depositRequestId,
+        txHash,
+        amountOut: result.amountOut,
+        minAmountOut: result.minAmountOut,
+      };
     },
     [quote, sendToken]
   );

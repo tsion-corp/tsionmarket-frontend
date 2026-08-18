@@ -26,9 +26,12 @@ export function useSponsoredSolanaSend() {
 
   return useCallback(
     async ({ transaction, wallet, prefundRent }: SponsoredSolanaSendInput): Promise<string> => {
-      const prepared = await prepareSponsoredSolanaTransaction(transaction);
+      const prepared = await prepareSponsoredSolanaTransaction(transaction, { prefundRent });
       const { signedTransaction } = await signTransaction({ transaction: prepared, wallet });
-      const result = await sponsorAndSubmitSolanaTransaction(signedTransaction, { prefundRent });
+      // Prepare already put the sponsor in both the fee-payer and any token
+      // account rent-payer seats. Asking submit to prefund again transfers a
+      // duplicate rent reserve into the user's wallet.
+      const result = await sponsorAndSubmitSolanaTransaction(signedTransaction);
       if (!result.submittedSignature) {
         throw new Error("The gas sponsor did not submit the transaction.");
       }

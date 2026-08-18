@@ -1,6 +1,6 @@
 // Registry of assets tradable on the unified Trade surface, organised by the
-// four networks we support: Solana (routed via Jupiter) and the EVM chains Base,
-// Arbitrum and Polygon (routed via LI.FI). Each network lists the native gas
+// four networks we support: Solana and the EVM chains Base, Arbitrum and
+// Polygon. Each network lists the native gas
 // token plus USDC (and a couple of majors on the deepest chains). A swap always
 // stays on one network — same-chain, no bridge.
 
@@ -13,9 +13,8 @@ export interface TradeAsset {
   // Solana SPL mint. Present only for assets routed on-chain via Jupiter.
   mint?: string;
   decimals?: number;
-  // EVM routing via LI.FI. Present only for assets with an EVM token. The
-  // native gas token uses the aggregator native sentinel so no approval is
-  // needed and the user spends the native balance they already hold.
+  // EVM routing metadata. The native gas token uses the aggregator native
+  // sentinel so no approval is needed.
   evmChainId?: number;
   evmAddress?: string;
   evmDecimals?: number;
@@ -27,7 +26,7 @@ export interface SwapNetwork {
   key: SwapChainKey;
   name: string;
   kind: "solana" | "evm";
-  // Present for EVM networks; the chain id LI.FI and the wallet sign against.
+  // Present for EVM networks; the chain id the wallet signs against.
   evmChainId?: number;
   // Alchemy portfolio network id, so balances and the gas check read the right
   // chain.
@@ -209,8 +208,7 @@ export function isRoutable(pay: TradeAsset, receive: TradeAsset): boolean {
   return Boolean(pay.mint && pay.decimals != null && receive.mint && receive.decimals != null);
 }
 
-// Both legs are EVM tokens on the same chain: a same-chain LI.FI route exists.
-// No chain is special-cased — every supported EVM network routes the same way.
+// Both legs are EVM tokens on the same chain and can use a same-chain router.
 export function isEvmRoutable(pay: TradeAsset, receive: TradeAsset): boolean {
   return Boolean(
     pay.evmAddress &&

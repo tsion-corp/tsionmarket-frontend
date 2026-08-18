@@ -9,29 +9,67 @@ const POLL_MS = 60 * 1000;
 // effects on the prices map don't churn every render.
 const EMPTY_PRICES: Record<string, number> = {};
 
+class PriceRequestError extends Error {
+  constructor(readonly status: number) {
+    super(status === 429 ? "Too many requests" : "Prices request failed");
+  }
+}
+
+interface PriceWaiter {
+  symbols: readonly string[];
+  resolve: (prices: Record<string, number>) => void;
+  reject: (error: unknown) => void;
+}
+
+let queued: PriceWaiter[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Dashboard sections mount together but ask for overlapping symbol sets. Fold
+// those requests into one provider call instead of letting each component and
+// each retry consume a separate Alchemy rate-limit slot.
+function fetchPriceBatch(symbols: readonly string[]): Promise<Record<string, number>> {
+  return new Promise((resolve, reject) => {
+    queued.push({ symbols, resolve, reject });
+    if (flushTimer !== null) return;
+    flushTimer = setTimeout(async () => {
+      flushTimer = null;
+      const batch = queued;
+      queued = [];
+      const requested = [...new Set(batch.flatMap((waiter) => waiter.symbols))].sort();
+      const params = new URLSearchParams();
+      for (const symbol of requested) params.append("symbols", symbol);
+      try {
+        const res = await fetch(`/api/prices?${params.toString()}`);
+        if (!res.ok) throw new PriceRequestError(res.status);
+        const body = await res.json();
+        const all: Record<string, number> = {};
+        for (const price of body.prices ?? []) all[price.symbol] = price.priceUsd;
+        for (const waiter of batch) {
+          const selected: Record<string, number> = {};
+          for (const symbol of waiter.symbols) {
+            if (all[symbol] !== undefined) selected[symbol] = all[symbol];
+          }
+          waiter.resolve(selected);
+        }
+      } catch (error) {
+        for (const waiter of batch) waiter.reject(error);
+      }
+    }, 25);
+  });
+}
+
 export function usePrices(symbols: string[]) {
-  const key = [...symbols].sort();
+  const key = [...new Set(symbols)].sort();
   const { data } = useQuery<Record<string, number>>({
     queryKey: ["prices", key],
     enabled: symbols.length > 0,
-    queryFn: async () => {
-      const params = new URLSearchParams();
-      for (const s of symbols) params.append("symbols", s);
-      const res = await fetch(`/api/prices?${params.toString()}`);
-      if (!res.ok) {
-        throw new Error(res.status === 429 ? "Too many requests" : "Prices request failed");
-      }
-      const body = await res.json();
-      const map: Record<string, number> = {};
-      for (const p of body.prices ?? []) map[p.symbol] = p.priceUsd;
-      return map;
-    },
+    queryFn: () => fetchPriceBatch(key),
     staleTime: POLL_MS,
     refetchInterval: POLL_MS,
-    // A throttled first load is the one case where consumers see a zero
-    // price (after the first success, errors keep serving the last data).
-    // Retry through the burst with growing waits instead of giving up.
-    retry: 5,
+    // Retrying a throttled request from every mounted section amplifies the
+    // outage. Wait for the next normal interval instead.
+    retry: (failureCount, error) =>
+      !(error instanceof PriceRequestError && error.status === 429) && failureCount < 2,
     retryDelay: (attempt) => Math.min(2_000 * 2 ** attempt, 30_000),
   });
   return data ?? EMPTY_PRICES;

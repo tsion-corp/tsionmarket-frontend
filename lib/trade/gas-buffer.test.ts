@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  gasBufferFor,
-  maxLifiNativeSolSellable,
-  maxSellable,
-  SOLANA_LIFI_RESERVE_LAMPORTS,
-} from "@/lib/trade/gas-buffer";
+import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
 
 describe("gasBufferFor", () => {
   it("reserves nothing for Dextopus's direct sponsored SOL transfer", () => {
@@ -45,16 +40,5 @@ describe("maxSellable", () => {
 
   it("never goes below zero", () => {
     expect(maxSellable("solana-mainnet", null, 0)).toBe(0);
-  });
-});
-
-describe("maxLifiNativeSolSellable", () => {
-  it("holds back wrap rent only when the LI.FI fallback is selected", () => {
-    expect(maxLifiNativeSolSellable(10_000_000n)).toBe(10_000_000n - SOLANA_LIFI_RESERVE_LAMPORTS);
-  });
-
-  it("returns zero when the balance cannot cover the wrap reserve", () => {
-    expect(maxLifiNativeSolSellable(SOLANA_LIFI_RESERVE_LAMPORTS)).toBe(0n);
-    expect(maxLifiNativeSolSellable(1n)).toBe(0n);
   });
 });

@@ -55,7 +55,8 @@ const RETRY_DELAY_MS = 900;
 // fee-payer seat and returns the still-unsigned transaction for the user to
 // sign. Sponsoring and submitting happen in sponsorAndSubmitSolanaTransaction.
 export async function prepareSponsoredSolanaTransaction(
-  transaction: string | Uint8Array
+  transaction: string | Uint8Array,
+  opts: { prefundRent?: boolean } = {}
 ): Promise<Uint8Array> {
   const serializedTransaction =
     typeof transaction === "string" ? transaction : bytesToBase64(transaction);
@@ -65,7 +66,10 @@ export async function prepareSponsoredSolanaTransaction(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serializedTransaction }),
+        body: JSON.stringify({
+          serializedTransaction,
+          ...(opts.prefundRent ? { prefundRent: true } : {}),
+        }),
       },
       { requireAuth: true }
     );
@@ -92,8 +96,7 @@ export async function prepareSponsoredSolanaTransaction(
 }
 
 async function requestSolanaSponsorship(
-  transaction: string | Uint8Array,
-  opts: { prefundRent?: boolean } = {}
+  transaction: string | Uint8Array
 ): Promise<SponsoredSolanaTransactionResult> {
   const serializedTransaction =
     typeof transaction === "string" ? transaction : bytesToBase64(transaction);
@@ -103,10 +106,7 @@ async function requestSolanaSponsorship(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          serializedTransaction,
-          ...(opts.prefundRent ? { prefundRent: true } : {}),
-        }),
+        body: JSON.stringify({ serializedTransaction }),
       },
       { requireAuth: true }
     );
@@ -135,8 +135,7 @@ async function requestSolanaSponsorship(
 // Step two: the user-signed transaction goes to the sponsor, which adds its
 // fee-payer signature and submits. The result carries submittedSignature.
 export async function sponsorAndSubmitSolanaTransaction(
-  transaction: string | Uint8Array,
-  opts: { prefundRent?: boolean } = {}
+  transaction: string | Uint8Array
 ): Promise<SponsoredSolanaTransactionResult> {
-  return requestSolanaSponsorship(transaction, opts);
+  return requestSolanaSponsorship(transaction);
 }

@@ -6,8 +6,9 @@ import { usePrivy } from "@privy-io/react-auth";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { RwaIssuerCard } from "@/features/rwa/components/rwa-issuer-card";
-import { RwaProgress, type ProgressStep } from "@/features/rwa/components/rwa-progress";
+import { useDepositStatus } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { useReroutedWithdraw } from "@/hooks/use-withdraw";
 import { useRwaQuote, useRwaBuild } from "@/features/rwa/hooks/use-rwa-trade";
 import { useExecuteRwa } from "@/features/rwa/hooks/use-execute-rwa";
 import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
@@ -20,11 +21,14 @@ import {
   type RwaQuoteRequest,
 } from "@/features/rwa/lib/api";
 import { getWalletAddress } from "@/lib/user";
-import { useSolanaFunding } from "@/hooks/use-solana-funding";
-import { planAffordable, planBaseFunding, planSolanaFunding } from "@/lib/trade/funding";
-import { useSolanaProceeds } from "@/hooks/use-solana-proceeds";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { depositProgress, settlementFor } from "@/lib/deposit";
+import {
+  clearPendingRwaSettlement,
+  savePendingRwaSettlement,
+  type RwaSettlementDirection,
+} from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, toBaseUnits } from "@/lib/trade/math";
 import { belowMinimumBuy, minimumBuyUsd } from "@/lib/trade/minimums";
 import {
@@ -65,6 +69,11 @@ interface SignStep {
   label: string;
 }
 
+interface SettlementRequest {
+  id: string;
+  direction: RwaSettlementDirection;
+}
+
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const SLIPPAGE_BPS = 50;
 // Quick-buy dollar amounts, matching the portfolio buy sheet.
@@ -81,13 +90,10 @@ const QUOTE_TTL_MS = 60_000;
 // a rate-limit or "service busy" error for a blip that clears in a second.
 const RETRY_BACKOFFS_MS = [800, 1600];
 
-// The base units a bring-home leg should send: what the plan asks for, capped
-// at what the wallet actually holds.
-function bridgeHomeUnits(bridgeUsdc: number | undefined, rawBalance: string | undefined): string {
-  if (bridgeUsdc == null || !rawBalance) return "0";
-  const wanted = toBaseUnits(bridgeUsdc.toFixed(6), 6);
-  const held = BigInt(rawBalance || "0");
-  return (wanted < held ? wanted : held).toString();
+function positiveBaseUnits(value: string | undefined): bigint | null {
+  if (!value || !/^\d+$/.test(value)) return null;
+  const amount = BigInt(value);
+  return amount > 0n ? amount : null;
 }
 
 // Whether a quote is too old to execute against. Module-level so the compiler
@@ -124,29 +130,36 @@ interface RwaTradePanelProps {
   // Opens the deposit flow. An empty wallet is the most common reason a first
   // buy stalls, so the panel offers the way forward rather than a dead zero.
   onAddFunds?: () => void;
+  // The Dextopus request is persisted at dashboard scope, so the user can
+  // close this sheet after their source transfer is broadcast.
+  onContinueInBackground?: () => void;
 }
 
-// Buy or sell surface for one RWA, in the portfolio sheet idiom: a buy is a
-// dollar amount spent from the account's USDC (wherever it sits — the panel
-// moves it under the hood and the whole run is sponsored, so no network or gas
-// ever surfaces); a sell is sized in the held token and settles to USDC. Both
-// directions run a live debounced quote, then on confirm move any funds that
-// need moving, build the action, sign every step through Privy, and refresh
-// the portfolio.
+// Buy or sell surface for one RWA. Solana buys can fund their Solana USDC from
+// Base USDC through a strict Dextopus request before the RWA transaction is
+// built. Confirmed Solana sale proceeds are handed to the persistent worker
+// and settled back to Base USDC without another user action.
 export function RwaTradePanel({
   asset,
   bare = false,
   initialMode = "buy",
   initialAmount = "",
   onAddFunds,
+  onContinueInBackground,
 }: RwaTradePanelProps) {
   const t = useTranslations("rwa");
   const tBuySell = useTranslations("buySell");
   const { user } = usePrivy();
   const portfolio = usePortfolio();
+  const { refetchFresh: refreshPortfolio } = portfolio;
   const { mutateAsync: quoteAsync } = useRwaQuote();
   const { mutateAsync: buildAsync } = useRwaBuild();
   const execute = useExecuteRwa();
+  const {
+    withdraw: routeUsdc,
+    quoting: routeQuotePending,
+    sending: routeSendPending,
+  } = useReroutedWithdraw("trade");
 
   const mode: Mode = initialMode;
   const isBuy = mode === "buy";
@@ -155,16 +168,18 @@ export function RwaTradePanel({
   const [quote, setQuote] = useState<RwaQuote | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [signStep, setSignStep] = useState<SignStep | null>(null);
-  // The amount funding has already run for. Without this, a purchase that
-  // stalled after its bridge offers to bridge again — the user pays twice and
-  // still holds no asset.
-  const [fundedFor, setFundedFor] = useState<string | null>(null);
+  const [settlementRequest, setSettlementRequest] = useState<SettlementRequest | null>(null);
+  const settlementStatus = useDepositStatus(settlementRequest?.id ?? null, "trade");
 
   const logos = useTokenLogos([{ chain: asset.chain, address: asset.address }]);
   const logo = logos[tokenLogoKey(asset.chain, asset.address)] ?? rwaLogoUrl(asset);
 
   const price = assetPriceUsd(asset);
   const payValue = Number.parseFloat(amount) || 0;
+  // Solana buys start at 2 USDC (lib/trade/minimums); Base keeps the default.
+  const settlesOnSolana = asset.chain === "solana";
+  const minBuyUsd = minimumBuyUsd(settlesOnSolana);
+  const belowMin = isBuy && belowMinimumBuy(payValue, settlesOnSolana);
 
   // A buy always spends USDC. The dollar the user types is the USDC spent;
   // where that USDC currently sits is the panel's problem, not theirs.
@@ -176,107 +191,36 @@ export function RwaTradePanel({
     [portfolio.tokens]
   );
   const onChainUsdc = balanceOf(chainNetwork(asset.chain), "USDC");
-  // Cross-chain funding exists only between Base and Solana; every other
-  // chain spends the USDC it holds.
-  const otherChainUsdc =
-    asset.chain === "solana"
-      ? balanceOf("base-mainnet", "USDC")
-      : asset.chain === "base"
-        ? balanceOf("solana-mainnet", "USDC")
-        : 0;
-  // Everything the buy can draw on, across both live chains. One number,
-  // because the hop between them is automatic and sponsored.
-  const spendableUsd = onChainUsdc + otherChainUsdc;
-
-  // A Solana buy needs USDC (and a one-time wallet setup) on Solana. When the
-  // wallet is short but holds Base USDC, the shortfall moves over as part of
-  // the buy — every leg is sponsored, so it costs nothing extra.
-  const funding = useSolanaFunding();
-  const solanaPlan = useMemo(() => {
-    if (asset.chain !== "solana" || !isBuy) return null;
-    return planSolanaFunding({
-      spendUsdc: payValue,
-      solanaUsdc: balanceOf("solana-mainnet", "USDC"),
-      solanaSol: balanceOf("solana-mainnet", "SOL"),
-      baseUsdc: balanceOf("base-mainnet", "USDC"),
-    });
-  }, [asset.chain, isBuy, payValue, balanceOf]);
-  const baseUsdcBalance = balanceOf("base-mainnet", "USDC");
-  const proceeds = useSolanaProceeds();
-  const solanaUsdcHolding = portfolio.tokens.find(
-    (t) => t.network === "solana-mainnet" && t.symbol.toUpperCase() === "USDC"
+  const baseUsdc = balanceOf("base-mainnet", "USDC");
+  const solanaUsdcRaw = BigInt(
+    portfolio.tokens.find(
+      (token) =>
+        token.network === "solana-mainnet" &&
+        token.address?.toLowerCase() === settlementFor("solana").asset.toLowerCase()
+    )?.rawBalance ?? "0"
   );
-  const solanaUsdcBalance = solanaUsdcHolding?.balance ?? 0;
-
-  // The mirror case: a Base asset while the USDC sits on Solana. Sponsored in
-  // both directions, so it is only a hop, never a gate.
-  const basePlan = useMemo(() => {
-    if (asset.chain !== "base" || !isBuy) return null;
-    return planBaseFunding({
-      spendUsdc: payValue,
-      baseUsdc: balanceOf("base-mainnet", "USDC"),
-      solanaUsdc: balanceOf("solana-mainnet", "USDC"),
-      solanaSol: balanceOf("solana-mainnet", "SOL"),
-    });
-  }, [asset.chain, isBuy, payValue, balanceOf]);
-
-  const needsFunding = (solanaPlan != null || basePlan != null) && payValue > 0;
-  const canFund =
-    solanaPlan != null ? planAffordable(solanaPlan, baseUsdcBalance) : basePlan != null;
-
-  // The exact base units to send home, never more than the wallet holds.
-  const bridgeHomeRaw = bridgeHomeUnits(basePlan?.bridgeUsdc, solanaUsdcHolding?.rawBalance);
-
-  // Funding cannot go further but the wallet does hold something spendable on
-  // the asset's chain — the state a bridge that delivered less than it quoted
-  // leaves behind. Offering the landed balance is the way out.
-  const alreadyFunded = fundedFor !== null && fundedFor === amount;
-  const offerSpendable =
-    needsFunding &&
-    solanaPlan != null &&
-    (!canFund || alreadyFunded) &&
-    onChainUsdc > 0 &&
-    onChainUsdc < payValue &&
-    !funding.busy;
-
-  // Nothing anywhere to buy with: the deposit flow is the only way forward.
+  // Solana assets can be funded only from Base USDC. The transfer is a strict
+  // Dextopus request that lands in the user's Solana wallet before the RWA
+  // trade is built and sponsored.
+  const spendableUsd = asset.chain === "solana" ? onChainUsdc + baseUsdc : onChainUsdc;
   const walletEmpty = isBuy && !portfolio.loading && !portfolio.error && spendableUsd <= 0;
-
-  // Every step of the run, so a stall is attributable to a named leg rather
-  // than to a spinner that only said "working". The purchase closes the list.
-  const fundingSteps = funding.steps;
-  const progressSteps = useMemo<ProgressStep[]>(() => {
-    if (fundingSteps.length === 0 && phase !== "confirming") return [];
-    const detailFor = (p: (typeof fundingSteps)[number]["phase"]) =>
-      p === "quoting"
-        ? t("stepQuoting")
-        : p === "signing"
-          ? t("stepSigning")
-          : p === "settling"
-            ? t("stepSettling")
-            : undefined;
-    const legs: ProgressStep[] = fundingSteps.map((s, i) => ({
-      id: `${s.kind}-${i}`,
-      label:
-        s.kind === "gas"
-          ? t("stepGas", { amount: formatUsd(s.usdc) })
-          : t("stepBridge", { amount: formatUsd(s.usdc) }),
-      detail: s.status === "active" ? detailFor(s.phase) : undefined,
-      status: s.status,
-    }));
-    const buying = phase === "confirming";
-    return [
-      ...legs,
-      {
-        id: "trade",
-        label: isBuy
-          ? t("stepBuy", { symbol: asset.symbol })
-          : t("sellSymbol", { symbol: asset.symbol }),
-        detail: buying ? (signStep?.label ?? t("stepBuilding")) : undefined,
-        status: phase === "done" ? "done" : buying ? "active" : "pending",
-      },
-    ];
-  }, [fundingSteps, signStep, phase, asset.symbol, isBuy, t]);
+  const solanaFundingShortfall = Math.max(0, payValue - onChainUsdc);
+  // Dextopus must receive at least the configured Solana buy floor. If a small
+  // shortfall remains, fund that floor and retain the rest for the next buy.
+  const solanaFundingAmount = Math.max(minBuyUsd, solanaFundingShortfall);
+  const needsBaseToSolanaFunding =
+    isBuy && asset.chain === "solana" && payValue > 0 && solanaFundingShortfall > 1e-6;
+  const canFundSolana = baseUsdc + 1e-6 >= solanaFundingAmount;
+  const settlementProgress = settlementStatus.data
+    ? depositProgress(settlementStatus.data.status, settlementStatus.data.executionStatus)
+    : null;
+  const settlementBusy =
+    routeQuotePending ||
+    routeSendPending ||
+    // A request is still pending while the first status fetch is in flight.
+    // Otherwise a click between wallet confirmation and the first poll could
+    // create a duplicate Base-USDC transfer.
+    (settlementRequest !== null && (settlementProgress === null || !settlementProgress.terminal));
 
   // Sell side: the held RWA, which carries the exact on-chain decimals we need
   // to size the input. Absent when the chain isn't indexed or nothing is held.
@@ -287,11 +231,6 @@ export function RwaTradePanel({
   const sellBalance = holding?.balance ?? 0;
   const sellRaw = holding?.rawBalance ?? null;
   const sellDecimals = holding?.decimals ?? null;
-
-  // Solana buys start at 2 USDC (lib/trade/minimums); Base keeps the default.
-  const settlesOnSolana = asset.chain === "solana";
-  const minBuyUsd = minimumBuyUsd(settlesOnSolana);
-  const belowMin = isBuy && belowMinimumBuy(payValue, settlesOnSolana);
 
   const overBalance = isBuy
     ? payValue > 0 && spendableUsd > 0 && payValue > spendableUsd + 1e-6
@@ -319,37 +258,39 @@ export function RwaTradePanel({
   const quotedAtRef = useRef(0);
 
   const runQuote = useCallback(
-    async (value: string) => {
+    async (value: string): Promise<RwaQuote | null> => {
       const num = Number.parseFloat(value);
       const req = buildReq(value);
-      if (!(num > 0) || !req) return;
+      if (!(num > 0) || !req) return null;
       // Under the floor there is nothing to price: the button says the minimum.
       if (isBuy && belowMinimumBuy(num, asset.chain === "solana")) {
         setQuote(null);
         setPhase("idle");
-        return;
+        return null;
       }
       const seq = ++quoteSeqRef.current;
       setPhase("quoting");
       setNotice(null);
       try {
         const res = await withTransientRetry(() => quoteAsync(req));
-        if (seq !== quoteSeqRef.current) return;
+        if (seq !== quoteSeqRef.current) return null;
         if (!res.best) {
           setQuote(null);
           setPhase("idle");
           setNotice({ kind: "error", message: rwaErrorInfo("NO_ROUTE").message });
-          return;
+          return null;
         }
         quotedAtRef.current = Date.now();
         setQuote(res.best);
         setPhase("quoted");
+        return res.best;
       } catch (e) {
-        if (seq !== quoteSeqRef.current) return;
+        if (seq !== quoteSeqRef.current) return null;
         const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
         setQuote(null);
         setPhase("idle");
         setNotice({ kind: "error", message: info.message });
+        return null;
       }
     },
     [quoteAsync, buildReq, isBuy, asset.chain]
@@ -373,21 +314,27 @@ export function RwaTradePanel({
   // reschedules it, so a background portfolio refetch never re-quotes.
   useEffect(() => {
     const num = Number.parseFloat(amount);
-    if (!(num > 0) || !quoteSig) return;
+    if (!(num > 0) || !quoteSig || (isBuy && belowMinimumBuy(num, asset.chain === "solana"))) {
+      return;
+    }
     const timer = setTimeout(() => {
       void runQuoteRef.current(amount);
     }, 700);
     return () => clearTimeout(timer);
-  }, [amount, quoteSig]);
+  }, [amount, quoteSig, isBuy, asset.chain]);
 
   const onInput = (value: string) => {
     if (!DECIMAL_INPUT.test(value)) return;
     quoteSeqRef.current++;
     setAmount(value);
-    setFundedFor(null);
     const num = Number.parseFloat(value);
-    if (num > 0) {
+    if (isBuy && belowMinimumBuy(num, asset.chain === "solana")) {
+      setPhase("idle");
+      setQuote(null);
+      setNotice(null);
+    } else if (num > 0) {
       setPhase("quoting");
+      setNotice(null);
     } else {
       setPhase("idle");
       setQuote(null);
@@ -402,9 +349,7 @@ export function RwaTradePanel({
     setQuote(null);
     setNotice(null);
     setSignStep(null);
-    funding.reset();
-    proceeds.reset();
-    setFundedFor(null);
+    setSettlementRequest(null);
   };
 
   const fillSellPct = (pct: number) => {
@@ -421,15 +366,72 @@ export function RwaTradePanel({
     onInput((Math.floor(spendableUsd * 100) / 100).toFixed(2));
   };
 
-  // The trade itself. Split from the confirm handler so funding can run
-  // straight into it: the build re-prices server-side, so the staleness gate
-  // is about what the USER last saw, and a purchase they already committed to
-  // by funding must not stop to ask again.
+  // The trade itself. The build re-prices server-side, while the staleness
+  // gate ensures the user never executes against an old displayed quote.
   useEffect(() => {
     track("market_viewed", { vertical: "real_asset", asset: asset.symbol });
   }, [asset.symbol]);
 
-  const executeTrade = async () => {
+  // Refresh the portfolio as the Dextopus request advances. These reads use
+  // `fresh=1`, so the Base debit and Solana/Base credit show in the UI without
+  // waiting for the ordinary portfolio polling cadence.
+  const settlementStage = settlementProgress?.stage;
+  useEffect(() => {
+    if (!settlementRequest || !settlementStatus.data || settlementProgress?.terminal) return;
+    void refreshPortfolio();
+  }, [refreshPortfolio, settlementProgress?.terminal, settlementRequest, settlementStatus.data]);
+
+  const handledSettlementRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (
+      !settlementRequest ||
+      !settlementStage ||
+      handledSettlementRef.current === settlementRequest.id
+    ) {
+      return;
+    }
+
+    if (settlementStage === "settled") {
+      // Base-to-Solana purchases are owned by the dashboard-level settlement
+      // worker. It survives this sheet closing and completes the sponsored RWA
+      // transaction without exposing a second bridge step to the user.
+      if (settlementRequest.direction === "base-to-solana") return;
+      handledSettlementRef.current = settlementRequest.id;
+      void (async () => {
+        clearPendingRwaSettlement(settlementRequest.id);
+        await refreshPortfolio();
+        // A terminal Dextopus status can arrive just before Alchemy indexes
+        // the destination token account. Keep reconciling in the background so
+        // the visible balance catches up without a page refresh.
+        void portfolio.refetchUntilChanged();
+        setSettlementRequest(null);
+        setSignStep(null);
+        setPhase("done");
+        setNotice({ kind: "info", message: t("proceedsBaseReady") });
+      })();
+      return;
+    }
+
+    if (settlementStage === "failed" || settlementStage === "refunded") {
+      handledSettlementRef.current = settlementRequest.id;
+      void (async () => {
+        // Keep terminal state changes out of the polling effect's synchronous
+        // execution, matching the settled-path handling above.
+        await Promise.resolve();
+        clearPendingRwaSettlement(settlementRequest.id);
+        setSettlementRequest(null);
+        if (settlementRequest.direction === "base-to-solana") {
+          setNotice({ kind: "error", message: t("fundSolanaFailed") });
+        } else {
+          setSignStep(null);
+          setPhase("done");
+          setNotice({ kind: "error", message: t("proceedsBaseFailed") });
+        }
+      })();
+    }
+  }, [amount, portfolio, refreshPortfolio, settlementRequest, settlementStage, t]);
+
+  async function executeTrade() {
     const req = buildReq(amount);
     if (!req) return;
 
@@ -470,10 +472,50 @@ export function RwaTradePanel({
         ? t("buyingSymbol", { symbol: asset.symbol })
         : t("sellingSymbol", { symbol: asset.symbol })
     );
+    let saleHandoffId: string | null = null;
     try {
       // Real execution needs an executable action. Asking the backend for a
       // simulated build here can produce a non-submittable Solana transaction.
-      const action = await withTransientRetry(() => buildAsync({ ...req, taker }));
+      const action = await withTransientRetry(() =>
+        buildAsync({
+          ...req,
+          taker,
+          simulate: asset.chain === "solana" ? false : undefined,
+        })
+      );
+      if (!isBuy && asset.chain === "solana") {
+        const minimumProceedsRaw = positiveBaseUnits(
+          action.quote?.output.amountMin ??
+            action.quote?.output.amount ??
+            quote?.output.amountMin ??
+            quote?.output.amount
+        );
+        const expectedProceedsRaw = positiveBaseUnits(
+          action.quote?.output.amount ??
+            action.quote?.output.amountMin ??
+            quote?.output.amount ??
+            quote?.output.amountMin
+        );
+        if (!minimumProceedsRaw || !expectedProceedsRaw) {
+          throw new Error("The sale quote is missing its USDC proceeds.");
+        }
+        saleHandoffId = `rwa-sale:${crypto.randomUUID()}`;
+        savePendingRwaSettlement({
+          requestId: saleHandoffId,
+          direction: "solana-to-base",
+          assetSymbol: asset.symbol,
+          createdAt: Date.now(),
+          sale: {
+            startingUsdcRaw: solanaUsdcRaw.toString(),
+            minimumProceedsRaw: minimumProceedsRaw.toString(),
+            expectedProceedsRaw: (expectedProceedsRaw < minimumProceedsRaw
+              ? minimumProceedsRaw
+              : expectedProceedsRaw
+            ).toString(),
+            slippageBps: SLIPPAGE_BPS,
+          },
+        });
+      }
       await execute(action, asset.chain, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });
@@ -491,10 +533,20 @@ export function RwaTradePanel({
         { id: toastId }
       );
       setSignStep(null);
+
+      if (saleHandoffId) {
+        setPhase("done");
+        setNotice({ kind: "info", message: t("proceedsBaseWorking") });
+        void portfolio.refetchUntilChanged();
+        onContinueInBackground?.();
+        return;
+      }
+
       setPhase("done");
       // Not awaited: the trade is settled and the user should see that now.
       void portfolio.refetchUntilChanged();
     } catch (e) {
+      if (saleHandoffId) clearPendingRwaSettlement(saleHandoffId);
       const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
       // The provider's own code, which is already a coded string. The raw
       // message is never sent: it can quote back what the user typed.
@@ -509,52 +561,73 @@ export function RwaTradePanel({
       setPhase("quoted");
       if (info.requote) void runQuote(amount);
     }
-  };
+  }
 
-  // One button does the whole run: move whatever needs moving, then trade.
-  // Stopping between the two is how one purchase became two bridges and no
-  // trade, so the legs chain without asking again.
   const confirmTrade = async () => {
     if (!quote || overBalance) return;
+    if (needsBaseToSolanaFunding) {
+      if (!canFundSolana) {
+        setNotice({
+          kind: "error",
+          message: t("fundSolanaShortBody", { amount: formatUsd(solanaFundingAmount) }),
+        });
+        return;
+      }
+
+      const baseWallet = getWalletAddress(user, "ethereum");
+      const solanaWallet = getWalletAddress(user, "solana");
+      if (!baseWallet || !solanaWallet) {
+        setNotice({ kind: "error", message: t("connectWallet") });
+        return;
+      }
+
+      try {
+        setNotice({ kind: "info", message: t("fundSolanaWorking") });
+        const base = settlementFor("ethereum");
+        const solana = settlementFor("solana");
+        const result = await routeUsdc({
+          originNetwork: "base-mainnet",
+          originChainId: base.chainId,
+          originTokenAddress: base.asset,
+          originDecimals: base.decimals,
+          destinationChainId: solana.chainId,
+          destinationAsset: solana.asset,
+          to: solanaWallet,
+          amount: toBaseUnits(solanaFundingAmount.toFixed(6), base.decimals),
+          refundTo: baseWallet,
+        });
+        savePendingRwaSettlement({
+          requestId: result.depositRequestId,
+          direction: "base-to-solana",
+          assetSymbol: asset.symbol,
+          createdAt: Date.now(),
+          purchase: {
+            assetAddress: asset.address,
+            assetSymbol: asset.symbol,
+            amountInRaw: toBaseUnits(amount, solana.decimals).toString(),
+            startingUsdcRaw: solanaUsdcRaw.toString(),
+            minimumDeliveryRaw: result.minAmountOut,
+            slippageBps: SLIPPAGE_BPS,
+          },
+        });
+        setSettlementRequest({ id: result.depositRequestId, direction: "base-to-solana" });
+        toast.success(t("purchaseInitiated", { symbol: asset.symbol }));
+        onContinueInBackground?.();
+      } catch (error) {
+        setNotice({
+          kind: "error",
+          message: error instanceof Error ? error.message : t("fundSolanaFailed"),
+        });
+      }
+      return;
+    }
     if (quoteIsStale(quotedAtRef.current)) {
       void runQuote(amount);
       setNotice({ kind: "info", message: rwaErrorInfo("QUOTE_EXPIRED").message });
       return;
     }
-    if (isBuy && solanaPlan && !alreadyFunded) {
-      if (!canFund) return;
-      setFundedFor(amount);
-      const funded = await funding.fund(solanaPlan);
-      if (!funded) return;
-      // The buy is sized and simulated against the arrived balance, so it
-      // cannot run until the balance index reflects it.
-      await portfolio.refetchUntilChanged();
-      await executeTrade();
-      return;
-    }
-    if (isBuy && basePlan) {
-      const ok = await proceeds.bringHome(bridgeHomeRaw);
-      if (!ok) return;
-      await portfolio.refetchUntilChanged();
-      await executeTrade();
-      return;
-    }
     await executeTrade();
   };
-
-  // After selling a Solana asset the proceeds are USDC on Solana; the rest of
-  // the account lives on Base, so they come home on their own — sponsored, no
-  // tap needed. The sheet's "settles to USDC on Base" promise is kept here.
-  const autoProceedsRef = useRef(false);
-  const showProceeds =
-    phase === "done" && !isBuy && asset.chain === "solana" && solanaUsdcBalance > 0;
-  useEffect(() => {
-    if (!showProceeds || autoProceedsRef.current || proceeds.busy || proceeds.phase !== "idle") {
-      return;
-    }
-    autoProceedsRef.current = true;
-    void proceeds.bringHome(solanaUsdcHolding?.rawBalance ?? "0");
-  }, [showProceeds, proceeds, solanaUsdcHolding?.rawBalance]);
 
   if (isIssuerAccess(asset)) {
     return <RwaIssuerCard asset={asset} />;
@@ -567,14 +640,14 @@ export function RwaTradePanel({
     quoteReceive ??
     (isBuy ? estimateReceiveTokens(usdValue, price) : estimateReceiveUsdc(payValue, price));
   const confirming = phase === "confirming";
-  const busy = confirming || funding.busy || proceeds.busy;
+  const busy = confirming || settlementBusy;
   const canConfirm =
     phase === "quoted" &&
     quote != null &&
     !busy &&
     !overBalance &&
     !belowMin &&
-    (!isBuy || !needsFunding || (canFund && !alreadyFunded) || basePlan != null);
+    (!needsBaseToSolanaFunding || canFundSolana);
 
   const sellBlockedMessage = !sellable
     ? t("sellChains")
@@ -624,33 +697,6 @@ export function RwaTradePanel({
           <p className="mx-auto mt-1.5 max-w-[34ch] text-[12.5px] font-normal text-white/55">
             {isBuy ? t("buySettled", { name: asset.name }) : t("sellSettled", { name: asset.name })}
           </p>
-          {showProceeds ? (
-            <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3 text-left">
-              <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
-                {proceeds.phase === "done"
-                  ? t("proceedsDone")
-                  : t("proceedsTitle", { amount: formatUsd(solanaUsdcBalance) })}
-              </div>
-              {proceeds.phase !== "done" ? (
-                <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
-                  {t("proceedsBody")}
-                </p>
-              ) : null}
-              {proceeds.error ? (
-                <>
-                  <p className="text-down mt-1.5 text-[11.5px] font-normal">{proceeds.error}</p>
-                  <button
-                    onClick={() => void proceeds.bringHome(solanaUsdcHolding?.rawBalance ?? "0")}
-                    disabled={proceeds.busy}
-                    className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {t("proceedsCta")}
-                  </button>
-                </>
-              ) : null}
-            </div>
-          ) : null}
-
           <button
             onClick={reset}
             className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-[13px] font-sans text-[14px] font-semibold hover:opacity-90"
@@ -749,13 +795,6 @@ export function RwaTradePanel({
               {notice.message}
             </div>
           ) : null}
-          {funding.error ? (
-            <p className="text-down mt-3 text-[12.5px] font-normal">{funding.error}</p>
-          ) : null}
-          {proceeds.error && isBuy ? (
-            <p className="text-down mt-3 text-[12.5px] font-normal">{proceeds.error}</p>
-          ) : null}
-
           {walletEmpty ? (
             <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3">
               <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
@@ -773,38 +812,39 @@ export function RwaTradePanel({
                 </button>
               ) : null}
             </div>
-          ) : isBuy && needsFunding && solanaPlan && !canFund && !offerSpendable && !busy ? (
+          ) : needsBaseToSolanaFunding && !canFundSolana ? (
             <div className="mt-3.5 rounded-[12px] border border-white/12 bg-white/5 p-3">
               <div className="text-[12.5px] leading-[1.5] font-medium text-white/80">
                 {t("fundSolanaShort")}
               </div>
               <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
-                {t("fundSolanaShortBody", { amount: formatUsd(solanaPlan.totalBaseUsdc) })}
+                {t("fundSolanaShortBody", { amount: formatUsd(solanaFundingAmount) })}
               </p>
-              {onAddFunds ? (
-                <button
-                  onClick={onAddFunds}
-                  className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
-                >
-                  {t("addFunds")}
-                </button>
-              ) : null}
             </div>
-          ) : offerSpendable ? (
-            /* A bridge can deliver less than it quoted. Rather than strand the
-               buy behind a top-up the wallet can no longer afford, offer to
-               spend exactly what landed. */
-            <button
-              onClick={() => onInput((Math.floor(onChainUsdc * 1e6) / 1e6).toFixed(6))}
-              className="text-ink mt-3.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
-            >
-              {t("useLandedBalance", { amount: formatUsd(onChainUsdc) })}
-            </button>
           ) : null}
 
-          {progressSteps.length > 0 && busy ? (
-            <div className="ws-inset mt-3.5 p-3">
-              <RwaProgress steps={progressSteps} />
+          {settlementRequest ? (
+            <div className="mt-3.5 rounded-[12px] border border-amber-400/30 bg-amber-400/10 p-3">
+              <div className="text-[12.5px] leading-[1.5] font-medium text-amber-200">
+                {settlementProgress?.label ??
+                  (settlementRequest.direction === "base-to-solana"
+                    ? t("fundSolanaWorking")
+                    : t("proceedsBaseWorking"))}
+              </div>
+              <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/60">
+                {settlementRequest.direction === "base-to-solana"
+                  ? t("fundSolanaStatus")
+                  : t("proceedsBaseStatus")}
+              </p>
+              {onContinueInBackground ? (
+                <button
+                  type="button"
+                  onClick={onContinueInBackground}
+                  className="mt-3 cursor-pointer rounded-[9px] border border-amber-200/25 px-2.5 py-1.5 text-[11.5px] font-semibold text-amber-100 hover:bg-amber-100/10"
+                >
+                  {t("continueInBackground")}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -815,22 +855,26 @@ export function RwaTradePanel({
               className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy
-                ? signStep
-                  ? t("signingStep", { current: signStep.index + 1, total: signStep.total })
-                  : funding.busy || proceeds.busy
-                    ? t("fundSolanaWorking")
+                ? settlementBusy
+                  ? settlementRequest?.direction === "solana-to-base"
+                    ? t("proceedsBaseWorking")
+                    : t("fundSolanaWorking")
+                  : signStep
+                    ? t("signingStep", { current: signStep.index + 1, total: signStep.total })
                     : t("buildingOrder")
                 : belowMin
                   ? tBuySell("minimumUsd", { amount: minBuyUsd })
                   : overBalance
                     ? tBuySell("notEnoughBalance")
-                    : phase === "quoting"
-                      ? t("fetchingBestPrice")
-                      : quote
-                        ? isBuy
-                          ? t("buySymbol", { symbol: asset.symbol })
-                          : t("sellSymbol", { symbol: asset.symbol })
-                        : t("enterAmount")}
+                    : needsBaseToSolanaFunding
+                      ? t("buySymbol", { symbol: asset.symbol })
+                      : phase === "quoting"
+                        ? t("fetchingBestPrice")
+                        : quote
+                          ? isBuy
+                            ? t("buySymbol", { symbol: asset.symbol })
+                            : t("sellSymbol", { symbol: asset.symbol })
+                          : t("enterAmount")}
             </button>
           ) : null}
         </>

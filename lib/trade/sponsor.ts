@@ -111,13 +111,15 @@ export async function sendSponsoredEvmCalls({
   // The bundler client reads through `client` (fast node) and submits the userOp
   // through `transport` (bundler proxy) — the split that keeps eth_getCode off
   // the bundler endpoint.
+  // This policy is a Bundler Sponsored Operations policy, not an onchain
+  // paymaster. The proxy adds its policy header only when the userOp is sent.
   const bundlerClient = createBundlerClient({ account, client, chain: target.chain, transport });
 
   const hash = await bundlerClient.sendUserOperation({
     calls,
     authorization,
-    // The bundler fills these in for a sponsored operation; a non-zero value
-    // here is what Alchemy's bundler-level sponsorship rejects.
+    // These zero values are Alchemy's BSO signal. The bundler estimates and
+    // fills the actual sponsored gas values before inclusion.
     maxFeePerGas: 0n,
     maxPriorityFeePerGas: 0n,
     preVerificationGas: 0n,

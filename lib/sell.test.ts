@@ -34,8 +34,7 @@ describe("canSellAsset", () => {
     expect(canSellAsset("eth-mainnet", null)).toBe(true);
     expect(canSellAsset("arb-mainnet", null)).toBe(true);
     expect(canSellAsset("polygon-mainnet", null)).toBe(false);
-    // Native SOL prefers a direct sponsored Dextopus deposit and falls back to
-    // LI.FI only when the amount is below the primary route's minimum.
+    // Native SOL uses a direct sponsored Dextopus deposit.
     expect(canSellAsset("solana-mainnet", null)).toBe(true);
   });
 

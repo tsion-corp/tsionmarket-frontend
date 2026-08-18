@@ -50,8 +50,7 @@ const NATIVE_ETH_CHAINS = new Set(["base-mainnet", "eth-mainnet", "arb-mainnet",
 
 // Whether a specific held asset can be sold. A token (has an address) is assumed
 // sellable and the quote is the final authority. A native balance is sellable
-// where the native token is ETH (a direct Dextopus origin) and on Solana,
-// whose sells prefer Dextopus and retain LI.FI as a small/no-route fallback.
+// where the native token is ETH (a direct Dextopus origin) and on Solana.
 export function canSellAsset(network: string, address: string | null): boolean {
   if (!canSell(network)) return false;
   if (address === null) return NATIVE_ETH_CHAINS.has(network) || network === "solana-mainnet";
@@ -91,9 +90,8 @@ export function buildSellQuoteBody(input: SellQuoteInput) {
 
 export type SellQuoteFailure = "minimum" | "no-route" | "provider";
 
-// Preserve why Dextopus rejected a quote. Solana sells may safely fall back to
-// LI.FI only when the provider explicitly has no route or the amount is below
-// its minimum; auth, rate-limit, and server failures must remain visible.
+// Preserve why Dextopus rejected a quote so the UI can distinguish an amount
+// minimum from a route or provider failure without trying a second provider.
 export class SellQuoteError extends Error {
   readonly status: number;
   readonly reason: SellQuoteFailure;
@@ -149,12 +147,6 @@ export function classifySellQuoteFailure(message: string): SellQuoteFailure {
     return "no-route";
   }
   return "provider";
-}
-
-export function shouldFallbackFromSellQuote(error: unknown): boolean {
-  return (
-    error instanceof SellQuoteError && (error.reason === "minimum" || error.reason === "no-route")
-  );
 }
 
 export async function fetchSellQuote(input: SellQuoteInput): Promise<BuyQuote> {

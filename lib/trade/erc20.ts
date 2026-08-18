@@ -6,7 +6,7 @@
 const APPROVE_SELECTOR = "095ea7b3";
 const ALLOWANCE_SELECTOR = "dd62ed3e";
 
-// Sentinel LI.FI and most aggregators use for a chain's native asset.
+// Sentinel most EVM aggregators use for a chain's native asset.
 export const NATIVE_TOKEN_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 function cleanAddress(address: string): string {
