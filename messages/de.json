@@ -2125,7 +2125,7 @@
     "buy": "Kaufen",
     "convert": "Umwandeln",
     "gateTitle": "Fortschritt zum Verdienen",
-    "gateHint": "Kaufen Sie noch {shortfall} KASH, um Belohnungen für Ihre Aktivität zu verdienen.",
+    "gateHint": "Halten Sie KASH im Wert von ${usd}, um zu verdienen. Noch etwa {shortfall} KASH.",
     "buyTitle": "Kash + kaufen",
     "buySubtitle": "Halten Sie Kash +, um bei jedem Trade, Spiel und jeder Empfehlung Belohnungen zu verdienen.",
     "amountUsdc": "Betrag (USD)",
@@ -2230,7 +2230,10 @@
     "insufficientUsd": "Du hast ${balance} verfügbar. Lade Guthaben auf oder wähle einen kleineren Betrag.",
     "tierUnaffordable": "Zu wenig",
     "comingSoon": "Bald verfügbar",
-    "comingSoonToast": "Kash kommt bald. Kaufen, Verdienen und Umwandeln öffnen in Kürze."
+    "comingSoonToast": "Kash kommt bald. Kaufen, Verdienen und Umwandeln öffnen in Kürze.",
+    "redeemReserve": "Einlösereserve",
+    "reserveCannotCover": "Die Einlösereserve kann diesen Betrag gerade nicht decken. Versuchen Sie einen kleineren Betrag oder schauen Sie bald wieder vorbei.",
+    "buyingPaused": "Der Kauf ist derzeit pausiert. Schauen Sie bald wieder vorbei."
   },
   "activity": {
     "eyebrow": "Aktivität",

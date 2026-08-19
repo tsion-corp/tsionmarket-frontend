@@ -2125,7 +2125,7 @@
     "buy": "Comprar",
     "convert": "Convertir",
     "gateTitle": "Progreso para ganar",
-    "gateHint": "Compra {shortfall} KASH más para empezar a ganar recompensas por tu actividad.",
+    "gateHint": "Mantén ${usd} en KASH para empezar a ganar. Te faltan unos {shortfall} KASH.",
     "buyTitle": "Comprar Kash +",
     "buySubtitle": "Mantén Kash + para ganar recompensas en cada operación, juego y referido.",
     "amountUsdc": "Importe (USD)",
@@ -2230,7 +2230,10 @@
     "insufficientUsd": "Tienes ${balance} disponibles. Añade fondos o prueba con un importe menor.",
     "tierUnaffordable": "Insuficiente",
     "comingSoon": "Próximamente",
-    "comingSoonToast": "Kash llega pronto. Comprar, ganar y convertir se abrirán en breve."
+    "comingSoonToast": "Kash llega pronto. Comprar, ganar y convertir se abrirán en breve.",
+    "redeemReserve": "Reserva de canje",
+    "reserveCannotCover": "La reserva de canje no puede cubrir esta cantidad ahora mismo. Prueba con una cantidad menor o vuelve pronto.",
+    "buyingPaused": "La compra está pausada por ahora. Vuelve pronto."
   },
   "activity": {
     "eyebrow": "Actividad",

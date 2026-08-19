@@ -23,6 +23,11 @@ const PUBLIC_GET_PATHS = new Set([
   "activities/quote",
   "conversions/quote",
   "subscriptions/tiers",
+  // On-chain desk reads: contract addresses, price, pause state, reserve, and
+  // the two quotes. All wallet-free.
+  "desk",
+  "desk/buy/quote",
+  "desk/sell/quote",
 ]);
 
 // Wallet-free but variable paths: weekly settlement summaries, keyed by week.
@@ -38,11 +43,18 @@ function isPublicGet(path: string[]): boolean {
 // wallet-scoped write like any other — the ownership check below is what stops
 // one user claiming another's. The operator's whole-week `settlements/run` is
 // deliberately NOT here: it prices every wallet at once and needs the admin key.
+// The desk prepare/tx endpoints return an EIP-712 payload for the named
+// wallet to sign and the transaction it submits; binding them to the session
+// wallet keeps one user from building payloads against another's nonces.
 const WALLET_POST_PATHS = new Set([
   "purchases",
   "conversions",
   "subscriptions",
   "settlements/claim",
+  "desk/buy/prepare",
+  "desk/buy/tx",
+  "desk/sell/prepare",
+  "desk/sell/tx",
 ]);
 
 // Short cache so concurrent polls for the same public path collapse into one

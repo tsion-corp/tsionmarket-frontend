@@ -14,6 +14,11 @@ import {
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
 import {
+  useKashDeskBuy,
+  useKashDeskBuyQuote,
+  useKashDeskInfo,
+} from "@/features/portfolio/hooks/use-kash-desk";
+import {
   compactAmountLabel,
   formatUsdMicro,
   isValidKashAmount,
@@ -59,13 +64,27 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   const sendEvm = useEvmSend();
 
   const { data: status } = useKashStatus();
-  const quote = useKashPurchaseQuote(amount);
+  // The on-chain desks supersede the engine's purchase flow whenever they are
+  // configured: one signature buys through KashSale (USDC permit + mint in a
+  // single transaction) instead of the transfer-then-verify two-step. A 503
+  // from /desk means no desks — the legacy flow below applies untouched.
+  const deskInfo = useKashDeskInfo(status?.chainMode === "ethers");
+  // Configured-but-paused is a halt, not a reason to fall back: the legacy
+  // engine path would sidestep an intentional stop. Legacy applies only when
+  // no desks exist at all.
+  const deskConfigured = Boolean(deskInfo.data);
+  const deskPaused = deskConfigured && deskInfo.data?.paused.sale === true;
+  const deskLive = deskConfigured && !deskPaused;
+  const deskQuote = useKashDeskBuyQuote(amount, deskLive);
+  const deskBuy = useKashDeskBuy();
+  const quote = useKashPurchaseQuote(amount, !deskConfigured);
   const purchase = useKashPurchase();
 
   // In real-USDC mode the buyer pays on-chain first and the engine verifies
   // that transfer. It can only be built if the engine told us WHERE to pay, so
   // a missing paymentAddress — not the mode itself — is what disables buying.
-  const needsPayment = status?.treasury.usdcMode === "ethers";
+  // With a live desk neither leg applies: the desk collects payment itself.
+  const needsPayment = !deskConfigured && status?.treasury.usdcMode === "ethers";
   const paymentAddress = status?.chain?.paymentAddress;
   const paymentUnsupported = needsPayment && !paymentAddress;
 
@@ -87,8 +106,22 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   const affordable =
     balanceMicro === null || wantedMicro === null ? true : wantedMicro <= balanceMicro;
 
-  const busy = purchase.isPending || paying;
-  const canSubmit = Boolean(wallet) && valid && affordable && !paymentUnsupported && !busy;
+  const busy = purchase.isPending || paying || deskBuy.isPending;
+  const canSubmit =
+    Boolean(wallet) && valid && affordable && !paymentUnsupported && !deskPaused && !busy;
+
+  // One display source for the quote panel, whichever flow is live. The desk
+  // charges no separate fee (the posted price is the whole deal), and the gate
+  // check is a plain dollar comparison because the gate is USD-denominated.
+  const shownKash = deskLive ? deskQuote.data?.kashOut : quote.data?.kashReceived;
+  const shownPrice = deskLive ? deskInfo.data?.priceUsd : quote.data?.kashPriceUsd;
+  const quoteFetching = deskLive ? deskQuote.isFetching : quote.isFetching;
+  const quoteError = deskLive ? deskQuote.isError : quote.isError;
+  const meetsGate = deskLive
+    ? status && valid
+      ? Number(amount) >= status.gate.minHoldingUsd
+      : undefined
+    : quote.data?.meetsHoldingGate;
 
   const close = () => {
     setDone(null);
@@ -98,6 +131,22 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
 
   const submit = async () => {
     if (!wallet || !canSubmit) return;
+
+    // Desk flow: one permit signature, one transaction. USDC leaves the
+    // wallet and freshly minted KASH+ arrives atomically — there is no
+    // separate payment to hold for retry.
+    if (deskLive) {
+      try {
+        const result = await deskBuy.mutateAsync({ wallet, usdcAmount: amount });
+        const kashOut = deskQuote.data?.kashOut ?? "";
+        track("kash_bought", { amount_usd: Number(amount), kash_amount: Number(kashOut) });
+        setDone({ kash: kashOut, usdc: amount, txHash: result.txHash });
+      } catch (error) {
+        toast.error(friendlyError(error, t("buyFailed")));
+      }
+      return;
+    }
+
     try {
       // The buyer signs the USDC transfer themselves — the engine requires
       // `from == wallet`, so a payment made on their behalf is rejected.
@@ -208,16 +257,22 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
               <div className="flex items-center justify-between text-[13px]">
                 <span className="font-normal text-white/55">{t("youReceive")}</span>
                 <span className="tnum font-semibold text-amber-200">
-                  {quote.data ? `${quote.data.kashReceived} KASH` : quote.isFetching ? "…" : "–"}
+                  {/* Ticker symbols are not translated; the desk trades the
+                      display-renamed KASH+ while the legacy engine says KASH. */}
+                  {shownKash
+                    ? `${shownKash} ${deskLive ? "KASH+" : "KASH"}`
+                    : quoteFetching
+                      ? "…"
+                      : "–"}
                 </span>
               </div>
               <div className="mt-1.5 flex items-center justify-between text-[12px]">
                 <span className="font-normal text-white/45">{t("pricePerKash")}</span>
                 <span className="tnum text-white/60">
-                  {quote.data ? `$${quote.data.kashPriceUsd}` : quote.isFetching ? "…" : "–"}
+                  {shownPrice ? `$${shownPrice}` : quoteFetching ? "…" : "–"}
                 </span>
               </div>
-              {quote.data && (
+              {!deskLive && quote.data && (
                 // The buy fee is taken off the amount before any KASH is
                 // priced, so it is charged whether or not it is displayed.
                 // Showing it keeps "you receive" from looking like a bad rate.
@@ -228,14 +283,14 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
                   <span className="tnum text-white/60">${quote.data.feeUsd}</span>
                 </div>
               )}
-              {quote.isError && (
+              {quoteError && (
                 <div className="mt-2 border-t border-white/8 pt-2 text-[12px] font-normal text-amber-200/80">
                   {t("quoteFailed")}
                 </div>
               )}
-              {quote.data && (
+              {meetsGate !== undefined && (
                 <div className="mt-2 border-t border-white/8 pt-2 text-[12px] font-normal">
-                  {quote.data.meetsHoldingGate ? (
+                  {meetsGate ? (
                     <span className="text-up">{t("quoteMeetsGate")}</span>
                   ) : (
                     <span className="text-white/50">{t("quoteBelowGate")}</span>
@@ -252,6 +307,11 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
             {paymentUnsupported && (
               <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
                 {t("buyUnavailableOnchain")}
+              </p>
+            )}
+            {deskPaused && (
+              <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
+                {t("buyingPaused")}
               </p>
             )}
             {!valid && amount.trim() !== "" && (

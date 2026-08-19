@@ -291,7 +291,7 @@ export function KashCard({
               />
             </div>
             <p className="mt-2.5 text-[11.5px] leading-[1.5] font-normal text-white/40">
-              {t("gateHint", { shortfall })}
+              {t("gateHint", { usd: account?.gate.minHoldingUsd ?? "10", shortfall })}
             </p>
           </>
         )}

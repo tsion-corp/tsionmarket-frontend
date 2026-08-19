@@ -16,6 +16,11 @@ import {
 } from "@/features/portfolio/hooks/use-kash";
 import { useKashPermitSigner } from "@/features/portfolio/hooks/use-kash-permit";
 import {
+  useKashDeskInfo,
+  useKashDeskSell,
+  useKashDeskSellQuote,
+} from "@/features/portfolio/hooks/use-kash-desk";
+import {
   compactAmountLabel,
   formatKashAmount,
   isValidKashAmount,
@@ -41,7 +46,20 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
 
   const { data: status } = useKashStatus();
   const { data: account, wallet } = useKashAccount();
-  const quote = useKashConversionQuote(amount);
+  // The redeem desk supersedes the engine conversion whenever it is
+  // configured: one KASH+ permit signature, one on-chain redeemWithPermit, and
+  // the USDC arrives from the public reserve. A 503 from /desk keeps the
+  // legacy engine flow below untouched.
+  const deskInfo = useKashDeskInfo(status?.chainMode === "ethers");
+  // Configured-but-paused is a halt, not a reason to fall back: the legacy
+  // engine path would sidestep an intentional stop. Legacy applies only when
+  // no desks exist at all.
+  const deskConfigured = Boolean(deskInfo.data);
+  const deskPaused = deskConfigured && deskInfo.data?.paused.redeem === true;
+  const deskLive = deskConfigured && !deskPaused;
+  const deskQuote = useKashDeskSellQuote(amount, deskLive);
+  const deskSell = useKashDeskSell();
+  const quote = useKashConversionQuote(amount, !deskConfigured);
   const conversion = useKashConversion();
   const signPermit = useKashPermitSigner();
   const [signing, setSigning] = useState(false);
@@ -50,10 +68,13 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
 
   const convertible = account?.convertible ?? "0";
   const hasConvertible = Number(convertible) > 0;
-  const paused = quote.data?.coverageState === "paused";
+  const paused = deskConfigured ? deskPaused : quote.data?.coverageState === "paused";
+  // The desk refuses a payout its reserve cannot cover; surfacing it before
+  // the signature saves the user signing for a transaction that must revert.
+  const uncovered = deskLive && deskQuote.data?.covered === false;
   const withinBalance = isValidKashAmount(amount) && Number(amount) <= Number(convertible);
-  const busy = conversion.isPending || signing;
-  const canSubmit = Boolean(wallet) && withinBalance && !paused && !busy;
+  const busy = conversion.isPending || signing || deskSell.isPending;
+  const canSubmit = Boolean(wallet) && withinBalance && !paused && !uncovered && !busy;
 
   const close = () => {
     setDone(null);
@@ -72,6 +93,22 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
 
   const submit = async () => {
     if (!wallet || !canSubmit) return;
+
+    // Desk flow: the backend builds the KASH+ permit payload (domain "Kash" —
+    // a subtlety it owns so no client gets it wrong), the wallet signs, and
+    // one transaction burns the KASH+ and pays the USDC.
+    if (deskLive) {
+      try {
+        const result = await deskSell.mutateAsync({ wallet, kashAmount: amount });
+        const usdcOut = deskQuote.data?.usdcOut ?? "";
+        track("kash_sold", { kash_amount: Number(amount), amount_usd: Number(usdcOut) });
+        setDone({ usdc: usdcOut, kash: amount, txHash: result.txHash });
+      } catch (error) {
+        toast.error(friendlyError(error, t("convertFailed")));
+      }
+      return;
+    }
+
     try {
       // On the real chain the burn needs the holder's consent: a free permit
       // signature for exactly this amount. Mock mode skips it, there is no
@@ -193,15 +230,33 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               <div className="flex items-center justify-between text-[13px]">
                 <span className="font-normal text-white/55">{t("youReceiveUsdc")}</span>
                 <span className="tnum font-semibold text-white">
-                  {quote.data ? `$${quote.data.usdcPayout}` : quote.isFetching ? "…" : "–"}
+                  {deskLive
+                    ? deskQuote.data
+                      ? `$${deskQuote.data.usdcOut}`
+                      : deskQuote.isFetching
+                        ? "…"
+                        : "–"
+                    : quote.data
+                      ? `$${quote.data.usdcPayout}`
+                      : quote.isFetching
+                        ? "…"
+                        : "–"}
                 </span>
               </div>
-              {quote.isError && (
+              {(deskLive ? deskQuote.isError : quote.isError) && (
                 <div className="mt-2 border-t border-white/8 pt-2 text-[12px] font-normal text-amber-200/80">
                   {t("quoteFailed")}
                 </div>
               )}
-              {quote.data && (
+              {deskLive && deskQuote.data && (
+                // The reserve is the public backing figure: showing it beside
+                // the payout is the honesty that makes redemption credible.
+                <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                  <span className="font-normal text-white/45">{t("redeemReserve")}</span>
+                  <span className="tnum text-white/60">${deskQuote.data.reserveUsdc}</span>
+                </div>
+              )}
+              {!deskLive && quote.data && (
                 // The fee in dollars, not a discounted unit price: at 0.5% the
                 // two prices differ in the fourth decimal, which reads as a
                 // glitch rather than a charge.
@@ -217,6 +272,11 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
             {paused && (
               <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
                 {t("conversionsPaused")}
+              </p>
+            )}
+            {uncovered && (
+              <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
+                {t("reserveCannotCover")}
               </p>
             )}
             {isValidKashAmount(amount) && !withinBalance && (

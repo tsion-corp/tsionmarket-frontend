@@ -2125,7 +2125,7 @@
     "buy": "Buy",
     "convert": "Convert",
     "gateTitle": "Progress to earning",
-    "gateHint": "Buy {shortfall} more KASH to start earning rewards on your activity.",
+    "gateHint": "Hold ${usd} worth of KASH to start earning. About {shortfall} more KASH.",
     "buyTitle": "Buy Kash +",
     "buySubtitle": "Hold Kash + to earn rewards on every trade, game and referral.",
     "amountUsdc": "Amount (USD)",
@@ -2230,7 +2230,10 @@
     "insufficientUsd": "You have ${balance} available. Add funds or try a smaller amount.",
     "tierUnaffordable": "Not enough",
     "comingSoon": "Coming soon",
-    "comingSoonToast": "Kash is almost here. Buying, earning and converting open soon."
+    "comingSoonToast": "Kash is almost here. Buying, earning and converting open soon.",
+    "redeemReserve": "Redemption reserve",
+    "reserveCannotCover": "The redemption reserve can't cover this amount right now. Try a smaller amount or check back soon.",
+    "buyingPaused": "Buying is paused right now. Check back soon."
   },
   "activity": {
     "eyebrow": "Activity",
