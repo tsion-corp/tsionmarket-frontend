@@ -35,6 +35,7 @@ import {
 import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { rememberRoundLength, secondsUntil } from "@/features/casino/lib/last-standing/clock";
+import { usdToWei } from "@/features/casino/lib/last-standing/stake";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
 import { ShareGame, ShareGameButton } from "@/features/casino/components/last-standing/share-game";
 import type { TokenAmount } from "@/features/casino/lib/vault-api";
@@ -93,6 +94,10 @@ const CALCULATING_MS = 1_200;
 const BLOCK_WATCH_KEYS = [["portfolio"], ["vault-winnings"]] as const;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
+
+// The wall clock, read from inside event handlers. Through a function so the
+// compiler does not take a handler defined in the component for render work.
+const clockNow = () => Date.now();
 
 // Decorative sparkle field drifting behind the arena. Fixed positions/timings
 // keep the layout deterministic — no per-render randomness.
@@ -179,6 +184,8 @@ interface LastStandingSectionProps {
 
 export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandingSectionProps) {
   const t = useTranslations("casino.lastStanding");
+  const tBuySell = useTranslations("buySell");
+  const tBuySellNotEnough = tBuySell("notEnoughBalance");
   const { user } = usePrivy();
   const money = useMoney();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
@@ -372,36 +379,39 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     staleTime: Infinity,
   });
   const split = splitBps.data ?? DEFAULT_SPLIT_BPS;
+  const splitWinnerBps = split.winner;
+  const splitStarterBps = split.starter;
   // The starter is paid a share too, and is often the winner as well.
   const starter = game?.starter ?? null;
   const winnerIsStarter = isSameAddress(revealWinner, starter);
 
   // Starts the end-of-round sequence: suspense now, winner reveal after it.
-  // Stable so the effects below can depend on their real inputs without
-  // re-arming on every render.
-  const beginRoundEnd = useCallback(
-    (winnerAddress: string | null, potAtEndUsd: number) => {
-      roundEndedRef.current = true;
-      winnerAtEndRef.current = winnerAddress;
-      // The winner's share of the pot, not the pot: half, plus the starter's
-      // tenth when the same wallet opened the game. The exact figure lands
-      // with the settlement row and takes over as soon as it does.
-      setRoundPrizeUsd(
-        estimateWinnerPayout(potAtEndUsd, isSameAddress(winnerAddress, starter), split)
-      );
-      setPhase("calculating");
-      // The arena falls silent for the verdict: the loop stops (the next wager
-      // restarts it) and the buzzer-plus-suspense carries the audio instead.
-      stopMusic();
-      playRoundEndSound();
-      setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
-      // Converge immediately: fresh status (pot/timer reset), winners table and
-      // feed, plus the balance — not whenever the next socket push arrives.
-      resyncGame();
-      void refetchPortfolio();
-    },
-    [resyncGame, refetchPortfolio, starter, split]
-  );
+  // The effects below call it without listing it, so it is a plain function
+  // and the compiler memoises it; a manual useCallback here is what it could
+  // not reconcile.
+  const beginRoundEnd = (winnerAddress: string | null, potAtEndUsd: number) => {
+    roundEndedRef.current = true;
+    winnerAtEndRef.current = winnerAddress;
+    // The winner's share of the pot, not the pot: half, plus the starter's
+    // tenth when the same wallet opened the game. The exact figure lands
+    // with the settlement row and takes over as soon as it does.
+    setRoundPrizeUsd(
+      estimateWinnerPayout(potAtEndUsd, isSameAddress(winnerAddress, starter), {
+        winner: splitWinnerBps,
+        starter: splitStarterBps,
+      })
+    );
+    setPhase("calculating");
+    // The arena falls silent for the verdict: the loop stops (the next wager
+    // restarts it) and the buzzer-plus-suspense carries the audio instead.
+    stopMusic();
+    playRoundEndSound();
+    setPollUntil(clockNow() + WIN_POLL_WINDOW_MS);
+    // Converge immediately: fresh status (pot/timer reset), winners table and
+    // feed, plus the balance — not whenever the next socket push arrives.
+    resyncGame();
+    void refetchPortfolio();
+  };
 
   useEffect(() => {
     // Remember the pot while the round is live; it resets to 0 once paid out.
@@ -627,11 +637,12 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     }
   };
 
-  const onPlay = async () => {
-    if (!canPlay) {
-      setFundOpen(true);
-      return;
-    }
+  // One wager, whatever the size: the minimum from the Play button, or more
+  // from the liquidity control. The contract's wager(gameId) takes any value
+  // at or above the game's minimum; either way the sender becomes last
+  // standing and the clock resets, so the two share every step after the
+  // amount.
+  const placeWager = async (amountWei: bigint, amountUsd: number, from: HTMLElement | null) => {
     // Entering the round starts the arena's audio, unconditionally — placing a
     // wager IS asking for the game, sound and all, and this click is the user
     // gesture autoplay policy wants. The mute button governs everything after;
@@ -641,11 +652,11 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     // The wager visualised: coins leave the button and land in the pot. Fired
     // on the click rather than on confirmation so the money reads as leaving
     // the player's hand immediately; a failed wager costs only a cosmetic.
-    const btnRect = playBtnRef.current?.getBoundingClientRect();
+    const btnRect = from?.getBoundingClientRect();
     const potRect = potRef.current?.getBoundingClientRect();
     if (btnRect && potRect && !reduce) {
       setFlight({
-        id: Date.now(),
+        id: clockNow(),
         from: { x: btnRect.left + btnRect.width / 2, y: btnRect.top + 8 },
         to: { x: potRect.left + potRect.width / 2, y: potRect.top + potRect.height / 2 },
       });
@@ -660,15 +671,13 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     // only feedback the player sees while the gasless wager settles.
     const toastId = toast.loading(t("ctaPlacing"));
     try {
-      // That game's minimum, not a global fee: the starter set it when they
-      // opened the game, and the contract rejects anything under it.
-      await wager(gameId, parseEther(status?.entryFee.amount ?? "0"));
+      await wager(gameId, amountWei);
       followGame(gameId);
-      // The cost-to-play that just restarted the timer. `game_staked` is the
-      // generic "money went into a game" event the catalog uses across all of
-      // them, so it rides alongside the last-man-specific one.
-      track("last_man_played", { cost_usd: entryFeeUsd });
-      track("game_staked", { game: "last_man", amount_usd: entryFeeUsd });
+      // `game_staked` is the generic "money went into a game" event the
+      // catalog uses across all of them, so it rides alongside the
+      // last-man-specific one.
+      track("last_man_played", { cost_usd: amountUsd });
+      track("game_staked", { game: "last_man", amount_usd: amountUsd });
       toast.success(t("toastYoureIn"), { id: toastId });
       playWagerSound();
       // The wager just landed on-chain, but the backend indexes it a moment
@@ -676,11 +685,45 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       // the pot, timer and last-player reflect this play within seconds
       // (the socket push alone can be ~10s away, or absent when offline).
       resyncGame();
-      setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
+      setPollUntil(clockNow() + WIN_POLL_WINDOW_MS);
       void refetchPortfolio();
+      return true;
     } catch (e) {
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
+      return false;
     }
+  };
+
+  const onPlay = async () => {
+    if (!canPlay) {
+      setFundOpen(true);
+      return;
+    }
+    // That game's minimum, not a global fee: the starter set it when they
+    // opened the game, and the contract rejects anything under it.
+    await placeWager(parseEther(status?.entryFee.amount ?? "0"), entryFeeUsd, playBtnRef.current);
+  };
+
+  // Adding liquidity: a play of the player's own size. Typed in dollars,
+  // priced at the same rate as the entry fee, never under the game's minimum
+  // and never over what the wallet holds.
+  const [liquidityUsd, setLiquidityUsd] = useState("");
+  const liquidityAmountUsd = Number.parseFloat(liquidityUsd) || 0;
+  const liquidityWei = unitUsd > 0 ? usdToWei(liquidityAmountUsd, unitUsd) : 0n;
+  const liquidityBelowMin = liquidityAmountUsd > 0 && liquidityAmountUsd < entryFeeUsd - 1e-9;
+  const liquidityOverBalance = liquidityAmountUsd > 0 && liquidityAmountUsd > balanceUsd + 1e-9;
+  const liquidityReady =
+    liquidityAmountUsd > 0 &&
+    !liquidityBelowMin &&
+    !liquidityOverBalance &&
+    liquidityWei > 0n &&
+    !wagering;
+  const liquidityBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  const onAddLiquidity = async () => {
+    if (!liquidityReady) return;
+    const ok = await placeWager(liquidityWei, liquidityAmountUsd, liquidityBtnRef.current);
+    if (ok) setLiquidityUsd("");
   };
 
   return (
@@ -1112,6 +1155,60 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                 </motion.button>
               )}
             </div>
+
+            {/* Add liquidity: a play of any size above the minimum. The input
+                is dollars; the button says what it would send. */}
+            {roundOver || !gameActive ? null : (
+              <div className="ws-inset mt-3 px-4 py-3.5">
+                <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
+                  {t("liquidityLabel")}
+                </div>
+                <div className="mt-2 flex flex-wrap items-stretch gap-2">
+                  <label
+                    className={`flex min-w-0 flex-1 items-center gap-2 rounded-[12px] border bg-black/35 px-3.5 transition-colors ${
+                      liquidityBelowMin || liquidityOverBalance
+                        ? "border-[#e3a49a]/60"
+                        : "focus-within:border-accent/45 border-white/10"
+                    }`}
+                  >
+                    <span className="text-[14px] font-medium text-white/45">$</span>
+                    <input
+                      inputMode="decimal"
+                      value={liquidityUsd}
+                      onChange={(e) => {
+                        if (/^\d*\.?\d*$/.test(e.target.value)) setLiquidityUsd(e.target.value);
+                      }}
+                      placeholder={t("liquidityPlaceholder", { amount: money.format(entryFeeUsd) })}
+                      className="tnum w-full min-w-0 bg-transparent py-2.5 font-sans text-[14px] text-white outline-none placeholder:text-white/30"
+                    />
+                  </label>
+                  <button
+                    ref={liquidityBtnRef}
+                    type="button"
+                    onClick={() => void onAddLiquidity()}
+                    disabled={!liquidityReady}
+                    className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-[12px] border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {wagering
+                      ? t("ctaPlacing")
+                      : liquidityReady
+                        ? t("liquidityCtaAmount", { amount: money.format(liquidityAmountUsd) })
+                        : t("liquidityCta")}
+                  </button>
+                </div>
+                <div
+                  className={`mt-2 text-[12px] leading-relaxed font-normal ${
+                    liquidityBelowMin || liquidityOverBalance ? "text-[#e3a49a]" : "text-white/45"
+                  }`}
+                >
+                  {liquidityBelowMin
+                    ? t("liquidityMin", { amount: money.format(entryFeeUsd) })
+                    : liquidityOverBalance
+                      ? tBuySellNotEnough
+                      : t("liquidityHint", { amount: money.format(entryFeeUsd) })}
+                </div>
+              </div>
+            )}
 
             {/* Balance. Add money only shows when the play CTA isn't already
                 saying it. */}
