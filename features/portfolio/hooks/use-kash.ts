@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { KASH_LIVE } from "@/features/portfolio/lib/kash-launch";
 import { markKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
   getKashAccount,
@@ -43,7 +42,7 @@ export function useKashStatus() {
     queryFn: getKashStatus,
     staleTime: STATUS_STALE_MS,
     // Pre-launch the engine is not part of the page: no request, no error noise.
-    enabled: KASH_LIVE,
+    enabled: true,
   });
 }
 
@@ -56,7 +55,7 @@ export function useKashAccount() {
   const query = useQuery({
     queryKey: ["kash", "account", wallet],
     queryFn: () => getKashAccount(wallet as string),
-    enabled: KASH_LIVE && ready && authenticated && Boolean(wallet),
+    enabled: ready && authenticated && Boolean(wallet),
     refetchInterval: ACCOUNT_POLL_MS,
     // Keep polling while the tab is backgrounded: a demo often means switching
     // to a wallet or an explorer and coming back expecting the number to have
@@ -74,7 +73,7 @@ export function useKashSubscriptionTiers(enabled: boolean) {
     queryKey: ["kash", "subscription-tiers"],
     queryFn: getKashSubscriptionTiers,
     staleTime: STATUS_STALE_MS,
-    enabled: KASH_LIVE && enabled,
+    enabled: enabled,
   });
 }
 
@@ -87,7 +86,7 @@ export function useKashSubscription() {
   return useQuery({
     queryKey: ["kash", "subscription", wallet],
     queryFn: () => getKashSubscription(wallet as string),
-    enabled: KASH_LIVE && ready && authenticated && Boolean(wallet),
+    enabled: ready && authenticated && Boolean(wallet),
     staleTime: STATUS_STALE_MS,
   });
 }
@@ -102,7 +101,7 @@ export function useKashLedger(enabled: boolean) {
   return useQuery({
     queryKey: ["kash", "ledger", wallet],
     queryFn: () => getKashLedger(wallet as string),
-    enabled: KASH_LIVE && enabled && ready && authenticated && Boolean(wallet),
+    enabled: enabled && ready && authenticated && Boolean(wallet),
   });
 }
 
@@ -115,7 +114,7 @@ export function useKashPurchaseQuote(usdcAmount: string, enabled = true) {
   return useQuery({
     queryKey: ["kash", "purchase-quote", debounced],
     queryFn: () => getKashPurchaseQuote(debounced),
-    enabled: KASH_LIVE && enabled && isValidKashAmount(debounced),
+    enabled: enabled && isValidKashAmount(debounced),
   });
 }
 
@@ -124,7 +123,7 @@ export function useKashConversionQuote(kashAmount: string, enabled = true) {
   return useQuery({
     queryKey: ["kash", "conversion-quote", debounced],
     queryFn: () => getKashConversionQuote(debounced),
-    enabled: KASH_LIVE && enabled && isValidKashAmount(debounced),
+    enabled: enabled && isValidKashAmount(debounced),
   });
 }
 

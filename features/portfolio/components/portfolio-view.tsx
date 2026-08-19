@@ -21,8 +21,6 @@ import { KashHistoryModal } from "@/features/portfolio/components/kash-history-m
 import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-modal";
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
 import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
-import { KASH_LIVE } from "@/features/portfolio/lib/kash-launch";
-import { toast } from "@/lib/toast";
 import { Switch } from "@/components/ui/switch";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { tokenBg } from "@/lib/trade/assets";
@@ -106,7 +104,6 @@ const KIND_STYLE: Record<TokenBalance["kind"], string> = {
 // The asset-type pill shown in the holdings "Type" column.
 function TypeChip({ kind }: { kind: TokenBalance["kind"] }) {
   const t = useTranslations("portfolio");
-  const tKash = useTranslations("kash");
   return (
     <span
       className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${KIND_STYLE[kind]}`}
@@ -136,7 +133,6 @@ export function PortfolioView({
   const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
   const t = useTranslations("portfolio");
-  const tKash = useTranslations("kash");
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
   const [kashModal, setKashModal] = useState<
@@ -282,9 +278,7 @@ export function PortfolioView({
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <div className="mb-4">
-        <KashBanner
-          onBuy={KASH_LIVE ? () => setKashModal("buy") : () => toast.info(tKash("comingSoonToast"))}
-        />
+        <KashBanner onBuy={() => setKashModal("buy")} />
       </div>
       <KashBuyModal
         open={kashModal === "buy"}
@@ -301,8 +295,7 @@ export function PortfolioView({
       <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
         <KashCard
-          comingSoon={!KASH_LIVE}
-          onBuy={KASH_LIVE ? () => setKashModal("buy") : () => toast.info(tKash("comingSoonToast"))}
+          onBuy={() => setKashModal("buy")}
           onClaim={
             kashWallet
               ? () =>
@@ -318,12 +311,8 @@ export function PortfolioView({
               : undefined
           }
           claiming={claimPoints.isPending}
-          onSend={
-            KASH_LIVE ? () => setKashModal("send") : () => toast.info(tKash("comingSoonToast"))
-          }
-          onConvert={
-            KASH_LIVE ? () => setKashModal("convert") : () => toast.info(tKash("comingSoonToast"))
-          }
+          onSend={() => setKashModal("send")}
+          onConvert={() => setKashModal("convert")}
           onHistory={() => setKashModal("history")}
           onUpgrade={() => setKashModal("upgrade")}
         />
