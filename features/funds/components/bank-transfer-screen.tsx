@@ -13,13 +13,19 @@ import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import { getWalletAddress } from "@/lib/user";
 import {
-  idempotencyKey,
   isValidOnrampNgn,
+  permanentOnrampKey,
   ONRAMP_MIN_NGN,
   usdcForNgnExact,
   type OnrampOrder,
 } from "@/lib/ramping/orders";
 import { clearPendingBankDeposit, savePendingBankDeposit } from "@/lib/ramping/pending";
+import {
+  clearCachedOnrampAccount,
+  loadCachedOnrampAccount,
+  saveCachedOnrampAccount,
+  type CachedOnrampAccount,
+} from "@/lib/ramping/account-cache";
 
 interface BankTransferScreenProps {
   onBack: () => void;
@@ -96,17 +102,40 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   const [handoff, setHandoff] = useState<"none" | "confirming" | "enroute">("none");
   const create = useCreateOnrampOrder();
   const created = create.data;
+  // A payment account this wallet already holds, reused from this device
+  // instead of asking the rail for another. The account is permanently
+  // payable; only its rate lock lapses, and the poll below refreshes the real
+  // status either way.
+  const [reused, setReused] = useState<CachedOnrampAccount | null>(null);
+  const activeOrderId = created?.id ?? reused?.orderId ?? null;
 
   const ngnAmount = Number(amountNgn);
   const estimateUsdc = rate && amountNgn ? usdcForNgnExact(amountNgn, rate) : null;
   const validAmount = isValidOnrampNgn(ngnAmount);
 
-  const orderQuery = useRampOrder("onramp", created?.id ?? null, {
-    enabled: Boolean(created?.id),
+  const orderQuery = useRampOrder("onramp", activeOrderId, {
+    enabled: Boolean(activeOrderId),
     pollMs: 3000,
   });
+  // While the poll of a reused order is still in flight, the cached account
+  // renders immediately; everything else about the seed is unknown, which the
+  // poll fills in (including an expired rate lock, shown as the live-rate
+  // note).
+  const seed: OnrampOrder | null = reused
+    ? {
+        id: reused.orderId,
+        status: "awaiting",
+        rawStatus: "",
+        rate: "",
+        paymentAccount: reused.account,
+        amountNgn: null,
+        amountUsdc: null,
+        error: null,
+        expiresAt: null,
+      }
+    : null;
   // The poll result supersedes the creation snapshot as soon as it lands.
-  const order: OnrampOrder | null = (orderQuery.data as OnrampOrder | undefined) ?? created ?? null;
+  const order: OnrampOrder | null = (orderQuery.data as OnrampOrder | undefined) ?? created ?? seed;
   const status = order?.status ?? "awaiting";
   const done = status === "completed";
   const failed = status === "failed";
@@ -122,6 +151,17 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     if (done || failed) clearPendingBankDeposit();
     if (done) refetch();
   }, [done, failed, refetch]);
+
+  // A reused order that no longer exists upstream must not trap the user: the
+  // render below falls back to the amount screen, and the cache entry goes so
+  // the next press creates fresh. A failed delivery clears the cache the same
+  // way but keeps the failed screen, which explains itself. Only the external
+  // store is written here; the render derives the fallback without state.
+  const reusedDead = reused != null && orderQuery.isError;
+  useEffect(() => {
+    if (!reused || !walletAddress) return;
+    if (orderQuery.isError || failed) clearCachedOnrampAccount(walletAddress);
+  }, [reused, walletAddress, orderQuery.isError, failed]);
 
   // Reported once, when the rail confirms delivery. `done` stays true while
   // the screen is open, so the ref keeps this from firing on every poll.
@@ -146,7 +186,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
 
   // Settlement can land while the handoff screens are up; done wins over them.
   // Amount entry.
-  if (!created) {
+  if (!created && (!reused || reusedDead)) {
     return (
       <div>
         <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
@@ -215,21 +255,39 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         <button
           onClick={() => {
             if (!validAmount || !walletAddress) return;
-            // A fresh key per press: retries inside this mutation replay the
-            // same order, while a deliberate second deposit opens a new one.
+            // This wallet may already hold a permanently payable account on
+            // this device; showing it beats asking the rail for another.
+            const cached = loadCachedOnrampAccount(walletAddress);
+            if (cached) {
+              setReused(cached);
+              track("bank_account_requested", {
+                amount_ngn: ngnAmount,
+                fx_rate: Number(rate) || 0,
+                reused: true,
+              });
+              return;
+            }
+            // The key is stable per wallet, so this create is get-or-create
+            // on the rail: a wallet whose local cache is gone (new device,
+            // cleared storage) gets its existing permanent account replayed,
+            // never a duplicate.
             create.mutate(
               {
                 destinationAddress: walletAddress,
                 expectedAmountNgn: String(ngnAmount),
-                idempotencyKey: idempotencyKey("onramp", walletAddress),
+                idempotencyKey: permanentOnrampKey(walletAddress),
               },
               {
-                onSuccess: () => {
+                onSuccess: (result) => {
+                  if (result.paymentAccount) {
+                    saveCachedOnrampAccount(walletAddress, result.id, result.paymentAccount);
+                  }
                   // The amount and the rate the user accepted. Never the
                   // account number that came back with them.
                   track("bank_account_requested", {
                     amount_ngn: ngnAmount,
                     fx_rate: Number(rate) || 0,
+                    reused: false,
                   });
                 },
               }
@@ -290,6 +348,8 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         <button
           onClick={() => {
             create.reset();
+            setReused(null);
+            if (walletAddress) clearCachedOnrampAccount(walletAddress);
             setAmountNgn("");
           }}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"

@@ -230,3 +230,13 @@ export function idempotencyKey(kind: "onramp" | "offramp", wallet: string): stri
   const who = wallet.replace(/^0x/, "").slice(0, 8) || "anon";
   return `${kind}-${who}-${crypto.randomUUID()}`;
 }
+
+// The idempotency key for a wallet's permanent deposit account, stable by
+// design. The rail creates exactly one order per key and replays it, fetched
+// live, on every later call with the same key, and an expired order still
+// carries its payment account (verified live) — which turns POST /onramps
+// into get-or-create: one account per wallet, on every device, forever. The
+// kind prefix keeps it clear of the cross-type 409.
+export function permanentOnrampKey(wallet: string): string {
+  return `onramp-${wallet.toLowerCase()}-account`;
+}

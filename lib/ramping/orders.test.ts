@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   idempotencyKey,
   isValidOnrampNgn,
+  permanentOnrampKey,
   isTerminalProgress,
   ngnForUsdcExact,
   normalizeBanks,
@@ -129,6 +130,18 @@ describe("onramp floor", () => {
     expect(isValidOnrampNgn(2500)).toBe(true);
     expect(isValidOnrampNgn(999)).toBe(false);
     expect(isValidOnrampNgn(NaN)).toBe(false);
+  });
+});
+
+describe("permanent onramp key", () => {
+  it("is stable, wallet-scoped, and inside the rail's 8-200 bound", () => {
+    const wallet = "0xD59a229641DD869e34888013D1C4c1868f62af59";
+    const key = permanentOnrampKey(wallet);
+    expect(key).toBe(permanentOnrampKey(wallet.toLowerCase()));
+    expect(key).toBe("onramp-0xd59a229641dd869e34888013d1c4c1868f62af59-account");
+    expect(key.length).toBeGreaterThanOrEqual(8);
+    expect(key.length).toBeLessThanOrEqual(200);
+    expect(permanentOnrampKey("0x1111111111111111111111111111111111111111")).not.toBe(key);
   });
 });
 
