@@ -6,31 +6,30 @@ import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
-import { KycOnboarding } from "@/features/funds/components/kyc/kyc-onboarding";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { useSendToken } from "@/hooks/use-withdraw";
 import {
-  useCreateOfframp,
-  useOfframpRate,
-  useVerifyBank,
-} from "@/features/funds/hooks/use-pouch-offramp";
-import { useOnrampStatus } from "@/hooks/use-pouch-onramp";
-import { NG_BANKS } from "@/features/funds/lib/banks";
+  useCreateOfframpOrder,
+  useRampingBanks,
+  useRampingRates,
+  useRampOrder,
+  useResolveBankAccount,
+} from "@/hooks/use-ramping";
 import { friendlyError } from "@/lib/errors";
-import { deriveProfile } from "@/lib/user";
+import { getWalletAddress } from "@/lib/user";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SETTLE_CHAINS } from "@/lib/deposit";
-import { KYC_COUNTRY_CODE } from "@/features/funds/lib/kyc";
-import { isReusableSession, loadKycSession, saveKycSession } from "@/features/funds/lib/session";
 import {
-  estimatedPayoutNgn,
+  idempotencyKey,
   isValidOfframpAmount,
+  ngnForUsdcExact,
   OFFRAMP_MIN_USDC,
-  usdcForNgn,
-  type OfframpCreation,
-} from "@/lib/pouch/offramp";
+  usdcForNgnExact,
+  type OfframpOrder,
+  type RampBank,
+} from "@/lib/ramping/orders";
 
 interface BankWithdrawScreenProps {
   onBack: () => void;
@@ -46,7 +45,7 @@ const PORTFOLIO_KEY = [["portfolio"]] as const;
 const PORTFOLIO_REFRESH_MIN_MS = 10_000;
 
 // The banks most users reach for, shown first and resolved against the live
-// network list by name. Everything else is one search away. Colours are just a
+// bank list by name. Everything else is one search away. Colours are just a
 // recognisable tint for the avatar, not exact brand values.
 const POPULAR = [
   { match: /^opay/i, label: "OPay", initials: "OP", color: "#12b76a" },
@@ -111,17 +110,11 @@ function formatAmountInput(raw: string): string {
 }
 
 interface SelectedBank {
-  id: string;
+  uuid: string;
   name: string;
   initials: string;
   color: string;
 }
-
-// Popular banks resolved to real networkIds from the static list, once.
-const POPULAR_BANKS: SelectedBank[] = POPULAR.map((p): SelectedBank | null => {
-  const net = NG_BANKS.find((n) => p.match.test(n.name));
-  return net ? { id: net.id, name: p.label, initials: p.initials, color: p.color } : null;
-}).filter((b): b is SelectedBank => b != null);
 
 function BankAvatar({
   initials,
@@ -143,25 +136,22 @@ function BankAvatar({
   );
 }
 
-// Withdraw USDC to a Nigerian bank (offramp). Identity is the same one-time
-// Shared KYC used for deposits. The user picks a bank, the account is verified
-// automatically, then the app sends USDC on Base to Pouch's address and Pouch
-// pays the Naira to the bank.
+// Withdraw USDC to a Nigerian bank over the ramping rail. The user picks a
+// bank from the rail's live list, the account is verified automatically at ten
+// digits, then the app opens an offramp order, sends USDC on Base to the
+// order's deposit address, and the rail pays the Naira to the bank. The final
+// Naira figure shown comes from the order once the rail reports it.
 export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const t = useTranslations("bankWithdraw");
   const { user } = usePrivy();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
   const { sendToken } = useSendToken();
+  const walletAddress = getWalletAddress(user, "ethereum");
 
-  const [token, setToken] = useState(() => {
-    const session = loadKycSession();
-    return isReusableSession(session) ? session.token : "";
-  });
-  const email = deriveProfile(user).email;
-
-  const rate = useOfframpRate();
-  const verify = useVerifyBank();
-  const create = useCreateOfframp();
+  const rates = useRampingRates();
+  const banks = useRampingBanks(true);
+  const resolve = useResolveBankAccount();
+  const create = useCreateOfframpOrder();
   useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
 
   const [query, setQuery] = useState("");
@@ -171,7 +161,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   // switch the entry to USDC. The withdrawal itself is always USDC.
   const [entry, setEntry] = useState<"ngn" | "usdc">("ngn");
   const [amountInput, setAmountInput] = useState("");
-  const [creation, setCreation] = useState<OfframpCreation | null>(null);
+  const [creation, setCreation] = useState<OfframpOrder | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -182,22 +172,28 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const balance = usdc?.balance ?? 0;
   const exactBalance = usdc ? fromBaseUnits(BigInt(usdc.rawBalance), usdc.decimals) : "0";
 
-  const verifiedName = verify.data?.verified ? verify.data.accountName : "";
-  const ngnRate = rate.data?.rate ?? 0;
+  const verifiedName = resolve.data?.accountName ?? "";
+  const rateStr = rates.data?.offrampRate ?? null;
+  const ngnRate = rateStr ? Number(rateStr) : 0;
   const typed = Number(amountInput);
-  // The USDC that actually leaves the balance, whichever currency is typed. A
-  // Naira max converts back with rounding dust, so a sub-millionth overshoot
-  // counts as the full balance instead of reading as over-balance.
-  let amount = entry === "usdc" ? typed : (usdcForNgn(typed, ngnRate) ?? NaN);
+  // The USDC that actually leaves the balance, whichever currency is typed.
+  // Naira entry converts through the exact bigint helper at the rail's own
+  // truncation, so the figure never wobbles through floating point. A Naira
+  // max converts back with rounding dust, so a sub-millionth overshoot counts
+  // as the full balance instead of reading as over-balance.
+  const typedUsdcExact =
+    entry === "ngn" && rateStr && amountInput ? usdcForNgnExact(amountInput, rateStr) : null;
+  let amount = entry === "usdc" ? typed : typedUsdcExact ? Number(typedUsdcExact) : NaN;
   const isFullBalance = Number.isFinite(amount) && amount > balance && amount - balance < 1e-6;
   if (isFullBalance) amount = balance;
   // The exact decimal string handed to the token transfer. Typed USDC is used
-  // verbatim; converted Naira uses the 6-decimal figure, or the raw balance
-  // when the amount is the full balance.
+  // verbatim; converted Naira uses the exact 6-decimal figure, or the raw
+  // balance when the amount is the full balance.
   const amountUsdcText =
-    entry === "usdc" ? amountInput : isFullBalance ? exactBalance : amount.toFixed(6);
+    entry === "usdc" ? amountInput : isFullBalance ? exactBalance : (typedUsdcExact ?? "0");
   const validAmount = isValidOfframpAmount(amount, balance);
-  const payoutNgn = estimatedPayoutNgn(amount, ngnRate);
+  const payoutNgn =
+    rateStr && validAmount && amountUsdcText ? ngnForUsdcExact(amountUsdcText, rateStr) : null;
   const minNgn = ngnRate > 0 ? OFFRAMP_MIN_USDC * ngnRate : null;
 
   // Switching entry currency carries the typed value across at the live rate,
@@ -212,12 +208,16 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     setEntry(next);
   };
 
-  const statusQuery = useOnrampStatus(creation?.sessionId ?? null, {
-    enabled: Boolean(creation?.sessionId),
-    pollMs: 20000,
+  const orderQuery = useRampOrder("offramp", creation?.id ?? null, {
+    enabled: Boolean(creation?.id),
+    pollMs: 3000,
   });
-  const status = statusQuery.data?.status ?? creation?.status ?? "awaiting_payment";
-  const done = status === "completed";
+  const order = (orderQuery.data as OfframpOrder | undefined) ?? creation;
+  const done = order?.status === "completed";
+  const payoutFailed = order?.status === "failed";
+  // What reached the bank: the order's own figure once the rail reports it,
+  // the pre-send estimate until then.
+  const paidNgn = order?.amountNgn ?? payoutNgn;
 
   // Reported once on settlement. The amount and the rail, never the account it
   // was paid into.
@@ -232,71 +232,73 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     track("withdraw_completed", { method: "bank", asset: "USDC", amount_usd: amount });
   }, [done, amount]);
 
-  // Search the full static list; popular banks are resolved once above.
+  // Popular banks resolved to real uuids against the live list.
+  const popularBanks = useMemo(() => {
+    const list = banks.data ?? [];
+    return POPULAR.map((p): SelectedBank | null => {
+      const match = list.find((n) => p.match.test(n.name));
+      return match
+        ? { uuid: match.uuid, name: p.label, initials: p.initials, color: p.color }
+        : null;
+    }).filter((b): b is SelectedBank => b != null);
+  }, [banks.data]);
+
+  // Search the live list client-side; it is one fetch, cached for the session.
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return [];
-    return NG_BANKS.filter((n) => n.name.toLowerCase().includes(q))
+    return (banks.data ?? [])
+      .filter((n: RampBank) => n.name.toLowerCase().includes(q))
       .slice(0, 40)
-      .map((n) => ({
-        id: n.id,
+      .map((n: RampBank) => ({
+        uuid: n.uuid,
         name: n.name,
         initials: initialsForName(n.name),
         color: colorForName(n.name),
       }));
-  }, [query]);
+  }, [query, banks.data]);
 
   const pickBank = (b: SelectedBank) => {
     setBank(b);
     setQuery("");
     setAccount("");
-    verify.reset();
+    resolve.reset();
   };
 
   const onAccountChange = (raw: string) => {
     const next = raw.replace(/\D/g, "").slice(0, 10);
     setAccount(next);
-    verify.reset();
-    // Verify as soon as a full account number is entered — no extra tap.
+    resolve.reset();
+    // Verify as soon as a full account number is entered, no extra tap.
     if (bank && next.length === 10) {
-      verify.mutate({ accountNumber: next, networkId: bank.id });
+      resolve.mutate({ accountNumber: next, bankUuid: bank.uuid });
     }
   };
 
-  // Not verified yet: run the one-time Shared KYC, then store the JWT for reuse.
-  if (!token) {
-    return (
-      <KycOnboarding
-        defaultEmail={email}
-        onBack={onBack}
-        onVerified={(nextToken, expiresAt, verifiedEmail) => {
-          saveKycSession({
-            email: verifiedEmail,
-            countryCode: KYC_COUNTRY_CODE,
-            token: nextToken,
-            expiresAt,
-            state: "approved",
-          });
-          setToken(nextToken);
-        }}
-      />
-    );
-  }
-
-  // Sent: the USDC transfer is on its way; Pouch pays the bank next.
+  // Sent: the USDC transfer is on its way; the rail pays the bank next.
   if (txHash) {
     return (
       <div className="px-1 py-2 text-center">
         <span
-          className={`inline-grid h-[56px] w-[56px] place-items-center rounded-full ${done ? "bg-accent/14 text-accent" : "bg-white/8 text-white/70"}`}
+          className={`inline-grid h-[56px] w-[56px] place-items-center rounded-full ${
+            done
+              ? "bg-accent/14 text-accent"
+              : payoutFailed
+                ? "bg-down/15 text-down"
+                : "bg-white/8 text-white/70"
+          }`}
         >
           <CheckIcon size={26} />
         </span>
-        <div className="ws-display mt-4 text-[21px]">{done ? t("paidTitle") : t("sentTitle")}</div>
+        <div className="ws-display mt-4 text-[21px]">
+          {done ? t("paidTitle") : payoutFailed ? t("payoutDelayedTitle") : t("sentTitle")}
+        </div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
           {done
-            ? t("paidBody", { amount: `₦${formatNgn(creation?.amountNgn ?? 0)}` })
-            : t("sentBody", { amount: `₦${formatNgn(creation?.amountNgn ?? 0)}` })}
+            ? t("paidBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })
+            : payoutFailed
+              ? t("payoutDelayedBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })
+              : t("sentBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })}
         </p>
         <a
           href={`https://basescan.org/tx/${txHash}`}
@@ -307,7 +309,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           {t("viewTransaction")}
           <ArrowUpRightIcon size={14} />
         </a>
-        {!done ? (
+        {!done && !payoutFailed ? (
           <div className="mt-4 flex items-center justify-center gap-2 text-[12.5px] text-white/45">
             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
             {t("settling")}
@@ -327,22 +329,23 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   }
 
   const submit = async () => {
-    if (!bank || !verifiedName || !validAmount) return;
+    if (!bank || !verifiedName || !validAmount || !walletAddress) return;
     setSendError(null);
     setSubmitting(true);
     let broadcasting = false;
     try {
+      // A fresh key per press: retries inside the mutation replay the same
+      // order, while a deliberate second withdrawal opens a new one.
       const result = await create.mutateAsync({
-        token,
-        cryptoAmount: amount,
-        bankAccount: {
-          networkId: bank.id,
-          accountNumber: account.trim(),
-          accountName: verifiedName,
-        },
+        originChainId: BASE.chainId,
+        originAsset: BASE.usdc,
+        expectedAmount: amountUsdcText,
+        destinationAccount: account.trim(),
+        destinationBankUuid: bank.uuid,
+        idempotencyKey: idempotencyKey("offramp", walletAddress),
       });
       setCreation(result);
-      if (!result.walletAddress) {
+      if (!result.depositAddress) {
         setSendError(t("noAddress"));
         return;
       }
@@ -351,7 +354,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         network: BASE.alchemyNetwork,
         tokenAddress: BASE.usdc,
         decimals: BASE.decimals,
-        to: result.walletAddress,
+        to: result.depositAddress,
         amount: toBaseUnits(amountUsdcText, BASE.decimals),
       });
       setTxHash(hash);
@@ -364,7 +367,8 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     }
   };
 
-  const ready = Boolean(bank) && Boolean(verifiedName) && validAmount && !submitting;
+  const ready =
+    Boolean(bank) && Boolean(verifiedName) && Boolean(walletAddress) && validAmount && !submitting;
 
   return (
     <div>
@@ -376,7 +380,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           onClick={() => {
             setBank(null);
             setAccount("");
-            verify.reset();
+            resolve.reset();
           }}
           className="flex w-full cursor-pointer items-center gap-3 rounded-[14px] border border-white/10 bg-white/4 px-3.5 py-3 text-left transition-colors hover:bg-white/6"
         >
@@ -398,12 +402,28 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
             />
           </label>
 
-          {query.trim() ? (
+          {banks.isPending ? (
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="h-[52px] animate-pulse rounded-[14px] bg-white/5" />
+              ))}
+            </div>
+          ) : banks.isError ? (
+            <div className="mt-3 rounded-[14px] border border-white/8 px-3.5 py-4 text-center">
+              <p className="text-[13px] text-white/55">{t("banksFailed")}</p>
+              <button
+                onClick={() => banks.refetch()}
+                className="mt-3 cursor-pointer rounded-[12px] border border-white/15 bg-white/8 px-4 py-2 font-sans text-[13px] font-medium text-white hover:bg-white/12"
+              >
+                {t("retry")}
+              </button>
+            </div>
+          ) : query.trim() ? (
             // Search results across every bank.
             <div className="mt-3 overflow-hidden rounded-[14px] border border-white/8">
               {results.map((b) => (
                 <button
-                  key={b.id}
+                  key={b.uuid}
                   onClick={() => pickBank(b)}
                   className="flex w-full cursor-pointer items-center gap-3 border-b border-white/5 px-3.5 py-2.5 text-left transition-colors last:border-0 hover:bg-white/6"
                 >
@@ -426,9 +446,9 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
                 {t("popular")}
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {POPULAR_BANKS.map((b) => (
+                {popularBanks.map((b) => (
                   <button
-                    key={b.id}
+                    key={b.uuid}
                     onClick={() => pickBank(b)}
                     className="flex cursor-pointer items-center gap-2.5 rounded-[14px] border border-white/8 bg-white/4 px-3 py-2.5 text-left transition-colors hover:border-white/16 hover:bg-white/8"
                   >
@@ -463,7 +483,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
               placeholder="0123456789"
               className={`tnum w-full bg-transparent py-3 font-sans text-[14.5px] text-white outline-none placeholder:text-white/30 ${NO_AUTOCAPTURE_CLASS}`}
             />
-            {verify.isPending ? (
+            {resolve.isPending ? (
               <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
             ) : verifiedName ? (
               <CheckIcon size={16} className="text-accent shrink-0" />
@@ -473,9 +493,9 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
             <div className="mt-1.5 font-sans text-[13px] font-medium text-white">
               {verifiedName}
             </div>
-          ) : verify.isError ? (
+          ) : resolve.isError ? (
             <p className="text-down mt-1.5 text-[12.5px]">
-              {friendlyError(verify.error, t("verifyFailed"))}
+              {friendlyError(resolve.error, t("verifyFailed"))}
             </p>
           ) : null}
         </div>
@@ -526,7 +546,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
                 : validAmount
                   ? entry === "ngn"
                     ? t("usdcEquivalent", { amount: formatAmount(amount) })
-                    : t("youReceive", { amount: `₦${formatNgn(payoutNgn ?? 0)}` })
+                    : t("youReceive", { amount: `₦${formatNgn(Number(payoutNgn ?? 0))}` })
                   : entry === "ngn" && minNgn != null
                     ? t("enterMinNgn", { amount: `₦${formatNgn(minNgn)}` })
                     : t("enterMin", { amount: OFFRAMP_MIN_USDC })}
