@@ -168,7 +168,12 @@ export default function DashboardPage() {
         {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
         {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
         {modal?.type === "memeSell" ? (
-          <MemeTradeSheet token={modal.memeSell} defaultSide="SELL" onClose={close} />
+          <MemeTradeSheet
+            token={modal.memeSell}
+            defaultSide="SELL"
+            onClose={close}
+            showRisk={false}
+          />
         ) : null}
         {modal?.type === "rwaTrade" ? (
           <RwaTradeModal payload={modal.rwaTrade} onContinueInBackground={close} />

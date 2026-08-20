@@ -18,8 +18,11 @@ export interface MemeTokenInfo {
 }
 export type MemeRegistry = Record<string, Map<string, MemeTokenInfo>>;
 
-// Alchemy network id per Dextopus chain id, limited to the chains we display in
-// holdings. Keep in sync with SUPPORTED_CHAINS in lib/buy.ts.
+// Alchemy network id per Dextopus chain id, limited to the chains we display
+// in holdings. Keep in sync with SUPPORTED_CHAINS in lib/buy.ts and
+// EVM_NETWORKS in lib/server/alchemy.ts — a chain id here with no matching
+// EVM_NETWORKS entry would build a route the portfolio Alchemy call itself
+// rejects.
 const CHAIN_TO_NETWORK: Record<number, string> = {
   1: "eth-mainnet",
   8453: "base-mainnet",
@@ -27,6 +30,29 @@ const CHAIN_TO_NETWORK: Record<number, string> = {
   10: "opt-mainnet",
   137: "polygon-mainnet",
   792703809: "solana-mainnet",
+  33139: "apechain-mainnet",
+  80094: "berachain-mainnet",
+  56: "bnb-mainnet",
+  42220: "celo-mainnet",
+  685689: "gensyn-mainnet",
+  999: "hyperliquid-mainnet",
+  57073: "ink-mainnet",
+  143: "monad-mainnet",
+  4663: "robinhood-mainnet",
+  360: "shape-mainnet",
+  1868: "soneium-mainnet",
+  130: "unichain-mainnet",
+  480: "worldchain-mainnet",
+  100: "gnosis-mainnet",
+  59144: "linea-mainnet",
+  324: "zksync-mainnet",
+  534352: "scroll-mainnet",
+  43114: "avax-mainnet",
+  81457: "blast-mainnet",
+  7777777: "zora-mainnet",
+  2020: "ronin-mainnet",
+  2741: "abstract-mainnet",
+  42018: "mythos-mainnet",
 };
 
 const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";

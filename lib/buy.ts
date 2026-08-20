@@ -37,7 +37,57 @@ export interface BuyRoute {
 // else (obscure L2s, or chains we hold no wallet for like bitcoin/tron/xrp/ton)
 // is never offered. Classified by the Dextopus blockchain label, which is always
 // present (addressKind is not).
-const SUPPORTED_CHAINS = new Set(["base", "ethereum", "arbitrum", "optimism", "polygon", "solana"]);
+//
+// Every entry past the original six went through two checks: an eth_chainId
+// call against Alchemy's own RPC confirmed the chain ID Dextopus reports for
+// that blockchain label, AND a real request to Alchemy's Portfolio Data API
+// (assets/tokens/by-address, what lib/server/alchemy.ts actually calls for
+// holdings) accepted the network rather than returning "Unsupported
+// network." The two do not agree on the same set: cronos, plasma, stable,
+// mantle, mode, metis, sei, boba, flow-evm, degen, katana, sonic, and
+// superseed all have working RPC endpoints but are rejected by the Portfolio
+// API, so a buy there could never be shown as a holding — left out for that
+// reason, not because Dextopus or the RPC itself rejected them. A handful of
+// other Dextopus labels were checked and left out because Alchemy's RPC did
+// not confirm them at all: arbitrum-nova, lisk, morph, zircuit, plume,
+// manta-pacific, somnia, b3, animechain, doma, ethereal, gunz, data, lighter,
+// megaeth. Non-EVM chains (bitcoin, tron, xrp, ton, eclipse) stay out because
+// our embedded wallets do not hold keys on them. Dextopus also lists a second
+// "hyperliquid" label with chain ID 1337, separate from "hyperevm" (chain ID
+// 999); only "hyperevm" is included, since 1337 did not match anything
+// Alchemy serves. Keep in sync with EVM_NETWORKS in lib/server/alchemy.ts and
+// CHAIN_TO_NETWORK in lib/server/buyable-registry.ts.
+const SUPPORTED_CHAINS = new Set([
+  "base",
+  "ethereum",
+  "arbitrum",
+  "optimism",
+  "polygon",
+  "solana",
+  "apechain",
+  "berachain",
+  "bsc",
+  "celo",
+  "gensyn",
+  "hyperevm",
+  "ink",
+  "monad",
+  "robinhood",
+  "shape",
+  "soneium",
+  "unichain",
+  "world-chain",
+  "gnosis",
+  "linea",
+  "zksync",
+  "scroll",
+  "avalanche",
+  "blast",
+  "zora",
+  "ronin",
+  "abstract",
+  "mythos",
+]);
 
 // Some coins are native to one ecosystem and appear on other chains only as
 // wrapped representations that would mislead a buyer: an ERC-20 "SOL" on Base is
@@ -89,6 +139,7 @@ export function isOfferable(route: BuyRoute): boolean {
 // BTC (cbBTC) on Base. Keys and values are compared uppercased.
 const SYMBOL_ALIAS: Record<string, string> = {
   BTC: "CBBTC",
+  DOGE: "CBDOGE",
 };
 
 // Catalog symbol -> display symbol, derived so the alias has one source. Lets the
@@ -97,6 +148,26 @@ const SYMBOL_ALIAS: Record<string, string> = {
 const DISPLAY_ALIAS: Record<string, string> = Object.fromEntries(
   Object.entries(SYMBOL_ALIAS).map(([display, catalog]) => [catalog, display])
 );
+
+// The display symbol for a held token's own on-chain symbol, e.g. "cbDOGE" ->
+// "DOGE". Used wherever a portfolio holding is shown, so a wrapped
+// representation reads as the coin it represents rather than its contract
+// ticker. Anything not in the alias (almost every token) passes through
+// unchanged.
+export function displaySymbol(symbol: string): string {
+  return DISPLAY_ALIAS[symbol.trim().toUpperCase()] ?? symbol;
+}
+
+// Display only: cbBTC actually settles on Base (the real network id is what
+// every functional use — selling, sending, gas checks — keys off), but
+// showing that next to a coin the user bought and sees as plain "BTC" reads
+// as a mismatch. "Bitcoin" doubles as both the label and the network-icon
+// key (see NETWORK_ICONS in components/ui/network-icon.tsx). DOGE has no
+// equivalent: the icon set's only Dogecoin-adjacent entry is NetworkDogechain,
+// an unrelated sidechain project, so it keeps showing its real network.
+export function displayNetwork(symbol: string, network: string): string {
+  return displaySymbol(symbol) === "BTC" ? "Bitcoin" : network;
+}
 
 // The Dextopus catalog symbol a market/display symbol resolves to, uppercased.
 function catalogSymbol(symbol: string): string {

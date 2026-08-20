@@ -3,22 +3,47 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import { Eyebrow } from "@/components/ui/eyebrow";
+import { ProgressBar } from "@/components/ui/progress-bar";
 import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/components/meme-bits";
 import { useMemeToken } from "@/features/trade/hooks/use-meme-tokens";
-import { useMemePreview, useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
+import {
+  useMemePreview,
+  useMemeTrade,
+  type TradePhase,
+} from "@/features/trade/hooks/use-meme-trade";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { visibleWarnings, TradeApiError, isValidTradeAmount, type MemeToken } from "@/lib/meme/api";
+import { displaySymbol } from "@/lib/buy";
+import { friendlyError } from "@/lib/errors";
+import { TradeApiError, isValidTradeAmount, visibleWarnings, type MemeToken } from "@/lib/meme/api";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const PREVIEW_DEBOUNCE_MS = 600;
+// Same shape as the Dextopus buy/sell tracking screens: a bare percentage per
+// technical phase, topped out once the trade is visually done.
+const PHASE_PCT: Record<TradePhase, number> = {
+  idle: 0,
+  linking: 15,
+  quoting: 35,
+  signing: 60,
+  confirming: 80,
+  confirmed: 100,
+  failed: 0,
+};
 
 interface MemeTradeSheetProps {
   token: MemeToken;
   onClose: () => void;
   // Opens on this side; a portfolio-initiated sell starts on SELL.
   defaultSide?: "BUY" | "SELL";
+  // The generic on-chain risk scanner (contract-upgradeable, low-liquidity
+  // warnings) is genuinely useful for arbitrary memecoins, but confusing for
+  // known-safe wrapped spot assets (cbBTC, cbDOGE) that route through this
+  // same trade engine only because Dextopus can't source them. Off by default
+  // for spot call sites; the meme discovery pages opt back in explicitly.
+  showRisk?: boolean;
 }
 
 // The whole trade flow in one sheet: side + amount → live indicative preview →
@@ -28,11 +53,20 @@ export function MemeTradeSheet({
   token: listed,
   onClose,
   defaultSide = "BUY",
+  showRisk = true,
 }: MemeTradeSheetProps) {
   const t = useTranslations("meme");
   // Fresh risk/tradability for the trade surface; the list row may be stale.
   const { token: fresh } = useMemeToken(listed.address);
   const token = fresh ?? listed;
+
+  // Known-safe wrapped spot assets (cbBTC, cbDOGE) show as the coin they
+  // represent everywhere in this sheet; trade() below still sends
+  // token.address, the real contract, so execution never sees the alias.
+  const rawSymbol = token.symbol ?? "";
+  const displaySym = displaySymbol(rawSymbol);
+  const aliased = displaySym !== rawSymbol;
+  const displayName = aliased ? displaySym : (token.name ?? "—");
 
   const [side, setSide] = useState<"BUY" | "SELL">(defaultSide);
   const [amount, setAmount] = useState("");
@@ -103,14 +137,40 @@ export function MemeTradeSheet({
   }, [previewError, linkForPreview, previewRefetch]);
 
   const busy = phase !== "idle" && phase !== "failed" && phase !== "confirmed";
+  // The balanceOf delta (received) is on-chain proof of delivery, landing
+  // before the backend's own slower confirmation — treat it as done rather
+  // than making the tracking screen sit on "confirming" for a trade that has
+  // already, verifiably, settled.
+  const settled = phase === "confirmed" || received != null;
   const submitDisabled =
     busy || !amountValid || !sideEnabled || overBalance || !preview.data || !wallet;
+  // A quote that fails for any reason other than the auto-retried wallet-link
+  // mismatch above leaves preview.data null with no other visible signal —
+  // the CTA just sits disabled, indistinguishable from "no amount entered
+  // yet". Surface it explicitly once there is a real amount to quote.
+  const previewFailed =
+    amountValid && sideEnabled && !overBalance && !preview.isFetching && !preview.data
+      ? (previewError ?? null)
+      : null;
 
   // Toasts fire even after the sheet is dismissed mid-confirmation, so the
   // terminal result always reaches the user.
   useEffect(() => {
     track("market_viewed", { vertical: "memecoin", asset: token.symbol ?? token.address });
   }, [token.symbol, token.address]);
+
+  // Id of the loading toast opened on confirm — same pattern as the Dextopus
+  // sell/buy sheets, so a spot asset routed through this engine (cbBTC,
+  // cbDOGE) gives the same "something is happening" feedback atop the screen
+  // as every other spot asset, instead of only the sheet's own inline phase
+  // text.
+  const toastRef = useRef<string | number | undefined>(undefined);
+  useEffect(
+    () => () => {
+      if (toastRef.current !== undefined) toast.dismiss(toastRef.current);
+    },
+    []
+  );
 
   const onTrade = async () => {
     if (submitDisabled) return;
@@ -120,6 +180,9 @@ export function MemeTradeSheet({
       side: buying ? "buy" : "sell",
       amount_usd: Number(debouncedAmount),
     });
+    toastRef.current = toast.loading(
+      buying ? t("buyingToast", { symbol: displaySym }) : t("sellingToast", { symbol: displaySym })
+    );
     try {
       await trade({ side, tokenAddress: token.address, amount: debouncedAmount });
       // Memecoins always settle on Base, and carry the risk label the screen
@@ -132,10 +195,10 @@ export function MemeTradeSheet({
         network: "base",
       });
       toast.success(
-        buying
-          ? t("toastBought", { symbol: token.symbol ?? "" })
-          : t("toastSold", { symbol: token.symbol ?? "" })
+        buying ? t("toastBought", { symbol: displaySym }) : t("toastSold", { symbol: displaySym }),
+        { id: toastRef.current }
       );
+      toastRef.current = undefined;
       void portfolio.refetchUntilChanged();
     } catch (e) {
       track("trade_failed", {
@@ -143,7 +206,8 @@ export function MemeTradeSheet({
         asset: token.symbol ?? token.address,
         reason: "order_failed",
       });
-      toast.error(e instanceof Error ? e.message : t("orderFailed"));
+      toast.error(friendlyError(e, t("orderFailed")), { id: toastRef.current });
+      toastRef.current = undefined;
     }
   };
 
@@ -196,14 +260,20 @@ export function MemeTradeSheet({
       >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-white/15" />
 
-        <div className="flex items-center gap-3">
+        {busy || phase === "confirmed" ? (
+          <Eyebrow>
+            {settled ? t("allDone") : buying ? t("buyingLabel") : t("sellingLabel")}
+          </Eyebrow>
+        ) : null}
+
+        <div className={`flex items-center gap-3 ${busy || phase === "confirmed" ? "mt-3" : ""}`}>
           <MemeCoin token={token} size={34} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="ws-display truncate text-[18px]">{token.symbol ?? "?"}</span>
-              <RiskBadge level={token.riskLevel} />
+              <span className="ws-display truncate text-[18px]">{displaySym || "?"}</span>
+              {showRisk ? <RiskBadge level={token.riskLevel} /> : null}
             </div>
-            <div className="truncate text-xs font-normal text-white/50">{token.name ?? "—"}</div>
+            <div className="truncate text-xs font-normal text-white/50">{displayName}</div>
           </div>
           <div className="text-right">
             <div className="tnum text-[15px]">{priceLabel(token.priceUsd)}</div>
@@ -213,57 +283,44 @@ export function MemeTradeSheet({
           </div>
         </div>
 
-        {phase === "confirmed" ? (
-          <div className="mt-5">
-            <div className="ws-inset p-4 text-center">
-              <div className="ws-display text-up text-[20px]">{t("confirmedTitle")}</div>
-              <p className="mt-1 text-[13px] font-normal text-white/60">{t("confirmedBody")}</p>
-            </div>
-            <button
-              onClick={closeSheet}
-              className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
-            >
-              {t("done")}
-            </button>
-          </div>
-        ) : phase === "confirming" && received ? (
-          // The balanceOf delta already proved the tokens landed, so lead with
-          // that; the server's formal confirmation finishes in the background.
-          <div className="mt-5">
-            <div className="ws-inset p-4 text-center">
-              <div className="ws-display text-up text-[20px]">
-                {t("receivedTitle", { amount: received.amount, symbol: received.symbol })}
-              </div>
-              <p className="mt-1 text-[13px] font-normal text-white/60">{t("receivedBody")}</p>
-            </div>
-            <button
-              onClick={closeSheet}
-              className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
-            >
-              {t("done")}
-            </button>
-          </div>
-        ) : busy ? (
+        {busy || phase === "confirmed" ? (
           <div className="mt-5">
             <div className="ws-inset p-4">
-              <div className="flex items-center gap-2.5">
-                <span className="bg-accent h-2 w-2 animate-pulse rounded-full" />
-                <span className="text-[13.5px] font-medium">{phaseLabel[phase]}</span>
+              <div className="mb-2.5 text-[13px] font-medium text-white">
+                {phase === "confirmed"
+                  ? t("confirmedTitle")
+                  : received
+                    ? t("receivedTitle", {
+                        amount: received.amount,
+                        symbol: displaySymbol(received.symbol),
+                      })
+                    : phaseLabel[phase]}
               </div>
-              <p className="mt-2 text-[12.5px] leading-[1.5] font-normal text-white/55">
-                {phase !== "confirming"
-                  ? t("workingNote")
-                  : confirmingLong
-                    ? t("confirmingLong")
-                    : t("confirmingNote")}
+              <ProgressBar
+                pct={settled ? 100 : PHASE_PCT[phase]}
+                color={settled ? "#7ce7b0" : "#e6e6e6"}
+              />
+              <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/60">
+                {phase === "confirmed"
+                  ? t("confirmedBody")
+                  : received
+                    ? t("receivedBody")
+                    : phase !== "confirming"
+                      ? t("workingNote")
+                      : confirmingLong
+                        ? t("confirmingLong")
+                        : t("confirmingNote")}
               </p>
             </div>
-            {phase === "confirming" ? (
+            {/* Signing needs the sheet to stay put — closing here does not cancel
+                the in-flight signature request, only hides it mid-flow. Once the
+                calls are submitted (confirming) or done, closing is always safe. */}
+            {!locked ? (
               <button
                 onClick={closeSheet}
-                className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/14 bg-white/6 p-3.5 font-sans text-[15px] font-semibold text-white hover:bg-white/10"
+                className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
               >
-                {t("closeAndNotify")}
+                {settled ? t("done") : t("closeAndNotify")}
               </button>
             ) : null}
           </div>
@@ -299,7 +356,7 @@ export function MemeTradeSheet({
                   <span className="tnum">
                     {t("balance", {
                       amount: balance.toLocaleString(undefined, { maximumFractionDigits: 6 }),
-                      symbol: buying ? "USD" : (token.symbol ?? ""),
+                      symbol: buying ? "USD" : displaySym,
                     })}
                   </span>
                   <button
@@ -323,7 +380,7 @@ export function MemeTradeSheet({
                   className="ws-display tnum min-w-0 flex-1 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
                 />
                 <span className="shrink-0 font-sans text-sm font-medium text-white/70">
-                  {buying ? "USD" : (token.symbol ?? "")}
+                  {buying ? "USD" : displaySym}
                 </span>
               </div>
             </div>
@@ -333,7 +390,7 @@ export function MemeTradeSheet({
                 <span className="text-white/55">{t("youReceive")}</span>
                 <span className="tnum text-white">
                   {preview.data
-                    ? `${preview.data.expectedBuyAmountFormatted} ${preview.data.buyToken.symbol ?? ""}`
+                    ? `${preview.data.expectedBuyAmountFormatted} ${displaySymbol(preview.data.buyToken.symbol ?? "")}`
                     : preview.isFetching
                       ? "…"
                       : "—"}
@@ -343,7 +400,7 @@ export function MemeTradeSheet({
                 <span className="text-white/55">{t("minReceived")}</span>
                 <span className="tnum text-white">
                   {preview.data
-                    ? `${preview.data.minimumBuyAmountFormatted} ${preview.data.buyToken.symbol ?? ""}`
+                    ? `${preview.data.minimumBuyAmountFormatted} ${displaySymbol(preview.data.buyToken.symbol ?? "")}`
                     : "—"}
                 </span>
               </div>
@@ -363,7 +420,13 @@ export function MemeTradeSheet({
               </div>
             </div>
 
-            {visibleWarnings(token.warnings).length > 0 ? (
+            {previewFailed ? (
+              <div className="text-down mt-2 text-[12.5px] font-normal">
+                {friendlyError(previewFailed, t("previewFailed"))}
+              </div>
+            ) : null}
+
+            {showRisk && visibleWarnings(token.warnings).length > 0 ? (
               <div className="mt-3 flex flex-col gap-1">
                 {/* Warning codes can repeat or arrive empty, so the key needs
                     the index. */}
@@ -376,9 +439,15 @@ export function MemeTradeSheet({
                   ))}
               </div>
             ) : null}
-            <p className="mt-2 text-[11px] font-normal text-white/40">{t("riskDisclaimer")}</p>
+            {showRisk ? (
+              <p className="mt-2 text-[11px] font-normal text-white/40">{t("riskDisclaimer")}</p>
+            ) : null}
 
-            {error ? <div className="text-down mt-2 text-[12.5px] font-normal">{error}</div> : null}
+            {error ? (
+              <div className="text-down mt-2 text-[12.5px] font-normal">
+                {friendlyError(error, t("orderFailed"))}
+              </div>
+            ) : null}
 
             <button
               onClick={() => void onTrade()}
@@ -392,8 +461,8 @@ export function MemeTradeSheet({
                 : overBalance
                   ? t("notEnough")
                   : buying
-                    ? t("ctaBuy", { symbol: token.symbol ?? "" })
-                    : t("ctaSell", { symbol: token.symbol ?? "" })}
+                    ? t("ctaBuy", { symbol: displaySym })
+                    : t("ctaSell", { symbol: displaySym })}
             </button>
           </>
         )}

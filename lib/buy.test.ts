@@ -4,6 +4,8 @@ import {
   DEFAULT_BUY_CHAIN_ID,
   buyableSymbols,
   defaultRouteForSymbol,
+  displayNetwork,
+  displaySymbol,
   holdingMatchesSymbol,
   isBuyable,
   isOfferable,
@@ -79,16 +81,27 @@ describe("isOfferable", () => {
     ).toBe(true);
   });
 
-  it("rejects unsupported chains and ones we hold no wallet for", () => {
+  it("allows the chains added after live verification against Alchemy", () => {
     expect(isOfferable(route({ symbol: "BNB", chainName: "bsc", destinationChainId: 56 }))).toBe(
-      false
+      true
     );
+    expect(
+      isOfferable(route({ symbol: "USDC", chainName: "berachain", destinationChainId: 80094 }))
+    ).toBe(true);
+  });
+
+  it("rejects unsupported chains and ones we hold no wallet for", () => {
     expect(
       isOfferable(route({ symbol: "BTC", chainName: "bitcoin", destinationChainId: BITCOIN }))
     ).toBe(false);
     expect(isOfferable(route({ symbol: "XRP", chainName: "xrp", destinationChainId: XRP }))).toBe(
       false
     );
+    // Not confirmed live against Alchemy, so left out along with the other
+    // unconfirmed Dextopus labels (see the comment above SUPPORTED_CHAINS).
+    expect(
+      isOfferable(route({ symbol: "ETH", chainName: "morph", destinationChainId: 2818 }))
+    ).toBe(false);
   });
 
   it("offers SOL on Solana but not the Base wrapper", () => {
@@ -178,6 +191,41 @@ describe("buyableSymbols / isBuyable", () => {
     expect(isBuyable(DESTINATIONS, "SOL")).toBe(true);
     expect(isBuyable(DESTINATIONS, "XRP")).toBe(false);
     expect(isBuyable(DESTINATIONS, "DOGE")).toBe(false);
+  });
+});
+
+describe("displaySymbol", () => {
+  it("shows a wrapped representation as the coin it represents", () => {
+    expect(displaySymbol("cbBTC")).toBe("BTC");
+    expect(displaySymbol("cbDOGE")).toBe("DOGE");
+  });
+
+  it("is case-insensitive on the input but returns the canonical display casing", () => {
+    expect(displaySymbol("CBDOGE")).toBe("DOGE");
+    expect(displaySymbol("cbdoge")).toBe("DOGE");
+  });
+
+  it("passes through any symbol with no alias unchanged", () => {
+    expect(displaySymbol("USDC")).toBe("USDC");
+    expect(displaySymbol("WETH")).toBe("WETH");
+    expect(displaySymbol("RandomToken")).toBe("RandomToken");
+  });
+});
+
+describe("displayNetwork", () => {
+  it("shows Bitcoin for cbBTC regardless of its real settlement network", () => {
+    expect(displayNetwork("cbBTC", "base-mainnet")).toBe("Bitcoin");
+    expect(displayNetwork("BTC", "base-mainnet")).toBe("Bitcoin");
+  });
+
+  it("has no equivalent override for DOGE, which keeps its real network", () => {
+    expect(displayNetwork("cbDOGE", "base-mainnet")).toBe("base-mainnet");
+    expect(displayNetwork("DOGE", "base-mainnet")).toBe("base-mainnet");
+  });
+
+  it("passes through the real network unchanged for every other symbol", () => {
+    expect(displayNetwork("USDC", "base-mainnet")).toBe("base-mainnet");
+    expect(displayNetwork("ETH", "arb-mainnet")).toBe("arb-mainnet");
   });
 });
 

@@ -16,7 +16,7 @@ export const SELL_DESTINATION = {
 } as const;
 
 // Dextopus chain id per Alchemy network id, limited to the chains we hold
-// balances on. Keep in sync with the portfolio's queried chains.
+// balances on. Keep in sync with EVM_NETWORKS in lib/server/alchemy.ts.
 const NETWORK_TO_CHAIN: Record<string, number> = {
   "base-mainnet": 8453,
   "eth-mainnet": 1,
@@ -24,36 +24,86 @@ const NETWORK_TO_CHAIN: Record<string, number> = {
   "opt-mainnet": 10,
   "polygon-mainnet": 137,
   "solana-mainnet": 792703809,
+  "apechain-mainnet": 33139,
+  "berachain-mainnet": 80094,
+  "bnb-mainnet": 56,
+  "celo-mainnet": 42220,
+  "gensyn-mainnet": 685689,
+  "hyperliquid-mainnet": 999,
+  "ink-mainnet": 57073,
+  "monad-mainnet": 143,
+  "robinhood-mainnet": 4663,
+  "shape-mainnet": 360,
+  "soneium-mainnet": 1868,
+  "unichain-mainnet": 130,
+  "worldchain-mainnet": 480,
+  "gnosis-mainnet": 100,
+  "linea-mainnet": 59144,
+  "zksync-mainnet": 324,
+  "scroll-mainnet": 534352,
+  "avax-mainnet": 43114,
+  "blast-mainnet": 81457,
+  "zora-mainnet": 7777777,
+  "ronin-mainnet": 2020,
+  "abstract-mainnet": 2741,
+  "mythos-mainnet": 42018,
 };
 
 // A native balance has no contract address; Dextopus takes a chain-specific
 // native sentinel. Its Solana quote endpoint expects the system-program id,
-// not the wrapped-SOL mint returned by its token catalog.
+// not the wrapped-SOL mint returned by its token catalog. Every EVM chain
+// uses the same zero-address sentinel.
 const EVM_NATIVE = "0x0000000000000000000000000000000000000000";
-const NATIVE_ORIGIN: Record<string, string> = {
-  "base-mainnet": EVM_NATIVE,
-  "eth-mainnet": EVM_NATIVE,
-  "arb-mainnet": EVM_NATIVE,
-  "opt-mainnet": EVM_NATIVE,
-  "polygon-mainnet": EVM_NATIVE,
-  "solana-mainnet": DEXTOPUS_NATIVE_SOL,
-};
+
+function nativeOrigin(network: string): string {
+  return network === "solana-mainnet" ? DEXTOPUS_NATIVE_SOL : EVM_NATIVE;
+}
 
 // Whether a held asset's network can be sold (it maps to a Dextopus chain).
 export function canSell(network: string): boolean {
   return network in NETWORK_TO_CHAIN;
 }
 
-// Chains whose native token is ETH. Dextopus accepts native ETH and SOL as
-// origins, but native POL is not currently exposed as a sellable route.
-const NATIVE_ETH_CHAINS = new Set(["base-mainnet", "eth-mainnet", "arb-mainnet", "opt-mainnet"]);
+// Chains whose native token Dextopus accepts as a sell origin, confirmed live
+// against its own deposit/quote endpoint (a dry, non-broadcasting quote per
+// chain). Not every chain here — Dextopus rejects a native origin on
+// berachain, celo, gnosis, and avax specifically ("Origin asset ... is not
+// supported on chain ...", or no route at all for gnosis) even though it
+// accepts each chain's ERC-20s fine and, for some, delivers native as a buy
+// destination. A token (has an address) does not need this check: it is
+// assumed sellable and the quote is the final authority.
+const SELLABLE_NATIVE_CHAINS = new Set([
+  "base-mainnet",
+  "eth-mainnet",
+  "arb-mainnet",
+  "opt-mainnet",
+  "solana-mainnet",
+  "apechain-mainnet",
+  "bnb-mainnet",
+  "gensyn-mainnet",
+  "hyperliquid-mainnet",
+  "ink-mainnet",
+  "monad-mainnet",
+  "robinhood-mainnet",
+  "shape-mainnet",
+  "soneium-mainnet",
+  "unichain-mainnet",
+  "worldchain-mainnet",
+  "linea-mainnet",
+  "zksync-mainnet",
+  "scroll-mainnet",
+  "blast-mainnet",
+  "zora-mainnet",
+  "ronin-mainnet",
+  "abstract-mainnet",
+]);
 
 // Whether a specific held asset can be sold. A token (has an address) is assumed
 // sellable and the quote is the final authority. A native balance is sellable
-// where the native token is ETH (a direct Dextopus origin) and on Solana.
+// only on the chains Dextopus actually accepts as a native origin.
 export function canSellAsset(network: string, address: string | null): boolean {
   if (!canSell(network)) return false;
-  if (address === null) return NATIVE_ETH_CHAINS.has(network) || network === "solana-mainnet";
+  if (address === null) return SELLABLE_NATIVE_CHAINS.has(network);
   return true;
 }
 
@@ -77,7 +127,7 @@ export function buildSellQuoteBody(input: SellQuoteInput) {
   if (!originChainId) throw new Error("This asset's network is not supported for selling.");
   return {
     originChainId,
-    originAsset: input.asset ?? NATIVE_ORIGIN[input.network],
+    originAsset: input.asset ?? nativeOrigin(input.network),
     destinationChainId: SELL_DESTINATION.chainId,
     destinationAsset: SELL_DESTINATION.asset,
     amount: input.amount.toString(),

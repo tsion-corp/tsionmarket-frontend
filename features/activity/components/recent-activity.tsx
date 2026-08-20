@@ -9,6 +9,7 @@ import { ActivityRow } from "@/features/activity/components/activity-row";
 import { useActivity } from "@/features/activity/hooks/use-activity";
 import { useDepositAnalytics } from "@/features/activity/hooks/use-deposit-analytics";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { displaySymbol } from "@/lib/buy";
 
 const PREVIEW_COUNT = 5;
 
@@ -56,7 +57,7 @@ export function RecentActivity() {
             <ActivityRow
               key={item.id}
               item={item}
-              priceUsd={priceBySymbol.get(item.symbol.toUpperCase()) ?? 0}
+              priceUsd={priceBySymbol.get(displaySymbol(item.symbol).toUpperCase()) ?? 0}
             />
           ))
         )}

@@ -5,6 +5,7 @@ import {
   type BuyableRegistry,
   type MemeRegistry,
 } from "@/lib/server/buyable-registry";
+import { displaySymbol } from "@/lib/buy";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -12,12 +13,44 @@ import {
 // The chains we read holdings on: the networks a buy can settle to, so a bought
 // asset shows on the chain it landed on. Keep in sync with SUPPORTED_CHAINS in
 // lib/buy.ts.
+//
+// Every network past the original five passed two checks: an eth_chainId call
+// against Alchemy's own RPC confirmed the chain ID, and a real call to this
+// Portfolio API (assets/tokens/by-address, the endpoint fetchPortfolio below
+// actually uses) accepted the network instead of returning "Unsupported
+// network." The two do not agree on the same set — see the comment on
+// SUPPORTED_CHAINS in lib/buy.ts for exactly which labels were dropped and
+// why. This API also caps a request at 20 networks total ("Invalid number of
+// networks (1-20 allowed)"), which is why fetchPortfolio below batches.
 export const EVM_NETWORKS = [
   "base-mainnet",
   "eth-mainnet",
   "arb-mainnet",
   "opt-mainnet",
   "polygon-mainnet",
+  "apechain-mainnet",
+  "berachain-mainnet",
+  "bnb-mainnet",
+  "celo-mainnet",
+  "gensyn-mainnet",
+  "hyperliquid-mainnet",
+  "ink-mainnet",
+  "monad-mainnet",
+  "robinhood-mainnet",
+  "shape-mainnet",
+  "soneium-mainnet",
+  "unichain-mainnet",
+  "worldchain-mainnet",
+  "gnosis-mainnet",
+  "linea-mainnet",
+  "zksync-mainnet",
+  "scroll-mainnet",
+  "avax-mainnet",
+  "blast-mainnet",
+  "zora-mainnet",
+  "ronin-mainnet",
+  "abstract-mainnet",
+  "mythos-mainnet",
 ];
 export const SOLANA_NETWORK = "solana-mainnet";
 
@@ -72,6 +105,18 @@ function toNumber(raw: bigint, decimals: number): number {
 // resolve their identity per network. Without this, native ETH/POL/SOL shows as
 // an "unknown token" AND the gas check (which matches on symbol) fails, which is
 // why funded gas still read as "no gas".
+//
+// Symbol, name, and decimals for the networks past the original six came from
+// viem's chain registry (already a dependency here), looked up by chain ID.
+// One override: viem's entry for chain ID 999 is a stale "Zora Goerli Testnet"
+// left over from a retired network, not hyperliquid-mainnet, which now also
+// uses that chain ID. HYPE/18 came from Hyperliquid's own docs instead.
+// mythos-mainnet has no entry: it is not in viem's registry and no other
+// source was confirmed, so its native balance is not resolved. ERC-20 tokens
+// bought there still work, since that path does not depend on this map. No
+// entry exists for a network the Portfolio API itself does not support (see
+// the comment on EVM_NETWORKS above) — there is nothing to resolve a native
+// balance from if the network is never queried.
 const NATIVE_TOKEN: Record<string, { symbol: string; name: string; decimals: number }> = {
   "eth-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
   "base-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
@@ -79,6 +124,28 @@ const NATIVE_TOKEN: Record<string, { symbol: string; name: string; decimals: num
   "opt-mainnet": { symbol: "ETH", name: "Ethereum", decimals: 18 },
   "polygon-mainnet": { symbol: "POL", name: "Polygon", decimals: 18 },
   "solana-mainnet": { symbol: "SOL", name: "Solana", decimals: 9 },
+  "apechain-mainnet": { symbol: "APE", name: "ApeCoin", decimals: 18 },
+  "berachain-mainnet": { symbol: "BERA", name: "BERA Token", decimals: 18 },
+  "bnb-mainnet": { symbol: "BNB", name: "BNB", decimals: 18 },
+  "celo-mainnet": { symbol: "CELO", name: "CELO", decimals: 18 },
+  "gensyn-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "hyperliquid-mainnet": { symbol: "HYPE", name: "Hyperliquid", decimals: 18 },
+  "ink-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "monad-mainnet": { symbol: "MON", name: "Monad", decimals: 18 },
+  "robinhood-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "shape-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "soneium-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "unichain-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "worldchain-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "gnosis-mainnet": { symbol: "XDAI", name: "xDAI", decimals: 18 },
+  "linea-mainnet": { symbol: "ETH", name: "Linea Ether", decimals: 18 },
+  "zksync-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "scroll-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "avax-mainnet": { symbol: "AVAX", name: "Avalanche", decimals: 18 },
+  "blast-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "zora-mainnet": { symbol: "ETH", name: "Ether", decimals: 18 },
+  "ronin-mainnet": { symbol: "RON", name: "RON", decimals: 18 },
+  "abstract-mainnet": { symbol: "ETH", name: "ETH", decimals: 18 },
 };
 
 // The stablecoins we always surface per chain. Balances come from Alchemy; a
@@ -105,20 +172,19 @@ const TRACKED_STABLES: Record<string, { symbol: "USDC" | "USDT"; address: string
 
 const STABLE_NAME: Record<string, string> = { USDC: "USD Coin", USDT: "Tether" };
 
-// The chains we track. Native gas tokens are only shown on these.
-const TRACKED_CHAINS = new Set([
-  "base-mainnet",
-  "eth-mainnet",
-  "arb-mainnet",
-  "opt-mainnet",
-  "polygon-mainnet",
-  "solana-mainnet",
-]);
+// The chains we track. Native gas tokens are only shown on these. Kept as
+// exactly the keys of NATIVE_TOKEN: a chain here without an entry there would
+// let a native balance past the allowlist and then drop it anyway for having
+// no resolvable symbol, which is why mythos-mainnet stays out of both.
+const TRACKED_CHAINS = new Set(Object.keys(NATIVE_TOKEN));
 
 // Non-stablecoin assets we still recognize (e.g. swappable cbBTC on Base),
 // lowercased address per network.
 const ALLOWED_EXTRA: Record<string, string[]> = {
-  "base-mainnet": ["0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf"], // cbBTC
+  "base-mainnet": [
+    "0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf", // cbBTC
+    "0xcbd06e5a2b0c65597161de254aa074e489deb510", // cbDOGE, verified on-chain: symbol "cbDOGE", 8 decimals
+  ],
 };
 
 function isTrackedStable(network: string, address: string | null): boolean {
@@ -192,16 +258,28 @@ function normalize(
     // (Polygon USDC has done this). They are dollar-pegged, so value a held
     // balance at $1 rather than $0, which would hide a real holding.
     if (priceUsd === 0 && isTrackedStable(network, address)) priceUsd = 1;
-    const kind: AssetKind = isNative
+    // A wrapped representation (cbBTC, cbDOGE) displays as the coin it
+    // represents, not its own contract ticker or on-chain name — the raw
+    // resolved symbol above still governs identity checks (isTrackedStable,
+    // the network value, sell/send routing), and the contract's own
+    // name/symbol/network are unchanged on-chain; only what is shown to the
+    // user changes. kind is display-only everywhere it is read (the type
+    // pill, the balance breakdown bucket) so aliasing it directly is safe —
+    // unlike network, nothing downstream needs it to stay "token".
+    const shownSymbol = displaySymbol(symbol);
+    const aliased = shownSymbol !== symbol;
+    const kind: AssetKind = aliased
       ? "coin"
-      : rwaInfo
-        ? "rwa"
-        : isTrackedStable(network, address)
-          ? "stablecoin"
-          : "token";
+      : isNative
+        ? "coin"
+        : rwaInfo
+          ? "rwa"
+          : isTrackedStable(network, address)
+            ? "stablecoin"
+            : "token";
     out.push({
-      symbol,
-      name: native?.name ?? t.tokenMetadata?.name ?? symbol,
+      symbol: shownSymbol,
+      name: aliased ? shownSymbol : (native?.name ?? t.tokenMetadata?.name ?? symbol),
       network,
       address,
       decimals,
@@ -417,6 +495,57 @@ export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
   });
 }
 
+// Alchemy's tokens/by-address endpoint rejects a request with more than 20
+// networks total ("Invalid number of networks (1-20 allowed)") — verified
+// live. EVM_NETWORKS now has more than that, so a single request that asked
+// for all of them started failing outright the moment it grew past 20,
+// taking down the whole portfolio rather than just the newest chains. Split
+// into batches instead.
+const NETWORKS_PER_REQUEST = 20;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+// The API paginates: a wallet queried across many networks at once easily
+// exceeds one page (100 tokens here — this wallet alone has accumulated
+// far more than that in spam/airdrop tokens across the now-larger network
+// list), and a real holding can land on any page, not just the first. A
+// response can also carry both `data.tokens` (whatever it did resolve) and
+// a top-level `error` for the networks it could not (verified live: one
+// specific network failing this way did not fail the whole batch) — neither
+// case is an HTTP failure, so alchemyFetch's ok check does not see either of
+// them; both are handled here instead.
+const MAX_PAGES = 10;
+
+async function fetchTokensByAddress(
+  addresses: { address: string; networks: string[] }[]
+): Promise<AlchemyToken[]> {
+  const out: AlchemyToken[] = [];
+  let pageKey: string | undefined;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const body = JSON.stringify({
+      addresses,
+      withMetadata: true,
+      withPrices: true,
+      includeNativeTokens: true,
+      includeErc20Tokens: true,
+      ...(pageKey ? { pageKey } : {}),
+    });
+    const res = await alchemyFetch(
+      (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body }
+    );
+    const data = await res.json();
+    out.push(...(data?.data?.tokens ?? []));
+    pageKey = data?.data?.pageKey ?? undefined;
+    if (!pageKey) break;
+  }
+  return out;
+}
+
 export async function fetchPortfolio(
   evm?: string,
   solana?: string,
@@ -427,28 +556,39 @@ export async function fetchPortfolio(
   return cached(
     cacheKey,
     async () => {
-      const addresses: { address: string; networks: string[] }[] = [];
-      if (evm) addresses.push({ address: evm, networks: EVM_NETWORKS });
-      if (solana) addresses.push({ address: solana, networks: [SOLANA_NETWORK] });
+      const requests: Promise<AlchemyToken[]>[] = [];
+      if (evm) {
+        for (const networks of chunk(EVM_NETWORKS, NETWORKS_PER_REQUEST)) {
+          requests.push(fetchTokensByAddress([{ address: evm, networks }]));
+        }
+      }
+      if (solana) {
+        requests.push(fetchTokensByAddress([{ address: solana, networks: [SOLANA_NETWORK] }]));
+      }
 
-      const body = JSON.stringify({
-        addresses,
-        withMetadata: true,
-        withPrices: true,
-        includeNativeTokens: true,
-        includeErc20Tokens: true,
-      });
-      const res = await alchemyFetch(
-        (key) => `https://api.g.alchemy.com/data/v1/${key}/assets/tokens/by-address`,
-        { method: "POST", headers: { "Content-Type": "application/json" }, body }
-      );
-
-      const [data, rwa, registries] = await Promise.all([
-        res.json(),
+      const [batchResults, rwa, registries] = await Promise.all([
+        Promise.allSettled(requests),
         fetchRwaRegistry(),
         fetchBuyableRegistry(),
       ]);
-      const held = normalize(data?.data?.tokens ?? [], rwa, registries.buyable, registries.meme);
+      // One batch (a chunk of networks) failing should not blank holdings on
+      // every other chunk that succeeded — log it and keep going with what
+      // came back. Only every batch failing propagates, so cached()'s
+      // stale-serve fallback still applies to a total outage.
+      const failed = batchResults.filter((r) => r.status === "rejected");
+      if (failed.length > 0 && failed.length === batchResults.length) {
+        throw (failed[0] as PromiseRejectedResult).reason;
+      }
+      if (failed.length > 0) {
+        console.error(
+          `fetchPortfolio: ${failed.length}/${batchResults.length} network batches failed`,
+          failed.map((r) => (r as PromiseRejectedResult).reason)
+        );
+      }
+      const tokensFromBatches = batchResults
+        .filter((r): r is PromiseFulfilledResult<AlchemyToken[]> => r.status === "fulfilled")
+        .flatMap((r) => r.value);
+      const held = normalize(tokensFromBatches, rwa, registries.buyable, registries.meme);
       // Only baseline the chains the user actually has a wallet on.
       const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
       const tokens = await withTrackedBaseline(held, networks);

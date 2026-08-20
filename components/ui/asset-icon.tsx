@@ -71,7 +71,14 @@ const CRYPTO_ICONS: Record<string, IconComponent> = {
   "USD₮0": TokenUSDT,
   WBTC: TokenWBTC,
   WBTCN: TokenWBTC,
-  CBBTC: TokenWBTC,
+  // Real Wrapped BTC keeps the WBTC mark, but cbBTC is a 1:1 Coinbase
+  // custody wrapper shown to the user as plain "BTC" (see displaySymbol in
+  // lib/buy.ts) — its icon should read the same way. This entry is a
+  // defensive fallback: with that alias applied, "cbBTC" should never
+  // actually reach this lookup, but if it ever does, it should not show the
+  // wrong coin's icon.
+  CBBTC: TokenBTC,
+  CBDOGE: TokenDOGE,
   DAI: TokenDAI,
   XDAI: TokenDAI,
   PYUSD: TokenPYUSD,

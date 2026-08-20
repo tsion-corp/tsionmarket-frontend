@@ -7,6 +7,7 @@ import { ClockIcon } from "@/components/ui/icons";
 import { ActivityRow, dayHeading } from "@/features/activity/components/activity-row";
 import { useActivity, type ActivityEntry } from "@/features/activity/hooks/use-activity";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { displaySymbol } from "@/lib/buy";
 
 // Wallet history across every chain we track, newest first and grouped by day.
 // Indexed on-chain rather than recorded by the app, so transfers received
@@ -77,7 +78,7 @@ export function ActivityView() {
                 <ActivityRow
                   key={item.id}
                   item={item}
-                  priceUsd={priceBySymbol.get(item.symbol.toUpperCase()) ?? 0}
+                  priceUsd={priceBySymbol.get(displaySymbol(item.symbol).toUpperCase()) ?? 0}
                 />
               ))}
             </div>

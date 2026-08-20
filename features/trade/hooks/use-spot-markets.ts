@@ -6,6 +6,7 @@ import { useMarketTokens } from "@/features/trade/hooks/use-market-tokens";
 import { usePrices } from "@/hooks/use-prices";
 import { buyableLogos, buyableSymbols } from "@/lib/buy";
 import { isSpotStable } from "@/lib/spot-chart";
+import { swapRouteSymbols } from "@/lib/spot-swap";
 import type { MarketToken } from "@/lib/market-catalog";
 
 export interface SpotMarket {
@@ -27,9 +28,13 @@ export function useSpotMarkets() {
   const destinations = useBuyDestinations();
   const { data: feed = [] } = useMarketTokens("popular");
 
+  // The Dextopus-buyable set, plus the small set of symbols that settle
+  // through a same-chain swap instead (see lib/spot-swap.ts) — currently just
+  // DOGE, which Dextopus does not offer on any chain.
   const buyableSyms = useMemo(() => {
     if (!destinations.data) return [];
-    return [...buyableSymbols(destinations.data)].filter((s) => !isSpotStable(s));
+    const dextopus = buyableSymbols(destinations.data);
+    return [...new Set([...dextopus, ...swapRouteSymbols()])].filter((s) => !isSpotStable(s));
   }, [destinations.data]);
 
   const prices = usePrices(buyableSyms);

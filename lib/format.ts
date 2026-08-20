@@ -32,9 +32,11 @@ export function subscriptZeros(value: number, digitsKept = 4): string | null {
 }
 
 export function formatQty(n: number): string {
-  return n >= 1000
-    ? n.toLocaleString(undefined, { maximumFractionDigits: 2 })
-    : n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  if (n >= 1000) return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  const plain = n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  // Satoshi-scale balances (e.g. a few dollars of BTC) round to a bare "0" at
+  // 4dp, which reads as a missing quantity rather than a tiny one.
+  return plain === "0" ? (subscriptZeros(n) ?? plain) : plain;
 }
 
 export function isUp(change: string): boolean {

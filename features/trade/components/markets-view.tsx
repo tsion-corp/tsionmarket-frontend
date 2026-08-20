@@ -13,6 +13,7 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { useCoingeckoId } from "@/hooks/use-coingecko-id";
 import { useSpotMarkets, type SpotMarket } from "@/features/trade/hooks/use-spot-markets";
 import { defaultRouteForSymbol, holdingMatchesSymbol } from "@/lib/buy";
+import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { formatUsd } from "@/lib/trade/math";
 import { tokenBg } from "@/lib/trade/assets";
 import { coingeckoId, coingeckoPlatform } from "@/lib/coingecko";
@@ -79,11 +80,15 @@ export function MarketsView() {
   }, [portfolio.tokens, destinations.data, base]);
   const heldBalance = heldToken?.balance ?? 0;
 
-  // Every listed market is buyable by construction, so this resolves a route.
+  // Every listed market is buyable by construction, so this resolves a route,
+  // either a Dextopus cross-chain route or (for the small set of symbols
+  // Dextopus does not offer, see lib/spot-swap.ts) a same-chain swap route.
+  // A symbol never has both.
   const buyRoute = useMemo(
     () => (token ? defaultRouteForSymbol(destinations.data ?? [], token.symbol) : null),
     [destinations.data, token]
   );
+  const swapRoute = useMemo(() => (token ? swapRouteForSymbol(token.symbol) : null), [token]);
 
   // Chart source. TradingView for the majors it carries, otherwise our CoinGecko
   // candle chart, which needs a coin id. The id comes from the market feed, the
@@ -248,6 +253,7 @@ export function MarketsView() {
       usdcBalance={usdcBalance}
       heldToken={heldToken}
       buyRoute={buyRoute}
+      swapRoute={swapRoute}
     />
   );
 

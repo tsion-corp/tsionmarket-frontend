@@ -9,9 +9,11 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { useDepositChains, useDepositStatus } from "@/hooks/use-deposit";
 import { useBuyDestinations } from "@/features/trade/hooks/use-buy-catalog";
 import { useBuy } from "@/features/trade/hooks/use-buy";
+import { useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
 import { NetworkPicker, NetworkSelect } from "@/features/trade/components/network-select";
 import { belowMinimumBuy, isSolanaChainId, minimumBuyUsd } from "@/lib/trade/minimums";
 import { routesForSymbol } from "@/lib/buy";
+import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
@@ -54,6 +56,14 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   const [chainId, setChainId] = useState<number | null>(null);
   const route = routes.find((r) => r.destinationChainId === chainId) ?? routes[0] ?? null;
 
+  // A symbol Dextopus does not offer (see lib/spot-swap.ts) settles through
+  // the meme swap engine instead. A symbol never has both a route and a
+  // swap route.
+  const swapRoute = useMemo(() => swapRouteForSymbol(payload.symbol), [payload.symbol]);
+  const isSwapMarket = swapRoute != null;
+  const memeTrade = useMemeTrade();
+  const swapBusy = isSwapMarket && memeTrade.phase !== "idle" && memeTrade.phase !== "failed";
+
   // Network display name and logo come from the Dextopus chain catalog, keyed by
   // the route's destination chain.
   const chainMeta = useDepositChains();
@@ -95,7 +105,12 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   // A buy is always a USDC send on Base, and every Base send is gas-sponsored
   // (EIP-7702 through our bundler), so no native ETH is ever required here.
   const canBuy =
-    Boolean(route) && value >= minUsd && !portfolio.loading && value <= balance && !buy.isPending;
+    (Boolean(route) || isSwapMarket) &&
+    value >= minUsd &&
+    !portfolio.loading &&
+    value <= balance &&
+    !buy.isPending &&
+    !swapBusy;
 
   // Instant estimate from market price: dollars spent divided by the asset's
   // unit price. This is a preview; the exact amount is quoted at buy time and
@@ -105,14 +120,43 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   // Which spot screen the fill came from, so the two can be compared.
   const { mode: spotMode } = useSpotMode();
 
-  const progress = useMemo(
+  const dextopusProgress = useMemo(
     () =>
       status.data
         ? depositProgress(status.data.status, status.data.executionStatus)
         : depositProgress("", ""),
     [status.data]
   );
+  // A swap market reports its own phase from useMemeTrade directly, since it
+  // never goes through Dextopus's deposit-status polling. `received` is an
+  // on-chain-verified balanceOf delta that lands before the backend's own
+  // slower confirmation — treated as settled immediately, so this screen
+  // never sits on "still buying" for a trade that has already landed in the
+  // wallet.
+  const swapStage: DepositStage =
+    memeTrade.phase === "confirmed" || memeTrade.received != null
+      ? "settled"
+      : memeTrade.phase === "failed"
+        ? "failed"
+        : memeTrade.phase === "signing" || memeTrade.phase === "confirming"
+          ? "processing"
+          : "waiting";
+  const swapPct: Record<typeof memeTrade.phase, number> = {
+    idle: 0,
+    linking: 10,
+    quoting: 25,
+    signing: 50,
+    confirming: 75,
+    confirmed: 100,
+    failed: 0,
+  };
+  const progress = isSwapMarket
+    ? { stage: swapStage, pct: memeTrade.received != null ? 100 : swapPct[memeTrade.phase] }
+    : dextopusProgress;
   const stage = progress.stage;
+  // Shows the order-tracking view: requestId once a Dextopus buy is placed,
+  // or any non-idle phase once a swap-market buy starts.
+  const showTracking = isSwapMarket ? memeTrade.phase !== "idle" : requestId != null;
 
   // Once the order settles, refresh holdings so the new asset appears, and thank
   // the user once.
@@ -120,7 +164,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   // Id of the processing toast opened on confirm, resolved when the order settles.
   const toastRef = useRef<string | number | undefined>(undefined);
   useEffect(() => {
-    if (settledRef.current) return;
+    if (!showTracking || settledRef.current) return;
     if (stage === "settled") {
       settledRef.current = true;
       // Reported on settlement rather than on confirm, so the number counts
@@ -139,10 +183,29 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
-      toast.error(t("purchaseRefundedToast"), { id: toastRef.current });
-      toastRef.current = undefined;
+      // A swap-market failure is already toasted, with the real reason, from
+      // confirm()'s own catch below — trade() only resolves or rejects once
+      // the whole flow (including confirmation polling) is done, so there is
+      // no later, separate failure for this effect to catch. The Dextopus
+      // path is different: buy.mutateAsync resolves as soon as the order is
+      // placed, and settlement (or its failure) is detected later, here.
+      if (!isSwapMarket) {
+        toast.error(t("purchaseRefundedToast"), { id: toastRef.current });
+        toastRef.current = undefined;
+      }
     }
-  }, [stage, payload.name, payload.symbol, route?.chainName, value, portfolio, t, spotMode]);
+  }, [
+    showTracking,
+    stage,
+    isSwapMarket,
+    payload.name,
+    payload.symbol,
+    route?.chainName,
+    value,
+    portfolio,
+    t,
+    spotMode,
+  ]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
   // effect that would resolve it, leaving it spinning forever. Every resolution
@@ -162,7 +225,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   }, [payload.symbol]);
 
   const confirm = async () => {
-    if (!route) return;
+    if (!route && !swapRoute) return;
     // The attempt, as opposed to the fill reported on settlement. The two
     // together are what make the drop-off between them visible.
     track("trade_previewed", {
@@ -172,6 +235,30 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       amount_usd: value,
     });
     toastRef.current = toast.loading(t("buyingToast", { name: payload.name }));
+    if (swapRoute) {
+      try {
+        await memeTrade.trade({
+          side: "BUY",
+          tokenAddress: swapRoute.tokenAddress,
+          amount,
+          slippageBps: SLIPPAGE_BPS,
+        });
+        toast.dismiss(toastRef.current);
+        toastRef.current = undefined;
+      } catch (e) {
+        // useMemeTrade already records phase "failed" for the tracking view
+        // below; the toast leads with its actual reason (a stale quote, a
+        // reverted swap, a rejected signature) instead of a generic line that
+        // hides what happened. friendlyError strips raw wallet/RPC dumps
+        // (calldata, signatures, gas fields) down to plain English.
+        toast.error(friendlyError(e, t("buyFailedToast", { name: payload.name })), {
+          id: toastRef.current,
+        });
+        toastRef.current = undefined;
+      }
+      return;
+    }
+    if (!route) return;
     try {
       const result = await buy.mutateAsync({
         route,
@@ -188,10 +275,11 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   };
 
   // Order-tracking view: shown once the payment is on its way.
-  if (requestId) {
+  if (showTracking) {
     const failed = stage === "failed" || stage === "refunded";
     const done = stage === "settled";
     const color = failed ? "#f6a5a5" : done ? "#7ce7b0" : "#d4d4d8";
+    const boughtAmount = isSwapMarket ? (memeTrade.received?.amount ?? "") : bought;
     return (
       <div>
         <Eyebrow>{done ? t("allDone") : t("buying")}</Eyebrow>
@@ -208,14 +296,21 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
           <ProgressBar pct={progress.pct} color={color} />
           {done ? (
             <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
-              {bought
-                ? t("amountInAccount", { amount: bought, symbol: payload.symbol })
+              {boughtAmount
+                ? t("amountInAccount", { amount: boughtAmount, symbol: payload.symbol })
                 : t("assetInAccount", { name: payload.name })}
             </p>
           ) : failed ? (
-            <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
-              {t("orderFailedBody")}
-            </p>
+            <>
+              <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/70">
+                {t("orderFailedBody")}
+              </p>
+              {isSwapMarket && memeTrade.error ? (
+                <p className="mt-1 text-[11px] leading-[1.4] font-normal text-white/40">
+                  {friendlyError(memeTrade.error, t("orderFailedBody"))}
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="mt-3 text-[13px] leading-[1.5] font-normal text-white/60">
               {t("takesAMoment")}
@@ -313,6 +408,8 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
         <p className="text-down mt-3 text-[13px] font-normal">
           {friendlyError(buy.error, t("purchaseFailedFallback"))}
         </p>
+      ) : isSwapMarket && memeTrade.error ? (
+        <p className="text-down mt-3 text-[13px] font-normal">{memeTrade.error}</p>
       ) : null}
 
       <button
@@ -320,7 +417,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
         disabled={!canBuy}
         className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {!route
+        {!route && !isSwapMarket
           ? t("unavailable")
           : value <= 0
             ? t("enterAmount")
@@ -328,7 +425,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
               ? t("minimumUsd", { amount: minUsd })
               : notEnough
                 ? t("notEnoughBalance")
-                : buy.isPending
+                : buy.isPending || swapBusy
                   ? t("confirming")
                   : t("buyToken", { name: payload.name })}
       </button>
