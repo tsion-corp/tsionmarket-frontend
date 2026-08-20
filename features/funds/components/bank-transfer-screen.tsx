@@ -45,7 +45,7 @@ function displayUsdc(amount: string): string {
 }
 
 // Quick-select deposit amounts, in Naira. The first is the minimum.
-const AMOUNT_PRESETS = [5000, 10000, 50000, 100000];
+const AMOUNT_PRESETS = [1000, 5000, 10000, 50000];
 
 // Seconds until the order's rate lock lapses. Derived from the deadline
 // rather than a stored duration, so a slept tab shows the true time left.

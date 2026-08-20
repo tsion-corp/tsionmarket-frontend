@@ -222,6 +222,7 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
             emptyLabel={t("hallEmpty")}
             pageSize={5}
             columns={1}
+            ranked
           />
         </div>
       </ModalShell>

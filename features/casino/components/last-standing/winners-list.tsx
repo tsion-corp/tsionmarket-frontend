@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { Pager } from "@/components/ui/pager";
@@ -21,6 +22,9 @@ interface WinnersListProps {
   pageSize?: number;
   /** Two columns on wide screens (the game page card), or one (a modal). */
   columns?: 1 | 2;
+  /** Leaderboard mode: sorted by payout, biggest first, ranks instead of the
+   *  latest-round sweep. */
+  ranked?: boolean;
 }
 
 // The settled rounds, newest first: who won, which game, when, and what they
@@ -35,11 +39,25 @@ export function WinnersList({
   highlightLatest = true,
   pageSize = 10,
   columns = 2,
+  ranked = false,
 }: WinnersListProps) {
   const t = useTranslations("casino.lastStanding");
   const money = useMoney();
   const reduce = useReducedMotion();
-  const paged = usePaged(winners, pageSize);
+  // The leaderboard orders by what each win paid, ties broken by recency, and
+  // never mutates the caller's array.
+  const items = useMemo(
+    () =>
+      ranked
+        ? [...winners].sort(
+            (a, b) =>
+              b.toWinner.usdValue - a.toWinner.usdValue ||
+              Date.parse(b.settledAt) - Date.parse(a.settledAt)
+          )
+        : winners,
+    [winners, ranked]
+  );
+  const paged = usePaged(items, pageSize);
   const grid = columns === 2 ? "mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5" : "mt-4 grid gap-2";
 
   if (loading) {
@@ -64,7 +82,8 @@ export function WinnersList({
     <>
       <div className={grid}>
         {paged.pageItems.map((w, idx) => {
-          const isLatest = highlightLatest && paged.page === 0 && idx === 0;
+          const isLatest = !ranked && highlightLatest && paged.page === 0 && idx === 0;
+          const rank = paged.from + idx;
           return (
             <motion.a
               key={w.settlementTx}
@@ -93,8 +112,16 @@ export function WinnersList({
                   }}
                 />
               ) : null}
-              <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#d8d8dc]/12 text-[15px] ring-1 ring-[#d8d8dc]/20">
-                🏆
+              <span
+                className={`tnum relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#d8d8dc]/12 ring-1 ${
+                  ranked
+                    ? rank <= 3
+                      ? "text-[14px] font-bold text-[#d8d8dc] ring-[#d8d8dc]/45"
+                      : "text-[13px] font-semibold text-white/60 ring-[#d8d8dc]/20"
+                    : "text-[15px] ring-[#d8d8dc]/20"
+                }`}
+              >
+                {ranked ? rank : "🏆"}
               </span>
               <span className="relative min-w-0 flex-1">
                 <span className="tnum block truncate text-[13.5px] font-semibold text-white/90">

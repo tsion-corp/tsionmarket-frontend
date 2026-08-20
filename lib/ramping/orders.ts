@@ -11,9 +11,10 @@
 
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 
-// The minimum deposit in Naira. Ours, not the rail's: below this the transfer
-// fees eat the deposit.
-export const ONRAMP_MIN_NGN = 5000;
+// The minimum deposit in Naira. Ours, not the rail's: low enough that a small
+// manual deposit goes through, high enough that a test-sized transfer does not
+// create a dust order.
+export const ONRAMP_MIN_NGN = 1000;
 
 // A small floor so a dust withdrawal never reaches the rail.
 export const OFFRAMP_MIN_USDC = 1;

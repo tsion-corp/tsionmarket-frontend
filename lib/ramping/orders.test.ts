@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   idempotencyKey,
+  isValidOnrampNgn,
   isTerminalProgress,
   ngnForUsdcExact,
   normalizeBanks,
@@ -119,6 +120,15 @@ describe("normalization", () => {
       onrampRate: "1650",
       offrampRate: "1600",
     });
+  });
+});
+
+describe("onramp floor", () => {
+  it("accepts any typed amount from the floor up", () => {
+    expect(isValidOnrampNgn(1000)).toBe(true);
+    expect(isValidOnrampNgn(2500)).toBe(true);
+    expect(isValidOnrampNgn(999)).toBe(false);
+    expect(isValidOnrampNgn(NaN)).toBe(false);
   });
 });
 
