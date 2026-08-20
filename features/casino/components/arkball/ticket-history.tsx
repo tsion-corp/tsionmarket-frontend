@@ -27,7 +27,7 @@ export function TicketHistory({ tickets, results, loading }: TicketHistoryProps)
   const format = useFormatter();
 
   return (
-    <section className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[1.1fr_0.9fr]">
       <div className="rounded-[22px] border border-white/8 bg-white/[0.035] p-5 sm:p-6">
         <div className="flex items-end justify-between gap-3">
           <div>

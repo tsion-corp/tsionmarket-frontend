@@ -72,7 +72,7 @@ export function DrawOverview({ current, latest }: DrawOverviewProps) {
   const latestResult = latest?.result;
 
   return (
-    <section className="grid gap-3 lg:grid-cols-3">
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-3 lg:grid-cols-3">
       <article className="rounded-[22px] border border-white/8 bg-[linear-gradient(145deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025))] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)]">
         <div className="text-[11px] font-semibold tracking-[0.13em] text-white/42 uppercase">
           {t("winningNumbers")}

@@ -87,7 +87,7 @@ export function ArkBallSection() {
 
         <DrawOverview current={current} latest={lottery.results[0] ?? null} />
 
-        <div className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_290px]">
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-4 2xl:grid-cols-[minmax(0,1fr)_290px]">
           <TicketBuilder
             drawId={current.id}
             drawStatus={current.status}
