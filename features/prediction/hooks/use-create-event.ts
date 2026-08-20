@@ -100,9 +100,9 @@ export function useCreateEvent() {
         const marketId = randomMarketId();
         setProgress((p) => p.map((row, idx) => (idx === i ? { ...row, status: "creating" } : row)));
 
-        // Per-outcome question: "<title> — <label>". Kept human-readable so the
+        // Per-outcome question: "<title>: <label>". Kept human-readable so the
         // underlying binary market reads sensibly on its own detail page too.
-        const question = `${input.title} — ${outcome.label}`;
+        const question = `${input.title}: ${outcome.label}`;
         const result = await actions.createMarket({
           marketId,
           closeTime: input.closeTime,

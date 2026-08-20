@@ -169,7 +169,7 @@ export function friendlyError(
   // is worse than saying nothing. Must precede the server-message passthrough,
   // which would otherwise judge a short revert string "safe" and print it.
   if (/execution reverted|call revert|\breverted\b|0x[0-9a-fA-F]{8,}/.test(raw)) {
-    return "The network rejected this transaction. Nothing was charged — please try again.";
+    return "The network rejected this transaction. Nothing was charged, so please try again.";
   }
   // For typed server responses (like chess cashier failures), keep the message
   // when it is already plain English and not obviously an infrastructure dump.

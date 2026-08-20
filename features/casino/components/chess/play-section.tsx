@@ -1569,7 +1569,7 @@ export function PlaySection({
                     if (!inviteUrl) return;
                     const copied = await copyText(inviteUrl);
                     if (copied) toast.success(tCreate("linkCopied"));
-                    else toast.error("Couldn't copy — long-press the link to copy it.");
+                    else toast.error("Couldn't copy. Long-press the link to copy it.");
                   }}
                   className="cursor-pointer rounded-[12px] border border-white/12 bg-white/6 px-4 py-3 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12"
                 >
@@ -2508,7 +2508,7 @@ export function PlaySection({
                       if (!inviteUrl) return;
                       const copied = await copyText(inviteUrl);
                       if (copied) toast.success(tCreate("linkCopied"));
-                      else toast.error("Couldn't copy — long-press the link to copy it.");
+                      else toast.error("Couldn't copy. Long-press the link to copy it.");
                     }}
                     className="cursor-pointer rounded-[12px] border border-white/12 bg-white/6 px-4 py-3 text-[12px] font-medium text-white/85 transition-colors hover:bg-white/12"
                   >

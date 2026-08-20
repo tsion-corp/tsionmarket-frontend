@@ -102,8 +102,8 @@ export default function ReclaimPage() {
       <div>
         <h1 className="text-2xl font-semibold">Reclaim your winnings</h1>
         <p className="mt-2 text-sm text-white/60">
-          Some earlier markets moved to a new contract. If you won one of them, your payout is
-          waiting here — log in with the same email you used and claim it. Gas is on us.
+          Some earlier markets moved to a new home. If you won one of them, your payout is waiting
+          here. Log in with the same email you used and claim it, free of charge.
         </p>
       </div>
 
@@ -153,7 +153,7 @@ export default function ReclaimPage() {
                 {state.redeemables.map((r) => (
                   <li key={`${r.marketId.toString()}-${r.side}`}>
                     {r.label} ({r.kind === "winning" ? "winnings" : "refund"}): {USDC(r.shares)}
-                    {r.solvent ? null : <span className="text-white/35"> — unavailable</span>}
+                    {r.solvent ? null : <span className="text-white/35"> (unavailable)</span>}
                   </li>
                 ))}
               </ul>
@@ -166,7 +166,7 @@ export default function ReclaimPage() {
             {blocked > 0n ? (
               <p className="mt-3 text-xs text-white/40">
                 {USDC(blocked)} from one market can&apos;t be paid out right now (that market is
-                short on funds). We&apos;re looking into it — the rest is claimable now.
+                short on funds). We&apos;re looking into it. The rest is claimable now.
               </p>
             ) : null}
           </div>

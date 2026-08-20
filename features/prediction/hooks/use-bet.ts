@@ -142,7 +142,7 @@ export function useBet() {
           }
           if (available < input.amountUsd) {
             throw new BetError(
-              "Your funds are on the way. This can take a minute — try placing the bet again shortly."
+              "Your funds are on the way. This can take a minute, so try placing the bet again shortly."
             );
           }
         }
