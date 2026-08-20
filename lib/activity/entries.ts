@@ -145,5 +145,69 @@ export function buildActivityEntries(items: ActivityItem[]): ActivityEntry[] {
     for (const item of group) if (!isDust(item)) entries.push(movement(item));
   }
 
-  return entries.sort((a, b) => b.timestamp - a.timestamp);
+  return pairAcrossChains(entries).sort((a, b) => b.timestamp - a.timestamp);
+}
+
+// A sale that settles on another chain cannot share a hash with its payout:
+// selling SOL emits "Sent SOL" on Solana and, seconds later, "Deposited USDC"
+// on Base. Two rows for one action, and the second one baffles ("who deposited
+// money to me?"). Cross-chain settlement lands well inside this window.
+const CROSS_CHAIN_WINDOW_MS = 3 * 60 * 1000;
+
+// Merge an asset leaving one chain with money arriving on another into one
+// sale (and the reverse into one purchase). Deliberately strict: both legs
+// must be unpaired movements on different chains inside the window, and each
+// must have exactly one candidate partner. Any ambiguity leaves the rows
+// alone, because a wrong merge misdescribes someone's money.
+function pairAcrossChains(entries: ActivityEntry[]): ActivityEntry[] {
+  const assetOut = entries.filter((e) => e.kind === "sent");
+  const moneyIn = entries.filter((e) => e.kind === "deposited");
+  const moneyOut = entries.filter((e) => e.kind === "withdrew");
+  const assetIn = entries.filter((e) => e.kind === "received");
+
+  const merged = new Set<string>();
+  const trades: ActivityEntry[] = [];
+
+  const tryPair = (subjects: ActivityEntry[], monies: ActivityEntry[], kind: "sold" | "bought") => {
+    for (const subject of subjects) {
+      if (merged.has(subject.id)) continue;
+      const candidates = monies.filter(
+        (m) =>
+          !merged.has(m.id) &&
+          m.network !== subject.network &&
+          Math.abs(m.timestamp - subject.timestamp) <= CROSS_CHAIN_WINDOW_MS
+      );
+      if (candidates.length !== 1) continue;
+      const money = candidates[0];
+      const rivalSubjects = subjects.filter(
+        (s) =>
+          !merged.has(s.id) &&
+          s.network !== money.network &&
+          Math.abs(money.timestamp - s.timestamp) <= CROSS_CHAIN_WINDOW_MS
+      );
+      if (rivalSubjects.length !== 1) continue;
+      merged.add(subject.id);
+      merged.add(money.id);
+      trades.push({
+        id: `${subject.id}+${money.id}`,
+        hash: subject.hash,
+        network: subject.network,
+        timestamp: Math.max(subject.timestamp, money.timestamp),
+        kind,
+        symbol: subject.symbol,
+        amount: subject.amount,
+        direction: subject.direction,
+        counterSymbol: money.symbol,
+        counterAmount: money.amount,
+        counterparty: null,
+        logo: subject.logo,
+      });
+    }
+  };
+
+  tryPair(assetOut, moneyIn, "sold");
+  tryPair(assetIn, moneyOut, "bought");
+
+  if (merged.size === 0) return entries;
+  return [...entries.filter((e) => !merged.has(e.id)), ...trades];
 }

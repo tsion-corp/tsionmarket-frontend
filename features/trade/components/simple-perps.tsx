@@ -181,8 +181,8 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
             value: `${t(side)} ${clampedLeverage}x`,
             tone: side === "long" ? ("up" as const) : ("down" as const),
           },
-          { label: t("collateral"), value: `${collateral} USDC` },
-          { label: t("positionSize"), value: `${formatAmount(size)} USDC` },
+          { label: t("collateral"), value: `${collateral} USD` },
+          { label: t("positionSize"), value: `${formatAmount(size)} USD` },
         ]
       : confirm?.kind === "close"
         ? [
@@ -194,7 +194,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
             },
             {
               label: t("confirmCloseAmount"),
-              value: confirm.full ? t("confirmCloseFull") : `${confirm.amount} USDC`,
+              value: confirm.full ? t("confirmCloseFull") : `${confirm.amount} USD`,
             },
           ]
         : [];
@@ -272,7 +272,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
             <span>{t("yourePaying")}</span>
             <span className="flex items-center gap-2">
               <span className="tnum">
-                {t("balance")} {formatAmount(usdcBalance)} USDC
+                {t("balance")} {formatAmount(usdcBalance)} USD
               </span>
               {usdcBalance > 0 ? (
                 <button
@@ -294,7 +294,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
               placeholder="0"
               className="ws-display tnum min-w-0 flex-1 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
             />
-            <span className="shrink-0 font-sans text-sm font-medium text-white/70">USDC</span>
+            <span className="shrink-0 font-sans text-sm font-medium text-white/70">USD</span>
           </div>
         </div>
 
@@ -330,7 +330,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
         <div className="ws-inset mt-3 flex flex-col gap-2 p-4 text-[12.5px] font-normal">
           <div className="flex justify-between">
             <span className="text-white/55">{t("positionSize")}</span>
-            <span className="tnum text-white">{formatAmount(size)} USDC</span>
+            <span className="tnum text-white">{formatAmount(size)} USD</span>
           </div>
           <div className="flex justify-between">
             <span className="text-white/55">{t("entryPrice")}</span>
@@ -346,7 +346,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
               {quoteLoading
                 ? "…"
                 : quote
-                  ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USDC`
+                  ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USD`
                   : "—"}
             </span>
           </div>

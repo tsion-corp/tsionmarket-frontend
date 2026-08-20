@@ -240,13 +240,13 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
             value: `${t(confirm.req.isLong ? "long" : "short")} ${confirm.req.leverage}x`,
             tone: confirm.req.isLong ? ("up" as const) : ("down" as const),
           },
-          { label: t("collateral"), value: `${confirm.req.collateralUsdc} USDC` },
+          { label: t("collateral"), value: `${confirm.req.collateralUsdc} USD` },
           {
             label: t("positionSize"),
             value: `${formatAmount(
               (parseFloat(confirm.req.collateralUsdc) || 0) *
                 (parseFloat(confirm.req.leverage) || 0)
-            )} USDC`,
+            )} USD`,
           },
         ]
       : confirm?.kind === "close"
@@ -259,7 +259,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
             },
             {
               label: t("confirmCloseAmount"),
-              value: confirm.full ? t("confirmCloseFull") : `${confirm.amount} USDC`,
+              value: confirm.full ? t("confirmCloseFull") : `${confirm.amount} USD`,
             },
           ]
         : [];
@@ -382,10 +382,10 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
               <div className="mt-3.5">
                 <div className="mb-1 flex justify-between text-[11.5px] font-normal text-white/45">
                   <span className="tnum">
-                    {t("long")} {formatCompactUsdc(oi.long)} USDC
+                    {t("long")} {formatCompactUsdc(oi.long)} USD
                   </span>
                   <span className="tnum">
-                    {t("short")} {formatCompactUsdc(oi.short)} USDC
+                    {t("short")} {formatCompactUsdc(oi.short)} USD
                   </span>
                 </div>
                 <div className="flex h-1.5 overflow-hidden rounded-full bg-white/8">
@@ -475,7 +475,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
             <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-normal text-white/55">
               <span>{t("collateral")}</span>
               <span className="flex items-center gap-2">
-                <span className="tnum">{formatAmount(usdcBalance)} USDC</span>
+                <span className="tnum">{formatAmount(usdcBalance)} USD</span>
                 {usdcBalance > 0 ? (
                   <button
                     // Floor, not round: toFixed rounds 25.999 to "26.00", which
@@ -496,7 +496,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
                 placeholder="0"
                 className="ws-display tnum min-w-0 flex-1 bg-transparent text-[24px] text-white outline-none placeholder:text-white/30"
               />
-              <span className="shrink-0 text-[13px] font-medium text-white/70">USDC</span>
+              <span className="shrink-0 text-[13px] font-medium text-white/70">USD</span>
             </div>
           </div>
 
@@ -596,7 +596,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
             <div className="flex justify-between">
               <span className="text-white/55">{t("positionSize")}</span>
               <span className="tnum text-white">
-                {formatAmount((parseFloat(collateral) || 0) * (leverageNum || 0))} USDC
+                {formatAmount((parseFloat(collateral) || 0) * (leverageNum || 0))} USD
               </span>
             </div>
             <div className="flex justify-between">
@@ -609,7 +609,7 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
                 {quoteLoading
                   ? "…"
                   : quote
-                    ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USDC`
+                    ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USD`
                     : "—"}
               </span>
             </div>

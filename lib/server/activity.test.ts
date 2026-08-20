@@ -69,14 +69,18 @@ describe("buildActivityEntries", () => {
     );
   });
 
-  it("does not merge transfers that only share a hash across chains", () => {
-    // Hashes are unique per chain, but nothing stops a collision in the feed.
+  it("reads money out on one chain and an asset in on another as one purchase", () => {
+    // A shared hash across chains never merges by itself (grouping is per
+    // network:hash), but money leaving Base while an asset arrives on Solana
+    // moments later is one cross-chain purchase, and reads as one.
     const entries = buildActivityEntries([
       transfer({ symbol: "USDC", direction: "out", network: "base-mainnet" }),
       transfer({ symbol: "GLDx", direction: "in", network: "solana-mainnet" }),
     ]);
-    expect(entries).toHaveLength(2);
-    expect(entries.map((e) => e.kind).sort()).toEqual(["received", "withdrew"]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].kind).toBe("bought");
+    expect(entries[0].symbol).toBe("GLDx");
+    expect(entries[0].counterSymbol).toBe("USDC");
   });
 
   it("does not read a same-asset in-and-out as a trade", () => {

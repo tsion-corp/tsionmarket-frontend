@@ -299,7 +299,7 @@ export function MemeTradeSheet({
                   <span className="tnum">
                     {t("balance", {
                       amount: balance.toLocaleString(undefined, { maximumFractionDigits: 6 }),
-                      symbol: buying ? "USDC" : (token.symbol ?? ""),
+                      symbol: buying ? "USD" : (token.symbol ?? ""),
                     })}
                   </span>
                   <button
@@ -323,7 +323,7 @@ export function MemeTradeSheet({
                   className="ws-display tnum min-w-0 flex-1 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
                 />
                 <span className="shrink-0 font-sans text-sm font-medium text-white/70">
-                  {buying ? "USDC" : (token.symbol ?? "")}
+                  {buying ? "USD" : (token.symbol ?? "")}
                 </span>
               </div>
             </div>

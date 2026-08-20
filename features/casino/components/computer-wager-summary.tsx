@@ -38,18 +38,18 @@ export function ComputerWagerSummary({
       data-testid="computer-wager-summary"
       className="flex flex-col gap-2 rounded-[8px] border border-white/8 bg-black/12 px-3.5 py-3"
     >
-      <SummaryRow label="Your stake" value={`${breakdown.youLock} USDC`} />
+      <SummaryRow label="Your stake" value={`${breakdown.youLock} USD`} />
       <SummaryRow
         label={`House reward (${breakdown.rewardPercent}%)`}
-        value={`${breakdown.houseExposure} USDC`}
+        value={`${breakdown.houseExposure} USD`}
       />
       <SummaryRow
         label={`Fee (${COMPUTER_WAGER_FEE_BPS / 100}% of reward)`}
-        value={`${breakdown.fee} USDC`}
+        value={`${breakdown.fee} USD`}
       />
       <div className="h-px bg-white/8" />
-      <SummaryRow label="Potential payout" value={`${breakdown.potentialPayout} USDC`} emphasized />
-      <SummaryRow label="Balance after stake" value={`${breakdown.balanceAfter} USDC`} />
+      <SummaryRow label="Potential payout" value={`${breakdown.potentialPayout} USD`} emphasized />
+      <SummaryRow label="Balance after stake" value={`${breakdown.balanceAfter} USD`} />
     </div>
   );
 }

@@ -409,10 +409,10 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
             {stakingAllowed ? (
               <div className="grid gap-3 sm:grid-cols-[160px_minmax(0,1fr)]">
                 <label className="block">
-                  <span className="sr-only">Computer stake in USDC</span>
+                  <span className="sr-only">Computer stake in USD</span>
                   <div className="flex h-11 items-center rounded-[3px] border border-white/10 bg-[#262421] px-3">
                     <input
-                      aria-label="Computer stake in USDC"
+                      aria-label="Computer stake in USD"
                       inputMode="decimal"
                       value={stake}
                       onChange={(event) => {
@@ -422,14 +422,14 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
                       placeholder="0"
                       className="tnum min-w-0 flex-1 bg-transparent text-[14px] text-white outline-none placeholder:text-white/28"
                     />
-                    <span className="text-[11px] font-semibold text-white/44">USDC</span>
+                    <span className="text-[11px] font-semibold text-white/44">USD</span>
                   </div>
                   <span
                     className={`mt-1 block text-[10.5px] ${stakeOverBalance || stakeTooSmall ? "text-down" : "text-white/36"}`}
                   >
                     {stakeTooSmall
                       ? "Stake is too small for this level."
-                      : `Balance ${cashier.available} USDC`}
+                      : `Balance ${cashier.available} USD`}
                   </span>
                 </label>
                 {stakeUsdc && wagerBreakdown ? (
@@ -452,7 +452,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
               </div>
             ) : (
               <p className="rounded-[3px] border border-white/10 bg-[#262421] px-4 py-3 text-[12px] leading-5 text-white/48">
-                Levels 1 to 3 are practice only. Choose level 4 or higher to stake USDC.
+                Levels 1 to 3 are practice only. Choose level 4 or higher to stake real money.
               </p>
             )}
           </fieldset>

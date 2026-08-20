@@ -95,7 +95,7 @@ export function SpotConfirmSheet({
                         ? t("orderWorking")
                         : `${buying ? t("confirmBuy") : t("confirmSell")} · ${base}`}
                 </div>
-                <div className="text-xs font-normal text-white/50">{base}/USDC</div>
+                <div className="text-xs font-normal text-white/50">{base}/USD</div>
               </div>
             </div>
 

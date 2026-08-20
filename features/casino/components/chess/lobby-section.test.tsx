@@ -303,15 +303,15 @@ describe("chess lobby", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Set up a computer game" }));
     expect(screen.getByText(/Levels 1 to 3 are practice only/)).toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Computer stake in USDC" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Computer stake in USD" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "4" }));
-    fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USDC" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USD" }), {
       target: { value: "10" },
     });
 
     expect(screen.getByText("House reward (25%)")).toBeInTheDocument();
-    expect(screen.getByText("12.3 USDC")).toBeInTheDocument();
+    expect(screen.getByText("12.3 USD")).toBeInTheDocument();
     expect(screen.getByText("Balance after stake")).toBeInTheDocument();
   });
 

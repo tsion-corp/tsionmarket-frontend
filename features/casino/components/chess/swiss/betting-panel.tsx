@@ -194,7 +194,7 @@ export function SwissBettingPanel({
                       resetRetryKey();
                     }
                   }}
-                  placeholder="Stake in USDC"
+                  placeholder="Stake in USD"
                   className="tnum min-w-0 flex-1 rounded-[10px] border border-white/8 bg-black/12 px-3 py-2.5 text-[12px] text-white outline-none placeholder:text-white/28"
                 />
                 <button
@@ -207,9 +207,9 @@ export function SwissBettingPanel({
                 </button>
               </div>
               <div className={`text-[10.5px] ${overBalance ? "text-down" : "text-white/40"}`}>
-                Balance {cashier.available} USDC
+                Balance {cashier.available} USD
                 {selected && stakeUsdc && !overBalance
-                  ? ` · Estimated return ${estimated.toFixed(2)} USDC at the current pool`
+                  ? ` · Estimated return ${estimated.toFixed(2)} USD at the current pool`
                   : ""}
               </div>
             </div>

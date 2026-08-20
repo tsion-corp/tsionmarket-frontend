@@ -169,10 +169,10 @@ export function CheckersLobby() {
                   onChange={(event) => setStakeInput(event.target.value.replace(/[^0-9.]/gu, ""))}
                   inputMode="decimal"
                   placeholder="Custom stake"
-                  aria-label="Stake amount in USDC"
+                  aria-label="Stake amount in USD"
                   className="min-w-0 flex-1 bg-transparent font-mono text-[13px] text-white outline-none placeholder:text-white/25"
                 />
-                <span className="text-[11px] text-white/35">USDC</span>
+                <span className="text-[11px] text-white/35">USD</span>
               </label>
               <p
                 className={`mt-1 text-[10px] ${stakeInvalid || short ? "text-red-400" : "text-white/30"}`}
@@ -180,8 +180,8 @@ export function CheckersLobby() {
                 {stakeInvalid
                   ? "Enter a valid amount."
                   : short
-                    ? `Balance ${cashier.available} USDC.`
-                    : `Balance ${cashier.available} USDC.`}
+                    ? `Balance ${cashier.available} USD.`
+                    : `Balance ${cashier.available} USD.`}
               </p>
             </fieldset>
           ) : null}

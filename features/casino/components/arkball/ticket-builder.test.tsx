@@ -13,7 +13,7 @@ vi.mock("@/lib/toast", () => ({
 }));
 
 describe("TicketBuilder", () => {
-  it("renders the backend-configured 0.37 USDC ticket price", () => {
+  it("renders the backend-configured 0.37 USD ticket price", () => {
     render(
       <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
         <TicketBuilder
@@ -33,7 +33,7 @@ describe("TicketBuilder", () => {
     );
 
     expect(screen.getByText("$0.37")).toBeInTheDocument();
-    expect(screen.getByText("0.37 USDC")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Buy ticket for 0.37 USDC" })).toBeInTheDocument();
+    expect(screen.getByText("0.37 USD")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Buy ticket for 0.37 USD" })).toBeInTheDocument();
   });
 });

@@ -226,7 +226,7 @@ function StakeCard({
             onChange={(e) => DECIMAL.test(e.target.value) && setStake(e.target.value)}
             className="tnum w-full min-w-0 bg-transparent text-[13px] text-white outline-none placeholder:text-white/30"
           />
-          <span className="shrink-0 text-[11px] font-normal text-white/45">USDC</span>
+          <span className="shrink-0 text-[11px] font-normal text-white/45">USD</span>
         </div>
       </div>
       <div className="tnum mt-3 text-[11.5px] font-normal text-white/45">

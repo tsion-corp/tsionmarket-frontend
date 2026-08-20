@@ -46,11 +46,11 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
   const balanceTitle = productName ? `${productName} balance` : t("title");
   const depositTitle = productName ? `Add ${productName} funds` : t("depositTitle");
   const depositBody = productName
-    ? `Moves {amount} USDC from your wallet into your ${productName} balance.`
+    ? `Moves {amount} USD from your balance into your ${productName} balance.`
     : t("depositBody", { amount: "{amount}" });
   const withdrawTitle = productName ? `Withdraw ${productName} funds` : t("withdrawTitle");
   const withdrawBody = productName
-    ? `Sends USDC from your ${productName} balance back to your wallet.`
+    ? `Sends money from your ${productName} balance back to your main balance.`
     : t("withdrawBody");
   const notEnough = productName
     ? `That's more than your available ${productName} balance.`
@@ -149,11 +149,11 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
 
       <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
         <span className="text-[13px] font-normal text-white/55">{t("available")}</span>
-        <span className="ws-display tnum text-[18px] text-white">{cashier.available} USDC</span>
+        <span className="ws-display tnum text-[18px] text-white">{cashier.available} USD</span>
       </div>
       <div className="ws-inset mt-2 flex items-center justify-between px-4 py-3.5">
         <span className="text-[13px] font-normal text-white/55">{t("locked")}</span>
-        <span className="ws-display tnum text-[18px] text-white">{cashier.locked} USDC</span>
+        <span className="ws-display tnum text-[18px] text-white">{cashier.locked} USD</span>
       </div>
       {lockRows.length > 0 ? (
         <div className="ws-inset mt-2 px-4 py-3.5">
@@ -162,7 +162,7 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
             {lockRows.map((row) => (
               <div key={row.label} className="flex items-center justify-between gap-3 text-[13px]">
                 <span className="text-white/58">{row.label}</span>
-                <span className="ws-display tnum text-white">{row.value} USDC</span>
+                <span className="ws-display tnum text-white">{row.value} USD</span>
               </div>
             ))}
           </div>

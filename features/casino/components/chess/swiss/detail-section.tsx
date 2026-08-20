@@ -210,7 +210,7 @@ function JoinPanel({
           your {game === "draughts" ? "checkers" : "chess"} balance. It is refunded if you leave
           before round 1 starts.
           <div className={`mt-1 ${insufficient ? "text-down" : "text-white/42"}`}>
-            Available: {cashier.available} USDC
+            Available: {cashier.available} USD
           </div>
         </div>
       ) : null}

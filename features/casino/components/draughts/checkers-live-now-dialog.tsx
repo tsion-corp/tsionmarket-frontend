@@ -67,7 +67,7 @@ export function CheckersLiveNowDialog({
                   {seatLabel(match)}
                 </div>
                 <div className="truncate text-[12px] text-white/64">
-                  {match.wager ? `${match.wager.stakeUsdc} USDC · ` : ""}
+                  {match.wager ? `${match.wager.stakeUsdc} USD · ` : ""}
                   {variantOption(match.variant).shortLabel} · {match.timeControl}
                 </div>
               </div>

@@ -497,7 +497,7 @@ export function RwaTradePanel({
             quote?.output.amountMin
         );
         if (!minimumProceedsRaw || !expectedProceedsRaw) {
-          throw new Error("The sale quote is missing its USDC proceeds.");
+          throw new Error("The sale quote is missing its proceeds.");
         }
         saleHandoffId = `rwa-sale:${crypto.randomUUID()}`;
         savePendingRwaSettlement({

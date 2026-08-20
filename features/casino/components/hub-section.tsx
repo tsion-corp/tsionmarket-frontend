@@ -68,7 +68,7 @@ export function HubSection() {
             {t("yourBalance")}
           </div>
           <div className="mt-1 flex items-baseline justify-between gap-6">
-            <span className="text-[12px] font-normal text-white/50">USDC</span>
+            <span className="text-[12px] font-normal text-white/50">USD</span>
             <span className="ws-display tnum text-grey-100 text-[15px]">
               {mask(formatQty(usdcBalance))}
             </span>

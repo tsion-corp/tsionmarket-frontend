@@ -227,7 +227,7 @@ export function SpectatorBetting({ match, wallet, className = "" }: SpectatorBet
             </div>
             {selection && stakeValid && odds ? (
               overBalance ? (
-                <p className="mt-2 font-sans text-[11.5px] text-white/50">Not enough USDC.</p>
+                <p className="mt-2 font-sans text-[11.5px] text-white/50">Not enough cash.</p>
               ) : (
                 <div className="mt-2.5 rounded-[10px] bg-white/[0.03] px-3 py-2.5">
                   <div className="mb-1.5 font-sans text-[11px] text-white/40">

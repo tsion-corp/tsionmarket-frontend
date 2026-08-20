@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
-import type { ActivityEntry } from "@/lib/activity/entries";
+import { isStable, type ActivityEntry } from "@/lib/activity/entries";
 import { track } from "@/lib/analytics/mixpanel";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatQty, truncateAddress } from "@/lib/format";
@@ -71,12 +71,20 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
   const incoming = item.direction === "in";
   const explorer = EXPLORER[item.network];
   const value = priceUsd > 0 ? priceUsd * item.amount : 0;
+  // Stablecoins are the product's cash: they read as dollars, never as a
+  // token. Everything else keeps its own symbol and quantity.
+  const cash = isStable(item.symbol);
   // What the user did, named. A trade also carries what it cost or fetched,
   // which is more use on the row than the dollar value of one leg.
-  const title = t(item.kind, { symbol: item.symbol });
+  const title = t(item.kind, { symbol: cash ? "USD" : item.symbol });
+  const primary = cash ? money.format(item.amount) : `${formatQty(item.amount)} ${item.symbol}`;
   const counter =
     item.counterSymbol && item.counterAmount != null
-      ? `${item.kind === "sold" ? "+" : "\u2212"}${formatQty(item.counterAmount)} ${item.counterSymbol}`
+      ? `${item.kind === "sold" ? "+" : "\u2212"}${
+          isStable(item.counterSymbol)
+            ? money.format(item.counterAmount)
+            : `${formatQty(item.counterAmount)} ${item.counterSymbol}`
+        }`
       : null;
 
   return (
@@ -117,10 +125,10 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
       <div className="text-right">
         <div className={`tnum text-sm font-semibold ${incoming ? "text-up" : "text-white/85"}`}>
           {incoming ? "+" : "−"}
-          {formatQty(item.amount)} {item.symbol}
+          {primary}
         </div>
         <div className="tnum text-[12px] font-normal text-white/45">
-          {counter ?? (value > 0 ? money.format(value) : relativeTime(item.timestamp, t))}
+          {counter ?? (!cash && value > 0 ? money.format(value) : relativeTime(item.timestamp, t))}
         </div>
       </div>
     </a>

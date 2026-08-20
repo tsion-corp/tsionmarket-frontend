@@ -289,7 +289,7 @@ export function TicketBuilder({
           <div className="flex justify-between gap-4 text-white/45">
             <span>{t("ticketPrice")}</span>
             <span className="tnum font-semibold text-white/75">
-              {formatLotteryUsdc(priceUsdc)} USDC
+              {formatLotteryUsdc(priceUsdc)} USD
             </span>
           </div>
         </div>

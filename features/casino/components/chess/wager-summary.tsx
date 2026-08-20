@@ -46,15 +46,15 @@ export function WagerSummary({
   return (
     <div className="ws-inset flex flex-col gap-2 rounded-[12px] px-3.5 py-3">
       <Row label={t("summaryStake")} value={`${stakeUsdc} USDC`} />
-      <Row label={t("summaryYouLock")} value={`${b.youLock} USDC`} />
+      <Row label={t("summaryYouLock")} value={`${b.youLock} USD`} />
       <Row
         label={t("summaryAfter")}
-        value={`${b.balanceAfter} USDC`}
+        value={`${b.balanceAfter} USD`}
         tone={b.sufficient ? "default" : "bad"}
       />
       <div className="my-0.5 h-px bg-white/8" />
-      <Row label={t("summaryWinner")} value={`${b.winnerReceives} USDC`} tone="win" />
-      <Row label={t("summaryFee", { pct })} value={`${b.fee} USDC`} tone="muted" />
+      <Row label={t("summaryWinner")} value={`${b.winnerReceives} USD`} tone="win" />
+      <Row label={t("summaryFee", { pct })} value={`${b.fee} USD`} tone="muted" />
     </div>
   );
 }

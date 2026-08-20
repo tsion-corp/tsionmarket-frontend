@@ -151,7 +151,7 @@ export function SwissCreateForm({
           <div>
             <div className="text-[13px] font-semibold text-white">Prize tournament</div>
             <div className="mt-1 text-[11.5px] leading-5 text-white/48">
-              Each entrant locks the same USDC fee. The winner receives 50% of the final pool; the
+              Each entrant locks the same entry fee. The winner receives 50% of the final pool; the
               platform keeps 50%.
             </div>
           </div>
@@ -191,12 +191,12 @@ export function SwissCreateForm({
                   }}
                   className="tnum min-w-0 flex-1 bg-transparent py-2.5 text-[13px] text-white outline-none"
                 />
-                <span className="text-[10.5px] font-semibold text-white/42">USDC</span>
+                <span className="text-[10.5px] font-semibold text-white/42">USD</span>
               </div>
               <span
                 className={`mt-1.5 block text-[11px] ${badEntryFee ? "text-down" : "text-white/40"}`}
               >
-                Minimum {HIGH_STAKES_ENTRY_MIN_USDC} USDC
+                Minimum {HIGH_STAKES_ENTRY_MIN_USDC} USD
               </span>
             </label>
             <label>
@@ -305,7 +305,7 @@ export function SwissCreateForm({
       </button>
       <div className="mt-2.5 text-center text-[11.5px] font-normal text-white/50">
         {highStakes
-          ? `${normalizedEntryFee ?? entryFee} USDC entry · 50% winner pool · 50% platform`
+          ? `${normalizedEntryFee ?? entryFee} USD entry · 50% winner pool · 50% platform`
           : t("freeNote")}
       </div>
     </>

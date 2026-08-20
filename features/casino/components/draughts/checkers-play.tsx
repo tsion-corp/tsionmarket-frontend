@@ -651,9 +651,9 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
                 className={`${DRAUGHTS_PANEL_BUTTON_CLASS} col-span-2`}
               >
                 {shortForJoin
-                  ? `Need ${joinStake} USDC`
+                  ? `Need ${joinStake} USD`
                   : joinStake
-                    ? `Stake ${joinStake} USDC and join`
+                    ? `Stake ${joinStake} USD and join`
                     : "Join game"}
               </button>
             ) : null}
