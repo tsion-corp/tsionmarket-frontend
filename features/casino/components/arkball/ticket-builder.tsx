@@ -154,7 +154,7 @@ export function TicketBuilder({
             : null;
 
   return (
-    <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
+    <section className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
       <div className="overflow-hidden rounded-[24px] border border-white/8 bg-[#111214] shadow-[0_28px_80px_rgba(0,0,0,0.28)]">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/7 px-5 py-4 sm:px-6">
           <div>
@@ -243,6 +243,7 @@ export function TicketBuilder({
                   selected={selected}
                   disabled={disabled}
                   onClick={() => (step === "white" ? chooseWhite(number) : chooseArkBall(number))}
+                  size="fluid"
                 />
               );
             })}

@@ -6,7 +6,8 @@ interface LotteryBallProps {
   selected?: boolean;
   disabled?: boolean;
   onClick?: () => void;
-  size?: "sm" | "md";
+  /** fluid fills its grid cell up to the md size, for the picker's tight phone grid. */
+  size?: "sm" | "md" | "fluid";
 }
 
 export function LotteryBall({
@@ -20,7 +21,11 @@ export function LotteryBall({
   const interactive = !!onClick;
   const className = cn(
     "tnum relative inline-grid shrink-0 place-items-center rounded-full border font-sans font-extrabold transition",
-    size === "sm" ? "h-9 w-9 text-[13px]" : "h-11 w-11 text-[14px] sm:h-12 sm:w-12",
+    size === "sm"
+      ? "h-9 w-9 text-[13px]"
+      : size === "fluid"
+        ? "aspect-square h-auto w-full max-w-11 text-[13px] sm:max-w-12 sm:text-[14px]"
+        : "h-11 w-11 text-[14px] sm:h-12 sm:w-12",
     arkball
       ? "border-red-300/45 bg-[radial-gradient(circle_at_33%_24%,#ff8a92_0%,#e31d35_28%,#980c20_74%,#520611_100%)] text-white shadow-[inset_-6px_-8px_14px_rgba(0,0,0,0.35),0_6px_15px_rgba(220,20,48,0.2)]"
       : "border-white/35 bg-[radial-gradient(circle_at_32%_23%,#ffffff_0%,#f3f3ef_34%,#c5c8ca_72%,#85898c_100%)] text-[#111417] shadow-[inset_-6px_-8px_13px_rgba(0,0,0,0.16),0_6px_15px_rgba(0,0,0,0.2)]",

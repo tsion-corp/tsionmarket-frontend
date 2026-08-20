@@ -64,7 +64,7 @@ export interface AnalyticsEvents {
   deposit_network_selected: { network: string };
   deposit_completed: { method: "crypto"; source_network: string; amount_usd: number };
   // The amounts and the rate, never the account number the user was given.
-  bank_account_requested: { amount_ngn: number; amount_usd: number; fx_rate: number };
+  bank_account_requested: { amount_ngn: number; fx_rate: number };
   bank_transfer_completed: { amount_ngn: number; amount_usd: number; bank: string };
   deposit_failed: { method: "crypto" | "bank"; reason: string };
 

@@ -4,31 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
-import { KycOnboarding } from "@/features/funds/components/kyc/kyc-onboarding";
-import { ArrowUpRightIcon, BankIcon, CheckIcon, CopyIcon } from "@/components/ui/icons";
+import { BankIcon, CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { useNgnRate } from "@/hooks/use-ngn-rate";
-import { useCreateOnramp, useOnrampStatus, usePouchOnrampRate } from "@/hooks/use-pouch-onramp";
+import { useCreateOnrampOrder, useRampingRates, useRampOrder } from "@/hooks/use-ramping";
 import { copyText } from "@/lib/clipboard";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
-import { getWalletAddress, deriveProfile } from "@/lib/user";
-import { formatAmount } from "@/lib/trade/math";
-import { KYC_COUNTRY_CODE } from "@/features/funds/lib/kyc";
-import { clearPendingOnramp, savePendingOnramp } from "@/lib/pouch/pending";
+import { getWalletAddress } from "@/lib/user";
 import {
-  clearKycSession,
-  isReusableSession,
-  loadKycSession,
-  saveKycSession,
-} from "@/features/funds/lib/session";
-import {
-  estimatedUsd,
-  isTerminalOnrampStatus,
+  idempotencyKey,
   isValidOnrampNgn,
   ONRAMP_MIN_NGN,
-} from "@/lib/pouch/onramp";
+  usdcForNgnExact,
+  type OnrampOrder,
+} from "@/lib/ramping/orders";
+import { clearPendingBankDeposit, savePendingBankDeposit } from "@/lib/ramping/pending";
 
 interface BankTransferScreenProps {
   onBack: () => void;
@@ -45,21 +36,18 @@ function formatNgnInput(digits: string): string {
   return digits ? new Intl.NumberFormat("en-NG").format(Number(digits)) : "";
 }
 
-function formatUsd(amount: number): string {
-  return new Intl.NumberFormat("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount);
+// A decimal string from the rail (or the exact converter), shown to two
+// decimals without ever passing the value through a float.
+function displayUsdc(amount: string): string {
+  const [whole, frac = ""] = amount.split(".");
+  const cents = frac.slice(0, 2).padEnd(2, "0");
+  return `${new Intl.NumberFormat("en-US").format(Number(whole))}.${cents}`;
 }
 
 // Quick-select deposit amounts, in Naira. The first is the minimum.
 const AMOUNT_PRESETS = [5000, 10000, 50000, 100000];
 
-// How long a generated account stays payable. Pouch's expiresAt is the truth;
-// this covers a creation response that arrives without one.
-const ACCOUNT_TTL_MS = 10 * 60 * 1000;
-
-// Seconds until the generated account expires. Derived from the deadline
+// Seconds until the order's rate lock lapses. Derived from the deadline
 // rather than a stored duration, so a slept tab shows the true time left.
 // Null when there is no usable deadline to count against.
 function useSecondsUntil(iso: string | null): number | null {
@@ -85,88 +73,68 @@ function compactNgn(amount: number): string {
   return amount >= 1000 ? `${amount / 1000}K` : String(amount);
 }
 
-// Naira onramp. Identity is verified once through Pouch Shared KYC; the JWT is
-// stored and reused, so funding again is just amount then transfer. The user
-// enters a Naira amount and sees its USD equivalent (Pouch is priced in USD, so
-// we send that). We ask Pouch for a one-off bank account bound to their Base
-// wallet, and they transfer the exact Naira shown; USDC settles to the wallet
-// automatically once the payment clears.
+// Naira onramp over the ramping rail. The user enters a Naira amount and sees
+// the USDC it buys at the live rate; we open an order bound to their Base
+// wallet and show the bank account to pay into. The rate is locked for the
+// order's window; past it the account stays payable and later transfers just
+// convert at the live rate, so an expired lock is a note, never a dead end.
+// USDC settles to the wallet automatically once the payment clears, and the
+// final figures shown come from the order itself, never from our own math.
 export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps) {
   const t = useTranslations("bankTransfer");
   const { user } = usePrivy();
   const { refetch } = usePortfolio();
-  // Prefer Pouch's live onramp rate so the USD estimate matches what the transfer
-  // actually costs; fall back to the app FX rate only until the provider rate
-  // loads (or if it is briefly unavailable).
-  const { rate: appNgnRate } = useNgnRate();
-  const { data: pouchRate } = usePouchOnrampRate();
-  const ngnRate = pouchRate?.rate && pouchRate.rate > 0 ? pouchRate.rate : appNgnRate;
+  const { data: rates } = useRampingRates();
+  const rate = rates?.onrampRate ?? null;
 
   const walletAddress = getWalletAddress(user, "ethereum");
-  const email = deriveProfile(user).email;
-
-  // Reuse an existing verification: a live, approved session lets the user skip
-  // straight to the amount step.
-  const [token, setToken] = useState(() => {
-    const session = loadKycSession();
-    return isReusableSession(session) ? session.token : "";
-  });
-  // Set when the user explicitly asks to resubmit KYC: onboarding must then
-  // collect the details form again even if the provider claims verified.
-  const [kycResubmit, setKycResubmit] = useState(false);
 
   const [amountNgn, setAmountNgn] = useState("");
   // After the user says they have paid, we show a brief confirming state and
-  // then a reassuring "on its way" message. Settlement takes a couple of minutes
-  // on the provider side, so we do not block the user waiting on it here.
+  // then a reassuring "on its way" message. The rail settles within seconds of
+  // the bank credit, so the background poll usually flips to done right after.
   const [handoff, setHandoff] = useState<"none" | "confirming" | "enroute">("none");
-  const create = useCreateOnramp();
-  const creation = create.data;
+  const create = useCreateOnrampOrder();
+  const created = create.data;
 
-  // The user enters Naira; Pouch is priced in USD, so we convert with the live
-  // rate and send the USD equivalent. The exact Naira to pay comes back from
-  // Pouch on the next screen.
   const ngnAmount = Number(amountNgn);
-  const usdAmount = estimatedUsd(ngnAmount, ngnRate);
-  const validAmount = isValidOnrampNgn(ngnAmount) && usdAmount != null;
+  const estimateUsdc = rate && amountNgn ? usdcForNgnExact(amountNgn, rate) : null;
+  const validAmount = isValidOnrampNgn(ngnAmount);
 
-  const statusQuery = useOnrampStatus(creation?.sessionId ?? null, {
-    enabled: Boolean(creation?.sessionId),
-    pollMs: 20000,
+  const orderQuery = useRampOrder("onramp", created?.id ?? null, {
+    enabled: Boolean(created?.id),
+    pollMs: 3000,
   });
-  const status = statusQuery.data?.status ?? creation?.status ?? "awaiting_payment";
+  // The poll result supersedes the creation snapshot as soon as it lands.
+  const order: OnrampOrder | null = (orderQuery.data as OnrampOrder | undefined) ?? created ?? null;
+  const status = order?.status ?? "awaiting";
   const done = status === "completed";
+  const failed = status === "failed";
 
-  // The account is only payable for about ten minutes. Count down from the
-  // provider's expiry (or our own stamp when it sends none) while the user is
-  // still on the transfer screen; once they confirm sending, or the payment is
-  // detected, the deadline no longer applies.
-  const [fallbackExpiresAt, setFallbackExpiresAt] = useState<string | null>(null);
-  const expiresAtIso = creation?.bank?.expiresAt ?? fallbackExpiresAt;
-  const countingDown = handoff === "none" && status === "awaiting_payment";
-  const secondsLeft = useSecondsUntil(countingDown ? expiresAtIso : null);
-  const accountTimedOut = secondsLeft === 0;
+  // Rate-lock countdown, only while the user is still looking at the account.
+  const countingDown = handoff === "none" && status === "awaiting";
+  const secondsLeft = useSecondsUntil(countingDown ? (order?.expiresAt ?? null) : null);
+  const rateLockEnded = status === "expired" || secondsLeft === 0;
 
   // Refresh balances once the crypto has settled, and release the dashboard's
-  // withdraw hold on any terminal outcome.
+  // withdraw hold on any settled outcome.
   useEffect(() => {
-    if (isTerminalOnrampStatus(status)) clearPendingOnramp();
+    if (done || failed) clearPendingBankDeposit();
     if (done) refetch();
-  }, [status, done, refetch]);
+  }, [done, failed, refetch]);
 
-  // Reported once, when the provider confirms the transfer landed. `done` stays
-  // true while the screen is open and the status keeps polling, so the ref is
-  // what keeps this from firing on every poll.
+  // Reported once, when the rail confirms delivery. `done` stays true while
+  // the screen is open, so the ref keeps this from firing on every poll.
   const reportedComplete = useRef(false);
   useEffect(() => {
     if (!done || reportedComplete.current) return;
     reportedComplete.current = true;
     track("bank_transfer_completed", {
-      amount_ngn: ngnAmount,
-      amount_usd: usdAmount ?? 0,
-      bank: creation?.bank?.bankName ?? "",
+      amount_ngn: Number(order?.amountNgn ?? amountNgn) || 0,
+      amount_usd: Number(order?.amountUsdc ?? 0) || 0,
+      bank: order?.paymentAccount?.bankName ?? "",
     });
-  }, [done, ngnAmount, usdAmount, creation]);
+  }, [done, order, amountNgn]);
 
   // Hold the confirming state briefly, then move to the reassuring message. This
   // is a UX beat, not a real settlement check, so a fixed pause reads honestly.
@@ -176,30 +144,9 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     return () => clearTimeout(id);
   }, [handoff]);
 
-  // Not verified yet: run the one-time Shared KYC, then store the JWT for reuse.
-  if (!token) {
-    return (
-      <KycOnboarding
-        defaultEmail={email}
-        onBack={onBack}
-        forceResubmit={kycResubmit}
-        onVerified={(nextToken, expiresAt, verifiedEmail) => {
-          saveKycSession({
-            email: verifiedEmail,
-            countryCode: KYC_COUNTRY_CODE,
-            token: nextToken,
-            expiresAt,
-            state: "approved",
-          });
-          setKycResubmit(false);
-          setToken(nextToken);
-        }}
-      />
-    );
-  }
-
+  // Settlement can land while the handoff screens are up; done wins over them.
   // Amount entry.
-  if (!creation) {
+  if (!created) {
     return (
       <div>
         <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
@@ -218,13 +165,13 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
           </div>
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
             <span>
-              {validAmount && usdAmount != null
-                ? t("usdEquivalent", { amount: `$${formatUsd(usdAmount)}` })
+              {validAmount && estimateUsdc
+                ? t("usdEquivalent", { amount: `${displayUsdc(estimateUsdc)} USDC` })
                 : t("enterMin", { amount: `₦${formatNgn(ONRAMP_MIN_NGN)}` })}
             </span>
-            {ngnRate > 0 ? (
+            {rate ? (
               <span className="tnum shrink-0 text-white/45">
-                {t("fxRate", { rate: `₦${formatNgn(ngnRate)}` })}
+                {t("fxRate", { rate: `₦${formatNgn(Number(rate))}` })}
               </span>
             ) : null}
           </div>
@@ -256,26 +203,9 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         ) : null}
 
         {create.isError ? (
-          <div className="mt-3">
-            <p className="text-down text-[13px]">
-              {friendlyError(create.error, t("createFailed"))}
-            </p>
-            {/* A stored KYC session can pass the local check yet still be the
-                reason the provider refuses the transfer (verification never
-                went through). Offer a way back into onboarding: drop the
-                session and re-run email, OTP, and details. */}
-            <button
-              onClick={() => {
-                clearKycSession();
-                create.reset();
-                setKycResubmit(true);
-                setToken("");
-              }}
-              className="mt-2.5 w-full cursor-pointer rounded-[13px] border border-white/14 bg-white/6 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
-            >
-              {t("resubmitKyc")}
-            </button>
-          </div>
+          <p className="text-down mt-3 text-[13px]">
+            {friendlyError(create.error, t("createFailed"))}
+          </p>
         ) : null}
 
         <p className="mt-3 text-[12px] leading-[1.5] font-normal text-white/45">
@@ -284,23 +214,23 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
 
         <button
           onClick={() => {
-            if (!validAmount || !walletAddress || usdAmount == null) return;
+            if (!validAmount || !walletAddress) return;
+            // A fresh key per press: retries inside this mutation replay the
+            // same order, while a deliberate second deposit opens a new one.
             create.mutate(
-              { token, amountUsd: usdAmount, walletAddress },
               {
-                onSuccess: (result) => {
-                  // The amounts and the rate the user accepted. Never the
+                destinationAddress: walletAddress,
+                expectedAmountNgn: String(ngnAmount),
+                idempotencyKey: idempotencyKey("onramp", walletAddress),
+              },
+              {
+                onSuccess: () => {
+                  // The amount and the rate the user accepted. Never the
                   // account number that came back with them.
                   track("bank_account_requested", {
                     amount_ngn: ngnAmount,
-                    amount_usd: usdAmount,
-                    fx_rate: ngnRate,
+                    fx_rate: Number(rate) || 0,
                   });
-                  // No provider expiry: stamp our own so the countdown and the
-                  // auto-expire still run.
-                  if (!result.bank?.expiresAt) {
-                    setFallbackExpiresAt(new Date(Date.now() + ACCOUNT_TTL_MS).toISOString());
-                  }
                 },
               }
             );
@@ -321,10 +251,9 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     );
   }
 
-  // Settled: crypto has landed.
+  // Settled: crypto has landed. The amount is the order's own figure.
   if (done) {
-    const received = statusQuery.data?.cryptoAmount ?? creation.cryptoAmount;
-    const hash = statusQuery.data?.transactionHash;
+    const received = order?.amountUsdc ?? null;
     return (
       <div className="px-1 py-2 text-center">
         <span className="bg-accent/14 text-accent inline-grid h-[56px] w-[56px] place-items-center rounded-full">
@@ -332,21 +261,10 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         </span>
         <div className="ws-display mt-4 text-[21px]">{t("doneTitle")}</div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
-          {received != null
-            ? t("doneBody", { amount: `${formatAmount(received)} USDC` })
+          {received
+            ? t("doneBody", { amount: `${displayUsdc(received)} USDC` })
             : t("doneBodyPlain")}
         </p>
-        {hash ? (
-          <a
-            href={`https://basescan.org/tx/${hash}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-accent mt-3 inline-flex items-center gap-1.5 text-[13px] font-medium hover:underline"
-          >
-            {t("viewTransaction")}
-            <ArrowUpRightIcon size={14} />
-          </a>
-        ) : null}
         <button
           onClick={onClose}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
@@ -357,11 +275,9 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     );
   }
 
-  // Failed or expired: let the user start over. A run-out countdown counts as
-  // expired locally, so the dead account closes on its own instead of inviting
-  // a payment that can no longer land.
-  if (isTerminalOnrampStatus(status) || accountTimedOut) {
-    const showExpired = status === "expired" || accountTimedOut;
+  // Failed is the only dead end: let the user start over. An expired rate lock
+  // is not failure; the account below stays payable at the live rate.
+  if (failed) {
     return (
       <div className="px-1 py-2 text-center">
         <span className="bg-down/15 text-down inline-grid h-[56px] w-[56px] place-items-center rounded-full">
@@ -369,13 +285,12 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         </span>
         <div className="ws-display mt-4 text-[21px]">{t("failedTitle")}</div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
-          {showExpired ? t("expiredBody") : t("failedBody")}
+          {order?.error ?? t("failedBody")}
         </p>
         <button
           onClick={() => {
             create.reset();
             setAmountNgn("");
-            setFallbackExpiresAt(null);
           }}
           className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >
@@ -420,53 +335,48 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   }
 
   // Awaiting or processing the transfer: show the account to pay into.
-  const bank = creation.bank;
+  const account = order?.paymentAccount ?? null;
   return (
     <div>
       <SheetNav title={t("transferTitle")} onBack={onBack} />
 
-      {bank ? (
+      {account ? (
         <>
           <div className="ws-inset p-[15px] text-center">
             <div className="text-xs font-normal text-white/55">{t("sendExactly")}</div>
             <div className="ws-display tnum mt-1 text-[30px] text-white">
-              ₦{formatNgn(bank.amountNgn)}
+              ₦{formatNgn(ngnAmount)}
             </div>
-            {secondsLeft != null ? (
+            {rateLockEnded ? (
+              <div className="mt-1.5 text-[13px] font-medium text-white/70">
+                {t("rateLockEnded")}
+              </div>
+            ) : secondsLeft != null ? (
               <div
                 className={`tnum mt-1.5 text-[13px] font-medium ${
                   secondsLeft <= 60 ? "text-down" : "text-white/70"
                 }`}
               >
-                {t("expiresIn", { time: formatCountdown(secondsLeft) })}
+                {t("rateLockIn", { time: formatCountdown(secondsLeft) })}
               </div>
             ) : null}
           </div>
 
-          {/* The virtual account number and the transfer reference are
-              account-drainage grade: a session replay showing them is the same
-              breach as sending them, so the whole block is masked rather than
-              the two rows individually. */}
+          {/* The virtual account number is account-drainage grade: a session
+              replay showing it is the same breach as sending it, so the whole
+              block is masked rather than the rows individually. */}
           <div
             className={`ws-inset mt-3 divide-y divide-white/6 ${NO_AUTOCAPTURE_CLASS}`}
             {...MASK_ATTRIBUTE}
           >
-            <DetailRow label={t("bank")} value={bank.bankName} />
+            <DetailRow label={t("bank")} value={account.bankName} />
             <CopyRow
               label={t("accountNumber")}
-              value={bank.accountNumber}
+              value={account.accountNumber}
               copyLabel={t("copy")}
               copiedLabel={t("copied")}
             />
-            <DetailRow label={t("accountName")} value={bank.accountName} />
-            {bank.reference ? (
-              <CopyRow
-                label={t("reference")}
-                value={bank.reference}
-                copyLabel={t("copy")}
-                copiedLabel={t("copied")}
-              />
-            ) : null}
+            <DetailRow label={t("accountName")} value={account.accountName} />
           </div>
 
           <div className="mt-3 flex items-center justify-center gap-2 text-[13px] font-normal text-white/55">
@@ -484,7 +394,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             onClick={() => {
               // Money is now claimed to be in flight: hold the dashboard's
               // withdraw button until settlement resolves.
-              if (creation.sessionId) savePendingOnramp(creation.sessionId, Date.now());
+              if (order?.id) savePendingBankDeposit(order.id, Date.now());
               setHandoff("confirming");
             }}
             className="text-ink mt-3 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
