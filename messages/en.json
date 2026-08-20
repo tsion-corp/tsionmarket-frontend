@@ -252,7 +252,9 @@
     "finish": "Done",
     "popular": "Popular banks",
     "searchHint": "Can’t find your bank? Search above.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "payoutDelayedTitle": "Payout delayed",
+    "payoutDelayedBody": "We received your USDC, but the bank payout of {amount} hit a snag on our side. Your funds are safe and the payout will be completed. Contact support if it hasn't arrived within a few hours."
   },
   "fundsKyc": {
     "back": "Back",

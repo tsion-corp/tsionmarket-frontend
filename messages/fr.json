@@ -252,7 +252,9 @@
     "finish": "Terminé",
     "popular": "Banques populaires",
     "searchHint": "Banque introuvable ? Cherchez ci-dessus.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "payoutDelayedTitle": "Versement retardé",
+    "payoutDelayedBody": "Nous avons bien reçu vos USDC, mais le versement bancaire de {amount} a rencontré un problème de notre côté. Vos fonds sont en sécurité et le versement sera finalisé. Contactez le support s'il n'arrive pas d'ici quelques heures."
   },
   "fundsKyc": {
     "back": "Retour",

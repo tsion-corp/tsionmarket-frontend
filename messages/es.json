@@ -252,7 +252,9 @@
     "finish": "Listo",
     "popular": "Bancos populares",
     "searchHint": "¿No encuentras tu banco? Búscalo arriba.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "payoutDelayedTitle": "Pago retrasado",
+    "payoutDelayedBody": "Recibimos tu USDC, pero el pago bancario de {amount} se atascó de nuestro lado. Tu dinero está seguro y el pago se completará. Contacta a soporte si no llega en unas horas."
   },
   "fundsKyc": {
     "back": "Atrás",

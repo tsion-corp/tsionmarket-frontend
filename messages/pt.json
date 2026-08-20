@@ -252,7 +252,9 @@
     "finish": "Concluir",
     "popular": "Bancos populares",
     "searchHint": "Não encontrou seu banco? Busque acima.",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "payoutDelayedTitle": "Pagamento atrasado",
+    "payoutDelayedBody": "Recebemos seu USDC, mas o pagamento bancário de {amount} travou do nosso lado. Seu dinheiro está seguro e o pagamento será concluído. Fale com o suporte se não chegar em algumas horas."
   },
   "fundsKyc": {
     "back": "Voltar",

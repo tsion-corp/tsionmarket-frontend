@@ -252,7 +252,9 @@
     "finish": "Fertig",
     "popular": "Beliebte Banken",
     "searchHint": "Bank nicht dabei? Oben suchen.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "payoutDelayedTitle": "Auszahlung verzögert",
+    "payoutDelayedBody": "Wir haben dein USDC erhalten, aber die Bankauszahlung von {amount} ist auf unserer Seite hängen geblieben. Dein Geld ist sicher und die Auszahlung wird abgeschlossen. Kontaktiere den Support, wenn sie nicht innerhalb weniger Stunden ankommt."
   },
   "fundsKyc": {
     "back": "Zurück",

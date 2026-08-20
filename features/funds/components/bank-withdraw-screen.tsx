@@ -214,6 +214,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   });
   const order = (orderQuery.data as OfframpOrder | undefined) ?? creation;
   const done = order?.status === "completed";
+  const payoutFailed = order?.status === "failed";
   // What reached the bank: the order's own figure once the rail reports it,
   // the pre-send estimate until then.
   const paidNgn = order?.amountNgn ?? payoutNgn;
@@ -279,15 +280,25 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     return (
       <div className="px-1 py-2 text-center">
         <span
-          className={`inline-grid h-[56px] w-[56px] place-items-center rounded-full ${done ? "bg-accent/14 text-accent" : "bg-white/8 text-white/70"}`}
+          className={`inline-grid h-[56px] w-[56px] place-items-center rounded-full ${
+            done
+              ? "bg-accent/14 text-accent"
+              : payoutFailed
+                ? "bg-down/15 text-down"
+                : "bg-white/8 text-white/70"
+          }`}
         >
           <CheckIcon size={26} />
         </span>
-        <div className="ws-display mt-4 text-[21px]">{done ? t("paidTitle") : t("sentTitle")}</div>
+        <div className="ws-display mt-4 text-[21px]">
+          {done ? t("paidTitle") : payoutFailed ? t("payoutDelayedTitle") : t("sentTitle")}
+        </div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
           {done
             ? t("paidBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })
-            : t("sentBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })}
+            : payoutFailed
+              ? t("payoutDelayedBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })
+              : t("sentBody", { amount: `₦${formatNgn(Number(paidNgn ?? 0))}` })}
         </p>
         <a
           href={`https://basescan.org/tx/${txHash}`}
@@ -298,7 +309,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           {t("viewTransaction")}
           <ArrowUpRightIcon size={14} />
         </a>
-        {!done ? (
+        {!done && !payoutFailed ? (
           <div className="mt-4 flex items-center justify-center gap-2 text-[12.5px] text-white/45">
             <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
             {t("settling")}
