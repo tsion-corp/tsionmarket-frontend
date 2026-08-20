@@ -154,6 +154,18 @@ export function buildActivityEntries(items: ActivityItem[]): ActivityEntry[] {
 // money to me?"). Cross-chain settlement lands well inside this window.
 const CROSS_CHAIN_WINDOW_MS = 3 * 60 * 1000;
 
+// The settled leg always arrives after the leg the user sent; anything earlier
+// cannot be this trade's other half. Chains stamp blocks on their own clocks,
+// so a little backwards drift is tolerated.
+const CROSS_CHAIN_SKEW_MS = 45 * 1000;
+
+// Whether `into` can be the settlement of `out`: after it (allowing clock
+// skew) and within the settlement window.
+function settlesAfter(out: ActivityEntry, into: ActivityEntry): boolean {
+  const delta = into.timestamp - out.timestamp;
+  return delta >= -CROSS_CHAIN_SKEW_MS && delta <= CROSS_CHAIN_WINDOW_MS;
+}
+
 // Merge an asset leaving one chain with money arriving on another into one
 // sale (and the reverse into one purchase). Deliberately strict: both legs
 // must be unpaired movements on different chains inside the window, and each
@@ -169,21 +181,21 @@ function pairAcrossChains(entries: ActivityEntry[]): ActivityEntry[] {
   const trades: ActivityEntry[] = [];
 
   const tryPair = (subjects: ActivityEntry[], monies: ActivityEntry[], kind: "sold" | "bought") => {
+    // On a sale the asset leaves first and the money settles after; on a
+    // purchase the money leaves first. Order matters: a deposit that landed
+    // before a sale cannot be that sale's payout, and dropping it from the
+    // candidates is what lets a busy feed still pair unambiguously.
+    const fits = (subject: ActivityEntry, money: ActivityEntry) =>
+      kind === "sold" ? settlesAfter(subject, money) : settlesAfter(money, subject);
     for (const subject of subjects) {
       if (merged.has(subject.id)) continue;
       const candidates = monies.filter(
-        (m) =>
-          !merged.has(m.id) &&
-          m.network !== subject.network &&
-          Math.abs(m.timestamp - subject.timestamp) <= CROSS_CHAIN_WINDOW_MS
+        (m) => !merged.has(m.id) && m.network !== subject.network && fits(subject, m)
       );
       if (candidates.length !== 1) continue;
       const money = candidates[0];
       const rivalSubjects = subjects.filter(
-        (s) =>
-          !merged.has(s.id) &&
-          s.network !== money.network &&
-          Math.abs(money.timestamp - s.timestamp) <= CROSS_CHAIN_WINDOW_MS
+        (s) => !merged.has(s.id) && s.network !== money.network && fits(s, money)
       );
       if (rivalSubjects.length !== 1) continue;
       merged.add(subject.id);

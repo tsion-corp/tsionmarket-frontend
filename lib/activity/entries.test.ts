@@ -49,6 +49,27 @@ describe("cross-chain pairing", () => {
     expect(entries[0].symbol).toBe("SOL");
   });
 
+  it("ignores a deposit that landed before the sale when picking the payout", () => {
+    // The real trio from production: $18.55 arrived a minute BEFORE the SOL
+    // left, then $0.68 settled seconds after it. The earlier deposit cannot be
+    // this sale's payout, so the later one pairs and the earlier one stays a
+    // plain deposit.
+    const entries = buildActivityEntries([
+      item({
+        symbol: "USDC",
+        direction: "in",
+        amount: 18.5462,
+        timestamp: 1_700_000_000_000 - 70_000,
+      }),
+      item({ symbol: "SOL", direction: "out", network: "solana-mainnet", amount: 0.0082 }),
+      item({ symbol: "USDC", direction: "in", amount: 0.6777, timestamp: 1_700_000_025_000 }),
+    ]);
+    expect(entries.map((e) => e.kind).sort()).toEqual(["deposited", "sold"]);
+    const sold = entries.find((e) => e.kind === "sold")!;
+    expect(sold.symbol).toBe("SOL");
+    expect(sold.counterAmount).toBe(0.6777);
+  });
+
   it("refuses to merge when two deposits could both be the payout", () => {
     const entries = buildActivityEntries([
       item({ symbol: "SOL", direction: "out", network: "solana-mainnet", amount: 1 }),
