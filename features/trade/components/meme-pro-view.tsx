@@ -12,7 +12,7 @@ import {
   useMemeToken,
 } from "@/features/trade/hooks/use-meme-tokens";
 import { useCoingeckoId } from "@/hooks/use-coingecko-id";
-import { compactUsd } from "@/lib/meme/api";
+import { visibleWarnings, compactUsd } from "@/lib/meme/api";
 
 // The desk interface: provider-backed search (name, symbol or contract
 // address), the server-paginated catalog table with liquidity/volume/mcap,
@@ -185,13 +185,18 @@ export function MemeProView() {
                   </div>
                 ))}
               </div>
-              {shown.warnings.length > 0 ? (
+              {visibleWarnings(shown.warnings).length > 0 ? (
                 <div className="mt-3 flex flex-col gap-1">
-                  {shown.warnings.slice(0, 3).map((w, i) => (
-                    <div key={`${w.code}-${i}`} className="text-down/90 text-[11.5px] font-normal">
-                      {w.message}
-                    </div>
-                  ))}
+                  {visibleWarnings(shown.warnings)
+                    .slice(0, 3)
+                    .map((w, i) => (
+                      <div
+                        key={`${w.code}-${i}`}
+                        className="text-down/90 text-[11.5px] font-normal"
+                      >
+                        {w.message}
+                      </div>
+                    ))}
                 </div>
               ) : null}
               <button

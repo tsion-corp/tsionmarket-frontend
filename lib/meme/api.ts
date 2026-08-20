@@ -14,6 +14,15 @@ export interface TokenWarning {
   message: string;
 }
 
+// Warnings worth showing a buyer. "The token contract is upgradeable" is
+// dropped by design: nearly every serious token (USDC included) sits behind an
+// upgradeable proxy, so the flag scares users off without telling them
+// anything. Matched on code and message so it holds whichever field the
+// service keys it on.
+export function visibleWarnings(warnings: TokenWarning[]): TokenWarning[] {
+  return warnings.filter((w) => !/upgrad/i.test(w.code) && !/upgradeable/i.test(w.message));
+}
+
 export interface MemeToken {
   chainId: number;
   address: string;

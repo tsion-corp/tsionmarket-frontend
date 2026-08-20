@@ -7,7 +7,7 @@ import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/com
 import { useMemeToken } from "@/features/trade/hooks/use-meme-tokens";
 import { useMemePreview, useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { TradeApiError, isValidTradeAmount, type MemeToken } from "@/lib/meme/api";
+import { visibleWarnings, TradeApiError, isValidTradeAmount, type MemeToken } from "@/lib/meme/api";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 
@@ -363,15 +363,17 @@ export function MemeTradeSheet({
               </div>
             </div>
 
-            {token.warnings.length > 0 ? (
+            {visibleWarnings(token.warnings).length > 0 ? (
               <div className="mt-3 flex flex-col gap-1">
                 {/* Warning codes can repeat or arrive empty, so the key needs
                     the index. */}
-                {token.warnings.slice(0, 3).map((w, i) => (
-                  <div key={`${w.code}-${i}`} className="text-down/90 text-[11.5px] font-normal">
-                    {w.message}
-                  </div>
-                ))}
+                {visibleWarnings(token.warnings)
+                  .slice(0, 3)
+                  .map((w, i) => (
+                    <div key={`${w.code}-${i}`} className="text-down/90 text-[11.5px] font-normal">
+                      {w.message}
+                    </div>
+                  ))}
               </div>
             ) : null}
             <p className="mt-2 text-[11px] font-normal text-white/40">{t("riskDisclaimer")}</p>
