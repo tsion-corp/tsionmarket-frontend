@@ -13,8 +13,8 @@ import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import { getWalletAddress } from "@/lib/user";
 import {
+  idempotencyKey,
   isValidOnrampNgn,
-  permanentOnrampKey,
   ONRAMP_MIN_NGN,
   usdcForNgnExact,
   type OnrampOrder,
@@ -137,13 +137,18 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   // The poll result supersedes the creation snapshot as soon as it lands.
   const order: OnrampOrder | null = (orderQuery.data as OnrampOrder | undefined) ?? created ?? seed;
   const status = order?.status ?? "awaiting";
-  const done = status === "completed";
-  const failed = status === "failed";
+  // A reused account carries its order's history, not this deposit's
+  // outcome: its first payment already completed (or its lock expired) and
+  // the rail never moves that order again, so neither state may hijack the
+  // screen. Only a fresh order's status drives the done and failed views.
+  const done = status === "completed" && !reused;
+  const failed = status === "failed" && !reused;
 
-  // Rate-lock countdown, only while the user is still looking at the account.
-  const countingDown = handoff === "none" && status === "awaiting";
+  // Rate-lock countdown, only while the user is still looking at a fresh
+  // account. A reused one always converts at the live rate.
+  const countingDown = handoff === "none" && status === "awaiting" && !reused;
   const secondsLeft = useSecondsUntil(countingDown ? (order?.expiresAt ?? null) : null);
-  const rateLockEnded = status === "expired" || secondsLeft === 0;
+  const rateLockEnded = reused != null || status === "expired" || secondsLeft === 0;
 
   // Refresh balances once the crypto has settled, and release the dashboard's
   // withdraw hold on any settled outcome.
@@ -157,11 +162,11 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   // the next press creates fresh. A failed delivery clears the cache the same
   // way but keeps the failed screen, which explains itself. Only the external
   // store is written here; the render derives the fallback without state.
-  const reusedDead = reused != null && orderQuery.isError;
+  const reusedDead = reused != null && (orderQuery.isError || status === "failed");
   useEffect(() => {
     if (!reused || !walletAddress) return;
-    if (orderQuery.isError || failed) clearCachedOnrampAccount(walletAddress);
-  }, [reused, walletAddress, orderQuery.isError, failed]);
+    if (orderQuery.isError || status === "failed") clearCachedOnrampAccount(walletAddress);
+  }, [reused, walletAddress, orderQuery.isError, status]);
 
   // Reported once, when the rail confirms delivery. `done` stays true while
   // the screen is open, so the ref keeps this from firing on every poll.
@@ -206,7 +211,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
           <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
             <span>
               {validAmount && estimateUsdc
-                ? t("usdEquivalent", { amount: `${displayUsdc(estimateUsdc)} USDC` })
+                ? t("usdEquivalent", { amount: `${displayUsdc(estimateUsdc)} USD` })
                 : t("enterMin", { amount: `₦${formatNgn(ONRAMP_MIN_NGN)}` })}
             </span>
             {rate ? (
@@ -267,15 +272,16 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
               });
               return;
             }
-            // The key is stable per wallet, so this create is get-or-create
-            // on the rail: a wallet whose local cache is gone (new device,
-            // cleared storage) gets its existing permanent account replayed,
-            // never a duplicate.
+            // A fresh key per press: retries inside this mutation replay the
+            // same order, while a deliberate new deposit opens a new one. Not a
+            // stable per-wallet key: that would replay a failed order forever
+            // and lock the wallet out of depositing. The cache above is what
+            // makes a repeat deposit reuse its account.
             create.mutate(
               {
                 destinationAddress: walletAddress,
                 expectedAmountNgn: String(ngnAmount),
-                idempotencyKey: permanentOnrampKey(walletAddress),
+                idempotencyKey: idempotencyKey("onramp", walletAddress),
               },
               {
                 onSuccess: (result) => {
@@ -320,7 +326,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         <div className="ws-display mt-4 text-[21px]">{t("doneTitle")}</div>
         <p className="mx-auto mt-2 max-w-[34ch] text-[13.5px] leading-[1.55] font-normal text-white/60">
           {received
-            ? t("doneBody", { amount: `${displayUsdc(received)} USDC` })
+            ? t("doneBody", { amount: `${displayUsdc(received)} USD` })
             : t("doneBodyPlain")}
         </p>
         <button
@@ -454,7 +460,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             onClick={() => {
               // Money is now claimed to be in flight: hold the dashboard's
               // withdraw button until settlement resolves.
-              if (order?.id) savePendingBankDeposit(order.id, Date.now());
+              if (order?.id && !reused) savePendingBankDeposit(order.id, Date.now());
               setHandoff("confirming");
             }}
             className="text-ink mt-3 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"

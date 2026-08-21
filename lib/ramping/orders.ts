@@ -124,8 +124,12 @@ export function offrampProgress(raw: string | null | undefined): RampProgress {
   }
 }
 
+// Whether the rail will ever move this order again. Expired counts: the rail
+// lists it as terminal, and a payment made after the lock still converts and
+// delivers, but the order itself stays expired. Polling past this point
+// learns nothing. The screens still read expired as a note, never a failure.
 export function isTerminalProgress(status: RampProgress): boolean {
-  return status === "completed" || status === "failed";
+  return status === "completed" || status === "failed" || status === "expired";
 }
 
 export function normalizeRates(raw: unknown): RampingRates {
@@ -229,14 +233,4 @@ export function isValidOfframpAmount(amountUsdc: number, balance: number): boole
 export function idempotencyKey(kind: "onramp" | "offramp", wallet: string): string {
   const who = wallet.replace(/^0x/, "").slice(0, 8) || "anon";
   return `${kind}-${who}-${crypto.randomUUID()}`;
-}
-
-// The idempotency key for a wallet's permanent deposit account, stable by
-// design. The rail creates exactly one order per key and replays it, fetched
-// live, on every later call with the same key, and an expired order still
-// carries its payment account (verified live) — which turns POST /onramps
-// into get-or-create: one account per wallet, on every device, forever. The
-// kind prefix keeps it clear of the cross-type 409.
-export function permanentOnrampKey(wallet: string): string {
-  return `onramp-${wallet.toLowerCase()}-account`;
 }

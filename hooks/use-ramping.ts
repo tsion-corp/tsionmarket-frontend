@@ -174,10 +174,10 @@ export function useCreateOfframpOrder() {
   });
 }
 
-// Poll one order until it settles. The status is read live from the rail, so
-// a paid transfer usually flips within one poll. `expired` is not terminal for
-// an onramp (the account still pays at the live rate), so polling continues
-// through it.
+// Poll one order until the rail will not move it again. The status is read
+// live from the rail, so a paid transfer usually flips within one poll. An
+// expired onramp stops the poll too: its account still pays at the live rate,
+// but the order itself stays expired, so there is nothing left to learn.
 export function useRampOrder(
   kind: "onramp" | "offramp",
   orderId: string | null,
