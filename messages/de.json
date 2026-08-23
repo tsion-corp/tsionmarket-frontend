@@ -143,7 +143,12 @@
     "groupHoldings": "Ihre Bestände",
     "groupRwa": "Reale Vermögenswerte",
     "groupMarkets": "Märkte",
-    "account": "Konto"
+    "account": "Konto",
+    "more": "Mehr",
+    "sections": "Bereiche",
+    "addFunds": "Geld hinzufügen",
+    "search": "Suchen",
+    "closeSearch": "Suche schließen"
   },
   "language": {
     "label": "Sprache"
@@ -351,7 +356,11 @@
     "passkeyStepSkip": "Vorerst überspringen",
     "passkeyStepLater": "Du kannst jederzeit später einen Passkey hinzufügen.",
     "passkeyAdded": "Passkey hinzugefügt. Dein Konto ist gesichert.",
-    "continue": "Weiter"
+    "continue": "Weiter",
+    "emailLabel": "E-Mail-Adresse",
+    "createAccountTitle": "Konto erstellen",
+    "orContinueWith": "oder weiter mit",
+    "checkEmailTitle": "Prüfen Sie Ihre E-Mail"
   },
   "landingNav": {
     "markets": "Märkte",
@@ -549,7 +558,14 @@
   "common": {
     "addressCopied": "Adresse kopiert",
     "copied": "Kopiert",
-    "copy": "Kopieren"
+    "copy": "Kopieren",
+    "back": "Zurück",
+    "tradeAria": "{symbol} handeln",
+    "prev": "Zurück",
+    "next": "Weiter",
+    "pageOf": "Seite {page} von {pages}",
+    "switchMarket": "Markt wechseln",
+    "close": "Schließen"
   },
   "portfolio": {
     "eyebrow": "Portfolio",
@@ -598,9 +614,7 @@
     "pageOf": "Seite {page} von {pages}",
     "prev": "Zurück",
     "next": "Weiter",
-    "buyToken": "{name} kaufen",
-    "showAllTokens": "Alle {count} Token anzeigen",
-    "showLess": "Weniger anzeigen"
+    "buyToken": "{name} kaufen"
   },
   "buySell": {
     "buy": "Kaufen",
@@ -658,7 +672,6 @@
     "eyebrow": "Reale Vermögenswerte",
     "heading": "Reale Vermögenswerte",
     "subheading": "Tokenisierte Staatsanleihen, Aktien, Kredite und Metalle. Live-Preise, sofortige Abwicklung, handeln oder über den Emittenten zugreifen.",
-    "liveRegistry": "Live-Register",
     "allCategories": "Alle",
     "searchPlaceholder": "Assets suchen",
     "asset": "Asset",
@@ -2303,5 +2316,17 @@
     "doneTitle": "Sie stehen auf der Liste.",
     "doneBody": "Wir schreiben Ihnen, sobald wir öffnen.",
     "alreadyTitle": "Sie stehen bereits auf der Liste."
+  },
+  "welcome": {
+    "slide1Title": "Eine App, alle Märkte",
+    "slide1Body": "Kaufen Sie Aktien, Gold und Krypto, handeln Sie, sagen Sie Ergebnisse voraus und lassen Sie Ihr Geld wachsen, alles an einem Ort.",
+    "slide2Title": "Anmelden und Markt wählen",
+    "slide2Body": "Melden Sie sich einfach mit Google, X oder E-Mail an. Wählen Sie dann Aktien, Gold, Krypto oder was Sie sonst suchen.",
+    "slide3Title": "Vivid AI, Ihr Assistent",
+    "slide3Body": "Erhalten Sie Einblicke, finden Sie Chancen und handeln Sie mit einem Tippen. Den letzten Schritt bestätigen immer Sie.",
+    "continueEmail": "Weiter mit E-Mail",
+    "haveAccount": "Ich habe bereits ein Konto",
+    "goToSlide": "Zu Folie {index}",
+    "slides": "Willkommensfolien"
   }
 }

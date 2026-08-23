@@ -40,7 +40,7 @@ function XLogo() {
 }
 
 const BUTTON =
-  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-[14px] border border-white/14 bg-white/6 p-3.5 font-sans text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60";
+  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-full border border-white/14 bg-white/6 px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60";
 
 export function SocialButtons() {
   const t = useTranslations("auth");

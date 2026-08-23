@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { SimplePerps } from "@/features/trade/components/simple-perps";
 import { ProPerps } from "@/features/trade/components/pro-perps";
 import { usePerpMode } from "@/features/trade/components/perp-mode";
@@ -25,6 +25,9 @@ const FALLBACK_PAIRS: PerpPair[] = [
   ["BTC", 0],
   ["ETH", 1],
   ["SOL", 2],
+  ["BNB", 3],
+  ["DOGE", 4],
+  ["AAVE", 5],
 ].map(([from, pairIndex]) => ({
   pairIndex: pairIndex as number,
   from: from as string,
@@ -40,8 +43,20 @@ const FALLBACK_PAIRS: PerpPair[] = [
   maxShortOiP: 0,
 }));
 
+// The majors the simple interface offers, priced from CoinGecko while the perp
+// gateway is not answering. TRADE_PRICE_SYMBOLS covers what the app can swap,
+// which is not the same set: BNB, DOGE and AAVE are perp markets here without
+// being spot assets we hold.
+const FALLBACK_PRICE_SYMBOLS = [...new Set([...TRADE_PRICE_SYMBOLS, "BNB", "DOGE", "AAVE"])];
+
 export function PerpsView() {
   const { mode } = usePerpMode();
+  // Which market is being looked at, and whether its trade screen is open, are
+  // held here rather than inside either interface. The simple and pro desks are
+  // different components, so state living in one is lost the moment the user
+  // switches — including from the switch inside the trade screen itself.
+  const [selected, setSelected] = useState("ETH/USD");
+  const [sheetOpen, setSheetOpen] = useState(false);
   // Voice perps: a spoken "long $2 of bitcoin 30x" lands as URL params, is passed
   // into whichever interface is showing, which STAGES the visible form and then
   // auto-fires its own submit (usePerpFormAutostage) — the user watches the order
@@ -57,7 +72,7 @@ export function PerpsView() {
   const streamSymbols = useMemo(() => (live ? pairs.map(pairSymbol) : []), [live, pairs]);
   const stream = usePerpPriceStream(streamSymbols, live);
   const { prices: livePrices } = usePerpPrices(live, stream.healthy);
-  const fallbackPrices = usePrices(TRADE_PRICE_SYMBOLS);
+  const fallbackPrices = usePrices(FALLBACK_PRICE_SYMBOLS);
 
   const effectivePairs = live ? pairs : FALLBACK_PAIRS;
 
@@ -86,9 +101,16 @@ export function PerpsView() {
     );
   }
 
-  return mode === "pro" ? (
-    <ProPerps pairs={effectivePairs} priceOf={priceOf} live={live} voicePrefill={perpPrefill} />
-  ) : (
-    <SimplePerps pairs={effectivePairs} priceOf={priceOf} live={live} voicePrefill={perpPrefill} />
-  );
+  const shared = {
+    pairs: effectivePairs,
+    priceOf,
+    live,
+    voicePrefill: perpPrefill,
+    selected,
+    onSelect: setSelected,
+    sheetOpen,
+    onSheetOpenChange: setSheetOpen,
+  };
+
+  return mode === "pro" ? <ProPerps {...shared} /> : <SimplePerps {...shared} />;
 }

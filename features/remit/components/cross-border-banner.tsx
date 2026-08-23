@@ -43,23 +43,26 @@ export function CrossBorderBanner({ onClick }: CrossBorderBannerProps) {
           animation: "kash-sheen 4.5s ease-in-out infinite",
         }}
       />
-      <span className="relative flex w-full items-center gap-4 px-5 py-7 sm:gap-5 sm:px-7 sm:py-8">
-        <span className="grid h-16 w-16 shrink-0 place-items-center rounded-[18px] border border-white/15 bg-white/10 text-white backdrop-blur-sm sm:h-[68px] sm:w-[68px]">
-          <GlobeIcon size={32} />
+      <span className="relative flex w-full items-center gap-3.5 px-4 py-5 sm:gap-5 sm:px-7 sm:py-8">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-[14px] border border-white/15 bg-white/10 text-white backdrop-blur-sm sm:h-[68px] sm:w-[68px] sm:rounded-[18px]">
+          <GlobeIcon size={24} className="sm:hidden" />
+          <GlobeIcon size={32} className="hidden sm:block" />
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-center gap-2.5">
-            <span className="ws-display text-[18px] text-white sm:text-[20px]">{t("title")}</span>
-            <span className="rounded-full border border-white/25 bg-white/12 px-2 py-0.5 text-[10px] font-medium tracking-[0.06em] text-white uppercase backdrop-blur-sm">
+            <span className="ws-display text-[15px] leading-[1.2] text-white sm:text-[20px] sm:leading-normal">
+              {t("title")}
+            </span>
+            <span className="rounded-full border border-white/25 bg-white/12 px-1.5 py-0.5 text-[9px] font-medium tracking-[0.06em] text-white uppercase backdrop-blur-sm sm:px-2 sm:text-[10px]">
               {t("badge")}
             </span>
           </span>
-          <span className="mt-1.5 block text-[13.5px] leading-[1.5] font-normal text-white/75 sm:text-[14.5px]">
+          <span className="mt-1 block text-[11.5px] leading-[1.4] font-normal text-white/75 sm:mt-1.5 sm:text-[14.5px] sm:leading-[1.5]">
             {t("subtitle")}
           </span>
         </span>
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-[#0b1220] transition-transform group-hover:translate-x-0.5">
-          <ArrowRightIcon size={18} />
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white text-[#0b1220] transition-transform group-hover:translate-x-0.5 sm:h-10 sm:w-10">
+          <ArrowRightIcon size={16} />
         </span>
       </span>
     </button>

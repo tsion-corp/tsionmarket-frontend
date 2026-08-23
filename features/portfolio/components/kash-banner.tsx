@@ -68,25 +68,25 @@ export function KashBanner({ onBuy }: { onBuy: () => void }) {
         />
       ))}
 
-      <span className="relative flex items-center gap-3.5 px-4 py-3.5 sm:gap-5 sm:px-6">
+      <span className="relative flex items-center gap-3 px-3.5 py-3 sm:gap-5 sm:px-6 sm:py-3.5">
         <span className="relative shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={COIN}
             alt=""
-            className="h-12 w-12 rounded-full object-cover shadow-[0_0_14px_rgba(180,130,20,0.55)] sm:h-14 sm:w-14"
+            className="h-10 w-10 rounded-full object-cover shadow-[0_0_14px_rgba(180,130,20,0.55)] sm:h-14 sm:w-14"
             style={{ animation: "kash-float 3.2s ease-in-out infinite" }}
           />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="ws-display block text-[17px] text-amber-950 sm:text-[20px]">
+          <span className="ws-display block text-[13.5px] leading-[1.25] text-amber-950 sm:text-[20px] sm:leading-normal">
             {t("bannerTitle")}
           </span>
           <span className="mt-0.5 hidden text-[12.5px] font-normal text-amber-900/75 sm:block">
             {t("bannerSub")}
           </span>
         </span>
-        <span className="text-ink shrink-0 rounded-xl bg-white px-4 py-2.5 font-sans text-[13px] font-semibold shadow-[0_2px_10px_rgba(120,80,0,0.25)]">
+        <span className="text-ink shrink-0 rounded-lg bg-white px-3 py-2 font-sans text-[11.5px] font-semibold whitespace-nowrap shadow-[0_2px_10px_rgba(120,80,0,0.25)] sm:rounded-xl sm:px-4 sm:py-2.5 sm:text-[13px]">
           {t("bannerCta")}
         </span>
       </span>

@@ -18,7 +18,7 @@ export function SuccessPanel({ title, children, onDone }: SuccessPanelProps) {
       </p>
       <button
         onClick={onDone}
-        className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+        className="ws-chrome text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
       >
         Done
       </button>

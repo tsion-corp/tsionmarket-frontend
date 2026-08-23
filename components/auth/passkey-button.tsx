@@ -56,7 +56,7 @@ export function PasskeyButton() {
       <button
         onClick={() => loginWithPasskey()}
         disabled={busy}
-        className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-[14px] border border-white/14 bg-transparent p-[13px] font-sans text-sm font-medium text-white/90 transition-colors hover:border-white/28 hover:bg-white/6 disabled:cursor-wait disabled:opacity-60"
+        className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-full border border-white/14 bg-transparent px-4 py-3.5 font-sans text-sm font-medium text-white/90 transition-colors hover:border-white/28 hover:bg-white/6 disabled:cursor-wait disabled:opacity-60 md:rounded-[14px] md:p-[13px]"
       >
         <span className="text-accent">
           <PasskeyIcon />

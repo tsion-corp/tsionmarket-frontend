@@ -3,67 +3,20 @@
 import { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
-import { SearchIcon } from "@/components/ui/icons";
+import { CloseIcon, SearchIcon } from "@/components/ui/icons";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Avatar } from "@/components/ui/avatar";
 import { useGlobalSearch, type SearchResult } from "@/components/layout/use-global-search";
-import { deriveProfile } from "@/lib/user";
+import { truncateAddress } from "@/lib/format";
+import { deriveProfile, getWalletAddress } from "@/lib/user";
 
 interface TopbarProps {
   onOpenAccount: () => void;
   // Scrolls in-page on /dashboard, or navigates there first from any other
   // page (e.g. /casino) — same dispatcher the sidebar uses.
   onSelectSection: (id: string) => void;
-  /** The phone drawer: whether it is open, and the button that flips it. */
-  menuOpen: boolean;
-  onToggleMenu: () => void;
-}
-
-// The phone menu button: three bars that fold into a cross while the drawer is
-// open, so the same control reads as "open" and "close". Pure CSS transitions,
-// no icon swap.
-function MenuToggle({
-  open,
-  onClick,
-  label,
-}: {
-  open: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  const bar = "block h-[2px] rounded-full bg-white/85 transition-all duration-200 ease-in-out";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={label}
-      aria-controls="app-sidebar"
-      aria-expanded={open}
-      className="grid size-[38px] shrink-0 cursor-pointer place-items-center rounded-full border border-white/14 bg-white/5 text-white/85 transition-colors hover:bg-white/10 md:hidden"
-    >
-      <span className="relative block h-[14px] w-[18px]">
-        {/* The three bars, which shrink to nothing as the cross grows. */}
-        <span
-          className={`${bar} absolute top-0 left-0 ${open ? "w-0 delay-0" : "w-full delay-300"}`}
-        />
-        <span
-          className={`${bar} absolute top-[6px] left-0 ${open ? "w-0 delay-75" : "w-full delay-[350ms]"}`}
-        />
-        <span
-          className={`${bar} absolute top-[12px] left-0 ${open ? "w-0 delay-150" : "w-full delay-[400ms]"}`}
-        />
-        {/* The cross, drawn as two rotated bars from the centre. */}
-        <span
-          className={`${bar} absolute top-[6px] left-0 origin-center rotate-45 ${open ? "w-full delay-300" : "w-0 delay-0"}`}
-        />
-        <span
-          className={`${bar} absolute top-[6px] left-0 origin-center -rotate-45 ${open ? "w-full delay-[400ms]" : "w-0 delay-100"}`}
-        />
-      </span>
-    </button>
-  );
 }
 
 const GROUPS: {
@@ -130,12 +83,17 @@ function SearchResults({
   );
 }
 
-export function Topbar({ onOpenAccount, onSelectSection, menuOpen, onToggleMenu }: TopbarProps) {
+export function Topbar({ onOpenAccount, onSelectSection }: TopbarProps) {
   const { user } = usePrivy();
   const profile = deriveProfile(user);
+  const address = getWalletAddress(user, "ethereum");
   const t = useTranslations("topbar");
   const [query, setQuery] = useState("");
   const [focused, setFocused] = useState(false);
+  // A phone shows the account instead of the search field, and swaps to the
+  // field only once the search button is pressed. From `md` up the field is
+  // always there and this stays false.
+  const [searching, setSearching] = useState(false);
 
   const open = focused && query.trim().length > 0;
 
@@ -143,15 +101,46 @@ export function Topbar({ onOpenAccount, onSelectSection, menuOpen, onToggleMenu 
     onSelectSection(r.sectionId);
     setQuery("");
     setFocused(false);
+    setSearching(false);
+  };
+
+  const closeSearch = () => {
+    setQuery("");
+    setFocused(false);
+    setSearching(false);
   };
 
   return (
     <div className="relative z-[2] flex items-center gap-3 border-b border-white/7 bg-black/70 px-4 py-3.5 backdrop-blur-[14px] sm:px-5">
-      {/* On a phone the menu opens the drawer, which is where the logo lives;
-          the bar itself is search, notifications and the account. */}
-      <MenuToggle open={menuOpen} onClick={onToggleMenu} label={t("menu")} />
+      {/* Who you are signed in as, and the wallet that holds the money. Tapping
+          it opens the account modal, which is where the phone reaches settings
+          now that the drawer is opened from the tab bar. */}
+      {searching ? null : (
+        <button
+          type="button"
+          onClick={onOpenAccount}
+          aria-label={t("account")}
+          className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left md:hidden"
+        >
+          <Avatar seed={profile.avatarSeed} size={38} />
+          <span className="min-w-0">
+            <span className="block truncate font-sans text-[14px] font-semibold text-white">
+              {profile.name}
+            </span>
+            {address ? (
+              <span className="tnum block truncate text-[11.5px] font-normal text-white/45">
+                {truncateAddress(address)}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      )}
 
-      <div className="relative min-w-0 flex-1 md:max-w-[420px]">
+      <div
+        className={`relative min-w-0 flex-1 md:block md:max-w-[420px] ${
+          searching ? "block" : "hidden"
+        }`}
+      >
         <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5">
           <SearchIcon />
           <input
@@ -160,6 +149,7 @@ export function Topbar({ onOpenAccount, onSelectSection, menuOpen, onToggleMenu 
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             placeholder={t("searchPlaceholder")}
+            autoFocus={searching}
             className="min-w-0 flex-1 border-none bg-transparent text-sm font-normal text-white outline-none"
           />
         </div>
@@ -167,20 +157,35 @@ export function Topbar({ onOpenAccount, onSelectSection, menuOpen, onToggleMenu 
         {open ? <SearchResults query={query} onSelect={select} /> : null}
       </div>
 
-      <div className="ml-auto flex items-center gap-2">
-        {/* Language is the least urgent control, so it yields first on a phone;
-            the bell stays at every width. */}
-        <span className="hidden min-[400px]:block">
-          <LanguageSelect />
-        </span>
-        <NotificationBell />
-        <button
-          onClick={onOpenAccount}
-          aria-label={t("account")}
-          className="cursor-pointer rounded-full border border-white/14 md:hidden"
-        >
-          <Avatar seed={profile.avatarSeed} size={34} />
-        </button>
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {searching ? (
+          <button
+            type="button"
+            onClick={closeSearch}
+            aria-label={t("closeSearch")}
+            className="grid size-[38px] cursor-pointer place-items-center rounded-full border border-white/14 bg-white/5 text-white/75 transition-colors hover:bg-white/10 md:hidden"
+          >
+            <CloseIcon />
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => setSearching(true)}
+              aria-label={t("search")}
+              className="grid size-[38px] cursor-pointer place-items-center rounded-full border border-white/14 bg-white/5 text-white/75 transition-colors hover:bg-white/10 md:hidden"
+            >
+              <SearchIcon />
+            </button>
+            {/* The phone header is the account, search and the bell, as the
+                mobile design has it. Language moves into the account modal
+                rather than competing for the row. */}
+            <span className="hidden md:block">
+              <LanguageSelect />
+            </span>
+            <NotificationBell />
+          </>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,8 @@ export const COINGECKO_IDS: Record<string, string> = {
   USDC: "usd-coin",
   USDT: "tether",
   BNB: "binancecoin",
+  DOGE: "dogecoin",
+  AAVE: "aave",
   MATIC: "polygon-ecosystem-token",
   POL: "polygon-ecosystem-token",
   ARB: "arbitrum",

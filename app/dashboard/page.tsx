@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -10,7 +10,7 @@ import { SpotSection } from "@/features/trade/components/spot-section";
 import { PerpsSection } from "@/features/trade/components/perps-section";
 import { MemeSection } from "@/features/trade/components/meme-section";
 import { ExploreBanners } from "@/components/layout/explore-banners";
-import { RecentActivity } from "@/features/activity";
+import { DepositAnalytics } from "@/features/activity";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { DetailModal } from "@/components/layout/modals/detail-modal";
@@ -38,6 +38,17 @@ import type {
 import { AccountModal } from "@/components/layout/modals/account-modal";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
+
+// Which doorway follows which section, indexed by section position. Portfolio
+// leads the page, so nothing is pitched under it; the three doorways then
+// follow the sections after it. An index with no entry gets no banner, so a
+// shorter or reordered section list still works.
+const INTERLEAVED_BANNERS: readonly ("prediction" | "earn" | "casino" | undefined)[] = [
+  undefined,
+  "prediction",
+  "earn",
+  "casino",
+];
 
 // The scroll-spy sections mounted inline on this page. Prediction, earn and
 // casino live on their own routes and are never one of these — the dashboard
@@ -133,17 +144,23 @@ export default function DashboardPage() {
     <AuthGuard>
       <DashboardShell nav={nav} activeSection={activeSection}>
         <RwaSettlementTracker />
-        {scrollSectionIds.map((id) => (
-          <section key={id} id={id} className={SECTION_CLASS}>
-            {sections[id]}
-          </section>
+        {/* Reports settled deposits. It used to ride on the recent-activity
+            list that stood here; it is mounted on its own now that history
+            lives only on its own page. */}
+        <DepositAnalytics />
+        {scrollSectionIds.map((id, index) => (
+          <Fragment key={id}>
+            <section id={id} className={SECTION_CLASS}>
+              {sections[id]}
+            </section>
+            {/* One doorway after each of the first few sections, so Prediction,
+                Earn and Arkade are met while reading rather than only at the
+                very bottom. */}
+            {INTERLEAVED_BANNERS[index] ? (
+              <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
+            ) : null}
+          </Fragment>
         ))}
-        {/* The routed destinations, pitched where the prediction section used
-            to scroll: one banner each for Prediction, Earn and Casino. */}
-        <ExploreBanners />
-        {/* History closes the page: the last few transfers, then the way to
-            the full record. */}
-        <RecentActivity />
       </DashboardShell>
 
       <ModalShell

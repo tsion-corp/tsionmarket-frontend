@@ -8,6 +8,10 @@ import { SearchIcon } from "@/components/ui/icons";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
 import { FlashPrice } from "@/features/trade/components/flash-price";
 import { SpotPanel } from "@/features/trade/components/spot-panel";
+import { MobileTradeSheet } from "@/features/trade/components/mobile-trade-sheet";
+import { ListPagination } from "@/components/ui/list-pagination";
+import { usePaged } from "@/hooks/use-paged";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useCoingeckoId } from "@/hooks/use-coingecko-id";
@@ -24,6 +28,9 @@ const PORTFOLIO_KEY = [["portfolio"]] as const;
 // Rate-limits the block-driven refresh: each refetch is an Alchemy round trip,
 // and the raw per-block (~2s) cadence ran the shared key into 429s.
 const PORTFOLIO_REFRESH_MIN_MS = 10_000;
+
+// Rows per page in the phone market list.
+const MOBILE_PER_PAGE = 6;
 
 // The markets pinned as one-tap chips in the simple interface, biggest first.
 // A market's badge: built-in icon or real logo when one loads, and the same
@@ -47,6 +54,7 @@ function changeLabel(chg: number): string {
 // spot section provides the header and the simple/pro switch.
 export function MarketsView() {
   const t = useTranslations("spot");
+  const tCommon = useTranslations("common");
   const { markets, destinations, loading, error: marketsError } = useSpotMarkets();
   const portfolio = usePortfolio();
   useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
@@ -54,6 +62,10 @@ export function MarketsView() {
   const [selected, setSelected] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // On a phone the chart and the ticket live in a sheet, opened by choosing a
+  // market from the list below. Desktop keeps them on the page.
+  const isMobile = useIsMobile();
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const token: SpotMarket | null = markets.find((t) => t.symbol === selected) ?? markets[0] ?? null;
   const base = token?.symbol ?? "";
@@ -110,11 +122,46 @@ export function MarketsView() {
     );
   }, [markets, search]);
 
+  // Six to a page on the phone list, so the section stays one screen tall.
+  const paged = usePaged(filtered, MOBILE_PER_PAGE);
+
   const pick = (t: SpotMarket) => {
     setSelected(t.symbol);
     setPickerOpen(false);
     setSearch("");
   };
+
+  // Choosing from the phone list opens the market rather than swapping what a
+  // hidden panel points at.
+  const openMarket = (t: SpotMarket) => {
+    setSelected(t.symbol);
+    setSheetOpen(true);
+  };
+
+  // One row, drawn the same whether it is opening a market from the section or
+  // switching to one from inside the trade screen.
+  const marketRow = (m: SpotMarket, onPick: () => void) => (
+    <button
+      key={m.symbol}
+      onClick={onPick}
+      aria-label={tCommon("tradeAria", { symbol: m.symbol })}
+      className="flex w-full cursor-pointer items-center gap-3 border-b border-white/6 px-4 py-3.5 text-left transition-colors last:border-b-0 active:bg-white/4"
+    >
+      <SpotCoin sym={m.symbol} logo={m.logo} size={34} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-sans text-[14.5px] font-medium">{m.symbol}</span>
+        <span className="block truncate text-[11.5px] font-normal text-white/45">{m.name}</span>
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="tnum block font-sans text-[14px] font-medium">
+          {m.priceUsd > 0 ? formatUsd(m.priceUsd) : "—"}
+        </span>
+        <span className={`tnum block text-[12px] ${m.change24h >= 0 ? "text-up" : "text-down"}`}>
+          {changeLabel(m.change24h)}
+        </span>
+      </span>
+    </button>
+  );
 
   const chartHeight = 360;
 
@@ -246,6 +293,35 @@ export function MarketsView() {
     </div>
   );
 
+  // Holding for the selected market.
+  const holdingCard = (
+    <div className="ws-card p-4 sm:p-5">
+      <div className="flex items-center justify-between">
+        <span className="font-sans text-[13px] font-semibold text-white/80">
+          {t("holdingTitle", { symbol: base || "—" })}
+        </span>
+        <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10.5px] font-medium text-white/40">
+          {t("holdingTag")}
+        </span>
+      </div>
+      {heldToken && heldBalance > 0 ? (
+        <div className="mt-3 flex items-center justify-between">
+          <span className="flex items-center gap-2.5">
+            <SpotCoin sym={base} logo={heldToken.logo} size={26} />
+            <span className="tnum text-[14px] font-medium">
+              {heldBalance.toLocaleString(undefined, { maximumFractionDigits: 6 })} {base}
+            </span>
+          </span>
+          <span className="tnum text-[14px] font-semibold">{formatUsd(heldToken.valueUsd)}</span>
+        </div>
+      ) : (
+        <div className="grid place-items-center py-8 text-center text-[13px] font-normal text-white/40">
+          {t("noHolding", { symbol: base || "—" })}
+        </div>
+      )}
+    </div>
+  );
+
   const ticket = (
     <SpotPanel
       token={token}
@@ -257,6 +333,88 @@ export function MarketsView() {
     />
   );
 
+  // The phone view: a searchable market list, and nothing else until a market
+  // is chosen. Everything that makes this section long on a phone (candles, the
+  // ticket, the holding card) moves into the sheet.
+  if (isMobile) {
+    return (
+      <>
+        <div className="ws-inset flex items-center gap-2.5 px-3.5 py-2.5">
+          <SearchIcon size={16} />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("searchPlaceholder")}
+            className="min-w-0 flex-1 bg-transparent text-[14px] font-normal text-white outline-none"
+          />
+        </div>
+
+        <div className="ws-card mt-3 overflow-hidden">
+          {loading ? (
+            [0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3 border-b border-white/6 px-4 py-3.5">
+                <span className="size-9 shrink-0 animate-pulse rounded-full bg-white/8" />
+                <span className="h-4 w-24 animate-pulse rounded bg-white/8" />
+                <span className="ml-auto h-4 w-16 animate-pulse rounded bg-white/8" />
+              </div>
+            ))
+          ) : filtered.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[13px] font-normal text-white/45">
+              {marketsError ? t("unavailable") : t("noMatch")}
+            </div>
+          ) : (
+            paged.pageItems.map((m) => marketRow(m, () => openMarket(m)))
+          )}
+          {!loading && filtered.length > 0 ? (
+            <ListPagination
+              page={paged.page + 1}
+              pages={paged.pageCount}
+              onPage={(p) => (p > paged.page + 1 ? paged.goNext() : paged.goPrev())}
+            />
+          ) : null}
+        </div>
+
+        <MobileTradeSheet
+          open={sheetOpen}
+          onClose={() => setSheetOpen(false)}
+          title={base || "—"}
+          subtitle={token?.name}
+          priceSlot={
+            <FlashPrice value={mark} className="ws-display tnum block text-[15px]">
+              {mark > 0 ? formatUsd(mark) : "—"}
+            </FlashPrice>
+          }
+          marketPicker={(close) => (
+            <>
+              <div className="ws-inset mb-2 flex items-center gap-2.5 px-3.5 py-2.5">
+                <SearchIcon size={16} />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("searchPlaceholder")}
+                  autoFocus
+                  className="min-w-0 flex-1 bg-transparent text-[14px] font-normal text-white outline-none"
+                />
+              </div>
+              <div className="ws-card overflow-hidden">
+                {filtered.slice(0, 60).map((m) =>
+                  marketRow(m, () => {
+                    setSelected(m.symbol);
+                    close();
+                  })
+                )}
+              </div>
+            </>
+          )}
+        >
+          {chartCard}
+          {ticket}
+          {holdingCard}
+        </MobileTradeSheet>
+      </>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,420px)_1fr]">
       {ticket}
@@ -265,34 +423,7 @@ export function MarketsView() {
         {pairHeader}
         {chartCard}
 
-        {/* Holding for the selected market. */}
-        <div className="ws-card p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <span className="font-sans text-[13px] font-semibold text-white/80">
-              {t("holdingTitle", { symbol: base || "—" })}
-            </span>
-            <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10.5px] font-medium text-white/40">
-              {t("holdingTag")}
-            </span>
-          </div>
-          {heldToken && heldBalance > 0 ? (
-            <div className="mt-3 flex items-center justify-between">
-              <span className="flex items-center gap-2.5">
-                <SpotCoin sym={base} logo={heldToken.logo} size={26} />
-                <span className="tnum text-[14px] font-medium">
-                  {heldBalance.toLocaleString(undefined, { maximumFractionDigits: 6 })} {base}
-                </span>
-              </span>
-              <span className="tnum text-[14px] font-semibold">
-                {formatUsd(heldToken.valueUsd)}
-              </span>
-            </div>
-          ) : (
-            <div className="grid place-items-center py-8 text-center text-[13px] font-normal text-white/40">
-              {t("noHolding", { symbol: base || "—" })}
-            </div>
-          )}
-        </div>
+        {holdingCard}
       </div>
     </div>
   );

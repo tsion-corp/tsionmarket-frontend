@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
 import { Avatar } from "@/components/ui/avatar";
+import { LanguageSelect } from "@/components/ui/language-select";
 import { WalletList } from "@/features/portfolio";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
@@ -37,6 +38,7 @@ function PasskeyIcon({ size = 20 }: { size?: number }) {
 
 export function AccountModal({ onClose }: AccountModalProps) {
   const t = useTranslations("account");
+  const tLanguage = useTranslations("language");
   const { user } = usePrivy();
   const router = useRouter();
   const { logout } = useLogout({
@@ -65,6 +67,12 @@ export function AccountModal({ onClose }: AccountModalProps) {
           <div className="ws-display truncate text-[21px]">{profile.name}</div>
           <div className="truncate text-[12.5px] font-normal text-white/50">{profile.email}</div>
         </div>
+      </div>
+      {/* Language lives here on a phone, where the header has no room for it.
+          The desktop header still carries its own picker. */}
+      <div className="mt-4 flex items-center justify-between gap-3 md:hidden">
+        <span className="text-[13.5px] font-normal text-white/60">{tLanguage("label")}</span>
+        <LanguageSelect />
       </div>
       <WalletList user={user} />
       <div className="mt-[18px] flex flex-col gap-1.5">

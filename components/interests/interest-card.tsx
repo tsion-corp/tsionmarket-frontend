@@ -46,7 +46,9 @@ export function InterestCard({ interest, selected, onToggle }: InterestCardProps
       <span className="ws-display mt-4 block text-lg tracking-[-0.01em] sm:text-[22px]">
         {t(`${interest.key}Title`)}
       </span>
-      <span className="mt-1.5 block text-[13.5px] leading-[1.45] font-normal text-white/65">
+      {/* Two cards to a row on a phone leaves no room for the description, so
+          it starts at the width where the cards are wide enough to carry it. */}
+      <span className="mt-1.5 hidden text-[13.5px] leading-[1.45] font-normal text-white/65 sm:block">
         {t(`${interest.key}Desc`)}
       </span>
     </motion.button>

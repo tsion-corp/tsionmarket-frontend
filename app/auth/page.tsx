@@ -26,7 +26,7 @@ type Phase = "signin" | "passkey";
 
 function StepMarker({ step, label }: { step: number; label: string }) {
   return (
-    <div className="mb-3 flex items-center gap-2.5">
+    <div className="mb-3 flex items-center justify-center gap-2.5 md:justify-start">
       <span className="flex items-center gap-1.5" aria-hidden>
         {[1, 2].map((n) => (
           <span
@@ -95,30 +95,38 @@ export default function AuthPage() {
   return (
     <div className="grid min-h-screen grid-cols-1 bg-black lg:grid-cols-[1fr_1.05fr]">
       <div className="relative flex min-h-screen flex-col p-5 sm:px-10 sm:py-8">
-        <div className="self-start">
+        <div className="self-center md:self-start">
           <Wordmark />
         </div>
 
-        <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center py-9 sm:py-12">
+        <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-start pt-8 pb-9 md:justify-center md:py-12">
           {phase === "passkey" ? (
             <>
               <StepMarker step={2} label={t("stepOf", { step: 2, steps: 2 })} />
-              <h1 className="ws-display text-[clamp(34px,4vw,48px)] leading-none tracking-[-0.03em]">
+              <h1 className="ws-display text-center text-[28px] leading-none tracking-[-0.03em] md:text-left md:text-[clamp(34px,4vw,48px)]">
                 {t("passkeyStepHeading")}
               </h1>
-              <p className="mt-4 max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72">
+              <p className="mx-auto mt-4 max-w-[38ch] text-center text-[14px] leading-[1.5] text-white/72 md:mx-0 md:text-left md:text-[15.5px] md:leading-[1.55]">
                 {t("passkeyStepTagline")}
               </p>
               <PasskeyEnroll onDone={() => router.replace(destination)} />
             </>
           ) : (
             <>
-              <StepMarker step={1} label={t("stepOf", { step: 1, steps: 2 })} />
-              <h1 className="ws-display text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em]">
+              {/* The step marker, the welcome lockup and the tagline are the
+                  desktop column's furniture. The mobile design names the task
+                  and goes straight to the sign-in methods. */}
+              <div className="hidden md:block">
+                <StepMarker step={1} label={t("stepOf", { step: 1, steps: 2 })} />
+              </div>
+              <h1 className="ws-display text-center text-[28px] leading-tight tracking-[-0.02em] md:hidden">
+                {t("createAccountTitle")}
+              </h1>
+              <h1 className="ws-display hidden text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em] md:block">
                 {t("welcome")}
                 <MarketLogo className="mt-[0.22em] block h-[0.7em] w-auto" />
               </h1>
-              <p className="mt-4 max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72">
+              <p className="mt-4 hidden max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72 md:block">
                 {t("tagline")}
               </p>
 
@@ -131,17 +139,29 @@ export default function AuthPage() {
                 </div>
               ) : (
                 <>
-                  <div className="mt-[34px]">
+                  {/* The design puts this label above the social buttons, so a
+                      phone reads title, methods, then the email field. */}
+                  <div className="mt-7 mb-4 flex items-center gap-3.5 md:hidden">
+                    <span className="h-px flex-1 bg-white/10" />
+                    <span className="text-[12px] whitespace-nowrap text-white/45">
+                      {t("orContinueWith")}
+                    </span>
+                    <span className="h-px flex-1 bg-white/10" />
+                  </div>
+
+                  <div className="md:mt-[34px]">
                     <SocialButtons />
                   </div>
 
-                  <div className="my-[22px] flex items-center gap-3.5">
+                  <div className="my-[22px] hidden items-center gap-3.5 md:flex">
                     <span className="h-px flex-1 bg-white/10" />
                     <span className="text-xs tracking-[0.04em] text-white/40">{t("or")}</span>
                     <span className="h-px flex-1 bg-white/10" />
                   </div>
 
-                  <EmailForm />
+                  <div className="mt-5 md:mt-0">
+                    <EmailForm />
+                  </div>
 
                   <PasskeyButton />
                 </>

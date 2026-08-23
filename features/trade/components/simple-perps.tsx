@@ -6,6 +6,9 @@ import { track } from "@/lib/analytics/mixpanel";
 import { MARKET_TYPE } from "@/lib/perp/analytics";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { TradingViewChart } from "@/components/ui/tradingview-chart";
+import { MobileTradeSheet } from "@/features/trade/components/mobile-trade-sheet";
+import { PerpModeSwitch } from "@/features/trade/components/perp-mode";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { FlashPrice } from "@/features/trade/components/flash-price";
 import { ConfirmDialog, type ConfirmRow } from "@/components/ui/confirm-dialog";
 import { PerpPositions } from "@/features/trade/components/perp-positions";
@@ -35,17 +38,60 @@ interface SimplePerpsProps {
   // A voice-staged long/short ("long $2 of bitcoin 30x"): the form fills in and
   // auto-fires. Null when there's no pending voice command.
   voicePrefill?: PerpPrefill | null;
+  // Owned by PerpsView so the chosen market and the open trade screen survive
+  // a switch between the simple and pro interfaces.
+  selected: string;
+  onSelect: (symbol: string) => void;
+  sheetOpen: boolean;
+  onSheetOpenChange: (open: boolean) => void;
 }
 
 // The curated market set for the simple view, in display order.
-const SIMPLE_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD"];
+const SIMPLE_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "BNB/USD", "DOGE/USD", "AAVE/USD"];
+// The desktop ticket keeps its three chips: they sit above the form in a narrow
+// column, where a second row of them pushes the amount and leverage off the
+// fold. The phone lists all six instead, as its own screen.
+const DESKTOP_CHIPS = 3;
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const LEVERAGE_MARKS = [2, 5, 10, 20];
 
-export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsProps) {
+export function SimplePerps({
+  pairs,
+  priceOf,
+  live,
+  voicePrefill,
+  selected,
+  onSelect,
+  sheetOpen,
+  onSheetOpenChange,
+}: SimplePerpsProps) {
   const t = useTranslations("perps");
-  const [selected, setSelected] = useState<string>(SIMPLE_SYMBOLS[1]);
+  const tCommon = useTranslations("common");
+  const setSelected = onSelect;
+  const isMobile = useIsMobile();
+  const setSheetOpen = onSheetOpenChange;
+  // The phone's trade screen opens on the two direction buttons alone; the
+  // amount, leverage and summary follow once a side is chosen. Desktop shows
+  // the whole ticket at once, so this only gates the phone.
+  const [sideChosen, setSideChosen] = useState(false);
+  const formVisible = !isMobile || sideChosen;
+
+  // Every crypto market the gateway lists. The section leads with six, but the
+  // selector inside the trade screen reaches all of them, the way pro does.
+  const allCryptoSymbols = useMemo(
+    () =>
+      pairs
+        .filter((p) => p.category === "crypto")
+        .map(pairSymbol)
+        .sort(),
+    [pairs]
+  );
+
+  const chooseSide = (next: "long" | "short") => {
+    setSide(next);
+    setSideChosen(true);
+  };
   const simplePairs = useMemo(() => {
     const majors = SIMPLE_SYMBOLS.map((s) => pairs.find((p) => pairSymbol(p) === s)).filter(
       (p): p is PerpPair => p != null
@@ -211,12 +257,47 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
             : validation.message
           : t(side === "long" ? "ctaLong" : "ctaShort", { sym: baseSym, lev: clampedLeverage });
 
-  return (
-    <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,420px)_1fr]">
+  // The markets this interface offers. Shared by the section list and the
+  // switcher inside the trade screen, so both open the same rows.
+  const renderMarketList = (symbols: string[], onPicked?: () => void) => (
+    <div className="ws-card overflow-hidden">
+      {symbols.map((s) => {
+        const sym = s.split("/")[0];
+        const p = priceOf(s);
+        return (
+          <button
+            key={s}
+            onClick={() => {
+              setSelected(s);
+              if (onPicked) onPicked();
+              else setSheetOpen(true);
+            }}
+            aria-label={tCommon("tradeAria", { symbol: sym })}
+            className="flex w-full cursor-pointer items-center gap-3 border-b border-white/6 px-4 py-3.5 text-left transition-colors last:border-b-0 active:bg-white/4"
+          >
+            <AssetIcon sym={sym} bg={findAsset(sym)?.bg ?? "#3c3c3c"} size={34} />
+            <span className="min-w-0 flex-1">
+              <span className="block font-sans text-[14.5px] font-medium">{sym}</span>
+              <span className="block text-[11.5px] font-normal text-white/45">{s}</span>
+            </span>
+            <span className="tnum shrink-0 font-sans text-[14px] font-medium">
+              {p != null ? formatUsd(parseFloat(p)) : "—"}
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const tradeCard = (
+    <>
       <div className="ws-card p-4 sm:p-5">
-        {/* Market chips. */}
-        <div className="mb-3.5 flex gap-2">
-          {SIMPLE_SYMBOLS.map((s) => {
+        {/* Market chips. The phone's trade screen reaches every market through
+            the selector in its header, so these would say it twice. */}
+        {/* The phone's trade screen reaches every market through the selector
+            in its header, so these would say it twice there. */}
+        <div className={`mb-3.5 grid grid-cols-3 gap-2 ${isMobile ? "hidden" : ""}`}>
+          {SIMPLE_SYMBOLS.slice(0, DESKTOP_CHIPS).map((s) => {
             const sym = s.split("/")[0];
             const on = s === symbol;
             const p = priceOf(s);
@@ -224,7 +305,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
               <button
                 key={s}
                 onClick={() => setSelected(s)}
-                className={`flex flex-1 cursor-pointer flex-col gap-1 rounded-2xl border p-3 text-left transition-colors ${
+                className={`flex cursor-pointer flex-col gap-1 rounded-2xl border p-3 text-left transition-colors ${
                   on
                     ? "border-accent/40 bg-accent/10"
                     : "border-white/10 bg-white/4 hover:bg-white/6"
@@ -245,7 +326,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
         {/* Direction. */}
         <div className="grid grid-cols-2 gap-2">
           <button
-            onClick={() => setSide("long")}
+            onClick={() => chooseSide("long")}
             className={`cursor-pointer rounded-xl p-3 font-sans text-sm font-semibold transition-colors ${
               side === "long"
                 ? "border-up/40 bg-up/16 text-up border"
@@ -255,7 +336,7 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
             {t("long")} ↑
           </button>
           <button
-            onClick={() => setSide("short")}
+            onClick={() => chooseSide("short")}
             className={`cursor-pointer rounded-xl p-3 font-sans text-sm font-semibold transition-colors ${
               side === "short"
                 ? "border-down/40 bg-down/14 text-down border"
@@ -266,148 +347,168 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
           </button>
         </div>
 
-        {/* Collateral. */}
-        <div className={`ws-inset mt-3 p-4 ${collateralInvalid ? "ws-invalid" : ""}`}>
-          <div className="mb-2 flex items-center justify-between text-xs font-normal text-white/55">
-            <span>{t("yourePaying")}</span>
-            <span className="flex items-center gap-2">
-              <span className="tnum">
-                {t("balance")} {formatAmount(usdcBalance)} USD
-              </span>
-              {usdcBalance > 0 ? (
-                <button
-                  // Floor, not round: toFixed rounds 25.999 to "26.00", which
-                  // then trips the over-balance check and Max invalidates itself.
-                  onClick={() => setCollateral((Math.floor(usdcBalance * 100) / 100).toFixed(2))}
-                  className="text-accent cursor-pointer font-medium hover:opacity-80"
-                >
-                  {t("max")}
-                </button>
-              ) : null}
-            </span>
-          </div>
-          <div className="flex items-center justify-between gap-3">
-            <input
-              value={collateral}
-              onChange={(e) => handleCollateral(e.target.value)}
-              inputMode="decimal"
-              placeholder="0"
-              className="ws-display tnum min-w-0 flex-1 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
-            />
-            <span className="shrink-0 font-sans text-sm font-medium text-white/70">USD</span>
-          </div>
-        </div>
-
-        {/* Leverage. */}
-        <div className="ws-inset mt-3 p-4">
-          <div className="mb-2.5 flex items-center justify-between">
-            <span className="text-xs font-normal text-white/55">{t("leverage")}</span>
-            <span className="text-accent font-sans text-sm font-semibold">{clampedLeverage}x</span>
-          </div>
-          <input
-            type="range"
-            min={1}
-            max={Math.min(maxLeverage, 50)}
-            step={1}
-            value={clampedLeverage}
-            onChange={(e) => setLeverage(Number(e.target.value))}
-            className="accent-accent h-1.5 w-full cursor-pointer"
-          />
-          <div className="mt-2 flex justify-between">
-            {LEVERAGE_MARKS.filter((m) => m <= maxLeverage).map((m) => (
-              <button
-                key={m}
-                onClick={() => setLeverage(m)}
-                className="tnum cursor-pointer text-xs font-normal text-white/40 hover:text-white/70"
-              >
-                {m}x
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Trade summary. Backend figures where quoted, local estimates otherwise. */}
-        <div className="ws-inset mt-3 flex flex-col gap-2 p-4 text-[12.5px] font-normal">
-          <div className="flex justify-between">
-            <span className="text-white/55">{t("positionSize")}</span>
-            <span className="tnum text-white">{formatAmount(size)} USD</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/55">{t("entryPrice")}</span>
-            <span className="tnum text-white">{priceNum > 0 ? formatUsd(priceNum) : "—"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/55">{t("estLiquidation")}</span>
-            <span className="tnum text-down">{liq > 0 ? formatUsd(liq) : "—"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/55">{t("openingFee")}</span>
-            <span className="tnum text-white">
-              {quoteLoading
-                ? "…"
-                : quote
-                  ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USD`
-                  : "—"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/55">{t("executionFee")}</span>
-            <span className="tnum text-white">{quote ? `${quote.executionFeeEth} ETH` : "—"}</span>
-          </div>
-        </div>
-
-        <button
-          onClick={submit}
-          disabled={!live || actions.busy || !validation.ok}
-          className={`mt-3 w-full rounded-[14px] p-[15px] font-sans text-[15px] font-semibold transition-opacity ${
-            side === "long" ? "bg-up text-up-ink" : "bg-down text-down-ink"
-          } ${!live || actions.busy || !validation.ok ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-90"}`}
-        >
-          {cta}
-        </button>
-        {/* {live && !hasBaseEth ? (
-          <p className="mt-2 text-center text-xs font-normal text-white/45">{t("ethFeeHint")}</p>
-        ) : null} */}
-      </div>
-
-      <div className="flex flex-col gap-4">
-        <div className="ws-card p-4 sm:p-5">
-          <div className="mb-3 flex items-center gap-2.5">
-            <AssetIcon sym={baseSym} bg={findAsset(baseSym)?.bg ?? "#3c3c3c"} size={30} />
-            <div className="min-w-0 flex-1">
-              <div className="font-sans text-[15px] font-semibold">{symbol}</div>
-              <div className="text-xs font-normal text-white/50">
-                {t("perpetualOf", { name: findAsset(baseSym)?.name ?? baseSym })}
+        {formVisible ? (
+          <>
+            {/* Collateral. */}
+            <div className={`ws-inset mt-3 p-4 ${collateralInvalid ? "ws-invalid" : ""}`}>
+              <div className="mb-2 flex items-center justify-between text-xs font-normal text-white/55">
+                <span>{t("yourePaying")}</span>
+                <span className="flex items-center gap-2">
+                  <span className="tnum">
+                    {t("balance")} {formatAmount(usdcBalance)} USD
+                  </span>
+                  {usdcBalance > 0 ? (
+                    <button
+                      // Floor, not round: toFixed rounds 25.999 to "26.00", which
+                      // then trips the over-balance check and Max invalidates itself.
+                      onClick={() =>
+                        setCollateral((Math.floor(usdcBalance * 100) / 100).toFixed(2))
+                      }
+                      className="text-accent cursor-pointer font-medium hover:opacity-80"
+                    >
+                      {t("max")}
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3">
+                <input
+                  value={collateral}
+                  onChange={(e) => handleCollateral(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="ws-display tnum min-w-0 flex-1 bg-transparent text-[30px] text-white outline-none placeholder:text-white/30"
+                />
+                <span className="shrink-0 font-sans text-sm font-medium text-white/70">USD</span>
               </div>
             </div>
-            <FlashPrice value={priceNum} className="ws-display tnum block text-[19px]">
-              {priceNum > 0 ? formatUsd(priceNum) : "—"}
-            </FlashPrice>
-          </div>
-          <TradingViewChart
-            symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
-            height={320}
-          />
-        </div>
 
-        <PerpPositions
-          errored={positionsError != null}
-          positions={positions}
-          loading={positionsLoading}
-          pairByIndex={pairByIndex}
-          priceOf={priceOf}
-          onClose={(p, c) =>
-            setConfirm({
-              kind: "close",
-              position: p,
-              amount: c,
-              full: c === p.initialCollateralUsdc,
-            })
-          }
-          busy={actions.busy}
-        />
+            {/* Leverage. */}
+            <div className="ws-inset mt-3 p-4">
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-xs font-normal text-white/55">{t("leverage")}</span>
+                <span className="text-accent font-sans text-sm font-semibold">
+                  {clampedLeverage}x
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={Math.min(maxLeverage, 50)}
+                step={1}
+                value={clampedLeverage}
+                onChange={(e) => setLeverage(Number(e.target.value))}
+                className="accent-accent h-1.5 w-full cursor-pointer"
+              />
+              <div className="mt-2 flex justify-between">
+                {LEVERAGE_MARKS.filter((m) => m <= maxLeverage).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setLeverage(m)}
+                    className="tnum cursor-pointer text-xs font-normal text-white/40 hover:text-white/70"
+                  >
+                    {m}x
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Trade summary. Backend figures where quoted, local estimates otherwise. */}
+            <div className="ws-inset mt-3 flex flex-col gap-2 p-4 text-[12.5px] font-normal">
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("positionSize")}</span>
+                <span className="tnum text-white">{formatAmount(size)} USD</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("entryPrice")}</span>
+                <span className="tnum text-white">{priceNum > 0 ? formatUsd(priceNum) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("estLiquidation")}</span>
+                <span className="tnum text-down">{liq > 0 ? formatUsd(liq) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("openingFee")}</span>
+                <span className="tnum text-white">
+                  {quoteLoading
+                    ? "…"
+                    : quote
+                      ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USD`
+                      : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("executionFee")}</span>
+                <span className="tnum text-white">
+                  {quote ? `${quote.executionFeeEth} ETH` : "—"}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={submit}
+              disabled={!live || actions.busy || !validation.ok}
+              className={`mt-3 w-full rounded-[14px] p-[15px] font-sans text-[15px] font-semibold transition-opacity ${
+                side === "long" ? "bg-up text-up-ink" : "bg-down text-down-ink"
+              } ${!live || actions.busy || !validation.ok ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-90"}`}
+            >
+              {cta}
+            </button>
+          </>
+        ) : null}
       </div>
+    </>
+  );
 
+  const chartCard = (
+    <div className="ws-card p-4 sm:p-5">
+      <div className="mb-3 flex items-center gap-2.5">
+        <AssetIcon sym={baseSym} bg={findAsset(baseSym)?.bg ?? "#3c3c3c"} size={30} />
+        <div className="min-w-0 flex-1">
+          <div className="font-sans text-[15px] font-semibold">{symbol}</div>
+          <div className="text-xs font-normal text-white/50">
+            {t("perpetualOf", { name: findAsset(baseSym)?.name ?? baseSym })}
+          </div>
+        </div>
+        <FlashPrice value={priceNum} className="ws-display tnum block text-[19px]">
+          {priceNum > 0 ? formatUsd(priceNum) : "—"}
+        </FlashPrice>
+      </div>
+      <TradingViewChart
+        symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
+        height={320}
+      />
+    </div>
+  );
+
+  const positionsCard = (
+    <PerpPositions
+      errored={positionsError != null}
+      positions={positions}
+      loading={positionsLoading}
+      pairByIndex={pairByIndex}
+      priceOf={priceOf}
+      onClose={(p, c) =>
+        setConfirm({
+          kind: "close",
+          position: p,
+          amount: c,
+          full: c === p.initialCollateralUsdc,
+        })
+      }
+      busy={actions.busy}
+    />
+  );
+
+  const chartAndPositions = (
+    <div className="flex flex-col gap-4">
+      {chartCard}
+      {positionsCard}
+    </div>
+  );
+
+  const confirmDialog = (
+    <>
       {confirm ? (
         <ConfirmDialog
           title={confirm.kind === "open" ? t("confirmOpenTitle") : t("confirmCloseTitle")}
@@ -419,6 +520,48 @@ export function SimplePerps({ pairs, priceOf, live, voicePrefill }: SimplePerpsP
           onContinue={() => void runConfirmed()}
         />
       ) : null}
+    </>
+  );
+
+  // The phone view: the markets this interface offers, and nothing else until
+  // one is chosen. The ticket, the chart and the position list open together as
+  // a screen of their own, so the section stays a few rows tall.
+  if (isMobile) {
+    return (
+      <>
+        {renderMarketList(SIMPLE_SYMBOLS)}
+
+        <MobileTradeSheet
+          open={sheetOpen}
+          onClose={() => {
+            setSheetOpen(false);
+            setSideChosen(false);
+          }}
+          title={symbol}
+          subtitle={findAsset(baseSym)?.name ?? baseSym}
+          priceSlot={
+            <FlashPrice value={priceNum} className="ws-display tnum block text-[15px]">
+              {priceNum > 0 ? formatUsd(priceNum) : "—"}
+            </FlashPrice>
+          }
+          marketPicker={(close) => renderMarketList(allCryptoSymbols, close)}
+          toolbar={<PerpModeSwitch />}
+        >
+          {chartCard}
+          {tradeCard}
+          {positionsCard}
+        </MobileTradeSheet>
+
+        {confirmDialog}
+      </>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,420px)_1fr]">
+      {tradeCard}
+      {chartAndPositions}
+      {confirmDialog}
     </div>
   );
 }

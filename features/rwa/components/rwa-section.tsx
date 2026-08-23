@@ -95,10 +95,6 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
             {t("subheading")}
           </p>
         </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/4 px-3 py-1.5 text-xs font-medium text-white/60">
-          <span className="bg-up h-1.5 w-1.5 rounded-full" />
-          {t("liveRegistry")}
-        </span>
       </div>
 
       <div className="mt-5">

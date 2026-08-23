@@ -240,7 +240,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       <button
         onClick={() => void confirm()}
         disabled={!canSell}
-        className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        className="ws-chrome text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {value <= 0
           ? t("enterAmount")

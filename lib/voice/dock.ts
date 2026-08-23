@@ -58,7 +58,10 @@ export function isDrag(dx: number, dy: number): boolean {
   return Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX;
 }
 
-const DOCK_KEY = "ws.voice-dock.v1";
+// Versioned: a position saved against an older layout can sit under chrome that
+// did not exist then. The phone tab bar took over the bottom-right corner, so
+// v1 positions are dropped and everyone starts from DEFAULT_DOCK again.
+const DOCK_KEY = "ws.voice-dock.v2";
 
 export function saveDock(position: DockPosition): void {
   if (typeof window === "undefined") return;

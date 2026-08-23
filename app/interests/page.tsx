@@ -61,7 +61,7 @@ function InterestPicker() {
         <div
           role="radiogroup"
           aria-label={t("ariaChoose")}
-          className="mt-8 grid w-full grid-cols-1 gap-2.5 min-[430px]:grid-cols-2 sm:mt-11 sm:gap-3.5 lg:grid-cols-3"
+          className="mt-8 grid w-full grid-cols-2 gap-2.5 sm:mt-11 sm:gap-3.5 lg:grid-cols-3"
         >
           {INTERESTS.map((it) => (
             <InterestCard

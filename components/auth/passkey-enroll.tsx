@@ -85,7 +85,7 @@ export function PasskeyEnroll({ onDone }: { onDone: () => void }) {
         <button
           onClick={() => void enrol()}
           disabled={busy}
-          className="text-ink mt-4 flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
+          className="ws-chrome text-ink mt-4 flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60"
         >
           <PasskeyIcon />
           {busy ? t("passkeyWaiting") : t("passkeyStepAdd")}

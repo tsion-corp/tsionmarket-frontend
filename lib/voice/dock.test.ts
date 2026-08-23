@@ -85,11 +85,11 @@ describe("dock persistence", () => {
   // Storage is user-writable, and a malformed value must never place the
   // control somewhere it cannot be reached.
   it("rejects a malformed or non-numeric value", () => {
-    window.localStorage.setItem("ws.voice-dock.v1", "not json");
+    window.localStorage.setItem("ws.voice-dock.v2", "not json");
     expect(loadDock()).toBeNull();
-    window.localStorage.setItem("ws.voice-dock.v1", JSON.stringify({ right: "x", bottom: 3 }));
+    window.localStorage.setItem("ws.voice-dock.v2", JSON.stringify({ right: "x", bottom: 3 }));
     expect(loadDock()).toBeNull();
-    window.localStorage.setItem("ws.voice-dock.v1", JSON.stringify({ right: null }));
+    window.localStorage.setItem("ws.voice-dock.v2", JSON.stringify({ right: null }));
     expect(loadDock()).toBeNull();
   });
 });

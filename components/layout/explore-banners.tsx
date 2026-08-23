@@ -27,19 +27,40 @@ const BANNERS = [
   },
 ] as const;
 
+type BannerId = (typeof BANNERS)[number]["id"];
+
+interface ExploreBannersProps {
+  // Renders one banner rather than the set. The dashboard uses this to place
+  // them between sections on a phone, where three at the foot of a long page
+  // is three the reader has already scrolled past.
+  only?: BannerId;
+}
+
 // Doorways to the routed destinations (prediction, earn, casino), pitched
 // where the prediction section used to scroll.
-export function ExploreBanners() {
+export function ExploreBanners({ only }: ExploreBannersProps = {}) {
   const t = useTranslations("explore");
+  const shown = only ? BANNERS.filter((b) => b.id === only) : BANNERS;
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <div className="grid grid-cols-1 gap-4 min-[900px]:grid-cols-3">
-        {BANNERS.map((b) => (
+      {/* One banner is a full-width card in its own right. The set is a swipe
+          track on a phone, one card at a time with the next one peeking, and a
+          row of three from 900px. */}
+      <div
+        className={
+          only
+            ? "grid grid-cols-1"
+            : "flex snap-x snap-mandatory [scrollbar-width:none] gap-4 overflow-x-auto pb-1 min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:overflow-visible [&::-webkit-scrollbar]:hidden"
+        }
+      >
+        {shown.map((b) => (
           <Link
             key={b.id}
             href={b.href}
-            className="group hover:border-accent/50 relative flex h-[190px] flex-col justify-end overflow-hidden rounded-[20px] border border-white/10 p-5 transition-[transform,border-color] duration-150 hover:-translate-y-0.5"
+            className={`group hover:border-accent/50 relative flex h-[190px] shrink-0 snap-start flex-col justify-end overflow-hidden rounded-[20px] border border-white/10 p-5 transition-[transform,border-color] duration-150 hover:-translate-y-0.5 ${
+              only ? "w-full" : "w-[82%] min-[900px]:w-auto"
+            }`}
           >
             <span aria-hidden className="pointer-events-none absolute inset-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}

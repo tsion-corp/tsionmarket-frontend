@@ -318,7 +318,7 @@ export function MemeTradeSheet({
             {!locked ? (
               <button
                 onClick={closeSheet}
-                className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+                className="ws-chrome text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
               >
                 {settled ? t("done") : t("closeAndNotify")}
               </button>

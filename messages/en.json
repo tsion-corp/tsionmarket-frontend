@@ -143,7 +143,12 @@
     "groupHoldings": "Your holdings",
     "groupRwa": "Real-world assets",
     "groupMarkets": "Markets",
-    "account": "Account"
+    "account": "Account",
+    "more": "More",
+    "sections": "Sections",
+    "addFunds": "Add funds",
+    "search": "Search",
+    "closeSearch": "Close search"
   },
   "language": {
     "label": "Language"
@@ -351,7 +356,11 @@
     "passkeyStepSkip": "Skip for now",
     "passkeyStepLater": "You can always add a passkey later.",
     "passkeyAdded": "Passkey added. Your account is secured.",
-    "continue": "Continue"
+    "continue": "Continue",
+    "emailLabel": "Email Address",
+    "createAccountTitle": "Create your account",
+    "orContinueWith": "or continue with",
+    "checkEmailTitle": "Check your email"
   },
   "landingNav": {
     "markets": "Markets",
@@ -549,7 +558,14 @@
   "common": {
     "addressCopied": "Address copied",
     "copied": "Copied",
-    "copy": "Copy"
+    "copy": "Copy",
+    "back": "Back",
+    "tradeAria": "Trade {symbol}",
+    "prev": "Prev",
+    "next": "Next",
+    "pageOf": "Page {page} of {pages}",
+    "switchMarket": "Switch market",
+    "close": "Close"
   },
   "portfolio": {
     "eyebrow": "Portfolio",
@@ -598,9 +614,7 @@
     "pageOf": "Page {page} of {pages}",
     "prev": "Prev",
     "next": "Next",
-    "buyToken": "Buy {name}",
-    "showAllTokens": "Show all {count} tokens",
-    "showLess": "Show less"
+    "buyToken": "Buy {name}"
   },
   "buySell": {
     "buy": "Buy",
@@ -658,7 +672,6 @@
     "eyebrow": "Real-world assets",
     "heading": "Real-world assets",
     "subheading": "Tokenized treasuries, equities, credit and metals. Live prices, instant settlement, trade or access through the issuer.",
-    "liveRegistry": "Live registry",
     "allCategories": "All",
     "searchPlaceholder": "Search assets",
     "asset": "Asset",
@@ -2303,5 +2316,17 @@
     "doneTitle": "You're on the list.",
     "doneBody": "We'll email you the moment we open the doors.",
     "alreadyTitle": "You're already on the list."
+  },
+  "welcome": {
+    "slide1Title": "One App, Every Market",
+    "slide1Body": "Buy stocks, gold and crypto, trade, predict outcomes, and grow your money, all from one place.",
+    "slide2Title": "Sign in, and choose your market",
+    "slide2Body": "Sign in easily with Google, X, or email. Then choose from stocks, gold, crypto, or whatever you're after.",
+    "slide3Title": "Vivid AI, your working assistant",
+    "slide3Body": "Get insights, find opportunities, and act with one tap. You always approve the final step.",
+    "continueEmail": "Continue with email",
+    "haveAccount": "I already have an account",
+    "goToSlide": "Go to slide {index}",
+    "slides": "Welcome slides"
   }
 }

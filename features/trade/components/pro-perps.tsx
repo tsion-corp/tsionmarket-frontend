@@ -13,6 +13,9 @@ import { MARKET_TYPE } from "@/lib/perp/analytics";
 import { PerpOrders } from "@/features/trade/components/perp-orders";
 import { PerpPositions } from "@/features/trade/components/perp-positions";
 import { PerpPairIcon } from "@/features/trade/components/perp-pair-icon";
+import { PerpModeSwitch } from "@/features/trade/components/perp-mode";
+import { MobileTradeSheet } from "@/features/trade/components/mobile-trade-sheet";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { usePerpMarket } from "@/features/trade/hooks/use-perp-markets";
 import { usePerpQuote } from "@/features/trade/hooks/use-perp-quote";
 import { usePerpActions } from "@/features/trade/hooks/use-perp-actions";
@@ -45,6 +48,12 @@ interface ProPerpsProps {
   live: boolean;
   // A voice-staged long/short: the form fills in and auto-fires. Null when idle.
   voicePrefill?: PerpPrefill | null;
+  // Owned by PerpsView so the chosen market and the open trade screen survive
+  // a switch between the simple and pro interfaces.
+  selected: string;
+  onSelect: (symbol: string) => void;
+  sheetOpen: boolean;
+  onSheetOpenChange: (open: boolean) => void;
 }
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
@@ -60,7 +69,14 @@ const ORDER_TYPE_KEY: Record<PerpOrderType, string> = {
 const ORDER_TYPES: readonly PerpOrderType[] = ["market", "limit", "stop_limit"];
 
 // Fits the browser column without pushing it taller than the panel beside it.
-const MARKETS_PER_PAGE = 12;
+// Markets per page in the section's browser. The desktop card is tall enough
+// for a dozen; a phone shows six so the section stays one screen.
+const MARKETS_PER_PAGE_DESKTOP = 12;
+const MARKETS_PER_PAGE_MOBILE = 6;
+// The selector inside the phone's trade screen has the whole screen to fill,
+// so it lists far more of the category before the pager appears. Unaffected by
+// the section's own page size.
+const PICKER_PER_PAGE = 14;
 
 // Translation keys per market category; the ids come from lib/perp/logic.
 const CATEGORY_KEY: Record<PerpCategory, string> = {
@@ -76,11 +92,31 @@ function num(value: string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) {
+export function ProPerps({
+  pairs,
+  priceOf,
+  live,
+  voicePrefill,
+  selected,
+  onSelect,
+  sheetOpen,
+  onSheetOpenChange,
+}: ProPerpsProps) {
   const t = useTranslations("perps");
   const [category, setCategory] = useState<PerpCategory>("crypto");
+  const isMobile = useIsMobile();
+  const setSheetOpen = onSheetOpenChange;
+  // As on the simple desk: the phone's trade screen opens on the two direction
+  // buttons, and the order form follows once a side is chosen.
+  const [sideChosen, setSideChosen] = useState(false);
+  const formVisible = !isMobile || sideChosen;
+
+  const chooseSide = (next: "long" | "short") => {
+    setSide(next);
+    setSideChosen(true);
+  };
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState("ETH/USD");
+  const setSelected = onSelect;
   const [side, setSide] = useState<"long" | "short">("long");
   const [orderType, setOrderType] = useState<PerpOrderType>("market");
   const [collateral, setCollateral] = useState("");
@@ -134,7 +170,8 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
   // for a scroll through the whole category. usePaged clamps, which matters
   // here because switching category or typing a search shortens the list under
   // a viewer already parked on a later page.
-  const paged = usePaged(filtered, MARKETS_PER_PAGE);
+  const paged = usePaged(filtered, isMobile ? MARKETS_PER_PAGE_MOBILE : MARKETS_PER_PAGE_DESKTOP);
+  const pickerPaged = usePaged(filtered, PICKER_PER_PAGE);
 
   const { quote, loading: quoteLoading } = usePerpQuote({
     pair: live && pair ? selected : null,
@@ -279,364 +316,388 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
   const oi = market?.openInterest;
   const oiTotal = oi ? oi.long + oi.short : 0;
 
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="grid grid-cols-1 items-start gap-4 min-[1100px]:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,380px)]">
-        {/* Market browser. */}
-        <div className="ws-card flex max-h-[640px] flex-col overflow-hidden">
-          <div className="flex gap-1 px-3 pt-3">
-            {CATEGORY_ORDER.map((c) => (
-              <button
-                key={c}
-                onClick={() => setCategory(c)}
-                className={`flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-[12px] font-medium transition-colors ${
-                  category === c ? "bg-accent/16 text-white" : "text-white/50 hover:text-white/80"
-                }`}
-              >
-                {t(CATEGORY_KEY[c])}
-              </button>
-            ))}
-          </div>
-          <div className="mx-3 mt-2.5 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-            <SearchIcon />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t("searchMarkets")}
-              className="w-full border-none bg-transparent text-[13px] font-normal text-white outline-none"
+  // Choosing a market opens it on a phone; on desktop the panels beside the
+  // browser simply follow the selection.
+  const chooseMarket = (symbol: string) => {
+    setSelected(symbol);
+    setSideChosen(false);
+    if (isMobile) setSheetOpen(true);
+  };
+
+  const renderBrowser = (pageData: typeof paged, onPicked?: () => void) => (
+    <>
+      {/* Market browser. */}
+      <div className="ws-card flex flex-col overflow-hidden md:max-h-[640px]">
+        <div className="flex gap-1 px-3 pt-3">
+          {CATEGORY_ORDER.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategory(c)}
+              className={`flex-1 cursor-pointer rounded-lg px-2 py-1.5 text-[12px] font-medium transition-colors ${
+                category === c ? "bg-accent/16 text-white" : "text-white/50 hover:text-white/80"
+              }`}
+            >
+              {t(CATEGORY_KEY[c])}
+            </button>
+          ))}
+        </div>
+        <div className="mx-3 mt-2.5 flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+          <SearchIcon />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder={t("searchMarkets")}
+            className="w-full border-none bg-transparent text-[13px] font-normal text-white outline-none"
+          />
+        </div>
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto pb-2">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-6 text-center text-[12.5px] font-normal text-white/45">
+              {live ? t("noMarketsMatch") : t("marketsLoadWhenConnected")}
+            </div>
+          ) : (
+            pageData.pageItems.map((p) => {
+              const s = pairSymbol(p);
+              const on = s === selected;
+              const price = priceOf(s);
+              return (
+                <button
+                  key={p.pairIndex}
+                  onClick={() => {
+                    chooseMarket(s);
+                    onPicked?.();
+                  }}
+                  className={`flex w-full cursor-pointer items-center gap-2.5 px-4 py-2 text-left transition-colors ${
+                    on ? "bg-white/6" : "hover:bg-white/4"
+                  }`}
+                >
+                  <PerpPairIcon sym={p.from} category={p.category} size={22} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-sans text-[13px] font-medium">{s}</span>
+                    <span className="block text-[11px] font-normal text-white/40">
+                      {t("upToMax", { max: p.maxLeverage })}
+                    </span>
+                  </span>
+                  <span className="tnum text-[12.5px] font-normal text-white/70">
+                    {price != null ? formatUsd(parseFloat(price)) : "—"}
+                  </span>
+                </button>
+              );
+            })
+          )}
+        </div>
+        {pageData.pageCount > 1 ? (
+          <div className="px-4 pb-1">
+            <Pager
+              from={pageData.from}
+              to={pageData.to}
+              total={pageData.total}
+              canPrev={pageData.canPrev}
+              canNext={pageData.canNext}
+              onPrev={pageData.goPrev}
+              onNext={pageData.goNext}
+              label={t("pagerMarkets")}
             />
           </div>
-          <div className="mt-2 min-h-0 flex-1 overflow-y-auto pb-2">
-            {filtered.length === 0 ? (
-              <div className="px-4 py-6 text-center text-[12.5px] font-normal text-white/45">
-                {live ? t("noMarketsMatch") : t("marketsLoadWhenConnected")}
+        ) : null}
+      </div>
+    </>
+  );
+
+  const marketPanel = (
+    <>
+      {/* Selected market: stats + chart. */}
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className="ws-card p-4 sm:p-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <PerpPairIcon sym={baseSym} category={pair?.category} size={34} />
+            <div className="min-w-0 flex-1">
+              <div className="font-sans text-[16px] font-semibold">{selected}</div>
+              <div className="text-xs font-normal text-white/50">
+                {pair
+                  ? `${t(CATEGORY_KEY[pair.category])} · ${t("upToMax", { max: pair.maxLeverage })}`
+                  : ""}
               </div>
-            ) : (
-              paged.pageItems.map((p) => {
-                const s = pairSymbol(p);
-                const on = s === selected;
-                const price = priceOf(s);
-                return (
-                  <button
-                    key={p.pairIndex}
-                    onClick={() => setSelected(s)}
-                    className={`flex w-full cursor-pointer items-center gap-2.5 px-4 py-2 text-left transition-colors ${
-                      on ? "bg-white/6" : "hover:bg-white/4"
-                    }`}
-                  >
-                    <PerpPairIcon sym={p.from} category={p.category} size={22} />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-sans text-[13px] font-medium">{s}</span>
-                      <span className="block text-[11px] font-normal text-white/40">
-                        {t("upToMax", { max: p.maxLeverage })}
-                      </span>
-                    </span>
-                    <span className="tnum text-[12.5px] font-normal text-white/70">
-                      {price != null ? formatUsd(parseFloat(price)) : "—"}
-                    </span>
-                  </button>
-                );
-              })
-            )}
+            </div>
+            <div className="text-right">
+              <FlashPrice value={markNum} className="ws-display tnum block text-[22px]">
+                {markNum > 0 ? formatUsd(markNum) : "—"}
+              </FlashPrice>
+              {closed ? (
+                <div className="text-down text-[11.5px] font-medium">{t("marketClosedHint")}</div>
+              ) : null}
+            </div>
           </div>
-          {paged.pageCount > 1 ? (
-            <div className="px-4 pb-1">
-              <Pager
-                from={paged.from}
-                to={paged.to}
-                total={paged.total}
-                canPrev={paged.canPrev}
-                canNext={paged.canNext}
-                onPrev={paged.goPrev}
-                onNext={paged.goNext}
-                label={t("pagerMarkets")}
-              />
+
+          {oi && oiTotal > 0 ? (
+            <div className="mt-3.5">
+              <div className="mb-1 flex justify-between text-[11.5px] font-normal text-white/45">
+                <span className="tnum">
+                  {t("long")} {formatCompactUsdc(oi.long)} USD
+                </span>
+                <span className="tnum">
+                  {t("short")} {formatCompactUsdc(oi.short)} USD
+                </span>
+              </div>
+              <div className="flex h-1.5 overflow-hidden rounded-full bg-white/8">
+                <div className="bg-up h-full" style={{ width: `${(oi.long / oiTotal) * 100}%` }} />
+                <div
+                  className="bg-down h-full"
+                  style={{ width: `${(oi.short / oiTotal) * 100}%` }}
+                />
+              </div>
             </div>
           ) : null}
-        </div>
 
-        {/* Selected market: stats + chart. */}
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="ws-card p-4 sm:p-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <PerpPairIcon sym={baseSym} category={pair?.category} size={34} />
-              <div className="min-w-0 flex-1">
-                <div className="font-sans text-[16px] font-semibold">{selected}</div>
-                <div className="text-xs font-normal text-white/50">
-                  {pair
-                    ? `${t(CATEGORY_KEY[pair.category])} · ${t("upToMax", { max: pair.maxLeverage })}`
-                    : ""}
+          <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            {[
+              { k: t("skew"), v: formatCompactUsdc(market?.skew) },
+              {
+                k: t("spread"),
+                v: market?.spread != null ? `${(market.spread * 100).toFixed(3)}%` : "—",
+              },
+              {
+                k: t("depth"),
+                v: market?.depth ? formatCompactUsdc(market.depth.above + market.depth.below) : "—",
+              },
+            ].map((s) => (
+              <div key={s.k} className="ws-inset px-2 py-2">
+                <div className="text-[10.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
+                  {s.k}
                 </div>
+                <div className="tnum mt-0.5 text-[13px] font-medium text-white">{s.v}</div>
               </div>
-              <div className="text-right">
-                <FlashPrice value={markNum} className="ws-display tnum block text-[22px]">
-                  {markNum > 0 ? formatUsd(markNum) : "—"}
-                </FlashPrice>
-                {closed ? (
-                  <div className="text-down text-[11.5px] font-medium">{t("marketClosedHint")}</div>
-                ) : null}
-              </div>
-            </div>
-
-            {oi && oiTotal > 0 ? (
-              <div className="mt-3.5">
-                <div className="mb-1 flex justify-between text-[11.5px] font-normal text-white/45">
-                  <span className="tnum">
-                    {t("long")} {formatCompactUsdc(oi.long)} USD
-                  </span>
-                  <span className="tnum">
-                    {t("short")} {formatCompactUsdc(oi.short)} USD
-                  </span>
-                </div>
-                <div className="flex h-1.5 overflow-hidden rounded-full bg-white/8">
-                  <div
-                    className="bg-up h-full"
-                    style={{ width: `${(oi.long / oiTotal) * 100}%` }}
-                  />
-                  <div
-                    className="bg-down h-full"
-                    style={{ width: `${(oi.short / oiTotal) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ) : null}
-
-            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
-              {[
-                { k: t("skew"), v: formatCompactUsdc(market?.skew) },
-                {
-                  k: t("spread"),
-                  v: market?.spread != null ? `${(market.spread * 100).toFixed(3)}%` : "—",
-                },
-                {
-                  k: t("depth"),
-                  v: market?.depth
-                    ? formatCompactUsdc(market.depth.above + market.depth.below)
-                    : "—",
-                },
-              ].map((s) => (
-                <div key={s.k} className="ws-inset px-2 py-2">
-                  <div className="text-[10.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
-                    {s.k}
-                  </div>
-                  <div className="tnum mt-0.5 text-[13px] font-medium text-white">{s.v}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="ws-card overflow-hidden p-2 sm:p-3">
-            <TradingViewChart
-              symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
-            />
-          </div>
-        </div>
-
-        {/* Order panel. */}
-        <div className="ws-card p-4 sm:p-5">
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => setSide("long")}
-              className={`cursor-pointer rounded-xl p-2.5 font-sans text-sm font-semibold transition-colors ${
-                side === "long"
-                  ? "border-up/40 bg-up/16 text-up border"
-                  : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
-              }`}
-            >
-              {t("long")}
-            </button>
-            <button
-              onClick={() => setSide("short")}
-              className={`cursor-pointer rounded-xl p-2.5 font-sans text-sm font-semibold transition-colors ${
-                side === "short"
-                  ? "border-down/40 bg-down/14 text-down border"
-                  : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
-              }`}
-            >
-              {t("short")}
-            </button>
-          </div>
-
-          <div className="ws-inset mt-2.5 grid grid-cols-3 gap-1 p-1">
-            {ORDER_TYPES.map((id) => (
-              <button
-                key={id}
-                onClick={() => setOrderType(id)}
-                className={`cursor-pointer rounded-lg py-1.5 text-[12.5px] font-medium transition-colors ${
-                  orderType === id ? "bg-accent/16 text-white" : "text-white/50 hover:text-white/80"
-                }`}
-              >
-                {t(ORDER_TYPE_KEY[id])}
-              </button>
             ))}
           </div>
+        </div>
 
-          <div className={`ws-inset mt-2.5 p-3.5 ${collateralInvalid ? "ws-invalid" : ""}`}>
-            <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-normal text-white/55">
-              <span>{t("collateral")}</span>
-              <span className="flex items-center gap-2">
-                <span className="tnum">{formatAmount(usdcBalance)} USD</span>
-                {usdcBalance > 0 ? (
-                  <button
-                    // Floor, not round: toFixed rounds 25.999 to "26.00", which
-                    // then trips the over-balance check and Max invalidates itself.
-                    onClick={() => setCollateral((Math.floor(usdcBalance * 100) / 100).toFixed(2))}
-                    className="text-accent cursor-pointer font-medium hover:opacity-80"
-                  >
-                    {t("max")}
-                  </button>
-                ) : null}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={collateral}
-                onChange={(e) => guard(setCollateral)(e.target.value)}
-                inputMode="decimal"
-                placeholder="0"
-                className="ws-display tnum min-w-0 flex-1 bg-transparent text-[24px] text-white outline-none placeholder:text-white/30"
-              />
-              <span className="shrink-0 text-[13px] font-medium text-white/70">USD</span>
-            </div>
-          </div>
+        <div className="ws-card overflow-hidden p-2 sm:p-3">
+          <TradingViewChart
+            symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
+          />
+        </div>
+      </div>
+    </>
+  );
 
-          <div className={`ws-inset mt-2.5 p-3 ${leverageInvalid ? "ws-invalid" : ""}`}>
-            <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
-              <span>
-                {t("leverage")} {pair ? t("leverageMax", { max: pair.maxLeverage }) : ""}
-              </span>
+  const orderPanel = (
+    <>
+      {/* Order panel. */}
+      <div className="ws-card p-4 sm:p-5">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => chooseSide("long")}
+            className={`cursor-pointer rounded-xl p-2.5 font-sans text-sm font-semibold transition-colors ${
+              side === "long"
+                ? "border-up/40 bg-up/16 text-up border"
+                : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
+            }`}
+          >
+            {t("long")}
+          </button>
+          <button
+            onClick={() => chooseSide("short")}
+            className={`cursor-pointer rounded-xl p-2.5 font-sans text-sm font-semibold transition-colors ${
+              side === "short"
+                ? "border-down/40 bg-down/14 text-down border"
+                : "border border-white/10 bg-white/4 text-white/55 hover:text-white/80"
+            }`}
+          >
+            {t("short")}
+          </button>
+        </div>
+
+        {formVisible ? (
+          <>
+            <div className="ws-inset mt-2.5 grid grid-cols-3 gap-1 p-1">
+              {ORDER_TYPES.map((id) => (
+                <button
+                  key={id}
+                  onClick={() => setOrderType(id)}
+                  className={`cursor-pointer rounded-lg py-1.5 text-[12.5px] font-medium transition-colors ${
+                    orderType === id
+                      ? "bg-accent/16 text-white"
+                      : "text-white/50 hover:text-white/80"
+                  }`}
+                >
+                  {t(ORDER_TYPE_KEY[id])}
+                </button>
+              ))}
             </div>
-            <div className="flex items-center gap-3">
-              <input
-                value={leverage}
-                onChange={(e) => guard(setLeverage)(e.target.value)}
-                inputMode="decimal"
-                placeholder="10"
-                className="tnum w-16 shrink-0 bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
-              />
-              {/* Slider and input drive the same state: dragging writes a whole
+
+            <div className={`ws-inset mt-2.5 p-3.5 ${collateralInvalid ? "ws-invalid" : ""}`}>
+              <div className="mb-1.5 flex items-center justify-between text-[11.5px] font-normal text-white/55">
+                <span>{t("collateral")}</span>
+                <span className="flex items-center gap-2">
+                  <span className="tnum">{formatAmount(usdcBalance)} USD</span>
+                  {usdcBalance > 0 ? (
+                    <button
+                      // Floor, not round: toFixed rounds 25.999 to "26.00", which
+                      // then trips the over-balance check and Max invalidates itself.
+                      onClick={() =>
+                        setCollateral((Math.floor(usdcBalance * 100) / 100).toFixed(2))
+                      }
+                      className="text-accent cursor-pointer font-medium hover:opacity-80"
+                    >
+                      {t("max")}
+                    </button>
+                  ) : null}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={collateral}
+                  onChange={(e) => guard(setCollateral)(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="ws-display tnum min-w-0 flex-1 bg-transparent text-[24px] text-white outline-none placeholder:text-white/30"
+                />
+                <span className="shrink-0 text-[13px] font-medium text-white/70">USD</span>
+              </div>
+            </div>
+
+            <div className={`ws-inset mt-2.5 p-3 ${leverageInvalid ? "ws-invalid" : ""}`}>
+              <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
+                <span>
+                  {t("leverage")} {pair ? t("leverageMax", { max: pair.maxLeverage }) : ""}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  value={leverage}
+                  onChange={(e) => guard(setLeverage)(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="10"
+                  className="tnum w-16 shrink-0 bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
+                />
+                {/* Slider and input drive the same state: dragging writes a whole
                   number into the field, typing moves the thumb (clamped into
                   range so a fractional or out-of-range entry cannot break it). */}
-              <input
-                type="range"
-                min={1}
-                max={pair?.maxLeverage ?? 50}
-                step={1}
-                value={Math.min(
-                  Math.max(Math.round(num(leverage)) || 1, 1),
-                  pair?.maxLeverage ?? 50
-                )}
-                onChange={(e) => setLeverage(e.target.value)}
-                className="accent-accent h-1.5 min-w-0 flex-1 cursor-pointer"
-              />
-            </div>
-          </div>
-
-          <div className={`ws-inset mt-2.5 p-3 ${slippageInvalid ? "ws-invalid" : ""}`}>
-            <div className="mb-1 text-[11px] font-normal text-white/50">{t("slippagePct")}</div>
-            <input
-              value={slippage}
-              onChange={(e) => guard(setSlippage)(e.target.value)}
-              inputMode="decimal"
-              placeholder="1"
-              className="tnum w-full bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
-            />
-          </div>
-
-          {needsTrigger ? (
-            <div className={`ws-inset mt-2.5 p-3 ${triggerInvalid ? "ws-invalid" : ""}`}>
-              <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
-                <span>{orderType === "limit" ? t("limitPrice") : t("stopPrice")}</span>
-                {markNum > 0 ? (
-                  <button
-                    // The source string, never String(parseFloat(...)): a float
-                    // round-trip can emit exponent notation for sub-micro pairs,
-                    // which the wire contract rejects.
-                    onClick={() => setLimitPrice(markPrice ?? "")}
-                    className="text-accent cursor-pointer font-medium hover:opacity-80"
-                  >
-                    {t("useMarket")}
-                  </button>
-                ) : null}
+                <input
+                  type="range"
+                  min={1}
+                  max={pair?.maxLeverage ?? 50}
+                  step={1}
+                  value={Math.min(
+                    Math.max(Math.round(num(leverage)) || 1, 1),
+                    pair?.maxLeverage ?? 50
+                  )}
+                  onChange={(e) => setLeverage(e.target.value)}
+                  className="accent-accent h-1.5 min-w-0 flex-1 cursor-pointer"
+                />
               </div>
+            </div>
+
+            <div className={`ws-inset mt-2.5 p-3 ${slippageInvalid ? "ws-invalid" : ""}`}>
+              <div className="mb-1 text-[11px] font-normal text-white/50">{t("slippagePct")}</div>
               <input
-                value={limitPrice}
-                onChange={(e) => guard(setLimitPrice)(e.target.value)}
+                value={slippage}
+                onChange={(e) => guard(setSlippage)(e.target.value)}
                 inputMode="decimal"
-                placeholder="0"
+                placeholder="1"
                 className="tnum w-full bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
               />
             </div>
-          ) : null}
 
-          <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-            <div className={`ws-inset p-3 ${tpInvalid ? "ws-invalid" : ""}`}>
-              <div className="mb-1 text-[11px] font-normal text-white/50">{t("takeProfit")}</div>
-              <input
-                value={takeProfit}
-                onChange={(e) => guard(setTakeProfit)(e.target.value)}
-                inputMode="decimal"
-                placeholder={t("none")}
-                className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
-              />
-            </div>
-            <div className={`ws-inset p-3 ${slInvalid ? "ws-invalid" : ""}`}>
-              <div className="mb-1 text-[11px] font-normal text-white/50">{t("stopLoss")}</div>
-              <input
-                value={stopLoss}
-                onChange={(e) => guard(setStopLoss)(e.target.value)}
-                inputMode="decimal"
-                placeholder={t("none")}
-                className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
-              />
-            </div>
-          </div>
+            {needsTrigger ? (
+              <div className={`ws-inset mt-2.5 p-3 ${triggerInvalid ? "ws-invalid" : ""}`}>
+                <div className="mb-1 flex items-center justify-between text-[11px] font-normal text-white/50">
+                  <span>{orderType === "limit" ? t("limitPrice") : t("stopPrice")}</span>
+                  {markNum > 0 ? (
+                    <button
+                      // The source string, never String(parseFloat(...)): a float
+                      // round-trip can emit exponent notation for sub-micro pairs,
+                      // which the wire contract rejects.
+                      onClick={() => setLimitPrice(markPrice ?? "")}
+                      className="text-accent cursor-pointer font-medium hover:opacity-80"
+                    >
+                      {t("useMarket")}
+                    </button>
+                  ) : null}
+                </div>
+                <input
+                  value={limitPrice}
+                  onChange={(e) => guard(setLimitPrice)(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                  className="tnum w-full bg-transparent text-[16px] font-medium text-white outline-none placeholder:text-white/30"
+                />
+              </div>
+            ) : null}
 
-          <div className="ws-inset mt-2.5 flex flex-col gap-1.5 p-3.5 text-[12px] font-normal">
-            <div className="flex justify-between">
-              <span className="text-white/55">{t("positionSize")}</span>
-              <span className="tnum text-white">
-                {formatAmount((parseFloat(collateral) || 0) * (leverageNum || 0))} USD
-              </span>
+            <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+              <div className={`ws-inset p-3 ${tpInvalid ? "ws-invalid" : ""}`}>
+                <div className="mb-1 text-[11px] font-normal text-white/50">{t("takeProfit")}</div>
+                <input
+                  value={takeProfit}
+                  onChange={(e) => guard(setTakeProfit)(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={t("none")}
+                  className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
+                />
+              </div>
+              <div className={`ws-inset p-3 ${slInvalid ? "ws-invalid" : ""}`}>
+                <div className="mb-1 text-[11px] font-normal text-white/50">{t("stopLoss")}</div>
+                <input
+                  value={stopLoss}
+                  onChange={(e) => guard(setStopLoss)(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={t("none")}
+                  className="tnum w-full bg-transparent text-[15px] font-medium text-white outline-none placeholder:text-white/30"
+                />
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span className="text-white/55">{t("estLiquidation")}</span>
-              <span className="tnum text-down">{liq > 0 ? formatUsd(liq) : "—"}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/55">{t("openingFee")}</span>
-              <span className="tnum text-white">
-                {quoteLoading
-                  ? "…"
-                  : quote
-                    ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USD`
-                    : "—"}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-white/55">{t("executionFee")}</span>
-              <span className="tnum text-white">
-                {quote ? `${quote.executionFeeEth} ETH` : "—"}
-              </span>
-            </div>
-          </div>
 
-          <button
-            onClick={submit}
-            disabled={!live || actions.busy || !validation.ok || !triggerOk || !fieldsOk}
-            className={`mt-3 w-full rounded-[14px] p-3.5 font-sans text-[14.5px] font-semibold transition-opacity ${
-              side === "long" ? "bg-up text-up-ink" : "bg-down text-down-ink"
-            } ${
-              !live || actions.busy || !validation.ok || !triggerOk || !fieldsOk
-                ? "cursor-not-allowed opacity-50"
-                : "cursor-pointer hover:opacity-90"
-            }`}
-          >
-            {cta}
-          </button>
-        </div>
+            <div className="ws-inset mt-2.5 flex flex-col gap-1.5 p-3.5 text-[12px] font-normal">
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("positionSize")}</span>
+                <span className="tnum text-white">
+                  {formatAmount((parseFloat(collateral) || 0) * (leverageNum || 0))} USD
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("estLiquidation")}</span>
+                <span className="tnum text-down">{liq > 0 ? formatUsd(liq) : "—"}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("openingFee")}</span>
+                <span className="tnum text-white">
+                  {quoteLoading
+                    ? "…"
+                    : quote
+                      ? `${formatAmount(parseFloat(quote.openingFeeUsdc))} USD`
+                      : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("executionFee")}</span>
+                <span className="tnum text-white">
+                  {quote ? `${quote.executionFeeEth} ETH` : "—"}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={submit}
+              disabled={!live || actions.busy || !validation.ok || !triggerOk || !fieldsOk}
+              className={`mt-3 w-full rounded-[14px] p-3.5 font-sans text-[14.5px] font-semibold transition-opacity ${
+                side === "long" ? "bg-up text-up-ink" : "bg-down text-down-ink"
+              } ${
+                !live || actions.busy || !validation.ok || !triggerOk || !fieldsOk
+                  ? "cursor-not-allowed opacity-50"
+                  : "cursor-pointer hover:opacity-90"
+              }`}
+            >
+              {cta}
+            </button>
+          </>
+        ) : null}
       </div>
+    </>
+  );
 
+  const activity = (
+    <>
       <PerpOrders
         orders={orders}
         pairByIndex={pairByIndex}
@@ -669,6 +730,50 @@ export function ProPerps({ pairs, priceOf, live, voicePrefill }: ProPerpsProps) 
           onContinue={() => void runConfirmed()}
         />
       ) : null}
+    </>
+  );
+
+  // The phone view: the market browser alone. Everything that makes this
+  // section long (stats, candles, the ticket, open orders and positions) opens
+  // as a screen of its own once a market is chosen.
+  if (isMobile) {
+    return (
+      <div className="flex flex-col gap-4">
+        {renderBrowser(paged)}
+
+        <MobileTradeSheet
+          open={sheetOpen}
+          onClose={() => {
+            setSheetOpen(false);
+            setSideChosen(false);
+          }}
+          title={selected}
+          subtitle={pair ? t(CATEGORY_KEY[pair.category]) : undefined}
+          priceSlot={
+            <FlashPrice value={markNum} className="ws-display tnum block text-[15px]">
+              {markNum > 0 ? formatUsd(markNum) : "—"}
+            </FlashPrice>
+          }
+          marketPicker={(close) => renderBrowser(pickerPaged, close)}
+          toolbar={<PerpModeSwitch />}
+        >
+          {marketPanel}
+          {orderPanel}
+          {activity}
+        </MobileTradeSheet>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-1 items-start gap-4 min-[1100px]:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,380px)]">
+        {renderBrowser(paged)}
+        {marketPanel}
+        {orderPanel}
+      </div>
+
+      {activity}
     </div>
   );
 }

@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect } from "react";
-import { clampDock, dockFromDrag, isDrag, loadDock, saveDock } from "@/lib/voice/dock";
+import {
+  clampDock,
+  DEFAULT_DOCK,
+  dockFromDrag,
+  isDrag,
+  loadDock,
+  saveDock,
+} from "@/lib/voice/dock";
 
 // Makes the Vivid widget's floating orb draggable.
 //
@@ -30,13 +37,14 @@ import { clampDock, dockFromDrag, isDrag, loadDock, saveDock } from "@/lib/voice
 export function VividWidgetDock() {
   useEffect(() => {
     // The widget's own offsets, which stay applied inside the shadow root. The
-    // host is positioned to cancel them out so the starting place is unchanged.
+    // host is positioned to cancel them out, so the resting place below is the
+    // one that actually applies. The widget's own bottom-right corner is where
+    // the phone tab bar's add-funds button sits, so the orb starts above it.
     const INNER_OFFSET = 14;
-    const WIDGET_DEFAULT = { right: INNER_OFFSET, bottom: INNER_OFFSET };
     const viewport = () => ({ width: window.innerWidth, height: window.innerHeight });
 
     let host: HTMLElement | null = null;
-    let position = clampDock(loadDock() ?? WIDGET_DEFAULT, viewport());
+    let position = clampDock(loadDock() ?? DEFAULT_DOCK, viewport());
     let origin: { x: number; y: number; from: typeof position } | null = null;
     let moved = false;
 

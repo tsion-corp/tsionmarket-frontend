@@ -143,7 +143,12 @@
     "groupHoldings": "Vos avoirs",
     "groupRwa": "Actifs du monde réel",
     "groupMarkets": "Marchés",
-    "account": "Compte"
+    "account": "Compte",
+    "more": "Plus",
+    "sections": "Sections",
+    "addFunds": "Ajouter des fonds",
+    "search": "Rechercher",
+    "closeSearch": "Fermer la recherche"
   },
   "language": {
     "label": "Langue"
@@ -351,7 +356,11 @@
     "passkeyStepSkip": "Passer pour l'instant",
     "passkeyStepLater": "Vous pourrez toujours ajouter une passkey plus tard.",
     "passkeyAdded": "Passkey ajoutée. Votre compte est sécurisé.",
-    "continue": "Continuer"
+    "continue": "Continuer",
+    "emailLabel": "Adresse e-mail",
+    "createAccountTitle": "Créez votre compte",
+    "orContinueWith": "ou continuer avec",
+    "checkEmailTitle": "Vérifiez vos e-mails"
   },
   "landingNav": {
     "markets": "Marchés",
@@ -549,7 +558,14 @@
   "common": {
     "addressCopied": "Adresse copiée",
     "copied": "Copié",
-    "copy": "Copier"
+    "copy": "Copier",
+    "back": "Retour",
+    "tradeAria": "Trader {symbol}",
+    "prev": "Préc.",
+    "next": "Suiv.",
+    "pageOf": "Page {page} sur {pages}",
+    "switchMarket": "Changer de marché",
+    "close": "Fermer"
   },
   "portfolio": {
     "eyebrow": "Portefeuille",
@@ -598,9 +614,7 @@
     "pageOf": "Page {page} sur {pages}",
     "prev": "Préc.",
     "next": "Suiv.",
-    "buyToken": "Acheter {name}",
-    "showAllTokens": "Afficher les {count} tokens",
-    "showLess": "Afficher moins"
+    "buyToken": "Acheter {name}"
   },
   "buySell": {
     "buy": "Acheter",
@@ -658,7 +672,6 @@
     "eyebrow": "Actifs du monde réel",
     "heading": "Actifs du monde réel",
     "subheading": "Bons du Trésor, actions, crédit et métaux tokenisés. Prix en direct, règlement instantané, tradez ou accédez via l'émetteur.",
-    "liveRegistry": "Registre en direct",
     "allCategories": "Tous",
     "searchPlaceholder": "Rechercher des actifs",
     "asset": "Actif",
@@ -2303,5 +2316,17 @@
     "doneTitle": "Vous êtes sur la liste.",
     "doneBody": "Nous vous écrirons dès que nous ouvrirons.",
     "alreadyTitle": "Vous êtes déjà sur la liste."
+  },
+  "welcome": {
+    "slide1Title": "Une app, tous les marchés",
+    "slide1Body": "Achetez des actions, de l'or et des cryptos, tradez, prédisez les résultats et faites fructifier votre argent, au même endroit.",
+    "slide2Title": "Connectez-vous et choisissez votre marché",
+    "slide2Body": "Connectez-vous avec Google, X ou e-mail. Choisissez ensuite actions, or, cryptos ou ce qui vous intéresse.",
+    "slide3Title": "Vivid AI, votre assistant",
+    "slide3Body": "Obtenez des analyses, trouvez des opportunités et agissez en un geste. Vous validez toujours la dernière étape.",
+    "continueEmail": "Continuer avec l'e-mail",
+    "haveAccount": "J'ai déjà un compte",
+    "goToSlide": "Aller à la diapositive {index}",
+    "slides": "Diapositives de bienvenue"
   }
 }

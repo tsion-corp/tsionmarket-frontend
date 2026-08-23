@@ -320,7 +320,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
 
         <button
           onClick={onClose}
-          className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+          className="ws-chrome text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >
           {t("done")}
         </button>
@@ -415,7 +415,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       <button
         onClick={() => void confirm()}
         disabled={!canBuy}
-        className="text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+        className="ws-chrome text-ink mt-4 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
       >
         {!route && !isSwapMarket
           ? t("unavailable")

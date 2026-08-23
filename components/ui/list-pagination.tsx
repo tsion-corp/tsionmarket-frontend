@@ -3,14 +3,17 @@
 import { useTranslations } from "next-intl";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 
-interface RwaPaginationProps {
+// Prev / "Page X of Y" / Next, sized for a phone. Shared by every paged list in
+// the app so they page the same way; `page` and `pages` are 1-based, and the
+// whole bar hides itself when there is only one page.
+interface ListPaginationProps {
   page: number;
   pages: number;
   onPage: (page: number) => void;
 }
 
-export function RwaPagination({ page, pages, onPage }: RwaPaginationProps) {
-  const t = useTranslations("rwa");
+export function ListPagination({ page, pages, onPage }: ListPaginationProps) {
+  const t = useTranslations("common");
   if (pages <= 1) return null;
 
   const atStart = page <= 1;

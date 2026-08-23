@@ -22,6 +22,9 @@ import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-m
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
 import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
 import { Switch } from "@/components/ui/switch";
+import { HoldingsMobile } from "@/features/portfolio/components/holdings-mobile";
+import { TypeChip } from "@/features/portfolio/components/type-chip";
+import { displayNetworkIconKey, displayNetworkLabel } from "@/features/portfolio/lib/network-label";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { tokenBg } from "@/lib/trade/assets";
 import { track } from "@/lib/analytics/mixpanel";
@@ -32,7 +35,6 @@ import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
 import { selectHoldings } from "@/features/portfolio/lib/holdings";
 import { canSellAsset } from "@/lib/sell";
-import { displayNetwork } from "@/lib/buy";
 import type { MemeToken } from "@/lib/meme/api";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
@@ -47,28 +49,6 @@ interface PortfolioViewProps {
   onOpenSell: (sell: SellPayload) => void;
   onOpenRwaTrade: (rwaTrade: RwaTradePayload) => void;
   onOpenMemeSell: (token: MemeToken) => void;
-}
-
-const NETWORK_LABELS: Record<string, string> = {
-  "eth-mainnet": "Ethereum",
-  "base-mainnet": "Base",
-  "arb-mainnet": "Arbitrum",
-  "opt-mainnet": "Optimism",
-  "polygon-mainnet": "Polygon",
-  "solana-mainnet": "Solana",
-};
-
-function networkLabel(network: string): string {
-  return NETWORK_LABELS[network] ?? network;
-}
-
-function displayNetworkLabel(t: TokenBalance): string {
-  const net = displayNetwork(t.symbol, t.network);
-  return net === "Bitcoin" ? net : networkLabel(net);
-}
-
-function displayNetworkIconKey(t: TokenBalance): string {
-  return displayNetwork(t.symbol, t.network);
 }
 
 // A held meme balance as the trade sheet's listing shape; the sheet re-fetches
@@ -94,33 +74,6 @@ function toMemeToken(t: TokenBalance): MemeToken {
     sellEnabled: true,
     warnings: [],
   };
-}
-
-// Message keys in the portfolio catalog; the kind ids themselves never change.
-const KIND_LABEL_KEY: Record<TokenBalance["kind"], string> = {
-  coin: "kindCoin",
-  stablecoin: "kindStablecoin",
-  rwa: "kindRwa",
-  token: "kindToken",
-};
-
-const KIND_STYLE: Record<TokenBalance["kind"], string> = {
-  coin: "border-[#7C9CE7]/30 bg-[#7C9CE7]/12 text-[#9DB4F0]",
-  stablecoin: "border-[#7CE7B0]/30 bg-[#7CE7B0]/12 text-[#7CE7B0]",
-  rwa: "border-accent/35 bg-accent/12 text-accent",
-  token: "border-white/12 bg-white/6 text-white/70",
-};
-
-// The asset-type pill shown in the holdings "Type" column.
-function TypeChip({ kind }: { kind: TokenBalance["kind"] }) {
-  const t = useTranslations("portfolio");
-  return (
-    <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${KIND_STYLE[kind]}`}
-    >
-      {t(KIND_LABEL_KEY[kind])}
-    </span>
-  );
 }
 
 const holdingsColumn = createColumnHelper<TokenBalance>();
@@ -359,134 +312,153 @@ export function PortfolioView({
           </button>
         </div>
       ) : (
-        <div className="ws-card mt-[18px] overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
-            <span className="ws-display text-[22px]">{t("yourHoldings")}</span>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60">
-                <span>{t("hideZeroValue")}</span>
-                <Switch
-                  size="sm"
-                  checked={hideZero}
-                  onCheckedChange={(checked) => setHideZero(checked)}
-                />
-              </div>
-              <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-                <SearchIcon />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t("searchPlaceholder")}
-                  className="w-[130px] min-w-0 border-none bg-transparent text-[13px] font-normal text-white outline-none"
-                />
-              </div>
-            </div>
+        <>
+          <div className="mt-[18px] md:hidden">
+            <HoldingsMobile
+              rows={holdingRows.map((row) => row.original)}
+              loading={loading}
+              search={search}
+              onSearch={setSearch}
+              hideZero={hideZero}
+              onHideZero={setHideZero}
+              page={holdingsPage}
+              pages={holdingsPages}
+              canPrev={table.getCanPreviousPage()}
+              canNext={table.getCanNextPage()}
+              onPrev={() => table.previousPage()}
+              onNext={() => table.nextPage()}
+              onOpenToken={openToken}
+            />
           </div>
-          <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6">
-            <span>{t("asset")}</span>
-            <span className="hidden min-[560px]:block">{t("type")}</span>
-            {sortBtn("price", t("price"), "hidden justify-end text-right min-[560px]:flex")}
-            <span className="hidden text-right min-[560px]:block">{t("network")}</span>
-            {sortBtn("value", t("value"), "justify-end text-right")}
-          </div>
-
-          {loading ? (
-            [0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6"
-              >
-                <span className="h-9 w-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
-                <span className="h-4 w-32 animate-pulse rounded bg-white/8" />
-                <span className="ml-auto h-4 w-16 animate-pulse rounded bg-white/8" />
-              </div>
-            ))
-          ) : holdingRows.length === 0 ? (
-            <div className="border-t border-white/6 px-6 py-8 text-center text-[13px] font-normal text-white/45">
-              {search
-                ? t("noSearchMatches")
-                : hideZero
-                  ? t("noZeroHiddenAssets")
-                  : t("noHoldingsYet")}
-            </div>
-          ) : (
-            <>
-              {holdingRows.map((row) => {
-                const t = row.original;
-                return (
-                  <button
-                    key={t.symbol + t.network}
-                    onClick={() => openToken(t)}
-                    className="grid w-full cursor-pointer grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 text-left transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6"
-                  >
-                    <span className="flex min-w-0 items-center gap-3">
-                      <span className="relative shrink-0">
-                        <AssetIcon
-                          sym={t.symbol}
-                          bg={tokenBg(t.symbol)}
-                          logo={t.logo}
-                          fallback="gradient"
-                        />
-                        <span className="absolute -right-1 -bottom-1 grid place-items-center rounded-full bg-[#0d0d0f] p-[1.5px]">
-                          <NetworkIcon network={displayNetworkIconKey(t)} size={14} />
-                        </span>
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate font-sans text-[14.5px] font-medium">
-                            {t.symbol}
-                          </span>
-                          <span className="shrink-0 min-[560px]:hidden">
-                            <TypeChip kind={t.kind} />
-                          </span>
-                        </span>
-                        <span className="block truncate text-xs font-normal text-white/50">
-                          {formatQty(t.balance)} · {displayNetworkLabel(t)}
-                        </span>
-                      </span>
-                    </span>
-                    <span className="hidden min-[560px]:flex">
-                      <TypeChip kind={t.kind} />
-                    </span>
-                    <span className="tnum hidden text-right text-sm font-normal min-[560px]:block">
-                      {money.format(t.priceUsd)}
-                    </span>
-                    <span className="hidden items-center justify-end gap-1.5 text-[13px] font-normal text-white/60 min-[560px]:flex">
-                      <NetworkIcon network={displayNetworkIconKey(t)} size={16} />
-                      {displayNetworkLabel(t)}
-                    </span>
-                    <span className="tnum text-right font-sans text-sm font-medium">
-                      {money.format(t.valueUsd)}
-                    </span>
-                  </button>
-                );
-              })}
-              {holdingsPages > 1 ? (
-                <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
-                  <span className="text-[12.5px] font-normal text-white/45">
-                    {t("pageOfPages", { page: holdingsPage, pages: holdingsPages })}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => table.previousPage()}
-                      disabled={!table.getCanPreviousPage()}
-                      className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {t("prev")}
-                    </button>
-                    <button
-                      onClick={() => table.nextPage()}
-                      disabled={!table.getCanNextPage()}
-                      className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {t("next")}
-                    </button>
-                  </div>
+          <div className="ws-card mt-[18px] hidden overflow-hidden md:block">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 pt-5 pb-3.5 sm:px-6">
+              <span className="ws-display text-[22px]">{t("yourHoldings")}</span>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60">
+                  <span>{t("hideZeroValue")}</span>
+                  <Switch
+                    size="sm"
+                    checked={hideZero}
+                    onCheckedChange={(checked) => setHideZero(checked)}
+                  />
                 </div>
-              ) : null}
-            </>
-          )}
-        </div>
+                <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                  <SearchIcon />
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t("searchPlaceholder")}
+                    className="w-[130px] min-w-0 border-none bg-transparent text-[13px] font-normal text-white outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-[1.7fr_auto] gap-3.5 px-4 pb-2.5 text-[11.5px] tracking-[0.04em] text-white/40 uppercase min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6">
+              <span>{t("asset")}</span>
+              <span className="hidden min-[560px]:block">{t("type")}</span>
+              {sortBtn("price", t("price"), "hidden justify-end text-right min-[560px]:flex")}
+              <span className="hidden text-right min-[560px]:block">{t("network")}</span>
+              {sortBtn("value", t("value"), "justify-end text-right")}
+            </div>
+
+            {loading ? (
+              [0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6"
+                >
+                  <span className="h-9 w-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
+                  <span className="h-4 w-32 animate-pulse rounded bg-white/8" />
+                  <span className="ml-auto h-4 w-16 animate-pulse rounded bg-white/8" />
+                </div>
+              ))
+            ) : holdingRows.length === 0 ? (
+              <div className="border-t border-white/6 px-6 py-8 text-center text-[13px] font-normal text-white/45">
+                {search
+                  ? t("noSearchMatches")
+                  : hideZero
+                    ? t("noZeroHiddenAssets")
+                    : t("noHoldingsYet")}
+              </div>
+            ) : (
+              <>
+                {holdingRows.map((row) => {
+                  const t = row.original;
+                  return (
+                    <button
+                      key={t.symbol + t.network}
+                      onClick={() => openToken(t)}
+                      className="grid w-full cursor-pointer grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 text-left transition-colors hover:bg-white/4 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6"
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className="relative shrink-0">
+                          <AssetIcon
+                            sym={t.symbol}
+                            bg={tokenBg(t.symbol)}
+                            logo={t.logo}
+                            fallback="gradient"
+                          />
+                          <span className="absolute -right-1 -bottom-1 grid place-items-center rounded-full bg-[#0d0d0f] p-[1.5px]">
+                            <NetworkIcon network={displayNetworkIconKey(t)} size={14} />
+                          </span>
+                        </span>
+                        <span className="min-w-0">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate font-sans text-[14.5px] font-medium">
+                              {t.symbol}
+                            </span>
+                            <span className="shrink-0 min-[560px]:hidden">
+                              <TypeChip kind={t.kind} />
+                            </span>
+                          </span>
+                          <span className="block truncate text-xs font-normal text-white/50">
+                            {formatQty(t.balance)} · {displayNetworkLabel(t)}
+                          </span>
+                        </span>
+                      </span>
+                      <span className="hidden min-[560px]:flex">
+                        <TypeChip kind={t.kind} />
+                      </span>
+                      <span className="tnum hidden text-right text-sm font-normal min-[560px]:block">
+                        {money.format(t.priceUsd)}
+                      </span>
+                      <span className="hidden items-center justify-end gap-1.5 text-[13px] font-normal text-white/60 min-[560px]:flex">
+                        <NetworkIcon network={displayNetworkIconKey(t)} size={16} />
+                        {displayNetworkLabel(t)}
+                      </span>
+                      <span className="tnum text-right font-sans text-sm font-medium">
+                        {money.format(t.valueUsd)}
+                      </span>
+                    </button>
+                  );
+                })}
+                {holdingsPages > 1 ? (
+                  <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
+                    <span className="text-[12.5px] font-normal text-white/45">
+                      {t("pageOfPages", { page: holdingsPage, pages: holdingsPages })}
+                    </span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => table.previousPage()}
+                        disabled={!table.getCanPreviousPage()}
+                        className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {t("prev")}
+                      </button>
+                      <button
+                        onClick={() => table.nextPage()}
+                        disabled={!table.getCanNextPage()}
+                        className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {t("next")}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

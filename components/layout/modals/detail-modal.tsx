@@ -53,7 +53,7 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
         <div className="mt-5 flex flex-col gap-2.5">
           <button
             onClick={detail.onCta}
-            className="text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+            className="ws-chrome text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
           >
             {detail.cta}
           </button>

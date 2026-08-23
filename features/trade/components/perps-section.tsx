@@ -7,6 +7,10 @@ import { PerpsView } from "@/features/trade/components/perps-view";
 
 // Perpetuals as its own sidebar section: the header carries the simple/pro
 // switch, the body is the perps desk. Spot lives in its own section now.
+//
+// Both interfaces are offered at every width; each moves its chart and order
+// ticket into a full-screen sheet on a phone, so the section stays a short
+// market list until a market is chosen.
 export function PerpsSection() {
   const tSections = useTranslations("sections");
 

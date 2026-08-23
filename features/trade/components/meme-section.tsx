@@ -8,6 +8,9 @@ import { MemeProView } from "@/features/trade/components/meme-pro-view";
 
 // Memecoin trading on Base: trending cards for the simple interface, the
 // search/table/chart desk for pro. Both trade through the same sheet.
+//
+// Both interfaces are offered at every width; pro keeps its table here on a
+// phone and moves the chart and the trade card into a full-screen sheet.
 export function MemeSection() {
   const tSections = useTranslations("sections");
   const { mode } = useMemeMode();

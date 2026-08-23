@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { SearchIcon } from "@/components/ui/icons";
+import { ListPagination } from "@/components/ui/list-pagination";
 import { useSpotMarkets, type SpotMarket } from "@/features/trade/hooks/use-spot-markets";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatUsd } from "@/lib/trade/math";
@@ -23,9 +24,10 @@ interface SpotSimpleViewProps {
   onOpenBuy: (buy: BuyPayload) => void;
 }
 
-// How many rows the collapsed list shows. Six keeps the majors above the fold
-// on a phone; the rest sit behind one tap on "Show all".
-const PREVIEW_ROWS = 6;
+// Rows per page. Six keeps the whole list above the fold on a phone, and the
+// rest are one tap away on the pager rather than behind a "show all" that then
+// paginates anyway.
+const PER_PAGE = 6;
 
 function changeLabel(chg: number): string {
   const v = Number.isFinite(chg) ? chg : 0;
@@ -56,7 +58,6 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
   const [sorting, setSorting] = useState<SortingState>([{ id: "mcap", desc: true }]);
   // Collapsed by default so the list doesn't dominate the page; searching
   // always shows every match, since a query is an explicit ask for the rest.
-  const [expanded, setExpanded] = useState(false);
   const { markets, loading, error } = useSpotMarkets();
 
   const table = useReactTable({
@@ -69,13 +70,11 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageSize: 12 } },
+    initialState: { pagination: { pageSize: PER_PAGE } },
   });
 
-  const showAll = expanded || search.trim().length > 0;
   const pageRows = table.getRowModel().rows;
-  const rows = showAll ? pageRows : pageRows.slice(0, PREVIEW_ROWS);
-  const totalCount = table.getFilteredRowModel().rows.length;
+  const rows = pageRows;
   const { pageIndex } = table.getState().pagination;
   const pageCount = table.getPageCount();
 
@@ -212,50 +211,12 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
           })
         )}
 
-        {!loading && !error && !showAll && totalCount > PREVIEW_ROWS ? (
-          <div className="border-t border-white/6 p-2">
-            <button
-              onClick={() => setExpanded(true)}
-              className="w-full cursor-pointer rounded-lg py-2.5 text-center text-[13px] font-medium text-white/70 transition-colors hover:bg-white/4 hover:text-white"
-            >
-              {t("showAllTokens", { count: totalCount })}
-            </button>
-          </div>
-        ) : null}
-
-        {!loading && !error && showAll && rows.length > 0 ? (
-          <div className="flex items-center justify-between border-t border-white/6 px-4 py-3.5 sm:px-6">
-            <span className="text-[12.5px] font-normal text-white/45">
-              {t("pageOf", { page: pageIndex + 1, pages: pageCount })}
-            </span>
-            <div className="flex gap-2">
-              {search.trim().length === 0 ? (
-                <button
-                  onClick={() => {
-                    setExpanded(false);
-                    table.setPageIndex(0);
-                  }}
-                  className="cursor-pointer rounded-lg px-3 py-1.5 text-[12.5px] font-medium text-white/55 hover:text-white"
-                >
-                  {t("showLess")}
-                </button>
-              ) : null}
-              <button
-                onClick={() => table.previousPage()}
-                disabled={!table.getCanPreviousPage()}
-                className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("prev")}
-              </button>
-              <button
-                onClick={() => table.nextPage()}
-                disabled={!table.getCanNextPage()}
-                className="cursor-pointer rounded-lg border border-white/12 bg-white/5 px-3 py-1.5 text-[12.5px] font-medium text-white/75 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {t("next")}
-              </button>
-            </div>
-          </div>
+        {!loading && !error && rows.length > 0 ? (
+          <ListPagination
+            page={pageIndex + 1}
+            pages={pageCount}
+            onPage={(p) => table.setPageIndex(p - 1)}
+          />
         ) : null}
       </div>
     </div>

@@ -80,7 +80,7 @@ export function ConfirmDialog({
           </button>
           <button
             onClick={onContinue}
-            className="text-ink cursor-pointer rounded-[13px] bg-white p-3 font-sans text-[14px] font-semibold hover:opacity-90"
+            className="ws-chrome text-ink cursor-pointer rounded-[13px] bg-white p-3 font-sans text-[14px] font-semibold hover:opacity-90"
           >
             {continueLabel}
           </button>

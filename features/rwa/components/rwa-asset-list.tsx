@@ -13,7 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { RwaAssetRow } from "@/features/rwa/components/rwa-asset-row";
 import { RwaCategoryTabs } from "@/features/rwa/components/rwa-category-tabs";
-import { RwaPagination } from "@/features/rwa/components/rwa-pagination";
+import { ListPagination } from "@/components/ui/list-pagination";
 import { SearchIcon } from "@/components/ui/icons";
 import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
 import { assetPriceUsd, type RwaApiAsset } from "@/features/rwa/lib/api";
@@ -28,7 +28,7 @@ interface RwaAssetListProps {
   onTrade: (asset: RwaApiAsset) => void;
 }
 
-const PER_PAGE = 9;
+const PER_PAGE = 6;
 
 const columnHelper = createColumnHelper<RwaAssetView>();
 const columns = [
@@ -63,10 +63,15 @@ export function RwaAssetList({
     ],
     [assets, t]
   );
-  const data = useMemo(
-    () => (tab === "All" ? assets : assets.filter((a) => a.category === tab)),
-    [assets, tab]
-  );
+  // Base first, then everything else in the order the registry returned. Base
+  // is the chain the app settles on, so those are the assets a deposit here can
+  // buy without bridging; burying them on page two hides the ones that work
+  // best. A column sort still overrides this, since the table only falls back
+  // to source order while nothing is sorted.
+  const data = useMemo(() => {
+    const inTab = tab === "All" ? assets : assets.filter((a) => a.category === tab);
+    return [...inTab].sort((a, b) => Number(b.chain === "base") - Number(a.chain === "base"));
+  }, [assets, tab]);
 
   const table = useReactTable({
     data,
@@ -155,7 +160,7 @@ export function RwaAssetList({
               />
             ))}
             {pages > 1 ? (
-              <RwaPagination page={page} pages={pages} onPage={(p) => table.setPageIndex(p - 1)} />
+              <ListPagination page={page} pages={pages} onPage={(p) => table.setPageIndex(p - 1)} />
             ) : null}
           </>
         )}

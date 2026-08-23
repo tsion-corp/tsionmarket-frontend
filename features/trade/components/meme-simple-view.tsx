@@ -5,7 +5,12 @@ import { useTranslations } from "next-intl";
 import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/components/meme-bits";
 import { MemeTradeSheet } from "@/features/trade/components/meme-trade-sheet";
 import { useTrendingMemes } from "@/features/trade/hooks/use-meme-tokens";
+import { ListPagination } from "@/components/ui/list-pagination";
+import { usePaged } from "@/hooks/use-paged";
 import type { MemeToken } from "@/lib/meme/api";
+
+// Coins per page, matching the other market lists.
+const PER_PAGE = 6;
 
 // The guided interface: trending memecoins as tap-to-trade cards. No table, no
 // address bars — pick a coin, the sheet walks the rest.
@@ -13,6 +18,8 @@ export function MemeSimpleView() {
   const t = useTranslations("meme");
   const { tokens, isLoading, error } = useTrendingMemes();
   const [selected, setSelected] = useState<MemeToken | null>(null);
+  // Six to a page, as everywhere else, so the grid never runs past a screen.
+  const paged = usePaged(tokens, PER_PAGE);
 
   return (
     <div>
@@ -29,7 +36,7 @@ export function MemeSimpleView() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 min-[700px]:grid-cols-3 min-[1100px]:grid-cols-4">
-          {tokens.map((token) => (
+          {paged.pageItems.map((token) => (
             <button
               key={token.address}
               onClick={() => setSelected(token)}
@@ -67,6 +74,14 @@ export function MemeSimpleView() {
           ))}
         </div>
       )}
+
+      {!isLoading && !error && tokens.length > 0 ? (
+        <ListPagination
+          page={paged.page + 1}
+          pages={paged.pageCount}
+          onPage={(p) => (p > paged.page + 1 ? paged.goNext() : paged.goPrev())}
+        />
+      ) : null}
 
       {selected ? <MemeTradeSheet token={selected} onClose={() => setSelected(null)} /> : null}
     </div>

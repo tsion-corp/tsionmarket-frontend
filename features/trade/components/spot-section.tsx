@@ -16,6 +16,11 @@ interface SpotSectionProps {
 // switch. Simple is the tabular market list for people who just want to look
 // an asset up and buy it through the familiar sheet flow; pro is the trading
 // terminal with candles and the order ticket.
+//
+// Both interfaces are offered at every width. On a phone the pro terminal
+// shows its market list here and moves the chart and the ticket into a
+// full-screen sheet, so choosing pro does not bury the rest of the dashboard
+// under one very long section.
 export function SpotSection({ onOpenDetail, onOpenBuy }: SpotSectionProps) {
   const tSections = useTranslations("sections");
   const { mode } = useSpotMode();

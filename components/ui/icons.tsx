@@ -533,6 +533,24 @@ export function QrScanIcon({ size = 18, className }: IconProps) {
   );
 }
 
+export function PlusIcon({ size = 22, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <path d="M12 5v14M5 12h14" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export function DotsIcon({ size = 20, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="5" cy="12" r="1.7" fill={stroke} />
+      <circle cx="12" cy="12" r="1.7" fill={stroke} />
+      <circle cx="19" cy="12" r="1.7" fill={stroke} />
+    </svg>
+  );
+}
+
 export const INTEREST_ICONS: Record<string, (props: IconProps) => React.ReactNode> = {
   "chart-bars": ChartBarsIcon,
   gold: GoldIcon,

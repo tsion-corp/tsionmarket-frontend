@@ -7,9 +7,9 @@ import { ArrowRightIcon } from "@/components/ui/icons";
 import { OtpInput } from "@/components/auth/otp-input";
 
 const PRIMARY =
-  "flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold text-ink transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60";
+  "ws-chrome flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-white px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-semibold text-ink transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60";
 const INPUT =
-  "w-full rounded-[14px] border border-white/14 bg-black/40 px-4 py-3.5 text-[15px] text-white outline-none focus:border-accent/50";
+  "w-full rounded-full border border-white/14 bg-black/40 px-5 py-4 text-[15px] text-white outline-none focus:border-accent/50 md:rounded-[14px] md:px-4 md:py-3.5";
 
 export function EmailForm() {
   const t = useTranslations("auth");
@@ -50,7 +50,12 @@ export function EmailForm() {
   if (step === "code") {
     return (
       <div className="flex flex-col gap-[11px]">
-        <p className="text-sm text-white/72">
+        {/* The design gives this step its own title; the desktop column already
+            carries one above the form, so it only shows on a phone. */}
+        <h2 className="ws-display text-center text-[28px] leading-tight tracking-[-0.02em] md:hidden">
+          {t("checkEmailTitle")}
+        </h2>
+        <p className="text-center text-sm text-white/72 md:text-left">
           {t.rich("codeSent", {
             email: () => <span className="font-medium text-white">{email}</span>,
           })}
@@ -65,7 +70,7 @@ export function EmailForm() {
           <ArrowRightIcon className="text-arrow" />
         </button>
         {error ? <p className="text-down text-[13px]">{error}</p> : null}
-        <div className="flex justify-between text-[13px]">
+        <div className="flex flex-col items-center gap-2 text-[13px] md:flex-row md:justify-between md:gap-0">
           <button
             onClick={() => {
               setStep("email");
@@ -90,7 +95,13 @@ export function EmailForm() {
 
   return (
     <div className="flex flex-col gap-[11px]">
+      {/* The mobile design labels the field; the desktop column relies on the
+          placeholder, so the label only shows on a phone. */}
+      <label htmlFor="auth-email" className="-mb-1 text-[13px] text-white/55 md:hidden">
+        {t("emailLabel")}
+      </label>
       <input
+        id="auth-email"
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}

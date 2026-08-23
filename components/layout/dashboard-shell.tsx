@@ -5,7 +5,9 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { FundsModal } from "@/features/funds";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import type { NavItem } from "@/components/layout/nav-items";
@@ -18,7 +20,7 @@ interface DashboardShellProps {
 }
 
 // The persistent chrome around every top-level app screen: sidebar (a drawer
-// on phones), topbar, and the account modal. Shared by /dashboard
+// on phones), topbar, the phone tab bar, and the account modal. Shared by /dashboard
 // (the scroll-spy sections) and any standalone section page like /casino, so
 // moving between them feels like one app, not a different shell per page.
 //
@@ -29,6 +31,10 @@ interface DashboardShellProps {
 export function DashboardShell({ nav, activeSection, children }: DashboardShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  // Funding from the phone tab bar's round button. The shell owns this one so
+  // the action works on every page, not just the dashboard, which keeps its own
+  // copy for the balance card and the empty states.
+  const [fundsOpen, setFundsOpen] = useState(false);
 
   // Anyone rendering the shell has an account, including sessions that
   // predate the flag — so the landing page can greet them with "Log in".
@@ -55,21 +61,30 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         onClose={() => setMenuOpen(false)}
       />
 
-      <main className="min-h-screen md:ml-[248px]">
+      {/* The tab bar floats over the page on a phone, so the last section
+          needs room to clear it. */}
+      <main className="min-h-screen pb-[92px] md:ml-[248px] md:pb-0">
         <div className="sticky top-0 z-[60]">
-          <Topbar
-            onOpenAccount={() => setAccountOpen(true)}
-            onSelectSection={navigate}
-            menuOpen={menuOpen}
-            onToggleMenu={() => setMenuOpen((v) => !v)}
-          />
+          <Topbar onOpenAccount={() => setAccountOpen(true)} onSelectSection={navigate} />
         </div>
 
         {children}
       </main>
 
+      <MobileTabBar
+        items={nav}
+        activeSection={activeSection}
+        onNavigate={navigate}
+        onOpenMore={() => setMenuOpen(true)}
+        onAddFunds={() => setFundsOpen(true)}
+      />
+
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
         <AccountModal onClose={() => setAccountOpen(false)} />
+      </ModalShell>
+
+      <ModalShell open={fundsOpen} onClose={() => setFundsOpen(false)} size="lg">
+        <FundsModal onClose={() => setFundsOpen(false)} />
       </ModalShell>
     </div>
   );
