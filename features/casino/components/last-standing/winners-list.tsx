@@ -134,7 +134,7 @@ export function WinnersList({
               </span>
               <span className="relative shrink-0 text-right">
                 <span className="tnum block text-[14px] font-bold text-[#d8d8dc]">
-                  {money.format(w.toWinner.usdValue)}
+                  {money.formatExact(w.toWinner.usdValue)}
                 </span>
                 {isLatest ? (
                   <span className="block text-[9.5px] font-semibold tracking-[0.12em] text-[#d8d8dc]/70 uppercase">

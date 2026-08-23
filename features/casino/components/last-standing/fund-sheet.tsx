@@ -111,7 +111,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
     setSubmitting(true);
     // Processing toast for the gasless send; the terminal "Money added" toast
     // (useTerminalToast) confirms separately once it settles.
-    const toastId = toast.loading(t("toastAdding", { amount: money.format(value) }));
+    const toastId = toast.loading(t("toastAdding", { amount: money.formatExact(value) }));
     try {
       const fresh = await quote.refetch();
       if (fresh.isError || !fresh.data) {
@@ -129,7 +129,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
       setDepositRequestId(fresh.data.depositRequestId);
       setSent(true);
       track("game_wallet_funded", { game: "last_man", amount_usd: value });
-      toast.success(t("toastAdded", { amount: money.format(value) }), { id: toastId });
+      toast.success(t("toastAdded", { amount: money.formatExact(value) }), { id: toastId });
       void refetchPortfolio();
     } catch (e) {
       setError(friendlyError(e, t("errorSend")));
@@ -144,7 +144,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
       <div>
         <SheetNav
           title={t("addingTitle")}
-          subtitle={t("addingSubtitle", { amount: money.format(value) })}
+          subtitle={t("addingSubtitle", { amount: money.formatExact(value) })}
           onBack={onClose}
         />
         <div className="border-accent/25 bg-accent/10 mt-1 rounded-[14px] border px-4 py-4 text-[13px] leading-normal font-normal text-white/80">
@@ -184,7 +184,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
             onClick={() => setAmount(String(balance))}
             className="tnum cursor-pointer text-white/55 hover:text-white"
           >
-            {t("max", { amount: money.format(balance) })}
+            {t("max", { amount: money.formatExact(balance) })}
           </button>
         </div>
         <div className="flex items-center justify-between gap-3">
@@ -210,7 +210,7 @@ export function FundSheet({ onClose }: FundSheetProps) {
           ) : quote.isFetching || !quote.data || addedUsd === null ? (
             <span className="text-white/45">{t("checking")}</span>
           ) : (
-            <span className="tnum text-accent">≈ {money.format(addedUsd)}</span>
+            <span className="tnum text-accent">≈ {money.formatExact(addedUsd)}</span>
           )}
         </div>
       ) : null}

@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { subscriptZeros } from "@/lib/format";
-import { formatMoney } from "@/lib/currencies";
+import { COMPACT_ABOVE, formatMoney } from "@/lib/currencies";
 import { priceLabel } from "@/features/trade/components/meme-bits";
 
 const USD = { code: "USD", name: "US Dollar", symbol: "$", region: "Global" } as const;
 const usd = (n: number) => formatMoney(n, USD, 1);
+// A zero-decimal, weak currency: the case the compact threshold exists for.
+const NGN = { code: "NGN", name: "Nigerian Naira", symbol: "₦", region: "Africa" } as const;
+const ngn = (usdAmount: number, rate = 1600) => formatMoney(usdAmount, NGN, rate);
 
 describe("subscriptZeros", () => {
   it("counts the zero run instead of spelling it out", () => {
@@ -50,6 +53,28 @@ describe("formatMoney", () => {
     expect(usd(0.07)).toBe("$0.07");
     expect(usd(0.01)).toBe("$0.01");
     expect(usd(0)).toBe("$0.00");
+  });
+
+  it("shows figures below the threshold in full", () => {
+    expect(usd(9_999)).toBe("$9,999.00");
+    // 2,994 naira: an ordinary small balance, which must stay exact.
+    expect(ngn(2994 / 1600)).toBe("₦2,994");
+  });
+
+  it("abbreviates from the threshold up", () => {
+    expect(usd(COMPACT_ABOVE)).toBe("$10K");
+    expect(usd(1_234_567)).toBe("$1.23M");
+    // An ETH price in naira, the case that overflowed a table cell.
+    expect(ngn(2022.32)).toBe("₦3.24M");
+  });
+
+  it("abbreviates a negative the same way, keeping the sign", () => {
+    expect(usd(-1_234_567)).toBe("$-1.23M");
+  });
+
+  it("keeps two decimals when compacting a zero-decimal currency", () => {
+    // "₦3M" would drop more precision than the suffix saves.
+    expect(ngn(2022.32)).toContain(".24");
   });
 });
 

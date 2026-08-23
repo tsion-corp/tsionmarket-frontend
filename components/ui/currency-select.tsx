@@ -111,6 +111,9 @@ export function useMoney() {
     setCurrency,
     ready,
     format: (amountUsd: number) => formatMoney(amountUsd, active, activeRate),
+    // For the amount of a transaction rather than the size of a holding: what
+    // is staked, paid out, or charged. Those are never abbreviated.
+    formatExact: (amountUsd: number) => formatMoney(amountUsd, active, activeRate, { exact: true }),
   };
 }
 

@@ -86,7 +86,7 @@ export function PredictionView() {
     const toastId = toast.loading(t("toastSellingPosition"));
     try {
       const { proceedsUsd } = await cashout.cashOut({ tokenId, shares });
-      toast.success(t("toastSoldPosition", { amount: money.format(proceedsUsd) }), {
+      toast.success(t("toastSoldPosition", { amount: money.formatExact(proceedsUsd) }), {
         id: toastId,
       });
       setSlip(null);

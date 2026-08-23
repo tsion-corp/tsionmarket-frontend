@@ -77,14 +77,23 @@ export function ExploreBanners({ only }: ExploreBannersProps = {}) {
                   mixBlendMode: "hard-light",
                 }}
               />
-              <span className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.85)_0%,rgba(0,0,0,0.35)_55%,rgba(0,0,0,0.1)_100%)]" />
+              {/* The copy sits along the foot, so the scrim is heaviest there
+                  and clears entirely by the top, leaving most of the picture
+                  visible. Photographs vary wildly in brightness, and a scrim
+                  that merely tints leaves white text on whatever happens to be
+                  behind it. */}
+              <span className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.92)_0%,rgba(0,0,0,0.7)_28%,rgba(0,0,0,0.3)_58%,rgba(0,0,0,0)_92%)]" />
+              {/* A shallow blur over the words only. It softens high-contrast
+                  detail directly under them without flattening the image, which
+                  a heavier scrim would. */}
+              <span className="absolute inset-x-0 bottom-0 h-[62%] [mask-image:linear-gradient(to_top,#000_35%,transparent)] backdrop-blur-[2px]" />
             </span>
 
             <span className="relative">
-              <span className="ws-display block text-[22px] leading-tight text-white">
+              <span className="ws-display block text-[22px] leading-tight text-white [text-shadow:0_2px_10px_rgba(0,0,0,0.7)]">
                 {t(`${b.id}Title`)}
               </span>
-              <span className="mt-1 block text-[12.5px] font-normal text-white/65">
+              <span className="mt-1 block text-[12.5px] font-normal text-white/80 [text-shadow:0_1px_3px_rgba(0,0,0,0.85)]">
                 {t(`${b.id}Body`)}
               </span>
               <span className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-black/30 px-3.5 py-1.5 font-sans text-[12.5px] font-semibold text-white backdrop-blur-sm transition-colors group-hover:border-white/45">

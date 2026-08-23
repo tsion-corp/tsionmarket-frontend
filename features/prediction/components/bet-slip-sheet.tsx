@@ -33,7 +33,7 @@ export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: B
   const t = useTranslations("prediction");
   // Every dollar figure renders in the user's selected display currency.
   const money = useMoney();
-  const signedMoney = (usd: number) => `${usd < 0 ? "-" : "+"}${money.format(Math.abs(usd))}`;
+  const signedMoney = (usd: number) => `${usd < 0 ? "-" : "+"}${money.formatExact(Math.abs(usd))}`;
   // Selling gives up the winning payout and cannot be undone, so it goes
   // through an explicit confirm step rather than firing on the first tap.
   const [confirming, setConfirming] = useState(false);
@@ -42,11 +42,11 @@ export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: B
   const outcomeColor = yes ? "#7CE7B0" : slip.outcome === "—" ? "#FFFFFF" : "#F6A5A5";
 
   const rows: StatLine[] = [
-    { k: t("amountStaked"), v: money.format(slip.staked) },
+    { k: t("amountStaked"), v: money.formatExact(slip.staked) },
     { k: t("shares"), v: slip.shares.toFixed(2) },
     { k: t("avgPrice"), v: priceCents(slip.avgPrice) },
-    { k: t("currentValue"), v: money.format(slip.currentValue) },
-    { k: t("payoutIfWins"), v: money.format(slip.payoutIfWins), c: "#7CE7B0" },
+    { k: t("currentValue"), v: money.formatExact(slip.currentValue) },
+    { k: t("payoutIfWins"), v: money.formatExact(slip.payoutIfWins), c: "#7CE7B0" },
     {
       k: t("profitLoss"),
       v: `${signedMoney(slip.pnl)} (${slip.pnl >= 0 ? "+" : ""}${slip.pnlPct.toFixed(1)}%)`,
@@ -58,7 +58,7 @@ export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: B
   const confirmRows: ConfirmRow[] = [
     { label: t("marketLabel"), value: slip.market },
     { label: t("shares"), value: slip.shares.toFixed(2) },
-    { label: t("currentValue"), value: money.format(slip.currentValue) },
+    { label: t("currentValue"), value: money.formatExact(slip.currentValue) },
   ];
   const resolution = resolutionInfo(slip.redeemable, slip.resolvesAt, undefined, claimable);
   if (resolution) {

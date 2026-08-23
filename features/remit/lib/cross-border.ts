@@ -223,7 +223,9 @@ export function recipientReceives(
   rate: number | null
 ): string | null {
   if (rate == null || !Number.isFinite(amountUsd) || amountUsd <= 0) return null;
-  return formatMoney(amountUsd, countryCurrency(country), rate);
+  // Never abbreviated: this is the figure the recipient is actually paid, and
+  // "KSh12.9K" does not tell them what lands in their hands.
+  return formatMoney(amountUsd, countryCurrency(country), rate, { exact: true });
 }
 
 // A name must have at least two letters and contain no digits, so an obviously

@@ -59,8 +59,8 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                 : phase === "placing"
                   ? t("placingBet")
                   : side === "yes"
-                    ? t("placeBetYes", { amount: money.format(amount) })
-                    : t("placeBetNo", { amount: money.format(amount) });
+                    ? t("placeBetYes", { amount: money.formatExact(amount) })
+                    : t("placeBetNo", { amount: money.formatExact(amount) });
 
   // One click: place, and if the account is short, move the stake from Base
   // USDC and retry until it lands.
@@ -82,8 +82,8 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
       });
       toast.success(
         side === "yes"
-          ? t("betPlacedYes", { amount: money.format(amount) })
-          : t("betPlacedNo", { amount: money.format(amount) }),
+          ? t("betPlacedYes", { amount: money.formatExact(amount) })
+          : t("betPlacedNo", { amount: money.formatExact(amount) }),
         { id: toastId }
       );
       onPlaced?.();
@@ -157,7 +157,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                           : "border-white/10 bg-white/4 text-white/70 hover:bg-white/8"
                       }`}
                     >
-                      {money.format(a)}
+                      {money.formatExact(a)}
                     </button>
                   ))}
                 </div>
@@ -165,7 +165,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
                 <div className="ws-inset flex items-center justify-between p-3.5 text-[13px] font-normal">
                   <span className="text-white/55">{t("payoutIfRight")}</span>
                   <span className="tnum text-accent font-medium">
-                    {money.format(Number(predictionPayout(amount, priceCents)))}
+                    {money.formatExact(Number(predictionPayout(amount, priceCents)))}
                   </span>
                 </div>
 

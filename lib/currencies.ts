@@ -70,9 +70,45 @@ export function searchCurrencies(query: string): Currency[] {
 // Zero-decimal currencies where cents are not shown.
 const NO_DECIMALS = new Set(["NGN", "UGX", "TZS", "XOF", "XAF", "RWF"]);
 
-export function formatMoney(amountUsd: number, currency: Currency, rate: number): string {
+// Above this, a figure is shown to three significant figures with a magnitude
+// suffix rather than in full. A weak currency turns an ordinary price into eight
+// or nine digits, which overflows a table cell and reads no better for it: an
+// ETH price of 3,235,725 naira says the same thing as 3.24M and fits.
+//
+// The threshold is on the displayed amount, not the dollar amount, because the
+// problem is the length of the rendered string. Raise it to keep more figures
+// exact; lower it to abbreviate sooner.
+export const COMPACT_ABOVE = 10_000;
+
+export interface FormatMoneyOptions {
+  /**
+   * Show every digit, whatever the size. Pass this wherever the figure is the
+   * amount of a transaction rather than the size of a holding: what a recipient
+   * is paid, what a trade stakes, what a customer is charged. "KSh12.9K" is a
+   * fine way to describe a balance and no way at all to state a payout.
+   */
+  exact?: boolean;
+}
+
+export function formatMoney(
+  amountUsd: number,
+  currency: Currency,
+  rate: number,
+  options: FormatMoneyOptions = {}
+): string {
   const value = amountUsd * rate;
   const noDecimals = NO_DECIMALS.has(currency.code);
+
+  // Compacted figures keep their decimals whatever the currency: the two digits
+  // are what carries the precision once the magnitude is a suffix, so a
+  // zero-decimal currency reading "3M" would throw away more than it saves.
+  if (!options.exact && Math.abs(value) >= COMPACT_ABOVE) {
+    const compact = value.toLocaleString(undefined, {
+      notation: "compact",
+      maximumFractionDigits: 2,
+    });
+    return `${currency.symbol}${compact}`;
+  }
   // Every caller shows an amount of money, never a unit price, so a non-zero
   // dust balance rounds up to the smallest displayed unit with a "<" marker
   // instead of spilling into sub-cent digits. Unit prices that need those

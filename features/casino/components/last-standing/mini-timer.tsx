@@ -508,7 +508,7 @@ function MiniTimerLive({
   const entryFeeEth = status ? Number(status.entryFee.amount) : 0;
   const canPlay = entryFeeEth > 0 && (ethHolding?.balance ?? 0) >= entryFeeEth;
   const stakeLabel = canPlay
-    ? t("ctaPlay", { amount: money.format(status?.entryFee.usdValue ?? 0) })
+    ? t("ctaPlay", { amount: money.formatExact(status?.entryFee.usdValue ?? 0) })
     : t("ctaAddMoney");
 
   const onStake = async () => {
