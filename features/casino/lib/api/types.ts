@@ -27,6 +27,9 @@ export type ChessTimeControl = string;
 export type ChessClockMode = "real_time" | "unlimited";
 
 export type ChessPerfKey = "ultraBullet" | "bullet" | "blitz" | "rapid" | "classical" | "standard";
+export type ChessLeaderboardPerfKey = Exclude<ChessPerfKey, "standard">;
+export type ChessRatingSkillLevel = "new" | "beginner" | "intermediate" | "advanced";
+export type ChessRatingChartRange = "7d" | "30d" | "90d" | "1y" | "all";
 
 export interface ChessComputerWager {
   stakeUsdc: string;
@@ -631,6 +634,9 @@ export interface ChessPlayerPerf {
 
 export interface ChessPlayerRatings {
   player: string;
+  skillLevel: ChessRatingSkillLevel;
+  initialRating: number;
+  onboardingLocked: boolean;
   items: ChessPlayerPerf[];
 }
 
@@ -647,6 +653,101 @@ export interface ChessRatingHistory {
   player: string;
   perfKey: ChessPerfKey;
   items: ChessRatingHistoryEntry[];
+}
+
+export interface ChessLeaderboardPlayer {
+  rank: number;
+  player: string;
+  displayName: string | null;
+  countryCode: string | null;
+  rating: number;
+  deviation: number;
+  games: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  ratingProgress: number;
+  latestAt: string | null;
+}
+
+export interface ChessLeaderboard {
+  perfKey: ChessLeaderboardPerfKey;
+  countryCode: string | null;
+  page: number;
+  limit: number;
+  activeWithinDays: number;
+  hasMore: boolean;
+  items: ChessLeaderboardPlayer[];
+}
+
+export interface ChessLeaderboardCountry {
+  countryCode: string;
+  playerCount: number;
+}
+
+export interface ChessLeaderboardCountries {
+  perfKey: ChessLeaderboardPerfKey;
+  activeWithinDays: number;
+  totalPlayers: number;
+  items: ChessLeaderboardCountry[];
+}
+
+export interface ChessRatingRecord {
+  wins: number;
+  draws: number;
+  losses: number;
+}
+
+export interface ChessPlayerRatingStats {
+  player: string;
+  displayName: string | null;
+  countryCode: string | null;
+  perfKey: ChessLeaderboardPerfKey;
+  rating: number;
+  deviation: number;
+  provisional: boolean;
+  games: number;
+  record: ChessRatingRecord;
+  highestRating: number;
+  highestAt: string | null;
+  lowestRating: number;
+  lowestAt: string | null;
+  ratingProgress: number;
+  globalRank: number | null;
+  percentile: number | null;
+}
+
+export interface ChessRatingChartPoint {
+  rating: number;
+  at: string;
+  matchId: string | null;
+}
+
+export interface ChessPlayerRatingChart {
+  player: string;
+  perfKey: ChessLeaderboardPerfKey;
+  range: ChessRatingChartRange;
+  points: ChessRatingChartPoint[];
+}
+
+export interface ChessRatingPoolStats {
+  perfKey: ChessLeaderboardPerfKey;
+  countryCode: string | null;
+  playerCount: number;
+  averageRating: number | null;
+  medianRating: number | null;
+  liveGames: number;
+  livePlayers: number;
+}
+
+export interface ChessLeaderboardRules {
+  initialRating: number;
+  minimumRating: number;
+  maximumRating: number;
+  minimumGames: number;
+  maximumDeviationExclusive: number;
+  activeWithinDays: number;
+  supportedPerfs: ChessLeaderboardPerfKey[];
 }
 
 export interface ChessInsightBucket {

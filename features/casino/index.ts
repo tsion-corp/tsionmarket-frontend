@@ -6,6 +6,7 @@ export { LastStandingSection } from "./components/last-standing/last-standing-se
 export { LastStandingLobby } from "./components/last-standing/last-standing-lobby";
 export { CreateSection } from "./components/chess/create-section";
 export { HistorySection } from "./components/chess/history-section";
+export { LeaderboardSection } from "./components/chess/leaderboard";
 export { InviteSection } from "./components/chess/invite-section";
 export { LearnSection } from "./components/chess/learn/learn-section";
 export { PuzzleSection } from "./components/chess/puzzle/puzzle-section";

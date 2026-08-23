@@ -37,6 +37,11 @@ const CHESS_NAV: readonly ChessNavItem[] = [
   { label: "Learn", href: "/casino/chess/learn", paths: ["/casino/chess/learn"] },
   { label: "Watch", href: "/casino/chess/watch", paths: ["/casino/chess/watch"] },
   {
+    label: "Leaderboard",
+    href: "/casino/chess/leaderboard",
+    paths: ["/casino/chess/leaderboard"],
+  },
+  {
     label: "Tournaments",
     href: "/casino/chess/tournaments",
     paths: ["/casino/chess/tournaments", "/casino/chess/swiss"],

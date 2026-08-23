@@ -440,10 +440,18 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
         );
       } else {
         void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.match(matchId) });
-        if (type === "gameOver" && coachPlayer) {
+        if (type === "gameOver") {
           void queryClient.invalidateQueries({
-            queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+            queryKey: ["casino", "chess", "ratings"],
           });
+          void queryClient.invalidateQueries({
+            queryKey: ["casino", "chess", "leaderboard"],
+          });
+          if (coachPlayer) {
+            void queryClient.invalidateQueries({
+              queryKey: CHESS_KEYS.coachState(matchId, coachPlayer),
+            });
+          }
         }
       }
     });
@@ -461,6 +469,14 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
     (next: ChessMatch) => {
       setOptimistic(null);
       queryClient.setQueryData(CHESS_KEYS.match(next.id), next);
+      if (next.state === "settled" && next.rating?.rated) {
+        void queryClient.invalidateQueries({
+          queryKey: ["casino", "chess", "ratings"],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["casino", "chess", "leaderboard"],
+        });
+      }
     },
     [queryClient]
   );
