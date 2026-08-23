@@ -86,7 +86,7 @@ export async function addKashToMetaMask(tokenAddress: string): Promise<void> {
           address: tokenAddress,
           symbol: "KASH",
           decimals: KASH_DECIMALS,
-          image: `${window.location.origin}/kash-coin.jpg`,
+          image: `${window.location.origin}/kash/kash-plus-coin.png`,
         },
       },
     });

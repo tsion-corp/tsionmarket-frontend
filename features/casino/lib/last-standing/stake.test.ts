@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ENTRY_USD, formatEth, stakeToSend, usdToWei, weiToUsd } from "./stake";
+import {
+  DEFAULT_ENTRY_USD,
+  defaultEntryUsd,
+  formatEth,
+  stakeToSend,
+  usdToWei,
+  weiToUsd,
+} from "./stake";
 
 describe("usdToWei", () => {
   it("converts the default entry at a round price", () => {
@@ -71,5 +78,25 @@ describe("formatEth", () => {
   it("does not round a dust amount up to something spendable", () => {
     // Six decimals of ETH is far below the stake; it must not read as 0.000001.
     expect(formatEth(1n)).toBe("0");
+  });
+});
+
+describe("defaultEntryUsd", () => {
+  // 0.0002 ETH floor, the figure on the live contract.
+  const floor = 200_000_000_000_000n;
+
+  it("quotes the floor when ETH makes it dearer than the preferred entry", () => {
+    // At $2,450 the floor is $0.49, above the $0.38 preference: the button
+    // must say $0.49, the stake the chain will actually take.
+    expect(defaultEntryUsd(floor, 2450)).toBeCloseTo(0.49, 2);
+  });
+
+  it("quotes the preferred entry when the floor is cheaper", () => {
+    expect(defaultEntryUsd(floor, 1500)).toBe(DEFAULT_ENTRY_USD);
+  });
+
+  it("quotes nothing until both the floor and the price are known", () => {
+    expect(defaultEntryUsd(null, 2450)).toBeNull();
+    expect(defaultEntryUsd(floor, 0)).toBeNull();
   });
 });

@@ -37,6 +37,17 @@ export function usdToWei(usd: number, ethPriceUsd: number): bigint {
   return (toScaled(usd) * WEI_PER_ETH) / toScaled(ethPriceUsd);
 }
 
+/**
+ * The stake a new game actually opens at, in dollars: our preferred entry or
+ * the contract's floor, whichever is higher. Null until both the floor and
+ * the price are known, because a figure quoted before then is a guess and the
+ * button must not print a guess.
+ */
+export function defaultEntryUsd(floorWei: bigint | null, ethPriceUsd: number): number | null {
+  if (floorWei === null || !Number.isFinite(ethPriceUsd) || ethPriceUsd <= 0) return null;
+  return Math.max(DEFAULT_ENTRY_USD, weiToUsd(floorWei, ethPriceUsd));
+}
+
 /** What `wei` is worth in dollars at `ethPriceUsd`. For display only. */
 export function weiToUsd(wei: bigint, ethPriceUsd: number): number {
   if (!Number.isFinite(ethPriceUsd) || ethPriceUsd <= 0) return 0;

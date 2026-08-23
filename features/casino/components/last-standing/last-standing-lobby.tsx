@@ -19,7 +19,7 @@ import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet
 import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
 import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
-import { DEFAULT_ENTRY_USD } from "@/features/casino/lib/last-standing/stake";
+import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 
 // The lobby: every game currently taking joins, and the way to open one.
 //
@@ -65,7 +65,14 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
     [currency, rate]
   );
 
-  const defaultEntry = useMemo(() => formatUsd(DEFAULT_ENTRY_USD), [formatUsd]);
+  // What a game opens at today: the contract floor priced live, or our
+  // preferred entry if that is higher. Until it is known the button says
+  // "Start a game" with no number rather than a number that might be wrong.
+  const { usd: defaultEntryUsd } = useDefaultEntry();
+  const defaultEntry = useMemo(
+    () => (defaultEntryUsd === null ? null : formatUsd(defaultEntryUsd)),
+    [defaultEntryUsd, formatUsd]
+  );
 
   return (
     // The same page frame the rest of the casino and the dashboard use, so the
@@ -129,7 +136,9 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
               onClick={() => setStartOpen(true)}
               className="bg-accent mt-3.5 cursor-pointer rounded-[12px] px-5 py-2.5 text-[13.5px] font-semibold text-black"
             >
-              {t("startCtaShort", { amount: defaultEntry })}
+              {defaultEntry === null
+                ? t("startTitle")
+                : t("startCtaShort", { amount: defaultEntry })}
             </button>
           </div>
         ))}

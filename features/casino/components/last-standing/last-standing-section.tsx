@@ -1049,8 +1049,10 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
             </div>
 
             {/* Every player brought in grows the pot the starter takes 10% of,
-                so the link sits with the game rather than behind a menu. */}
-            <ShareGame gameId={gameId} />
+                so the invite sits with the game. On a laptop the same card
+                heads the side rail instead, where the QR is in view without
+                scrolling. */}
+            <ShareGame gameId={gameId} className="mt-4 min-[980px]:hidden" />
 
             {/* Play CTA — the primary action, silver whether you're playing or
                 being nudged to add money. The add-money state carries a coin and
@@ -1236,6 +1238,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
 
         {/* Side rail */}
         <div className="flex flex-col gap-4">
+          <ShareGame gameId={gameId} className="hidden min-[980px]:block" />
           <div className="ws-glass rounded-[22px] p-5">
             <div className="flex items-center justify-between">
               <span className="text-[13px] font-semibold text-white/80">{t("recentActivity")}</span>

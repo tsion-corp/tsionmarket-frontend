@@ -476,20 +476,34 @@ function cachedPrices<T>(cacheKey: string, load: () => Promise<T>): Promise<T> {
   return cached(cacheKey, load, PRICES_CACHE_TTL_MS);
 }
 
+// Alchemy's by-symbol price endpoint refuses more than 25 symbols in one
+// request ("Maximum 25 symbols per request", verified live). The client folds
+// every dashboard section's symbols into one call on purpose, and the spot
+// list now runs well past 25, so the split has to happen here.
+export const PRICE_SYMBOLS_PER_REQUEST = 25;
+
 export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
   if (symbols.length === 0) return [];
-  const cacheKey = `prices:${[...symbols].sort().join(",")}`;
+  const unique = [...new Set(symbols)].sort();
+  const cacheKey = `prices:${unique.join(",")}`;
   return cachedPrices(cacheKey, async () => {
-    const params = new URLSearchParams();
-    for (const s of symbols) params.append("symbols", s);
-    const res = await alchemyFetch(
-      (key) => `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
+    const pages = await Promise.all(
+      chunk(unique, PRICE_SYMBOLS_PER_REQUEST).map(async (page) => {
+        const params = new URLSearchParams();
+        for (const s of page) params.append("symbols", s);
+        const res = await alchemyFetch(
+          (key) =>
+            `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-symbol?${params.toString()}`
+        );
+        return res.json();
+      })
     );
-    const data = await res.json();
     const out: SymbolPrice[] = [];
-    for (const item of data?.data ?? []) {
-      const usd = item?.prices?.find((p: { currency: string }) => p.currency === "usd");
-      out.push({ symbol: item.symbol, priceUsd: usd ? parseFloat(usd.value) : 0 });
+    for (const data of pages) {
+      for (const item of data?.data ?? []) {
+        const usd = item?.prices?.find((p: { currency: string }) => p.currency === "usd");
+        out.push({ symbol: item.symbol, priceUsd: usd ? parseFloat(usd.value) : 0 });
+      }
     }
     return out;
   });
