@@ -43,14 +43,11 @@ function compact(properties: Record<string, unknown>): Record<string, unknown> {
 }
 
 // Call once, before any other export here. A no-op on the server, and a
-// no-op (with a console warning) if no token is configured, so local dev
+// silent no-op if no token is configured, so local dev
 // without NEXT_PUBLIC_MIXPANEL_TOKEN set never crashes and never phones home.
 export function initAnalytics(): void {
   if (initialized || typeof window === "undefined") return;
-  if (!TOKEN) {
-    console.warn("[analytics] NEXT_PUBLIC_MIXPANEL_TOKEN is not set; tracking is disabled.");
-    return;
-  }
+  if (!TOKEN) return;
   mixpanel.init(TOKEN, {
     persistence: "localStorage",
     // Off: the catalog in ./events is a deliberate taxonomy, and autocapture

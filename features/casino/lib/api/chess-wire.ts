@@ -112,6 +112,7 @@ export interface ChessTimeExtensionsWire {
 
 export interface ChessMatchWire {
   id: string;
+  videoEnabled?: boolean;
   // The service currently sets this to the match id; carried so a future
   // short-code scheme works without a client change.
   inviteCode?: string;
@@ -129,6 +130,10 @@ export interface ChessMatchWire {
   clockUpdatedAt?: string;
   white: string | null;
   black: string | null;
+  whiteCountryCode?: string | null;
+  blackCountryCode?: string | null;
+  whiteDisplayName?: string | null;
+  blackDisplayName?: string | null;
   drawOfferBy: string | null;
   takeback?: ChessTakebackWire;
   rematch?: ChessRematchWire;
@@ -411,14 +416,18 @@ function toMatchRating(rating?: ChessMatchRatingWire | null): ChessMatchRating {
 
 export function toPlayer(
   wallet: string | null,
-  rating?: ChessMatchPlayerRatingWire | null
+  rating?: ChessMatchPlayerRatingWire | null,
+  countryCode?: string | null,
+  displayName?: string | null
 ): ChessPlayer | null {
   if (!wallet) return null;
+  const publicName = displayName?.trim();
   return {
     id: wallet,
-    username: EVM_WALLET.test(wallet) ? truncateAddress(wallet) : wallet,
+    username: publicName || (EVM_WALLET.test(wallet) ? truncateAddress(wallet) : wallet),
     rating: rating?.rating ?? null,
     provisional: rating?.provisional ?? null,
+    countryCode: countryCode ?? null,
     walletAddress: wallet,
   };
 }
@@ -509,8 +518,17 @@ export function toChessMatch(wire: ChessMatchWire, options: ToChessMatchOptions 
   return {
     id: wire.id,
     state: STATE_BY_STATUS[wire.status],
-    white: nameComputerSeat(toPlayer(wire.white, wire.rating?.white), "white", wire.computer),
-    black: nameComputerSeat(toPlayer(wire.black, wire.rating?.black), "black", wire.computer),
+    videoEnabled: wire.videoEnabled ?? false,
+    white: nameComputerSeat(
+      toPlayer(wire.white, wire.rating?.white, wire.whiteCountryCode, wire.whiteDisplayName),
+      "white",
+      wire.computer
+    ),
+    black: nameComputerSeat(
+      toPlayer(wire.black, wire.rating?.black, wire.blackCountryCode, wire.blackDisplayName),
+      "black",
+      wire.computer
+    ),
     timeControl:
       wire.timeControl.mode === "unlimited"
         ? "Unlimited"
@@ -749,6 +767,7 @@ export function toChessChallenge(wire: ChessMatchWire): ChessChallenge {
   );
   return {
     id: wire.id,
+    videoEnabled: wire.videoEnabled ?? false,
     creator: creator ?? {
       id: wire.id,
       username: "Open seat",

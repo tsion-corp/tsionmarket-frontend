@@ -140,27 +140,33 @@ export function playMoveSound(kind: MoveSound = "move"): void {
   }
 }
 
-// A single robotic countdown beep for the final seconds of a clock. The pitch
-// climbs as the number falls (10 low, 1 high) so the urgency is audible, and
-// the last three tick harder. `n` is the whole second being shown.
-export function playCountdownBeep(n: number): void {
+// One compact warning when the player's clock enters its final ten seconds.
+// Mature chess clients use a single cue here; repeated beeps compete with move
+// sounds and make a time scramble harder to follow.
+export function playLowTimeWarning(): void {
   const ac = audioContext();
   if (!ac) return;
   if (ac.state === "suspended") void ac.resume();
   try {
-    const clamped = Math.max(0, Math.min(10, n));
-    const freq = 440 + (10 - clamped) * 55; // 440Hz at 10 → ~990Hz at 1
-    const urgent = clamped <= 3;
     tone(ac, {
-      freqStart: freq,
-      freqEnd: freq,
+      freqStart: 880,
+      freqEnd: 660,
       attack: 0.004,
-      hold: urgent ? 0.16 : 0.1,
-      peak: urgent ? 0.26 : 0.18,
-      type: "square",
+      hold: 0.22,
+      peak: 0.2,
+      type: "triangle",
+    });
+    tone(ac, {
+      freqStart: 880,
+      freqEnd: 660,
+      at: 0.3,
+      attack: 0.004,
+      hold: 0.24,
+      peak: 0.24,
+      type: "triangle",
     });
   } catch {
-    // A missed beep must never interrupt the game.
+    // A missed warning must never interrupt the game.
   }
 }
 

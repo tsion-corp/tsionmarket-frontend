@@ -15,6 +15,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Design handoff bundles are reference material, not code we lint.
     "design_handoff_*/**",
+    // Upstream source snapshots are documentation, not application code.
+    "reference/**",
     // Vendored Stockfish worker build (GPLv3, shipped as a static asset).
     "public/stockfish/**",
   ]),

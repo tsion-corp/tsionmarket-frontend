@@ -14,6 +14,47 @@ const PRIVATE_READ_PATTERNS = [
 
 const EVM_WALLET = /^0x[0-9a-fA-F]{40}$/u;
 const TOURNAMENT_NAME_MAX = 30;
+const PUBLIC_NAME_MAX = 60;
+
+function normalizedPublicName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.trim().replace(/\s+/gu, " ");
+  if (!name || name === "Account" || name === "World Street user") return null;
+  return [...name].slice(0, PUBLIC_NAME_MAX).join("");
+}
+
+export function chessDisplayNameOfUser(user: User | null): string | null {
+  if (!user) return null;
+  const accountByType = (type: string) =>
+    user.linked_accounts.find((account) => account.type === type) as
+      Record<string, unknown> | undefined;
+  const google = accountByType("google_oauth");
+  const twitter = accountByType("twitter_oauth");
+  const github = accountByType("github_oauth");
+  const farcaster = accountByType("farcaster");
+  const telegram = accountByType("telegram");
+  const email = accountByType("email");
+  const telegramName = [telegram?.first_name, telegram?.last_name]
+    .filter((part): part is string => typeof part === "string" && part.trim().length > 0)
+    .join(" ");
+  const candidates = [
+    google?.name,
+    twitter?.name,
+    twitter?.username,
+    github?.name,
+    github?.username,
+    farcaster?.display_name,
+    farcaster?.username,
+    telegramName,
+    telegram?.username,
+  ];
+  for (const candidate of candidates) {
+    const name = normalizedPublicName(candidate);
+    if (name) return name;
+  }
+  const address = typeof email?.address === "string" ? email.address : "";
+  return normalizedPublicName(address.split("@")[0]);
+}
 
 // The match endpoints whose caller identity names a seat: moves, the match
 // actions, and the social surfaces (comments, note, chat) that the service gates
@@ -26,7 +67,8 @@ const TOURNAMENT_NAME_MAX = 30;
 // the proven wallet as before, which is what an ordinary wallet-seated game
 // sends.
 const MATCH_SEAT_IDENTITY =
-  /^matches\/[^/]+\/(moves|resign|draw-offer|draw-response|claim-draw|claim-timeout|abort|rematch|rematch-decline|takeback|takeback-decline|comments(?:\/[^/]+)?|note|chat)$/u;
+  /^matches\/[^/]+\/(moves|resign|draw-offer|draw-response|claim-draw|claim-timeout|abort|rematch|rematch-decline|takeback|takeback-decline|comments(?:\/[^/]+)?|note|chat|video\/token)$/u;
+const ARENA_JOIN = /^arenas\/[^/]+\/join$/u;
 
 function isWalletLike(value: unknown): boolean {
   return typeof value !== "string" || value === "" || EVM_WALLET.test(value);
@@ -105,6 +147,20 @@ export function withChessIdentity(joined: string, raw: string, wallet: string): 
   if ("bettor" in record) record.bettor = wallet;
   if ("walletAddress" in record) record.walletAddress = wallet;
   if ("organizer" in record) record.organizer = tournamentOrganizer(wallet);
+  if (ARENA_JOIN.test(joined)) {
+    delete record.countryCode;
+    delete record.country_code;
+  }
+  return JSON.stringify(record);
+}
+
+export function withChessCountry(joined: string, raw: string, countryCode: string | null): string {
+  if (!ARENA_JOIN.test(joined) || !countryCode) return raw;
+  const code = countryCode.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/u.test(code)) return raw;
+  const record = parseBody(raw);
+  if (!record) return raw;
+  record.countryCode = code;
   return JSON.stringify(record);
 }
 

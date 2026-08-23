@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
@@ -8,9 +9,12 @@ import { useChessMatch, useChessMatchSocial } from "@/features/casino/hooks/use-
 import { useMatchMarket, usePlaceBet } from "@/features/casino/hooks/use-casino-betting";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { ChessBoard } from "@/features/casino/components/chess/chess-board";
-import { FinalCountdown } from "@/features/casino/components/chess/final-countdown";
 import { useBoardTheme } from "@/features/casino/lib/chess/board-theme";
-import { matchActorLabel, playerDisplayName } from "@/features/casino/lib/chess/social";
+import {
+  matchActorLabel,
+  playerDisplayName,
+  playerIdentityLabel,
+} from "@/features/casino/lib/chess/social";
 import { LiveChatFeed } from "@/features/casino/components/live-chat-feed";
 import { CapturedRow } from "@/features/casino/components/chess/captured-row";
 import {
@@ -40,29 +44,18 @@ import { estimatePariMutuelReturn, impliedProbability } from "@/features/casino/
 import { friendlyError, isConflictError } from "@/lib/errors";
 import { track } from "@/lib/analytics/mixpanel";
 import { toast } from "@/lib/toast";
-import type { BetSelection, ChessColor } from "@/features/casino/lib/api/types";
+import type { BetSelection, ChessColor, ChessMatch } from "@/features/casino/lib/api/types";
+import { formatChessClock, lowChessClockClass } from "@/features/casino/lib/chess/clock";
+
+const LiveVideoPlayer = dynamic(
+  () =>
+    import("@/features/casino/components/chess/broadcast").then((module) => module.LiveVideoPlayer),
+  { ssr: false }
+);
 
 // The selection ids double as keys in the common chess namespace, which
 // carries the localized side names.
 const SELECTIONS: readonly BetSelection[] = ["white", "draw", "black"];
-
-// A running clock reads as urgent under 20s and critical under 10s, so a
-// watcher sees both sides' flags approach zero in red, the same warning the
-// players get. Empty string keeps the normal styling when there is time to
-// spare or the game is not live.
-const LOW_CLOCK_SECONDS = 20;
-const CRITICAL_CLOCK_SECONDS = 10;
-function lowClockClass(seconds: number, live: boolean): string {
-  if (!live || seconds <= 0 || seconds > LOW_CLOCK_SECONDS) return "";
-  return seconds <= CRITICAL_CLOCK_SECONDS
-    ? "border-down/70 text-down animate-pulse border"
-    : "text-down/70";
-}
-
-function formatClock(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
 
 function PlayerStrip({
   label,
@@ -175,12 +168,24 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
     const advantage = colour === "w" ? captured.advantage : -captured.advantage;
     return advantage > 0 ? advantage : 0;
   };
-  // Ratings are hidden until the service actually exposes them: a real one gets
-  // shown in parentheses, an unknown one just shows the name.
-  const seatLabel = (player: { username: string; rating: number | null }) =>
-    player.rating !== null ? `${player.username} (${player.rating})` : player.username;
+  const seatLabel = (player: NonNullable<ChessMatch["white"]>) =>
+    playerIdentityLabel(player.username, player);
   const blackLabel = match.black ? seatLabel(match.black) : tCommon("black");
   const whiteLabel = match.white ? seatLabel(match.white) : tCommon("white");
+  const videoParticipants = [
+    match.white
+      ? {
+          identities: [match.white.id, match.white.walletAddress, match.white.username],
+          label: whiteLabel,
+        }
+      : null,
+    match.black
+      ? {
+          identities: [match.black.id, match.black.walletAddress, match.black.username],
+          label: blackLabel,
+        }
+      : null,
+  ].filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   const whiteChatLabel = playerDisplayName(
     match.white,
     wallet.name,
@@ -317,6 +322,14 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
             dissolve, with a minimal say-something bar at the foot. On phones
             the column stacks between the board and the market. */}
         <aside className="order-2 flex h-[340px] flex-col rounded-[8px] border border-white/6 bg-black/20 p-4 shadow-[0_1px_1px_rgba(0,0,0,0.20)] xl:order-none xl:h-[calc(100dvh-140px)] xl:rounded-none xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
+          {match.videoEnabled && !over ? (
+            <LiveVideoPlayer
+              matchId={match.id}
+              viewer="spectator"
+              participants={videoParticipants}
+              className="mb-3 shrink-0"
+            />
+          ) : null}
           <LiveChatFeed
             messages={social.chatMessages}
             labelFor={(line) =>
@@ -373,8 +386,8 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 pieces={capturedFor("b")}
                 lead={leadFor("b")}
                 color="w"
-                clock={formatClock(clocks?.b ?? 0)}
-                lowClock={lowClockClass(clocks?.b ?? 0, live)}
+                clock={formatChessClock(clocks?.b ?? 0)}
+                lowClock={lowChessClockClass(clocks?.b ?? 0, live)}
               />
             </div>
 
@@ -384,7 +397,6 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
               ) : (
                 <CasinoLoading rows={1} />
               )}
-              <FinalCountdown secondsLeft={clocks?.[match.turn] ?? 0} live={live} />
             </div>
 
             <div className="mt-3">
@@ -393,8 +405,8 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
                 pieces={capturedFor("w")}
                 lead={leadFor("w")}
                 color="b"
-                clock={formatClock(clocks?.w ?? 0)}
-                lowClock={lowClockClass(clocks?.w ?? 0, live)}
+                clock={formatChessClock(clocks?.w ?? 0)}
+                lowClock={lowChessClockClass(clocks?.w ?? 0, live)}
               />
             </div>
           </div>
@@ -597,7 +609,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
 
       {over ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 px-4 backdrop-blur-md">
-          <div className="ws-glass w-[340px] rounded-2xl px-8 py-9 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)]">
+          <div className="ws-glass w-full max-w-[340px] rounded-2xl px-5 py-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:px-8 sm:py-9">
             <div className="text-[17px] font-semibold text-white">{resultText}</div>
             <Link
               href="/casino/chess"

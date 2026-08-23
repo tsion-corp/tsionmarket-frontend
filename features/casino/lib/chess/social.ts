@@ -1,6 +1,22 @@
 import { truncateAddress } from "@/lib/format";
 import type { ChessMatch, ChessPlayer } from "@/features/casino/lib/api/types";
 
+export function countryFlag(countryCode: string | null | undefined): string {
+  const code = countryCode?.trim().toUpperCase() ?? "";
+  if (!/^[A-Z]{2}$/u.test(code)) return "";
+  return String.fromCodePoint(...code.split("").map((letter) => 127397 + letter.charCodeAt(0)));
+}
+
+export function playerIdentityLabel(
+  label: string,
+  player: ChessPlayer | null,
+  rating: number | null = player?.rating ?? null
+): string {
+  const flag = countryFlag(player?.countryCode);
+  const identity = flag ? `${flag} ${label}` : label;
+  return rating === null ? identity : `${identity} (${rating})`;
+}
+
 export function formatChatTime(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";

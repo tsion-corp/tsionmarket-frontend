@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import Blockies from "react-blockies";
+import { Identicon } from "@/components/ui/identicon";
 import { useTopHolders } from "@/features/prediction/hooks/use-prediction-detail";
 import { compactUsd, shortAddress } from "@/features/prediction/lib/format";
 import type { Side } from "@/features/prediction/lib/types";
@@ -52,7 +52,7 @@ export function TopHolders({ marketId }: TopHoldersProps) {
                 {i + 1}
               </span>
               <span className="overflow-hidden rounded-full">
-                <Blockies seed={h.holder.toLowerCase()} size={8} scale={3} />
+                <Identicon seed={h.holder} />
               </span>
               <span className="flex-1 truncate font-mono text-[12.5px] text-white/80">
                 {shortAddress(h.holder)}

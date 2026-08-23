@@ -6,6 +6,7 @@ function match(over: Partial<ChessMatch> = {}): ChessMatch {
   return {
     id: "m1",
     state: "in_progress",
+    videoEnabled: over.videoEnabled ?? false,
     white: {
       id: "0xDD0737-6C2E",
       username: "0xDD0737-6C2E",

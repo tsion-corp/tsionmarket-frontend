@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import type {
   Board,
   Move,
@@ -25,7 +25,7 @@ const PIECE_HALO =
 // change to that transform which the browser animates on the GPU. The element
 // is never remounted, so the same piece glides — and castling, en passant, and
 // promotion all animate because each surviving piece keeps its identity.
-const PIECE_TRANSITION = "transform .3s cubic-bezier(0, 0, .4, 1)";
+const PIECE_TRANSITION = "transform .18s ease-in-out";
 
 // A piece on the board with a stable identity that survives across positions, so
 // React reconciles a moved piece to the same DOM node and its transform (not the
@@ -152,6 +152,18 @@ interface ChessBoardProps {
   theme?: BoardTheme;
   // Omit to render a read-only board (spectator view).
   onSquareClick?: (r: number, c: number) => void;
+  onSquareDrop?: (from: Square, to: Square) => void;
+}
+
+interface PointerGesture {
+  pointerId: number;
+  from: Square;
+  x: number;
+  y: number;
+  startX: number;
+  startY: number;
+  piece: Board[number][number];
+  moved: boolean;
 }
 
 const FILES = [0, 1, 2, 3, 4, 5, 6, 7];
@@ -169,8 +181,11 @@ export const ChessBoard = memo(function ChessBoard({
   orientation = "w",
   theme = DEFAULT_THEME,
   onSquareClick,
+  onSquareDrop,
 }: ChessBoardProps) {
   const flipped = orientation === "b";
+  const boardRef = useRef<HTMLDivElement | null>(null);
+  const [gesture, setGesture] = useState<PointerGesture | null>(null);
 
   const serial = useMemo(() => serialize(board), [board]);
   const [placement, setPlacement] = useState<Placement>(() => initialPlacement(board, serial));
@@ -195,8 +210,75 @@ export const ChessBoard = memo(function ChessBoard({
   const bottomRank = ranks[ranks.length - 1];
   const leftFile = files[0];
 
+  const pointerPosition = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rect = boardRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+    const x = Math.min(rect.width, Math.max(0, event.clientX - rect.left));
+    const y = Math.min(rect.height, Math.max(0, event.clientY - rect.top));
+    const displayC = Math.min(7, Math.floor((x / rect.width) * 8));
+    const displayR = Math.min(7, Math.floor((y / rect.height) * 8));
+    return {
+      x,
+      y,
+      square: {
+        r: flipped ? 7 - displayR : displayR,
+        c: flipped ? 7 - displayC : displayC,
+      } satisfies Square,
+    };
+  };
+
+  const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!onSquareClick && !onSquareDrop) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const point = pointerPosition(event);
+    if (!point) return;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setGesture({
+      pointerId: event.pointerId,
+      from: point.square,
+      x: point.x,
+      y: point.y,
+      startX: point.x,
+      startY: point.y,
+      piece: board[point.square.r][point.square.c],
+      moved: false,
+    });
+  };
+
+  const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const point = pointerPosition(event);
+    if (!point) return;
+    const moved =
+      gesture.moved || Math.hypot(point.x - gesture.startX, point.y - gesture.startY) >= 4;
+    setGesture((current) => (current ? { ...current, x: point.x, y: point.y, moved } : current));
+  };
+
+  const finishPointer = (event: ReactPointerEvent<HTMLDivElement>, cancelled = false) => {
+    if (!gesture || gesture.pointerId !== event.pointerId) return;
+    const point = pointerPosition(event);
+    setGesture(null);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (cancelled || !point) return;
+    if (gesture.moved && gesture.piece && onSquareDrop) {
+      onSquareDrop(gesture.from, point.square);
+      return;
+    }
+    onSquareClick?.(point.square.r, point.square.c);
+  };
+
   return (
-    <div className="relative w-full overflow-hidden rounded-md border border-white/10">
+    <div
+      ref={boardRef}
+      className="relative w-full overflow-hidden rounded-md border border-white/10"
+      style={{ touchAction: onSquareClick || onSquareDrop ? "none" : undefined }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={(event) => finishPointer(event)}
+      onPointerCancel={(event) => finishPointer(event, true)}
+    >
       {/* Board layer: colours, highlights, coordinates, the check glow, and the
           click targets. One cell per square. */}
       <div className="grid grid-cols-8">
@@ -222,9 +304,8 @@ export const ChessBoard = memo(function ChessBoard({
             return (
               <div
                 key={`${r}-${c}`}
-                onClick={onSquareClick ? () => onSquareClick(r, c) : undefined}
                 className={`relative flex aspect-square items-center justify-center ${
-                  onSquareClick ? "cursor-pointer" : ""
+                  onSquareClick || onSquareDrop ? "cursor-pointer" : ""
                 }`}
                 style={{ background, containerType: "size" }}
               >
@@ -285,6 +366,10 @@ export const ChessBoard = memo(function ChessBoard({
               transform: `translate(${displayCol(p.c) * 100}%, ${displayRow(p.r) * 100}%)`,
               transition: PIECE_TRANSITION,
               willChange: "transform",
+              visibility:
+                gesture?.moved && gesture.from.r === p.r && gesture.from.c === p.c
+                  ? "hidden"
+                  : "visible",
             }}
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -298,6 +383,28 @@ export const ChessBoard = memo(function ChessBoard({
           </div>
         ))}
       </div>
+      {gesture?.moved && gesture.piece ? (
+        <div
+          className="pointer-events-none absolute z-20 flex items-center justify-center"
+          style={{
+            width: "12.5%",
+            aspectRatio: "1",
+            left: 0,
+            top: 0,
+            transform: `translate3d(${gesture.x}px, ${gesture.y}px, 0) translate(-50%, -50%) scale(1.06)`,
+            willChange: "transform",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={pieceSrc(gesture.piece.color, gesture.piece.type)}
+            alt=""
+            draggable={false}
+            className="h-full w-full select-none"
+            style={{ filter: PIECE_HALO }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 });

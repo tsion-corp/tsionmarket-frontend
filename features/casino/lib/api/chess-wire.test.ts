@@ -121,6 +121,24 @@ describe("result", () => {
   });
 });
 
+describe("player identity", () => {
+  it("maps backend public profiles onto both match seats", () => {
+    const match = toChessMatch(
+      wire({
+        whiteCountryCode: "NG",
+        blackCountryCode: "GH",
+        whiteDisplayName: "Abraham Anavheoba",
+        blackDisplayName: "Kwame Player",
+      })
+    );
+
+    expect(match.white?.countryCode).toBe("NG");
+    expect(match.black?.countryCode).toBe("GH");
+    expect(match.white?.username).toBe("Abraham Anavheoba");
+    expect(match.black?.username).toBe("Kwame Player");
+  });
+});
+
 describe("match", () => {
   it("maps every lifecycle status onto our state", () => {
     expect(toChessMatch(wire({ status: "waiting" })).state).toBe("awaiting_opponent");
@@ -459,12 +477,14 @@ describe("live social frames", () => {
 
 describe("challenge", () => {
   it("presents a waiting game as joinable, with the match id as the invite", () => {
-    const c = toChessChallenge(wire({ status: "waiting", black: null }));
+    const c = toChessChallenge(wire({ status: "waiting", black: null, videoEnabled: true }));
     expect(c.id).toBe("3f2504e0-4f89-11d3-9a0c-0305e82c3301");
     expect(c.inviteCode).toBe(c.id);
     expect(c.creator.walletAddress).toBe("0xwhite");
     expect(c.timeControl).toBe("5+3");
     expect(c.stakeUsdc).toBeNull();
+    expect(c.videoEnabled).toBe(true);
+    expect(toChessMatch(wire({ videoEnabled: true })).videoEnabled).toBe(true);
   });
 
   it("prefers the service's own invite code when it sends one", () => {

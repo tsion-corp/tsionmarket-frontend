@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { User } from "@privy-io/node";
 import {
+  chessDisplayNameOfUser,
   chessReadNeedsSession,
   walletOfUser,
+  withChessCountry,
   withChessReadIdentity,
   withChessIdentity,
 } from "@/lib/server/chess-identity";
@@ -37,6 +39,21 @@ describe("chess identity helper", () => {
   it("finds the caller's ethereum wallet on the verified Privy user", () => {
     expect(walletOfUser(userWithWallet("0xabc"))).toBe("0xabc");
     expect(walletOfUser(null)).toBeNull();
+  });
+
+  it("derives the public chess name from the verified Privy profile", () => {
+    const user = userWithWallet("0xabc");
+    (user as unknown as { linked_accounts: unknown[] }).linked_accounts.unshift({
+      type: "google_oauth",
+      email: "abraham@example.com",
+      name: "  Abraham   Anavheoba  ",
+      subject: "google-1",
+      verified_at: 0,
+      first_verified_at: 0,
+      latest_verified_at: 0,
+    });
+    expect(chessDisplayNameOfUser(user)).toBe("Abraham Anavheoba");
+    expect(chessDisplayNameOfUser(userWithWallet("0xabc"))).toBe("player");
   });
 
   it("prefers the embedded Privy wallet over an external wallet listed first", () => {
@@ -107,6 +124,23 @@ describe("chess identity helper", () => {
         walletAddress: "0xabc",
         amountUsdc: "5",
       })
+    );
+  });
+
+  it("replaces a browser-supplied Arena country with the server detection", () => {
+    const identified = withChessIdentity(
+      "arenas/123/join",
+      JSON.stringify({
+        name: "Player-abcd",
+        walletAddress: "0xspoofed",
+        countryCode: "US",
+        country_code: "GB",
+      }),
+      "0xabc"
+    );
+
+    expect(withChessCountry("arenas/123/join", identified, "ng")).toBe(
+      JSON.stringify({ name: "Player-abcd", walletAddress: "0xabc", countryCode: "NG" })
     );
   });
 
@@ -181,6 +215,13 @@ describe("chess identity helper", () => {
         proven
       )
     ).toBe(JSON.stringify({ player: "0xDD0737-6C2E", uci: "e2e4" }));
+    expect(
+      withChessIdentity(
+        "matches/123/video/token",
+        JSON.stringify({ player: "0xDD0737-6C2E" }),
+        proven
+      )
+    ).toBe(JSON.stringify({ player: "0xDD0737-6C2E" }));
     expect(
       withChessIdentity(
         "matches/123/comments",

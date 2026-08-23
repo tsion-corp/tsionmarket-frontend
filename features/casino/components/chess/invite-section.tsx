@@ -23,8 +23,8 @@ function timeControlLabel(t: ReturnType<typeof useTranslations>, tc: string): st
   return tc === "3+2" || tc === "5+3" ? t("blitz", { tc }) : t("rapid", { tc });
 }
 
-// Landing screen for a challenge link. Rendered without the app shell so the
-// invite reads as a focused offer, the way the recipient meets it.
+// Landing screen for a challenge link. The route supplies the shared chess
+// shell while this component keeps the offer itself deliberately focused.
 export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
   const t = useTranslations("casino.chess.invite");
   const tCommon = useTranslations("casino.chess.common");
@@ -45,8 +45,10 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
   });
 
   const frame = (children: React.ReactNode) => (
-    <div className="flex min-h-screen items-center justify-center bg-black p-6">
-      <div className="ws-glass w-full max-w-[440px] rounded-[20px] p-9 text-center">{children}</div>
+    <div className="flex min-h-[calc(100svh-105px)] items-center justify-center px-4 py-8 sm:px-6 md:min-h-[calc(100svh-60px)]">
+      <div className="ws-glass w-full max-w-[440px] rounded-[18px] border border-white/[0.08] bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.025))] p-5 text-center shadow-[0_30px_90px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)] sm:p-9">
+        {children}
+      </div>
     </div>
   );
 
@@ -87,6 +89,7 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       <div className="text-[15px]">{challenge.creator.username}</div>
       <div className="mb-5 text-[12px] font-normal text-white/50">
         {timeControlLabel(tCommon, challenge.timeControl)}
+        {challenge.videoEnabled ? " · Video match" : ""}
       </div>
       {staked && cashier.configured ? (
         <div className="mb-5 text-left">
@@ -115,7 +118,7 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       {/* Walking away from an invite is the other half of accepting it: without
           it the funnel only ever shows the seats that were taken. */}
       <Link
-        href="/casino"
+        href="/casino/chess"
         onClick={() => track("chess_challenge_declined")}
         className="block w-full p-1.5 text-[12.5px] font-normal text-white/50 hover:text-white"
       >

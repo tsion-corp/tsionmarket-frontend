@@ -2,18 +2,33 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { ChessRoundPageShell, SpectateSection } from "@/features/casino";
+import {
+  CasinoPage,
+  ChessRoundPageShell,
+  LiveGamesSection,
+  SpectateSection,
+} from "@/features/casino";
 
 function WatchFromParams() {
-  return <SpectateSection matchId={useSearchParams()?.get("match") ?? null} />;
+  const matchId = useSearchParams()?.get("match") ?? null;
+  if (!matchId) {
+    return (
+      <CasinoPage hideBackLink>
+        <LiveGamesSection />
+      </CasinoPage>
+    );
+  }
+  return (
+    <ChessRoundPageShell>
+      <SpectateSection matchId={matchId} />
+    </ChessRoundPageShell>
+  );
 }
 
 export default function ChessWatchPage() {
   return (
-    <ChessRoundPageShell>
-      <Suspense fallback={null}>
-        <WatchFromParams />
-      </Suspense>
-    </ChessRoundPageShell>
+    <Suspense fallback={null}>
+      <WatchFromParams />
+    </Suspense>
   );
 }

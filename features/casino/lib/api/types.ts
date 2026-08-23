@@ -61,6 +61,8 @@ export interface ChessPlayer {
   // seeded profile).
   rating: number | null;
   provisional?: boolean | null;
+  // Optional during rolling deploys from service versions that predate player profiles.
+  countryCode?: string | null;
   walletAddress: string;
 }
 
@@ -140,6 +142,7 @@ export interface ChessMatchComment {
 export interface ChessMatch {
   id: string;
   state: ChessMatchState;
+  videoEnabled: boolean;
   white: ChessPlayer | null;
   black: ChessPlayer | null;
   timeControl: ChessTimeControl;
@@ -184,6 +187,7 @@ export interface ChessMatch {
 // A match listed in the lobby as joinable.
 export interface ChessChallenge {
   id: string;
+  videoEnabled: boolean;
   creator: ChessPlayer;
   timeControl: ChessTimeControl;
   createdAt: string;
@@ -200,6 +204,18 @@ export interface CreateChessChallengeInput {
   // Human PvP is always rated. Computer and coaching flows use separate APIs.
   rated?: true;
   allowTimeExtensions?: boolean;
+  videoEnabled?: boolean;
+}
+
+export type ChessVideoRole = "player" | "spectator";
+
+export interface ChessVideoAccess {
+  serverUrl: string;
+  participantToken: string;
+  roomName: string;
+  participantIdentity: string;
+  role: ChessVideoRole;
+  expiresAt: string;
 }
 
 export interface CreateComputerMatchInput {
@@ -275,6 +291,60 @@ export interface ChessCoachHome {
   trainingPositionCount: number;
   recommendedLessonKey: string | null;
   lessons: ChessCoachLessonState[];
+}
+
+export interface ChessPuzzleSpeechReference {
+  key: string;
+  audioUrl: string;
+  alignmentUrl: string;
+}
+
+export interface ChessPuzzleNarratedLine {
+  text: string;
+  speech: ChessPuzzleSpeechReference | null;
+}
+
+export interface ChessPuzzleNarration {
+  introduction: ChessPuzzleNarratedLine;
+  hint: ChessPuzzleNarratedLine;
+  success: ChessPuzzleNarratedLine;
+}
+
+export interface ChessPuzzle {
+  id: string;
+  fen: string;
+  lastMove: string;
+  sideToMove: "white" | "black";
+  rating: number;
+  ratingDeviation: number;
+  popularity: number;
+  playCount: number;
+  themes: string[];
+  openingTags: string[];
+  sourceUrl: string;
+  playerMoveCount: number;
+  narration: ChessPuzzleNarration;
+}
+
+export interface ChessPuzzleCatalog {
+  source: string;
+  puzzleCount: number;
+  minimumRating: number | null;
+  maximumRating: number | null;
+  voiceEnabled: boolean;
+}
+
+export interface ChessPuzzleAttempt {
+  puzzleId: string;
+  attemptedUci: string;
+  legal: boolean;
+  correct: boolean;
+  completed: boolean;
+  nextFen: string;
+  opponentMove: string | null;
+  nextSolutionPly: number;
+  message: string;
+  speech: ChessPuzzleSpeechReference | null;
 }
 
 export interface ChessCoachTrainingItem {

@@ -1,6 +1,6 @@
 "use client";
 
-import Blockies from "react-blockies";
+import { Identicon } from "@/components/ui/identicon";
 
 interface AvatarProps {
   seed: string;
@@ -10,10 +10,10 @@ interface AvatarProps {
 export function Avatar({ seed, size = 32 }: AvatarProps) {
   return (
     <span
-      className="inline-block shrink-0 overflow-hidden rounded-full [&>canvas]:block [&>canvas]:h-full [&>canvas]:w-full"
+      className="inline-block shrink-0 overflow-hidden rounded-full [&>svg]:block [&>svg]:h-full [&>svg]:w-full"
       style={{ width: size, height: size }}
     >
-      <Blockies seed={seed.toLowerCase()} size={8} scale={Math.ceil(size / 8)} />
+      <Identicon seed={seed} size={size} />
     </span>
   );
 }

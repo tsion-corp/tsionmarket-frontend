@@ -9,6 +9,7 @@ import { fetchPgn } from "@/features/casino/lib/api/chess";
 import { parseTimeControl } from "@/features/casino/lib/api/chess-wire";
 import { CasinoEmpty, CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 import type { ChessMatch } from "@/features/casino/lib/api/types";
 import { ChessRatingPanel } from "@/features/casino/components/chess/chess-rating-panel";
 
@@ -80,71 +81,84 @@ export function HistorySection() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pt-8 pb-20 sm:px-6">
-      {wallet.connected ? <ChessRatingPanel /> : null}
-      <div className="ws-display mb-3 text-[18px]">{t("historyTitle")}</div>
-      {error ? (
-        <CasinoError error={error} subject={t("historyTitle")} onRetry={refetch} />
-      ) : isLoading ? (
-        <CasinoLoading rows={4} />
-      ) : matches.length === 0 ? (
-        <CasinoEmpty>{t("historyEmpty")}</CasinoEmpty>
-      ) : (
-        <div className="overflow-x-auto rounded-[14px] border border-white/8">
-          <div className="min-w-[680px]">
-            {matches.map((m) => {
-              const finished = m.state === "settled";
-              const opponent = opponentName(m, wallet.address);
-              return (
-                <div
-                  key={m.id}
-                  className="grid grid-cols-[2fr_1fr_1fr_150px] items-center gap-2 border-t border-white/6 px-4.5 py-3 text-[13px] first:border-t-0"
-                >
-                  <div className="min-w-0">
-                    <Link
-                      href={`/casino/chess/${finished ? "review" : "play"}?match=${m.id}`}
-                      className="block truncate text-white hover:underline"
-                    >
-                      {opponent ?? t("waiting")}
-                    </Link>
-                    <div className="text-[11.5px] font-normal text-white/45">
-                      {new Date(m.createdAt).toLocaleDateString()}
-                      {m.stakeUsdc ? (
-                        <span className="text-white/60">
-                          {" · "}
-                          {t("stakedFor", { amount: m.stakeUsdc })}
+    <section className="min-h-[calc(100svh-60px)] bg-black text-white">
+      <div className="mx-auto w-full max-w-[1100px] px-4 pt-8 pb-20 sm:px-6">
+        {wallet.connected ? <ChessRatingPanel /> : null}
+        <div className="mb-3 flex items-center gap-3">
+          <div className="ws-display text-[18px] text-[#f0f1f2]">{t("historyTitle")}</div>
+          <div className="h-px flex-1 bg-[#2f3336]" />
+        </div>
+        {error ? (
+          <CasinoError error={error} subject={t("historyTitle")} onRetry={refetch} />
+        ) : isLoading ? (
+          <CasinoLoading rows={4} />
+        ) : matches.length === 0 ? (
+          <CasinoEmpty>{t("historyEmpty")}</CasinoEmpty>
+        ) : (
+          <div className="overflow-x-auto rounded-[14px] border border-[#292b2d] bg-[#0b0c0d] shadow-[0_26px_80px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.025)]">
+            <div className="min-w-[680px]">
+              {matches.map((m) => {
+                const finished = m.state === "settled";
+                const opponent = opponentName(m, wallet.address);
+                return (
+                  <div
+                    key={m.id}
+                    className={cn(
+                      "grid grid-cols-[2fr_1fr_1fr_150px] items-center gap-2 border-t border-[#292e32] px-4.5 py-3 text-[13px] transition-colors first:border-t-0 hover:bg-[#1b1f22]",
+                      !finished && "bg-[#111214]"
+                    )}
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/casino/chess/${finished ? "review" : "play"}?match=${m.id}`}
+                        className="block truncate font-medium text-[#eef0f1] transition-colors hover:text-white"
+                      >
+                        {opponent ?? t("waiting")}
+                      </Link>
+                      <div className="text-[11.5px] font-normal text-[#767d82]">
+                        {new Date(m.createdAt).toLocaleDateString()}
+                        {m.stakeUsdc ? (
+                          <span className="text-[#aeb3b7]">
+                            {" · "}
+                            {t("stakedFor", { amount: m.stakeUsdc })}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                    <div className="font-normal text-[#a2a8ac]">
+                      {m.clockMode === "unlimited"
+                        ? m.timeControl
+                        : parseTimeControl(m.timeControl).initialSeconds <= 30
+                          ? t("blitz", { tc: m.timeControl })
+                          : t("rapid", { tc: m.timeControl })}
+                    </div>
+                    <div className="font-normal text-[#c7cbce]">
+                      {finished ? (
+                        resultLabel(m, wallet.address, tPlay)
+                      ) : (
+                        <span className="inline-flex rounded-full border border-[#343638] bg-[#08090a] px-2.5 py-1 text-[10.5px] font-semibold tracking-[0.03em] text-[#b9c0c4]">
+                          {tLobby("liveNow")}
                         </span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      {finished ? (
+                        <button
+                          onClick={() => void onDownload(m)}
+                          disabled={fetchingPgn === m.id}
+                          className="cursor-pointer rounded-full border border-[#454c52] bg-[#171a1d] px-3.5 py-1.5 font-sans text-[12px] font-semibold text-[#bfc4c7] transition-colors hover:border-[#737c83] hover:bg-[#282d31] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          {fetchingPgn === m.id ? "…" : t("downloadPgn")}
+                        </button>
                       ) : null}
                     </div>
                   </div>
-                  <div className="font-normal text-white/50">
-                    {/* Classify by the move budget in seconds so both per-move
-                        controls ("30s") and legacy "min+inc" labels read right;
-                        a short budget is Blitz, a longer one Rapid. */}
-                    {parseTimeControl(m.timeControl).initialSeconds <= 30
-                      ? t("blitz", { tc: m.timeControl })
-                      : t("rapid", { tc: m.timeControl })}
-                  </div>
-                  <div className={finished ? "text-white/80" : "text-up font-normal"}>
-                    {finished ? resultLabel(m, wallet.address, tPlay) : tLobby("liveNow")}
-                  </div>
-                  <div className="text-right">
-                    {finished ? (
-                      <button
-                        onClick={() => void onDownload(m)}
-                        disabled={fetchingPgn === m.id}
-                        className="cursor-pointer rounded-full border border-white/15 px-3.5 py-1.5 font-sans text-[12px] font-semibold text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
-                      >
-                        {fetchingPgn === m.id ? "…" : t("downloadPgn")}
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </section>
   );
 }

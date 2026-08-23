@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { matchActorLabel } from "@/features/casino/lib/chess/social";
-import type { ChessMatch } from "@/features/casino/lib/api/types";
+import { matchActorLabel, playerIdentityLabel } from "@/features/casino/lib/chess/social";
+import type { ChessMatch, ChessPlayer } from "@/features/casino/lib/api/types";
 
 const WHITE = "0x1111111111111111111111111111111111111111";
 const BLACK = "0x2222222222222222222222222222222222222222";
@@ -49,5 +49,17 @@ describe("matchActorLabel", () => {
 
   it("labels the viewer as spectator by wallet when they are not seated", () => {
     expect(matchActorLabel({ ...base, actor: STRANGER, walletAddress: STRANGER })).toBe("You");
+  });
+});
+
+describe("playerIdentityLabel", () => {
+  it("shows the country and rating without treating provisional status as an unknown rating", () => {
+    const player = {
+      rating: 1_647,
+      provisional: true,
+      countryCode: "NG",
+    } as ChessPlayer;
+
+    expect(playerIdentityLabel("abrahambre", player)).toBe("🇳🇬 abrahambre (1647)");
   });
 });

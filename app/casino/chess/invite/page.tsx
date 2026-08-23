@@ -2,20 +2,19 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { AuthGuard } from "@/components/auth/auth-guard";
+import { CasinoPage } from "@/features/casino/components/casino-page";
 import { InviteSection } from "@/features/casino";
 
 function InviteFromParams() {
   return <InviteSection inviteCode={useSearchParams()?.get("code") ?? null} />;
 }
 
-// No app shell on purpose: a challenge link lands on a focused offer card.
 export default function ChessInvitePage() {
   return (
-    <AuthGuard>
+    <CasinoPage hideBackLink>
       <Suspense fallback={null}>
         <InviteFromParams />
       </Suspense>
-    </AuthGuard>
+    </CasinoPage>
   );
 }

@@ -27,6 +27,7 @@ import type {
   ChessMatch,
   ChessMatchAnalysis,
   ChessMatchRatingSide,
+  ChessPlayer,
   ChessProductKey,
 } from "@/features/casino/lib/api/types";
 import { useChessMatchSocial, CHESS_KEYS } from "@/features/casino/hooks/use-casino-chess";
@@ -44,7 +45,11 @@ import {
   type Move,
 } from "@/features/casino/lib/chess/engine";
 import { identifyOpening } from "@/features/casino/lib/chess/openings";
-import { matchActorLabel, playerDisplayName } from "@/features/casino/lib/chess/social";
+import {
+  matchActorLabel,
+  playerDisplayName,
+  playerIdentityLabel,
+} from "@/features/casino/lib/chess/social";
 import { errorCode } from "@/lib/api/envelope";
 import { friendlyError } from "@/lib/errors";
 import { timeAgo } from "@/lib/format";
@@ -137,7 +142,7 @@ function timeControlCategory(value: string): "Bullet" | "Blitz" | "Rapid" {
 
 function formatRating(side: ChessMatchRatingSide): string | null {
   if (side.rating === null) return null;
-  return `${side.rating}${side.provisional ? "?" : ""}`;
+  return String(side.rating);
 }
 
 function ratingDiff(side: ChessMatchRatingSide): string | null {
@@ -145,9 +150,12 @@ function ratingDiff(side: ChessMatchRatingSide): string | null {
   return side.diff > 0 ? `+${side.diff}` : String(side.diff);
 }
 
-function decorateSeatLabel(label: string, side: ChessMatchRatingSide): string {
-  const rating = formatRating(side);
-  return rating ? `${label} (${rating})` : label;
+function decorateSeatLabel(
+  label: string,
+  side: ChessMatchRatingSide,
+  player: ChessPlayer | null
+): string {
+  return playerIdentityLabel(label, player, side.rating);
 }
 
 function bucketLabel(value: string): string {
@@ -297,11 +305,13 @@ function AnalysisSideSummary({
   label,
   color,
   rating,
+  player,
   stats,
 }: {
   label: string;
   color: ChessColor;
   rating: ChessMatchRatingSide;
+  player: ChessPlayer | null;
   stats: SideAnalysisStats;
 }) {
   return (
@@ -312,7 +322,7 @@ function AnalysisSideSummary({
             color === "w" ? "bg-white/75" : "bg-black"
           }`}
         />
-        <span className="truncate">{decorateSeatLabel(label, rating)}</span>
+        <span className="truncate">{decorateSeatLabel(label, rating, player)}</span>
         {ratingDiff(rating) ? (
           <span className={rating.diff && rating.diff > 0 ? "text-[#78b52b]" : "text-[#d85040]"}>
             {ratingDiff(rating)}
@@ -883,8 +893,8 @@ export function ReviewSection({ matchId }: { matchId: string | null }) {
           <div className="ws-chess-analysis-mobile-meta mb-3 rounded-[2px] border border-white/8 bg-[#262421] px-3 py-2.5">
             <div className="flex items-center justify-between gap-3">
               <span className="truncate text-[0.82rem] text-white/72">
-                {decorateSeatLabel(whiteName, matchRating.white)} vs{" "}
-                {decorateSeatLabel(blackName, matchRating.black)}
+                {decorateSeatLabel(whiteName, matchRating.white, match.white)} vs{" "}
+                {decorateSeatLabel(blackName, matchRating.black, match.black)}
               </span>
               <strong className="tnum text-[0.92rem] text-white/88">{resultScore(match)}</strong>
             </div>
@@ -1290,12 +1300,14 @@ export function ReviewSection({ matchId }: { matchId: string | null }) {
               label={whiteName}
               color="w"
               rating={matchRating.white}
+              player={match.white}
               stats={whiteStats}
             />
             <AnalysisSideSummary
               label={blackName}
               color="b"
               rating={matchRating.black}
+              player={match.black}
               stats={blackStats}
             />
           </div>

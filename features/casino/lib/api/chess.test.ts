@@ -29,6 +29,7 @@ import {
   fetchLobbyChallenges,
   fetchLiveMatches,
   fetchOpenChallenges,
+  issueMatchVideoToken,
   extendMatchTime,
   postMatchChatMessage,
   requestComputerCoachMove,
@@ -82,6 +83,7 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
   return {
     id,
     state: "in_progress",
+    videoEnabled: over.videoEnabled ?? false,
     white: { id: "0xhost", username: "0xhost", rating: 0, walletAddress: "0xhost" },
     black: { id: "0xguest", username: "0xguest", rating: 0, walletAddress: "0xguest" },
     timeControl: "5+3",
@@ -132,6 +134,44 @@ describe("human challenge creation", () => {
         rated: true,
         allow_time_extensions: true,
       })
+    );
+  });
+
+  it("enables match video only when the creator selected it", async () => {
+    chessClient.chessPost.mockResolvedValue(
+      waitingMatch("video-game", "2026-08-01T18:00:00.000Z", { videoEnabled: true })
+    );
+
+    const result = await createChallenge({
+      creator: "0x1111111111111111111111111111111111111111",
+      timeControl: "10+0",
+      mode: "invite",
+      videoEnabled: true,
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(
+      "/matches",
+      expect.objectContaining({ videoEnabled: true })
+    );
+    expect(result.match.videoEnabled).toBe(true);
+    expect(result.challenge.videoEnabled).toBe(true);
+  });
+
+  it("requests a short-lived room token with the tournament seat when present", async () => {
+    chessClient.chessPost.mockResolvedValue({
+      serverUrl: "wss://video.example.test",
+      participantToken: "token",
+      roomName: "chess-video-game",
+      participantIdentity: "0xabc",
+      role: "player",
+      expiresAt: "2026-08-01T18:10:00.000Z",
+    });
+
+    await issueMatchVideoToken("3f2504e0-4f89-11d3-9a0c-0305e82c3301", "Player-abcd");
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(
+      "/matches/3f2504e0-4f89-11d3-9a0c-0305e82c3301/video/token",
+      { player: "Player-abcd" }
     );
   });
 });

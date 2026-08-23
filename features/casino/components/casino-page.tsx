@@ -14,6 +14,7 @@ import {
 } from "@/features/casino/components/casino-nav-guard";
 import { loadInterest } from "@/lib/preferences";
 import { DraughtsSiteHeader } from "@/features/casino/components/draughts/draughts-site-header";
+import { ChessSiteShell } from "@/features/casino/components/chess/chess-site-shell";
 
 // Names for the routes that are somewhere to go back to. Anything else falls
 // back to its own last path segment.
@@ -82,6 +83,17 @@ export function CasinoPage({
   const pathname = usePathname();
   const isHub = pathname === "/casino";
   const isDraughts = pathname?.startsWith("/casino/checkers") ?? false;
+  const isChess = pathname?.startsWith("/casino/chess") ?? false;
+
+  if (isChess) {
+    return (
+      <AuthGuard>
+        <CasinoNavGuardProvider>
+          <ChessSiteShell>{children}</ChessSiteShell>
+        </CasinoNavGuardProvider>
+      </AuthGuard>
+    );
+  }
 
   if (immersive || isDraughts) {
     return (

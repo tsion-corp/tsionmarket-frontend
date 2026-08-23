@@ -251,10 +251,12 @@ afterEach(() => {
 });
 
 describe("chess lobby", () => {
-  it("shows an empty state rather than inventing games", async () => {
+  it("shows the three lobby start choices without inventing open games", async () => {
     render(<LobbySection />, { wrapper });
-    expect(await screen.findByText(/No games in play yet/)).toBeInTheDocument();
-    expect(await screen.findByText(/No open challenges/)).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Create a lobby game" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Challenge a friend/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Set up a computer game" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Open lobby games")).not.toBeInTheDocument());
   });
 
   it("creates an unlimited computer game and opens its board", async () => {
@@ -405,7 +407,7 @@ describe("chess lobby", () => {
     });
     render(<LobbySection />, { wrapper });
 
-    await screen.findByText("Live Now");
+    await screen.findByRole("button", { name: "Create a lobby game" });
     expect(screen.queryByText("Your open games")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
   });
@@ -414,7 +416,7 @@ describe("chess lobby", () => {
     chessApi.fetchLiveMatches.mockResolvedValue([activeMatch()]);
     render(<LobbySection />, { wrapper });
 
-    await screen.findByText("Live Now");
+    await screen.findByRole("button", { name: "Create a lobby game" });
     expect(screen.queryByText("Your active games")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Resume" })).not.toBeInTheDocument();
   });
@@ -429,28 +431,37 @@ describe("chess lobby", () => {
     ]);
     render(<LobbySection />, { wrapper });
 
-    expect(
-      await screen.findByText("No games in play yet. Create one and it shows up here.")
-    ).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Create a lobby game" });
     expect(screen.queryByText("GrandmasterKay")).not.toBeInTheDocument();
   });
 
-  it("lets a spectator open a live market from the lobby", async () => {
-    chessApi.fetchLiveMatches.mockResolvedValue([
-      activeMatch({
-        id: "watch-1",
-        white: { id: "0x111", username: "WhiteSide", rating: 1650, walletAddress: "0x111" },
-        black: { id: "0x222", username: "BlackSide", rating: 1710, walletAddress: "0x222" },
-        timeControl: "5+3",
-        stakeUsdc: "5",
-      }),
-    ]);
+  it("creates a public lobby game when nobody is waiting", async () => {
+    chessApi.createChallenge.mockResolvedValue({
+      challenge: challenge({ id: "lobby-1" }),
+      match: activeMatch({ id: "lobby-1", state: "awaiting_opponent", black: null }),
+      ticket: {
+        id: "lobby-1",
+        state: "searching",
+        matchId: "lobby-1",
+        acceptSecondsRemaining: null,
+        opponent: null,
+      },
+    });
     render(<LobbySection />, { wrapper });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Open live games" }));
-    expect(await screen.findByText("WhiteSide vs BlackSide")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Watch" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/watch?match=watch-1"));
+    fireEvent.click(await screen.findByRole("button", { name: "Create a lobby game" }));
+    await waitFor(() =>
+      expect(chessApi.createChallenge).toHaveBeenCalledWith({
+        creator: "0xabc",
+        timeControl: "10+0",
+        mode: "auto",
+        rated: true,
+        allowTimeExtensions: true,
+      })
+    );
+    await waitFor(() =>
+      expect(push).toHaveBeenCalledWith("/casino/chess/matchmaking?ticket=lobby-1")
+    );
   });
 });
 
@@ -1027,39 +1038,5 @@ describe("spectator screen", () => {
         null
       )
     );
-  });
-});
-
-describe("live games modal", () => {
-  it("shows your own live game in the modal as a resumable board", async () => {
-    chessApi.fetchLiveMatches.mockResolvedValue([activeMatch()]);
-    render(<LobbySection />, { wrapper });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Open live games" }));
-    expect(await screen.findByText("0xabc vs GrandmasterKay")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
-    await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=m1"));
-  });
-
-  it("opens from the lobby rail", async () => {
-    chessApi.fetchLiveMatches.mockResolvedValue([
-      activeMatch({
-        id: "live-1",
-        white: { id: "0x111", username: "TableOne", rating: 1650, walletAddress: "0x111" },
-        black: { id: "0x222", username: "TableTwo", rating: 1710, walletAddress: "0x222" },
-      }),
-    ]);
-    render(<LobbySection />, { wrapper });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Open live games" }));
-    expect(await screen.findByText("TableOne vs TableTwo")).toBeInTheDocument();
-  });
-
-  it("shows a clean empty state when no live games are running", async () => {
-    chessApi.fetchLiveMatches.mockResolvedValue([]);
-    render(<LobbySection />, { wrapper });
-
-    fireEvent.click(await screen.findByRole("button", { name: "Open live games" }));
-    expect(await screen.findByText("No live chess games right now.")).toBeInTheDocument();
   });
 });

@@ -1,4 +1,5 @@
 "use client";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -23,6 +24,7 @@ import { QrCode } from "@/components/ui/qr-code";
 import {
   formatChatTime,
   matchActorLabel,
+  playerIdentityLabel,
   playerDisplayName,
 } from "@/features/casino/lib/chess/social";
 import { LiveChatFeed } from "@/features/casino/components/live-chat-feed";
@@ -35,7 +37,7 @@ import {
   playGameEndSound,
   playMoveSound,
 } from "@/features/casino/lib/chess/sound";
-import { FinalCountdown } from "@/features/casino/components/chess/final-countdown";
+import { LowTimeWarning } from "@/features/casino/components/chess/round/low-time-warning";
 import { CasinoEmpty, CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import {
   capturedFromBoard,
@@ -62,50 +64,31 @@ import type {
   ChessComputerCoachSummary,
 } from "@/features/casino/lib/api/types";
 import type { ChessMoveWire } from "@/features/casino/lib/api/chess-wire";
+import {
+  RoundDialogPlayer,
+  RoundMobilePlayer,
+  RoundTablePlayer,
+} from "@/features/casino/components/chess/round/round-player";
+import {
+  buildMovePairs,
+  RoundMoveList,
+  RoundReplayControls,
+} from "@/features/casino/components/chess/round/round-moves";
+import { RoundChatFeed } from "@/features/casino/components/chess/round/round-chat";
+import { RoundBoardMenu } from "@/features/casino/components/chess/round/round-board-menu";
+
+const LiveVideoPlayer = dynamic(
+  () =>
+    import("@/features/casino/components/chess/broadcast").then((module) => module.LiveVideoPlayer),
+  { ssr: false }
+);
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
-
-function formatClock(totalSeconds: number): string {
-  const s = Math.max(0, Math.floor(totalSeconds));
-  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
-}
-
-function formatRoundClock(mode: ChessMatch["clockMode"], totalSeconds: number): string {
-  return mode === "unlimited" ? "∞" : formatClock(totalSeconds);
-}
 
 function initialClockSecondsFromTimeControl(tc: string): number {
   const [initialPart] = tc.split("+");
   const initialMinutes = Number.parseInt(initialPart, 10);
   return Number.isFinite(initialMinutes) && initialMinutes > 0 ? initialMinutes * 60 : 300;
-}
-
-// A running clock reads as urgent under 20s and critical under 10s, the way the
-// board turns a side's clock red as its flag approaches. Only a live game warns:
-// a finished game's frozen clock is never "about to end".
-const LOW_CLOCK_SECONDS = 20;
-const CRITICAL_CLOCK_SECONDS = 10;
-
-// Tailwind classes that tint a clock chip by how little time is left; empty when
-// the clock is comfortable, so the caller keeps its normal styling.
-function lowClockClass(seconds: number, live: boolean): string {
-  if (!live || seconds <= 0 || seconds > LOW_CLOCK_SECONDS) return "";
-  return seconds <= CRITICAL_CLOCK_SECONDS
-    ? "border-down/70 text-down animate-pulse border"
-    : "text-down/70";
-}
-
-// A small clock glyph next to the time, the way chess.com and lila mark the
-// side's clock.
-function ClockIcon() {
-  return (
-    <svg viewBox="0 0 20 20" className="h-[0.62em] w-[0.62em] shrink-0 opacity-55" aria-hidden>
-      <path
-        fill="currentColor"
-        d="M10 0a10 10 0 100 20A10 10 0 0010 0zm0 2.4a7.6 7.6 0 110 15.2 7.6 7.6 0 010-15.2zM8.9 4.8v5.7l4.6 2.7.9-1.6-3.7-2.2V4.8z"
-      />
-    </svg>
-  );
 }
 
 function PaidMatchActions({
@@ -199,7 +182,7 @@ function PaidMatchActions({
 
 function FlameBadgeIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-6 w-6 opacity-70" aria-hidden>
+    <svg viewBox="0 0 24 24" className="h-12 w-12 opacity-70" aria-hidden>
       <path
         fill="currentColor"
         d="M13.7 2.3c.4 2.1-.4 3.4-1.3 4.8-.9 1.4-1.9 2.9-1.8 5 0 1.1.3 2 .9 2.8-.1-1.4.5-2.3 1.2-3.1.9-1.1 2-2.2 2.2-4.5 2.7 1.8 5.1 4.9 5.1 8.6 0 3.8-2.9 6.9-7 6.9-4 0-7-2.8-7-6.8 0-4.7 3.3-7.5 5.1-10.1.9-1.3 1.6-2.5 1.7-4.1.3.1.6.2.9.5Z"
@@ -238,12 +221,8 @@ function timeControlCategory(tc: string): "Bullet" | "Blitz" | "Rapid" {
   return "Rapid";
 }
 
-function withSeatRating(
-  label: string,
-  player: { rating: number | null; provisional?: boolean | null } | null
-): string {
-  if (!player || player.rating === null) return label;
-  return `${label} (${player.rating}${player.provisional ? "?" : ""})`;
+function withSeatRating(label: string, player: ChessMatch["white"]): string {
+  return playerIdentityLabel(label, player);
 }
 
 type Translator = ReturnType<typeof useTranslations>;
@@ -287,10 +266,16 @@ type PromotionOption = "q" | "r" | "b" | "n";
 type MobileRoundPanel = "moves" | "chat" | "info" | null;
 
 const ROUND_DESKTOP_BREAKPOINT = 900;
+const ROUND_WIDE_BREAKPOINT = 1280;
 
 function isDesktopRoundViewport(): boolean {
   if (typeof window === "undefined") return false;
   return window.innerWidth >= ROUND_DESKTOP_BREAKPOINT;
+}
+
+function isWideRoundViewport(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth >= ROUND_WIDE_BREAKPOINT;
 }
 
 const PROMOTION_LABEL: Record<PromotionOption, string> = {
@@ -386,20 +371,6 @@ function CommentEditor({
       </div>
     </div>
   );
-}
-
-function replayNavButtonClass(disabled: boolean): string {
-  return `flex h-10 w-10 items-center justify-center rounded-[2px] border border-white/8 bg-white/[0.03] text-[18px] leading-none transition-colors ${
-    disabled
-      ? "cursor-not-allowed text-white/15"
-      : "cursor-pointer text-white/55 hover:bg-white/[0.08] hover:text-white"
-  }`;
-}
-
-function moveChipClass(active: boolean): string {
-  return active
-    ? "bg-[#3f4d62] text-white font-semibold"
-    : "text-white/72 hover:bg-white/[0.05] hover:text-white";
 }
 
 function MobilePanelButton({
@@ -739,8 +710,11 @@ export function PlaySection({
   const theme = useBoardTheme();
   const [mobilePanel, setMobilePanel] = useState<MobileRoundPanel>(null);
   const [desktopRoundLayout, setDesktopRoundLayout] = useState(isDesktopRoundViewport);
+  const [wideRoundLayout, setWideRoundLayout] = useState(isWideRoundViewport);
   const [relativeNowMs, setRelativeNowMs] = useState<number>(() => Date.now());
   const [chatDraft, setChatDraft] = useState("");
+  const [boardMenuOpen, setBoardMenuOpen] = useState(false);
+  const [boardFlipped, setBoardFlipped] = useState(false);
   const [showInviteQr, setShowInviteQr] = useState(false);
   const hintMove =
     match && hintGuidance && match.fen === hintGuidance.fen ? hintGuidance.move : null;
@@ -753,7 +727,6 @@ export function PlaySection({
   const rematchReadyId = match?.rematch?.nextMatchId ?? null;
   const currentPly = match ? match.moves.length : null;
   const [replayPly, setReplayPly] = useState<number | null>(null);
-  const activeMoveRef = useRef<HTMLButtonElement | null>(null);
   const canUsePlayerChat = you !== null && match?.computer == null;
   const preferredChatRoom: ChessChatRoom = canUsePlayerChat ? "player" : "spectator";
   const {
@@ -793,7 +766,11 @@ export function PlaySection({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const sync = () => setDesktopRoundLayout(isDesktopRoundViewport());
+    const sync = () => {
+      setDesktopRoundLayout(isDesktopRoundViewport());
+      setWideRoundLayout(isWideRoundViewport());
+    };
+    sync();
     window.addEventListener("resize", sync);
     window.addEventListener("orientationchange", sync);
     return () => {
@@ -934,10 +911,6 @@ export function PlaySection({
   const coachReview = coachState?.pendingReview ?? null;
   const coachSummary = coachState?.summary ?? null;
   const coachGuidance = coachReview?.bestUci ? fromUci(coachReview.bestUci) : null;
-
-  useEffect(() => {
-    activeMoveRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [viewingPly]);
 
   // Highlights are computed locally only so the board feels responsive. The
   // server revalidates every move, so a wrong hint can never become a wrong
@@ -1084,34 +1057,52 @@ export function PlaySection({
     }
   };
 
+  const attemptMove = async (from: Square, to: Square) => {
+    const matching = legalMovesForSquare(position, from.r, from.c).filter(
+      (move) => move.to.r === to.r && move.to.c === to.c
+    );
+    if (matching.length === 0) return false;
+    const promotions = Array.from(
+      new Set(
+        matching
+          .map((move) => move.promotion)
+          .filter(
+            (value): value is PromotionOption =>
+              value === "q" || value === "r" || value === "b" || value === "n"
+          )
+      )
+    );
+    if (promotions.length > 0) {
+      setPendingPromotion({ fen: match.fen, from, to, options: promotions });
+      return true;
+    }
+    const uci = toUci(position, from, to);
+    setPendingPromotion(null);
+    setSelected(null);
+    await proposeMove(uci);
+    return true;
+  };
+
   const onSquareClick = async (r: number, c: number) => {
     if (!yourTurn || yourClockExpired || moving || coachBusy || coachReview) return;
     if (selected && targetSquares.some((t) => t.r === r && t.c === c)) {
-      const matching = legalTargets.filter((move) => move.to.r === r && move.to.c === c);
-      const promotions = Array.from(
-        new Set(
-          matching
-            .map((move) => move.promotion)
-            .filter(
-              (value): value is PromotionOption =>
-                value === "q" || value === "r" || value === "b" || value === "n"
-            )
-        )
-      );
-      if (promotions.length > 0) {
-        setPendingPromotion({ fen: match.fen, from: selected, to: { r, c }, options: promotions });
-        return;
-      }
-      const uci = toUci(position, selected, { r, c });
-      setPendingPromotion(null);
-      setSelected(null);
-      await proposeMove(uci);
+      await attemptMove(selected, { r, c });
       return;
     }
     const piece = board[r][c];
     setHintMove(null);
     setPendingPromotion(null);
     setSelected(piece && piece.color === you ? { r, c } : null);
+  };
+
+  const onSquareDrop = async (from: Square, to: Square) => {
+    if (!yourTurn || yourClockExpired || moving || coachBusy || coachReview) return;
+    const piece = board[from.r][from.c];
+    if (!piece || piece.color !== you) return;
+    setHintMove(null);
+    setSelected(from);
+    const moved = await attemptMove(from, to);
+    if (!moved) setSelected(null);
   };
 
   const onPromotionChoice = async (promotion: PromotionOption) => {
@@ -1276,6 +1267,16 @@ export function PlaySection({
     }
   };
 
+  const onPostQuickChat = async (text: string) => {
+    try {
+      await postChat({ room: activeChatRoom, text });
+    } catch (e) {
+      toast.error(
+        isConflictError(e) ? t("toastChatConflict") : friendlyError(e, t("toastChatFailed"))
+      );
+    }
+  };
+
   const onSaveNote = async (text: string) => {
     try {
       await saveNote(text);
@@ -1308,6 +1309,7 @@ export function PlaySection({
   const self = you === "w" ? match.white : match.black;
   const opponentColor: ChessColor = you === "w" ? "b" : "w";
   const selfColor: ChessColor = you ?? "w";
+  const boardOrientation: ChessColor = boardFlipped ? (selfColor === "w" ? "b" : "w") : selfColor;
   const opponentDisplayName = withSeatRating(
     playerDisplayName(opponent, wallet.name, wallet.address ?? null, t("waitingForOpponent")),
     opponent
@@ -1324,6 +1326,33 @@ export function PlaySection({
     playerDisplayName(match.black, wallet.name, wallet.address ?? null, t("waitingForOpponent")),
     match.black
   );
+  const videoParticipants = [
+    match.white
+      ? {
+          identities: [match.white.id, match.white.walletAddress, match.white.username],
+          label: whiteDisplayName,
+        }
+      : null,
+    match.black
+      ? {
+          identities: [match.black.id, match.black.walletAddress, match.black.username],
+          label: blackDisplayName,
+        }
+      : null,
+  ].filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  const whiteChatName = playerDisplayName(
+    match.white,
+    wallet.name,
+    wallet.address ?? null,
+    t("waitingForOpponent")
+  );
+  const blackChatName = playerDisplayName(
+    match.black,
+    wallet.name,
+    wallet.address ?? null,
+    t("waitingForOpponent")
+  );
+  const selfChatName = playerDisplayName(self, wallet.name, wallet.address ?? null, t("you"));
   const viewerWallet = wallet.address?.toLowerCase() ?? null;
   const yourCurrentComment = viewerWallet
     ? (comments.find((comment) => comment.author.toLowerCase() === viewerWallet) ?? null)
@@ -1341,24 +1370,7 @@ export function PlaySection({
     : null;
   const displayedMove = viewingPly > 0 ? (replaySteps[viewingPly - 1] ?? null) : null;
   const lastMove = displayedMove?.uci ? fromUci(displayedMove.uci) : null;
-  const movePairs = replaySteps.reduce<
-    Array<{
-      turn: number;
-      white: { ply: number; san: string } | null;
-      black: { ply: number; san: string } | null;
-    }>
-  >((acc, move, index) => {
-    if (index % 2 === 0) {
-      acc.push({
-        turn: Math.floor(index / 2) + 1,
-        white: { ply: move.ply, san: move.san },
-        black: null,
-      });
-    } else {
-      acc[acc.length - 1]!.black = { ply: move.ply, san: move.san };
-    }
-    return acc;
-  }, []);
+  const movePairs = buildMovePairs(replaySteps);
   const engineBestMoveSan = match
     ? (uciToSan(displayFen, engine.bestMove) ?? engine.bestMove)
     : engine.bestMove;
@@ -1513,21 +1525,16 @@ export function PlaySection({
     clockMode === "unlimited"
       ? 1
       : Math.max(0.04, Math.min((clocks?.[colour] ?? 0) / initialClockSeconds, 1));
-  const desktopClockPanelClass = (colour: ChessColor) =>
-    match.state === "in_progress" && match.turn === colour
-      ? "bg-[#33451d] text-[#f4f2eb]"
-      : "bg-[#1f1e1b] text-white/88";
-
   return (
     <div className="ws-chess-round-root relative mx-auto w-full px-4 pb-8 sm:px-6 lg:px-8">
       <div className="ws-chess-round-shell grid gap-5">
-        <aside className="ws-chess-round-desktop-left order-1 hidden max-h-[calc(100dvh-112px)] min-h-0 flex-col gap-4 overflow-hidden pr-1 text-[#c9c6c0]">
+        <aside className="ws-chess-round-desktop-left order-1 hidden min-h-0 flex-col gap-[15px] overflow-hidden text-[#c9c6c0]">
           <div
-            className="rounded-[2px] border px-5 py-5"
-            style={{ background: "#262421", borderColor: "#3b3936", boxShadow: "none" }}
+            className="shrink-0 rounded-[7px] px-[27px] py-[25px]"
+            style={{ background: "#262421", boxShadow: "0 2px 5px rgba(0,0,0,0.28)" }}
           >
-            <div className="flex gap-3">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/[0.03] text-white/34">
+            <div className="flex gap-5">
+              <div className="grid h-12 w-12 shrink-0 place-items-center text-white/45">
                 <FlameBadgeIcon />
               </div>
               <div className="min-w-0 flex-1">
@@ -1550,7 +1557,22 @@ export function PlaySection({
                 </div>
               </div>
             </div>
+            {over ? (
+              <div className="mt-4 border-t border-white/12 pt-4 text-center text-[1.02em] text-white/62">
+                {resultLine(t, match, you)}
+              </div>
+            ) : null}
           </div>
+
+          {desktopRoundLayout && wideRoundLayout && match.videoEnabled && !over ? (
+            <LiveVideoPlayer
+              matchId={match.id}
+              player={seatName ?? wallet.address ?? undefined}
+              viewer="player"
+              participants={videoParticipants}
+              className="shrink-0"
+            />
+          ) : null}
 
           {waiting && you !== null ? (
             <div
@@ -1594,74 +1616,82 @@ export function PlaySection({
 
           {showLiveRailWorkspace ? (
             <div
-              className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2px] border"
-              style={{ background: "#262421", borderColor: "#3b3936", boxShadow: "none" }}
+              className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[7px]"
+              style={{ background: "#262421", boxShadow: "0 2px 5px rgba(0,0,0,0.28)" }}
             >
-              <div
-                className="border-b px-4 py-2"
-                style={{ borderColor: "#3b3936", background: "#2b2926" }}
-              >
-                <div className="text-[0.98rem] text-white/76">Chat</div>
+              <div className="grid h-[2.6rem] shrink-0 place-items-center rounded-t-[7px] bg-[#262421] text-[1em] text-white/72">
+                Chat room
               </div>
 
-              <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-3 p-4">
+              <div className="flex min-h-0 flex-1 flex-col">
                 {chatLoading ? (
-                  <div className="rounded-[2px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
-                    {t("chatLoading")}
-                  </div>
+                  <div className="px-3 py-3 text-[1em] text-white/48">{t("chatLoading")}</div>
                 ) : (
-                  <div className="min-h-0 overflow-hidden rounded-[2px] border border-white/6 bg-[#211f1c] px-3 py-2">
-                    <LiveChatFeed
-                      messages={chatMessages}
-                      labelFor={(line) =>
-                        matchActorLabel({
-                          actor: line.author,
-                          match,
-                          walletAddress: wallet.address ?? null,
-                          whiteDisplayName,
-                          blackDisplayName,
-                          youLabel: t("you"),
-                        })
-                      }
-                      viewer={wallet.address ?? null}
-                      emptyHint={
-                        activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")
-                      }
-                      className="h-full"
-                    />
-                  </div>
+                  <RoundChatFeed
+                    messages={chatMessages}
+                    labelFor={(line) =>
+                      matchActorLabel({
+                        actor: line.author,
+                        match,
+                        walletAddress: wallet.address ?? null,
+                        whiteDisplayName: whiteChatName,
+                        blackDisplayName: blackChatName,
+                        youLabel: selfChatName,
+                      })
+                    }
+                    viewer={wallet.address ?? null}
+                    emptyHint={activeChatRoom === "player" ? t("chatPlayerEmpty") : t("chatEmpty")}
+                  />
                 )}
 
                 {!canWriteChat ? (
-                  <div className="rounded-[2px] bg-black/10 px-3 py-2 text-[13px] text-white/55">
+                  <div className="shrink-0 border-t border-white/10 px-3 py-2 text-[0.9em] text-white/44">
                     {t("chatLogin")}
                   </div>
                 ) : (
-                  <div className="flex shrink-0 items-center gap-2 rounded-[2px] border border-white/10 bg-[#211f1c] p-1.5 pl-3">
-                    <input
-                      type="text"
-                      value={chatDraft}
-                      onChange={(event) => setChatDraft(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Enter" || event.shiftKey) return;
+                  <>
+                    <form
+                      onSubmit={(event) => {
                         event.preventDefault();
                         void onPostChat();
                       }}
-                      placeholder={
-                        activeChatRoom === "player"
-                          ? t("chatPlaceholderPlayer")
-                          : t("chatPlaceholderSpectator")
-                      }
-                      className="h-9 min-w-0 flex-1 border-0 bg-transparent px-1 text-[14px] text-white outline-none placeholder:text-white/30"
-                    />
-                    <button
-                      onClick={() => void onPostChat()}
-                      disabled={postingChat || chatDraft.trim().length === 0}
-                      className="cursor-pointer rounded-[2px] border border-white/12 bg-white/[0.03] px-4 py-2 text-[13px] font-medium text-white/78 transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex h-[2.35rem] shrink-0 border-t border-white/10"
                     >
-                      {postingChat ? t("chatSending") : t("chatSend")}
-                    </button>
-                  </div>
+                      <input
+                        type="text"
+                        value={chatDraft}
+                        onChange={(event) => setChatDraft(event.target.value)}
+                        placeholder={
+                          activeChatRoom === "player"
+                            ? t("chatPlaceholderPlayer")
+                            : t("chatPlaceholderSpectator")
+                        }
+                        className="min-w-0 flex-1 border-0 bg-transparent px-3 text-[0.95em] text-white/72 outline-none placeholder:text-white/34"
+                      />
+                      <button
+                        type="submit"
+                        disabled={postingChat || chatDraft.trim().length === 0}
+                        className="cursor-pointer border-l border-white/10 px-3 text-[0.85em] text-white/54 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                      >
+                        {postingChat ? t("chatSending") : t("chatSend")}
+                      </button>
+                    </form>
+                    {over ? (
+                      <div className="grid h-[2rem] shrink-0 grid-cols-5 border-t border-white/10">
+                        {["GG", "WP", "TY", "GTG", "BYE"].map((message) => (
+                          <button
+                            key={message}
+                            type="button"
+                            onClick={() => void onPostQuickChat(message)}
+                            disabled={postingChat}
+                            className="cursor-pointer border-r border-white/10 text-[0.82em] text-white/48 transition-colors last:border-r-0 hover:bg-white/[0.04] hover:text-white/72 disabled:cursor-not-allowed disabled:opacity-30"
+                          >
+                            {message}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </div>
             </div>
@@ -1670,9 +1700,24 @@ export function PlaySection({
 
         <section
           className="ws-chess-round-board-section order-1 rounded-[8px] p-3 shadow-[0_1px_1px_rgba(0,0,0,0.20)]"
-          style={{ background: desktopRoundLayout ? "transparent" : CHESS_SURFACE_BG }}
+          style={{ background: CHESS_SURFACE_BG }}
         >
           <div className="mx-auto w-full" style={{ maxWidth: boardMaxWidth }}>
+            <RoundMobilePlayer
+              name={opponentDisplayName}
+              seatLabel={topSeatLabel}
+              clockMode={clockMode}
+              seconds={clocks?.[opponentColor] ?? 0}
+              live={!over}
+              active={match.state === "in_progress" && match.turn === opponentColor}
+              captured={
+                <CapturedRow
+                  pieces={capturedByColor(opponentColor)}
+                  lead={leadFor(opponentColor)}
+                  color={selfColor}
+                />
+              }
+            />
             <div className="relative overflow-hidden rounded-[2px]">
               <ChessBoard
                 board={board}
@@ -1680,19 +1725,37 @@ export function PlaySection({
                 legalTargets={boardTargets}
                 checkSquare={checkSquare}
                 lastMove={lastMove}
-                orientation={you ?? "w"}
+                orientation={boardOrientation}
                 theme={theme}
                 onSquareClick={
                   canInteractWithBoard ? (r, c) => void onSquareClick(r, c) : undefined
                 }
+                onSquareDrop={
+                  canInteractWithBoard ? (from, to) => void onSquareDrop(from, to) : undefined
+                }
               />
               {clockMode === "real_time" ? (
-                <FinalCountdown
-                  secondsLeft={clocks?.[displayTurn] ?? 0}
-                  live={match.state === "in_progress"}
+                <LowTimeWarning
+                  secondsLeft={clocks?.[selfColor] ?? 0}
+                  live={match.state === "in_progress" && you !== null && match.turn === selfColor}
                 />
               ) : null}
             </div>
+            <RoundMobilePlayer
+              name={selfDisplayName}
+              seatLabel={bottomSeatLabel}
+              clockMode={clockMode}
+              seconds={clocks?.[selfColor] ?? 0}
+              live={!over}
+              active={match.state === "in_progress" && match.turn === selfColor}
+              captured={
+                <CapturedRow
+                  pieces={capturedByColor(selfColor)}
+                  lead={leadFor(selfColor)}
+                  color={opponentColor}
+                />
+              }
+            />
 
             {activePendingPromotion ? (
               <div
@@ -1744,6 +1807,15 @@ export function PlaySection({
             </div>
 
             <div className="ws-chess-round-mobile-stack mt-4 space-y-3">
+              {!desktopRoundLayout && match.videoEnabled && !over ? (
+                <LiveVideoPlayer
+                  matchId={match.id}
+                  player={seatName ?? wallet.address ?? undefined}
+                  viewer="player"
+                  participants={videoParticipants}
+                  className="shrink-0"
+                />
+              ) : null}
               <div
                 className="rounded-[16px] border border-white/6 px-4 py-4"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
@@ -1751,33 +1823,7 @@ export function PlaySection({
                 <div className="mb-2 text-[13px] font-medium text-white/56">
                   {match.timeControl} • {match.rating?.rated ? "Rated" : "Casual"}
                 </div>
-                <div className="space-y-2 text-[14px]">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="truncate text-white/84">{whiteDisplayName}</div>
-                    <div
-                      className={`tnum flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-white ${lowClockClass(
-                        clocks?.w ?? 0,
-                        !over
-                      )}`}
-                    >
-                      <ClockIcon />
-                      {formatRoundClock(clockMode, clocks?.w ?? 0)}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="truncate text-white/70">{blackDisplayName}</div>
-                    <div
-                      className={`tnum flex shrink-0 items-center gap-1.5 text-[13px] font-semibold ${
-                        lowClockClass(clocks?.b ?? 0, !over) ||
-                        (you === "b" && yourTurn ? "text-white" : "text-white/78")
-                      }`}
-                    >
-                      <ClockIcon />
-                      {formatRoundClock(clockMode, clocks?.b ?? 0)}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 text-[12px] text-white/46">{turnLabel}</div>
+                <div className="text-[12px] text-white/46">{turnLabel}</div>
                 {wagerLine ? (
                   <div className="mt-3 rounded-[10px] bg-black/10 px-3 py-2.5 text-[12px] text-white/58">
                     {wagerLine}
@@ -1947,162 +1993,66 @@ export function PlaySection({
           </div>
         </section>
 
-        <aside
-          className="ws-chess-round-desktop-right order-3 hidden max-h-[calc(100dvh-112px)] min-h-0 flex-col overflow-hidden rounded-[2px] border text-[#c9c6c0]"
-          style={{ background: "#262421", borderColor: "#3b3936" }}
-        >
-          <div
-            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[2px]"
-            style={{ background: "#262421", boxShadow: "none" }}
-          >
-            <div className="shrink-0 border-b" style={{ borderColor: "#3b3936" }}>
-              <div className="px-4 pt-2 pb-1">
-                <CapturedRow
-                  pieces={capturedByColor(opponentColor)}
-                  lead={leadFor(opponentColor)}
-                  color={selfColor}
-                />
-              </div>
-              <div className={`px-4 pt-3 pb-2 ${desktopClockPanelClass(opponentColor)}`}>
-                <div
-                  className={`ws-chess-lila-clock tnum text-[4.2rem] ${lowClockClass(
-                    clocks?.[opponentColor] ?? 0,
-                    !over
-                  )}`}
-                >
-                  {formatRoundClock(clockMode, clocks?.[opponentColor] ?? 0)}
-                </div>
-              </div>
-              <div className="h-[4px] bg-[#3b3936]">
-                <div
-                  className="h-full bg-[#6f9827]"
-                  style={{
-                    transform: `scaleX(${clockBarScale(opponentColor)})`,
-                    transformOrigin: "left",
-                  }}
-                />
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 text-[0.98rem] text-white/82">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#6f9827]" />
-                <div className="ws-chess-lila-player truncate">{opponentDisplayName}</div>
-              </div>
+        <aside className="ws-chess-round-desktop-right order-3 hidden min-h-0 flex-col overflow-hidden text-[#c9c6c0]">
+          {desktopRoundLayout && !wideRoundLayout && match.videoEnabled && !over ? (
+            <LiveVideoPlayer
+              matchId={match.id}
+              player={seatName ?? wallet.address ?? undefined}
+              viewer="player"
+              participants={videoParticipants}
+              desktopPresentation="overlay"
+              className="mb-[10px] shrink-0"
+            />
+          ) : null}
+          <div className="ws-chess-round-rail min-h-0 flex-1 overflow-hidden rounded-r-[2px]">
+            <div className="ws-chess-round-rail-top min-h-0">
+              <RoundTablePlayer
+                name={opponentDisplayName}
+                clockMode={clockMode}
+                seconds={clocks?.[opponentColor] ?? 0}
+                live={!over}
+                active={match.state === "in_progress" && match.turn === opponentColor}
+                progress={clockBarScale(opponentColor)}
+                position="top"
+                captured={
+                  <CapturedRow
+                    pieces={capturedByColor(opponentColor)}
+                    lead={leadFor(opponentColor)}
+                    color={selfColor}
+                  />
+                }
+              />
             </div>
 
-            <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto]">
-              <div
-                className="border-b px-3 py-2.5"
-                style={{ borderColor: "#3b3936", background: "#2b2926" }}
-              >
-                <div className="grid grid-cols-[repeat(4,2rem)_1fr_auto] items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => jumpToPly(0)}
-                    disabled={viewingPly === 0 || (!hasExactReplay && currentReplayPly !== 0)}
-                    className={replayNavButtonClass(
-                      viewingPly === 0 || (!hasExactReplay && currentReplayPly !== 0)
-                    )}
-                    aria-label="Start"
-                  >
-                    «
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => jumpToPly(viewingPly - 1)}
-                    disabled={
-                      viewingPly === 0 || (!hasExactReplay && viewingPly - 1 !== currentReplayPly)
-                    }
-                    className={replayNavButtonClass(
-                      viewingPly === 0 || (!hasExactReplay && viewingPly - 1 !== currentReplayPly)
-                    )}
-                    aria-label="Previous move"
-                  >
-                    ‹
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => jumpToPly(viewingPly + 1)}
-                    disabled={
-                      viewingPly === currentReplayPly ||
-                      (!hasExactReplay && viewingPly + 1 !== currentReplayPly)
-                    }
-                    className={replayNavButtonClass(
-                      viewingPly === currentReplayPly ||
-                        (!hasExactReplay && viewingPly + 1 !== currentReplayPly)
-                    )}
-                    aria-label="Next move"
-                  >
-                    ›
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => jumpToPly(currentReplayPly)}
-                    disabled={viewingPly === currentReplayPly}
-                    className={replayNavButtonClass(viewingPly === currentReplayPly)}
-                    aria-label="Live position"
-                  >
-                    »
-                  </button>
-                  <div className="text-[0.96rem] font-normal text-white/52">{t("movesTitle")}</div>
-                  <div className="tnum text-right text-[0.96rem] text-white/46">
-                    {viewingPly} / {currentReplayPly}
-                  </div>
-                </div>
-              </div>
+            <div className="ws-chess-round-rail-table relative grid min-h-0 bg-[#262421] shadow-[0_2px_5px_rgba(0,0,0,0.28)]">
+              <RoundReplayControls
+                viewingPly={viewingPly}
+                currentPly={currentReplayPly}
+                exactReplay={hasExactReplay}
+                onSelect={jumpToPly}
+                menuOpen={boardMenuOpen}
+                onToggleMenu={() => setBoardMenuOpen((open) => !open)}
+                onAnalysis={() => router.push(`/casino/chess/review?match=${match.id}`)}
+              />
 
-              {movePairs.length === 0 ? (
-                <div className="px-4 py-4 text-[14px] text-white/58">Starting position</div>
-              ) : (
-                <div className="ws-chess-lila-moves min-h-0 overflow-y-auto">
-                  {movePairs.map((row) => (
-                    <div
-                      key={`${row.turn}-${row.white?.san ?? ""}-${row.black?.san ?? ""}`}
-                      className="grid grid-cols-[16.666%_41.666%_41.666%] items-stretch"
-                    >
-                      <div className="tnum flex items-end justify-center bg-black/10 px-1 py-1.5 text-white/32">
-                        {row.turn}
-                      </div>
-                      {row.white ? (
-                        <button
-                          ref={viewingPly === row.white.ply ? activeMoveRef : null}
-                          type="button"
-                          onClick={() => jumpToPly(row.white!.ply)}
-                          disabled={!hasExactReplay && row.white.ply !== currentReplayPly}
-                          className={`tnum px-3 py-1.5 text-left transition-colors ${moveChipClass(
-                            viewingPly === row.white.ply
-                          )} ${
-                            !hasExactReplay && row.white.ply !== currentReplayPly
-                              ? "cursor-not-allowed opacity-45"
-                              : "cursor-pointer"
-                          }`}
-                        >
-                          {row.white.san}
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                      {row.black ? (
-                        <button
-                          ref={viewingPly === row.black.ply ? activeMoveRef : null}
-                          type="button"
-                          onClick={() => jumpToPly(row.black!.ply)}
-                          disabled={!hasExactReplay && row.black.ply !== currentReplayPly}
-                          className={`tnum px-3 py-1.5 text-left transition-colors ${moveChipClass(
-                            viewingPly === row.black.ply
-                          )} ${
-                            !hasExactReplay && row.black.ply !== currentReplayPly
-                              ? "cursor-not-allowed opacity-45"
-                              : "cursor-pointer"
-                          }`}
-                        >
-                          {row.black.san}
-                        </button>
-                      ) : (
-                        <span />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
+              <RoundBoardMenu
+                open={boardMenuOpen}
+                flipped={boardFlipped}
+                onFlip={() => {
+                  setBoardFlipped((flipped) => !flipped);
+                  setBoardMenuOpen(false);
+                }}
+                onAnalysis={() => router.push(`/casino/chess/review?match=${match.id}`)}
+                onLobby={() => router.push("/casino/chess")}
+              />
+
+              <RoundMoveList
+                pairs={movePairs}
+                viewingPly={viewingPly}
+                currentPly={currentReplayPly}
+                exactReplay={hasExactReplay}
+                onSelect={jumpToPly}
+              />
 
               <div className="border-t px-4 py-2" style={{ borderColor: "#3b3936" }}>
                 <div className="flex items-center justify-between gap-3 text-[0.82rem] text-white/48">
@@ -2116,41 +2066,28 @@ export function PlaySection({
               </div>
             </div>
 
-            <div className="shrink-0 border-t" style={{ borderColor: "#3b3936" }}>
-              <div className="flex items-center gap-2 px-4 py-2 text-[0.98rem] text-white/82">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#6f9827]" />
-                <div className="ws-chess-lila-player truncate">{selfDisplayName}</div>
-              </div>
-              <div className="h-[4px] bg-[#3b3936]">
-                <div
-                  className="h-full bg-[#6f9827]"
-                  style={{
-                    transform: `scaleX(${clockBarScale(selfColor)})`,
-                    transformOrigin: "left",
-                  }}
-                />
-              </div>
-              <div className={`px-4 pt-3 pb-2 ${desktopClockPanelClass(selfColor)}`}>
-                <div
-                  className={`ws-chess-lila-clock tnum text-[4.2rem] ${
-                    lowClockClass(clocks?.[selfColor] ?? 0, !over) || "text-white"
-                  }`}
-                >
-                  {formatRoundClock(clockMode, clocks?.[selfColor] ?? 0)}
-                </div>
-              </div>
-              <div className="px-4 pt-1 pb-2">
-                <CapturedRow
-                  pieces={capturedByColor(selfColor)}
-                  lead={leadFor(selfColor)}
-                  color={opponentColor}
-                />
-              </div>
+            <div className="ws-chess-round-rail-bottom min-h-0">
+              <RoundTablePlayer
+                name={selfDisplayName}
+                clockMode={clockMode}
+                seconds={clocks?.[selfColor] ?? 0}
+                live={!over}
+                active={match.state === "in_progress" && match.turn === selfColor}
+                progress={clockBarScale(selfColor)}
+                position="bottom"
+                captured={
+                  <CapturedRow
+                    pieces={capturedByColor(selfColor)}
+                    lead={leadFor(selfColor)}
+                    color={opponentColor}
+                  />
+                }
+              />
             </div>
 
             {you !== null && !over ? (
               <div
-                className="shrink-0 border-t px-4 pt-3 pb-3"
+                className="ws-chess-round-rail-controls shrink-0 overflow-y-auto border-t px-4 pt-3 pb-3"
                 style={{ borderColor: "#3b3936", background: "#262421" }}
               >
                 <div className="mb-2 text-[0.82rem] text-white/44">
@@ -2264,29 +2201,31 @@ export function PlaySection({
               </div>
             ) : null}
             {over ? (
-              <PostGameActions
-                result={resultLine(t, match, you)}
-                ratingDiff={yourRatingDiff}
-                computerGame={isComputerGame}
-                canRematch={you !== null && !isComputerGame}
-                rematchReadyId={rematchReadyId}
-                opponentRematchOffer={opponentRematchOffer}
-                yourRematchOffer={yourRematchOffer}
-                requestingRematch={requestingRematch}
-                decliningRematch={decliningRematch}
-                onOpenRematch={() => {
-                  if (rematchReadyId) {
-                    router.push(`/casino/chess/play?match=${rematchReadyId}`);
-                  }
-                }}
-                onAcceptRematch={() => void onAcceptRematch()}
-                onOfferRematch={() => void onRematch()}
-                onDeclineRematch={() => void onDeclineRematch()}
-                onNewComputer={() => router.push("/casino/chess?computer=1")}
-                onReview={() => router.push(`/casino/chess/review?match=${match.id}`)}
-                onLobby={() => router.push("/casino/chess")}
-                t={t}
-              />
+              <div className="ws-chess-round-rail-controls min-h-0 overflow-y-auto">
+                <PostGameActions
+                  result={resultLine(t, match, you)}
+                  ratingDiff={yourRatingDiff}
+                  computerGame={isComputerGame}
+                  canRematch={you !== null && !isComputerGame}
+                  rematchReadyId={rematchReadyId}
+                  opponentRematchOffer={opponentRematchOffer}
+                  yourRematchOffer={yourRematchOffer}
+                  requestingRematch={requestingRematch}
+                  decliningRematch={decliningRematch}
+                  onOpenRematch={() => {
+                    if (rematchReadyId) {
+                      router.push(`/casino/chess/play?match=${rematchReadyId}`);
+                    }
+                  }}
+                  onAcceptRematch={() => void onAcceptRematch()}
+                  onOfferRematch={() => void onRematch()}
+                  onDeclineRematch={() => void onDeclineRematch()}
+                  onNewComputer={() => router.push("/casino/chess?computer=1")}
+                  onReview={() => router.push(`/casino/chess/review?match=${match.id}`)}
+                  onLobby={() => router.push("/casino/chess")}
+                  t={t}
+                />
+              </div>
             ) : null}
           </div>
         </aside>
@@ -2302,98 +2241,36 @@ export function PlaySection({
           <div className="space-y-4">
             <div className="text-[20px] font-semibold text-white">{t("movesTitle")}</div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[14px] border border-white/8 bg-black/12 px-4 py-4">
-                <div className="mb-2 text-[11px] tracking-[0.06em] text-white/34 uppercase">
-                  {topSeatLabel}
-                </div>
-                <div className="truncate text-[17px] font-semibold text-white">
-                  {opponentDisplayName}
-                </div>
-                <div
-                  className={`tnum mt-3 flex items-center gap-2 text-[38px] leading-none font-light text-white ${lowClockClass(
-                    clocks?.[opponentColor] ?? 0,
-                    !over
-                  )}`}
-                >
-                  <ClockIcon />
-                  {formatRoundClock(clockMode, clocks?.[opponentColor] ?? 0)}
-                </div>
-              </div>
-              <div className="rounded-[14px] border border-white/8 bg-black/12 px-4 py-4">
-                <div className="mb-2 text-[11px] tracking-[0.06em] text-white/34 uppercase">
-                  {bottomSeatLabel}
-                </div>
-                <div className="truncate text-[17px] font-semibold text-white">
-                  {selfDisplayName}
-                </div>
-                <div
-                  className={`tnum mt-3 flex items-center gap-2 text-[38px] leading-none font-light ${
-                    lowClockClass(clocks?.[selfColor] ?? 0, !over) ||
-                    (yourTurn ? "border-white/35 text-white" : "text-white")
-                  }`}
-                >
-                  <ClockIcon />
-                  {formatRoundClock(clockMode, clocks?.[selfColor] ?? 0)}
-                </div>
-              </div>
+              <RoundDialogPlayer
+                name={opponentDisplayName}
+                seatLabel={topSeatLabel}
+                clockMode={clockMode}
+                seconds={clocks?.[opponentColor] ?? 0}
+                live={!over}
+                active={match.state === "in_progress" && match.turn === opponentColor}
+              />
+              <RoundDialogPlayer
+                name={selfDisplayName}
+                seatLabel={bottomSeatLabel}
+                clockMode={clockMode}
+                seconds={clocks?.[selfColor] ?? 0}
+                live={!over}
+                active={match.state === "in_progress" && match.turn === selfColor}
+              />
             </div>
             <div className="overflow-hidden rounded-[14px] border border-white/8 bg-black/12">
               <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
                 <div className="text-[14px] font-semibold text-white">{currentReplayPly} ply</div>
                 <div className="text-[12px] text-white/46">{turnLabel}</div>
               </div>
-              {movePairs.length === 0 ? (
-                <div className="px-4 py-4 text-[13px] text-white/58">Starting position</div>
-              ) : (
-                <>
-                  <div className="max-h-[360px] overflow-y-auto">
-                    {movePairs.map((row) => (
-                      <div
-                        key={`${row.turn}-${row.white?.san ?? ""}-${row.black?.san ?? ""}`}
-                        className="grid grid-cols-[34px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-1 border-b border-white/8 px-3 py-1.5 text-[13px] last:border-b-0"
-                      >
-                        <div className="tnum text-white/36">{row.turn}</div>
-                        {row.white ? (
-                          <button
-                            type="button"
-                            onClick={() => jumpToPly(row.white!.ply)}
-                            disabled={!hasExactReplay && row.white.ply !== currentReplayPly}
-                            className={`tnum min-w-0 rounded-[8px] px-2 py-1 text-left font-medium transition-colors ${moveChipClass(
-                              viewingPly === row.white.ply
-                            )} ${
-                              !hasExactReplay && row.white.ply !== currentReplayPly
-                                ? "cursor-not-allowed opacity-45"
-                                : "cursor-pointer"
-                            }`}
-                          >
-                            <span className="block truncate">{row.white.san}</span>
-                          </button>
-                        ) : (
-                          <span />
-                        )}
-                        {row.black ? (
-                          <button
-                            type="button"
-                            onClick={() => jumpToPly(row.black!.ply)}
-                            disabled={!hasExactReplay && row.black.ply !== currentReplayPly}
-                            className={`tnum min-w-0 rounded-[8px] px-2 py-1 text-left font-medium transition-colors ${moveChipClass(
-                              viewingPly === row.black.ply
-                            )} ${
-                              !hasExactReplay && row.black.ply !== currentReplayPly
-                                ? "cursor-not-allowed opacity-45"
-                                : "cursor-pointer"
-                            }`}
-                          >
-                            <span className="block truncate">{row.black.san}</span>
-                          </button>
-                        ) : (
-                          <span />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
+              <RoundMoveList
+                pairs={movePairs}
+                viewingPly={viewingPly}
+                currentPly={currentReplayPly}
+                exactReplay={hasExactReplay}
+                onSelect={jumpToPly}
+                compact
+              />
             </div>
             <div className="rounded-[14px] border border-white/8 bg-black/12 px-4 py-3 text-[12.5px] text-white/62">
               <span className="tnum text-white">

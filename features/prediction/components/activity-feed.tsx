@@ -2,9 +2,9 @@
 
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { Identicon } from "@/components/ui/identicon";
 
 type Translator = ReturnType<typeof useTranslations>;
-import Blockies from "react-blockies";
 import { useActivity } from "@/features/prediction/hooks/use-prediction-detail";
 import { compactUsd, priceToCents, shortAddress, timeAgo } from "@/features/prediction/lib/format";
 import type { ActivityItem } from "@/features/prediction/lib/types";
@@ -66,11 +66,7 @@ function ActivityRow({ item, label }: { item: ActivityItem; label: string }) {
   return (
     <li className="flex items-center gap-3 py-2.5">
       <span className="overflow-hidden rounded-full">
-        <Blockies
-          seed={(item.actor || item.marketId.toString()).toLowerCase()}
-          size={8}
-          scale={3}
-        />
+        <Identicon seed={item.actor || item.marketId.toString()} />
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] text-white/85">

@@ -99,9 +99,9 @@ const SOCIAL_POLL_MS = 4_000;
 const TICKET_POLL_MS = 1_000;
 const OPTIMISTIC_RECONCILE_MS = 1_500;
 
-// How often the displayed clock is recomputed. Four times a second keeps the
-// seconds digit honest without re-rendering the board on every frame.
-const CLOCK_TICK_MS = 250;
+// Low-time clocks expose deciseconds, so repaint at that same cadence. The
+// memoized board does not rerender for these clock-only updates.
+const CLOCK_TICK_MS = 100;
 
 export const CHESS_KEYS = {
   challenges: ["casino", "chess", "challenges"] as const,
@@ -268,6 +268,7 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
   const [optimistic, setOptimistic] = useState<OptimisticMatchState | null>(null);
+  const countrySyncKey = useRef<string | null>(null);
 
   // The match id whose live socket has delivered a frame. Deriving "is the
   // socket live?" from it (rather than a bare boolean) means a change of match
@@ -465,6 +466,25 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
   );
 
   const you = resolveViewerColor(match, wallet.address ?? null, seatName);
+  const { mutate: syncMatchCountry } = useMutation({
+    mutationFn: () => acceptChallenge(matchId as string, requireWallet(wallet.address)),
+    onSuccess: applyMatch,
+  });
+
+  useEffect(() => {
+    const address = wallet.address;
+    const player = you === "w" ? match?.white : you === "b" ? match?.black : null;
+    if (!matchId || seatName || !address || !player || player.countryCode) return;
+
+    const key = `${matchId}:${address.toLowerCase()}`;
+    if (countrySyncKey.current === key) return;
+    countrySyncKey.current = key;
+    syncMatchCountry(undefined, {
+      onError: () => {
+        if (countrySyncKey.current === key) countrySyncKey.current = null;
+      },
+    });
+  }, [match?.black, match?.white, matchId, seatName, syncMatchCountry, wallet.address, you]);
 
   // Who the write names as the acting player. A managed Swiss-tournament board
   // seats a player by the short display name they registered under — carried on

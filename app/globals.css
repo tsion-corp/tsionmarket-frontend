@@ -75,6 +75,16 @@ body {
   overflow-x: hidden;
 }
 
+:root {
+  --chess-page-board-cap: 780px;
+}
+
+@media (min-width: 900px) and (min-height: 600px) {
+  :root {
+    --chess-page-board-cap: calc(100dvh - 300px);
+  }
+}
+
 ::selection {
   background: rgba(255, 255, 255, 0.35);
   color: #fff;
@@ -148,35 +158,72 @@ body {
 
 .ws-chess-round-shell {
   display: grid;
-  gap: 1.25rem;
+  gap: 15px;
 }
 
 .ws-chess-round-root {
   --ws-chess-body-font: var(--font-chess-body), "Noto Sans", var(--font-sans), sans-serif;
   --ws-chess-clock-font: var(--font-chess-clock), Roboto, var(--font-sans), sans-serif;
   font-family: var(--ws-chess-body-font);
+  font-size: clamp(12px, calc(12px + 2 * (100vw - 300px) / 900), 14px);
 }
 
 .ws-chess-round-root .ws-chess-lila-player {
-  font-size: 1.18rem;
-  line-height: 1.2;
+  font-size: 1.2em;
+  line-height: inherit;
 }
 
 .ws-chess-round-root .ws-chess-lila-meta {
-  font-size: 0.95rem;
+  font-size: 1em;
   color: rgb(255 255 255 / 0.58);
 }
 
 .ws-chess-round-root .ws-chess-lila-clock {
   font-family: var(--ws-chess-clock-font);
-  font-weight: 300;
-  letter-spacing: 0.08em;
-  line-height: 0.94;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.ws-chess-round-root .ws-chess-lila-clock-main {
+  min-width: 3em;
+  font-size: 2.8em;
+  line-height: 50px;
+}
+
+.ws-chess-round-root .ws-chess-lila-clock-compact {
+  font-size: 1.35rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .ws-chess-round-root .ws-chess-lila-moves {
-  font-size: 1.1rem;
+  font-size: 1.1em;
   line-height: 1.7;
+}
+
+.ws-chess-round-rail {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto auto auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.ws-chess-round-rail-top {
+  grid-row: 2;
+}
+
+.ws-chess-round-rail-table {
+  grid-row: 3;
+  grid-template-rows: 2.5rem 7.4rem auto;
+}
+
+.ws-chess-round-rail-controls {
+  grid-row: 4;
+  max-height: min(15rem, 28dvh);
+}
+
+.ws-chess-round-rail-bottom {
+  grid-row: 5;
 }
 
 .ws-chess-round-desktop-left,
@@ -188,38 +235,43 @@ body {
   .ws-chess-round-root {
     --ws-chess-side-min: 250px;
     --ws-chess-table-min: 240px;
-    --ws-chess-table-max: 360px;
-    --ws-chess-board-scale: 0.8875;
-    --ws-chess-board-max-height: calc(100dvh - 112px - 16px);
+    --ws-chess-table-max: 400px;
+    --ws-chess-board-scale: 1;
+    --ws-chess-board-max-height: calc(100dvh - 52px - 16px - 1rem);
+    --ws-chess-col2-board-max-width: calc(
+      100vw - 15px - var(--ws-chess-table-min) - 2 * 1vw - 20px
+    );
     --ws-chess-col3-board-max-width: calc(
-      100vw - var(--ws-chess-side-min) - 1.25rem - var(--ws-chess-table-min) - 2 * 2rem - 20px
+      100vw - var(--ws-chess-side-min) - 2 * 15px - var(--ws-chess-table-min) - 2 * 1vw - 20px
     );
     --ws-chess-board-size: min(
-      var(--ws-chess-col3-board-max-width),
+      var(--ws-chess-col2-board-max-width),
       var(--ws-chess-board-max-height)
     );
+    padding-inline: 1vw !important;
     padding-bottom: 0 !important;
   }
 
   .ws-chess-round-shell {
-    height: calc(100dvh - 112px);
+    height: calc(100dvh - 52px - 16px);
     grid-template-columns:
-      minmax(var(--ws-chess-side-min), 350px)
-      minmax(500px, calc(var(--ws-chess-board-size) * var(--ws-chess-board-scale)))
+      minmax(0, calc(var(--ws-chess-board-size) * var(--ws-chess-board-scale)))
       minmax(var(--ws-chess-table-min), var(--ws-chess-table-max));
     justify-content: center;
     align-items: start;
     overflow: hidden;
   }
 
-  .ws-chess-round-desktop-left,
   .ws-chess-round-desktop-right {
     display: flex !important;
   }
 
   .ws-chess-round-desktop-left {
+    display: none !important;
     order: 1;
-    max-height: calc(100dvh - 112px);
+    width: 100%;
+    height: calc(var(--ws-chess-board-size) * var(--ws-chess-board-scale));
+    max-height: var(--ws-chess-board-max-height);
   }
 
   .ws-chess-round-board-section {
@@ -246,13 +298,21 @@ body {
     box-shadow: none !important;
   }
 
+  .ws-chess-round-mobile-player,
   .ws-chess-round-mobile-stack {
     display: none !important;
   }
 
   .ws-chess-round-desktop-right {
     order: 3;
-    max-height: calc(100dvh - 112px);
+    width: 100%;
+    height: calc(var(--ws-chess-board-size) * var(--ws-chess-board-scale));
+    max-height: var(--ws-chess-board-max-height);
+  }
+
+  .ws-chess-round-root .ws-chess-lila-clock-main {
+    align-items: flex-end;
+    line-height: 1.2em;
   }
 
   /* Lichess analysis keeps the board and tools aligned, then lets the graph
@@ -287,6 +347,33 @@ body {
     height: calc(var(--ws-chess-board-size) * var(--ws-chess-board-scale));
     min-height: 500px !important;
     max-height: var(--ws-chess-board-max-height);
+  }
+}
+
+@media (min-width: 499.3px) and (min-height: 599.3px) {
+  .ws-chess-round-root .ws-chess-lila-clock-main {
+    font-size: 3.6em;
+    letter-spacing: 0.12em;
+  }
+}
+
+@media (min-width: 1280px) {
+  .ws-chess-round-root:not(.ws-chess-analysis-root) {
+    --ws-chess-board-size: min(
+      var(--ws-chess-col3-board-max-width),
+      var(--ws-chess-board-max-height)
+    );
+  }
+
+  .ws-chess-round-shell:not(.ws-chess-analysis-shell) {
+    grid-template-columns:
+      minmax(var(--ws-chess-side-min), 350px)
+      minmax(0, calc(var(--ws-chess-board-size) * var(--ws-chess-board-scale)))
+      minmax(var(--ws-chess-table-min), var(--ws-chess-table-max));
+  }
+
+  .ws-chess-round-root:not(.ws-chess-analysis-root) .ws-chess-round-desktop-left {
+    display: flex !important;
   }
 }
 

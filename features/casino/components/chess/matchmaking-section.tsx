@@ -27,7 +27,7 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
   if (!ticketId) {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
-        <div className="ws-glass rounded-2xl p-9 text-center">
+        <div className="ws-glass rounded-2xl p-5 text-center sm:p-9">
           <div className="ws-display mb-1.5 text-[19px]">{t("noTicketTitle")}</div>
           <div className="mb-5 text-[12.5px] font-normal text-white/55">{t("noTicketNote")}</div>
           <Link
@@ -68,7 +68,7 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
   if (ticket.state === "expired") {
     return (
       <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20">
-        <div className="ws-glass rounded-2xl p-9 text-center">
+        <div className="ws-glass rounded-2xl p-5 text-center sm:p-9">
           <div className="ws-display mb-1.5 text-[19px]">{t("expiredTitle")}</div>
           <div className="text-[12.5px] font-normal text-white/55">{t("expiredNote")}</div>
         </div>
@@ -78,7 +78,7 @@ export function MatchmakingSection({ ticketId }: { ticketId: string | null }) {
 
   return (
     <div className="mx-auto w-full max-w-[520px] px-4 pt-10 pb-20 sm:px-6">
-      <div className="ws-glass rounded-2xl p-9 text-center">
+      <div className="ws-glass rounded-2xl p-5 text-center sm:p-9">
         <div className="border-accent/30 border-t-accent mx-auto mb-5 h-11 w-11 animate-spin rounded-full border-2" />
         <div className="ws-display mb-1.5 text-[19px]">{t("waitingTitle")}</div>
         <div className="mb-4.5 text-[12.5px] font-normal text-white/55">{t("waitingNote")}</div>

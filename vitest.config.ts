@@ -14,7 +14,7 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
     include: ["**/*.{test,spec}.{ts,tsx}"],
-    exclude: ["node_modules", ".next", "out", "build", "casino-service"],
+    exclude: ["node_modules", ".next", "out", "build", "casino-service", "reference"],
     passWithNoTests: true,
   },
   resolve: {

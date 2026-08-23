@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import Blockies from "react-blockies";
+import { Identicon } from "@/components/ui/identicon";
 import { useComments } from "@/features/prediction/hooks/use-prediction-detail";
 import { usePredictionComments } from "@/features/prediction/hooks/use-prediction-comments";
 import { shortAddress, timeAgo } from "@/features/prediction/lib/format";
@@ -103,7 +103,7 @@ function CommentRow({ comment, onLike }: { comment: Comment; onLike: () => void 
   return (
     <div className="flex gap-3">
       <span className="mt-0.5 shrink-0 overflow-hidden rounded-full">
-        <Blockies seed={comment.wallet.toLowerCase()} size={8} scale={3} />
+        <Identicon seed={comment.wallet} />
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
