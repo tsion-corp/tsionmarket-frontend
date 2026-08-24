@@ -24,7 +24,8 @@ const REORDERABLE: SectionId[] = [
   "meme",
   "rwa",
   "prediction",
-  "earn",
+  // Earn is hidden from the nav for now.
+  // "earn",
   "casino",
   "activity",
 ];
@@ -38,7 +39,8 @@ const INTEREST_TO_SECTION: Record<string, SectionId> = {
   meme: "meme",
   prediction: "prediction",
   casino: "casino",
-  earn: "earn",
+  // Earn is hidden from the nav for now; the interest falls back to the default order.
+  // earn: "earn",
   yield: "rwa",
   realestate: "rwa",
   treasuries: "rwa",
