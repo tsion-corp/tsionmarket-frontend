@@ -34,6 +34,7 @@
     "canvas-confetti": "^1.9.4",
     "chess.js": "^1.4.0",
     "clsx": "^2.1.1",
+    "driver.js": "^1.8.0",
     "embla-carousel-react": "^8.6.0",
     "jsqr": "^1.4.0",
     "lightweight-charts": "^5.2.0",

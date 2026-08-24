@@ -23,6 +23,7 @@ import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-t
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
+import { useDashboardTour } from "@/features/tour";
 import type { DepositPrefill } from "@/lib/voice/intent";
 import { loadInterest } from "@/lib/preferences";
 import type { SectionId } from "@/lib/sections";
@@ -78,6 +79,7 @@ export default function DashboardPage() {
   const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const scrollSectionIds = useMemo(() => nav.map((n) => n.id).filter(isScrollSection), [nav]);
   const activeSection = useScrollSpy(scrollSectionIds);
+  useDashboardTour();
 
   // A spoken deposit ("deposit USDC on Solana") lands here as URL params: open
   // the funds modal on the crypto screen with the chain/token pre-selected. The

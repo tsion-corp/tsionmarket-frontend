@@ -99,7 +99,7 @@ export function KashCard({
     : null;
 
   return (
-    <div className="ws-card flex h-full flex-col p-5 sm:p-[26px]">
+    <div data-tour="kash" className="ws-card flex h-full flex-col p-5 sm:p-[26px]">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-[13px] font-normal text-white/60">
           {/* eslint-disable-next-line @next/next/no-img-element */}

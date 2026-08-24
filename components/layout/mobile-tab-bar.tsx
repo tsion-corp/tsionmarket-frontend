@@ -68,6 +68,7 @@ export function MobileTabBar({
 
         <button
           type="button"
+          data-tour="more"
           onClick={onOpenMore}
           aria-label={t("menu")}
           className={`flex h-11 cursor-pointer items-center gap-1.5 rounded-full transition-colors ${
@@ -87,6 +88,7 @@ export function MobileTabBar({
 
       <button
         type="button"
+        data-tour="add-funds"
         onClick={onAddFunds}
         aria-label={t("addFunds")}
         className="pointer-events-auto ml-2 grid size-[52px] shrink-0 cursor-pointer place-items-center rounded-full border border-white/12 bg-[#141416]/92 text-white shadow-[0_18px_50px_-16px_rgba(0,0,0,0.95)] backdrop-blur-[18px] transition-colors hover:bg-white/12"

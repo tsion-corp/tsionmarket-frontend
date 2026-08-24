@@ -105,6 +105,7 @@ export function Sidebar({
             return (
               <button
                 key={n.id}
+                data-tour-nav={n.id}
                 onClick={() => choose(n.id)}
                 className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-[11px] text-left font-sans text-[14.5px] font-medium transition-colors ${
                   active
@@ -122,6 +123,7 @@ export function Sidebar({
         </nav>
 
         <button
+          data-tour="profile"
           onClick={() => {
             onOpenAccount();
             onClose();

@@ -426,6 +426,90 @@ body {
   }
 }
 
+/* Product tour (driver.js): the popover restyled to the app's dark sheet.
+   Applied through popoverClass, so the library's own defaults never leak
+   into the page. */
+.driver-popover.ws-tour {
+  background: #131316;
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 18px;
+  max-width: 320px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 24px 80px -24px rgba(0, 0, 0, 0.9);
+}
+
+.driver-popover.ws-tour .driver-popover-title {
+  font-family: var(--font-display), var(--font-sans), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.driver-popover.ws-tour .driver-popover-description {
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13.5px;
+  font-weight: 400;
+  line-height: 1.55;
+}
+
+.driver-popover.ws-tour .driver-popover-progress-text {
+  color: rgba(255, 255, 255, 0.38);
+  font-size: 12px;
+}
+
+.driver-popover.ws-tour .driver-popover-navigation-btns {
+  gap: 8px;
+}
+
+.driver-popover.ws-tour button.driver-popover-prev-btn,
+.driver-popover.ws-tour button.driver-popover-next-btn {
+  border-radius: 9999px;
+  padding: 8px 16px;
+  font-family: var(--font-sans), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  text-shadow: none;
+}
+
+.driver-popover.ws-tour button.driver-popover-prev-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.driver-popover.ws-tour button.driver-popover-next-btn {
+  background: #fff;
+  border: 1px solid #fff;
+  color: #0a0a0a;
+}
+
+.driver-popover.ws-tour .driver-popover-close-btn {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.driver-popover.ws-tour .driver-popover-close-btn:hover {
+  color: #fff;
+}
+
+.driver-popover.ws-tour .driver-popover-arrow-side-left.driver-popover-arrow {
+  border-left-color: #131316;
+}
+
+.driver-popover.ws-tour .driver-popover-arrow-side-right.driver-popover-arrow {
+  border-right-color: #131316;
+}
+
+.driver-popover.ws-tour .driver-popover-arrow-side-top.driver-popover-arrow {
+  border-top-color: #131316;
+}
+
+.driver-popover.ws-tour .driver-popover-arrow-side-bottom.driver-popover-arrow {
+  border-bottom-color: #131316;
+}
+
 /* Referrals: the Invite Friends sparkles blink like the designer's Figma.
    One keyframe for every star; each staggers itself with an inline
    animation-delay so they never blink in unison. */
