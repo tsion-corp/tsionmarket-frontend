@@ -27,7 +27,7 @@ const COLUMNS = [
 ] as const;
 
 const SOCIALS = [
-  { href: "#", label: "X / Twitter" },
+  { href: "https://x.com/TsionArk", label: "X / Twitter" },
   { href: "#", label: "Telegram" },
   { href: "#", label: "Discord" },
 ] as const;
@@ -81,11 +81,18 @@ export function Footer({ onNavigate }: FooterProps) {
           <div className="ws-display mb-3.5 text-base">{t("connectTitle")}</div>
           <div className="flex flex-col gap-2.5 text-sm font-normal">
             {SOCIALS.map((l) => (
-              <a key={l.label} href={l.href} className="hover:text-accent text-white/60">
+              <a
+                key={l.label}
+                href={l.href}
+                target={l.href === "#" ? undefined : "_blank"}
+                rel={l.href === "#" ? undefined : "noopener noreferrer"}
+                className="hover:text-accent text-white/60"
+              >
                 {l.label}
               </a>
             ))}
-            <a href="#" className="hover:text-accent text-white/60">
+            {/* Rings the support line: 09035725241. */}
+            <a href="tel:+2349035725241" className="hover:text-accent text-white/60">
               {t("contact")}
             </a>
           </div>

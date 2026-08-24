@@ -136,6 +136,7 @@
     "ctaNeedsGas": "Préparation de votre portefeuille {chain}. Ajoutez un peu de {symbol} pour continuer."
   },
   "topbar": {
+    "support": "support",
     "searchPlaceholder": "Rechercher actifs, marchés, tickers",
     "menu": "Menu",
     "closeMenu": "Fermer le menu",

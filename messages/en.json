@@ -136,6 +136,7 @@
     "ctaNeedsGas": "Getting your {chain} wallet ready. Add a little {symbol} to continue."
   },
   "topbar": {
+    "support": "support",
     "searchPlaceholder": "Search assets, markets, tickers",
     "menu": "Menu",
     "closeMenu": "Close menu",

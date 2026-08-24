@@ -6,6 +6,7 @@ import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { SupportButton } from "@/components/layout/support-button";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { FundsModal } from "@/features/funds";
 import { useClaimReferralFromLink } from "@/features/referrals";
@@ -83,6 +84,8 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         onOpenMore={() => setMenuOpen(true)}
         onAddFunds={() => setFundsOpen(true)}
       />
+
+      <SupportButton />
 
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
         <AccountModal onClose={() => setAccountOpen(false)} />

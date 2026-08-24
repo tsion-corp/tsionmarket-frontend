@@ -136,6 +136,7 @@
     "ctaNeedsGas": "Wir richten deine {chain}-Wallet ein. Füge etwas {symbol} hinzu, um fortzufahren."
   },
   "topbar": {
+    "support": "support",
     "searchPlaceholder": "Assets, Märkte, Ticker suchen",
     "menu": "Menü",
     "closeMenu": "Menü schließen",

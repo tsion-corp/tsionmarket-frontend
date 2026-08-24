@@ -136,6 +136,7 @@
     "ctaNeedsGas": "A preparar a sua carteira {chain}. Adicione um pouco de {symbol} para continuar."
   },
   "topbar": {
+    "support": "suporte",
     "searchPlaceholder": "Pesquisar ativos, mercados, tickers",
     "menu": "Menu",
     "closeMenu": "Fechar menu",

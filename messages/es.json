@@ -136,6 +136,7 @@
     "ctaNeedsGas": "Preparando tu monedero de {chain}. Añade un poco de {symbol} para continuar."
   },
   "topbar": {
+    "support": "soporte",
     "searchPlaceholder": "Buscar activos, mercados, tickers",
     "menu": "Menú",
     "closeMenu": "Cerrar menú",
