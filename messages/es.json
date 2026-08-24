@@ -2289,6 +2289,27 @@
     "loadFailed": "No se pudieron cargar tus referidos.",
     "retry": "Reintentar"
   },
+  "marquee": {
+    "liveLabel": "En vivo",
+    "liveJoin": "Únete ya",
+    "liveLastMan": "Last Man · bote de {pot}",
+    "liveWatch": "Ver",
+    "liveChess": "Ajedrez · partida en vivo",
+    "liveCheckers": "Damas · partida en vivo",
+    "newBadge": "Nuevo",
+    "portfolio": "El portafolio es la pantalla de inicio de tu dinero. Reúne tu saldo, tus monedas y tus activos en un solo lugar y los valora en vivo, para que siempre sepas qué tienes y cuánto vale.",
+    "kash": "Kash+ es nuestro token de recompensas. Tenlo en tu billetera y la plataforma te devuelve por lo que ya haces, así cada operación y cada partida te dejan un extra sin esfuerzo.",
+    "funds": "Añadir fondos recarga tu billetera. Transfiere desde tu banco desde ₦1,000 o envía cripto, y el dinero llega en minutos, listo para operar, jugar o enviar.",
+    "spot": "Spot es comprar cripto sin rodeos. Elige una moneda, mira el precio en vivo, confirma en dos toques, y queda en tu propia billetera donde solo tú decides.",
+    "perps": "Los perpetuos te dejan operar un movimiento de precio con apalancamiento. Ve en largo si crees que sube, en corto si crees que baja, y un buen acierto paga varias veces más.",
+    "meme": "En Memecoins aparecen primero los tokens recién nacidos. Mira lo que es tendencia, compra en un par de toques y atrapa al próximo ganador cuando todavía es temprano.",
+    "rwa": "Activos reales pone acciones y oro en tu panel. Compra una parte directamente desde tu billetera en segundos, sin corredor ni papeleo, y vende igual de fácil.",
+    "prediction": "Predicción convierte tu opinión en una posición. Apuesta por un resultado en deportes, elecciones o precios, y si el mundo va a tu favor cobras dinero real.",
+    "casino": "Arkade son juegos con apuestas reales. Reta a otros al ajedrez, las damas o Last Man, y cuando ganas el premio se paga directo a tu billetera.",
+    "earn": "Earn es trabajo, no suerte. Toma encargos y tareas pequeñas, entrégalos y cobra en tu billetera sin hacer ni una sola operación.",
+    "activity": "Actividad es tu historial completo de dinero. Cada depósito, operación, premio y retiro está en una lista clara, para que siempre puedas rastrear a dónde fue tu dinero.",
+    "invite": "Invitar amigos es tu enlace de referido. Compártelo donde quieras, y cada vez que un amigo se registra y hace su primer depósito, el crédito es tuyo. Las recompensas vienen en camino."
+  },
   "tour": {
     "replayCta": "Hacer el recorrido",
     "next": "Siguiente",

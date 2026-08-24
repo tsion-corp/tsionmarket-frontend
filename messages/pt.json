@@ -2289,6 +2289,27 @@
     "loadFailed": "Não foi possível carregar suas indicações.",
     "retry": "Tentar novamente"
   },
+  "marquee": {
+    "liveLabel": "Ao vivo",
+    "liveJoin": "Entrar agora",
+    "liveLastMan": "Last Man · pote de {pot}",
+    "liveWatch": "Assistir",
+    "liveChess": "Xadrez · partida ao vivo",
+    "liveCheckers": "Damas · partida ao vivo",
+    "newBadge": "Novo",
+    "portfolio": "O portfólio é a tela inicial do seu dinheiro. Ele reúne saldo, moedas e ativos num só lugar e precifica tudo ao vivo, para você saber sempre o que tem e quanto vale.",
+    "kash": "Kash+ é o nosso token de recompensa. Guarde na carteira e a plataforma devolve pelo que você já faz: cada operação e cada partida rendem um extra sem esforço.",
+    "funds": "Adicionar fundos recarrega a sua carteira. Transfira do banco a partir de ₦1.000 ou envie cripto, e o dinheiro chega em minutos, pronto para operar, jogar ou enviar.",
+    "spot": "Spot é compra de cripto sem rodeio. Escolha uma moeda, veja o preço ao vivo, confirme em dois toques, e ela fica na sua própria carteira, sob o seu controle.",
+    "perps": "Os perpétuos deixam você operar um movimento de preço com alavancagem. Fique comprado se acha que sobe, vendido se acha que cai, e um bom palpite paga várias vezes mais.",
+    "meme": "Em Memecoins os tokens novinhos aparecem primeiro. Veja o que está em alta, compre em dois toques e pegue o próximo vencedor enquanto ainda é cedo.",
+    "rwa": "Ativos reais coloca ações e ouro no seu painel. Compre um pedaço direto da carteira em segundos, sem corretora e sem papelada, e venda com a mesma facilidade.",
+    "prediction": "Previsão transforma a sua opinião em posição. Aposte num resultado de esportes, eleições ou preços, e se o mundo for do seu lado, você recebe dinheiro de verdade.",
+    "casino": "Arkade são jogos com apostas de verdade. Desafie outros no xadrez, nas damas ou no Last Man, e quando você vence o prêmio cai direto na sua carteira.",
+    "earn": "Earn é trabalho, não sorte. Pegue trabalhos e tarefas pequenas, entregue e receba na carteira sem fazer uma única operação.",
+    "activity": "Atividade é o histórico completo do seu dinheiro. Cada depósito, operação, prêmio e saque fica numa lista limpa, para você sempre rastrear para onde o dinheiro foi.",
+    "invite": "Convidar amigos é o seu link de indicação. Compartilhe onde quiser, e cada vez que um amigo entra e faz o primeiro depósito, o crédito é seu. As recompensas estão a caminho."
+  },
   "tour": {
     "replayCta": "Fazer o tour",
     "next": "Avançar",

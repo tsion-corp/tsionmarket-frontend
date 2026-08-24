@@ -2289,6 +2289,27 @@
     "loadFailed": "Couldn't load your referrals.",
     "retry": "Retry"
   },
+  "marquee": {
+    "liveLabel": "Live",
+    "liveJoin": "Join now",
+    "liveLastMan": "Last Man · {pot} pot",
+    "liveWatch": "Watch",
+    "liveChess": "Chess · live match",
+    "liveCheckers": "Checkers · live match",
+    "newBadge": "New",
+    "portfolio": "Portfolio is your money's home screen. It gathers your balance, coins and assets in one place and prices them live, so you always know exactly what you hold and what it's worth.",
+    "kash": "Kash+ is our reward token. Hold it in your wallet and the platform pays you back for what you already do, so every trade and game quietly earns you a little extra.",
+    "funds": "Add funds tops up your wallet. Transfer from your bank from as little as ₦1,000, or send crypto, and the money lands in minutes, ready to trade, play or send.",
+    "spot": "Spot is straight crypto buying. Pick a coin, see the live price, confirm in two taps, and it lands in your own wallet where only you control it.",
+    "perps": "Perpetuals let you trade a price move with leverage. Go long if you think it rises, short if you think it falls, and a good call pays several times harder.",
+    "meme": "Memecoins is where brand new tokens show up first. Browse what's trending, buy in a couple of taps, and catch the next runner while it's still early.",
+    "rwa": "Real assets puts stocks and gold on your dashboard. Buy a piece straight from your wallet in seconds, with no broker and no paperwork, and sell just as easily.",
+    "prediction": "Prediction turns your opinion into a position. Back an outcome in sports, elections or prices, and if the world goes your way you get paid real cash.",
+    "casino": "Arkade is games with real stakes. Challenge people at chess, checkers or Last Man, and when you win the prize is paid straight into your wallet.",
+    "earn": "Earn is work, not luck. Pick up gigs and small tasks, deliver them, and get paid into your wallet without ever placing a trade.",
+    "activity": "Activity is your full money history. Every deposit, trade, win and withdrawal sits in one clean list, so you can always trace exactly where your money went.",
+    "invite": "Invite friends is your referral link. Share it anywhere, and each time a friend signs up and makes their first deposit you get the credit. Rewards are on the way."
+  },
   "tour": {
     "replayCta": "Take a tour",
     "next": "Next",

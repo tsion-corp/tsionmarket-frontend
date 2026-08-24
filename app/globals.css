@@ -521,6 +521,65 @@ body {
   border-bottom-color: #131316;
 }
 
+/* The feature marquee under the topbar: a duplicated item list slides one
+   full copy for a seamless wrap (the casino ticker's trick), pauses while
+   hovered or focused so items can be read and clicked, and a periodic glint
+   sweeps the silver. Reduced motion swaps the slide for a scrollable strip. */
+@keyframes ws-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.ws-marquee-track {
+  animation: ws-marquee-scroll 120s linear infinite;
+}
+
+.ws-marquee:hover .ws-marquee-track,
+.ws-marquee:focus-within .ws-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes ws-marquee-sheen {
+  0% {
+    transform: translateX(-130%) skewX(-18deg);
+  }
+  55%,
+  100% {
+    transform: translateX(560%) skewX(-18deg);
+  }
+}
+
+.ws-marquee-sheen {
+  animation: ws-marquee-sheen 11s ease-in-out infinite;
+}
+
+.ws-marquee-viewport {
+  overflow: hidden;
+  /* News-ticker edges: items fade in and out instead of being cut off. */
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black 28px,
+    black calc(100% - 28px),
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-marquee-track,
+  .ws-marquee-sheen {
+    animation: none;
+  }
+  .ws-marquee-viewport {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+}
+
 /* Referrals: the Invite Friends sparkles blink like the designer's Figma.
    One keyframe for every star; each staggers itself with an inline
    animation-delay so they never blink in unison. */

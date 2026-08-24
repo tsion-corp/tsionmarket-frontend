@@ -2289,6 +2289,27 @@
     "loadFailed": "Impossible de charger vos parrainages.",
     "retry": "Réessayer"
   },
+  "marquee": {
+    "liveLabel": "En direct",
+    "liveJoin": "Rejoindre",
+    "liveLastMan": "Last Man · cagnotte de {pot}",
+    "liveWatch": "Regarder",
+    "liveChess": "Échecs · partie en direct",
+    "liveCheckers": "Dames · partie en direct",
+    "newBadge": "Nouveau",
+    "portfolio": "Le portefeuille est l'écran d'accueil de votre argent. Il réunit votre solde, vos cryptos et vos actifs au même endroit et les valorise en direct, pour que vous sachiez toujours ce que vous avez et ce que ça vaut.",
+    "kash": "Kash+ est notre token de récompense. Gardez-en dans votre portefeuille et la plateforme vous rend ce que vous faites déjà : chaque trade et chaque partie vous rapportent un petit extra.",
+    "funds": "Ajouter des fonds recharge votre portefeuille. Virez depuis votre banque dès ₦1 000 ou envoyez de la crypto, et l'argent arrive en quelques minutes, prêt à trader, jouer ou envoyer.",
+    "spot": "Spot, c'est l'achat de crypto sans détour. Choisissez une monnaie, regardez le prix en direct, confirmez en deux gestes, et elle atterrit dans votre propre portefeuille, sous votre seul contrôle.",
+    "perps": "Les perpétuels vous laissent trader un mouvement de prix avec effet de levier. Long si vous pensez que ça monte, short si vous pensez que ça baisse, et une bonne lecture paie plusieurs fois plus fort.",
+    "meme": "Memecoins, c'est là où les tout nouveaux tokens apparaissent en premier. Parcourez les tendances, achetez en deux gestes et attrapez le prochain gagnant tant qu'il est tôt.",
+    "rwa": "Actifs réels met les actions et l'or sur votre tableau de bord. Achetez-en une part depuis votre portefeuille en quelques secondes, sans courtier ni paperasse, et revendez aussi simplement.",
+    "prediction": "Prédiction transforme votre opinion en position. Misez sur une issue en sport, en politique ou sur les prix, et si le monde vous donne raison, vous touchez du vrai argent.",
+    "casino": "Arkade, ce sont des jeux avec de vraies mises. Défiez d'autres joueurs aux échecs, aux dames ou à Last Man, et quand vous gagnez, le prix est versé droit dans votre portefeuille.",
+    "earn": "Earn, c'est du travail, pas de la chance. Prenez des missions et de petites tâches, livrez-les et soyez payé dans votre portefeuille sans jamais passer un trade.",
+    "activity": "Activité est l'historique complet de votre argent. Chaque dépôt, trade, gain et retrait tient dans une liste claire, pour toujours pouvoir retracer où est passé votre argent.",
+    "invite": "Inviter des amis, c'est votre lien de parrainage. Partagez-le partout, et chaque fois qu'un ami s'inscrit et fait son premier dépôt, le crédit est pour vous. Les récompenses arrivent."
+  },
   "tour": {
     "replayCta": "Faire la visite",
     "next": "Suivant",

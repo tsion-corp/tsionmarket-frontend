@@ -7,9 +7,10 @@ import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { SupportButton } from "@/components/layout/support-button";
+import { FeatureMarquee } from "@/components/layout/feature-marquee";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { FundsModal } from "@/features/funds";
-import { useClaimReferralFromLink } from "@/features/referrals";
+import { InviteFriendsModal, useClaimReferralFromLink } from "@/features/referrals";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import type { NavItem } from "@/components/layout/nav-items";
@@ -37,6 +38,9 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   // the action works on every page, not just the dashboard, which keeps its own
   // copy for the balance card and the empty states.
   const [fundsOpen, setFundsOpen] = useState(false);
+  // The marquee's invite item opens the same Invite Friends modal the account
+  // menu reaches; the shell owns an instance so the item works on every page.
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   // Anyone rendering the shell has an account, including sessions that
   // predate the flag — so the landing page can greet them with "Log in".
@@ -72,6 +76,12 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       <main className="min-h-screen pb-[92px] md:ml-[248px] md:pb-0">
         <div className="sticky top-0 z-[60]">
           <Topbar onOpenAccount={() => setAccountOpen(true)} onSelectSection={navigate} />
+          <FeatureMarquee
+            navIds={nav.map((n) => n.id)}
+            onNavigate={navigate}
+            onAddFunds={() => setFundsOpen(true)}
+            onInvite={() => setInviteOpen(true)}
+          />
         </div>
 
         {children}
@@ -86,6 +96,8 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       />
 
       <SupportButton />
+
+      <InviteFriendsModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
 
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
         <AccountModal onClose={() => setAccountOpen(false)} />
