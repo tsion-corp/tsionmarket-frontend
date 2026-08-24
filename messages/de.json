@@ -1996,6 +1996,13 @@
         "oddsMovement": "Quotenverlauf",
         "marketSettled": "Market settled: {outcome} won",
         "marketVoided": "Market voided, stakes refunded",
+        "settlingBets": "Deine Einsätze werden abgerechnet",
+        "settlingBetsBody": "Das Ergebnis steht fest. Dein Schach-Guthaben wird jetzt aktualisiert.",
+        "returnCredited": "Auszahlung gutgeschrieben",
+        "refundCredited": "Einsatz zurückerstattet",
+        "returnCreditedBody": "Der Betrag ist in deinem Schach-Guthaben verfügbar. Zahle ihn aus, um ihn an deine Wallet zu senden.",
+        "noReturn": "Einsatz abgerechnet",
+        "noReturnBody": "Deine Auswahl hat nicht gewonnen, daher gibt es aus diesem Markt keine Auszahlung.",
         "noSelfBet": "Du spielst diese Partie, deshalb kannst du nicht auf sie setzen."
       },
       "cashier": {

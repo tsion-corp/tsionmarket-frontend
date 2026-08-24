@@ -1996,6 +1996,13 @@
         "oddsMovement": "Évolution des cotes",
         "marketSettled": "Market settled: {outcome} won",
         "marketVoided": "Market voided, stakes refunded",
+        "settlingBets": "Règlement de vos mises",
+        "settlingBetsBody": "Le résultat est définitif. Votre solde d’échecs est en cours d’actualisation.",
+        "returnCredited": "Retour crédité",
+        "refundCredited": "Mise remboursée",
+        "returnCreditedBody": "Le montant est disponible dans votre solde d’échecs. Retirez-le pour l’envoyer vers votre wallet.",
+        "noReturn": "Mise réglée",
+        "noReturnBody": "Votre sélection n’a pas gagné, ce marché ne verse donc aucun paiement.",
         "noSelfBet": "Tu joues cette partie, tu ne peux donc pas miser dessus."
       },
       "cashier": {

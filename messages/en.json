@@ -1996,6 +1996,13 @@
         "oddsMovement": "Odds movement",
         "marketSettled": "Market settled: {outcome} won",
         "marketVoided": "Market voided, stakes refunded",
+        "settlingBets": "Settling your stakes",
+        "settlingBetsBody": "The result is final. We are refreshing your Chess balance now.",
+        "returnCredited": "Return credited",
+        "refundCredited": "Stake refunded",
+        "returnCreditedBody": "This is available in your Chess balance. Withdraw it to move the funds to your wallet.",
+        "noReturn": "Stake settled",
+        "noReturnBody": "Your selection did not win, so there is no payout from this market.",
         "noSelfBet": "You are playing this match, so you cannot stake on it."
       },
       "cashier": {

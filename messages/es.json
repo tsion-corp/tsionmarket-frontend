@@ -1996,6 +1996,13 @@
         "oddsMovement": "Movimiento de cuotas",
         "marketSettled": "Market settled: {outcome} won",
         "marketVoided": "Market voided, stakes refunded",
+        "settlingBets": "Liquidando tus apuestas",
+        "settlingBetsBody": "El resultado es definitivo. Estamos actualizando tu saldo de ajedrez.",
+        "returnCredited": "Retorno acreditado",
+        "refundCredited": "Apuesta reembolsada",
+        "returnCreditedBody": "El importe está disponible en tu saldo de ajedrez. Retíralo para enviarlo a tu wallet.",
+        "noReturn": "Apuesta liquidada",
+        "noReturnBody": "Tu selección no ganó, por lo que este mercado no genera ningún pago.",
         "noSelfBet": "Estás jugando esta partida, así que no puedes poner un stake en ella."
       },
       "cashier": {

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { ModalShell } from "@/components/ui/modal-shell";
+import { CashierSheet } from "@/features/casino/components/chess/cashier-sheet";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
 import { useChessMatch, useChessMatchSocial } from "@/features/casino/hooks/use-casino-chess";
 import { useMatchMarket, usePlaceBet } from "@/features/casino/hooks/use-casino-betting";
@@ -20,6 +22,8 @@ import { CapturedRow } from "@/features/casino/components/chess/captured-row";
 import {
   CHESS_CARD_BG,
   CHESS_CARD_SHADOW,
+  CHESS_MODAL_CLOSE_BUTTON_CLASS,
+  CHESS_MODAL_PANEL_CLASS,
   CHESS_PAGE_BOARD_MAX_WIDTH,
   CHESS_PRIMARY_BUTTON_CLASS,
   CHESS_SHELL_BG,
@@ -37,14 +41,22 @@ import {
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import {
   exceedsUsdcBalance,
+  hasPositiveUsdc,
   normalizeUsdcAmount,
   parseUsdcAmount,
+  USDC_DECIMALS,
 } from "@/features/casino/lib/api/cashier";
 import { estimatePariMutuelReturn, impliedProbability } from "@/features/casino/lib/betting-math";
+import { formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { friendlyError, isConflictError } from "@/lib/errors";
 import { track } from "@/lib/analytics/mixpanel";
 import { toast } from "@/lib/toast";
-import type { BetSelection, ChessColor, ChessMatch } from "@/features/casino/lib/api/types";
+import type {
+  BetSelection,
+  BetSlip,
+  ChessColor,
+  ChessMatch,
+} from "@/features/casino/lib/api/types";
 import { formatChessClock, lowChessClockClass } from "@/features/casino/lib/chess/clock";
 
 const LiveVideoPlayer = dynamic(
@@ -56,6 +68,19 @@ const LiveVideoPlayer = dynamic(
 // The selection ids double as keys in the common chess namespace, which
 // carries the localized side names.
 const SELECTIONS: readonly BetSelection[] = ["white", "draw", "black"];
+
+function settledReturnUsdc(bets: readonly BetSlip[]): string {
+  const returned = bets.reduce((total, bet) => {
+    if (bet.state === "refunded") {
+      return total + toBaseUnits(bet.stakeUsdc, USDC_DECIMALS);
+    }
+    if (bet.state === "won" && bet.payoutUsdc) {
+      return total + toBaseUnits(bet.payoutUsdc, USDC_DECIMALS);
+    }
+    return total;
+  }, 0n);
+  return fromBaseUnits(returned, USDC_DECIMALS);
+}
 
 function PlayerStrip({
   label,
@@ -118,6 +143,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
   const [selection, setSelection] = useState<BetSelection | null>(null);
   const [stakeInput, setStakeInput] = useState("");
   const [chatDraft, setChatDraft] = useState("");
+  const [withdrawReturnOpen, setWithdrawReturnOpen] = useState(false);
 
   // Parsed once per position, not once per 250ms clock tick: stable board,
   // check-square, and captured identities let the memoized ChessBoard and the
@@ -201,7 +227,7 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
 
   // Money here is USDC from the chess cashier, the same balance staked matches
   // use, in exact decimal strings. A USDC figure formatted for display only.
-  const usd = (value: number) => `$${value.toFixed(2)}`;
+  const usd = formatUsd;
   const available = cashier.available;
   const stakeUsdc = normalizeUsdcAmount(stakeInput); // canonical string, or null
   const stakeValid = stakeUsdc !== null;
@@ -291,6 +317,12 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
 
   const live = match.state === "in_progress";
   const over = match.state === "settled" || match.state === "cancelled";
+  const returnUsdc = settledReturnUsdc(myBets);
+  const hasSettledReturn = hasPositiveUsdc(returnUsdc);
+  const betsSettling = myBets.some((bet) => bet.state === "active");
+  const allBetsRefunded = myBets.length > 0 && myBets.every((bet) => bet.state === "refunded");
+  const withdrawalFeePct =
+    cashier.config?.withdrawalFeeBps === undefined ? null : cashier.config.withdrawalFeeBps / 100;
   // The result told from the board's side, reusing the play screen's phrasing so
   // the watcher reads the same "Checkmate · White won" the players do.
   const resultText = (() => {
@@ -609,8 +641,57 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
 
       {over ? (
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 px-4 backdrop-blur-md">
-          <div className="ws-glass w-full max-w-[340px] rounded-2xl px-5 py-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:px-8 sm:py-9">
+          <div className="ws-glass max-h-[calc(100dvh-2rem)] w-full max-w-[380px] overflow-y-auto rounded-2xl px-5 py-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.5)] sm:px-8 sm:py-9">
             <div className="text-[17px] font-semibold text-white">{resultText}</div>
+
+            {myBets.length > 0 ? (
+              <div className="mt-4 rounded-[12px] border border-[#817d75]/35 bg-[#34312d] px-3.5 py-3 text-left">
+                <div className="text-[0.7rem] font-semibold tracking-[0.08em] text-white/48 uppercase">
+                  {betsSettling
+                    ? t("settlingBets")
+                    : allBetsRefunded
+                      ? t("refundCredited")
+                      : hasSettledReturn
+                        ? t("returnCredited")
+                        : t("noReturn")}
+                </div>
+
+                {betsSettling ? (
+                  <div className="mt-1 text-[0.78rem] leading-5 text-white/58">
+                    {t("settlingBetsBody")}
+                  </div>
+                ) : hasSettledReturn ? (
+                  <>
+                    <div className="tnum mt-1 text-[1.22rem] font-semibold text-[#8fcf64]">
+                      +{returnUsdc} USDC
+                    </div>
+                    <div className="mt-1 text-[0.78rem] leading-5 text-white/58">
+                      {t("returnCreditedBody")}
+                    </div>
+                    <div className="tnum mt-2 text-[0.75rem] text-white/44">
+                      {tPlay("chessBalanceNow", { amount: cashier.available })}
+                    </div>
+                    {withdrawalFeePct !== null ? (
+                      <div className="mt-1 text-[0.72rem] text-white/38">
+                        {tPlay("withdrawalFeeApplies", { pct: withdrawalFeePct })}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => setWithdrawReturnOpen(true)}
+                      className={`${CHESS_PRIMARY_BUTTON_CLASS} mt-3 w-full rounded-lg px-4 py-2.5 font-sans text-[12px] font-medium`}
+                    >
+                      {tPlay("withdrawToWallet")}
+                    </button>
+                  </>
+                ) : (
+                  <div className="mt-1 text-[0.78rem] leading-5 text-white/58">
+                    {t("noReturnBody")}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
             <Link
               href="/casino/chess"
               className="text-ink mt-6 inline-block w-full cursor-pointer rounded-full bg-white p-3 text-[13px] font-semibold"
@@ -620,6 +701,16 @@ export function SpectateSection({ matchId }: { matchId: string | null }) {
           </div>
         </div>
       ) : null}
+
+      <ModalShell
+        open={withdrawReturnOpen}
+        onClose={() => setWithdrawReturnOpen(false)}
+        contentKey="chess-spectator-return-withdraw"
+        panelClassName={CHESS_MODAL_PANEL_CLASS}
+        closeButtonClassName={CHESS_MODAL_CLOSE_BUTTON_CLASS}
+      >
+        <CashierSheet onClose={() => setWithdrawReturnOpen(false)} initialMode="withdraw" />
+      </ModalShell>
     </div>
   );
 }

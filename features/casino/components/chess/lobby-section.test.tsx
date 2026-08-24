@@ -107,14 +107,18 @@ vi.mock("@/features/casino/hooks/use-casino-betting", () => ({
   }),
 }));
 
-const cashierStatus = vi.hoisted(() => ({ configured: false, available: "0" }));
+const cashierStatus = vi.hoisted(() => ({
+  configured: false,
+  available: "0",
+  config: null as null | { platformFeeBps: number; withdrawalFeeBps: number },
+}));
 vi.mock("@/features/casino/hooks/use-chess-cashier", () => ({
   CASHIER_KEYS: {
     balance: (player: string) => ["casino", "chess", "cashier", "balance", player],
   },
   useChessCashierStatus: () => ({
     configured: cashierStatus.configured,
-    config: null,
+    config: cashierStatus.config,
     wallet: "0xabc",
     feePct: null,
     available: cashierStatus.available,
@@ -219,6 +223,7 @@ beforeEach(() => {
   wallet.balance = 10;
   cashierStatus.configured = false;
   cashierStatus.available = "0";
+  cashierStatus.config = null;
   chessProducts.access.timeExtensionCredits = 0;
   chessProducts.access.hintCredits = 0;
   chessProducts.purchase.mockReset();
@@ -982,6 +987,105 @@ describe("a drawn game", () => {
 });
 
 describe("spectator screen", () => {
+  it("shows a settled spectator return in the Chess balance with a withdrawal action", async () => {
+    cashierStatus.configured = true;
+    cashierStatus.available = "4.9";
+    cashierStatus.config = { platformFeeBps: 500, withdrawalFeeBps: 300 };
+    chessApi.fetchMatch.mockResolvedValue(
+      activeMatch({
+        state: "settled",
+        result: { kind: "timeout", winner: "b" },
+        white: { id: "0x111", username: "TableOne", rating: 1650, walletAddress: "0x111" },
+      })
+    );
+    bettingHooks.useMatchMarket.mockReturnValue({
+      odds: {
+        status: "settled",
+        total: "3",
+        outcomes: {
+          white: { pool: "2", odds: 1.5 },
+          draw: { pool: "0", odds: null },
+          black: { pool: "1", odds: 3 },
+        },
+        winningOutcome: "black",
+        voidReason: null,
+      },
+      myBets: [
+        {
+          id: "white-bet",
+          matchId: "m1",
+          selection: "white",
+          stakeUsdc: "1",
+          state: "lost",
+          payoutUsdc: "0",
+          placedAt: null,
+        },
+        {
+          id: "black-bet",
+          matchId: "m1",
+          selection: "black",
+          stakeUsdc: "1",
+          state: "won",
+          payoutUsdc: "2.9",
+          placedAt: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SpectateSection matchId="m1" />, { wrapper });
+
+    expect(await screen.findByText("Return credited")).toBeInTheDocument();
+    expect(screen.getByText("+2.9 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Chess balance · 4.9 USD available")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Withdraw to wallet" })).toBeInTheDocument();
+  });
+
+  it("shows a voided one-sided spectator stake as refunded", async () => {
+    cashierStatus.configured = true;
+    cashierStatus.available = "1.01";
+    chessApi.fetchMatch.mockResolvedValue(
+      activeMatch({
+        state: "settled",
+        result: { kind: "timeout", winner: "b" },
+        white: { id: "0x111", username: "TableOne", rating: 1650, walletAddress: "0x111" },
+      })
+    );
+    bettingHooks.useMatchMarket.mockReturnValue({
+      odds: {
+        status: "voided",
+        total: "0",
+        outcomes: {
+          white: { pool: "0", odds: null },
+          draw: { pool: "0", odds: null },
+          black: { pool: "0", odds: null },
+        },
+        winningOutcome: null,
+        voidReason: "no_winners_backed",
+      },
+      myBets: [
+        {
+          id: "refunded-bet",
+          matchId: "m1",
+          selection: "white",
+          stakeUsdc: "0.01",
+          state: "refunded",
+          payoutUsdc: "0",
+          placedAt: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    });
+
+    render(<SpectateSection matchId="m1" />, { wrapper });
+
+    expect(await screen.findByText("Stake refunded")).toBeInTheDocument();
+    expect(screen.getByText("+0.01 USDC")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Withdraw to wallet" })).toBeInTheDocument();
+  });
+
   it("shows the public room in the live feed and posts from there", async () => {
     chessApi.fetchMatch.mockResolvedValue(
       activeMatch({

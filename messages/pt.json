@@ -1996,6 +1996,13 @@
         "oddsMovement": "Movimento das odds",
         "marketSettled": "Market settled: {outcome} won",
         "marketVoided": "Market voided, stakes refunded",
+        "settlingBets": "A liquidar as tuas apostas",
+        "settlingBetsBody": "O resultado é final. Estamos a atualizar o teu saldo de xadrez.",
+        "returnCredited": "Retorno creditado",
+        "refundCredited": "Aposta reembolsada",
+        "returnCreditedBody": "O valor está disponível no teu saldo de xadrez. Saca para o enviar para a tua wallet.",
+        "noReturn": "Aposta liquidada",
+        "noReturnBody": "A tua seleção não venceu, por isso este mercado não tem pagamento.",
         "noSelfBet": "Estás a jogar esta partida, por isso não podes fazer stake nela."
       },
       "cashier": {
