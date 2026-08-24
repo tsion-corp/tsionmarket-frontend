@@ -1519,6 +1519,8 @@
       }
     },
     "lastStanding": {
+      "connectionLostTitle": "Connexion perdue",
+      "connectionLostBody": "La partie est figée pendant la reconnexion. Elle se met à jour toute seule dès que votre réseau revient.",
       "eyebrow": "Arkade · Le gagnant rafle tout",
       "title": "The Last Man",
       "intro": "Jouez pour être le dernier en lice. Quand le chrono tombe à zéro, le dernier joueur à avoir joué remporte la moitié du pot ; 10 % vont à celui qui a lancé la partie.",

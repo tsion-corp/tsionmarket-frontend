@@ -114,12 +114,12 @@ function SheetContents({
               <CloseIcon />
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(28px,env(safe-area-inset-bottom))]">
+          <div className="ws-no-scrollbar flex-1 overflow-y-auto overscroll-contain px-4 pb-[max(28px,env(safe-area-inset-bottom))]">
             {marketPicker(() => setPickerOpen(false))}
           </div>
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(28px,env(safe-area-inset-bottom))]">
+        <div className="ws-no-scrollbar flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(28px,env(safe-area-inset-bottom))]">
           <div className="flex flex-col gap-4">{children}</div>
         </div>
       )}

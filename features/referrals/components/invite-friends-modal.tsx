@@ -309,7 +309,7 @@ export function InviteFriendsModal({ open, onClose }: { open: boolean; onClose: 
                   ? { duration: 0.15 }
                   : { type: "spring", stiffness: 380, damping: 38, mass: 0.9 }
               }
-              className="bg-sheet pointer-events-auto max-h-[92dvh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:w-[min(440px,100%)] md:rounded-[24px] md:pt-[22px]"
+              className="bg-sheet ws-no-scrollbar pointer-events-auto max-h-[92dvh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:w-[min(440px,100%)] md:rounded-[24px] md:pt-[22px]"
             >
               <span
                 aria-hidden

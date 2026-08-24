@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import type { SellPayload } from "@/lib/modal-types";
 import { motion, useReducedMotion } from "motion/react";
@@ -28,6 +28,7 @@ import {
   MiniTimerLauncher,
   formatCountdown,
 } from "@/features/casino/components/last-standing/mini-timer";
+import { useCountdown } from "@/features/casino/components/last-standing/use-countdown";
 import {
   RoundOverlay,
   type RoundPhase,
@@ -156,24 +157,26 @@ const COIN_FLIGHTS = [
 ];
 const COIN_FLIGHT_SECONDS = 0.75;
 
-// Ticks a server-reported "seconds remaining" down locally between updates,
-// resetting whenever a fresh value arrives from the socket or REST poll.
-function useCountdown(serverSeconds: number, active: boolean): number {
-  const [lastServerSeconds, setLastServerSeconds] = useState(serverSeconds);
-  const [seconds, setSeconds] = useState(serverSeconds);
-
-  if (serverSeconds !== lastServerSeconds) {
-    setLastServerSeconds(serverSeconds);
-    setSeconds(serverSeconds);
-  }
-
-  useEffect(() => {
-    if (!active) return;
-    const id = setInterval(() => setSeconds((s) => Math.max(0, s - 1)), 1000);
-    return () => clearInterval(id);
-  }, [active]);
-
-  return seconds;
+function WifiOffIcon({ size = 22 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+      className="text-white/70"
+    >
+      <path
+        d="M2 8.5C4.8 6 8.2 4.6 12 4.6c3.8 0 7.2 1.4 10 3.9M5.2 12c1.9-1.7 4.2-2.6 6.8-2.6 2.6 0 4.9.9 6.8 2.6M8.4 15.4a6.4 6.4 0 0 1 3.6-1.2c1.3 0 2.6.4 3.6 1.2"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+      />
+      <circle cx="12" cy="18.6" r="1.3" fill="currentColor" />
+      <path d="M4 4l16 16" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
 }
 
 interface LastStandingSectionProps {
@@ -189,7 +192,13 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   const { user } = usePrivy();
   const money = useMoney();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
-  const { game, loading: statusLoading, connected, resync: resyncGame } = useVaultGame(gameId);
+  const {
+    game,
+    loading: statusLoading,
+    connected,
+    degraded,
+    resync: resyncGame,
+  } = useVaultGame(gameId);
   // This game's plays and this game's result, not every game's.
   const { activities, winners, winnersLoading } = useVaultFeeds(connected, gameId);
   const { wager, wagering, claim, claiming, settle, settling } = useVaultActions();
@@ -315,7 +324,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   const roundOver = !!status?.isGameStarted && !gameActive;
   const iAmKing =
     !!address && !!status?.lastPlayer && status.lastPlayer.toLowerCase() === address.toLowerCase();
-  const countdown = useCountdown(status?.timeRemaining ?? 0, gameActive);
+  const countdown = useCountdown(status?.timeRemaining ?? 0, gameActive, degraded);
   const timerPct =
     gameActive && status ? Math.min(100, (countdown / Math.max(1, status.timerDuration)) * 100) : 0;
   const urgent = gameActive && countdown <= 10;
@@ -324,9 +333,9 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // over to a clock tick-tock, the audible version of the red ring the arena
   // already shows, and hands back if a wager saves the round.
   useEffect(() => {
-    setUrgentMode(urgent && countdown > 0);
+    setUrgentMode(urgent && countdown > 0 && !degraded);
     return () => setUrgentMode(false);
-  }, [urgent, countdown]);
+  }, [urgent, countdown, degraded]);
 
   // Round-end handling. The winner is whoever was the last to play when the
   // clock ran out. Nothing is paid until someone calls settle(), and the
@@ -366,6 +375,12 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+  // Freshest connection verdict, for the timed reveal to consult without
+  // re-arming itself.
+  const degradedRef = useRef(degraded);
+  useEffect(() => {
+    degradedRef.current = degraded;
+  }, [degraded]);
   // Newest winner id we've already reacted to, so the winners feed (when it
   // works) reveals a fresh win without re-firing on load or on repeat polls.
   const seenWinnerIdRef = useRef<string | null>(null);
@@ -435,9 +450,15 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // below notices and quietly backs out.
   useEffect(() => {
     if (!gameActive || countdown > 0 || phase !== null || roundEndedRef.current) return;
+    // On a degraded connection the local zero is not evidence: wagers this
+    // client never heard about may have extended the round. The clock stays
+    // frozen under the reconnect overlay; the resync on reconnection brings
+    // the truth, and the active->inactive transition above runs the round
+    // end from fresh data if it really is over.
+    if (degraded) return;
     beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countdown, gameActive, phase]);
+  }, [countdown, gameActive, phase, degraded]);
 
   // Reveal after the suspense: everyone sees who won. If a winner is known we
   // announce them by truncated address; the winning wallet gets the personal
@@ -445,6 +466,15 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   useEffect(() => {
     if (phase !== "calculating") return;
     const id = setTimeout(() => {
+      // The connection died during the suspense: a stale snapshot can neither
+      // confirm the end nor name a winner. Back out to the frozen state; the
+      // reconnect resync re-runs the round end from the truth.
+      if (degradedRef.current) {
+        winnerAtEndRef.current = null;
+        roundEndedRef.current = false;
+        setPhase(null);
+        return;
+      }
       // Backed out: a wager landed at the buzzer and the round continued —
       // the server now reports a live clock, so nobody actually won yet.
       const fresh = statusRef.current;
@@ -969,6 +999,19 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                   : "border-white/8 bg-black/35"
               }`}
             >
+              {degraded ? (
+                <div className="absolute inset-0 z-[1] grid place-items-center bg-black/72 backdrop-blur-[2px]">
+                  <div className="flex flex-col items-center gap-1.5 px-6 text-center">
+                    <WifiOffIcon />
+                    <div className="text-[13.5px] font-bold text-white">
+                      {t("connectionLostTitle")}
+                    </div>
+                    <div className="max-w-[36ch] text-[12px] leading-[1.5] font-normal text-white/60">
+                      {t("connectionLostBody")}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
               <div className="flex items-center justify-between">
                 <span className="text-[11px] font-semibold tracking-[0.14em] text-white/45 uppercase">
                   {t("timeRemaining")}

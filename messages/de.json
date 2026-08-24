@@ -1519,6 +1519,8 @@
       }
     },
     "lastStanding": {
+      "connectionLostTitle": "Verbindung unterbrochen",
+      "connectionLostBody": "Das Spiel ist eingefroren, während wir neu verbinden. Sobald dein Netz zurück ist, holt es von selbst auf.",
       "eyebrow": "Arkade · Der Gewinner bekommt alles",
       "title": "The Last Man",
       "intro": "Spielen Sie, um als Letzter übrig zu bleiben. Läuft die Uhr ab, nimmt der letzte Spieler, der gespielt hat, die Hälfte des Pots; 10 % gehen an den, der das Spiel eröffnet hat.",

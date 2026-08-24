@@ -1519,6 +1519,8 @@
       }
     },
     "lastStanding": {
+      "connectionLostTitle": "Connection lost",
+      "connectionLostBody": "The game froze while we reconnect. It catches up on its own the moment your network is back.",
       "eyebrow": "Arkade · Winner takes all",
       "title": "The Last Man",
       "intro": "Play to become the last one standing. When the timer runs out, the last player to play takes half the pot; 10% goes to whoever started the game.",

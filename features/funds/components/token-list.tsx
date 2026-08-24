@@ -69,7 +69,7 @@ export function TokenList({ tokens, selected, onSelect, loading, error, onRetry 
           {t("noTokensMatch")}
         </div>
       ) : (
-        <div className="mt-2 flex max-h-[46vh] flex-col gap-1 overflow-y-auto pr-0.5">
+        <div className="ws-no-scrollbar mt-2 flex max-h-[46vh] flex-col gap-1 overflow-y-auto pr-0.5">
           {list.map((t) => {
             const on = tokenKey(t) === selectedKey;
             return (

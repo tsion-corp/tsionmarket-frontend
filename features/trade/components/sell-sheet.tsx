@@ -13,7 +13,7 @@ import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, supportDetail } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
 // 1% price tolerance, hidden from the UI.
@@ -229,10 +229,11 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       {sell.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
           {friendlyError(sell.error, t("saleFailedFallback"))}
-          {/* The raw reason as fine print: support can act on it, and a masked
-              failure is undebuggable from a screenshot. */}
+          {/* The raw reason as sized fine print: support can act on it, and a
+              masked failure is undebuggable from a screenshot — but a Solana
+              simulation dump is pages long, so it is collapsed and capped. */}
           <span className="mt-1 block text-[11px] leading-[1.4] font-normal text-white/40">
-            {sell.error.message}
+            {supportDetail(sell.error)}
           </span>
         </p>
       ) : null}

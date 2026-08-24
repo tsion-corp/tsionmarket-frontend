@@ -1519,6 +1519,8 @@
       }
     },
     "lastStanding": {
+      "connectionLostTitle": "Conexión perdida",
+      "connectionLostBody": "El juego se congeló mientras reconectamos. Se pone al día solo en cuanto vuelve tu red.",
       "eyebrow": "Arkade · El ganador se lo lleva todo",
       "title": "The Last Man",
       "intro": "Juega para ser el último en pie. Cuando el tiempo se agota, el último jugador en jugar se lleva la mitad del pozo; el 10 % va para quien creó la partida.",

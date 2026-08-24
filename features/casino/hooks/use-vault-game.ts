@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePrices } from "@/hooks/use-prices";
@@ -10,6 +10,19 @@ import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { fetchGame, type VaultGame } from "@/features/casino/lib/vault-api";
 
 const FALLBACK_POLL_MS = 5_000;
+
+// The browser's own connectivity verdict, as an external store so a consumer
+// re-renders the moment it flips rather than on the next poll.
+function subscribeOnline(listener: () => void): () => void {
+  window.addEventListener("online", listener);
+  window.addEventListener("offline", listener);
+  return () => {
+    window.removeEventListener("online", listener);
+    window.removeEventListener("offline", listener);
+  };
+}
+const onlineNow = () => navigator.onLine;
+const onlineOnServer = () => true;
 
 // The contract deals in wei; the screen shows money. Converting here is not
 // inventing a figure, it is the same conversion the indexed row does, at the
@@ -128,11 +141,35 @@ export function useVaultGame(gameId: number | null) {
     void queryClient.invalidateQueries({ queryKey: VAULT_KEYS.activities });
   }, [queryClient, gameId]);
 
+  // A glitchy network must heal itself: the moment the browser reports the
+  // network back, or the tab returns to the foreground, converge on fresh
+  // server state instead of waiting on a poll that may itself be wedged.
+  useEffect(() => {
+    const onOnline = () => resync();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") resync();
+    };
+    window.addEventListener("online", onOnline);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [resync]);
+
+  const online = useSyncExternalStore(subscribeOnline, onlineNow, onlineOnServer);
+  // Degraded: what the screen shows cannot be trusted as current. Either the
+  // browser knows it is offline, or the socket is down AND the REST fallback
+  // is failing too. A downed socket alone is not degraded: the 5s poll still
+  // delivers the truth.
+  const degraded = !online || (!connected && (game.isError || game.failureCount > 0));
+
   return {
     game: game.data ?? null,
     loading: game.isPending,
     error: game.isError,
     connected,
+    degraded,
     confirmFromChain,
     resync,
   };

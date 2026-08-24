@@ -99,7 +99,7 @@ export function NetworkTabs({
           {t("noNetworksMatch")}
         </div>
       ) : (
-        <div className="mt-2 flex max-h-[190px] flex-wrap gap-2 overflow-y-auto pr-0.5">
+        <div className="ws-no-scrollbar mt-2 flex max-h-[190px] flex-wrap gap-2 overflow-y-auto pr-0.5">
           {list.map((c) => {
             const on = c.chainId === selectedId;
             return (

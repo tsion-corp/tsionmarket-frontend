@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { apiError } from "@/lib/api/envelope";
-import { friendlyError, isAlreadySettledError } from "@/lib/errors";
+import { friendlyError, isAlreadySettledError, supportDetail } from "@/lib/errors";
 
 describe("friendlyError", () => {
   it("preserves the actionable confirmed-balance message", () => {
@@ -152,5 +152,32 @@ describe("contract reverts never reach the user as hex", () => {
     ).toBe(true);
     expect(isAlreadySettledError(new Error("reverted: 0xb52cb3ad"))).toBe(false);
     expect(isAlreadySettledError(null)).toBe(false);
+  });
+
+  it("maps Solana simulation failures instead of dumping RPC logs (the reported sell bug)", () => {
+    const dump =
+      "Solana RPC rejected transaction: Transaction simulation failed: Error processing Instruction 2: custom program error: 0x1 [39 log messages]";
+    expect(friendlyError(new Error(dump), "Sale failed")).toMatch(/enough of this asset/i);
+    expect(friendlyError(new Error("custom program error: 0x1771"), "Sale failed")).toMatch(
+      /couldn't complete this right now/i
+    );
+    expect(
+      friendlyError(new Error("Transaction simulation failed: InstructionError"), "Sale failed")
+    ).toMatch(/network rejected/i);
+    expect(friendlyError(new Error("Blockhash not found"), "Sale failed")).toMatch(/expired/i);
+    expect(
+      friendlyError(new Error("Transfer: insufficient lamports 5000, need 12000"), "Sale failed")
+    ).toMatch(/network's coin/i);
+  });
+});
+
+describe("supportDetail", () => {
+  it("collapses whitespace and caps the length for fine print", () => {
+    const wall = `Solana RPC rejected transaction:\n${"log ".repeat(200)}`;
+    const detail = supportDetail(new Error(wall));
+    expect(detail.length).toBeLessThanOrEqual(160);
+    expect(detail.endsWith("\u2026")).toBe(true);
+    expect(detail).not.toMatch(/\n/);
+    expect(supportDetail(new Error("short reason"))).toBe("short reason");
   });
 });

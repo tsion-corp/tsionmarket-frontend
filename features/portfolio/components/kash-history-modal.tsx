@@ -74,7 +74,7 @@ export function KashHistoryModal({ open, onClose }: KashHistoryModalProps) {
         ) : ledger.isError ? (
           <p className="mt-5 text-[13px] font-normal text-white/50">{t("historyFailed")}</p>
         ) : ledger.data && ledger.data.length > 0 ? (
-          <div className="mt-4 flex max-h-[55vh] flex-col divide-y divide-white/6 overflow-y-auto">
+          <div className="ws-no-scrollbar mt-4 flex max-h-[55vh] flex-col divide-y divide-white/6 overflow-y-auto">
             {ledger.data.map((entry) => {
               const href = explorerHref(entry);
               // The trade behind a points row is the useful part — "+275 pts"

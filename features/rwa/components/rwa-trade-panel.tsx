@@ -1,5 +1,6 @@
 "use client";
 
+import { friendlyError } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
@@ -616,7 +617,7 @@ export function RwaTradePanel({
       } catch (error) {
         setNotice({
           kind: "error",
-          message: error instanceof Error ? error.message : t("fundSolanaFailed"),
+          message: friendlyError(error, t("fundSolanaFailed")),
         });
       }
       return;

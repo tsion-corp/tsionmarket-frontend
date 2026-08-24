@@ -59,7 +59,7 @@ export function ModalShell({
             }
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "bg-sheet relative max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:rounded-[24px] md:pt-[26px]",
+              "bg-sheet ws-no-scrollbar relative max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:rounded-[24px] md:pt-[26px]",
               SIZE_WIDTH[size],
               panelClassName
             )}
