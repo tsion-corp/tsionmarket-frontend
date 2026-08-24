@@ -3,6 +3,7 @@ import {
   displayLink,
   inviteLink,
   referralGoal,
+  referralProgress,
   sanitizeUsernameInput,
   usernameProblem,
 } from "./referrals";
@@ -47,6 +48,21 @@ describe("referralGoal", () => {
     expect(referralGoal(10)).toBe(20);
     expect(referralGoal(19)).toBe(20);
     expect(referralGoal(20)).toBe(30);
+  });
+});
+
+describe("referralProgress", () => {
+  it("fills across the first lap toward ten", () => {
+    expect(referralProgress(0)).toEqual({ goal: 10, pct: 4 });
+    expect(referralProgress(3)).toEqual({ goal: 10, pct: 30 });
+    expect(referralProgress(9)).toEqual({ goal: 10, pct: 90 });
+  });
+
+  it("never caps: past a milestone the count keeps its real total and a new lap begins", () => {
+    expect(referralProgress(10)).toEqual({ goal: 20, pct: 4 });
+    expect(referralProgress(12)).toEqual({ goal: 20, pct: 20 });
+    expect(referralProgress(19)).toEqual({ goal: 20, pct: 90 });
+    expect(referralProgress(25)).toEqual({ goal: 30, pct: 50 });
   });
 });
 

@@ -38,6 +38,16 @@ export function referralGoal(referred: number): number {
   return Math.ceil((referred + 1) / 10) * 10;
 }
 
+// The bar never caps: it fills across the current lap of ten toward the next
+// milestone, then starts a new lap. 12 referred reads 12/20 with a fifth of
+// the lap done. Never fully empty, so a fresh lap still shows the comp's nub.
+export function referralProgress(referred: number): { goal: number; pct: number } {
+  const goal = referralGoal(referred);
+  const lapStart = goal - 10;
+  const pct = Math.max(4, Math.min(100, ((referred - lapStart) / 10) * 100));
+  return { goal, pct };
+}
+
 export function inviteLink(origin: string, username: string): string {
   return `${origin}/r/${username}`;
 }

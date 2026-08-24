@@ -17,6 +17,7 @@ import {
 import {
   displayLink,
   inviteLink,
+  referralProgress,
   sanitizeUsernameInput,
   usernameProblem,
 } from "@/features/referrals/lib/referrals";
@@ -43,9 +44,16 @@ function useOrigin(): string {
   return useSyncExternalStore(NO_UPDATES, readOrigin, noOrigin);
 }
 
-function Sparkle({ className = "" }: { className?: string }) {
+// Each star blinks like the designer's Figma: same keyframe, staggered starts.
+function Sparkle({ className = "", delay = "0s" }: { className?: string; delay?: string }) {
   return (
-    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden className={className}>
+    <svg
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+      className={`ws-twinkle ${className}`}
+      style={{ animationDelay: delay }}
+    >
       <path d="M12 0c1 6.9 5.1 11 12 12-6.9 1-11 5.1-12 12-1-6.9-5.1-11-12-12C6.9 11 11 6.9 12 0Z" />
     </svg>
   );
@@ -79,9 +87,9 @@ function MascotHero() {
         className="w-full [mask-image:linear-gradient(to_bottom,black_72%,transparent_98%)]"
       />
       <Sparkle className="absolute -top-1 -right-4 h-6 w-6 text-white" />
-      <Sparkle className="absolute top-7 -right-7 h-3 w-3 text-white/70" />
-      <Sparkle className="absolute -bottom-1 -left-6 h-5 w-5 text-white/90" />
-      <Sparkle className="absolute bottom-8 -left-3 h-3 w-3 text-white/60" />
+      <Sparkle delay="1.2s" className="absolute top-7 -right-7 h-3 w-3 text-white/70" />
+      <Sparkle delay="0.6s" className="absolute -bottom-1 -left-6 h-5 w-5 text-white/90" />
+      <Sparkle delay="1.7s" className="absolute bottom-8 -left-3 h-3 w-3 text-white/60" />
     </div>
   );
 }
@@ -110,10 +118,10 @@ function InviteScreen({
 
   const [copied, setCopied] = useState(false);
 
-  // Rolling milestone: the bar aims at the next multiple of ten so it always
-  // has somewhere to go. Never fully empty, matching the comp's starting nub.
-  const goal = referred < 10 ? 10 : Math.ceil((referred + 1) / 10) * 10;
-  const pct = Math.max(4, Math.min(100, (referred / goal) * 100));
+  // Rolling milestone, never capped: the total on the left of the slash is
+  // the real count, the right is the next multiple of ten, and the bar fills
+  // across the current lap of ten.
+  const { goal, pct } = referralProgress(referred);
 
   const copy = async () => {
     const ok = await copyText(url);

@@ -426,6 +426,31 @@ body {
   }
 }
 
+/* Referrals: the Invite Friends sparkles blink like the designer's Figma.
+   One keyframe for every star; each staggers itself with an inline
+   animation-delay so they never blink in unison. */
+@keyframes ws-twinkle {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.15;
+    transform: scale(0.72);
+  }
+}
+
+.ws-twinkle {
+  animation: ws-twinkle 2.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-twinkle {
+    animation: none;
+  }
+}
+
 /* Prediction: the close-time badge in the last ten minutes. A heartbeat rather
    than a fade — the badge should read as pressure without the number ever
    dimming to the point of being hard to read mid-trade.
