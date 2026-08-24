@@ -786,6 +786,7 @@
   "prediction": {
     "eyebrow": "Mercados de predicción",
     "heading": "Opera tu convicción",
+    "exploreAllMarkets": "Explorar todos los mercados",
     "regionBlockedTitle": "No disponible en tu región",
     "regionBlockedBody": "Los mercados de predicción no se ofrecen donde estás ahora. El resto de {brand} sigue totalmente disponible.",
     "toastClaiming": "Reclamando tus ganancias…",
@@ -1812,6 +1813,11 @@
         "resultYouLost": "{how} · Perdiste",
         "resultWhiteWon": "{how} · Ganaron las blancas",
         "resultBlackWon": "{how} · Ganaron las negras",
+        "winningsCredited": "Ganancias acreditadas",
+        "winningsCreditedBody": "Ya están disponibles en tu saldo de ajedrez. Retíralas para enviar los fondos a tu wallet.",
+        "chessBalanceNow": "Saldo de ajedrez · {amount} USD disponibles",
+        "withdrawalFeeApplies": "Los retiros a la wallet incluyen una comisión del {pct}%.",
+        "withdrawToWallet": "Retirar a la wallet",
         "toastMoveFailed": "Esa jugada no se registró.",
         "toastDrawOffered": "Tablas ofrecidas.",
         "toastDrawOfferFailed": "No se pudieron ofrecer tablas.",
@@ -2020,6 +2026,7 @@
         "withdrawing": "Retirando…",
         "withdrawalSent": "Retiro en camino: {amount} USD.",
         "withdrawFailed": "El retiro falló. Tu saldo no ha cambiado.",
+        "withdrawalFeeNote": "Se aplica una comisión de retiro del {pct}%.",
         "notEnough": "Es más que tu saldo de ajedrez disponible.",
         "feeNote": "Se aplica una comisión de plataforma del {pct}% a las ganancias.",
         "unavailable": "Los saldos de ajedrez aún no están disponibles."

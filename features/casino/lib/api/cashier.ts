@@ -32,6 +32,9 @@ export interface CashierConfig {
   requiredConfirmations: number;
   // Platform fee on winnings, in basis points (500 = 5%).
   platformFeeBps: number;
+  // Fee charged when moving funds from the chess balance back to the wallet.
+  withdrawalFeeBps: number;
+  autoPayoutWinnings: boolean;
 }
 
 export interface CashierBalance {

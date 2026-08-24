@@ -786,6 +786,7 @@
   "prediction": {
     "eyebrow": "Marchés de prédiction",
     "heading": "Tradez vos convictions",
+    "exploreAllMarkets": "Explorer tous les marchés",
     "regionBlockedTitle": "Indisponible dans votre région",
     "regionBlockedBody": "Les marchés de prédiction ne sont pas proposés là où vous êtes. Le reste de {brand} reste entièrement disponible.",
     "toastClaiming": "Réclamation de vos gains…",
@@ -1812,6 +1813,11 @@
         "resultYouLost": "{how} · Vous avez perdu",
         "resultWhiteWon": "{how} · Victoire des Blancs",
         "resultBlackWon": "{how} · Victoire des Noirs",
+        "winningsCredited": "Gains crédités",
+        "winningsCreditedBody": "Ils sont disponibles dans votre solde d’échecs. Retirez-les pour envoyer les fonds vers votre wallet.",
+        "chessBalanceNow": "Solde d’échecs · {amount} USD disponibles",
+        "withdrawalFeeApplies": "Les retraits vers le wallet incluent {pct} % de frais.",
+        "withdrawToWallet": "Retirer vers le wallet",
         "toastMoveFailed": "Ce coup n'est pas passé.",
         "toastDrawOffered": "Nulle proposée.",
         "toastDrawOfferFailed": "Impossible de proposer la nulle.",
@@ -2020,6 +2026,7 @@
         "withdrawing": "Retrait en cours…",
         "withdrawalSent": "Retrait en route : {amount} USD.",
         "withdrawFailed": "Le retrait a échoué. Votre solde est inchangé.",
+        "withdrawalFeeNote": "Des frais de retrait de {pct} % s’appliquent.",
         "notEnough": "C'est plus que votre solde échecs disponible.",
         "feeNote": "Des frais de plateforme de {pct} % s'appliquent aux gains.",
         "unavailable": "Les soldes échecs ne sont pas encore disponibles."

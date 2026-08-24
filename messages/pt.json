@@ -786,6 +786,7 @@
   "prediction": {
     "eyebrow": "Mercados de previsão",
     "heading": "Negoceie a sua convicção",
+    "exploreAllMarkets": "Explorar todos os mercados",
     "regionBlockedTitle": "Indisponível na sua região",
     "regionBlockedBody": "Os mercados de previsão não estão disponíveis onde está. O resto da {brand} continua totalmente disponível.",
     "toastClaiming": "A reclamar os seus ganhos…",
@@ -1812,6 +1813,11 @@
         "resultYouLost": "{how} · Você perdeu",
         "resultWhiteWon": "{how} · As brancas venceram",
         "resultBlackWon": "{how} · As pretas venceram",
+        "winningsCredited": "Ganhos creditados",
+        "winningsCreditedBody": "O valor está disponível no seu saldo de xadrez. Saque para enviar os fundos para a sua wallet.",
+        "chessBalanceNow": "Saldo de xadrez · {amount} USD disponíveis",
+        "withdrawalFeeApplies": "Os saques para a wallet incluem uma taxa de {pct}%.",
+        "withdrawToWallet": "Sacar para a wallet",
         "toastMoveFailed": "Esse lance não foi registrado.",
         "toastDrawOffered": "Empate oferecido.",
         "toastDrawOfferFailed": "Não foi possível oferecer empate.",
@@ -2020,6 +2026,7 @@
         "withdrawing": "Sacando…",
         "withdrawalSent": "Saque a caminho: {amount} USD.",
         "withdrawFailed": "O saque falhou. Seu saldo permanece igual.",
+        "withdrawalFeeNote": "Aplica-se uma taxa de saque de {pct}%.",
         "notEnough": "Isso é mais do que seu saldo de xadrez disponível.",
         "feeNote": "Uma taxa de plataforma de {pct}% se aplica aos ganhos.",
         "unavailable": "Os saldos de xadrez ainda não estão disponíveis."

@@ -786,6 +786,7 @@
   "prediction": {
     "eyebrow": "Prediction markets",
     "heading": "Trade your conviction",
+    "exploreAllMarkets": "Explore all markets",
     "regionBlockedTitle": "Not available in your region",
     "regionBlockedBody": "Prediction markets aren't offered where you are right now. The rest of {brand} stays fully available.",
     "toastClaiming": "Claiming your winnings…",
@@ -1812,6 +1813,11 @@
         "resultYouLost": "{how} · You lost",
         "resultWhiteWon": "{how} · White won",
         "resultBlackWon": "{how} · Black won",
+        "winningsCredited": "Winnings credited",
+        "winningsCreditedBody": "This is available in your chess balance. Withdraw it to move the funds to your wallet.",
+        "chessBalanceNow": "Chess balance · {amount} USD available",
+        "withdrawalFeeApplies": "Wallet withdrawals include a {pct}% fee.",
+        "withdrawToWallet": "Withdraw to wallet",
         "toastMoveFailed": "That move didn't go through.",
         "toastDrawOffered": "Draw offered.",
         "toastDrawOfferFailed": "Couldn't offer a draw.",
@@ -2020,6 +2026,7 @@
         "withdrawing": "Withdrawing…",
         "withdrawalSent": "Withdrawal on its way: {amount} USD.",
         "withdrawFailed": "The withdrawal failed. Your balance is unchanged.",
+        "withdrawalFeeNote": "A {pct}% withdrawal fee applies.",
         "notEnough": "That's more than your available chess balance.",
         "feeNote": "A {pct}% platform fee applies to winnings.",
         "unavailable": "Chess balances aren't available yet."

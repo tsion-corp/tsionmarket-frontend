@@ -52,6 +52,8 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
   const withdrawBody = productName
     ? `Sends money from your ${productName} balance back to your main balance.`
     : t("withdrawBody");
+  const withdrawalFeePct =
+    cashier.config?.withdrawalFeeBps === undefined ? null : cashier.config.withdrawalFeeBps / 100;
   const notEnough = productName
     ? `That's more than your available ${productName} balance.`
     : t("notEnough");
@@ -230,7 +232,11 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
         {submitLabel}
       </button>
 
-      {cashier.feePct !== null ? (
+      {!isDeposit && withdrawalFeePct !== null ? (
+        <div className="mt-3 text-center text-[11.5px] font-normal text-white/45">
+          {t("withdrawalFeeNote", { pct: withdrawalFeePct })}
+        </div>
+      ) : cashier.feePct !== null ? (
         <div className="mt-3 text-center text-[11.5px] font-normal text-white/45">
           {t("feeNote", { pct: cashier.feePct })}
         </div>

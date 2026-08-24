@@ -786,6 +786,7 @@
   "prediction": {
     "eyebrow": "Prognosemärkte",
     "heading": "Handeln Sie Ihre Überzeugung",
+    "exploreAllMarkets": "Alle Märkte entdecken",
     "regionBlockedTitle": "In Ihrer Region nicht verfügbar",
     "regionBlockedBody": "Prognosemärkte werden dort, wo Sie sind, gerade nicht angeboten. Der Rest von {brand} bleibt voll verfügbar.",
     "toastClaiming": "Ihre Gewinne werden abgeholt…",
@@ -1812,6 +1813,11 @@
         "resultYouLost": "{how} · Sie haben verloren",
         "resultWhiteWon": "{how} · Weiß hat gewonnen",
         "resultBlackWon": "{how} · Schwarz hat gewonnen",
+        "winningsCredited": "Gewinn gutgeschrieben",
+        "winningsCreditedBody": "Der Betrag ist in Ihrem Schach-Guthaben verfügbar. Zahlen Sie ihn aus, um ihn an Ihre Wallet zu senden.",
+        "chessBalanceNow": "Schach-Guthaben · {amount} USD verfügbar",
+        "withdrawalFeeApplies": "Für Wallet-Auszahlungen fällt eine Gebühr von {pct} % an.",
+        "withdrawToWallet": "An Wallet auszahlen",
         "toastMoveFailed": "Dieser Zug ist nicht durchgegangen.",
         "toastDrawOffered": "Remis angeboten.",
         "toastDrawOfferFailed": "Remis konnte nicht angeboten werden.",
@@ -2020,6 +2026,7 @@
         "withdrawing": "Auszahlung läuft…",
         "withdrawalSent": "Auszahlung unterwegs: {amount} USD.",
         "withdrawFailed": "Die Auszahlung ist fehlgeschlagen. Ihr Guthaben ist unverändert.",
+        "withdrawalFeeNote": "Es fällt eine Auszahlungsgebühr von {pct} % an.",
         "notEnough": "Das ist mehr als Ihr verfügbares Schach-Guthaben.",
         "feeNote": "Auf Gewinne fällt eine Plattformgebühr von {pct} % an.",
         "unavailable": "Schach-Guthaben sind noch nicht verfügbar."
