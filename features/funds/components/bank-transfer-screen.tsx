@@ -50,8 +50,9 @@ function displayUsdc(amount: string): string {
   return `${new Intl.NumberFormat("en-US").format(Number(whole))}.${cents}`;
 }
 
-// Quick-select deposit amounts, in Naira. The first is the minimum.
-const AMOUNT_PRESETS = [1000, 5000, 10000, 50000];
+// Quick-select deposit amounts, in Naira. The floor stays ONRAMP_MIN_NGN;
+// typing any amount from the minimum up is always allowed.
+const AMOUNT_PRESETS = [10000, 50000, 100000, 200000];
 
 // Seconds until the order's rate lock lapses. Derived from the deadline
 // rather than a stored duration, so a slept tab shows the true time left.
