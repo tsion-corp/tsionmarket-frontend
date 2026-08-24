@@ -53,6 +53,13 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
 
   const headers: Record<string, string> = {};
   if (body != null) headers["content-type"] = "application/json";
+  // The ramping service verifies the caller itself and binds an onramp's
+  // destination to the caller's own wallet, so the signed Privy identity token
+  // MUST reach it: without this the service (correctly) refuses every request.
+  const idToken = req.headers.get("privy-id-token");
+  if (idToken) headers["privy-id-token"] = idToken;
+  const authorization = req.headers.get("authorization");
+  if (authorization) headers["authorization"] = authorization;
   // The create routes are idempotent on this key; the client generates it and
   // reuses it verbatim on retry, so a retried request replays the original
   // order instead of opening a second payment channel.
