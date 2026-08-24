@@ -11,6 +11,7 @@ import { copyText } from "@/lib/clipboard";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
+import { errorCode } from "@/lib/api/envelope";
 import { getWalletAddress } from "@/lib/user";
 import {
   idempotencyKey,
@@ -158,16 +159,22 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     if (done) refetch();
   }, [done, failed, refetch]);
 
-  // A reused order that no longer exists upstream must not trap the user: the
-  // render below falls back to the amount screen, and the cache entry goes so
-  // the next press creates fresh. A failed delivery clears the cache the same
-  // way but keeps the failed screen, which explains itself. Only the external
-  // store is written here; the render derives the fallback without state.
-  const reusedDead = reused != null && (orderQuery.isError || status === "failed");
+  // A reused account is permanently payable, so it is retired ONLY when its
+  // order is definitively gone upstream (a 404 / NOT_FOUND). A transient poll
+  // failure — a network blip, a 5xx, a rate limit — must never yank the
+  // payable account away: that flipped the screen back to the amount entry
+  // and then recovered on the next tick, a visible flicker. When the order is
+  // truly gone the render falls back to the amount screen and the cache entry
+  // goes so the next press creates fresh.
+  const orderGone =
+    orderQuery.isError &&
+    (orderQuery.error as { status?: number } | null)?.status === 404 &&
+    errorCode(orderQuery.error) !== null;
+  const reusedDead = reused != null && orderGone;
   useEffect(() => {
     if (!reused || !walletAddress) return;
-    if (orderQuery.isError || status === "failed") clearCachedOnrampAccount(walletAddress);
-  }, [reused, walletAddress, orderQuery.isError, status]);
+    if (orderGone) clearCachedOnrampAccount(walletAddress);
+  }, [reused, walletAddress, orderGone]);
 
   // Reported once, when the rail confirms delivery. `done` stays true while
   // the screen is open, so the ref keeps this from firing on every poll.

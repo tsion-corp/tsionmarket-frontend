@@ -48,6 +48,7 @@ import {
 } from "@/features/casino/lib/chess/ui";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { shareOrigin } from "@/lib/site-url";
 
 type Translator = ReturnType<typeof useTranslations>;
 type RailTab = "standings" | "games" | "info";
@@ -513,7 +514,7 @@ export function SwissDetailSection({
   const shareUrl =
     typeof window === "undefined"
       ? routes.detail(tournamentId)
-      : `${window.location.origin}${routes.detail(tournamentId)}`;
+      : `${shareOrigin()}${routes.detail(tournamentId)}`;
   const shareVisible = !!detail && isOrganizer && detail.state === "open" && !shareDismissed;
 
   const onStartRound = async () => {

@@ -36,6 +36,7 @@ import type { ChessTimeControl, CreateChessChallengeInput } from "@/features/cas
 import { friendlyError } from "@/lib/errors";
 import { truncateAddress } from "@/lib/format";
 import { toast } from "@/lib/toast";
+import { shareOrigin } from "@/lib/site-url";
 
 const DECIMAL = /^\d*\.?\d*$/;
 const STAKE_CHIPS = ["1", "5", "10", "25"] as const;
@@ -306,9 +307,7 @@ export function CreateSection() {
       // silently on Safari/iOS, where activation dies at the first await.
       const created = create.mutateAsync(input);
       const copiedPromise = copyTextWhenReady(
-        created.then(
-          ({ challenge }) => `${window.location.origin}/casino/chess/invite?code=${challenge.id}`
-        )
+        created.then(({ challenge }) => `${shareOrigin()}/casino/chess/invite?code=${challenge.id}`)
       );
       const { challenge } = await created;
       const copied = await copiedPromise;

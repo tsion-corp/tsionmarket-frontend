@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import {
   isTerminalProgress,
@@ -187,6 +187,12 @@ export function useRampOrder(
   return useQuery<OnrampOrder | OfframpOrder>({
     queryKey: ["ramping-order", kind, orderId],
     enabled: options.enabled && Boolean(orderId),
+    // Keep the last good order visible while a poll is in flight or briefly
+    // failing, so the account/status view never blanks mid-cycle.
+    placeholderData: keepPreviousData,
+    // A transient poll failure is retried a few times rather than surfaced
+    // immediately as isError, which the screen would otherwise react to.
+    retry: 3,
     refetchInterval: (query) => {
       const current = query.state.data?.status;
       if (current && isTerminalProgress(current)) return false;

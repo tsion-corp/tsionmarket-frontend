@@ -5,17 +5,20 @@ import { useTranslations } from "next-intl";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import { QrCode } from "@/components/ui/qr-code";
+import { CANONICAL_SITE_URL, shareOrigin } from "@/lib/site-url";
 
 // The origin is only knowable in the browser. Reading it during render makes the
 // first client paint disagree with the server HTML, and setting it from an
 // effect cascades a second render. useSyncExternalStore is the tool for a value
 // that simply differs between server and client.
 const NO_UPDATES = () => () => {};
-const readOrigin = () => window.location.origin;
-const noOrigin = () => "";
+const readShareOrigin = () => shareOrigin();
+const serverShareOrigin = () => CANONICAL_SITE_URL;
 
+// The canonical domain, never the deployment's own origin: a preview-URL
+// invite dies (HTTP 402) the moment Vercel pauses that deployment.
 function useOrigin(): string {
-  return useSyncExternalStore(NO_UPDATES, readOrigin, noOrigin);
+  return useSyncExternalStore(NO_UPDATES, readShareOrigin, serverShareOrigin);
 }
 
 // Sharing is the point of opening a game: the starter earns 10% of whatever the
@@ -31,7 +34,7 @@ export function ShareGame({ gameId, className = "" }: { gameId: number; classNam
 
   const origin = useOrigin();
   const path = `/casino/last-standing/${gameId}`;
-  const url = origin ? `${origin}${path}` : path;
+  const url = `${origin}${path}`;
 
   const [copied, setCopied] = useState(false);
 

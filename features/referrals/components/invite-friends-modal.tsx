@@ -21,6 +21,7 @@ import {
   sanitizeUsernameInput,
   usernameProblem,
 } from "@/features/referrals/lib/referrals";
+import { CANONICAL_SITE_URL, shareOrigin } from "@/lib/site-url";
 
 // The Invite Friends screen, built to the designer's comp: the three mascots
 // with sparkles, "Let's grow together!", the invite link with Copy, a progress
@@ -34,14 +35,16 @@ import {
 
 const MASCOTS = "/referral/mascots.png";
 
-// Server and client disagree on window.location until hydration, so the origin
-// is read as an external store the same way the casino share card does it.
+// The share origin is the CANONICAL domain, never window.location.origin: a
+// link built from a Vercel preview deployment's URL breaks for everyone once
+// that deployment is paused (HTTP 402). Read through an external store so the
+// server render (canonical) and the client agree without a hydration flash.
 const NO_UPDATES = () => () => {};
-const readOrigin = () => window.location.origin;
-const noOrigin = () => "";
+const readShareOrigin = () => shareOrigin();
+const serverShareOrigin = () => CANONICAL_SITE_URL;
 
 function useOrigin(): string {
-  return useSyncExternalStore(NO_UPDATES, readOrigin, noOrigin);
+  return useSyncExternalStore(NO_UPDATES, readShareOrigin, serverShareOrigin);
 }
 
 // Each star blinks like the designer's Figma: same keyframe, staggered starts.
@@ -114,7 +117,7 @@ function InviteScreen({
 }) {
   const t = useTranslations("referral");
   const origin = useOrigin();
-  const url = inviteLink(origin || "https://tsionark.com", username);
+  const url = inviteLink(origin, username);
 
   const [copied, setCopied] = useState(false);
 
@@ -259,7 +262,7 @@ function ClaimScreen() {
         {feedback ? <span className={feedback.tone}>{feedback.text}</span> : null}
       </div>
       <p className="tnum truncate px-4 text-[12.5px] font-normal text-white/40">
-        {displayLink(inviteLink(origin || "https://tsionark.com", name || t("placeholder")))}
+        {displayLink(inviteLink(origin, name || t("placeholder")))}
       </p>
 
       <button

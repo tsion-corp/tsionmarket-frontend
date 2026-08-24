@@ -83,6 +83,7 @@ import {
 } from "@/features/casino/components/chess/round/round-moves";
 import { RoundChatFeed } from "@/features/casino/components/chess/round/round-chat";
 import { RoundBoardMenu } from "@/features/casino/components/chess/round/round-board-menu";
+import { shareOrigin } from "@/lib/site-url";
 
 const LiveVideoPlayer = dynamic(
   () =>
@@ -1510,7 +1511,7 @@ export function PlaySection({
     waiting && matchId
       ? typeof window === "undefined"
         ? `/casino/chess/invite?code=${matchId}`
-        : `${window.location.origin}/casino/chess/invite?code=${matchId}`
+        : `${shareOrigin()}/casino/chess/invite?code=${matchId}`
       : null;
   const canWriteChat = !!wallet.address && !isComputerGame;
   const canEditComments = you !== null && currentPly !== null;

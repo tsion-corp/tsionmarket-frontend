@@ -69,6 +69,7 @@ import { track } from "@/lib/analytics/mixpanel";
 import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { shareOrigin } from "@/lib/site-url";
 
 const OTHER: Record<DraughtsSide, DraughtsSide> = { white: "black", black: "white" };
 const EMPTY_PATH: number[] = [];
@@ -661,9 +662,7 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
               <button
                 type="button"
                 onClick={async () => {
-                  await copyText(
-                    `${window.location.origin}/casino/checkers/play?match=${match.id}`
-                  );
+                  await copyText(`${shareOrigin()}/casino/checkers/play?match=${match.id}`);
                   toast.success("Invite link copied.");
                 }}
                 className={DRAUGHTS_PANEL_BUTTON_CLASS}
