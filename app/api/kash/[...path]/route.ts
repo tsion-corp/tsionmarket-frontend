@@ -30,10 +30,12 @@ const PUBLIC_GET_PATHS = new Set([
   "desk/sell/quote",
 ]);
 
-// Wallet-free but variable paths: weekly settlement summaries, keyed by week.
+// Wallet-free but variable paths: weekly settlement summaries keyed by week,
+// and username availability for the referral claim screen.
 function isPublicGet(path: string[]): boolean {
   if (PUBLIC_GET_PATHS.has(path.join("/"))) return true;
-  return path[0] === "settlements" && path.length === 2;
+  if (path[0] === "settlements" && path.length === 2) return true;
+  return path[0] === "usernames" && path.length === 3 && path[2] === "available";
 }
 
 // Wallet-scoped writes. The demo endpoint (POST /activities) is deliberately
@@ -118,10 +120,43 @@ async function walletGate(req: NextRequest, claimed: string | null): Promise<Nex
   return null;
 }
 
-async function forward(req: NextRequest, joined: string, method: "GET" | "POST", body?: string) {
+// Referral routes where the engine identifies the caller by verifying the
+// Privy identity token itself, so no wallet appears in the request at all.
+// The proxy checks for a session and passes the token through; ownership is
+// enforced upstream, where the wallet comes out of the verified token.
+const IDENTITY_GET_PATHS = new Set(["referrals/me"]);
+const IDENTITY_POST_PATHS = new Set(["referrals/claim"]);
+const IDENTITY_PUT_PATHS = new Set(["profiles/me/username"]);
+
+function isIdentityPath(joined: string): boolean {
+  return (
+    IDENTITY_GET_PATHS.has(joined) ||
+    IDENTITY_POST_PATHS.has(joined) ||
+    IDENTITY_PUT_PATHS.has(joined)
+  );
+}
+
+// 401 without a session or without the identity token the engine will verify.
+async function identityGate(req: NextRequest): Promise<NextResponse | null> {
+  const claims = await verifyRequest(req);
+  if (!claims) return unauthorized();
+  if (!req.headers.get("privy-id-token")) return unauthorized();
+  return null;
+}
+
+async function forward(
+  req: NextRequest,
+  joined: string,
+  method: "GET" | "POST" | "PUT",
+  body?: string
+) {
   const url = `${BASE}/${joined}${req.nextUrl.search}`;
   const headers: Record<string, string> = { accept: "application/json" };
-  if (method === "POST") headers["content-type"] = "application/json";
+  if (method !== "GET") headers["content-type"] = "application/json";
+  // Only identity routes carry the caller's token upstream; everything else
+  // keeps the engine request as anonymous as it always was.
+  const idToken = req.headers.get("privy-id-token");
+  if (idToken && isIdentityPath(joined)) headers["privy-id-token"] = idToken;
 
   try {
     const res = await fetch(url, {
@@ -162,6 +197,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     return forward(req, joined, "GET");
   }
 
+  if (IDENTITY_GET_PATHS.has(joined)) {
+    const denied = await identityGate(req);
+    if (denied) return denied;
+    return forward(req, joined, "GET");
+  }
+
   // Everything else must name a wallet the session owns; a path outside the
   // recognized set is refused rather than blind-forwarded.
   const claimed = walletOfGet(path, req.nextUrl.searchParams);
@@ -174,6 +215,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
 export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   const joined = path.join("/");
+
+  if (IDENTITY_POST_PATHS.has(joined)) {
+    const denied = await identityGate(req);
+    if (denied) return denied;
+    const body = await req.text();
+    return forward(req, joined, "POST", body || undefined);
+  }
+
   if (!WALLET_POST_PATHS.has(joined)) return notFound();
 
   const body = await req.text();
@@ -188,4 +237,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ path: stri
   if (denied) return denied;
 
   return forward(req, joined, "POST", body || undefined);
+}
+
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const { path } = await ctx.params;
+  const joined = path.join("/");
+  if (!IDENTITY_PUT_PATHS.has(joined)) return notFound();
+
+  const denied = await identityGate(req);
+  if (denied) return denied;
+
+  const body = await req.text();
+  return forward(req, joined, "PUT", body || undefined);
 }

@@ -8,6 +8,7 @@ import { AccountModal } from "@/components/layout/modals/account-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { FundsModal } from "@/features/funds";
+import { useClaimReferralFromLink } from "@/features/referrals";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import type { NavItem } from "@/components/layout/nav-items";
@@ -47,6 +48,10 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   // networks already loaded rather than fetching (and often showing nothing)
   // on click.
   usePrefetchDepositCatalog();
+
+  // If the session arrived through an /r/<username> invite link, settle the
+  // referral claim once and clear the cookie.
+  useClaimReferralFromLink();
 
   const navigate = useAppNavigate();
 
