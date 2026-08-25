@@ -11,8 +11,27 @@
 
 import type { ActivityDirection, ActivityItem } from "@/lib/server/activity";
 
+// The plain-transfer kinds, plus the named actions the server tags when a
+// transfer's counterparty is one of our own contracts (see lib/server/
+// action-registry). A tagged item skips the deposit/withdraw wording entirely.
 export type ActivityKind =
-  "bought" | "sold" | "swapped" | "deposited" | "withdrew" | "moved" | "received" | "sent";
+  | "bought"
+  | "sold"
+  | "swapped"
+  | "deposited"
+  | "withdrew"
+  | "moved"
+  | "received"
+  | "sent"
+  | "entered_game"
+  | "claimed_winnings"
+  | "prediction_buy"
+  | "prediction_payout"
+  | "perp_margin"
+  | "perp_return"
+  | "bought_kash"
+  | "arkade_deposit"
+  | "arkade_withdraw";
 
 export interface ActivityEntry {
   id: string;
@@ -71,15 +90,20 @@ function principal(items: ActivityItem[]): ActivityItem {
 
 function movement(item: ActivityItem): ActivityEntry {
   const stable = isStable(item.symbol);
-  const kind: ActivityKind = isRouter(item.counterparty)
-    ? "moved"
-    : item.direction === "in"
-      ? stable
-        ? "deposited"
-        : "received"
-      : stable
-        ? "withdrew"
-        : "sent";
+  // A server-tagged action wins: it knows the counterparty is our own contract,
+  // so "Bought KASH+" beats "Withdrew USDC". The bare contract address is then
+  // noise on the row, so it is dropped.
+  const kind: ActivityKind = item.action
+    ? item.action
+    : isRouter(item.counterparty)
+      ? "moved"
+      : item.direction === "in"
+        ? stable
+          ? "deposited"
+          : "received"
+        : stable
+          ? "withdrew"
+          : "sent";
   return {
     id: item.id,
     hash: item.hash,
@@ -89,7 +113,7 @@ function movement(item: ActivityItem): ActivityEntry {
     symbol: item.symbol,
     amount: item.amount,
     direction: item.direction,
-    counterparty: item.counterparty,
+    counterparty: item.action ? null : item.counterparty,
     logo: item.logo,
   };
 }

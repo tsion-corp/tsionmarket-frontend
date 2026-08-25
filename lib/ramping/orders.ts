@@ -11,10 +11,12 @@
 
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 
-// The minimum deposit in Naira. Ours, not the rail's: low enough that a small
-// manual deposit goes through, high enough that a test-sized transfer does not
-// create a dust order.
-export const ONRAMP_MIN_NGN = 1000;
+// The minimum deposit in Naira. Ours, not the rail's. Set above the ~$1
+// referral qualification floor (about ₦1,450 at current rates) with headroom
+// for rate moves and the routing fee, so every completed bank deposit is worth
+// at least $1 on arrival and a referred user's first deposit always qualifies
+// their referrer. A test-sized dust order stays blocked as before.
+export const ONRAMP_MIN_NGN = 2000;
 
 // A small floor so a dust withdrawal never reaches the rail.
 export const OFFRAMP_MIN_USDC = 1;

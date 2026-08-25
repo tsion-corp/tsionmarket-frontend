@@ -192,6 +192,9 @@ function InviteScreen({
         <p className="mt-1.5 text-[13px] leading-[1.55] font-normal text-white/60">
           {t("howBody")}
         </p>
+        <p className="mt-2 text-[12.5px] leading-[1.5] font-medium text-white/80">
+          {t("howMinimum")}
+        </p>
       </div>
 
       <button

@@ -12,8 +12,8 @@ import type { DepositPrefill } from "@/lib/voice/intent";
 
 type Step = "chooser" | "crypto" | "bank";
 
-// USDC brand blue — only the fallback tint; AssetIcon renders the real
-// TokenUSDC web3icon for "USDC".
+// USDC brand blue — only the fallback tint; AssetIcon renders the platform's
+// own USDC coin for "USDC".
 const USDC_BLUE = "#2775CA";
 
 // `deposit` is an optional voice prefill: when present the modal opens straight

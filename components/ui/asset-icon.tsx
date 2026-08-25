@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { GradientCoin } from "@/components/ui/gradient-coin";
+import { UsdcCoin } from "@/components/ui/usdc-coin";
 import TokenBTC from "@web3icons/react/icons/tokens/TokenBTC";
 import TokenETH from "@web3icons/react/icons/tokens/TokenETH";
 import TokenSOL from "@web3icons/react/icons/tokens/TokenSOL";
 import TokenBNB from "@web3icons/react/icons/tokens/TokenBNB";
-import TokenUSDC from "@web3icons/react/icons/tokens/TokenUSDC";
 import TokenUSDT from "@web3icons/react/icons/tokens/TokenUSDT";
 import TokenWBTC from "@web3icons/react/icons/tokens/TokenWBTC";
 import TokenDAI from "@web3icons/react/icons/tokens/TokenDAI";
@@ -64,9 +64,6 @@ const CRYPTO_ICONS: Record<string, IconComponent> = {
   ETH: TokenETH,
   WETH: TokenETH,
   BNB: TokenBNB,
-  USDC: TokenUSDC,
-  "USDC.E": TokenUSDC,
-  $: TokenUSDC,
   USDT: TokenUSDT,
   "USD₮0": TokenUSDT,
   WBTC: TokenWBTC,
@@ -126,10 +123,24 @@ const CRYPTO_ICONS: Record<string, IconComponent> = {
   ZEC: TokenZEC,
 };
 
+// Brand marks that override the web3icons set. USDC uses the product owner's
+// own coin everywhere it appears (the "$" alias covers stablecoin cash rows).
+const CUSTOM_ICONS: Record<string, (size: number) => ReactNode> = {
+  USDC: (size) => <UsdcCoin size={size} />,
+  "USDC.E": (size) => <UsdcCoin size={size} />,
+  $: (size) => <UsdcCoin size={size} />,
+};
+
+function customIcon(sym: string): ((size: number) => ReactNode) | undefined {
+  return CUSTOM_ICONS[sym] ?? CUSTOM_ICONS[sym.toUpperCase()];
+}
+
 // Whether a real token icon exists for this symbol, so callers can pick their
 // own fallback (the perps section uses gradient coins instead of text badges).
 export function hasTokenIcon(sym: string): boolean {
-  return CRYPTO_ICONS[sym] != null || CRYPTO_ICONS[sym.toUpperCase()] != null;
+  return (
+    customIcon(sym) != null || CRYPTO_ICONS[sym] != null || CRYPTO_ICONS[sym.toUpperCase()] != null
+  );
 }
 
 interface AssetIconProps {
@@ -150,8 +161,20 @@ const MONO_ONLY = new Set(["ARKM"]);
 
 export function AssetIcon({ sym, bg, size = 36, logo, fallback = "badge" }: AssetIconProps) {
   const [imgFailed, setImgFailed] = useState(false);
+  const custom = customIcon(sym);
   const Icon = CRYPTO_ICONS[sym] ?? CRYPTO_ICONS[sym.toUpperCase()];
   const round = size > 24 ? 11 : 999;
+
+  if (custom) {
+    return (
+      <span
+        className="grid shrink-0 place-items-center overflow-hidden"
+        style={{ width: size, height: size, borderRadius: round }}
+      >
+        {custom(size)}
+      </span>
+    );
+  }
 
   if (Icon) {
     return (

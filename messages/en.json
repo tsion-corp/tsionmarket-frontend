@@ -668,7 +668,8 @@
     "notEnoughBalance": "Not enough balance",
     "confirming": "Confirming…",
     "buyToken": "Buy {name}",
-    "sellToken": "Sell {name}"
+    "sellToken": "Sell {name}",
+    "transactionFee": "Transaction fee"
   },
   "rwa": {
     "eyebrow": "Real-world assets",
@@ -1294,7 +1295,8 @@
     "fiatComingSoonBody": "We are finishing verification with our payments partner. Card and bank funding go live shortly. Deposit crypto in the meantime.",
     "withdrawNeedsGas": "You need a little {symbol} on {chain} to send from there. Withdraw from Base instead, or add funds.",
     "withdrawalUnconfirmed": "We couldn't confirm this withdrawal. It may already have gone through, so check Activity before trying again to avoid sending twice.",
-    "withdrawalUnconfirmedToast": "Couldn't confirm. Check Activity."
+    "withdrawalUnconfirmedToast": "Couldn't confirm. Check Activity.",
+    "transactionFee": "Transaction fee"
   },
   "remit": {
     "sendMoney": "Send money",
@@ -1687,7 +1689,8 @@
       "toastFailed": "Couldn't add money, so you were refunded",
       "toastRefunded": "Refunded to your balance",
       "errorQuote": "Couldn't do that right now. Try again.",
-      "errorSend": "That didn't go through. Please try again."
+      "errorSend": "That didn't go through. Please try again.",
+      "transactionFee": "Transaction fee"
     },
     "entries": {
       "title": "My entries",
@@ -2287,6 +2290,7 @@
     "pendingNote": "{count} joined · first deposit pending",
     "howTitle": "How it works?",
     "howBody": "Share your link. When a friend joins ARK and makes their first deposit, your referral counts here. Kash+ rewards for referrals are on the way.",
+    "howMinimum": "Your friend’s first deposit must be at least $1 for it to count.",
     "cta": "Invite and Earn",
     "shareTitle": "Join me on ARK",
     "shareText": "Sign up with my invite link and let's grow together on ARK.",
@@ -2386,6 +2390,15 @@
     "received": "Received {symbol}",
     "sent": "Sent {symbol}",
     "moved": "Moved {symbol}",
+    "entered_game": "Placed a wager",
+    "claimed_winnings": "Claimed winnings",
+    "prediction_buy": "Bought prediction shares",
+    "prediction_payout": "Prediction payout",
+    "perp_margin": "Funded a perp trade",
+    "perp_return": "Perp trade payout",
+    "bought_kash": "Bought KASH+",
+    "arkade_deposit": "Added game funds",
+    "arkade_withdraw": "Withdrew game funds",
     "notifications": "Notifications",
     "newCount": "{count} new"
   },

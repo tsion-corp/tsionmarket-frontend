@@ -129,9 +129,11 @@ describe("normalization", () => {
 
 describe("onramp floor", () => {
   it("accepts any typed amount from the floor up", () => {
-    expect(isValidOnrampNgn(1000)).toBe(true);
+    // The floor sits above the ~$1 referral qualification minimum.
+    expect(isValidOnrampNgn(2000)).toBe(true);
     expect(isValidOnrampNgn(2500)).toBe(true);
-    expect(isValidOnrampNgn(999)).toBe(false);
+    expect(isValidOnrampNgn(1999)).toBe(false);
+    expect(isValidOnrampNgn(1000)).toBe(false);
     expect(isValidOnrampNgn(NaN)).toBe(false);
   });
 });

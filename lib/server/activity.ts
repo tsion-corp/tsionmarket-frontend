@@ -7,6 +7,12 @@ import {
 } from "@/lib/server/alchemy";
 import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
 import { fetchBuyableRegistry, type BuyableRegistry } from "@/lib/server/buyable-registry";
+import {
+  fetchActionRegistry,
+  actionFor,
+  type ActionKind,
+  type ActionRegistry,
+} from "@/lib/server/action-registry";
 
 type RwaRegistry = Record<string, Map<string, RwaTokenInfo>>;
 
@@ -57,6 +63,10 @@ export interface ActivityItem {
   // Server-resolved asset logo, the same one the portfolio renders. Null when
   // the symbol already has a built-in icon or the token is unknown.
   logo: string | null;
+  // Set when the counterparty is one of our own contracts, so the feed can name
+  // the action (a KASH buy, a wager, a prediction buy) instead of showing a
+  // bare "Withdrew"/"Deposited". Absent for plain sends and receives.
+  action?: ActionKind;
 }
 
 interface RawTransfer {
@@ -274,9 +284,10 @@ export async function fetchActivity(
   limit = 40
 ): Promise<ActivityItem[]> {
   if (!evm && !solana) return [];
-  const [rwa, registries] = await Promise.all([
+  const [rwa, registries, actions] = await Promise.all([
     fetchRwaRegistry().catch((): RwaRegistry => ({})),
     fetchBuyableRegistry().catch(() => ({ buyable: {}, meme: {} })),
+    fetchActionRegistry().catch((): ActionRegistry => ({})),
   ]);
 
   const evmItems: ActivityItem[] = [];
@@ -298,6 +309,7 @@ export async function fetchActivity(
         if (!isAllowedHolding(network, contract, isNative, rwa, registries.buyable)) continue;
         const amount = typeof t.value === "number" ? t.value : 0;
         if (amount <= 0 || !t.hash) continue;
+        const counterparty = (direction === "in" ? t.from : t.to) ?? null;
         evmItems.push({
           // Prefer Alchemy's uniqueId; fall back to a per-transfer composite so
           // two transfers of the same token in one tx never share a React key.
@@ -310,8 +322,9 @@ export async function fetchActivity(
           symbol: t.asset ?? "",
           amount,
           timestamp: Date.parse(t.metadata?.blockTimestamp ?? "") || 0,
-          counterparty: (direction === "in" ? t.from : t.to) ?? null,
+          counterparty,
           logo: tokenLogo(network, contract),
+          action: actionFor(actions, network, counterparty, direction),
         });
       }
     }

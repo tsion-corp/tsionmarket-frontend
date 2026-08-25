@@ -147,6 +147,14 @@ export interface QuoteResult {
   expiresInSeconds: number;
 }
 
+// Dextopus's routing fee, shown as a rate where a flow has no amount to quote.
+export const DEXTOPUS_FEE_RATE = 0.005;
+
+// Clamped at zero so a rounding wobble or a direct send never reads as a bonus.
+export function quoteFee(amountIn: number, amountOut: number): number {
+  return Math.max(0, amountIn - amountOut);
+}
+
 export interface DepositStatusResult {
   success: boolean;
   depositRequestId: string;

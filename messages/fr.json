@@ -668,7 +668,8 @@
     "notEnoughBalance": "Solde insuffisant",
     "confirming": "Confirmation…",
     "buyToken": "Acheter {name}",
-    "sellToken": "Vendre {name}"
+    "sellToken": "Vendre {name}",
+    "transactionFee": "Frais de transaction"
   },
   "rwa": {
     "eyebrow": "Actifs du monde réel",
@@ -1294,7 +1295,8 @@
     "fiatComingSoonBody": "Nous finalisons la vérification avec notre partenaire de paiement. Le financement par carte et banque arrive sous peu. Déposez des cryptos en attendant.",
     "withdrawNeedsGas": "Il vous faut un peu de {symbol} sur {chain} pour envoyer depuis cette chaîne. Retirez depuis Base, ou ajoutez des fonds.",
     "withdrawalUnconfirmed": "Nous n'avons pas pu confirmer ce retrait. Il est peut-être déjà passé, vérifiez donc l'activité avant de réessayer pour ne pas envoyer deux fois.",
-    "withdrawalUnconfirmedToast": "Confirmation impossible. Vérifiez l'activité."
+    "withdrawalUnconfirmedToast": "Confirmation impossible. Vérifiez l'activité.",
+    "transactionFee": "Frais de transaction"
   },
   "remit": {
     "sendMoney": "Envoyer de l'argent",
@@ -1687,7 +1689,8 @@
       "toastFailed": "Impossible d'ajouter l'argent, vous avez été remboursé",
       "toastRefunded": "Remboursé sur votre solde",
       "errorQuote": "Impossible pour le moment. Réessayez.",
-      "errorSend": "Ça n'est pas passé. Veuillez réessayer."
+      "errorSend": "Ça n'est pas passé. Veuillez réessayer.",
+      "transactionFee": "Frais de transaction"
     },
     "entries": {
       "title": "Mes participations",
@@ -2287,6 +2290,7 @@
     "pendingNote": "{count} inscrits · premier dépôt en attente",
     "howTitle": "Comment ça marche ?",
     "howBody": "Partagez votre lien. Quand un ami rejoint ARK et effectue son premier dépôt, votre parrainage compte ici. Les récompenses Kash+ pour les parrainages arrivent bientôt.",
+    "howMinimum": "Le premier dépôt de votre ami doit être d’au moins 1 $ pour être comptabilisé.",
     "cta": "Inviter et gagner",
     "shareTitle": "Rejoins-moi sur ARK",
     "shareText": "Inscris-toi avec mon lien d'invitation et grandissons ensemble sur ARK.",
@@ -2386,6 +2390,15 @@
     "received": "{symbol} reçu",
     "sent": "{symbol} envoyé",
     "moved": "{symbol} transféré",
+    "entered_game": "Mise placée",
+    "claimed_winnings": "Gains réclamés",
+    "prediction_buy": "Parts de prédiction achetées",
+    "prediction_payout": "Gain de prédiction",
+    "perp_margin": "Trade perp financé",
+    "perp_return": "Paiement du trade perp",
+    "bought_kash": "KASH+ acheté",
+    "arkade_deposit": "Fonds de jeu ajoutés",
+    "arkade_withdraw": "Fonds de jeu retirés",
     "notifications": "Notifications",
     "newCount": "{count} nouvelles"
   },

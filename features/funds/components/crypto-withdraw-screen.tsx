@@ -23,6 +23,7 @@ import {
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
 import {
+  quoteFee,
   SETTLE_CHAINS,
   txExplorerUrl,
   type AddressKind,
@@ -41,6 +42,12 @@ import { track } from "@/lib/analytics/mixpanel";
 
 const DECIMAL = /^\d*\.?\d*$/;
 const QUOTE_DEBOUNCE_MS = 450;
+
+// Payouts treated as dollars, so "amount in minus amount out" is a real fee.
+const STABLE_PAYOUTS = new Set(["USDC", "USDT", "USDC.E", "DAI", "PYUSD", "USDG", "USDS"]);
+function isStableSymbol(symbol: string): boolean {
+  return STABLE_PAYOUTS.has(symbol.toUpperCase());
+}
 
 // The wallet balance is USDC on Base — everything deposited settles here, so
 // it is the single source every withdrawal sends from. The screen never names
@@ -278,6 +285,14 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     : quote.data && selectedDestination
       ? `${fromBaseUnits(BigInt(quote.data.amountOut), selectedDestination.decimals)} ${selectedDestination.symbol}`
       : null;
+
+  // The fee the quote implies, only when the payout is dollar-priced so it
+  // reconciles with the "recipient gets" figure. A direct send has no fee.
+  const payoutUsd =
+    !isDirectSend && quote.data && selectedDestination && isStableSymbol(selectedDestination.symbol)
+      ? Number(fromBaseUnits(BigInt(quote.data.amountOut), selectedDestination.decimals))
+      : null;
+  const feeUsd = payoutUsd != null ? quoteFee(value, payoutUsd) : null;
 
   const busy = submitting;
   const ready =
@@ -653,6 +668,13 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           ) : (
             <span className="tnum text-white/85">≈ {previewOut}</span>
           )}
+        </div>
+      ) : null}
+
+      {feeUsd != null && feeUsd > 0 ? (
+        <div className="ws-inset mt-2 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
+          <span className="text-white/55">{t("transactionFee")}</span>
+          <span className="tnum text-white/85">≈ ${formatAmount(feeUsd)}</span>
         </div>
       ) : null}
 

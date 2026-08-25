@@ -74,6 +74,11 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
   const value = priceUsd > 0 ? priceUsd * item.amount : 0;
   const sym = displaySymbol(item.symbol);
   const network = displayNetwork(item.symbol, item.network);
+  // Buying KASH+ shows the KASH+ coin, not the USDC it was paid in: the row
+  // reads as the thing you got, the same way a token buy shows the token.
+  const kashBuy = item.kind === "bought_kash";
+  const iconSym = kashBuy ? "KASH+" : sym;
+  const iconLogo = kashBuy ? "/kash/kash-plus-coin.png" : item.logo;
   // Stablecoins are the product's cash: they read as dollars, never as a
   // token. Everything else keeps its own (display) symbol and quantity.
   const cash = isStable(item.symbol);
@@ -104,7 +109,7 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
     >
       <div className="flex min-w-0 items-center gap-3">
         <span className="relative shrink-0">
-          <AssetIcon sym={sym} bg={tokenBg(sym)} logo={item.logo} fallback="gradient" />
+          <AssetIcon sym={iconSym} bg={tokenBg(iconSym)} logo={iconLogo} fallback="gradient" />
           <span className="absolute -right-1 -bottom-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-black">
             <NetworkIcon network={network} size={13} />
           </span>

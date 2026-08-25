@@ -22,6 +22,7 @@ import { getWalletAddress } from "@/lib/user";
 import { isRefundOptional, originFamily, refundChainType } from "@/lib/deposit-catalog";
 import {
   depositMinimumUsd,
+  DEXTOPUS_FEE_RATE,
   SETTLE_CHAINS,
   type DepositChain,
   type DepositToken,
@@ -153,6 +154,12 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
         </div>
 
         <AddressPanel address={staticAddr.data.depositAddress} />
+
+        {/* No amount to quote against on a static address, so show the rate. */}
+        <div className="ws-inset mt-3 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
+          <span className="text-white/55">{t("transactionFee")}</span>
+          <span className="tnum text-white/85">{DEXTOPUS_FEE_RATE * 100}%</span>
+        </div>
 
         {/* Minimum-deposit caution, styled as a warning banner. */}
         <div className="mt-3 flex items-start gap-2.5 rounded-[14px] border border-[#d8d8dc]/25 bg-[#d8d8dc]/8 px-4 py-3">

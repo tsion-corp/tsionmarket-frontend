@@ -100,3 +100,58 @@ describe("cross-chain pairing", () => {
     expect(entries).toHaveLength(2);
   });
 });
+
+describe("platform actions", () => {
+  // The core fix: a transfer to one of our own contracts is the action, not a
+  // withdrawal. The server tags it; the entry must carry that name and drop the
+  // bare contract address.
+  it("names a KASH purchase instead of calling it a withdrawal", () => {
+    const [entry] = buildActivityEntries([
+      item({
+        symbol: "USDC",
+        direction: "out",
+        amount: 7,
+        action: "bought_kash",
+        counterparty: "0xtreasury",
+      }),
+    ]);
+    expect(entry.kind).toBe("bought_kash");
+    expect(entry.amount).toBe(7);
+    expect(entry.direction).toBe("out");
+    // The contract address is noise once the row is named.
+    expect(entry.counterparty).toBeNull();
+  });
+
+  it("names a game entry (native ETH to the vault) and its winnings", () => {
+    const entered = buildActivityEntries([
+      item({ symbol: "ETH", direction: "out", amount: 0.002, action: "entered_game" }),
+    ]);
+    expect(entered[0].kind).toBe("entered_game");
+
+    const claimed = buildActivityEntries([
+      item({ symbol: "ETH", direction: "in", amount: 0.004, action: "claimed_winnings" }),
+    ]);
+    expect(claimed[0].kind).toBe("claimed_winnings");
+  });
+
+  it("names a prediction buy and a perp margin deposit", () => {
+    const bought = buildActivityEntries([
+      item({ symbol: "USDC", direction: "out", amount: 5, action: "prediction_buy" }),
+    ]);
+    expect(bought[0].kind).toBe("prediction_buy");
+
+    const margin = buildActivityEntries([
+      item({ symbol: "USDC", direction: "out", amount: 25, action: "perp_margin" }),
+    ]);
+    expect(margin[0].kind).toBe("perp_margin");
+  });
+
+  it("still calls an untagged stablecoin move a plain withdrawal", () => {
+    const [entry] = buildActivityEntries([
+      item({ symbol: "USDC", direction: "out", amount: 5, counterparty: "0xstranger" }),
+    ]);
+    expect(entry.kind).toBe("withdrew");
+    // An ordinary send keeps its counterparty so the row can show it.
+    expect(entry.counterparty).toBe("0xstranger");
+  });
+});

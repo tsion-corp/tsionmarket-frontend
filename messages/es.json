@@ -668,7 +668,8 @@
     "notEnoughBalance": "Saldo insuficiente",
     "confirming": "Confirmando…",
     "buyToken": "Comprar {name}",
-    "sellToken": "Vender {name}"
+    "sellToken": "Vender {name}",
+    "transactionFee": "Comisión de transacción"
   },
   "rwa": {
     "eyebrow": "Activos del mundo real",
@@ -1294,7 +1295,8 @@
     "fiatComingSoonBody": "Estamos terminando la verificación con nuestro socio de pagos. El fondeo con tarjeta y banco llega en breve. Mientras tanto, deposita cripto.",
     "withdrawNeedsGas": "Necesitas un poco de {symbol} en {chain} para enviar desde ahí. Retira desde Base o añade fondos.",
     "withdrawalUnconfirmed": "No pudimos confirmar este retiro. Puede que ya se haya realizado, así que revisa la actividad antes de volver a intentarlo para no enviarlo dos veces.",
-    "withdrawalUnconfirmedToast": "Sin confirmar. Revisa la actividad."
+    "withdrawalUnconfirmedToast": "Sin confirmar. Revisa la actividad.",
+    "transactionFee": "Comisión de transacción"
   },
   "remit": {
     "sendMoney": "Enviar dinero",
@@ -1687,7 +1689,8 @@
       "toastFailed": "No se pudo añadir el dinero, así que se te reembolsó",
       "toastRefunded": "Reembolsado a tu saldo",
       "errorQuote": "No se pudo ahora mismo. Inténtalo de nuevo.",
-      "errorSend": "Eso no se procesó. Inténtalo de nuevo."
+      "errorSend": "Eso no se procesó. Inténtalo de nuevo.",
+      "transactionFee": "Comisión de transacción"
     },
     "entries": {
       "title": "Mis boletos",
@@ -2287,6 +2290,7 @@
     "pendingNote": "{count} se unieron · primer depósito pendiente",
     "howTitle": "¿Cómo funciona?",
     "howBody": "Comparte tu enlace. Cuando un amigo se une a ARK y hace su primer depósito, tu referido cuenta aquí. Las recompensas en Kash+ por referidos están en camino.",
+    "howMinimum": "El primer depósito de tu amigo debe ser de al menos $1 para que cuente.",
     "cta": "Invita y gana",
     "shareTitle": "Únete conmigo en ARK",
     "shareText": "Regístrate con mi enlace de invitación y crezcamos juntos en ARK.",
@@ -2386,6 +2390,15 @@
     "received": "{symbol} recibido",
     "sent": "{symbol} enviado",
     "moved": "{symbol} movido",
+    "entered_game": "Apuesta realizada",
+    "claimed_winnings": "Ganancias reclamadas",
+    "prediction_buy": "Acciones de predicción compradas",
+    "prediction_payout": "Pago de predicción",
+    "perp_margin": "Operación perp financiada",
+    "perp_return": "Pago de operación perp",
+    "bought_kash": "KASH+ comprado",
+    "arkade_deposit": "Fondos de juego añadidos",
+    "arkade_withdraw": "Fondos de juego retirados",
     "notifications": "Notificaciones",
     "newCount": "{count} nuevas"
   },

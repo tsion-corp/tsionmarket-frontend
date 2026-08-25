@@ -668,7 +668,8 @@
     "notEnoughBalance": "Guthaben reicht nicht",
     "confirming": "Wird bestätigt…",
     "buyToken": "{name} kaufen",
-    "sellToken": "{name} verkaufen"
+    "sellToken": "{name} verkaufen",
+    "transactionFee": "Transaktionsgebühr"
   },
   "rwa": {
     "eyebrow": "Reale Vermögenswerte",
@@ -1294,7 +1295,8 @@
     "fiatComingSoonBody": "Wir schließen die Verifizierung mit unserem Zahlungspartner ab. Karten- und Bankaufladung starten in Kürze. Zahlen Sie in der Zwischenzeit Krypto ein.",
     "withdrawNeedsGas": "Du brauchst etwas {symbol} auf {chain}, um von dort zu senden. Hebe stattdessen von Base ab oder lade Guthaben auf.",
     "withdrawalUnconfirmed": "Wir konnten diese Auszahlung nicht bestätigen. Sie ist möglicherweise schon durchgegangen, prüfe also die Aktivität, bevor du es erneut versuchst, damit du nicht doppelt sendest.",
-    "withdrawalUnconfirmedToast": "Nicht bestätigt. Prüfe die Aktivität."
+    "withdrawalUnconfirmedToast": "Nicht bestätigt. Prüfe die Aktivität.",
+    "transactionFee": "Transaktionsgebühr"
   },
   "remit": {
     "sendMoney": "Geld senden",
@@ -1687,7 +1689,8 @@
       "toastFailed": "Geld konnte nicht hinzugefügt werden, Sie wurden erstattet",
       "toastRefunded": "Auf Ihr Guthaben erstattet",
       "errorQuote": "Gerade nicht möglich. Versuchen Sie es erneut.",
-      "errorSend": "Das hat nicht geklappt. Bitte versuchen Sie es erneut."
+      "errorSend": "Das hat nicht geklappt. Bitte versuchen Sie es erneut.",
+      "transactionFee": "Transaktionsgebühr"
     },
     "entries": {
       "title": "Meine Tipps",
@@ -2287,6 +2290,7 @@
     "pendingNote": "{count} beigetreten · erste Einzahlung ausstehend",
     "howTitle": "Wie funktioniert es?",
     "howBody": "Teilen Sie Ihren Link. Sobald ein Freund ARK beitritt und die erste Einzahlung macht, zählt Ihre Empfehlung hier. Kash+-Belohnungen für Empfehlungen sind unterwegs.",
+    "howMinimum": "Die erste Einzahlung deines Freundes muss mindestens 1 $ betragen, damit sie zählt.",
     "cta": "Einladen und verdienen",
     "shareTitle": "Komm zu mir auf ARK",
     "shareText": "Melde dich über meinen Einladungslink an und lass uns gemeinsam auf ARK wachsen.",
@@ -2386,6 +2390,15 @@
     "received": "{symbol} erhalten",
     "sent": "{symbol} gesendet",
     "moved": "{symbol} bewegt",
+    "entered_game": "Wette platziert",
+    "claimed_winnings": "Gewinn beansprucht",
+    "prediction_buy": "Prognoseanteile gekauft",
+    "prediction_payout": "Prognose-Auszahlung",
+    "perp_margin": "Perp-Trade finanziert",
+    "perp_return": "Perp-Trade-Auszahlung",
+    "bought_kash": "KASH+ gekauft",
+    "arkade_deposit": "Spielguthaben aufgeladen",
+    "arkade_withdraw": "Spielguthaben abgehoben",
     "notifications": "Benachrichtigungen",
     "newCount": "{count} neu"
   },
