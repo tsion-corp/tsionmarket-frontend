@@ -216,14 +216,15 @@ describe("match", () => {
     const match = toChessMatch(
       wire({
         computer: {
-          player: "0x00000000000000000000000000000000000000b4",
-          name: "Stockfish level 4",
+          player: "0x00000000000000000000000000000000000000b7",
+          name: "Stockfish level 7",
           side: "black",
-          level: 4,
+          level: 7,
           wager: {
             stakeUsdc: "10",
-            houseExposureUsdc: "2.5",
-            potentialPayoutUsdc: "12.3",
+            houseExposureUsdc: "8",
+            potentialPayoutUsdc: "17.36",
+            drawPayoutUsdc: "5",
             feeBps: 800,
             status: "active",
             payoutUsdc: "0",
@@ -234,8 +235,9 @@ describe("match", () => {
 
     expect(match.computer?.wager).toEqual({
       stakeUsdc: "10",
-      houseExposureUsdc: "2.5",
-      potentialPayoutUsdc: "12.3",
+      houseExposureUsdc: "8",
+      potentialPayoutUsdc: "17.36",
+      drawPayoutUsdc: "5",
       feeBps: 800,
       status: "active",
       payoutUsdc: "0",

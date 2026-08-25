@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { apiError } from "@/lib/api/envelope";
 import {
   cashierLockBuckets,
+  chessComputerWagerBreakdown,
   computerWagerBreakdown,
   exceedsUsdcBalance,
   feePctFromBps,
@@ -58,7 +59,7 @@ describe("wagerBreakdown", () => {
 });
 
 describe("computerWagerBreakdown", () => {
-  it("matches the backend payout table at every staked level", () => {
+  it("matches the draughts payout table at every staked level", () => {
     const expected = [
       [4, "2.5", "0.2", "12.3"],
       [5, "4", "0.32", "13.68"],
@@ -73,16 +74,36 @@ describe("computerWagerBreakdown", () => {
         houseExposure: exposure,
         fee,
         potentialPayout: payout,
+        drawPayout: "5",
         balanceAfter: "10",
         sufficient: true,
       });
     }
   });
 
-  it("keeps levels one through three practice-only", () => {
+  it("keeps draughts levels one through three practice-only", () => {
     for (const level of [1, 2, 3]) {
       expect(computerWagerBreakdown("10", "20", level)).toBeNull();
     }
+  });
+
+  it("only quotes chess stakes at levels seven and eight", () => {
+    for (const level of [1, 2, 3, 4, 5, 6]) {
+      expect(chessComputerWagerBreakdown("10", "20", level)).toBeNull();
+    }
+
+    expect(chessComputerWagerBreakdown("10", "20", 7)).toMatchObject({
+      houseExposure: "8",
+      fee: "0.64",
+      potentialPayout: "17.36",
+      drawPayout: "5",
+    });
+    expect(chessComputerWagerBreakdown("10", "20", 8)).toMatchObject({
+      houseExposure: "10",
+      fee: "0.8",
+      potentialPayout: "19.2",
+      drawPayout: "5",
+    });
   });
 
   it("rejects a stake whose level reward floors below one micro-USDC", () => {

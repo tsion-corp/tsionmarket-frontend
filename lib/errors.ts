@@ -116,6 +116,13 @@ export function friendlyError(
   // of masking it behind the generic order failure.
   if (/^your solana balance changed\./i.test(raw)) return raw;
 
+  if (gateway.code === "PLAYER_BALANCE_INSUFFICIENT") {
+    return "You don't have enough in your chess balance for that. Deposit more USDC or choose a smaller stake.";
+  }
+  if (gateway.code === "HOUSE_RESERVE_INSUFFICIENT") {
+    return "Stockfish staking is temporarily unavailable because the reward reserve is low. You can still play a free game.";
+  }
+
   // Before the text patterns: a custom-error revert often ALSO contains the
   // word "reverted", which no pattern below would translate, so the hex would
   // survive all the way to the toast.
@@ -132,8 +139,11 @@ export function friendlyError(
   }
   // The chess cashier has its own internal balance. Preserve that distinction
   // so a withdrawal failure doesn't read like a wallet/allowance problem.
-  if (/insufficient available balance/.test(m)) {
-    return "You don't have enough in your chess balance for that. Deposit more USDC or withdraw a smaller amount.";
+  if (/insufficient available balance|player balance insufficient/.test(m)) {
+    return "You don't have enough in your chess balance for that. Deposit more USDC or choose a smaller amount.";
+  }
+  if (/house reserve insufficient/.test(m)) {
+    return "Stockfish staking is temporarily unavailable because the reward reserve is low. You can still play a free game.";
   }
   // Not enough of the specific asset being moved (e.g. an ERC-20 balance revert).
   if (/insufficient[- ]?balance|amount exceeds balance|exceeds allowance/.test(m)) {

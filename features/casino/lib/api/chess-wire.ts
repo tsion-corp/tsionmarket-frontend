@@ -64,6 +64,7 @@ export interface ChessComputerWagerWire {
   stakeUsdc: string;
   houseExposureUsdc: string;
   potentialPayoutUsdc: string;
+  drawPayoutUsdc?: string;
   feeBps: number;
   status: string;
   payoutUsdc: string;
@@ -475,6 +476,7 @@ function toComputerOpponent(
           stakeUsdc: computer.wager.stakeUsdc,
           houseExposureUsdc: computer.wager.houseExposureUsdc,
           potentialPayoutUsdc: computer.wager.potentialPayoutUsdc,
+          drawPayoutUsdc: computer.wager.drawPayoutUsdc,
           feeBps: computer.wager.feeBps,
           status: computer.wager.status,
           payoutUsdc: computer.wager.payoutUsdc,

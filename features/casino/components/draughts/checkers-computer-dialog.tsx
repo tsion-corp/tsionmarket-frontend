@@ -7,7 +7,7 @@ import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import { ComputerWagerSummary } from "@/features/casino/components/computer-wager-summary";
 import {
-  MIN_STAKED_COMPUTER_LEVEL,
+  MIN_STAKED_DRAUGHTS_COMPUTER_LEVEL,
   computerWagerBreakdown,
   exceedsUsdcBalance,
   normalizeUsdcAmount,
@@ -63,7 +63,7 @@ export function CheckersComputerDialog({ open, onClose }: CheckersComputerDialog
   const [stake, setStake] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const stakingAllowed = level >= MIN_STAKED_COMPUTER_LEVEL;
+  const stakingAllowed = level >= MIN_STAKED_DRAUGHTS_COMPUTER_LEVEL;
   const stakeUsdc = cashier.configured && stakingAllowed ? normalizeUsdcAmount(stake) : null;
   const wagerBreakdown = stakeUsdc
     ? computerWagerBreakdown(stakeUsdc, cashier.available, level)
@@ -151,7 +151,7 @@ export function CheckersComputerDialog({ open, onClose }: CheckersComputerDialog
                 type="button"
                 onClick={() => {
                   setLevel(value);
-                  if (value < MIN_STAKED_COMPUTER_LEVEL) setStake("");
+                  if (value < MIN_STAKED_DRAUGHTS_COMPUTER_LEVEL) setStake("");
                 }}
                 className={`tnum h-10 border-r border-white/10 text-[13px] last:border-r-0 ${
                   level === value

@@ -33,7 +33,7 @@ const BASE =
   wsapiService("chess");
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 const COUNTRY_WRITE = /^(?:matches|matches\/[^/]+\/join|arenas\/[^/]+\/join)$/u;
-const PLAYER_PROFILE_WRITE = /^(?:matches|matches\/[^/]+\/join)$/u;
+const PLAYER_PROFILE_WRITE = /^(?:matches|matches\/[^/]+\/join|computer\/matches)$/u;
 
 // Just long enough to collapse the concurrent polls of two players watching the
 // same board, and short enough that neither sees a stale position. The match

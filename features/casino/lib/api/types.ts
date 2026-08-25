@@ -35,6 +35,7 @@ export interface ChessComputerWager {
   stakeUsdc: string;
   houseExposureUsdc: string;
   potentialPayoutUsdc: string;
+  drawPayoutUsdc?: string;
   feeBps: number;
   status: string;
   payoutUsdc: string;

@@ -14,7 +14,9 @@ import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 
 export const USDC_DECIMALS = 6;
 export const COMPUTER_WAGER_FEE_BPS = 800;
-export const MIN_STAKED_COMPUTER_LEVEL = 4;
+export const MIN_STAKED_CHESS_COMPUTER_LEVEL = 7;
+export const MIN_STAKED_DRAUGHTS_COMPUTER_LEVEL = 4;
+export const COMPUTER_DRAW_RETURN_BPS = 5_000;
 
 const COMPUTER_REWARD_BPS: Readonly<Record<number, number>> = {
   4: 2_500,
@@ -169,6 +171,7 @@ export interface ComputerWagerBreakdown {
   houseExposure: string;
   fee: string;
   potentialPayout: string;
+  drawPayout: string;
   rewardPercent: number;
   sufficient: boolean;
 }
@@ -194,6 +197,7 @@ export function computerWagerBreakdown(
   const normalizedFeeBps = BigInt(Math.max(0, Math.min(10_000, Math.round(feeBps))));
   const fee = (houseExposure * normalizedFeeBps) / 10_000n;
   const potentialPayout = stake + houseExposure - fee;
+  const drawPayout = (stake * BigInt(COMPUTER_DRAW_RETURN_BPS)) / 10_000n;
   const available = toBaseUnits(availableUsdc, USDC_DECIMALS);
   const sufficient = available >= stake;
 
@@ -203,9 +207,20 @@ export function computerWagerBreakdown(
     houseExposure: fromBaseUnits(houseExposure, USDC_DECIMALS),
     fee: fromBaseUnits(fee, USDC_DECIMALS),
     potentialPayout: fromBaseUnits(potentialPayout, USDC_DECIMALS),
+    drawPayout: fromBaseUnits(drawPayout, USDC_DECIMALS),
     rewardPercent: rewardBps / 100,
     sufficient,
   };
+}
+
+export function chessComputerWagerBreakdown(
+  stakeUsdc: string,
+  availableUsdc: string,
+  level: number,
+  feeBps: number = COMPUTER_WAGER_FEE_BPS
+): ComputerWagerBreakdown | null {
+  if (level < MIN_STAKED_CHESS_COMPUTER_LEVEL) return null;
+  return computerWagerBreakdown(stakeUsdc, availableUsdc, level, feeBps);
 }
 
 // What a stake does to the player's balance and pot, computed the way the

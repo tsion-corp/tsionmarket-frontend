@@ -25,10 +25,12 @@ export function ComputerWagerSummary({
   stakeUsdc,
   availableUsdc,
   level,
+  showDrawPayout = false,
 }: {
   stakeUsdc: string;
   availableUsdc: string;
   level: number;
+  showDrawPayout?: boolean;
 }) {
   const breakdown = computerWagerBreakdown(stakeUsdc, availableUsdc, level);
   if (!breakdown) return null;
@@ -49,6 +51,9 @@ export function ComputerWagerSummary({
       />
       <div className="h-px bg-white/8" />
       <SummaryRow label="Potential payout" value={`${breakdown.potentialPayout} USD`} emphasized />
+      {showDrawPayout ? (
+        <SummaryRow label="Completed draw returns" value={`${breakdown.drawPayout} USD`} />
+      ) : null}
       <SummaryRow label="Balance after stake" value={`${breakdown.balanceAfter} USD`} />
     </div>
   );

@@ -9,8 +9,8 @@ import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import { ComputerWagerSummary } from "@/features/casino/components/computer-wager-summary";
 import {
-  MIN_STAKED_COMPUTER_LEVEL,
-  computerWagerBreakdown,
+  MIN_STAKED_CHESS_COMPUTER_LEVEL,
+  chessComputerWagerBreakdown,
   exceedsUsdcBalance,
   normalizeUsdcAmount,
 } from "@/features/casino/lib/api/cashier";
@@ -160,10 +160,10 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
   const minutes = MINUTES_PER_SIDE[setup.timeIndex];
   const increment = INCREMENTS[setup.incrementIndex];
   const realTimeValid = minutes > 0 || increment > 0;
-  const stakingAllowed = setup.level >= MIN_STAKED_COMPUTER_LEVEL;
+  const stakingAllowed = setup.level >= MIN_STAKED_CHESS_COMPUTER_LEVEL;
   const stakeUsdc = cashier.configured && stakingAllowed ? normalizeUsdcAmount(stake) : null;
   const wagerBreakdown = stakeUsdc
-    ? computerWagerBreakdown(stakeUsdc, cashier.available, setup.level)
+    ? chessComputerWagerBreakdown(stakeUsdc, cashier.available, setup.level)
     : null;
   const stakeTooSmall = !!stakeUsdc && !wagerBreakdown;
   const stakeOverBalance = !!stakeUsdc && exceedsUsdcBalance(stakeUsdc, cashier.available);
@@ -319,7 +319,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
                 aria-pressed={setup.level === level}
                 onClick={() => {
                   setSetup((current) => ({ ...current, level }));
-                  if (level < MIN_STAKED_COMPUTER_LEVEL) setStake("");
+                  if (level < MIN_STAKED_CHESS_COMPUTER_LEVEL) setStake("");
                 }}
                 className={`tnum h-10 cursor-pointer border-r border-white/10 text-[14px] last:border-r-0 ${
                   setup.level === level
@@ -438,10 +438,12 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
                       stakeUsdc={stakeUsdc}
                       availableUsdc={cashier.available}
                       level={setup.level}
+                      showDrawPayout
                     />
                     <p className="mt-1.5 text-[10.5px] leading-4 text-white/36">
-                      A win returns your stake plus the level reward, less 8% of that reward. A draw
-                      refunds your stake.
+                      A win returns your stake plus the level reward, less 8% of that reward. A
+                      completed draw returns 50% of your stake. An abort or system cancellation
+                      returns 100%.
                     </p>
                   </div>
                 ) : (
@@ -452,7 +454,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
               </div>
             ) : (
               <p className="rounded-[3px] border border-white/10 bg-[#262421] px-4 py-3 text-[12px] leading-5 text-white/48">
-                Levels 1 to 3 are practice only. Choose level 4 or higher to stake real money.
+                Levels 1 to 6 are free-only. Choose level 7 or 8 to stake real money.
               </p>
             )}
           </fieldset>

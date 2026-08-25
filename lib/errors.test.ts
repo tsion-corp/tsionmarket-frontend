@@ -48,6 +48,17 @@ describe("friendlyError", () => {
     expect(friendlyError(apiError("CONFLICT", "insufficient available balance", 409))).toMatch(
       /chess balance/i
     );
+    expect(
+      friendlyError(apiError("PLAYER_BALANCE_INSUFFICIENT", "player balance insufficient", 409))
+    ).toMatch(/deposit more usdc|smaller stake/i);
+  });
+
+  it("does not blame the player when the Stockfish reserve is too low", () => {
+    expect(
+      friendlyError(apiError("HOUSE_RESERVE_INSUFFICIENT", "house reserve insufficient", 503))
+    ).toBe(
+      "Stockfish staking is temporarily unavailable because the reward reserve is low. You can still play a free game."
+    );
   });
 
   it("keeps safe gateway messages instead of flattening them to the fallback", () => {
