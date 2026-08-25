@@ -25,14 +25,11 @@ export async function readCollateralUsd(client: SecureClient): Promise<number> {
   return Number.isFinite(units) ? units / 10 ** PUSD_DECIMALS : 0;
 }
 
-// USDC.e the EOA holds on Polygon, in dollars. This is where a cash-out leaves
-// funds if the final bridge hop didn't complete, so the UI counts it as
-// cashable and a re-run picks it up. Returns 0 on any read failure.
-export async function readUnsettledUsdcUsd(eoa: string): Promise<number> {
+async function readWalletTokenUsd(eoa: string, token: string): Promise<number> {
   try {
     const polygon = publicClientForChain(POLYGON_CHAIN_ID);
     const units = await polygon.readContract({
-      address: CONTRACTS.usdcE as `0x${string}`,
+      address: token as `0x${string}`,
       abi: erc20Abi,
       functionName: "balanceOf",
       args: [eoa as `0x${string}`],
@@ -41,4 +38,17 @@ export async function readUnsettledUsdcUsd(eoa: string): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+// pUSD can remain in the embedded EOA when an earlier cash-out transferred it
+// out of the Deposit Wallet but failed before the unwrap completed.
+export function readWalletPusdUsd(eoa: string): Promise<number> {
+  return readWalletTokenUsd(eoa, CONTRACTS.pusd);
+}
+
+// USDC.e the EOA holds on Polygon, in dollars. This is where a cash-out leaves
+// funds if the final bridge hop didn't complete, so the UI counts it as
+// cashable and a re-run picks it up. Returns 0 on any read failure.
+export async function readUnsettledUsdcUsd(eoa: string): Promise<number> {
+  return readWalletTokenUsd(eoa, CONTRACTS.usdcE);
 }

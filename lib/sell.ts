@@ -7,6 +7,7 @@
 import { apiFetch } from "@/lib/api";
 import { normalizeBuyQuote, type BuyQuote } from "@/lib/buy-quote";
 import { DEXTOPUS_NATIVE_SOL, SETTLE_CHAINS } from "@/lib/deposit";
+import { isPolymarketCollateral } from "@/lib/polymarket/config";
 
 // Every sell settles here.
 export const SELL_DESTINATION = {
@@ -104,6 +105,8 @@ const SELLABLE_NATIVE_CHAINS = new Set([
 export function canSellAsset(network: string, address: string | null): boolean {
   if (!canSell(network)) return false;
   if (address === null) return SELLABLE_NATIVE_CHAINS.has(network);
+  // pUSD needs Polymarket's collateral offramp; it is not a generic sell route.
+  if (isPolymarketCollateral(network, address)) return false;
   return true;
 }
 

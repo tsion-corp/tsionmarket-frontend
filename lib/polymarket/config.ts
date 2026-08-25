@@ -29,6 +29,10 @@ export const CONTRACTS = {
 // pUSD uses 6 decimals, like USDC.
 export const PUSD_DECIMALS = 6;
 
+export function isPolymarketCollateral(network: string, address: string | null): boolean {
+  return network === "polygon-mainnet" && address?.toLowerCase() === CONTRACTS.pusd.toLowerCase();
+}
+
 // Polymarket's cross-chain deposit bridge. Sending USDC to the returned address
 // auto-wraps it to pUSD in the account's Deposit Wallet.
 export const DEPOSIT_BRIDGE_URL = "https://bridge.polymarket.com/deposit";

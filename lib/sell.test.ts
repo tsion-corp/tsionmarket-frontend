@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildSellQuoteBody, canSell, canSellAsset, SELL_DESTINATION } from "@/lib/sell";
+import { CONTRACTS } from "@/lib/polymarket/config";
 
 const USDC_BASE = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
 
@@ -62,6 +63,11 @@ describe("canSellAsset", () => {
 
   it("rejects everything on an unsupported network", () => {
     expect(canSellAsset("fantom-mainnet", "0xtoken")).toBe(false);
+  });
+
+  it("routes Polygon pUSD through Prediction cash-out instead of generic sell", () => {
+    expect(canSellAsset("polygon-mainnet", CONTRACTS.pusd)).toBe(false);
+    expect(canSellAsset("polygon-mainnet", CONTRACTS.pusd.toLowerCase())).toBe(false);
   });
 });
 

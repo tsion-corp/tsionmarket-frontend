@@ -7,6 +7,7 @@ import { usePolymarketSession } from "@/features/prediction/hooks/use-polymarket
 import {
   readCollateralUsd,
   readUnsettledUsdcUsd,
+  readWalletPusdUsd,
 } from "@/features/prediction/lib/polymarket/collateral";
 import { getWalletAddress } from "@/lib/user";
 import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
@@ -35,16 +36,17 @@ export function usePolymarketPositions() {
     try {
       const client = await ensureReady();
       const eoa = getWalletAddress(user, "ethereum");
-      const [page, collateral, unsettled] = await Promise.all([
+      const [page, collateral, walletPusd, unsettled] = await Promise.all([
         client.listPositions().firstPage(),
         readCollateralUsd(client).catch(() => 0),
+        eoa ? readWalletPusdUsd(eoa) : Promise.resolve(0),
         eoa ? readUnsettledUsdcUsd(eoa) : Promise.resolve(0),
       ]);
       setPositions(page.items);
       setAvailable(collateral);
-      // What a cash-out can move to Base: spendable pUSD plus any USDC.e left in
-      // the wallet from an earlier, incomplete cash-out.
-      setCashable(collateral + unsettled);
+      // Include both recovery states from an incomplete cash-out: pUSD already
+      // transferred to the EOA and USDC.e already unwrapped there.
+      setCashable(collateral + walletPusd + unsettled);
       setLoaded(true);
     } catch (e) {
       setError(friendlyError(e, "Couldn't load your positions. Please try again."));

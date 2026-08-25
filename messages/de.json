@@ -599,6 +599,7 @@
     "marketPrice": "Marktpreis",
     "positionValue": "Positionswert",
     "buyMore": "Mehr {name} kaufen",
+    "managePrediction": "In Prognosen verwalten",
     "sell": "{name} verkaufen",
     "assetDetails": "Asset-Details"
   },

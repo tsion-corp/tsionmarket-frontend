@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EVM_NETWORKS, isAllowedHolding } from "@/lib/server/alchemy";
+import { CONTRACTS } from "@/lib/polymarket/config";
 
 const emptyRwa = {};
 const emptyBuyable = {};
@@ -47,5 +48,11 @@ describe("isAllowedHolding, newly added chains", () => {
         emptyBuyable
       )
     ).toBe(false);
+  });
+
+  it("keeps Polygon pUSD visible even when it is not in the buyable catalog", () => {
+    expect(isAllowedHolding("polygon-mainnet", CONTRACTS.pusd, false, emptyRwa, emptyBuyable)).toBe(
+      true
+    );
   });
 });

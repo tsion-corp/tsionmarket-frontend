@@ -6,6 +6,7 @@ import {
   type MemeRegistry,
 } from "@/lib/server/buyable-registry";
 import { displaySymbol } from "@/lib/buy";
+import { isPolymarketCollateral } from "@/lib/polymarket/config";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -211,6 +212,7 @@ export function isAllowedHolding(
   const lower = address.toLowerCase();
   return (
     isTrackedStable(network, address) ||
+    isPolymarketCollateral(network, address) ||
     (ALLOWED_EXTRA[network] ?? []).includes(lower) ||
     (rwa[network]?.has(lower) ?? false) ||
     (buyable[network]?.has(lower) ?? false)
@@ -249,6 +251,7 @@ function normalize(
     const symbol = native?.symbol ?? t.tokenMetadata?.symbol ?? rwaInfo?.symbol;
     if (!symbol) continue;
     const memeInfo = address ? meme[network]?.get(address.toLowerCase()) : undefined;
+    const predictionCollateral = isPolymarketCollateral(network, address);
     const usdPrice = t.tokenPrices?.find((p) => p.currency === "usd");
     let priceUsd = usdPrice ? parseFloat(usdPrice.value) : 0;
     if (priceUsd === 0 && rwaInfo) priceUsd = rwaInfo.priceUsd;
@@ -257,7 +260,7 @@ function normalize(
     // Alchemy sometimes returns an empty price array for a tracked stablecoin
     // (Polygon USDC has done this). They are dollar-pegged, so value a held
     // balance at $1 rather than $0, which would hide a real holding.
-    if (priceUsd === 0 && isTrackedStable(network, address)) priceUsd = 1;
+    if (priceUsd === 0 && (isTrackedStable(network, address) || predictionCollateral)) priceUsd = 1;
     // A wrapped representation (cbBTC, cbDOGE) displays as the coin it
     // represents, not its own contract ticker or on-chain name — the raw
     // resolved symbol above still governs identity checks (isTrackedStable,
@@ -274,7 +277,7 @@ function normalize(
         ? "coin"
         : rwaInfo
           ? "rwa"
-          : isTrackedStable(network, address)
+          : isTrackedStable(network, address) || predictionCollateral
             ? "stablecoin"
             : "token";
     out.push({

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -35,6 +36,7 @@ import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
 import { selectHoldings } from "@/features/portfolio/lib/holdings";
 import { canSellAsset } from "@/lib/sell";
+import { isPolymarketCollateral } from "@/lib/polymarket/config";
 import type { MemeToken } from "@/lib/meme/api";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
@@ -95,6 +97,7 @@ export function PortfolioView({
 }: PortfolioViewProps) {
   const { tokens, loading, error, refetch } = usePortfolio();
   const money = useMoney();
+  const router = useRouter();
   const t = useTranslations("portfolio");
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
@@ -162,25 +165,28 @@ export function PortfolioView({
     // Trade-catalog memecoins sell through the meme trade service; Dextopus
     // cannot quote them, so its sell sheet always fails for these.
     const isMeme = token.meme === true && token.address !== null;
+    const isPredictionCollateral = isPolymarketCollateral(token.network, token.address);
     // Otherwise offer "Sell" only for assets Dextopus can take as an origin;
     // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
     const sellable = canSellAsset(token.network, token.address);
 
-    const buyAction = isRwa
-      ? () =>
-          onOpenRwaTrade({
-            network: token.network,
-            address: token.address as string,
-            symbol: token.symbol,
-            mode: "buy",
-          })
-      : () =>
-          onOpenBuy({
-            symbol: token.symbol,
-            name: token.name,
-            priceUsd: token.priceUsd,
-            logo: token.logo,
-          });
+    const buyAction = isPredictionCollateral
+      ? () => router.push("/prediction")
+      : isRwa
+        ? () =>
+            onOpenRwaTrade({
+              network: token.network,
+              address: token.address as string,
+              symbol: token.symbol,
+              mode: "buy",
+            })
+        : () =>
+            onOpenBuy({
+              symbol: token.symbol,
+              name: token.name,
+              priceUsd: token.priceUsd,
+              logo: token.logo,
+            });
 
     const sellAction = isRwa
       ? {
@@ -229,7 +235,7 @@ export function PortfolioView({
         { k: t("network"), v: displayNetworkLabel(token) },
         { k: t("positionValue"), v: money.format(token.valueUsd) },
       ],
-      cta: t("buyMore", { name: token.name }),
+      cta: isPredictionCollateral ? t("managePrediction") : t("buyMore", { name: token.name }),
       onCta: buyAction,
       ...sellAction,
       coingeckoId: coingeckoId(token.symbol) ?? undefined,
