@@ -19,6 +19,7 @@ import { NetworkStatusProvider } from "@/components/providers/network-status";
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
+import { ClickRipple } from "@/components/ui/click-ripple";
 import { MiniTimerHost } from "@/features/casino";
 
 // Well-formed placeholder lets the app build before env vars are set.
@@ -101,6 +102,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       >
         <NetworkStatusProvider>
           <BalanceVisibilityProvider>
+            <ClickRipple />
             {children}
             {/* Syncs Mixpanel's identity to Privy auth state; needs to sit
                 inside PrivyProvider to read it. Renders nothing. */}
