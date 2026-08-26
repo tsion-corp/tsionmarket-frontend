@@ -8,7 +8,14 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { DiceIcon } from "@/components/ui/icons";
 import { useMoney } from "@/components/ui/currency-select";
-import { isDrawKind, isGameKind, isStable, type ActivityEntry } from "@/lib/activity/entries";
+import {
+  gameForKind,
+  isDrawKind,
+  isGameKind,
+  isStable,
+  type ActivityEntry,
+} from "@/lib/activity/entries";
+import { encodeGameRef } from "@/lib/broadcast/deep-link";
 import { track } from "@/lib/analytics/mixpanel";
 import { tokenBg } from "@/lib/trade/assets";
 import { displayNetwork, displaySymbol } from "@/lib/buy";
@@ -74,41 +81,71 @@ export function dayHeading(ms: number, t: Translate): string {
 // draw refunds the stake, so it shows no signed amount. No block-explorer link,
 // because there is no on-chain transaction.
 function GameRow({ item }: { item: ActivityEntry }) {
+  const [sharing, setSharing] = useState(false);
   const t = useTranslations("activity");
   const money = useMoney();
   const incoming = item.direction === "in";
   const draw = isDrawKind(item.kind);
   const opponent = item.counterparty ? truncateAddress(item.counterparty) : null;
+  const title = t(item.kind);
+
+  // A played game is the most shareable thing on the platform, and it was the
+  // one activity kind with no share control at all. Game entries carry the
+  // match id in `hash` (there is no on-chain transaction), so the link points
+  // at the match rather than at the casino index.
+  const game = gameForKind(item.kind);
+  const shareDraft: ShareDraft | null = game
+    ? {
+        title,
+        subtitle: [
+          draw ? t("refunded") : `${incoming ? "+" : "\u2212"}${money.format(item.amount)}`,
+          opponent ? `${t("vs")} ${opponent}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
+        deepLink: { kind: "game", ref: encodeGameRef(game, item.hash) },
+        suggestedText: "",
+        // A game stake is money like any other, so it stays behind the same
+        // opt-in the trade rows use rather than riding along in the card.
+        amount: money.format(item.amount),
+      }
+    : null;
 
   return (
-    <div
-      title={fullTimestamp(item.timestamp)}
-      className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 first:border-t-0 sm:px-6"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-white/8 text-white/80">
-          <DiceIcon size={18} />
-        </span>
-        <div className="min-w-0">
-          <div className="truncate font-sans text-[14.5px] font-medium">{t(item.kind)}</div>
-          <div className="truncate text-xs font-normal text-white/50">
-            {clockTime(item.timestamp)}
-            {opponent ? ` · ${t("vs")} ${opponent}` : ""}
+    <div className="group relative">
+      <div
+        title={fullTimestamp(item.timestamp)}
+        className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 first:border-t-0 sm:px-6"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-white/8 text-white/80">
+            <DiceIcon size={18} />
+          </span>
+          <div className="min-w-0">
+            <div className="truncate font-sans text-[14.5px] font-medium">{t(item.kind)}</div>
+            <div className="truncate text-xs font-normal text-white/50">
+              {clockTime(item.timestamp)}
+              {opponent ? ` · ${t("vs")} ${opponent}` : ""}
+            </div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div
+            className={`tnum text-sm font-semibold ${
+              draw ? "text-white/55" : incoming ? "text-up" : "text-white/85"
+            }`}
+          >
+            {draw ? t("refunded") : `${incoming ? "+" : "−"}${money.format(item.amount)}`}
+          </div>
+          <div className="tnum text-[12px] font-normal text-white/45">
+            {relativeTime(item.timestamp, t)}
           </div>
         </div>
       </div>
-      <div className="text-right">
-        <div
-          className={`tnum text-sm font-semibold ${
-            draw ? "text-white/55" : incoming ? "text-up" : "text-white/85"
-          }`}
-        >
-          {draw ? t("refunded") : `${incoming ? "+" : "−"}${money.format(item.amount)}`}
-        </div>
-        <div className="tnum text-[12px] font-normal text-white/45">
-          {relativeTime(item.timestamp, t)}
-        </div>
-      </div>
+      {shareDraft ? <ShareButton label={title} onClick={() => setSharing(true)} /> : null}
+      {sharing && shareDraft ? (
+        <ShareToSquare draft={shareDraft} open onClose={() => setSharing(false)} />
+      ) : null}
     </div>
   );
 }
@@ -200,16 +237,26 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
           </div>
         </div>
       </a>
-      <button
-        type="button"
-        onClick={() => setSharing(true)}
-        aria-label={`Share ${title} to Market Square`}
-        className="absolute top-1/2 right-1 grid size-8 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-white/0 transition-colors group-hover:bg-white/8 group-hover:text-white/70 hover:!text-white focus-visible:bg-white/8 focus-visible:text-white/70"
-      >
-        <ShareGlyph />
-      </button>
+      <ShareButton label={title} onClick={() => setSharing(true)} />
       {sharing ? <ShareToSquare draft={shareDraft} open onClose={() => setSharing(false)} /> : null}
     </div>
+  );
+}
+
+// The control was `text-white/0` until `group-hover`, so on a phone it was
+// invisible and untappable: there is no hover on touch, which made sharing a
+// desktop-only feature by accident. It is visible by default now and only
+// gains its emphasis on hover, and the hit area is 44px on touch.
+function ShareButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`Share ${label} to Market Square`}
+      className="absolute top-1/2 right-1 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-white/45 transition-colors group-hover:bg-white/8 group-hover:text-white/70 hover:!text-white focus-visible:bg-white/8 focus-visible:text-white/70 sm:size-8"
+    >
+      <ShareGlyph />
+    </button>
   );
 }
 

@@ -10,6 +10,7 @@
 // Pure: no framework, no network, so every branch here is unit tested.
 
 import type { ActivityDirection, ActivityItem } from "@/lib/server/activity";
+import type { BroadcastGameId } from "@/lib/broadcast/deep-link";
 
 // The plain-transfer kinds, plus the named actions the server tags when a
 // transfer's counterparty is one of our own contracts (see lib/server/
@@ -63,6 +64,25 @@ export function isGameKind(kind: ActivityKind): boolean {
 
 export function isDrawKind(kind: ActivityKind): boolean {
   return DRAW_KINDS.has(kind);
+}
+
+// Which broadcast game an off-chain game kind belongs to, so a played game can
+// be shared with a link back to the game itself rather than to the casino
+// index. Returns null for anything that is not a game, which is what keeps the
+// caller from building a game link for a token transfer.
+const GAME_FOR_KIND: Partial<Record<ActivityKind, BroadcastGameId>> = {
+  won_chess: "chess",
+  lost_chess: "chess",
+  drew_chess: "chess",
+  won_checkers: "checkers",
+  lost_checkers: "checkers",
+  drew_checkers: "checkers",
+  arkball_ticket: "arkball",
+  arkball_won: "arkball",
+};
+
+export function gameForKind(kind: ActivityKind): BroadcastGameId | null {
+  return GAME_FOR_KIND[kind] ?? null;
 }
 
 export interface ActivityEntry {

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildActivityEntries } from "@/lib/activity/entries";
+import {
+  buildActivityEntries,
+  gameForKind,
+  isGameKind,
+  type ActivityKind,
+} from "@/lib/activity/entries";
 import type { ActivityItem } from "@/lib/server/activity";
 
 let seq = 0;
@@ -153,5 +158,65 @@ describe("platform actions", () => {
     expect(entry.kind).toBe("withdrew");
     // An ordinary send keeps its counterparty so the row can show it.
     expect(entry.counterparty).toBe("0xstranger");
+  });
+});
+
+describe("gameForKind", () => {
+  // A played game is the most shareable thing on the platform, and every game
+  // kind must resolve to a game or its row cannot link back to the match.
+  it("maps every game kind to its broadcast game", () => {
+    const expected: Array<[ActivityKind, string]> = [
+      ["won_chess", "chess"],
+      ["lost_chess", "chess"],
+      ["drew_chess", "chess"],
+      ["won_checkers", "checkers"],
+      ["lost_checkers", "checkers"],
+      ["drew_checkers", "checkers"],
+      ["arkball_ticket", "arkball"],
+      ["arkball_won", "arkball"],
+    ];
+    for (const [kind, game] of expected) {
+      expect(gameForKind(kind)).toBe(game);
+    }
+  });
+
+  it("covers every kind isGameKind claims is a game", () => {
+    // The two lists are separate, so a game kind added to one and not the
+    // other would render a game row with no way to share it.
+    const kinds: ActivityKind[] = [
+      "bought",
+      "sold",
+      "swapped",
+      "deposited",
+      "withdrew",
+      "moved",
+      "received",
+      "sent",
+      "entered_game",
+      "claimed_winnings",
+      "prediction_buy",
+      "prediction_payout",
+      "perp_margin",
+      "perp_return",
+      "bought_kash",
+      "arkade_deposit",
+      "arkade_withdraw",
+      "won_chess",
+      "lost_chess",
+      "drew_chess",
+      "won_checkers",
+      "lost_checkers",
+      "drew_checkers",
+      "arkball_ticket",
+      "arkball_won",
+    ];
+    for (const kind of kinds) {
+      expect(gameForKind(kind) !== null).toBe(isGameKind(kind));
+    }
+  });
+
+  it("returns null for a transfer, so no token row builds a game link", () => {
+    expect(gameForKind("bought")).toBeNull();
+    expect(gameForKind("swapped")).toBeNull();
   });
 });
