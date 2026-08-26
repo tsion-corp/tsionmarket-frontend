@@ -8,7 +8,7 @@
     "prediction": "Previsão",
     "earn": "Ganhar",
     "casino": "Arkade",
-    "activity": "Arktivity"
+    "activity": "Arkivity"
   },
   "explore": {
     "predictionTitle": "Mercados de previsão",
@@ -1295,8 +1295,8 @@
     "tokensError": "Não foi possível carregar os tokens.",
     "fiatComingSoonBody": "Estamos a finalizar a verificação com o nosso parceiro de pagamentos. O financiamento por cartão e banco chega em breve. Entretanto, deposite cripto.",
     "withdrawNeedsGas": "Precisa de um pouco de {symbol} na {chain} para enviar a partir daí. Levante a partir da Base ou adicione fundos.",
-    "withdrawalUnconfirmed": "Não conseguimos confirmar este levantamento. Pode já ter sido efetuado, então verifique a atividade antes de tentar de novo, para não enviar duas vezes.",
-    "withdrawalUnconfirmedToast": "Não confirmado. Verifique a atividade.",
+    "withdrawalUnconfirmed": "Não conseguimos confirmar este levantamento. Pode já ter sido efetuado, então verifique Arkivity antes de tentar de novo, para não enviar duas vezes.",
+    "withdrawalUnconfirmedToast": "Não confirmado. Verifique Arkivity.",
     "transactionFee": "Taxa de transação"
   },
   "remit": {
@@ -2205,7 +2205,7 @@
     "historyEmpty": "Nada aqui ainda. Compras, recompensas e conversões aparecerão aqui.",
     "historyPurchase": "Compra",
     "historyConversion": "Convertido para USD",
-    "historyLocked": "Atividade (abaixo do limite)",
+    "historyLocked": "Arkivity (abaixo do limite)",
     "historyTransferIn": "Recebido",
     "historyTransferOut": "Enviado",
     "historyFrom": "de",
@@ -2326,7 +2326,7 @@
     "prediction": "Previsão transforma a sua opinião em posição. Aposte num resultado de esportes, eleições ou preços, e se o mundo for do seu lado, você recebe dinheiro de verdade.",
     "casino": "Arkade são jogos com apostas de verdade. Desafie outros no xadrez, nas damas ou no Last Man, e quando você vence o prêmio cai direto na sua carteira.",
     "earn": "Earn é trabalho, não sorte. Pegue trabalhos e tarefas pequenas, entregue e receba na carteira sem fazer uma única operação.",
-    "activity": "Atividade é o histórico completo do seu dinheiro. Cada depósito, operação, prêmio e saque fica numa lista limpa, para você sempre rastrear para onde o dinheiro foi.",
+    "activity": "Arkivity é o histórico completo do seu dinheiro. Cada depósito, operação, prêmio e saque fica numa lista limpa, para você sempre rastrear para onde o dinheiro foi.",
     "invite": "Convidar amigos é o seu link de indicação. Compartilhe onde quiser, e cada vez que um amigo entra e faz o primeiro depósito, o crédito é seu. As recompensas estão a caminho."
   },
   "tour": {
@@ -2357,7 +2357,7 @@
     "earnBody": "Complete tarefas e trabalhos e receba por isso. Um jeito simples de aumentar seu saldo sem operar.",
     "casinoTitle": "Arkade",
     "casinoBody": "Jogos com apostas de verdade, como xadrez e Last Man. Ganhou, cai direto na sua carteira.",
-    "activityTitle": "Atividade",
+    "activityTitle": "Arkivity",
     "activityBody": "Seu histórico completo. Cada depósito, operação e prêmio, na ordem em que aconteceu.",
     "moreTitle": "Mais seções",
     "moreBody": "Previsão, Earn, Arkade e sua atividade ficam aqui, junto com qualquer seção que não caiba na barra.",
@@ -2365,7 +2365,7 @@
     "profileBody": "Seu login, suas carteiras e seus ajustes. Daqui você também convida amigos e ganha quando eles entram."
   },
   "activity": {
-    "eyebrow": "Atividade",
+    "eyebrow": "Arkivity",
     "subtitle": "Cada depósito, negociação e saque da sua conta, em um só lugar. Toque em uma linha para ver o registro completo.",
     "loading": "Carregando sua atividade…",
     "errorBody": "Não foi possível carregar sua atividade.",

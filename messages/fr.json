@@ -8,7 +8,7 @@
     "prediction": "Prédictions",
     "earn": "Gagner",
     "casino": "Arkade",
-    "activity": "Arktivity"
+    "activity": "Arkivity"
   },
   "explore": {
     "predictionTitle": "Marchés prédictifs",
@@ -1295,8 +1295,8 @@
     "tokensError": "Impossible de charger les tokens.",
     "fiatComingSoonBody": "Nous finalisons la vérification avec notre partenaire de paiement. Le financement par carte et banque arrive sous peu. Déposez des cryptos en attendant.",
     "withdrawNeedsGas": "Il vous faut un peu de {symbol} sur {chain} pour envoyer depuis cette chaîne. Retirez depuis Base, ou ajoutez des fonds.",
-    "withdrawalUnconfirmed": "Nous n'avons pas pu confirmer ce retrait. Il est peut-être déjà passé, vérifiez donc l'activité avant de réessayer pour ne pas envoyer deux fois.",
-    "withdrawalUnconfirmedToast": "Confirmation impossible. Vérifiez l'activité.",
+    "withdrawalUnconfirmed": "Nous n'avons pas pu confirmer ce retrait. Il est peut-être déjà passé, vérifiez donc Arkivity avant de réessayer pour ne pas envoyer deux fois.",
+    "withdrawalUnconfirmedToast": "Confirmation impossible. Vérifiez Arkivity.",
     "transactionFee": "Frais de transaction"
   },
   "remit": {
@@ -2205,7 +2205,7 @@
     "historyEmpty": "Rien ici pour l'instant. Les achats, récompenses et conversions apparaîtront ici.",
     "historyPurchase": "Achat",
     "historyConversion": "Converti en USD",
-    "historyLocked": "Activité (sous le seuil)",
+    "historyLocked": "Arkivity (sous le seuil)",
     "historyTransferIn": "Reçu",
     "historyTransferOut": "Envoyé",
     "historyFrom": "de",
@@ -2326,7 +2326,7 @@
     "prediction": "Prédiction transforme votre opinion en position. Misez sur une issue en sport, en politique ou sur les prix, et si le monde vous donne raison, vous touchez du vrai argent.",
     "casino": "Arkade, ce sont des jeux avec de vraies mises. Défiez d'autres joueurs aux échecs, aux dames ou à Last Man, et quand vous gagnez, le prix est versé droit dans votre portefeuille.",
     "earn": "Earn, c'est du travail, pas de la chance. Prenez des missions et de petites tâches, livrez-les et soyez payé dans votre portefeuille sans jamais passer un trade.",
-    "activity": "Activité est l'historique complet de votre argent. Chaque dépôt, trade, gain et retrait tient dans une liste claire, pour toujours pouvoir retracer où est passé votre argent.",
+    "activity": "Arkivity est l'historique complet de votre argent. Chaque dépôt, trade, gain et retrait tient dans une liste claire, pour toujours pouvoir retracer où est passé votre argent.",
     "invite": "Inviter des amis, c'est votre lien de parrainage. Partagez-le partout, et chaque fois qu'un ami s'inscrit et fait son premier dépôt, le crédit est pour vous. Les récompenses arrivent."
   },
   "tour": {
@@ -2357,7 +2357,7 @@
     "earnBody": "Réalisez des tâches et des missions et soyez payé. Un moyen simple de faire grandir votre solde sans trader.",
     "casinoTitle": "Arkade",
     "casinoBody": "Des jeux avec de vraies mises, comme les échecs et Last Man. Si vous gagnez, ça va droit dans votre portefeuille.",
-    "activityTitle": "Activité",
+    "activityTitle": "Arkivity",
     "activityBody": "Tout votre historique. Chaque dépôt, chaque trade et chaque gain, dans l'ordre où c'est arrivé.",
     "moreTitle": "Plus de sections",
     "moreBody": "Prédiction, Earn, Arkade et votre activité vivent ici, avec toute section qui ne tient pas dans la barre.",
@@ -2365,7 +2365,7 @@
     "profileBody": "Votre connexion, vos portefeuilles et vos réglages. C'est aussi d'ici que vous invitez vos amis et gagnez quand ils vous rejoignent."
   },
   "activity": {
-    "eyebrow": "Activité",
+    "eyebrow": "Arkivity",
     "subtitle": "Chaque dépôt, transaction et retrait de votre compte, au même endroit. Touchez une ligne pour voir le détail complet.",
     "loading": "Chargement de votre activité…",
     "errorBody": "Impossible de charger votre activité.",

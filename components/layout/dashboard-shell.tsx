@@ -79,7 +79,7 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
           covering the last row of it. */}
       <main className="min-h-screen pb-[calc(92px+var(--ws-live-bar,0px))] md:ml-[248px] md:pb-[var(--ws-live-bar,0px)]">
         <div className="sticky top-0 z-[60]">
-          <Topbar onOpenAccount={() => setAccountOpen(true)} onSelectSection={navigate} />
+          <Topbar onOpenAccount={() => setAccountOpen(true)} />
           <FeatureMarquee
             navIds={nav.map((n) => n.id)}
             onNavigate={navigate}

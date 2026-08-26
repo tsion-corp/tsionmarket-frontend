@@ -8,7 +8,7 @@
     "prediction": "Prediction",
     "earn": "Earn",
     "casino": "Arkade",
-    "activity": "Arktivity"
+    "activity": "Arkivity"
   },
   "explore": {
     "predictionTitle": "Prediction markets",
@@ -1295,8 +1295,8 @@
     "tokensError": "Couldn't load tokens.",
     "fiatComingSoonBody": "We are finishing verification with our payments partner. Card and bank funding go live shortly. Deposit crypto in the meantime.",
     "withdrawNeedsGas": "You need a little {symbol} on {chain} to send from there. Withdraw from Base instead, or add funds.",
-    "withdrawalUnconfirmed": "We couldn't confirm this withdrawal. It may already have gone through, so check Activity before trying again to avoid sending twice.",
-    "withdrawalUnconfirmedToast": "Couldn't confirm. Check Activity.",
+    "withdrawalUnconfirmed": "We couldn't confirm this withdrawal. It may already have gone through, so check Arkivity before trying again to avoid sending twice.",
+    "withdrawalUnconfirmedToast": "Couldn't confirm. Check Arkivity.",
     "transactionFee": "Transaction fee"
   },
   "remit": {
@@ -2205,7 +2205,7 @@
     "historyEmpty": "Nothing here yet. Purchases, rewards and conversions will appear here.",
     "historyPurchase": "Purchase",
     "historyConversion": "Converted to USD",
-    "historyLocked": "Activity (below gate)",
+    "historyLocked": "Arkivity (below gate)",
     "historyTransferIn": "Received",
     "historyTransferOut": "Sent",
     "historyFrom": "from",
@@ -2326,7 +2326,7 @@
     "prediction": "Prediction turns your opinion into a position. Back an outcome in sports, elections or prices, and if the world goes your way you get paid real cash.",
     "casino": "Arkade is games with real stakes. Challenge people at chess, checkers or Last Man, and when you win the prize is paid straight into your wallet.",
     "earn": "Earn is work, not luck. Pick up gigs and small tasks, deliver them, and get paid into your wallet without ever placing a trade.",
-    "activity": "Activity is your full money history. Every deposit, trade, win and withdrawal sits in one clean list, so you can always trace exactly where your money went.",
+    "activity": "Arkivity is your full money history. Every deposit, trade, win and withdrawal sits in one clean list, so you can always trace exactly where your money went.",
     "invite": "Invite friends is your referral link. Share it anywhere, and each time a friend signs up and makes their first deposit you get the credit. Rewards are on the way."
   },
   "tour": {
@@ -2357,7 +2357,7 @@
     "earnBody": "Complete tasks and gigs, get paid. A simple way to grow your balance without trading.",
     "casinoTitle": "Arkade",
     "casinoBody": "Games with real stakes, like chess and Last Man. Win, and it pays straight to your wallet.",
-    "activityTitle": "Activity",
+    "activityTitle": "Arkivity",
     "activityBody": "Your full history. Every deposit, trade and win, in the order it happened.",
     "moreTitle": "More sections",
     "moreBody": "Prediction, Earn, Arkade and your activity all live in here, along with any section that does not fit in the bar.",
@@ -2365,7 +2365,7 @@
     "profileBody": "Your login, wallets and settings. Invite friends from here too, and earn when they join."
   },
   "activity": {
-    "eyebrow": "Activity",
+    "eyebrow": "Arkivity",
     "subtitle": "Every deposit, trade and withdrawal on your account, in one place. Tap a row for the full record.",
     "loading": "Loading your activity…",
     "errorBody": "We couldn't load your activity.",
