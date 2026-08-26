@@ -83,8 +83,24 @@ function participantRole(metadata?: string): string | null {
   }
 }
 
-function isPlayerParticipant(ref: TrackReferenceOrPlaceholder): boolean {
-  return participantRole(ref.participant.metadata) === "player";
+function matchesKnownPlayer(
+  ref: TrackReferenceOrPlaceholder,
+  labels: LiveVideoParticipantLabel[]
+): boolean {
+  const identity = ref.participant.identity.toLowerCase();
+  return labels.some((entry) =>
+    entry.identities.some((candidate) => candidate.toLowerCase() === identity)
+  );
+}
+
+function isPlayerParticipant(
+  ref: TrackReferenceOrPlaceholder,
+  labels: LiveVideoParticipantLabel[]
+): boolean {
+  const role = participantRole(ref.participant.metadata);
+  // Metadata can arrive a render after the participant/track. Match against
+  // the two known seats during that gap so player two does not disappear.
+  return role === "player" || (role === null && matchesKnownPlayer(ref, labels));
 }
 
 function participantLabel(
@@ -127,7 +143,11 @@ function ParticipantCamera({
   return (
     <div className="relative h-full min-h-0 overflow-hidden bg-[#171614]">
       {isTrackReference(trackRef) ? (
-        <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
+        <VideoTrack
+          trackRef={trackRef}
+          playsInline
+          className={`h-full w-full object-cover ${trackRef.participant.isLocal ? "scale-x-[-1]" : ""}`}
+        />
       ) : (
         <div className="flex h-full min-h-[112px] items-center justify-center bg-[radial-gradient(circle_at_50%_30%,#34322f_0%,#191816_72%)]">
           <span className="grid h-12 w-12 place-items-center rounded-full border border-white/8 bg-white/6 text-[15px] font-semibold text-white/55">
@@ -158,8 +178,8 @@ export function LiveVideoRoom({
   const tracks = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }]);
   const roomParticipants = useParticipants();
   const connection = useConnectionState();
-  const { isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
-  const playerTracks = tracks.filter(isPlayerParticipant);
+  const { isMicrophoneEnabled, isCameraEnabled, lastCameraError } = useLocalParticipant();
+  const playerTracks = tracks.filter((track) => isPlayerParticipant(track, participants));
   const local = playerTracks.find((track) => track.participant.isLocal);
   const remote = playerTracks.filter((track) => !track.participant.isLocal);
   const connecting = connection !== ConnectionState.Connected;
@@ -209,6 +229,15 @@ export function LiveVideoRoom({
         label="Tap for sound"
       />
 
+      {viewer === "player" && lastCameraError && !isCameraEnabled ? (
+        <div
+          role="alert"
+          className="absolute top-12 left-1/2 z-20 w-[min(90%,320px)] -translate-x-1/2 rounded-[8px] border border-amber-300/25 bg-black/82 px-3 py-2 text-center text-[10px] leading-4 text-amber-100 shadow-lg backdrop-blur-md"
+        >
+          Camera unavailable. Allow camera access, then tap the camera button to retry.
+        </div>
+      ) : null}
+
       {viewer === "player" ? (
         <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-white/10 bg-black/70 p-1.5 shadow-lg backdrop-blur-md">
           <TrackToggle
@@ -226,6 +255,11 @@ export function LiveVideoRoom({
           </TrackToggle>
           <TrackToggle
             source={Track.Source.Camera}
+            captureOptions={{
+              facingMode: "user",
+              resolution: { width: 1920, height: 1080, frameRate: 30 },
+              frameRate: { ideal: 30, max: 30 },
+            }}
             showIcon={false}
             className={`grid h-8 w-8 place-items-center rounded-full text-white transition-colors disabled:cursor-wait disabled:opacity-60 ${
               isCameraEnabled ? "bg-white/10 hover:bg-white/18" : "bg-[#b53b35] hover:bg-[#ca4942]"

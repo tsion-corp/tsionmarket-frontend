@@ -264,7 +264,6 @@ export function CreateSection() {
 
   const [timeControl, setTimeControl] = useState<ChessTimeControl>("10+0");
   const [stake, setStake] = useState("");
-  const [videoEnabled, setVideoEnabled] = useState(false);
 
   const selectedTime = useMemo(() => {
     const option = findTimeOption(timeControl);
@@ -299,7 +298,7 @@ export function CreateSection() {
         // still opt into equal clock extensions; stakes keep clocks immutable.
         rated: true,
         allowTimeExtensions: stakeUsdc === undefined,
-        videoEnabled,
+        videoEnabled: true,
         ...(stakeUsdc !== undefined ? { stakeUsdc } : {}),
       };
       // The clipboard write is armed NOW, inside the click's user activation,
@@ -393,52 +392,6 @@ export function CreateSection() {
                 icon={<GameArrowsIcon size={16} />}
               />
               <InfoRow label="Game Type" value="Standard" icon={<GridIcon size={16} />} />
-
-              <div>
-                <div className="mb-1.5 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-                  Match video
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={videoEnabled}
-                  onClick={() => setVideoEnabled((enabled) => !enabled)}
-                  className="flex w-full cursor-pointer items-center gap-3 rounded-[14px] border border-white/8 bg-white/4 px-3.5 py-3 text-left transition-colors hover:bg-white/6"
-                >
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/7 text-white/60">
-                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden>
-                      <rect
-                        x="3"
-                        y="6"
-                        width="13"
-                        height="12"
-                        rx="2"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                      />
-                      <path
-                        d="m16 10 5-2.5v9L16 14"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[13.5px] font-medium text-white">Video match</span>
-                    <span className="mt-0.5 block text-[11px] leading-4 text-white/42">
-                      Players can join camera and microphone from the board.
-                    </span>
-                  </span>
-                  <span
-                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${videoEnabled ? "bg-white" : "bg-white/14"}`}
-                  >
-                    <span
-                      className={`absolute top-1 h-4 w-4 rounded-full transition-transform ${videoEnabled ? "translate-x-6 bg-[#211f1c]" : "translate-x-1 bg-white/60"}`}
-                    />
-                  </span>
-                </button>
-              </div>
 
               {/* Time control: the buttons are the control, so the selection is
                   summarised in the label rather than in a row that opens nothing. */}

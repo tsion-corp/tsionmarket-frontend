@@ -297,7 +297,9 @@ export async function createChallenge(
     // Rating is a property of human PvP, not of whether USDC is at stake.
     rated: true,
     allow_time_extensions: input.allowTimeExtensions ?? false,
-    videoEnabled: input.videoEnabled ?? false,
+    // Every human match gets an Ark Stream room. Individual players can still
+    // leave camera and microphone from the board.
+    videoEnabled: true,
     ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
   });
 

@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useState } from "react";
 import { createPortal } from "react-dom";
 import { LiveKitRoom } from "@livekit/components-react";
+import { VideoPresets, type RoomOptions, type VideoCaptureOptions } from "livekit-client";
 import {
   CameraIcon,
   CloseIcon,
@@ -23,6 +24,25 @@ interface LiveVideoPlayerProps {
   className?: string;
 }
 
+// Ask for the best practical webcam tier for a real-time two-person room.
+// Browsers fall back to the closest resolution supported by the selected PC
+// camera, while simulcast keeps lower layers available on weaker networks.
+export const PLAYER_VIDEO_CAPTURE_OPTIONS = {
+  facingMode: "user",
+  resolution: VideoPresets.h1080.resolution,
+  frameRate: { ideal: 30, max: 30 },
+} satisfies VideoCaptureOptions;
+
+export const PLAYER_VIDEO_ROOM_OPTIONS = {
+  dynacast: true,
+  publishDefaults: {
+    simulcast: true,
+    videoCodec: "vp8",
+    videoEncoding: VideoPresets.h1080.encoding,
+    degradationPreference: "maintain-resolution",
+  },
+} satisfies RoomOptions;
+
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg
@@ -42,12 +62,13 @@ function ChevronIcon({ open }: { open: boolean }) {
   );
 }
 
-function storedPanelOpen(key: string): boolean {
-  if (typeof window === "undefined") return false;
+function storedPanelOpen(key: string, defaultOpen: boolean): boolean {
+  if (typeof window === "undefined") return defaultOpen;
   try {
-    return window.sessionStorage.getItem(key) === "open";
+    const stored = window.sessionStorage.getItem(key);
+    return stored === null ? defaultOpen : stored === "open";
   } catch {
-    return false;
+    return defaultOpen;
   }
 }
 
@@ -117,15 +138,15 @@ export function LiveVideoPlayer({
   desktopPresentation = "inline",
   className = "",
 }: LiveVideoPlayerProps) {
-  const preferenceKey = `ws-chess-video:${matchId}:${viewer}`;
+  const preferenceKey = `ws-chess-video:${matchId}:${viewer}:${player?.toLowerCase() ?? "anonymous"}`;
   const panelId = `chess-video-${matchId}-${viewer}`;
   const desktop = useDesktopVideoLayout();
-  const [open, setOpen] = useState(() => storedPanelOpen(preferenceKey));
+  const [open, setOpen] = useState(() => storedPanelOpen(preferenceKey, viewer === "player"));
   const [playerCount, setPlayerCount] = useState(0);
   const video = useLiveVideoAccess({
     matchId,
     player: viewer === "player" ? player : undefined,
-    autoConnect: viewer === "spectator" && open,
+    autoConnect: open,
   });
 
   const setPanelOpen = (nextOpen: boolean) => {
@@ -153,15 +174,16 @@ export function LiveVideoPlayer({
       token={video.access.participantToken}
       connect
       audio={video.access.role === "player"}
-      video={video.access.role === "player"}
-      onDisconnected={video.access.role === "player" ? video.leave : undefined}
+      video={video.access.role === "player" ? PLAYER_VIDEO_CAPTURE_OPTIONS : false}
+      options={PLAYER_VIDEO_ROOM_OPTIONS}
+      onDisconnected={video.access.role === "player" ? () => setPanelOpen(false) : undefined}
       onMediaDeviceFailure={(failure) => console.error("Chess video device failed:", failure)}
       className="h-full"
     >
       <LiveVideoRoom
         viewer={viewer}
         participants={participants}
-        onLeave={video.leave}
+        onLeave={() => setPanelOpen(false)}
         onPlayerCount={setPlayerCount}
       />
     </LiveKitRoom>

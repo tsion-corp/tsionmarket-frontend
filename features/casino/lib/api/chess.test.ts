@@ -137,7 +137,7 @@ describe("human challenge creation", () => {
     );
   });
 
-  it("enables match video only when the creator selected it", async () => {
+  it("always enables match video even when the caller omits the legacy flag", async () => {
     chessClient.chessPost.mockResolvedValue(
       waitingMatch("video-game", "2026-08-01T18:00:00.000Z", { videoEnabled: true })
     );
@@ -146,7 +146,6 @@ describe("human challenge creation", () => {
       creator: "0x1111111111111111111111111111111111111111",
       timeControl: "10+0",
       mode: "invite",
-      videoEnabled: true,
     });
 
     expect(chessClient.chessPost).toHaveBeenCalledWith(
