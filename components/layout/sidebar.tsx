@@ -140,6 +140,8 @@ export function Sidebar({
           <>
             <a
               href={squareHref}
+              target="_blank"
+              rel="noopener noreferrer"
               className="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-[11px] text-left font-sans text-[14.5px] font-medium text-white transition-colors hover:bg-violet-500/16"
             >
               <span className="grid h-5 w-5 place-items-center">

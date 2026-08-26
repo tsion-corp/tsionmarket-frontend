@@ -62,10 +62,16 @@ export interface AnalyticsEvents {
   add_funds_opened: void;
   fund_method_selected: { method: "crypto" | "bank" };
   deposit_network_selected: { network: string };
-  deposit_completed: { method: "crypto"; source_network: string; amount_usd: number };
-  // The amounts and the rate, never the account number the user was given.
+  // One event for both funding rails, told apart by `method`. There used to be
+  // a second name for the bank rail, `bank_transfer_completed`, and every Naira
+  // deposit fired both: the same money counted twice in the dollar totals. See
+  // DepositCompleted for why no other property can tell the rails apart.
+  deposit_completed: DepositCompleted;
+  // The amounts and the rate the user was quoted, never the account number they
+  // were given. This rate is the one offered at request time; the rate actually
+  // applied at settlement rides on `deposit_completed`, and the gap between the
+  // two is the spread the Naira rail charges.
   bank_account_requested: { amount_ngn: number; fx_rate: number; reused: boolean };
-  bank_transfer_completed: { amount_ngn: number; amount_usd: number; bank: string };
   deposit_failed: { method: "crypto" | "bank"; reason: string };
 
   // Trading. One event across the verticals, told apart by `vertical`.
@@ -200,23 +206,7 @@ export interface AnalyticsEvents {
 
   // Withdraw
   withdraw_opened: void;
-  withdraw_completed: {
-    method: "wallet" | "bank";
-    asset: string;
-    amount_usd: number;
-    network?: string;
-    /**
-     * Where a crypto withdrawal was sent. An on-chain address is public by
-     * construction, the same class of value as the wallet address we already
-     * use as the distinct_id, and it is what makes a withdrawal traceable to
-     * the chain.
-     *
-     * Only ever set for `method: "wallet"`. A bank withdrawal's recipient is an
-     * account number, which is on the never-send list, so that rail sends no
-     * recipient at all.
-     */
-    recipient_address?: string;
-  };
+  withdraw_completed: WithdrawCompleted;
 
   // Engagement
   page_view: { page: PageName };
@@ -224,6 +214,81 @@ export interface AnalyticsEvents {
   referral_completed: void;
   arktivity_tx_opened: { chain: string; direction: "in" | "out" };
 }
+
+/**
+ * A deposit that has been confirmed credited to the user's balance, on either
+ * rail. Reported once, from the settlement itself, never on intent.
+ *
+ * `method` is the only property that separates the two rails. It has to be
+ * derived from the rail the money actually came in on, never defaulted: user
+ * funds are held in Base USDC, so a Naira credit lands on chain as a
+ * base-mainnet USDC transfer that is indistinguishable from a real Base
+ * deposit. `source_network` cannot do this job and neither can the amount.
+ */
+export type DepositCompleted =
+  | {
+      method: "crypto";
+      // The network the deposit settled on. The chain the user sent from is not
+      // recoverable from the arrival; `deposit_network_selected` carries that.
+      source_network: string;
+      amount_usd: number;
+    }
+  | {
+      method: "bank";
+      // What the user sent, in Naira, and what was credited, in dollars.
+      amount_ngn: number;
+      amount_usd: number;
+      /**
+       * Naira per dollar ACTUALLY APPLIED at settlement, which is not always
+       * the rate quoted on `bank_account_requested`: an onramp whose rate lock
+       * has lapsed converts at the live rate instead. `amount_ngn / fx_rate`
+       * equals `amount_usd` to rounding.
+       */
+      fx_rate: number;
+      // The provider that held the payment account the user paid into.
+      bank: string;
+      // Only when the provider actually charged one. Omitted when there is
+      // genuinely no fee, rather than reported as a zero.
+      fee_ngn?: number;
+    };
+
+/**
+ * A withdrawal the rail has paid out. Same shape rule as the deposit: one
+ * event, and the rail is a property.
+ *
+ * The bank leg carries what actually landed in the user's account and the rate
+ * that produced it. Without both, the round-trip cost of the Naira rail (in at
+ * one rate, out at another) cannot be worked out from the data at all.
+ */
+export type WithdrawCompleted =
+  | {
+      method: "wallet";
+      asset: string;
+      amount_usd: number;
+      network?: string;
+      /**
+       * Where a crypto withdrawal was sent. An on-chain address is public by
+       * construction, the same class of value as the wallet address we already
+       * use as the distinct_id, and it is what makes a withdrawal traceable to
+       * the chain.
+       *
+       * A bank withdrawal's recipient is an account number, which is on the
+       * never-send list, so that rail has no equivalent and sends none.
+       */
+      recipient_address?: string;
+    }
+  | {
+      method: "bank";
+      asset: string;
+      // What left the balance, and the net Naira the user received for it.
+      amount_usd: number;
+      amount_ngn: number;
+      // Naira per dollar actually applied at payout.
+      fx_rate: number;
+      bank: string;
+      // The difference between gross and net, when the rail charges one.
+      fee_ngn?: number;
+    };
 
 export type MarketType = "crypto" | "forex" | "commodity" | "equity";
 export type PredictionScope = "global" | "local";

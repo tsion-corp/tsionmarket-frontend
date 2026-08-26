@@ -219,18 +219,42 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   // the pre-send estimate until then.
   const paidNgn = order?.amountNgn ?? payoutNgn;
 
-  // Reported once on settlement. The amount and the rail, never the account it
-  // was paid into.
+  // Reported once on settlement, from the order's own figures. The amounts and
+  // the rail, never the account it was paid into.
   const reportedComplete = useRef(false);
   useEffect(() => {
     if (!done || reportedComplete.current) return;
+    // What the rail says it moved beats what was typed: a payout converts at
+    // the rate that applied when it ran, which is not always the one quoted on
+    // this screen.
+    const usd = Number(order?.amountUsdc) || amount;
+    const rate = Number(order?.rate) || ngnRate;
+    const ngn = Number(paidNgn) || (rate > 0 ? usd * rate : 0);
+    if (!(usd > 0) || !(ngn > 0)) {
+      // A guessed figure on a money event is worse than a late one, and the
+      // Naira leg is the whole point of reporting this rail. Stay quiet and let
+      // a later poll, which will carry the order's figures, report it.
+      console.warn("[analytics] bank withdrawal settled with no figures to report");
+      return;
+    }
     reportedComplete.current = true;
     // No recipient here, deliberately: a bank withdrawal's recipient is an
     // account number, which must never leave the app. The crypto rail sends
     // recipient_address because an on-chain address is public; this one has no
     // equivalent that is safe to send.
-    track("withdraw_completed", { method: "bank", asset: "USDC", amount_usd: amount });
-  }, [done, amount]);
+    track("withdraw_completed", {
+      method: "bank",
+      asset: "USDC",
+      amount_usd: usd,
+      // The net Naira that reached the account, and the rate the two legs
+      // imply, so amount_ngn / fx_rate is always amount_usd. Two decimals, the
+      // precision the rail quotes rates at. The rail reports no fee of its
+      // own, so none is sent rather than a zero standing in.
+      amount_ngn: ngn,
+      fx_rate: Math.round((ngn / usd) * 100) / 100,
+      bank: bank?.name ?? "",
+    });
+  }, [done, order, paidNgn, amount, ngnRate, bank]);
 
   // Popular banks resolved to real uuids against the live list.
   const popularBanks = useMemo(() => {

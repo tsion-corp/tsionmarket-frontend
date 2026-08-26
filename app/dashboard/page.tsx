@@ -15,7 +15,7 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { DetailModal } from "@/components/layout/modals/detail-modal";
 import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
-import { FundsModal, WithdrawModal } from "@/features/funds";
+import { BankDepositAnalytics, FundsModal, WithdrawModal } from "@/features/funds";
 import { CrossBorderBanner } from "@/features/remit";
 import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
 import { RwaSection, RwaTradeModal } from "@/features/rwa";
@@ -150,6 +150,9 @@ export default function DashboardPage() {
             list that stood here; it is mounted on its own now that history
             lives only on its own page. */}
         <DepositAnalytics />
+        {/* Follows a bank deposit to settlement so the arrival above can be
+            reported as the Naira deposit it is, rather than as a chain one. */}
+        <BankDepositAnalytics />
         {scrollSectionIds.map((id, index) => (
           <Fragment key={id}>
             <section id={id} className={SECTION_CLASS}>

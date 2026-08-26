@@ -192,12 +192,18 @@ describe("property compaction", () => {
       method: "bank",
       asset: "USDC",
       amount_usd: 25,
-      network: undefined,
+      amount_ngn: 33712.5,
+      fx_rate: 1348.5,
+      bank: "Rubies MFB",
+      fee_ngn: undefined,
     });
     expect(track).toHaveBeenCalledWith("withdraw_completed", {
       method: "bank",
       asset: "USDC",
       amount_usd: 25,
+      amount_ngn: 33712.5,
+      fx_rate: 1348.5,
+      bank: "Rubies MFB",
     });
   });
 });
@@ -276,7 +282,13 @@ describe("profile totals derived from events", () => {
     const { initAnalytics, track: send } = await loadWithToken("test-token");
     initAnalytics();
 
-    send("bank_transfer_completed", { amount_ngn: 40000, amount_usd: 25, bank: "GTB" });
+    send("deposit_completed", {
+      method: "bank",
+      amount_ngn: 40000,
+      amount_usd: 25,
+      fx_rate: 1600,
+      bank: "GTB",
+    });
 
     expect(peopleIncrement).toHaveBeenCalledWith({ total_deposit_usd: 25 });
     expect(peopleSet).toHaveBeenCalledWith({ has_deposited: true });
@@ -284,6 +296,45 @@ describe("profile totals derived from events", () => {
     expect(peopleSetOnce).toHaveBeenCalledWith(
       expect.objectContaining({ first_deposit_method: "bank" })
     );
+  });
+
+  it("takes the first deposit's rail off the event, not off its name", async () => {
+    // Both rails send the same event now. The method property is the only
+    // thing that knows which one it was, so a hardcoded default here would
+    // put every user's first deposit on the wrong rail.
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    send("deposit_completed", {
+      method: "crypto",
+      source_network: "base-mainnet",
+      amount_usd: 25,
+    });
+
+    expect(peopleSetOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ first_deposit_method: "crypto" })
+    );
+  });
+
+  it("counts one Naira deposit once", async () => {
+    // The bank rail used to have an event of its own, and a Naira deposit
+    // fired both it and deposit_completed: the same money added to the
+    // lifetime total twice.
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    send("deposit_completed", {
+      method: "bank",
+      amount_ngn: 5000,
+      amount_usd: 3.448275,
+      fx_rate: 1450,
+      bank: "Rubies MFB",
+    });
+
+    const totals = peopleIncrement.mock.calls.filter(
+      ([props]) => (props as Record<string, unknown>).total_deposit_usd != null
+    );
+    expect(totals).toHaveLength(1);
   });
 
   it("leaves the profile alone for an event that implies no total", async () => {
@@ -335,7 +386,14 @@ describe("withdrawal recipients", () => {
     // A bank recipient is an account number, which must never be sent. The
     // property is simply absent rather than blanked, so this asserts the key
     // is missing entirely.
-    send("withdraw_completed", { method: "bank", asset: "USDC", amount_usd: 50 });
+    send("withdraw_completed", {
+      method: "bank",
+      asset: "USDC",
+      amount_usd: 50,
+      amount_ngn: 67425,
+      fx_rate: 1348.5,
+      bank: "Rubies MFB",
+    });
 
     const [, props] = track.mock.calls.at(-1) as [string, Record<string, unknown>];
     expect(props).not.toHaveProperty("recipient_address");

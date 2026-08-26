@@ -145,15 +145,15 @@ function accumulateProfile(name: AnalyticsEventName, props: Record<string, unkno
       if (typeof vertical === "string") unionProfile("verticals_used", [vertical]);
       return;
     }
-    // Either rail arriving is the same fact: money reached the account.
-    case "deposit_completed":
-    case "bank_transfer_completed": {
-      const method = name === "deposit_completed" ? "crypto" : "bank";
+    // One event covers both rails, so the running total cannot count a Naira
+    // deposit twice the way it did when the bank rail had a name of its own.
+    case "deposit_completed": {
       incrementProfile({ total_deposit_usd: num("amount_usd") });
       setProfile({ has_deposited: true });
-      // set_once, so these keep describing the first deposit.
+      // set_once, so these keep describing the first deposit. The method comes
+      // off the event, which is the only thing that knows which rail it was.
       setProfileOnce({
-        first_deposit_method: method,
+        first_deposit_method: typeof props.method === "string" ? props.method : undefined,
         first_deposit_date: new Date().toISOString(),
       });
       return;
