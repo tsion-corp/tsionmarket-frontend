@@ -63,3 +63,10 @@ export function isUnconfigured(error: unknown): boolean {
 export function errorCode(error: unknown): string | null {
   return (error as GatewayApiError | null)?.code ?? null;
 }
+
+// The HTTP status a failed call carried, or null when the throw did not come
+// from the gateway. Callers use it to tell "the server rejected what I sent"
+// from "the server could not answer".
+export function errorStatus(error: unknown): number | null {
+  return (error as GatewayApiError | null)?.status ?? null;
+}
