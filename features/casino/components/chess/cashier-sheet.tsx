@@ -86,7 +86,7 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
       const outcome = await cashier.deposit(normalized);
       void refetchPortfolio();
       if (outcome.credited) {
-        toast.success(t("depositConfirmed", { amount: outcome.credited }), { id });
+        toast.success(t("depositConfirmed", { amount: outcome.credited }), { id, sensitive: true });
         setAmount("");
       } else {
         // Sent on-chain but not credited yet. Not an error: the confirm is
@@ -104,7 +104,7 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
     const id = toast.loading(t("withdrawing"));
     try {
       await cashier.withdraw(normalized);
-      toast.success(t("withdrawalSent", { amount: normalized }), { id });
+      toast.success(t("withdrawalSent", { amount: normalized }), { id, sensitive: true });
       setAmount("");
       void refetchPortfolio();
     } catch (e) {
@@ -144,6 +144,7 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
   return (
     <div>
       <SheetNav
+        data-sensitive="balance"
         title={isDeposit ? depositTitle : withdrawTitle}
         subtitle={isDeposit ? undefined : withdrawBody}
         onBack={onClose}

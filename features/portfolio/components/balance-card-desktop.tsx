@@ -61,7 +61,10 @@ export function BalanceCardDesktop({
             </div>
           ) : (
             <div>
-              <div className="ws-display tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
+              <div
+                className="ws-display tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]"
+                data-sensitive="balance"
+              >
                 {formatMasked(totalUsd)}
               </div>
               {/* Shown even at zero, in the selected currency, so an empty

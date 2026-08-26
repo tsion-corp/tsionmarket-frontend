@@ -40,6 +40,7 @@ export function RwaAssetRow({ asset, selected, logo, onOpen, onTrade }: RwaAsset
   return (
     <div
       onClick={onOpen}
+      data-sensitive="position"
       className={`grid cursor-pointer grid-cols-[1.6fr_1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 transition-colors first:border-t-0 hover:bg-white/4 min-[560px]:grid-cols-[1.7fr_0.8fr_1fr_auto] min-[820px]:grid-cols-[1.9fr_0.8fr_1fr_0.7fr_1fr_0.8fr] sm:px-6 ${
         selected ? "bg-accent/8" : ""
       }`}

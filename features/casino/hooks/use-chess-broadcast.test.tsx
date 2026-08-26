@@ -9,27 +9,57 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 const connect = vi.hoisted(() => vi.fn(async () => {}));
 const publishTrack = vi.hoisted(() => vi.fn(async () => {}));
+const setCameraEnabled = vi.hoisted(() => vi.fn(async () => {}));
+const disconnect = vi.hoisted(() => vi.fn(async () => {}));
+// The room's event handlers, so a test can make the room close under us the
+// way the host ending the broadcast does.
+const roomEvents = vi.hoisted(() => new Map<string, (arg?: unknown) => void>());
+// Screen capture goes through getDisplayMedia directly now, so the picker is
+// mocked at the browser API rather than at the SDK.
+const displayTrack = vi.hoisted(() => ({
+  contentHint: "",
+  getSettings: () => ({ displaySurface: "browser" }),
+  addEventListener: vi.fn(),
+  stop: vi.fn(),
+}));
+const displayStream = vi.hoisted(() => ({
+  getVideoTracks: () => [displayTrack],
+  getTracks: () => [displayTrack],
+}));
+const getDisplayMedia = vi.hoisted(() => vi.fn(async () => displayStream));
 
 vi.mock("livekit-client", () => {
   class LocalVideoTrack {
-    mediaStreamTrack = { getSettings: () => ({ displaySurface: "browser" }) };
+    mediaStreamTrack: unknown;
+    constructor(track?: unknown) {
+      this.mediaStreamTrack = track ?? { getSettings: () => ({}) };
+    }
     stop() {}
+    mute = vi.fn(async () => {});
+    unmute = vi.fn(async () => {});
   }
   class Room {
-    localParticipant = { publishTrack, setCameraEnabled: vi.fn(async () => {}) };
+    localParticipant = {
+      publishTrack,
+      setCameraEnabled,
+      setMicrophoneEnabled: vi.fn(async () => {}),
+      videoTrackPublications: new Map(),
+    };
+    numParticipants = 1;
     connect = connect;
-    on() {
+    on(event: string, handler: (arg?: unknown) => void) {
+      roomEvents.set(event, handler);
       return this;
     }
-    disconnect = vi.fn(async () => {});
+    disconnect = disconnect;
   }
   return {
     Room,
     LocalVideoTrack,
-    RoomEvent: { LocalTrackUnpublished: "localTrackUnpublished" },
+    RoomEvent: { LocalTrackUnpublished: "localTrackUnpublished", Disconnected: "disconnected" },
+    DisconnectReason: { CLIENT_INITIATED: 1 },
     Track: { Source: { ScreenShare: "screen_share", Camera: "camera" } },
     ScreenSharePresets: { h1080fps15: { encoding: {} } },
-    createLocalScreenTracks: vi.fn(),
   };
 });
 
@@ -41,14 +71,14 @@ const client = vi.hoisted(() => ({
   applyForCreator: vi.fn(),
 }));
 
-vi.mock("@/features/casino/lib/api/market-square-client", () => ({
+vi.mock("next/navigation", () => ({ usePathname: () => "/casino/chess/play" }));
+
+vi.mock("@/lib/api/market-square", () => ({
   ...client,
   canBroadcast: (role: string) => role === "creator" || role === "worldstreet",
 }));
 
-const livekit = await import("livekit-client");
-// The mocked class takes no constructor arguments, unlike the real one.
-const MockScreenTrack = livekit.LocalVideoTrack as unknown as new () => never;
+const { BroadcastSessionProvider } = await import("@/components/broadcast/broadcast-session");
 const { useChessBroadcast } = await import("@/features/casino/hooks/use-chess-broadcast");
 
 const stream = {
@@ -60,15 +90,21 @@ const stream = {
   startedAt: null,
   endedAt: null,
   endedReason: null,
-  deepLink: { kind: "game" as const, ref: "m-1" },
+  deepLink: { kind: "game" as const, ref: "chess:m-1" },
 };
 
 const goodIngest = { url: "wss://lk.example", roomToken: "tok", rtmpUrl: null, streamKey: null };
 const rtmpOnlyIngest = { url: null, roomToken: null, rtmpUrl: "rtmp://x", streamKey: "k" };
 
+// The room and the stream now live in the app-wide session, so the hook needs
+// it above them, exactly as it does in the app.
 function wrapper({ children }: { children: React.ReactNode }) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BroadcastSessionProvider>{children}</BroadcastSessionProvider>
+    </QueryClientProvider>
+  );
 }
 
 async function mountReady() {
@@ -81,7 +117,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.spyOn(console, "warn").mockImplementation(() => {});
   Object.defineProperty(navigator, "mediaDevices", {
-    value: { getDisplayMedia: () => {} },
+    value: { getDisplayMedia },
     configurable: true,
   });
   client.fetchMarketSquareProfile.mockResolvedValue({
@@ -92,17 +128,17 @@ beforeEach(() => {
   });
   client.createStream.mockResolvedValue(stream);
   client.endStream.mockResolvedValue({ ...stream, status: "ended" as const });
-  vi.mocked(livekit.createLocalScreenTracks).mockResolvedValue([new MockScreenTrack()]);
+  getDisplayMedia.mockResolvedValue(displayStream);
 });
 
 describe("useChessBroadcast happy path", () => {
-  it("sends the match deep link when it creates the stream", async () => {
+  it("sends the match deep link, naming chess in the ref, when it creates the stream", async () => {
     client.goLive.mockResolvedValue({ stream, ingest: goodIngest });
     const { result } = await mountReady();
     await act(async () => result.current.start());
 
     expect(client.createStream).toHaveBeenCalledWith(
-      expect.objectContaining({ deepLink: { kind: "game", ref: "m-1" } })
+      expect.objectContaining({ deepLink: { kind: "game", ref: "chess:m-1" } })
     );
     expect(result.current.phase).toBe("live");
     expect(client.endStream).not.toHaveBeenCalled();
@@ -156,9 +192,7 @@ describe("useChessBroadcast cleanup after a failed publish", () => {
   });
 
   it("does not create a stream at all when the user dismisses the screen picker", async () => {
-    vi.mocked(livekit.createLocalScreenTracks).mockRejectedValueOnce(
-      new DOMException("denied", "NotAllowedError")
-    );
+    getDisplayMedia.mockRejectedValueOnce(new DOMException("denied", "NotAllowedError"));
     const { result } = await mountReady();
     await act(async () => result.current.start());
 

@@ -113,7 +113,7 @@ function PositionRow({
     }`;
 
   return (
-    <div className="border-t border-white/6 px-4 py-3 sm:px-5">
+    <div className="border-t border-white/6 px-4 py-3 sm:px-5" data-sensitive="position">
       <div className="flex flex-wrap items-center gap-3">
         <PerpPairIcon sym={baseSym} category={pair?.category} size={30} />
         <div className="min-w-0 flex-1">

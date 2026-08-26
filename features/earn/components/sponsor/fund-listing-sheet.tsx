@@ -78,7 +78,7 @@ export function FundListingSheet({ open, onClose, listingId, onFunded }: FundLis
 
   return (
     <ModalShell open={open} onClose={onClose}>
-      <div className="flex flex-col gap-4 p-5">
+      <div className="flex flex-col gap-4 p-5" data-sensitive="balance" data-broadcast-suspend>
         <div>
           <h2 className="ws-display text-[18px] text-white">Fund the reward</h2>
           <p className="mt-1 font-sans text-[12.5px] font-normal text-white/50">

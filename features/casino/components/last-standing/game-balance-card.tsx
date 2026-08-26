@@ -34,7 +34,10 @@ export function GameBalanceCard({
   const { mask } = useBalanceVisibility();
 
   return (
-    <div className="ws-inset flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+    <div
+      className="ws-inset flex flex-wrap items-center justify-between gap-3 px-4 py-3.5"
+      data-sensitive="balance"
+    >
       <div className="min-w-0">
         <div className="text-[11px] font-normal tracking-[0.04em] whitespace-nowrap text-white/45 uppercase">
           {t("yourBalance")}

@@ -28,7 +28,7 @@ export function TradeTape({ trades }: TradeTapeProps) {
   }
 
   return (
-    <div className="ws-card overflow-hidden">
+    <div className="ws-card overflow-hidden" data-sensitive="position">
       <div className="px-5 pt-4 pb-2">
         <span className="ws-display text-[16px]">{t("tradeTape")}</span>
       </div>

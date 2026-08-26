@@ -7,6 +7,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { SupportButton } from "@/components/layout/support-button";
+import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
 import { FeatureMarquee } from "@/components/layout/feature-marquee";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { FundsModal } from "@/features/funds";
@@ -71,9 +72,12 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         onClose={() => setMenuOpen(false)}
       />
 
-      {/* The tab bar floats over the page on a phone, so the last section
-          needs room to clear it. */}
-      <main className="min-h-screen pb-[92px] md:ml-[248px] md:pb-0">
+      {/* The tab bar sits at the bottom on a phone, so the last section needs
+          room to clear it. While a broadcast is running the dock adds its own
+          bar above the tab bar, which the root's --ws-live-bar variable
+          reserves, so the live indicator compresses the page instead of
+          covering the last row of it. */}
+      <main className="min-h-screen pb-[calc(92px+var(--ws-live-bar,0px))] md:ml-[248px] md:pb-[var(--ws-live-bar,0px)]">
         <div className="sticky top-0 z-[60]">
           <Topbar onOpenAccount={() => setAccountOpen(true)} onSelectSection={navigate} />
           <FeatureMarquee
@@ -94,6 +98,11 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         onOpenMore={() => setMenuOpen(true)}
         onAddFunds={() => setFundsOpen(true)}
       />
+
+      {/* The live indicator and the minimised self-view. Docked, never
+          floating over content: the dock reserves its own height so the page
+          is compressed rather than covered. */}
+      <BroadcastDock />
 
       <SupportButton />
 

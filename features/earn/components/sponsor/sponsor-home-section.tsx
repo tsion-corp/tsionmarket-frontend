@@ -61,7 +61,7 @@ export function SponsorHomeSection() {
 
 function NoSponsorPrompt() {
   return (
-    <div className={PAGE}>
+    <div className={PAGE} data-sensitive="balance">
       <div className="ws-card rounded-[20px] px-6 py-10 text-center">
         <h1 className="ws-display text-[22px] text-white">Post work, get it built</h1>
         <p className="mx-auto mt-2 max-w-[46ch] font-sans text-[13px] font-normal text-white/55">

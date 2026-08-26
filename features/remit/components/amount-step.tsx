@@ -25,7 +25,7 @@ const DECIMAL_INPUT = /^\d*\.?\d*$/;
 // A single summary line in the conversion breakdown.
 function Line({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center justify-between" data-sensitive="other">
       <span className="text-[13px] font-normal text-white/55">{label}</span>
       <span
         className={

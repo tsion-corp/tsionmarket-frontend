@@ -51,7 +51,7 @@ export function MarketPositions({ market }: MarketPositionsProps) {
 
   return (
     <div className="ws-card p-5 sm:p-6">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between" data-sensitive="position">
         <span className="ws-display text-[15px]">{t("yourPosition")}</span>
         {/* Yes/No switch */}
         <div className="flex gap-1 rounded-lg bg-white/5 p-0.5">

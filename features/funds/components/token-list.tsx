@@ -42,7 +42,7 @@ export function TokenList({ tokens, selected, onSelect, loading, error, onRetry 
   }, [tokens, query]);
 
   return (
-    <div>
+    <div data-sensitive="balance">
       <div className="ws-inset flex items-center gap-2.5 px-3.5 py-2.5">
         <SearchIcon size={16} />
         <input

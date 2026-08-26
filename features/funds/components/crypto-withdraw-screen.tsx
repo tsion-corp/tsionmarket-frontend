@@ -357,7 +357,10 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
           network: sourceNetwork,
           recipient_address: to.trim(),
         });
-        toast.success(t("withdrewAmount", { amount: formatAmount(value) }), { id: toastId });
+        toast.success(t("withdrewAmount", { amount: formatAmount(value) }), {
+          id: toastId,
+          sensitive: true,
+        });
         return;
       }
       if (!refundTo) {

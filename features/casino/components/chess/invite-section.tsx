@@ -69,7 +69,7 @@ export function InviteSection({ inviteCode }: { inviteCode: string | null }) {
       return;
     }
     if (insufficient && staked) {
-      toast.error(tStake("needsBalance", { amount: staked }));
+      toast.error(tStake("needsBalance", { amount: staked }), { sensitive: true });
       return;
     }
     const id = toast.loading(t("takingSeat"));

@@ -49,8 +49,8 @@ describe("broadcastDescription", () => {
 });
 
 describe("matchDeepLink", () => {
-  it("points at the match with the kind Market Square uses for a game", () => {
-    expect(matchDeepLink("m-3")).toEqual({ kind: "game", ref: "m-3" });
+  it("names chess in the ref so Market Square knows which game to open", () => {
+    expect(matchDeepLink("m-3")).toEqual({ kind: "game", ref: "chess:m-3" });
   });
 });
 

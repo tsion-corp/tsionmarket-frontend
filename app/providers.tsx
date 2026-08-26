@@ -21,6 +21,8 @@ import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 import { ClickRipple } from "@/components/ui/click-ripple";
 import { MiniTimerHost } from "@/features/casino";
+import { BroadcastSessionProvider } from "@/components/broadcast/broadcast-session";
+import { PrivyModalWatch } from "@/components/broadcast/privy-modal-watch";
 
 // Well-formed placeholder lets the app build before env vars are set.
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || "cl0123456789abcdefghijklm";
@@ -102,16 +104,22 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       >
         <NetworkStatusProvider>
           <BalanceVisibilityProvider>
-            <ClickRipple />
-            {children}
-            {/* Syncs Mixpanel's identity to Privy auth state; needs to sit
+            {/* The broadcast session sits above the router on purpose: it holds
+                the LiveKit room and the Market Square stream, so a broadcast
+                started on the chess board survives navigating to the portfolio
+                instead of dying with the page that started it. */}
+            <BroadcastSessionProvider>
+              <ClickRipple />
+              {children}
+              {/* Syncs Mixpanel's identity to Privy auth state; needs to sit
                 inside PrivyProvider to read it. Renders nothing. */}
-            <AnalyticsIdentity />
-            <AnalyticsSegments />
-            {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
+              <AnalyticsIdentity />
+              <AnalyticsSegments />
+              {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
                 pages, so the floating window survives navigating anywhere in
                 the app; it only subscribes to game data while open. */}
-            <MiniTimerHost />
+              <MiniTimerHost />
+            </BroadcastSessionProvider>
           </BalanceVisibilityProvider>
         </NetworkStatusProvider>
         <Toaster />

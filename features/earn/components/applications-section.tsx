@@ -225,7 +225,10 @@ function ClaimReward({ entry }: { entry: MySubmission }) {
         escrowAddress: info!.escrowAddress as string,
         tokenAddress: info!.tokenAddress as string,
       });
-      toast.success(`${amount.toLocaleString()} ${info!.tokenSymbol} is in your wallet.`, { id });
+      toast.success(`${amount.toLocaleString()} ${info!.tokenSymbol} is in your wallet.`, {
+        id,
+        sensitive: true,
+      });
     } catch (error) {
       toast.error(friendlyError(error, "Couldn't collect that reward."), { id });
     }

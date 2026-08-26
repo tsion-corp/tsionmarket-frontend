@@ -435,7 +435,7 @@ export function SpotPanel({
                   : t("ctaSell", { symbol: base });
 
   return (
-    <div className="ws-card p-4 sm:p-5">
+    <div className="ws-card p-4 sm:p-5" data-sensitive="other">
       {/* Buy / Sell. */}
       <div className="grid grid-cols-2 gap-2">
         <button

@@ -39,6 +39,7 @@ import { rememberRoundLength, secondsUntil } from "@/features/casino/lib/last-st
 import { usdToWei } from "@/features/casino/lib/last-standing/stake";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
 import { ShareGame, ShareGameButton } from "@/features/casino/components/last-standing/share-game";
+import { GameGoLive } from "@/features/casino/components/broadcast";
 import type { TokenAmount } from "@/features/casino/lib/vault-api";
 
 // The shape the round visuals below consume, kept local now that the API
@@ -1282,6 +1283,27 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
         {/* Side rail */}
         <div className="flex flex-col gap-4">
           <ShareGame gameId={gameId} className="hidden min-[980px]:block" />
+          {/* A game is public, so anyone in it can stream it. The arena is all
+              motion (the countdown, the pot, the coin flights), so it is
+              published for framerate. The copy here is English while the rest
+              of the page is translated: the panel carries no catalogue yet. */}
+          <GameGoLive
+            target={{
+              game: "last-standing",
+              ref: String(gameId),
+              title: `The Last Man: game ${gameId}`,
+              watchPath: `/casino/last-standing/${gameId}`,
+              descriptionLead: "Live on Ark. Outlast everyone:",
+              content: "motion",
+              creatorApplicationNote: "I play The Last Man on Ark and want to broadcast my games.",
+            }}
+            copy={{
+              subject: "the arena",
+              finishedNotice:
+                "This game has settled. End the broadcast so you are not streaming a finished game.",
+            }}
+            activityOver={game?.settled === true}
+          />
           <div className="ws-glass rounded-[22px] p-5">
             <div className="flex items-center justify-between">
               <span className="text-[13px] font-semibold text-white/80">{t("recentActivity")}</span>

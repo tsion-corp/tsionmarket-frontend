@@ -52,7 +52,10 @@ export function HoldingsMobile({
   const money = useMoney();
 
   return (
-    <div className="overflow-hidden rounded-[20px] border border-white/12 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+    <div
+      className="overflow-hidden rounded-[20px] border border-white/12 bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+      data-sensitive="balance"
+    >
       <div className="px-4 pt-4 pb-3">
         <div className="ws-display text-[20px]">{t("yourHoldings")}</div>
         <div className="mt-3 flex items-center gap-2.5">

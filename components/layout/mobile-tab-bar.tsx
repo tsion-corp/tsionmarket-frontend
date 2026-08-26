@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { DotsIcon, PlusIcon } from "@/components/ui/icons";
+import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import type { NavItem } from "@/components/layout/nav-items";
 import type { SectionId } from "@/lib/sections";
 
@@ -65,6 +66,14 @@ export function MobileTabBar({
             </button>
           );
         })}
+
+        {/* The centre node. It breaks the bar's top edge so it reads as
+            floating, while staying part of the bar rather than covering the
+            page: M3 forbids a FAB that obstructs the navigation bar, and a
+            free-floating button permanently hides content beneath it. */}
+        <span className="relative -mt-5 px-0.5">
+          <GoLiveControl variant="tab" />
+        </span>
 
         <button
           type="button"

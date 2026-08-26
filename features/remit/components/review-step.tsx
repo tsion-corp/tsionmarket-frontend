@@ -45,7 +45,7 @@ type SendPhase = "idle" | "creating" | "funding" | "fundFailed" | "tracking";
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2.5">
+    <div className="flex items-start justify-between gap-4 py-2.5" data-sensitive="other">
       <span className="shrink-0 text-[13px] font-normal text-white/50">{label}</span>
       <span className="text-right font-sans text-[13.5px] font-medium text-white">{value}</span>
     </div>
@@ -213,7 +213,7 @@ export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
   };
 
   return (
-    <div>
+    <div data-sensitive="other" data-broadcast-suspend>
       <SheetNav title={t("reviewPayment")} subtitle={t("reviewSubtitle")} onBack={onBack} />
 
       <div className="ws-inset px-[15px] py-1.5">

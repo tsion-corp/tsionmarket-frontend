@@ -149,7 +149,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   };
 
   return (
-    <div>
+    <div data-sensitive="other">
       <Eyebrow>{t("sell")}</Eyebrow>
       <div className="mt-3 flex items-center gap-[13px]">
         <AssetIcon sym={payload.symbol} bg="#26262b" size={44} logo={payload.logo} />
@@ -160,7 +160,6 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
           </div>
         </div>
       </div>
-
       <div className="ws-inset mt-4 p-[15px]">
         <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
           <span>{t("amountToSell")}</span>
@@ -196,7 +195,6 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
           </div>
         ) : null}
       </div>
-
       <div className="mt-2 flex gap-1.5">
         {PRESETS.map((p) => (
           <button
@@ -211,16 +209,13 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
           </button>
         ))}
       </div>
-
       <div className="mt-3 flex items-center justify-between text-[13.5px] font-normal">
         <span className="text-white/55">{t("youGetAbout")}</span>
         <span className="tnum text-white">{value > 0 ? formatUsd(proceedsUsd) : "—"}</span>
       </div>
-
       <p className="mt-2 text-[12px] leading-[1.5] font-normal text-white/45">
         {t("settlesToUsdc")}
       </p>
-
       {noFee ? (
         <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-white/55">
           {t("needGasFee", { symbol: nativeSym, network: chainLabel })}
@@ -237,7 +232,6 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
           </span>
         </p>
       ) : null}
-
       <button
         onClick={() => void confirm()}
         disabled={!canSell}

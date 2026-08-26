@@ -5,9 +5,11 @@ import { checkUpstream } from "@/lib/server/validate-upstream";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the Market Square service on the platform gateway.
-// The only caller today is the chess "go live" flow: a player broadcasts the
-// board as a Market Square stream, which is what puts it in the live hub, the
-// stories rail and the live feed lane without any further integration.
+// The callers are the casino's "go live" flows: chess, checkers, ArkBall and
+// The Last Man all broadcast their surface as a Market Square stream, which is
+// what puts it in the live hub, the stories rail and the live feed lane
+// without any further integration. Every stream carries a deep link whose ref
+// names the game, so Market Square can route a viewer back to the right one.
 //
 // Market Square authenticates with the caller's own Privy access token, so
 // this proxy holds no secret of its own. What it does hold is the allowlist:
@@ -20,7 +22,19 @@ const NO_STORE = "no-store, max-age=0, must-revalidate";
 // POST /streams demands; the stream read is how the panel reflects a status
 // the service changed underneath us, such as the orphan reaper ending a
 // stream after the host disconnected.
-const GET_PATHS = [/^me$/u, /^me\/creator-application$/u, /^streams\/[^/]+$/u];
+// `streams` is the discovery read: given a deep-link ref it answers with every
+// live stream pointing at that activity, which is how a second player finds
+// the broadcast their opponent already started. `speaker-requests` is the
+// host's pending queue, and `speaker-requests/me` is the guest's own request,
+// which carries the publishing credentials once it is approved.
+const GET_PATHS = [
+  /^me$/u,
+  /^me\/creator-application$/u,
+  /^streams$/u,
+  /^streams\/[^/]+$/u,
+  /^streams\/[^/]+\/speaker-requests$/u,
+  /^streams\/[^/]+\/speaker-requests\/me$/u,
+];
 
 // Writes. Creating, going live and ending are the whole broadcast lifecycle.
 // The creator application is the honest exit for a player who is not a
@@ -30,6 +44,11 @@ const POST_PATHS = [
   /^streams$/u,
   /^streams\/[^/]+\/go-live$/u,
   /^streams\/[^/]+\/end$/u,
+  // Co-publishing: the guest asks, the host approves or declines, the guest
+  // fetches a publisher token, and either side can step the guest down again.
+  /^streams\/[^/]+\/speaker-requests$/u,
+  /^streams\/[^/]+\/speaker-requests\/[^/]+\/(approve|decline|remove|leave)$/u,
+  /^streams\/[^/]+\/speaker-token$/u,
 ];
 
 function allowed(patterns: RegExp[], joined: string): boolean {
@@ -81,7 +100,7 @@ async function forward(
     return jsonError("UPSTREAM_ERROR", "Market Square is unreachable.", 502);
   }
 
-  const schema = marketSquareSchemaFor(joined);
+  const schema = marketSquareSchemaFor(joined, method);
   if (res.ok && schema) {
     let payload: unknown;
     try {

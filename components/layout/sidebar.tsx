@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 import { deriveProfile } from "@/lib/user";
+import { GoLiveControl } from "@/components/broadcast/go-live-control";
 
 interface SidebarProps {
   items: NavItem[];
@@ -98,6 +99,13 @@ export function Sidebar({
             </svg>
           </button>
         </div>
+
+        {/* M3 puts the rail's primary action at the top, above a divider.
+            Never a floating overlay on desktop. */}
+        <div className="pb-3">
+          <GoLiveControl variant="rail" />
+        </div>
+        <div className="mb-3 h-px bg-white/8" />
 
         <nav className="flex flex-col gap-[3px]">
           {items.map((n) => {

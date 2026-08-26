@@ -96,7 +96,7 @@ export function BetModal({ prediction, side, onClose, onPlaced }: BetModalProps)
 
   return (
     <ModalShell open={open} onClose={busy ? () => {} : onClose}>
-      <div className="p-5 sm:p-6">
+      <div className="p-5 sm:p-6" data-sensitive="other" data-broadcast-suspend>
         {!accepted ? (
           <div className="flex flex-col gap-3">
             <div className="ws-display text-[22px]">{t("beforeYouTrade")}</div>

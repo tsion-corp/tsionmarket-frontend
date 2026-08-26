@@ -22,7 +22,7 @@ export function TopHolders({ marketId }: TopHoldersProps) {
   const { data: holders, isLoading } = useTopHolders(marketId, side, 20);
 
   return (
-    <div className="ws-card p-5 sm:p-6">
+    <div className="ws-card p-5 sm:p-6" data-sensitive="position">
       <div className="mb-4 flex items-center justify-between">
         <span className="ws-display text-[15px]">{t("topHolders")}</span>
         <div className="flex gap-1 rounded-lg bg-white/5 p-0.5">

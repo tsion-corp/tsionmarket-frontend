@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
+import { GameGoLive } from "@/features/casino/components/broadcast";
 import { DrawOverview } from "@/features/casino/components/arkball/draw-overview";
 import { TicketBuilder } from "@/features/casino/components/arkball/ticket-builder";
 import { TicketHistory } from "@/features/casino/components/arkball/ticket-history";
@@ -103,6 +104,28 @@ export function ArkBallSection() {
           />
           <div className="space-y-4">
             <ChessCashierLauncher compact productName={t("title")} title={t("arkadeBalance")} />
+            {/* A draw is public, so anyone watching it can stream it. The
+                surface moves (the countdown, then the balls), so it is
+                published for framerate rather than for a still's sharpness.
+                The copy here is English while the rest of the page is
+                translated: the panel carries no message catalogue yet. */}
+            <GameGoLive
+              target={{
+                game: "arkball",
+                ref: current.id,
+                title: `ArkBall draw #${current.sequence}`,
+                watchPath: "/casino/arkball",
+                descriptionLead: "Live ArkBall on Ark. Play the draw:",
+                content: "motion",
+                creatorApplicationNote: "I follow ArkBall draws on Ark and want to broadcast them.",
+              }}
+              copy={{
+                subject: "the draw",
+                finishedNotice:
+                  "This draw has closed. End the broadcast so you are not streaming a finished draw.",
+              }}
+              activityOver={current.status !== "open"}
+            />
             <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
               <div className="text-[10px] font-semibold tracking-[0.13em] text-white/38 uppercase">
                 {t("drawIntegrity")}

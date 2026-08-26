@@ -52,5 +52,27 @@ describe("marketSquareSchemaFor", () => {
     expect(marketSquareSchemaFor("streams/s-1/go-live")).not.toBeNull();
     expect(marketSquareSchemaFor("streams/s-1/end")).not.toBeNull();
     expect(marketSquareSchemaFor("streams/s-1/chat")).toBeNull();
+    expect(marketSquareSchemaFor("streams/s-1/speaker-requests")).not.toBeNull();
+    expect(marketSquareSchemaFor("streams/s-1/speaker-requests/me")).not.toBeNull();
+    expect(marketSquareSchemaFor("streams/s-1/speaker-requests/r-1/approve")).not.toBeNull();
+    expect(marketSquareSchemaFor("streams/s-1/speaker-token")).not.toBeNull();
+  });
+
+  it("judges a read and a write of the same path by their own shapes", () => {
+    // GET /streams is the discovery list; POST /streams answers with one
+    // stream. Judging the list against the single schema would reject every
+    // discovery response.
+    const list = { items: [], nextCursor: null };
+    expect(marketSquareSchemaFor("streams", "GET")?.safeParse(list).success).toBe(true);
+    expect(marketSquareSchemaFor("streams", "POST")?.safeParse(list).success).toBe(false);
+
+    const queue = { items: [] };
+    const request = { id: "r-1", streamId: "s-1", userId: "u-2", status: "pending" };
+    expect(
+      marketSquareSchemaFor("streams/s-1/speaker-requests", "GET")?.safeParse(queue).success
+    ).toBe(true);
+    expect(
+      marketSquareSchemaFor("streams/s-1/speaker-requests", "POST")?.safeParse(request).success
+    ).toBe(true);
   });
 });

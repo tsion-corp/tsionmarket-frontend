@@ -123,7 +123,7 @@ export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps)
   };
 
   return (
-    <div>
+    <div data-sensitive="position">
       <div className="flex justify-start">
         <div className="flex w-full max-w-[340px] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
           <SearchIcon />

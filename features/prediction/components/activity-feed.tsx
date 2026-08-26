@@ -25,7 +25,7 @@ export function ActivityFeed({ marketId }: ActivityFeedProps) {
   const items = useMemo(() => data?.pages.flatMap((p) => p.items) ?? [], [data]);
 
   return (
-    <div className="ws-card p-5 sm:p-6">
+    <div className="ws-card p-5 sm:p-6" data-sensitive="position">
       <span className="ws-display mb-4 block text-[15px]">{t("activity")}</span>
 
       {isLoading ? (

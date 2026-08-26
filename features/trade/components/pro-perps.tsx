@@ -766,7 +766,7 @@ export function ProPerps({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-sensitive="position">
       <div className="grid grid-cols-1 items-start gap-4 min-[1100px]:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,380px)]">
         {renderBrowser(paged)}
         {marketPanel}

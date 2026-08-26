@@ -80,7 +80,7 @@ export function WinnersList({
 
   return (
     <>
-      <div className={grid}>
+      <div className={grid} data-sensitive="balance">
         {paged.pageItems.map((w, idx) => {
           const isLatest = !ranked && highlightLatest && paged.page === 0 && idx === 0;
           const rank = paged.from + idx;

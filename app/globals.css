@@ -989,3 +989,26 @@ body {
     transform: translateX(350%) skewX(-18deg);
   }
 }
+
+/* Financial-data guard. While a broadcast is running and the "blur balances"
+   choice is on, anything marked data-sensitive is blurred in the outgoing
+   capture as well as on screen: a screen share sends the rendered pixels, so
+   blurring here is what actually protects the number. Opt out per element by
+   not marking it; never dependent on the user remembering. */
+:root.broadcasting.broadcasting-blur [data-sensitive] {
+  filter: blur(7px);
+  transition: filter 120ms ease-out;
+}
+
+/* Toasts render in a portal outside the page, so a container marker cannot
+   reach them. A toast that names an amount opts in through toast({ sensitive })
+   and is blurred here with everything else. */
+:root.broadcasting.broadcasting-blur .ws-toast-sensitive {
+  filter: blur(7px);
+  transition: filter 120ms ease-out;
+}
+
+/* Deliberately no hover or focus reveal. A screen share sends the rendered
+   pixels, so un-blurring on hover would push a balance to every viewer on an
+   accidental mouse-over. Reading your own numbers means turning the blur off
+   in the console, which is a decision rather than a gesture. */

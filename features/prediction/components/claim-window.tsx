@@ -43,7 +43,7 @@ export function ClaimWindow({ marketId, children }: ClaimWindowProps) {
 
   const remaining = timeUntil(redeemableAt, now);
   return (
-    <span className="text-right text-[12.5px] font-medium text-white/50">
+    <span className="text-right text-[12.5px] font-medium text-white/50" data-sensitive="other">
       {remaining ? t("claimableIn", { time: remaining }) : t("claimableSoon")}
     </span>
   );

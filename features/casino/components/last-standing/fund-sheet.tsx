@@ -132,7 +132,10 @@ export function FundSheet({ onClose }: FundSheetProps) {
       setDepositRequestId(fresh.data.depositRequestId);
       setSent(true);
       track("game_wallet_funded", { game: "last_man", amount_usd: value });
-      toast.success(t("toastAdded", { amount: money.formatExact(value) }), { id: toastId });
+      toast.success(t("toastAdded", { amount: money.formatExact(value) }), {
+        id: toastId,
+        sensitive: true,
+      });
       void refetchPortfolio();
     } catch (e) {
       setError(friendlyError(e, t("errorSend")));

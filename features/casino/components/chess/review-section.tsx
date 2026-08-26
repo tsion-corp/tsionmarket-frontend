@@ -668,7 +668,7 @@ export function ReviewSection({ matchId }: { matchId: string | null }) {
     const id = toast.loading(`Buying ${label}…`);
     try {
       const result = await products.purchase(key);
-      toast.success(`${label} ready. ${result.priceUsdc} USDC charged.`, { id });
+      toast.success(`${label} ready. ${result.priceUsdc} USDC charged.`, { id, sensitive: true });
     } catch (error) {
       toast.error(friendlyError(error, `Couldn't buy ${label}.`), { id });
     }

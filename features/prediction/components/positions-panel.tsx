@@ -58,7 +58,7 @@ export function PositionsPanel({
   const t = useTranslations("prediction");
   const money = useMoney();
   return (
-    <div className="ws-card relative mt-7 overflow-hidden sm:mt-9">
+    <div className="ws-card relative mt-7 overflow-hidden sm:mt-9" data-sensitive="position">
       {/* Accent wash across the header so this section reads as a distinct
           "your money" area, not another market tile. */}
       <div

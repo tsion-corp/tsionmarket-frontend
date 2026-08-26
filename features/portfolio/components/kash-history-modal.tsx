@@ -63,7 +63,7 @@ export function KashHistoryModal({ open, onClose }: KashHistoryModalProps) {
 
   return (
     <ModalShell open={open} onClose={onClose} size="lg">
-      <div className="p-5 sm:p-6">
+      <div className="p-5 sm:p-6" data-sensitive="other">
         <div className="ws-display text-[22px]">{t("historyTitle")}</div>
         <p className="mt-1 text-[13px] leading-[1.5] font-normal text-white/55">
           {t("historySubtitle")}

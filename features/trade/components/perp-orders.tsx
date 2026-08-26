@@ -23,7 +23,7 @@ export function PerpOrders({ orders, pairByIndex, onCancel, busy }: PerpOrdersPr
   if (orders.length === 0) return null;
 
   return (
-    <div className="ws-card overflow-hidden">
+    <div className="ws-card overflow-hidden" data-sensitive="position">
       <div className="flex items-center justify-between px-4 pt-4 pb-3 sm:px-5">
         <span className="ws-display text-[18px]">{t("pendingOrders")}</span>
         <span className="text-[12px] font-normal text-white/45">

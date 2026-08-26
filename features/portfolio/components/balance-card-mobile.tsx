@@ -60,7 +60,10 @@ export function BalanceCardMobile({
         </div>
       ) : (
         <>
-          <div className="ws-display tnum mt-2.5 text-[42px] leading-none tracking-[-0.02em]">
+          <div
+            className="ws-display tnum mt-2.5 text-[42px] leading-none tracking-[-0.02em]"
+            data-sensitive="balance"
+          >
             {formatMasked(totalUsd)}
           </div>
           <div className="tnum mt-2 text-[13.5px] font-normal text-white/55">

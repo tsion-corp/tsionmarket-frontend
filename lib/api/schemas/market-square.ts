@@ -69,6 +69,50 @@ export const marketSquareProfileSchema = z.object({
   role: z.enum(["citizen", "creator", "ambassador", "worldstreet"]),
 });
 
+// Discovery. The list is what lets a second player find the broadcast that
+// already exists for their match instead of starting a rival one.
+export const streamListSchema = z.object({
+  items: z.array(streamSchema),
+  nextCursor: z.string().nullable().optional(),
+});
+
+// A speaker request is how someone gets publish rights on a stream they do not
+// own. joinUrl/joinToken are present only on an approved request read back
+// through `/me`; every other state omits them.
+export const speakerRequestSchema = z.object({
+  id: z.string(),
+  streamId: z.string(),
+  userId: z.string(),
+  status: z.enum(["pending", "approved", "denied", "withdrawn", "removed"]),
+  joinUrl: z.string().nullable().optional(),
+  joinToken: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+});
+
+// `/me` answers with null when the caller has never asked.
+export const mySpeakerRequestSchema = speakerRequestSchema.nullable();
+
+const speakerProfileSchema = z
+  .object({
+    id: z.string(),
+    username: z.string().nullable().optional(),
+    displayName: z.string().nullable().optional(),
+    avatarUrl: z.string().nullable().optional(),
+  })
+  .nullable();
+
+// The host's queue hydrates each request with who is asking.
+export const speakerQueueSchema = z.object({
+  items: z.array(speakerRequestSchema.extend({ profile: speakerProfileSchema.optional() })),
+});
+
+// The publisher grant an approved speaker publishes with.
+export const speakerTokenSchema = z.object({
+  url: z.string().nullable().optional(),
+  token: z.string().nullable().optional(),
+  expiresAt: z.string().nullable().optional(),
+});
+
 export const roleApplicationSchema = z
   .object({
     status: z.string().optional(),
@@ -77,11 +121,26 @@ export const roleApplicationSchema = z
 
 // The schema for a proxied path, or null when nothing models it. Keyed on the
 // joined path with ids collapsed, the same way the chess proxy does it.
-export function marketSquareSchemaFor(joined: string): z.ZodType | null {
+//
+// The method matters on two paths: `streams` reads as a list and writes a
+// single stream, and `speaker-requests` reads as the host's queue and writes
+// one request. Everything else answers the same shape either way.
+export function marketSquareSchemaFor(
+  joined: string,
+  method: "GET" | "POST" = "POST"
+): z.ZodType | null {
   if (joined === "me") return marketSquareProfileSchema;
   if (joined === "me/creator-application") return roleApplicationSchema;
-  if (joined === "streams") return streamSchema;
+  if (joined === "streams") return method === "GET" ? streamListSchema : streamSchema;
   if (/^streams\/[^/]+$/u.test(joined)) return streamSchema;
+  if (/^streams\/[^/]+\/speaker-requests$/u.test(joined)) {
+    return method === "GET" ? speakerQueueSchema : speakerRequestSchema;
+  }
+  if (/^streams\/[^/]+\/speaker-requests\/me$/u.test(joined)) return mySpeakerRequestSchema;
+  if (/^streams\/[^/]+\/speaker-requests\/[^/]+\/(approve|decline|remove|leave)$/u.test(joined)) {
+    return speakerRequestSchema;
+  }
+  if (/^streams\/[^/]+\/speaker-token$/u.test(joined)) return speakerTokenSchema;
   if (/^streams\/[^/]+\/go-live$/u.test(joined)) return goLiveSchema;
   if (/^streams\/[^/]+\/end$/u.test(joined)) return streamSchema;
   return null;

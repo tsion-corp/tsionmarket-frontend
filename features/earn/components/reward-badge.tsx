@@ -17,6 +17,7 @@ export function RewardBadge({
 
   return (
     <span
+      data-sensitive="balance"
       className={`ws-display tnum ${size === "lg" ? "text-[22px]" : "text-[14px]"} ${
         muted ? "text-white/35" : "text-grey-100"
       }`}

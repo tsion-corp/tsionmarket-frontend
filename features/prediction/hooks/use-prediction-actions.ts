@@ -201,6 +201,7 @@ export function usePredictionActions() {
         if (error instanceof InsufficientUsdcError) {
           toast.error(t("insufficientUsdc", { required: error.required, balance: error.balance }), {
             id: toastId,
+            sensitive: true,
           });
           return false;
         }
@@ -291,6 +292,7 @@ export function usePredictionActions() {
         if (error instanceof InsufficientUsdcError) {
           toast.error(t("insufficientUsdc", { required: error.required, balance: error.balance }), {
             id: toastId,
+            sensitive: true,
           });
           return false;
         }
@@ -365,6 +367,7 @@ export function usePredictionActions() {
         if (error instanceof InsufficientUsdcError) {
           toast.error(t("insufficientUsdc", { required: error.required, balance: error.balance }), {
             id: toastId,
+            sensitive: true,
           });
           return false;
         }

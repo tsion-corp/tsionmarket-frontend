@@ -115,7 +115,10 @@ export function PortfolioDonut({ tokens }: { tokens: TokenBalance[] }) {
               {/* The amount and share are the web's addition. Beside a ring on a
                   narrow phone they wrap the label onto two lines, so they only
                   appear once there is room for them. */}
-              <span className="tnum hidden shrink-0 text-[13px] font-medium text-white min-[420px]:inline">
+              <span
+                className="tnum hidden shrink-0 text-[13px] font-medium text-white min-[420px]:inline"
+                data-sensitive="balance"
+              >
                 {mask(money.format(slice.valueUsd))}
               </span>
               <span className="tnum hidden w-9 shrink-0 text-right text-[12px] font-normal text-white/40 min-[420px]:inline">

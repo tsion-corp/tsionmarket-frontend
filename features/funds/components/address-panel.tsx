@@ -11,7 +11,7 @@ interface AddressPanelProps {
 // Deposit address with a QR and a copyable address.
 export function AddressPanel({ address }: AddressPanelProps) {
   return (
-    <div>
+    <div data-sensitive="address">
       <div className="flex justify-center pt-1">
         <QrCode value={address} />
       </div>

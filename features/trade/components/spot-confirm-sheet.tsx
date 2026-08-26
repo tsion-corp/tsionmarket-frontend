@@ -69,6 +69,7 @@ export function SpotConfirmSheet({
             className="fixed inset-0 z-[420] cursor-default bg-black/65 backdrop-blur-sm"
           />
           <motion.div
+            data-broadcast-suspend
             initial={{ y: "100%" }}
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
