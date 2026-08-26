@@ -3,6 +3,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { SETTLE_CHAINS } from "@/lib/deposit";
 import {
   isTerminalProgress,
   normalizeBanks,
@@ -127,8 +128,16 @@ export function useCreateOnrampOrder() {
             "Content-Type": "application/json",
             "x-idempotency-key": idempotencyKey,
           },
+          // Pin the settlement to base-mainnet native USDC, the same asset and
+          // chain the crypto deposit rail uses. Without this the Difference rail
+          // picks its own default chain, and USDC that lands off-Base is money
+          // the user still sees (Cash aggregates every chain) but the referral
+          // deposit probe - which watches base-mainnet only - never sees, so a
+          // referred user's bank deposit never qualifies their referrer.
           body: JSON.stringify({
             destinationAddress,
+            destinationChainId: SETTLE_CHAINS.base.chainId,
+            destinationAsset: SETTLE_CHAINS.base.usdc,
             expectedAmountNgn,
           }),
         },
