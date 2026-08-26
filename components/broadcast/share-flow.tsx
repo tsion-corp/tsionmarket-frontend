@@ -92,7 +92,19 @@ export function ShareFlow({ target, onClose }: { target: BroadcastTarget; onClos
         onClick={onClose}
         className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-[2px]"
       />
-      <div className="bg-sheet relative m-3 w-full max-w-[420px] rounded-[22px] border border-white/12 p-5">
+      <div
+        className={
+          // A BOTTOM SHEET on a phone, a centred card from `sm` up. The panel
+          // had neither a height cap nor a scroller, so a tall step — the
+          // sensitive-data list, its checkbox and the warning — simply ran off
+          // the bottom of the screen and took the buttons with it. Capping it
+          // and letting the body scroll is what keeps the actions reachable,
+          // and the safe-area padding keeps the last one clear of the home
+          // indicator.
+          "bg-sheet relative flex max-h-[85dvh] w-full flex-col overflow-y-auto rounded-t-[22px] border border-white/12 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] " +
+          "sm:m-3 sm:max-h-[88dvh] sm:max-w-[420px] sm:rounded-[22px] sm:pb-5"
+        }
+      >
         {profile.isPending ? (
           <p className="py-2 text-[12.5px] text-white/55">Checking whether you can broadcast…</p>
         ) : profile.isError ? (

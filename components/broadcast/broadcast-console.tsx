@@ -21,7 +21,15 @@ export function BroadcastConsole({ onClose }: { onClose: () => void }) {
         onClick={onClose}
         className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-[2px]"
       />
-      <div className="bg-sheet relative m-3 w-full max-w-[400px] rounded-[22px] border border-white/12 p-5">
+      <div
+        className={
+          // Same shape as the share flow: a bottom sheet on a phone, a centred
+          // card from `sm` up, capped and scrollable so a tall console cannot
+          // push its controls off the bottom of the screen.
+          "bg-sheet relative flex max-h-[85dvh] w-full flex-col overflow-y-auto rounded-t-[22px] border border-white/12 p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] " +
+          "sm:m-3 sm:max-h-[88dvh] sm:max-w-[400px] sm:rounded-[22px] sm:pb-5"
+        }
+      >
         <div className="flex items-baseline justify-between gap-3">
           <h2 className="text-[17px] font-semibold text-white">You are live</h2>
           <span className="tnum text-[13px] text-white/60">{formatElapsed(session.elapsedMs)}</span>
