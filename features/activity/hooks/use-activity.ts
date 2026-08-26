@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiFetch } from "@/lib/api";
 import { getWalletAddress } from "@/lib/user";
@@ -40,6 +40,9 @@ export function useActivity() {
     },
     refetchInterval: POLL_MS,
     staleTime: POLL_MS,
+    // Keep the current list rendered while a poll refetches, so the feed never
+    // drops back to a loading state or flashes empty between ticks.
+    placeholderData: keepPreviousData,
     retry: (count, error) =>
       !(error instanceof Error && error.message.toLowerCase().includes("too many")) && count < 2,
   });

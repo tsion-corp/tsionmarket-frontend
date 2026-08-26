@@ -2400,8 +2400,21 @@
     "bought_kash": "KASH+ acheté",
     "arkade_deposit": "Fonds de jeu ajoutés",
     "arkade_withdraw": "Fonds de jeu retirés",
+    "won_chess": "Échecs gagnés",
+    "lost_chess": "Échecs perdus",
+    "drew_chess": "Échecs nul",
+    "won_checkers": "Dames gagnées",
+    "lost_checkers": "Dames perdues",
+    "drew_checkers": "Dames nul",
+    "arkball_ticket": "Ticket ArkBall",
+    "arkball_won": "ArkBall gagné",
+    "vs": "contre",
+    "refunded": "Remboursé",
     "notifications": "Notifications",
-    "newCount": "{count} nouvelles"
+    "newCount": "{count} nouvelles",
+    "prevPage": "Précédent",
+    "nextPage": "Suivant",
+    "pageOf": "Page {current} sur {total}"
   },
   "launchGate": {
     "title": "Bientôt disponible",

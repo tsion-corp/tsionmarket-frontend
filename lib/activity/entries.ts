@@ -31,7 +31,39 @@ export type ActivityKind =
   | "perp_return"
   | "bought_kash"
   | "arkade_deposit"
-  | "arkade_withdraw";
+  | "arkade_withdraw"
+  // Off-chain arcade games, built from each game's own history (not on-chain
+  // transfers), so the feed shows the games played, not just the cashier moves.
+  | "won_chess"
+  | "lost_chess"
+  | "drew_chess"
+  | "won_checkers"
+  | "lost_checkers"
+  | "drew_checkers"
+  | "arkball_ticket"
+  | "arkball_won";
+
+// The off-chain game kinds, and the two that a draw refunds (shown without a
+// signed amount). Used by the row to pick a game layout over the transfer one.
+const GAME_KINDS = new Set<ActivityKind>([
+  "won_chess",
+  "lost_chess",
+  "drew_chess",
+  "won_checkers",
+  "lost_checkers",
+  "drew_checkers",
+  "arkball_ticket",
+  "arkball_won",
+]);
+const DRAW_KINDS = new Set<ActivityKind>(["drew_chess", "drew_checkers"]);
+
+export function isGameKind(kind: ActivityKind): boolean {
+  return GAME_KINDS.has(kind);
+}
+
+export function isDrawKind(kind: ActivityKind): boolean {
+  return DRAW_KINDS.has(kind);
+}
 
 export interface ActivityEntry {
   id: string;

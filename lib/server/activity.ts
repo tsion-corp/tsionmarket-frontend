@@ -124,25 +124,46 @@ async function rpc<T>(network: string, method: string, params: unknown): Promise
   }
 }
 
-// One direction of transfers on one network. Alchemy indexes sends and
-// receives separately, so each network costs two calls.
+// Networks where Alchemy also indexes `internal` transfers: native ETH moved by
+// a contract call rather than a top-level send. Base is the one that matters — a
+// Last Man wager and its winnings pay through the gasless 7702 bundler, so the
+// ETH moves internally and an external+erc20 query never sees it. Fetched as its
+// own call, so a network that does not index internal transfers can only lose
+// that extra list, never the main one.
+const INTERNAL_NETWORKS = new Set([
+  "base-mainnet",
+  "eth-mainnet",
+  "arb-mainnet",
+  "opt-mainnet",
+  "polygon-mainnet",
+]);
+
+// One direction of transfers on one network, newest first. Alchemy indexes sends
+// and receives separately, so each direction is its own query.
 async function evmTransfers(
   network: string,
   address: string,
   direction: ActivityDirection
 ): Promise<RawTransfer[]> {
-  const filter: Record<string, unknown> = {
-    category: ["external", "erc20"],
-    withMetadata: true,
-    excludeZeroValue: true,
-    maxCount: `0x${PER_NETWORK.toString(16)}`,
-    order: "desc",
+  const query = (categories: string[]) => {
+    const filter: Record<string, unknown> = {
+      category: categories,
+      withMetadata: true,
+      excludeZeroValue: true,
+      maxCount: `0x${PER_NETWORK.toString(16)}`,
+      order: "desc",
+    };
+    filter[direction === "in" ? "toAddress" : "fromAddress"] = address;
+    return rpc<{ transfers?: RawTransfer[] }>(network, "alchemy_getAssetTransfers", [filter]).then(
+      (result) => result?.transfers ?? []
+    );
   };
-  filter[direction === "in" ? "toAddress" : "fromAddress"] = address;
-  const result = await rpc<{ transfers?: RawTransfer[] }>(network, "alchemy_getAssetTransfers", [
-    filter,
+
+  const [main, internal] = await Promise.all([
+    query(["external", "erc20"]),
+    INTERNAL_NETWORKS.has(network) ? query(["internal"]) : Promise.resolve<RawTransfer[]>([]),
   ]);
-  return result?.transfers ?? [];
+  return [...main, ...internal];
 }
 
 interface SolanaSignature {
@@ -305,7 +326,9 @@ export async function fetchActivity(
     for (const { network, direction, transfers } of batches) {
       for (const [index, t] of transfers.entries()) {
         const contract = t.rawContract?.address ?? null;
-        const isNative = t.category === "external";
+        // Both external and internal transfers carry native ETH (only erc20 is a
+        // token), so both count as native for the holdings allowlist.
+        const isNative = t.category === "external" || t.category === "internal";
         if (!isAllowedHolding(network, contract, isNative, rwa, registries.buyable)) continue;
         const amount = typeof t.value === "number" ? t.value : 0;
         if (amount <= 0 || !t.hash) continue;

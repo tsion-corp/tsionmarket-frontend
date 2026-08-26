@@ -2400,8 +2400,21 @@
     "bought_kash": "Bought KASH+",
     "arkade_deposit": "Added game funds",
     "arkade_withdraw": "Withdrew game funds",
+    "won_chess": "Won chess",
+    "lost_chess": "Lost chess",
+    "drew_chess": "Chess draw",
+    "won_checkers": "Won checkers",
+    "lost_checkers": "Lost checkers",
+    "drew_checkers": "Checkers draw",
+    "arkball_ticket": "ArkBall ticket",
+    "arkball_won": "Won ArkBall",
+    "vs": "vs",
+    "refunded": "Refunded",
     "notifications": "Notifications",
-    "newCount": "{count} new"
+    "newCount": "{count} new",
+    "prevPage": "Previous",
+    "nextPage": "Next",
+    "pageOf": "Page {current} of {total}"
   },
   "launchGate": {
     "title": "Coming soon",

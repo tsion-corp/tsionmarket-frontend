@@ -3,8 +3,9 @@
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
+import { DiceIcon } from "@/components/ui/icons";
 import { useMoney } from "@/components/ui/currency-select";
-import { isStable, type ActivityEntry } from "@/lib/activity/entries";
+import { isDrawKind, isGameKind, isStable, type ActivityEntry } from "@/lib/activity/entries";
 import { track } from "@/lib/analytics/mixpanel";
 import { tokenBg } from "@/lib/trade/assets";
 import { displayNetwork, displaySymbol } from "@/lib/buy";
@@ -66,9 +67,53 @@ export function dayHeading(ms: number, t: Translate): string {
   });
 }
 
+// An off-chain game play: chess/checkers carry an opponent, ArkBall does not; a
+// draw refunds the stake, so it shows no signed amount. No block-explorer link,
+// because there is no on-chain transaction.
+function GameRow({ item }: { item: ActivityEntry }) {
+  const t = useTranslations("activity");
+  const money = useMoney();
+  const incoming = item.direction === "in";
+  const draw = isDrawKind(item.kind);
+  const opponent = item.counterparty ? truncateAddress(item.counterparty) : null;
+
+  return (
+    <div
+      title={fullTimestamp(item.timestamp)}
+      className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 first:border-t-0 sm:px-6"
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-white/8 text-white/80">
+          <DiceIcon size={18} />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate font-sans text-[14.5px] font-medium">{t(item.kind)}</div>
+          <div className="truncate text-xs font-normal text-white/50">
+            {clockTime(item.timestamp)}
+            {opponent ? ` · ${t("vs")} ${opponent}` : ""}
+          </div>
+        </div>
+      </div>
+      <div className="text-right">
+        <div
+          className={`tnum text-sm font-semibold ${
+            draw ? "text-white/55" : incoming ? "text-up" : "text-white/85"
+          }`}
+        >
+          {draw ? t("refunded") : `${incoming ? "+" : "−"}${money.format(item.amount)}`}
+        </div>
+        <div className="tnum text-[12px] font-normal text-white/45">
+          {relativeTime(item.timestamp, t)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd: number }) {
   const t = useTranslations("activity");
   const money = useMoney();
+  if (isGameKind(item.kind)) return <GameRow item={item} />;
   const incoming = item.direction === "in";
   const explorer = EXPLORER[item.network];
   const value = priceUsd > 0 ? priceUsd * item.amount : 0;

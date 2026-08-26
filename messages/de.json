@@ -2400,8 +2400,21 @@
     "bought_kash": "KASH+ gekauft",
     "arkade_deposit": "Spielguthaben aufgeladen",
     "arkade_withdraw": "Spielguthaben abgehoben",
+    "won_chess": "Schach gewonnen",
+    "lost_chess": "Schach verloren",
+    "drew_chess": "Schach-Remis",
+    "won_checkers": "Dame gewonnen",
+    "lost_checkers": "Dame verloren",
+    "drew_checkers": "Dame-Remis",
+    "arkball_ticket": "ArkBall-Ticket",
+    "arkball_won": "ArkBall gewonnen",
+    "vs": "gegen",
+    "refunded": "Erstattet",
     "notifications": "Benachrichtigungen",
-    "newCount": "{count} neu"
+    "newCount": "{count} neu",
+    "prevPage": "Zurück",
+    "nextPage": "Weiter",
+    "pageOf": "Seite {current} von {total}"
   },
   "launchGate": {
     "title": "Bald verfügbar",
