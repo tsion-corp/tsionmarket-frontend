@@ -308,24 +308,32 @@ describe("chess lobby", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=computer-1"));
   });
 
-  it("keeps low levels practice-only and quotes the level reward before staking", async () => {
+  it("keeps levels one to seven free and quotes the level-eight ten-percent profit", async () => {
     cashierStatus.configured = true;
     cashierStatus.available = "20";
     render(<LobbySection />, { wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Set up a computer game" }));
-    expect(screen.getByText(/Levels 1 to 6 are free-only/)).toBeInTheDocument();
+    expect(screen.getByText(/Levels 1 to 7 are free-only/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Computer stake in USD" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "7" }));
+    fireEvent.click(screen.getByRole("button", { name: "8" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USD" }), {
+      target: { value: "0" },
+    });
+    expect(screen.getByText("Enter a stake greater than 0 USDC.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Play against computer" })).toBeDisabled();
+
     fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USD" }), {
       target: { value: "10" },
     });
 
-    expect(screen.getByText("House reward (80%)")).toBeInTheDocument();
-    expect(screen.getByText("17.36 USD")).toBeInTheDocument();
-    expect(screen.getByText("Completed draw returns")).toBeInTheDocument();
-    expect(screen.getByText("5 USD")).toBeInTheDocument();
+    expect(screen.getByText("Win profit (10%)")).toBeInTheDocument();
+    expect(screen.getByText("11 USD")).toBeInTheDocument();
+    expect(screen.getByText("Draw return")).toBeInTheDocument();
+    expect(screen.getByText("0 USD")).toBeInTheDocument();
+    expect(screen.getByText(/fixed 5\+0 clock/)).toBeInTheDocument();
+    expect(screen.getByText(/until a moderator clears it/)).toBeInTheDocument();
     expect(screen.getByText("Balance after stake")).toBeInTheDocument();
   });
 
