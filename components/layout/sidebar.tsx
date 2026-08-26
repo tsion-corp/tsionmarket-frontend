@@ -10,6 +10,28 @@ import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 import { deriveProfile } from "@/lib/user";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
+import { marketSquareHref } from "@/lib/market-square";
+
+/** Four seats around an open square — people gathered, not a shop front. */
+function SquareIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect
+        x="3.5"
+        y="3.5"
+        width="17"
+        height="17"
+        rx="4.5"
+        stroke="currentColor"
+        strokeWidth="1.7"
+      />
+      <circle cx="8.5" cy="8.5" r="1.6" fill="currentColor" />
+      <circle cx="15.5" cy="8.5" r="1.6" fill="currentColor" />
+      <circle cx="8.5" cy="15.5" r="1.6" fill="currentColor" />
+      <circle cx="15.5" cy="15.5" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
 
 interface SidebarProps {
   items: NavItem[];
@@ -37,6 +59,7 @@ export function Sidebar({
   const { user } = usePrivy();
   const profile = deriveProfile(user);
   const t = useTranslations("topbar");
+  const squareHref = marketSquareHref();
 
   // While the drawer is open the page behind it does not scroll, and Escape
   // closes it. Both undone on close and on unmount.
@@ -106,6 +129,36 @@ export function Sidebar({
           <GoLiveControl variant="rail" />
         </div>
         <div className="mb-3 h-px bg-white/8" />
+
+        {/* Market Square sits ABOVE the product sections, not among them.
+            The PRD makes it the platform's social and discovery surface — the
+            thing that makes every other section visible to other people — so
+            burying it in the list would rank it as one product among nine.
+            It is a sibling deployment, hence a link and an outbound mark; with
+            the URL unset it renders nothing rather than a dead entry. */}
+        {squareHref !== null ? (
+          <>
+            <a
+              href={squareHref}
+              className="mb-3 flex w-full cursor-pointer items-center gap-3 rounded-xl border border-violet-400/25 bg-violet-500/10 px-3 py-[11px] text-left font-sans text-[14.5px] font-medium text-white transition-colors hover:bg-violet-500/16"
+            >
+              <span className="grid h-5 w-5 place-items-center">
+                <SquareIcon size={20} />
+              </span>
+              <span className="flex-1">Market Square</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden>
+                <path
+                  d="M7 17L17 7M17 7H9M17 7v8"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </a>
+            <div className="mb-3 h-px bg-white/8" />
+          </>
+        ) : null}
 
         <nav className="flex flex-col gap-[3px]">
           {items.map((n) => {

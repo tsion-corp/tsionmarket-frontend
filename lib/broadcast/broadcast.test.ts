@@ -1,3 +1,4 @@
+import { Track } from "livekit-client";
 import { describe, expect, it } from "vitest";
 import {
   broadcastDescription,
@@ -48,6 +49,19 @@ describe("screen options", () => {
   it("keeps a static board sharp and lets a moving surface keep its framerate", () => {
     expect(screenPublishOptions("detail").degradationPreference).toBe("maintain-resolution");
     expect(screenPublishOptions("motion").degradationPreference).toBe("maintain-framerate");
+  });
+
+  // A hand-built track (getDisplayMedia + LocalVideoTrack, which is how the
+  // picker constraints survive) carries no source, so LiveKit publishes it
+  // unidentified and Market Square renders it as a second camera: the share
+  // goes out and is never seen. This asserts the track says what it is.
+  it("publishes the screen as a screen share, not an unnamed video track", () => {
+    for (const content of ["detail", "motion"] as const) {
+      expect(
+        screenPublishOptions(content).source,
+        `${content} screen share must declare Track.Source.ScreenShare`
+      ).toBe(Track.Source.ScreenShare);
+    }
   });
 
   it("pins h264 so the SDK does not override the content hint on an SVC codec", () => {

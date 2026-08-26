@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+
+import { ShareToSquare, type ShareDraft } from "@/components/share/share-to-square";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
@@ -111,6 +114,7 @@ function GameRow({ item }: { item: ActivityEntry }) {
 }
 
 export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd: number }) {
+  const [sharing, setSharing] = useState(false);
   const t = useTranslations("activity");
   const money = useMoney();
   if (isGameKind(item.kind)) return <GameRow item={item} />;
@@ -140,47 +144,86 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
         }`
       : null;
 
+  // A past transaction is the easiest thing to share, and the row is already
+  // an anchor to the explorer — so the share control is a SIBLING of that
+  // link, never nested inside it: a button inside an anchor is invalid and
+  // swallows the tap on touch.
+  const shareDraft: ShareDraft = {
+    title,
+    subtitle: `${primary}${counter ? ` · ${counter}` : ""}`,
+    deepLink: { kind: "trade", ref: `${item.network}:${item.hash}` },
+    suggestedText: "",
+    amount: value > 0 ? money.format(value) : undefined,
+  };
+
   return (
-    <a
-      data-sensitive="other"
-      href={explorer ? `${explorer}${item.hash}` : undefined}
-      onClick={() => {
-        if (explorer)
-          track("arktivity_tx_opened", { chain: item.network, direction: item.direction });
-      }}
-      target="_blank"
-      rel="noopener noreferrer"
-      title={fullTimestamp(item.timestamp)}
-      className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 transition-colors first:border-t-0 hover:bg-white/4 sm:px-6"
-    >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="relative shrink-0">
-          <AssetIcon sym={iconSym} bg={tokenBg(iconSym)} logo={iconLogo} fallback="gradient" />
-          <span className="absolute -right-1 -bottom-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-black">
-            <NetworkIcon network={network} size={13} />
+    <div className="group relative">
+      <a
+        data-sensitive="other"
+        href={explorer ? `${explorer}${item.hash}` : undefined}
+        onClick={() => {
+          if (explorer)
+            track("arktivity_tx_opened", { chain: item.network, direction: item.direction });
+        }}
+        target="_blank"
+        rel="noopener noreferrer"
+        title={fullTimestamp(item.timestamp)}
+        className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 transition-colors first:border-t-0 hover:bg-white/4 sm:px-6"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="relative shrink-0">
+            <AssetIcon sym={iconSym} bg={tokenBg(iconSym)} logo={iconLogo} fallback="gradient" />
+            <span className="absolute -right-1 -bottom-1 grid h-[18px] w-[18px] place-items-center rounded-full bg-black">
+              <NetworkIcon network={network} size={13} />
+            </span>
           </span>
-        </span>
-        <div className="min-w-0">
-          <div className="truncate font-sans text-[14.5px] font-medium">{title}</div>
-          <div className="truncate text-xs font-normal text-white/50">
-            {clockTime(item.timestamp)} ·{" "}
-            {network === "Bitcoin" ? network : (NETWORK_LABEL[network] ?? network)}
-            {item.counterparty
-              ? ` · ${incoming ? t("from") : t("to")} ${truncateAddress(item.counterparty)}`
-              : ""}
+          <div className="min-w-0">
+            <div className="truncate font-sans text-[14.5px] font-medium">{title}</div>
+            <div className="truncate text-xs font-normal text-white/50">
+              {clockTime(item.timestamp)} ·{" "}
+              {network === "Bitcoin" ? network : (NETWORK_LABEL[network] ?? network)}
+              {item.counterparty
+                ? ` · ${incoming ? t("from") : t("to")} ${truncateAddress(item.counterparty)}`
+                : ""}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="text-right">
-        <div className={`tnum text-sm font-semibold ${incoming ? "text-up" : "text-white/85"}`}>
-          {incoming ? "+" : "−"}
-          {primary}
+        <div className="text-right">
+          <div className={`tnum text-sm font-semibold ${incoming ? "text-up" : "text-white/85"}`}>
+            {incoming ? "+" : "−"}
+            {primary}
+          </div>
+          <div className="tnum text-[12px] font-normal text-white/45">
+            {counter ??
+              (!cash && value > 0 ? money.format(value) : relativeTime(item.timestamp, t))}
+          </div>
         </div>
-        <div className="tnum text-[12px] font-normal text-white/45">
-          {counter ?? (!cash && value > 0 ? money.format(value) : relativeTime(item.timestamp, t))}
-        </div>
-      </div>
-    </a>
+      </a>
+      <button
+        type="button"
+        onClick={() => setSharing(true)}
+        aria-label={`Share ${title} to Market Square`}
+        className="absolute top-1/2 right-1 grid size-8 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-white/0 transition-colors group-hover:bg-white/8 group-hover:text-white/70 hover:!text-white focus-visible:bg-white/8 focus-visible:text-white/70"
+      >
+        <ShareGlyph />
+      </button>
+      {sharing ? <ShareToSquare draft={shareDraft} open onClose={() => setSharing(false)} /> : null}
+    </div>
+  );
+}
+
+/** Outward arrow: sharing OUT of Ark, into the square. */
+function ShareGlyph() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 16V4m0 0L8 8m4-4l4 4M5 15v3a2 2 0 002 2h10a2 2 0 002-2v-3"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }

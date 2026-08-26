@@ -2,7 +2,7 @@
 // Framework-free on purpose, so the copy, the capture settings and the phase
 // machine can be tested without a browser or a media server.
 
-import { ScreenSharePresets, type TrackPublishOptions } from "livekit-client";
+import { ScreenSharePresets, type TrackPublishOptions, Track } from "livekit-client";
 
 // What the shared surface actually looks like, which is the only thing the
 // encoder needs to know. A board is a near-static image where sharpness beats
@@ -32,6 +32,15 @@ export function broadcastDescription(lead: string, origin: string, path: string)
 // broadcast starts, not when the file is imported.
 export function screenPublishOptions(content: BroadcastContent): TrackPublishOptions {
   return {
+    // Say what this track IS. We build the screen track by hand (getDisplayMedia
+    // + LocalVideoTrack) so the picker constraints below survive, and a
+    // hand-built track carries no source — LiveKit publishes it unidentified
+    // and a viewer cannot tell it from a webcam. Market Square then treats a
+    // source-less track as a camera, so a shared screen arrived as a second
+    // face and the real camera won the tile: the share was published and never
+    // seen. Naming the source is what makes the stage put the screen on the
+    // main stage and the face beside it.
+    source: Track.Source.ScreenShare,
     screenShareEncoding:
       content === "motion"
         ? ScreenSharePresets.h1080fps30.encoding

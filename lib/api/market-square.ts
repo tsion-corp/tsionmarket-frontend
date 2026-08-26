@@ -20,7 +20,18 @@ export type MarketSquareRole = "citizen" | "creator" | "ambassador" | "worldstre
 // activities. A casino broadcast points at the activity with kind "game", and
 // its ref is "<game>:<id>". See `lib/broadcast/deep-link.ts`.
 export type MarketSquareDeepLinkKind =
-  "stream" | "store_item" | "listing" | "market" | "game" | "external";
+  | "stream"
+  | "store_item"
+  | "listing"
+  | "market"
+  | "game"
+  // Added for shared Ark activities: a trade, a prediction position, or a
+  // scheduled activity. The square routes them back here rather than
+  // resolving them itself.
+  | "trade"
+  | "prediction"
+  | "activity"
+  | "external";
 
 export interface MarketSquareDeepLink {
   kind: MarketSquareDeepLinkKind;
@@ -340,4 +351,57 @@ export function fetchSpeakerToken(streamId: string): Promise<SpeakerGrant> {
       }
       return { url: wire.url, token: wire.token };
     });
+}
+
+// ── Sharing an Ark activity into the square ────────────────────────────────
+//
+// The square cannot describe a trade, a position or a game result: they live
+// in services it must not read. So Ark, which knows exactly what just
+// happened, supplies the card. That makes the preview the author's CLAIM
+// rather than attested fact, which is why the square renders it as the
+// author's words and the deep link is what makes it checkable.
+
+export interface SharePreview {
+  title: string;
+  subtitle?: string;
+  imageUrl?: string;
+}
+
+export interface CreatePostInput {
+  text: string;
+  deepLink: MarketSquareDeepLink;
+  preview: SharePreview;
+}
+
+export interface MarketSquarePost {
+  id: string;
+}
+
+/**
+ * Post an activity to Market Square.
+ *
+ * A deployment that has not shipped `preview` yet would drop it silently — the
+ * post would appear with a bare link and no card, which looks like the feature
+ * half-works. So a body-shaped rejection retries without the preview and the
+ * caller is told, rather than the user believing they shared a card they did
+ * not.
+ */
+export async function createPost(
+  input: CreatePostInput
+): Promise<{ post: MarketSquarePost; previewShared: boolean }> {
+  const base = { kind: "update" as const, text: input.text, deepLink: input.deepLink };
+  try {
+    const post = await marketSquare.post<MarketSquarePost>("/posts", {
+      ...base,
+      preview: input.preview,
+    });
+    return { post, previewShared: true };
+  } catch (error) {
+    if (!rejectedTheBody(error)) throw error;
+    console.warn("Market Square rejected the post preview; posting the link alone.", error);
+    return {
+      post: await marketSquare.post<MarketSquarePost>("/posts", base),
+      previewShared: false,
+    };
+  }
 }
