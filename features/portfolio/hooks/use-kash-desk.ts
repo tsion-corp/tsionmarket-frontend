@@ -6,7 +6,7 @@ import { useWallets } from "@privy-io/react-auth";
 import type { EIP1193Provider } from "viem";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useInvalidateKash } from "@/hooks/use-kash-invalidate";
+import { useInvalidateKash } from "@/features/portfolio/hooks/use-kash";
 import { isValidKashAmount } from "@/features/portfolio/lib/kash";
 import {
   getKashDeskBuyQuote,

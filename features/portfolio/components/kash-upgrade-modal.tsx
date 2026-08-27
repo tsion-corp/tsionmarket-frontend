@@ -12,8 +12,8 @@ import { usdcAmountForPrice, usdcTransferData } from "@/features/portfolio/lib/k
 import {
   formatUsdMicro,
   spendableUsdcMicro,
-  tierShares,
   usdToMicro,
+  volumeBands,
 } from "@/features/portfolio/lib/kash";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import {
@@ -36,9 +36,9 @@ interface KashUpgradeModalProps {
 export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
   const t = useTranslations("kash");
   const { data: status } = useKashStatus();
-  // The reward ladder is engine config; deriving it here keeps the prices and
-  // shares from ever disagreeing with what actually pays out.
-  const shares = tierShares(status?.points);
+  // The volume ladder is engine config; deriving it here keeps the prices,
+  // bands and rates from ever disagreeing with what actually pays out.
+  const bands = volumeBands(status?.points);
   const { wallet } = useKashAccount();
   const { data: subscription } = useKashSubscription();
   const tiers = useKashSubscriptionTiers(open);
@@ -149,7 +149,7 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
             {(tiers.data ?? []).map((tier) => {
               const isCurrent = tier.tier === currentTier;
               const isDowngrade = tier.tier < currentTier;
-              const share = shares.find((entry) => entry.tier === tier.tier);
+              const band = bands.find((entry) => entry.tier === tier.tier);
               const reachable = tier.tier <= currentTier;
               const unaffordable = !affordableMicro(tier.priceUsd);
               return (
@@ -196,20 +196,23 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
                     )}
                   </div>
 
-                  {/* This tier's flat share of the fee its activity produces.
-                      Without this a price is just a price — the whole reason
-                      to upgrade is earning a bigger share of your own fee. */}
-                  {share && (
+                  {/* The volume band this tier unlocks, and its rate. Without
+                      these a price is just a price — the whole reason to
+                      upgrade is that volume above your band is being paid at
+                      your tier's rate, not the band's. */}
+                  {band && (
                     <div className="mt-2.5 flex items-center justify-between border-t border-white/8 pt-2.5">
                       <span className="tnum text-[12px] font-normal text-white/45">
-                        {t("tierShareLabel")}
+                        {band.toUsd === null
+                          ? t("tierBandOpen", { from: band.fromUsd })
+                          : t("tierBand", { from: band.fromUsd, to: band.toUsd })}
                       </span>
                       <span
                         className={`tnum text-[12px] font-medium ${
                           reachable ? "text-amber-200/90" : "text-white/35"
                         }`}
                       >
-                        {t("tierShareRate", { pct: share.sharePct })}
+                        {t("tierRate", { rate: band.ratePer10Usd })}
                         {!reachable && <span className="ml-1.5">{t("tierLockedRate")}</span>}
                       </span>
                     </div>

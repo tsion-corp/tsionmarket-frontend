@@ -1,13 +1,11 @@
 "use client";
 
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import type { EIP1193Provider } from "viem";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useInvalidateKash } from "@/hooks/use-kash-invalidate";
+import { markKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
-  claimSettlementMessage,
   getKashAccount,
   getKashConversionQuote,
   getKashLedger,
@@ -130,8 +128,33 @@ export function useKashConversionQuote(kashAmount: string, enabled = true) {
 }
 
 // Both mutations settle the account balance server-side, so success refreshes
-// every kash read at once rather than patching caches by hand. See
-// hooks/use-kash-invalidate.ts for why useInvalidateKash lives there.
+// every kash read at once rather than patching caches by hand.
+/**
+ * Refresh every Kash read.
+ *
+ * Exported because not every balance-changing action is a mutation here: a KSH
+ * send is a raw on-chain transfer, so nothing invalidates on its behalf and the
+ * card would otherwise show the pre-send balance until the next poll.
+ */
+export function useInvalidateKash() {
+  const queryClient = useQueryClient();
+  return () => {
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ["kash"] });
+    refresh();
+    // Hold the "syncing" state open across the whole settle window, so the card
+    // shows the numbers are catching up rather than presenting a stale figure
+    // as final.
+    markKashSyncing(CHAIN_SETTLE_RETRIES_MS[CHAIN_SETTLE_RETRIES_MS.length - 1] ?? 0);
+    // A mint or burn is confirmed by the time a mutation resolves, but the RPC
+    // replica the engine reads its balances from can still be a block behind.
+    // Refetching once more shortly after is what stops a successful claim from
+    // appearing to have done nothing.
+    CHAIN_SETTLE_RETRIES_MS.forEach((delay) => setTimeout(refresh, delay));
+  };
+}
+
+/** When to re-check balances after a chain write, in ms. */
+const CHAIN_SETTLE_RETRIES_MS = [2500, 6000];
 
 export function useKashPurchase() {
   const invalidate = useInvalidateKash();
@@ -165,30 +188,11 @@ export function useKashSubscribe() {
   });
 }
 
-/**
- * Settle the wallet's points into KSH now; refreshes the card on success.
- *
- * The engine has no session of its own for this route (see
- * WalletSignatureVerifier on the backend), so the embedded wallet signs a
- * deterministic message (EIP-191 personal_sign) proving it really is the
- * caller before the claim is posted. No gas, no on-chain tx.
- */
+/** Settle the wallet's points into KSH now; refreshes the card on success. */
 export function useKashClaim() {
-  const { wallets } = useWallets();
   const invalidate = useInvalidateKash();
   return useMutation({
-    mutationFn: async ({ wallet }: { wallet: string }) => {
-      const signer = wallets.find((w) => w.address.toLowerCase() === wallet.toLowerCase());
-      if (!signer) throw new Error("Signing wallet is not connected.");
-      const timestamp = Date.now();
-      const message = claimSettlementMessage(wallet, timestamp);
-      const provider = (await signer.getEthereumProvider()) as unknown as EIP1193Provider;
-      const signature = (await provider.request({
-        method: "personal_sign",
-        params: [message as `0x${string}`, wallet as `0x${string}`],
-      })) as string;
-      return postKashClaim(wallet, signature, timestamp);
-    },
+    mutationFn: ({ wallet }: { wallet: string }) => postKashClaim(wallet),
     onSuccess: invalidate,
   });
 }

@@ -14,7 +14,7 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { Pager } from "@/components/ui/pager";
-import { MoneyTicker } from "@/components/ui/money-ticker";
+import { MoneyTicker } from "@/features/casino/components/last-standing/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
 import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
 import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";

@@ -7,7 +7,6 @@ import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useDepositChains, useDepositStatus } from "@/hooks/use-deposit";
-import { useInvalidateKash } from "@/hooks/use-kash-invalidate";
 import { useBuyDestinations } from "@/features/trade/hooks/use-buy-catalog";
 import { useBuy } from "@/features/trade/hooks/use-buy";
 import { useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
@@ -51,7 +50,6 @@ interface BuySheetProps {
 export function BuySheet({ payload, onClose }: BuySheetProps) {
   const t = useTranslations("buySell");
   const portfolio = usePortfolio();
-  const invalidateKash = useInvalidateKash();
   const destinations = useBuyDestinations();
 
   const routes = useMemo(
@@ -192,7 +190,6 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged();
-      invalidateKash();
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
@@ -218,7 +215,6 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     portfolio,
     t,
     spotMode,
-    invalidateKash,
   ]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle

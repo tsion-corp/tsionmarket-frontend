@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  closeFee,
   fromBaseUnits,
   liquidationPrice,
   openFee,
@@ -90,24 +89,12 @@ describe("receiveFromPrices", () => {
 
 describe("openFee", () => {
   it("is a flat rate on the notional size", () => {
-    expect(openFee(10_000)).toBeCloseTo(8);
-    expect(openFee(2500)).toBeCloseTo(2);
+    expect(openFee(10_000)).toBeCloseTo(6);
+    expect(openFee(2500)).toBeCloseTo(1.5);
   });
 
   it("is zero for a non-positive size", () => {
     expect(openFee(0)).toBe(0);
     expect(openFee(-100)).toBe(0);
-  });
-});
-
-describe("closeFee", () => {
-  it("charges the same flat rate as openFee — both legs of a round trip", () => {
-    expect(closeFee(10_000)).toBeCloseTo(8);
-    expect(closeFee(2500)).toBeCloseTo(2);
-  });
-
-  it("is zero for a non-positive size", () => {
-    expect(closeFee(0)).toBe(0);
-    expect(closeFee(-100)).toBe(0);
   });
 });
