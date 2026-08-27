@@ -386,10 +386,44 @@ export interface MarketSquarePost {
  * attaching a synthetic card ("On Ark", linking to whatever page they happened
  * to be on) puts a claim in their post that they did not make.
  */
-export async function createSquarePost(text: string, topics?: string[]): Promise<MarketSquarePost> {
+export interface SquareUpload {
+  url: string;
+  kind: "image" | "video";
+  contentType: string;
+  bytes: number;
+}
+
+/**
+ * Upload a picture or clip for a post.
+ *
+ * Sent as multipart so the service sees the real bytes and judges the CONTENT
+ * TYPE itself — it never trusts a filename, and it caps size server-side. The
+ * proxy forwards the body and its boundary verbatim.
+ */
+export async function uploadSquareMedia(file: File): Promise<SquareUpload> {
+  const form = new FormData();
+  form.append("file", file);
+  return marketSquare.postForm<SquareUpload>("/uploads", form);
+}
+
+export interface SquareAttachment {
+  deepLink: MarketSquareDeepLink;
+  preview: { title: string; subtitle?: string | null; imageUrl?: string | null };
+}
+
+export async function createSquarePost(
+  text: string,
+  topics?: string[],
+  media?: { url: string; kind: "image" | "video" } | null,
+  attachment?: SquareAttachment | null
+): Promise<MarketSquarePost> {
   return marketSquare.post<MarketSquarePost>("/posts", {
     kind: "update",
     text,
+    // A preview without a deep link is refused by the service — a card that
+    // leads nowhere is not a share — so the two always travel together.
+    ...(attachment ? { deepLink: attachment.deepLink, preview: attachment.preview } : {}),
+    ...(media ? { mediaUrl: media.url, mediaKind: media.kind } : {}),
     // Omitted rather than sent empty: the service treats an absent field and
     // an empty array the same, and sending `[]` implies a choice was made.
     ...(topics && topics.length > 0 ? { topics } : {}),
@@ -435,6 +469,8 @@ export interface MarketSquareAuthor {
   avatarUrl: string | null;
   verification: string;
   role: MarketSquareRole;
+  /** Viewer state, hydrated by the feed for a signed-in reader. */
+  isFollowing?: boolean;
 }
 
 /**
@@ -609,4 +645,42 @@ export async function addPostComment(postId: string, text: string): Promise<Mark
  */
 export async function recordPostView(postId: string): Promise<void> {
   await marketSquare.post(`/posts/${postId}/views`, {});
+}
+
+export interface FollowResult {
+  following: boolean;
+}
+
+/** Follow or unfollow an author. Idempotent upstream in both directions. */
+export async function setFollow(profileId: string, following: boolean): Promise<FollowResult> {
+  const path = `/profiles/${profileId}/follow`;
+  return following
+    ? marketSquare.post<FollowResult>(path, {})
+    : marketSquare.del<FollowResult>(path);
+}
+
+export interface MarketSquareMe {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  verification: string;
+  role: MarketSquareRole;
+}
+
+/** The reader's own square identity, for the compose sheet's header. */
+export async function fetchSquareMe(): Promise<MarketSquareMe> {
+  return marketSquare.get<MarketSquareMe>("/me");
+}
+
+/**
+ * Unread counters for the square.
+ *
+ * Shapes vary by deployment, so anything unrecognised reads as zero rather
+ * than rendering a badge with NaN in it.
+ */
+export async function fetchSquareUnread(): Promise<number> {
+  const data = await marketSquare.get<Record<string, unknown>>("/me/unread");
+  const value = data?.notifications ?? data?.unread ?? data?.count ?? 0;
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }

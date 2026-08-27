@@ -23,6 +23,8 @@ export const squarePath = {
   post: (id: string): string => `p/${encodeURIComponent(id)}`,
   live: (id: string): string => `live/${encodeURIComponent(id)}`,
   profile: (username: string): string => `u/${encodeURIComponent(username)}`,
+  /** app/notifications — the reader's square inbox. */
+  notifications: (): string => "notifications",
 } as const;
 
 export const squareLinks = {
@@ -30,4 +32,5 @@ export const squareLinks = {
   post: (id: string): string | null => marketSquareHref(squarePath.post(id)),
   live: (id: string): string | null => marketSquareHref(squarePath.live(id)),
   profile: (username: string): string | null => marketSquareHref(squarePath.profile(username)),
+  notifications: (): string | null => marketSquareHref(squarePath.notifications()),
 } as const;

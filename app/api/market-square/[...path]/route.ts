@@ -39,14 +39,18 @@ async function forward(
   req: NextRequest,
   joined: string,
   method: ProxyMethod,
-  body?: string
+  body?: string | ArrayBuffer,
+  contentType?: string
 ): Promise<NextResponse> {
   const search = req.nextUrl.searchParams.toString();
   const url = `${BASE}/${joined}${search ? `?${search}` : ""}`;
   const authorization = bearerOf(req);
   const headers: Record<string, string> = { accept: "application/json" };
   if (authorization) headers.authorization = authorization;
-  if (body !== undefined) headers["content-type"] = "application/json";
+  // Multipart carries its BOUNDARY in the content-type, so it is copied
+  // verbatim; rewriting or dropping it corrupts the payload as thoroughly as
+  // losing the bytes, and multer answers a boundary-less body with a bare 500.
+  if (body !== undefined) headers["content-type"] = contentType ?? "application/json";
 
   let res: Response;
   let text: string;
@@ -94,7 +98,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   const joined = path.join("/");
   if (!marketSquareProxyPaths.allows("GET", joined))
     return jsonError("NOT_FOUND", "Not found", 404);
-  if (!(await verifyRequest(req))) return jsonError("UNAUTHORIZED", "Sign in to continue.", 401);
+  // The square's public reads answer anybody upstream, so gating them here
+  // turned the dashboard's whole social section into a 401 for signed-out
+  // readers. The token is still forwarded when present, so viewer state keeps
+  // resolving for everyone else.
+  if (!marketSquareProxyPaths.isPublicGet(joined) && !(await verifyRequest(req))) {
+    return jsonError("UNAUTHORIZED", "Sign in to continue.", 401);
+  }
   return forward(req, joined, "GET");
 }
 
@@ -104,6 +114,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ path: stri
   if (!marketSquareProxyPaths.allows("POST", joined))
     return jsonError("NOT_FOUND", "Not found", 404);
   if (!(await verifyRequest(req))) return jsonError("UNAUTHORIZED", "Sign in to continue.", 401);
+  const incoming = req.headers.get("content-type") ?? "";
+  if (incoming.startsWith("multipart/form-data")) {
+    // Buffered rather than streamed: a streamed body arrives empty at the
+    // service on Vercel, and an empty multipart becomes an unhandled 500 there
+    // rather than a useful error here. Vercel caps request bodies at 4.5MB
+    // before this code runs, so this can never hold more than that.
+    if (!incoming.includes("boundary=")) {
+      return jsonError("VALIDATION_ERROR", "Malformed upload — no multipart boundary.", 400);
+    }
+    return forward(req, joined, "POST", await req.arrayBuffer(), incoming);
+  }
   const body = await req.text();
   return forward(req, joined, "POST", body || undefined);
 }

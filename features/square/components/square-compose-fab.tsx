@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { squareLinks } from "@/lib/square/links";
 import { SquareComposer } from "@/components/share/square-composer";
+import { SquareActionsSheet } from "@/features/square/components/square-actions-sheet";
 import type { TradableSymbol } from "@/lib/square/tradable";
 
 /** How far down the page the square section starts mattering, in viewports. */
@@ -22,10 +23,18 @@ const REVEAL_AFTER_VIEWPORTS = 1.2;
  * phone, and it never sits over the sticky header because it is anchored to
  * the bottom.
  */
-export function SquareComposeFab({ markets = [] }: { markets?: TradableSymbol[] }) {
+export function SquareComposeFab({
+  markets = [],
+  onPickTopic,
+}: {
+  markets?: TradableSymbol[];
+  /** Lets the sheet's discussions steer the feed's tab strip. */
+  onPickTopic?: (key: string) => void;
+}) {
   const t = useTranslations("square");
   const [shown, setShown] = useState(false);
-  const [composing, setComposing] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [composing, setComposing] = useState<false | "text" | "media">(false);
   // Only the square being CONFIGURED matters now; the composer is local, so
   // there is no compose URL to navigate to.
   const href = squareLinks.home();
@@ -57,7 +66,7 @@ export function SquareComposeFab({ markets = [] }: { markets?: TradableSymbol[] 
     <>
       <button
         type="button"
-        onClick={() => setComposing(true)}
+        onClick={() => setSheetOpen(true)}
         aria-label={t("compose")}
         // Kept mounted and faded so it does not pop into the layout mid-scroll;
         // `pointer-events-none` while hidden keeps it from catching taps meant
@@ -87,12 +96,31 @@ export function SquareComposeFab({ markets = [] }: { markets?: TradableSymbol[] 
         </svg>
       </button>
 
-      {/* Posting happens HERE, in Ark. The plus used to link out to the
-          square's own composer, which meant leaving the dashboard and landing
-          on another deployment to say one sentence. Posting is the one write
-          Ark's proxy already relays, so there was never a reason to send
-          people away. */}
-      <SquareComposer open={composing} onClose={() => setComposing(false)} markets={markets} />
+      {/* The plus opens the square's entry sheet — who you are there, what is
+          waiting, and the ways in — rather than assuming writing is the only
+          reason anyone reaches for it. */}
+      <SquareActionsSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onCompose={() => {
+          setSheetOpen(false);
+          setComposing("text");
+        }}
+        onComposeMedia={() => {
+          setSheetOpen(false);
+          setComposing("media");
+        }}
+        onPickTopic={onPickTopic}
+      />
+
+      {/* Composing happens HERE, in Ark, rather than on another deployment:
+          posting is a write the proxy already relays. */}
+      <SquareComposer
+        open={composing !== false}
+        onClose={() => setComposing(false)}
+        markets={markets}
+        withMedia={composing === "media"}
+      />
     </>
   );
 }

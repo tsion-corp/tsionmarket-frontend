@@ -9,6 +9,8 @@ import { formatCompact } from "@/lib/square/format-count";
 import { useSquareEngage } from "@/features/square/hooks/use-square-engage";
 import { useRecordView } from "@/features/square/hooks/use-record-view";
 import { SquareComments } from "@/features/square/components/square-comments";
+import { CoinChip } from "@/features/square/components/coin-chip";
+import { FollowButton } from "@/features/square/components/follow-button";
 import { authorName } from "@/lib/square/author";
 import { SquareAvatar } from "@/features/square/components/square-avatar";
 import type { MarketSquareFeedPost } from "@/lib/api/market-square";
@@ -115,8 +117,11 @@ export function SquarePostCard({
   post,
   markets,
   onOpenBuy,
+  meId,
 }: {
   post: MarketSquareFeedPost;
+  /** The reader's own square id, so the card never offers self-follow. */
+  meId?: string;
   markets: TradableSymbol[];
   onOpenBuy?: (buy: BuyPayload) => void;
 }) {
@@ -125,6 +130,8 @@ export function SquarePostCard({
   const [commenting, setCommenting] = useState(false);
   const seenRef = useRecordView(post.id);
   const author = post.author;
+  // Never offer to follow yourself.
+  const isMe = meId !== undefined && author?.id === meId;
   const href = squareLinks.post(post.id);
 
   const bySymbol = useMemo(() => {
@@ -141,6 +148,22 @@ export function SquarePostCard({
         : [{ kind: "text" as const, value: post.text }],
     [post.text, bySymbol, onOpenBuy]
   );
+
+  // Every tradeable coin the post names, in the order it names them, once each.
+  // The chips answer the question the sentence raises — "is it moving?" —
+  // without the reader leaving the post to go and look.
+  const mentioned = useMemo(() => {
+    const seen = new Set<string>();
+    const out: typeof markets = [];
+    for (const segment of segments) {
+      if (segment.kind !== "cashtag" || seen.has(segment.symbol)) continue;
+      const market = bySymbol.get(segment.symbol);
+      if (!market) continue;
+      seen.add(segment.symbol);
+      out.push(market);
+    }
+    return out;
+  }, [segments, bySymbol]);
 
   const isVideo =
     post.mediaKind === "video" || /\.(mp4|webm|mov|m4v)(\?|$)/i.test(post.mediaUrl ?? "");
@@ -164,6 +187,7 @@ export function SquarePostCard({
             {timeAgo(post.createdAt)}
           </p>
         </div>
+        {author && !isMe ? <FollowButton author={author} /> : null}
         {href ? (
           <a
             href={href}
@@ -213,6 +237,28 @@ export function SquarePostCard({
             )
           )}
         </p>
+      ) : null}
+
+      {mentioned.length > 0 ? (
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          {mentioned.map((market) => (
+            <CoinChip
+              key={market.symbol}
+              market={market}
+              onOpen={
+                onOpenBuy
+                  ? () =>
+                      onOpenBuy({
+                        symbol: market.symbol,
+                        name: market.name,
+                        priceUsd: market.priceUsd,
+                        logo: market.logo,
+                      })
+                  : undefined
+              }
+            />
+          ))}
+        </div>
       ) : null}
 
       {/* The author's card for a deep link — a trade, a result, a position.

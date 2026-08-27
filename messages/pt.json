@@ -2518,6 +2518,22 @@
     "commentFailed": "Não foi possível publicar a resposta. Nada foi enviado.",
     "commentsLoading": "A carregar respostas…",
     "commentsSubject": "as respostas",
-    "commentsEmpty": "Ainda não há respostas. Seja o primeiro."
+    "commentsEmpty": "Ainda não há respostas. Seja o primeiro.",
+    "follow": "Seguir",
+    "following": "A seguir",
+    "unfollow": "Deixar de seguir",
+    "yourProfile": "O seu perfil",
+    "notifications": "Notificações",
+    "notificationsWithCount": "{count, plural, one {# notificação não lida} other {# notificações não lidas}}",
+    "discussions": "Discussões",
+    "openProfile": "Abrir o seu perfil da Praça",
+    "tilePost": "Publicar",
+    "tileMedia": "Multimédia",
+    "tileLive": "Em direto",
+    "toolMedia": "Anexar uma foto ou clipe",
+    "mediaUploading": "A carregar…",
+    "mediaFailed": "Não foi possível anexar. Apenas imagens e clipes curtos.",
+    "mediaRemove": "Remover anexo",
+    "joinDiscussion": "Juntar-se à discussão"
   }
 }

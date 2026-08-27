@@ -20,6 +20,10 @@ describe("squarePath", () => {
     expect(squarePath.profile("adeey")).toBe("u/adeey");
   });
 
+  it("points the bell at the notifications route the app defines", () => {
+    expect(squarePath.notifications()).toBe("notifications");
+  });
+
   it("escapes ids, so a stray character cannot break out of the path", () => {
     expect(squarePath.post("a/b?c")).toBe("p/a%2Fb%3Fc");
     expect(squarePath.profile("a b")).toBe("u/a%20b");

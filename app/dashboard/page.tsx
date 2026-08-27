@@ -85,6 +85,14 @@ export default function DashboardPage() {
   // buy sheet. The spot section above already caches this, so it costs nothing
   // extra; the square slice takes a plain shape and never imports trade.
   const { markets: spotMarkets } = useSpotMarkets();
+  // The square's feed tab lives here because two siblings drive it: the
+  // section's own strip, and the plus sheet's discussions.
+  const [squareTab, setSquareTab] = useState<string | undefined>(undefined);
+  const openDiscussion = useCallback((key: string) => {
+    setSquareTab(`topic:${key}`);
+    // Otherwise the tab changes off-screen and the tap reads as doing nothing.
+    document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
+  }, []);
   useDashboardTour();
 
   // A spoken deposit ("deposit USDC on Solana") lands here as URL params: open
@@ -176,11 +184,16 @@ export default function DashboardPage() {
             purpose: someone opening Ark came for their money, and the square
             is what they scroll into once they are done reading it — met by
             browsing rather than by deciding to leave for another deployment. */}
-        <SquareSection onOpenBuy={openBuy} markets={spotMarkets} />
+        <SquareSection
+          onOpenBuy={openBuy}
+          markets={spotMarkets}
+          tab={squareTab}
+          onTabChange={setSquareTab}
+        />
       </DashboardShell>
       {/* Outside the shell so it anchors to the viewport rather than the
           scrolling column. It reveals itself once the square is in reach. */}
-      <SquareComposeFab markets={spotMarkets} />
+      <SquareComposeFab markets={spotMarkets} onPickTopic={openDiscussion} />
 
       <ModalShell
         open={modal !== null}

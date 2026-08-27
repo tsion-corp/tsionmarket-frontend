@@ -2518,6 +2518,22 @@
     "commentFailed": "Couldn't post that reply. Nothing was sent.",
     "commentsLoading": "Loading replies…",
     "commentsSubject": "the replies",
-    "commentsEmpty": "No replies yet. Be the first."
+    "commentsEmpty": "No replies yet. Be the first.",
+    "follow": "Follow",
+    "following": "Following",
+    "unfollow": "Unfollow",
+    "yourProfile": "Your profile",
+    "notifications": "Notifications",
+    "notificationsWithCount": "{count, plural, one {# unread notification} other {# unread notifications}}",
+    "discussions": "Discussions",
+    "openProfile": "Open your Square profile",
+    "tilePost": "Post",
+    "tileMedia": "Media",
+    "tileLive": "Go Live",
+    "toolMedia": "Attach a photo or clip",
+    "mediaUploading": "Uploading…",
+    "mediaFailed": "Couldn't attach that. Images and short clips only.",
+    "mediaRemove": "Remove attachment",
+    "joinDiscussion": "Join the discussion"
   }
 }

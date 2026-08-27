@@ -10,5 +10,7 @@ export interface TradableSymbol {
   symbol: string;
   name: string;
   priceUsd: number;
+  /** 24h move as a percentage. Drives the price chip under a post. */
+  change24h: number;
   logo: string | null;
 }

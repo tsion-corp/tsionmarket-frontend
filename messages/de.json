@@ -2518,6 +2518,22 @@
     "commentFailed": "Antwort konnte nicht gepostet werden. Es wurde nichts gesendet.",
     "commentsLoading": "Antworten werden geladen…",
     "commentsSubject": "die Antworten",
-    "commentsEmpty": "Noch keine Antworten. Sei der Erste."
+    "commentsEmpty": "Noch keine Antworten. Sei der Erste.",
+    "follow": "Folgen",
+    "following": "Folge ich",
+    "unfollow": "Entfolgen",
+    "yourProfile": "Dein Profil",
+    "notifications": "Benachrichtigungen",
+    "notificationsWithCount": "{count, plural, one {# ungelesene Benachrichtigung} other {# ungelesene Benachrichtigungen}}",
+    "discussions": "Diskussionen",
+    "openProfile": "Dein Marktplatz-Profil öffnen",
+    "tilePost": "Posten",
+    "tileMedia": "Medien",
+    "tileLive": "Live gehen",
+    "toolMedia": "Foto oder Clip anhängen",
+    "mediaUploading": "Wird hochgeladen…",
+    "mediaFailed": "Anhängen fehlgeschlagen. Nur Bilder und kurze Clips.",
+    "mediaRemove": "Anhang entfernen",
+    "joinDiscussion": "An der Diskussion teilnehmen"
   }
 }

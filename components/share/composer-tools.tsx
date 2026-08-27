@@ -79,6 +79,7 @@ export function ComposerTools({
   onToggleTopic,
   onInsertSymbol,
   onInsertText,
+  onPickMedia,
   disabled,
 }: {
   markets: TradableSymbol[];
@@ -87,6 +88,7 @@ export function ComposerTools({
   onToggleTopic: (key: string) => void;
   onInsertSymbol: (symbol: string) => void;
   onInsertText: (text: string) => void;
+  onPickMedia: () => void;
   disabled?: boolean;
 }) {
   const t = useTranslations("square");
@@ -114,6 +116,21 @@ export function ComposerTools({
           onClick={() => !disabled && setPanel(panel === "emoji" ? null : "emoji")}
         >
           <span aria-hidden>☺</span>
+        </ToolButton>
+        <ToolButton
+          label={t("toolMedia")}
+          active={false}
+          onClick={() => !disabled && onPickMedia()}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden className="h-[17px] w-[17px]">
+            <path
+              d="M4 5h16v14H4zM4 15l4.5-4.5L13 15m2.5-2.5L20 17"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.7"
+              strokeLinejoin="round"
+            />
+          </svg>
         </ToolButton>
         <ToolButton
           label={t("toolSymbol")}

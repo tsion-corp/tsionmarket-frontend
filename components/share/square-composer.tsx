@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ModalShell } from "@/components/ui/modal-shell";
-import { createSquarePost, fetchSquareTopics } from "@/lib/api/market-square";
+import { createSquarePost, fetchSquareTopics, uploadSquareMedia } from "@/lib/api/market-square";
+import type { SquareUpload } from "@/lib/api/market-square";
 import { squareLinks } from "@/lib/square/links";
 import { COUNTER_VISIBLE_FROM, canPost, remaining } from "@/lib/square/compose";
 import { ComposerTools } from "@/components/share/composer-tools";
@@ -29,11 +30,14 @@ export function SquareComposer({
   open,
   onClose,
   markets = [],
+  withMedia = false,
 }: {
   open: boolean;
   onClose: () => void;
   /** Tradeable symbols, so the $ tool offers what this app can actually open. */
   markets?: TradableSymbol[];
+  /** Opens straight into the file picker — the sheet's "Media" entry. */
+  withMedia?: boolean;
 }) {
   return (
     <ModalShell open={open} onClose={onClose}>
@@ -46,12 +50,25 @@ export function SquareComposer({
           extra render every time, and React's own guidance is to let identity
           do the work instead. Remounting starts the state clean by
           construction, with no effect at all. */}
-      <ComposerBody key={open ? "open" : "closed"} onClose={onClose} markets={markets} />
+      <ComposerBody
+        key={open ? "open" : "closed"}
+        onClose={onClose}
+        markets={markets}
+        withMedia={withMedia}
+      />
     </ModalShell>
   );
 }
 
-function ComposerBody({ onClose, markets }: { onClose: () => void; markets: TradableSymbol[] }) {
+function ComposerBody({
+  onClose,
+  markets,
+  withMedia,
+}: {
+  onClose: () => void;
+  markets: TradableSymbol[];
+  withMedia: boolean;
+}) {
   const t = useTranslations("square");
   const queryClient = useQueryClient();
   const [text, setText] = useState("");
@@ -59,7 +76,31 @@ function ComposerBody({ onClose, markets }: { onClose: () => void; markets: Trad
   const [error, setError] = useState<string | null>(null);
   const [postedId, setPostedId] = useState<string | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
+  const [media, setMedia] = useState<SquareUpload | null>(null);
+  const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // "Media" in the entry sheet means the person already decided to attach
+  // something, so open the picker for them rather than making them find it.
+  useEffect(() => {
+    if (withMedia) fileRef.current?.click();
+  }, [withMedia]);
+
+  async function pickMedia(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      setMedia(await uploadSquareMedia(file));
+    } catch {
+      // The service caps size and judges the content type, so this is where
+      // "too big" and "not a supported type" both land.
+      setError(t("mediaFailed"));
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const topicQuery = useQuery({
     queryKey: ["market-square", "topics"],
@@ -83,10 +124,11 @@ function ComposerBody({ onClose, markets }: { onClose: () => void; markets: Trad
     setPosting(true);
     setError(null);
     try {
-      const post = await createSquarePost(text.trim(), topics);
+      const post = await createSquarePost(text.trim(), topics, media);
       setPostedId(post.id);
       setText("");
       setTopics([]);
+      setMedia(null);
       // The dashboard feed is the surface directly behind this sheet, so the
       // new post should be there when it closes rather than after a reload.
       await queryClient.invalidateQueries({ queryKey: ["market-square", "feed"] });
@@ -123,12 +165,42 @@ function ComposerBody({ onClose, markets }: { onClose: () => void; markets: Trad
         className="border-grey-800 mt-4 h-32 w-full resize-none rounded-xl border bg-black/40 p-3 font-sans text-[14px] text-white outline-none placeholder:text-white/35 focus:border-white/30 disabled:opacity-60"
       />
 
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
+        hidden
+        onChange={(event) => void pickMedia(event.target.files?.[0])}
+      />
+
+      {media ? (
+        <div className="border-grey-800 relative mt-3 overflow-hidden rounded-xl border">
+          {media.kind === "image" ? (
+            // eslint-disable-next-line @next/next/no-img-element -- freshly uploaded, host is ours
+            <img src={media.url} alt="" className="max-h-[220px] w-full object-cover" />
+          ) : (
+            <video src={media.url} controls className="max-h-[220px] w-full" />
+          )}
+          <button
+            type="button"
+            onClick={() => setMedia(null)}
+            aria-label={t("mediaRemove")}
+            className="absolute top-2 right-2 grid size-7 place-items-center rounded-full bg-black/70 text-white"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
+
+      {uploading ? <p className="text-grey-500 mt-2 text-[12.5px]">{t("mediaUploading")}</p> : null}
+
       <div className="mt-3">
         <ComposerTools
           markets={markets}
           topics={topicQuery.data ?? []}
           selectedTopics={topics}
           disabled={posting}
+          onPickMedia={() => fileRef.current?.click()}
           onInsertText={(fragment) => {
             const input = inputRef.current;
             const at = input?.selectionStart ?? text.length;

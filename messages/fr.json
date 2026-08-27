@@ -2518,6 +2518,22 @@
     "commentFailed": "Impossible de publier cette réponse. Rien n'a été envoyé.",
     "commentsLoading": "Chargement des réponses…",
     "commentsSubject": "les réponses",
-    "commentsEmpty": "Aucune réponse. Soyez le premier."
+    "commentsEmpty": "Aucune réponse. Soyez le premier.",
+    "follow": "Suivre",
+    "following": "Abonné",
+    "unfollow": "Se désabonner",
+    "yourProfile": "Votre profil",
+    "notifications": "Notifications",
+    "notificationsWithCount": "{count, plural, one {# notification non lue} other {# notifications non lues}}",
+    "discussions": "Discussions",
+    "openProfile": "Ouvrir votre profil de la Place",
+    "tilePost": "Publier",
+    "tileMedia": "Média",
+    "tileLive": "En direct",
+    "toolMedia": "Joindre une photo ou un clip",
+    "mediaUploading": "Envoi…",
+    "mediaFailed": "Impossible de joindre ce fichier. Images et clips courts uniquement.",
+    "mediaRemove": "Retirer la pièce jointe",
+    "joinDiscussion": "Rejoindre la discussion"
   }
 }
