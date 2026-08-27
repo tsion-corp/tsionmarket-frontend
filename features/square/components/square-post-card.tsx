@@ -299,7 +299,7 @@ export function SquarePostCard({
           href={href ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
-          className="border-grey-800 relative mt-3 block overflow-hidden rounded-xl border"
+          className="border-grey-800 relative mt-3 block overflow-hidden rounded-xl border bg-black/40"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- author-supplied host is unknown */}
           <img
@@ -307,7 +307,11 @@ export function SquarePostCard({
             alt=""
             loading="lazy"
             decoding="async"
-            className="max-h-[320px] w-full object-cover"
+            // CONTAIN, not cover: a screenshot of a chart or a P&L is the
+            // whole point of the post, and cropping it to fill a box slices
+            // exactly the numbers someone posted it for. Letterboxing on a
+            // neutral ground looks deliberate; a beheaded chart looks broken.
+            className="max-h-[420px] w-full bg-black/40 object-contain"
           />
           {isVideo ? (
             <span className="absolute inset-0 grid place-items-center bg-black/25">

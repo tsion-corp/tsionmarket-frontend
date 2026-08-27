@@ -14,6 +14,18 @@ vi.mock("@/lib/square/links", () => ({
     live: (id: string) => `https://square.test/live/${id}`,
   },
 }));
+// The real control needs BroadcastSessionProvider (mounted app-wide in
+// app/providers.tsx) and has its own suite. What matters HERE is that the
+// sheet renders it rather than a placeholder gated on a callback nobody
+// passes, which is how it shipped permanently disabled.
+vi.mock("@/components/broadcast/go-live-control", () => ({
+  GoLiveControl: ({ variant }: { variant: string }) => (
+    <button type="button" data-testid="go-live" data-variant={variant}>
+      Go Live
+    </button>
+  ),
+}));
+
 const fetchTrendingDiscussions = vi.fn();
 vi.mock("@/lib/api/market-square", () => ({
   fetchSquareMe: vi.fn().mockResolvedValue(null),
@@ -47,6 +59,14 @@ function renderFab(
  * counts the import as "used". Only pressing it can.
  */
 describe("SquareComposeFab", () => {
+  it("embeds the real Go Live control rather than a disabled placeholder", () => {
+    renderFab();
+    fireEvent.click(screen.getByRole("button", { name: "compose" }));
+    const live = screen.getByTestId("go-live");
+    expect(live).toHaveAttribute("data-variant", "tile");
+    expect(live).not.toBeDisabled();
+  });
+
   it("opens the actions sheet when pressed", () => {
     renderFab();
     // Revealed on scroll; the sheet is what is under test, so force it visible.
@@ -61,7 +81,8 @@ describe("SquareComposeFab", () => {
     // rather than the plus jumping straight to the composer.
     expect(screen.getByText("tilePost")).toBeInTheDocument();
     expect(screen.getByText("tileMedia")).toBeInTheDocument();
-    expect(screen.getByText("tileLive")).toBeInTheDocument();
+    // Live is the broadcast control itself, which brings its own label.
+    expect(screen.getByTestId("go-live")).toBeInTheDocument();
   });
 
   it("opens the composer from the sheet's Post tile", () => {

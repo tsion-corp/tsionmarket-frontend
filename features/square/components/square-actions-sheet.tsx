@@ -11,6 +11,7 @@ import {
 } from "@/lib/api/market-square";
 import { squareLinks } from "@/lib/square/links";
 import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { GoLiveControl } from "@/components/broadcast/go-live-control";
 
 /**
  * What the plus opens.
@@ -60,7 +61,6 @@ export function SquareActionsSheet({
   onClose,
   onCompose,
   onComposeMedia,
-  onGoLive,
   onPickTopic,
   onPickDiscussion,
 }: {
@@ -68,7 +68,6 @@ export function SquareActionsSheet({
   onClose: () => void;
   onCompose: () => void;
   onComposeMedia: () => void;
-  onGoLive?: () => void;
   onPickTopic?: (key: string) => void;
   /** A hashtag, without the `#`. */
   onPickDiscussion?: (tag: string) => void;
@@ -184,18 +183,12 @@ export function SquareActionsSheet({
               strokeLinejoin="round"
             />
           </Tile>
-          <Tile label={t("tileLive")} onClick={onGoLive} disabled={!onGoLive}>
-            <>
-              <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
-              <path
-                d="M6.5 6.5a7.8 7.8 0 0 0 0 11M17.5 6.5a7.8 7.8 0 0 1 0 11"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-              />
-            </>
-          </Tile>
+          {/* The REAL broadcast control, not a lookalike. This tile used to be
+              a plain button gated on an `onGoLive` callback that nothing ever
+              passed, so it rendered permanently disabled. Reusing the control
+              brings the session state and the route-derived broadcast target
+              with it, and leaves no prop for a caller to forget. */}
+          <GoLiveControl variant="tile" />
         </div>
 
         {(discussions.data?.length ?? 0) > 0 ? (

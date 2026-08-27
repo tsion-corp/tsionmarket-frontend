@@ -177,7 +177,14 @@ function ComposerBody({
         <div className="border-grey-800 relative mt-3 overflow-hidden rounded-xl border">
           {media.kind === "image" ? (
             // eslint-disable-next-line @next/next/no-img-element -- freshly uploaded, host is ours
-            <img src={media.url} alt="" className="max-h-[220px] w-full object-cover" />
+            // Contain, for the same reason the feed card does: the author is
+            // about to publish this and needs to see what they are sending,
+            // not a cropped guess at it.
+            <img
+              src={media.url}
+              alt=""
+              className="max-h-[260px] w-full bg-black/40 object-contain"
+            />
           ) : (
             <video src={media.url} controls className="max-h-[220px] w-full" />
           )}
