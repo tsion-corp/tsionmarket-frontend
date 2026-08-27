@@ -119,6 +119,11 @@ export const roleApplicationSchema = z
   })
   .nullable();
 
+const likeResultSchema = z.object({
+  liked: z.boolean(),
+  likeCount: z.number(),
+});
+
 // The schema for a proxied path, or null when nothing models it. Keyed on the
 // joined path with ids collapsed, the same way the chess proxy does it.
 //
@@ -127,7 +132,7 @@ export const roleApplicationSchema = z
 // one request. Everything else answers the same shape either way.
 export function marketSquareSchemaFor(
   joined: string,
-  method: "GET" | "POST" = "POST"
+  method: "GET" | "POST" | "DELETE" = "POST"
 ): z.ZodType | null {
   if (joined === "me") return marketSquareProfileSchema;
   if (joined === "me/creator-application") return roleApplicationSchema;
@@ -143,5 +148,9 @@ export function marketSquareSchemaFor(
   if (/^streams\/[^/]+\/speaker-token$/u.test(joined)) return speakerTokenSchema;
   if (/^streams\/[^/]+\/go-live$/u.test(joined)) return goLiveSchema;
   if (/^streams\/[^/]+\/end$/u.test(joined)) return streamSchema;
+  // Like and unlike answer the same envelope, so one schema covers both.
+  // Pinning it matters: the card renders `likeCount` straight from the
+  // response, and an unmodelled shape would put NaN under a heart.
+  if (/^posts\/[^/]+\/like$/u.test(joined)) return likeResultSchema;
   return null;
 }

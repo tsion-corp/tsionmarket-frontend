@@ -1,4 +1,4 @@
-import { marketSquareProxyPaths } from "@/lib/api/market-square-proxy-paths";
+import { marketSquareProxyPaths, type ProxyMethod } from "@/lib/api/market-square-proxy-paths";
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { marketSquareSchemaFor } from "@/lib/api/schemas/market-square";
@@ -38,7 +38,7 @@ function bearerOf(req: NextRequest): string | null {
 async function forward(
   req: NextRequest,
   joined: string,
-  method: "GET" | "POST",
+  method: ProxyMethod,
   body?: string
 ): Promise<NextResponse> {
   const search = req.nextUrl.searchParams.toString();
@@ -46,7 +46,7 @@ async function forward(
   const authorization = bearerOf(req);
   const headers: Record<string, string> = { accept: "application/json" };
   if (authorization) headers.authorization = authorization;
-  if (method === "POST") headers["content-type"] = "application/json";
+  if (body !== undefined) headers["content-type"] = "application/json";
 
   let res: Response;
   let text: string;
@@ -106,4 +106,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ path: stri
   if (!(await verifyRequest(req))) return jsonError("UNAUTHORIZED", "Sign in to continue.", 401);
   const body = await req.text();
   return forward(req, joined, "POST", body || undefined);
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const { path } = await ctx.params;
+  const joined = path.join("/");
+  if (!marketSquareProxyPaths.allows("DELETE", joined))
+    return jsonError("NOT_FOUND", "Not found", 404);
+  if (!(await verifyRequest(req))) return jsonError("UNAUTHORIZED", "Sign in to continue.", 401);
+  return forward(req, joined, "DELETE");
 }

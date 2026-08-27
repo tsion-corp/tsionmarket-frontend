@@ -17,6 +17,16 @@
 // which carries the publishing credentials once it is approved.
 const GET_PATHS = [
   /^me$/u,
+  // The square's feed, rendered inline on the Ark dashboard so the social
+  // surface is met while scrolling rather than only by leaving for another
+  // deployment. Public upstream — a signed-out player sees the same posts.
+  /^feed$/u,
+  // The topic vocabulary behind the feed's tab strip. Public upstream, and
+  // fetched rather than hard-coded so a topic the square adds shows up here
+  // instead of drifting out of sync with a compiled-in list.
+  /^topics$/u,
+  // A post's comment thread, read in place on the dashboard.
+  /^posts\/[^/]+\/comments$/u,
   /^me\/creator-application$/u,
   /^streams$/u,
   /^streams\/[^/]+$/u,
@@ -41,15 +51,39 @@ const POST_PATHS = [
   /^streams\/[^/]+\/speaker-requests$/u,
   /^streams\/[^/]+\/speaker-requests\/[^/]+\/(approve|decline|remove|leave)$/u,
   /^streams\/[^/]+\/speaker-token$/u,
+  // Engagement on a post, from the dashboard feed. Each of these is scoped to
+  // ONE post the reader is looking at, and none of them can reach another
+  // user's account: like, repost, comment, and recording that it was seen.
+  //
+  // Ark forwards the player's session, so every path here acts AS them — which
+  // is why the list stops where it does. Following, blocking, reporting,
+  // deleting and everything under /me or /admin stay in the square, where the
+  // person can see the full context of what they are doing.
+  /^posts\/[^/]+\/like$/u,
+  /^posts\/[^/]+\/repost$/u,
+  /^posts\/[^/]+\/comments$/u,
+  /^posts\/[^/]+\/views$/u,
 ];
+
+// Undoing a like or a repost is a DELETE upstream, so the relay has to speak
+// it — for those two paths and nothing else.
+const DELETE_PATHS = [/^posts\/[^/]+\/like$/u, /^posts\/[^/]+\/repost$/u];
 
 function allowed(patterns: RegExp[], joined: string): boolean {
   return patterns.some((pattern) => pattern.test(joined));
 }
 
+export type ProxyMethod = "GET" | "POST" | "DELETE";
+
+const BY_METHOD: Record<ProxyMethod, RegExp[]> = {
+  GET: GET_PATHS,
+  POST: POST_PATHS,
+  DELETE: DELETE_PATHS,
+};
+
 export const marketSquareProxyPaths = {
   get: GET_PATHS,
   post: POST_PATHS,
-  allows: (method: "GET" | "POST", joined: string): boolean =>
-    allowed(method === "GET" ? GET_PATHS : POST_PATHS, joined),
+  delete: DELETE_PATHS,
+  allows: (method: ProxyMethod, joined: string): boolean => allowed(BY_METHOD[method], joined),
 };
