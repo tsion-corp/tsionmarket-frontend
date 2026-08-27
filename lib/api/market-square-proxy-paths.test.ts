@@ -91,7 +91,7 @@ describe("market square proxy allowlist", () => {
   // square section into a 401 for signed-out readers even though the feed
   // upstream answers anybody. Only the genuinely public reads are exempt.
   it("exempts only the square's public reads from the session check", () => {
-    for (const path of ["feed", "topics", "posts/abc/comments"]) {
+    for (const path of ["feed", "topics", "hashtags/trending", "posts/abc/comments"]) {
       expect(marketSquareProxyPaths.isPublicGet(path), `${path} should be public`).toBe(true);
     }
     for (const path of [
@@ -102,6 +102,7 @@ describe("market square proxy allowlist", () => {
       "streams",
       "streams/abc/speaker-requests/me",
       "posts/abc/comments/extra",
+      "hashtags",
     ]) {
       expect(marketSquareProxyPaths.isPublicGet(path), `${path} must need a session`).toBe(false);
     }

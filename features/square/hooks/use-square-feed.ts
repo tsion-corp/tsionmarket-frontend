@@ -8,8 +8,8 @@ export const SQUARE_KEYS = {
   // Topics are part of the key: a filtered lane is a different list, and
   // sharing a cache entry with the unfiltered one would show the wrong posts
   // for a frame every time the tab changes.
-  feed: (lane: SquareLane, topics?: string[]) =>
-    ["market-square", "feed", lane, (topics ?? []).join(",")] as const,
+  feed: (lane: SquareLane, topics?: string[], hashtag?: string) =>
+    ["market-square", "feed", lane, (topics ?? []).join(","), hashtag ?? ""] as const,
 };
 
 /**
@@ -20,10 +20,10 @@ export const SQUARE_KEYS = {
  * ever renders an error is worse than one that is not there. The section
  * checks the same condition and does not mount.
  */
-export function useSquareFeed(lane: SquareLane, topics?: string[]) {
+export function useSquareFeed(lane: SquareLane, topics?: string[], hashtag?: string) {
   return useInfiniteQuery({
-    queryKey: SQUARE_KEYS.feed(lane, topics),
-    queryFn: ({ pageParam }) => fetchSquareFeed(lane, pageParam, 10, topics),
+    queryKey: SQUARE_KEYS.feed(lane, topics, hashtag),
+    queryFn: ({ pageParam }) => fetchSquareFeed(lane, pageParam, 10, topics, hashtag),
     initialPageParam: null as string | null,
     getNextPageParam: (last) => last.nextCursor,
     enabled: MARKET_SQUARE_URL !== "",

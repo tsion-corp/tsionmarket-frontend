@@ -542,10 +542,14 @@ export async function fetchSquareFeed(
   lane: SquareLane,
   cursor?: string | null,
   limit = 10,
-  topics?: string[]
+  topics?: string[],
+  hashtag?: string
 ): Promise<MarketSquareFeedPage> {
   const params = new URLSearchParams({ lane, limit: String(limit) });
   if (cursor) params.set("cursor", cursor);
+  // A hashtag REPLACES the lane upstream — it serves that one discussion
+  // rather than narrowing the lane, so a quiet tag is not an empty page.
+  if (hashtag) params.set("hashtag", hashtag);
   // Filters the lane rather than replacing it, which is why the tab strip can
   // mix "For you" with a topic without the two meaning different lists.
   if (topics && topics.length > 0) params.set("topics", topics.join(","));
@@ -683,4 +687,26 @@ export async function fetchSquareUnread(): Promise<number> {
   const data = await marketSquare.get<Record<string, unknown>>("/me/unread");
   const value = data?.notifications ?? data?.unread ?? data?.count ?? 0;
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
+}
+
+export interface TrendingDiscussion {
+  tag: string;
+  /** `#tag`, ready to render. */
+  label: string;
+  postCount: number;
+  /** Distinct authors — what makes it a discussion rather than one person. */
+  participantCount: number;
+}
+
+/**
+ * Hashtags people are actually using right now.
+ *
+ * Ranked by distinct participants rather than post volume, so one person
+ * repeating a tag cannot climb the list. Public, like the rest of discovery.
+ */
+export async function fetchTrendingDiscussions(limit = 6): Promise<TrendingDiscussion[]> {
+  const page = await marketSquare.get<{ items?: TrendingDiscussion[] }>(
+    `/hashtags/trending?limit=${limit}`
+  );
+  return Array.isArray(page?.items) ? page.items : [];
 }

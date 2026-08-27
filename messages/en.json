@@ -2534,6 +2534,9 @@
     "mediaUploading": "Uploading…",
     "mediaFailed": "Couldn't attach that. Images and short clips only.",
     "mediaRemove": "Remove attachment",
-    "joinDiscussion": "Join the discussion"
+    "joinDiscussion": "Join the discussion",
+    "browseTopics": "Browse topics",
+    "discussing": "{count, plural, one {# person} other {# people}} discussing",
+    "postsCount": "{count, plural, one {# post} other {# posts}}"
   }
 }

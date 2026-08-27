@@ -26,10 +26,12 @@ const REVEAL_AFTER_VIEWPORTS = 1.2;
 export function SquareComposeFab({
   markets = [],
   onPickTopic,
+  onPickDiscussion,
 }: {
   markets?: TradableSymbol[];
-  /** Lets the sheet's discussions steer the feed's tab strip. */
+  /** Lets the sheet's topics and discussions steer the feed's tab strip. */
   onPickTopic?: (key: string) => void;
+  onPickDiscussion?: (tag: string) => void;
 }) {
   const t = useTranslations("square");
   const [shown, setShown] = useState(false);
@@ -111,6 +113,7 @@ export function SquareComposeFab({
           setComposing("media");
         }}
         onPickTopic={onPickTopic}
+        onPickDiscussion={onPickDiscussion}
       />
 
       {/* Composing happens HERE, in Ark, rather than on another deployment:

@@ -25,6 +25,8 @@ const GET_PATHS = [
   // fetched rather than hard-coded so a topic the square adds shows up here
   // instead of drifting out of sync with a compiled-in list.
   /^topics$/u,
+  // Trending discussions — the hashtags people are actually using.
+  /^hashtags\/trending$/u,
   // A post's comment thread, read in place on the dashboard.
   /^posts\/[^/]+\/comments$/u,
   // The reader's own square identity and inbox, for the compose sheet's
@@ -108,7 +110,12 @@ function allowed(patterns: RegExp[], joined: string): boolean {
  * viewer state. Everything else, including anything under /me, still requires
  * a session here before a single byte is forwarded.
  */
-const PUBLIC_GET_PATHS = [/^feed$/u, /^topics$/u, /^posts\/[^/]+\/comments$/u];
+const PUBLIC_GET_PATHS = [
+  /^feed$/u,
+  /^topics$/u,
+  /^hashtags\/trending$/u,
+  /^posts\/[^/]+\/comments$/u,
+];
 
 export type ProxyMethod = "GET" | "POST" | "DELETE";
 

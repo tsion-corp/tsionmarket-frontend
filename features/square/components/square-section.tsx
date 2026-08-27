@@ -73,12 +73,17 @@ export function SquareSection({
 
   // A topic tab filters the for-you lane; the lane tabs carry no topic.
   const lane: SquareLane = tab === LANE_FOLLOWING ? "following" : "for-you";
+  // Three kinds of tab now: a lane, a curated topic, and a discussion.
   const topics = useMemo(
-    () => (tab.startsWith("lane:") ? undefined : [tab.replace(/^topic:/, "")]),
+    () => (tab.startsWith("topic:") ? [tab.slice("topic:".length)] : undefined),
+    [tab]
+  );
+  const hashtag = useMemo(
+    () => (tab.startsWith("tag:") ? tab.slice("tag:".length) : undefined),
     [tab]
   );
 
-  const feed = useSquareFeed(lane, topics);
+  const feed = useSquareFeed(lane, topics, hashtag);
 
   // Only to suppress a self-follow button; a failure here costs nothing.
   const meQuery = useQuery({
@@ -101,12 +106,15 @@ export function SquareSection({
     () => [
       { id: LANE_FOR_YOU, label: t("laneForYou") },
       { id: LANE_FOLLOWING, label: t("laneFollowing") },
+      // A discussion the reader jumped into from the sheet gets its own tab,
+      // so the strip shows where they are rather than looking unchanged.
+      ...(hashtag ? [{ id: `tag:${hashtag}`, label: `#${hashtag}` }] : []),
       ...(topicQuery.data ?? []).map((topic) => ({
         id: `topic:${topic.key}`,
         label: topic.label,
       })),
     ],
-    [topicQuery.data, t]
+    [topicQuery.data, hashtag, t]
   );
 
   const items = useMemo(() => feed.data?.pages.flatMap((page) => page.items) ?? [], [feed.data]);

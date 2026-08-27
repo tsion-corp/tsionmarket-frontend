@@ -88,8 +88,13 @@ export default function DashboardPage() {
   // The square's feed tab lives here because two siblings drive it: the
   // section's own strip, and the plus sheet's discussions.
   const [squareTab, setSquareTab] = useState<string | undefined>(undefined);
-  const openDiscussion = useCallback((key: string) => {
+  const openTopic = useCallback((key: string) => {
     setSquareTab(`topic:${key}`);
+    // Otherwise the tab changes off-screen and the tap reads as doing nothing.
+    document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
+  }, []);
+  const openDiscussion = useCallback((tag: string) => {
+    setSquareTab(`tag:${tag}`);
     // Otherwise the tab changes off-screen and the tap reads as doing nothing.
     document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -193,7 +198,11 @@ export default function DashboardPage() {
       </DashboardShell>
       {/* Outside the shell so it anchors to the viewport rather than the
           scrolling column. It reveals itself once the square is in reach. */}
-      <SquareComposeFab markets={spotMarkets} onPickTopic={openDiscussion} />
+      <SquareComposeFab
+        markets={spotMarkets}
+        onPickTopic={openTopic}
+        onPickDiscussion={openDiscussion}
+      />
 
       <ModalShell
         open={modal !== null}

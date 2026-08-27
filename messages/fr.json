@@ -2534,6 +2534,9 @@
     "mediaUploading": "Envoi…",
     "mediaFailed": "Impossible de joindre ce fichier. Images et clips courts uniquement.",
     "mediaRemove": "Retirer la pièce jointe",
-    "joinDiscussion": "Rejoindre la discussion"
+    "joinDiscussion": "Rejoindre la discussion",
+    "browseTopics": "Parcourir les sujets",
+    "discussing": "{count, plural, one {# personne} other {# personnes}} en discussion",
+    "postsCount": "{count, plural, one {# message} other {# messages}}"
   }
 }

@@ -3,7 +3,12 @@
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { ModalShell } from "@/components/ui/modal-shell";
-import { fetchSquareMe, fetchSquareTopics, fetchSquareUnread } from "@/lib/api/market-square";
+import {
+  fetchSquareMe,
+  fetchSquareTopics,
+  fetchSquareUnread,
+  fetchTrendingDiscussions,
+} from "@/lib/api/market-square";
 import { squareLinks } from "@/lib/square/links";
 import { SquareAvatar } from "@/features/square/components/square-avatar";
 
@@ -57,6 +62,7 @@ export function SquareActionsSheet({
   onComposeMedia,
   onGoLive,
   onPickTopic,
+  onPickDiscussion,
 }: {
   open: boolean;
   onClose: () => void;
@@ -64,6 +70,8 @@ export function SquareActionsSheet({
   onComposeMedia: () => void;
   onGoLive?: () => void;
   onPickTopic?: (key: string) => void;
+  /** A hashtag, without the `#`. */
+  onPickDiscussion?: (tag: string) => void;
 }) {
   const t = useTranslations("square");
 
@@ -85,10 +93,22 @@ export function SquareActionsSheet({
     retry: false,
   });
 
+  // Real discussions first — the hashtags people are using. Topics are the
+  // fallback: on a quiet deployment nothing is trending yet, and an empty
+  // "Discussions" heading is worse than the curated shelf.
+  const discussions = useQuery({
+    queryKey: ["market-square", "trending"],
+    queryFn: () => fetchTrendingDiscussions(6),
+    enabled: open,
+    // Short, because "trending" that is an hour stale is not trending.
+    staleTime: 2 * 60_000,
+    retry: false,
+  });
+
   const topics = useQuery({
     queryKey: ["market-square", "topics"],
     queryFn: fetchSquareTopics,
-    enabled: open,
+    enabled: open && (discussions.data?.length ?? 0) === 0,
     staleTime: 30 * 60_000,
   });
 
@@ -178,32 +198,33 @@ export function SquareActionsSheet({
           </Tile>
         </div>
 
-        {topics.data && topics.data.length > 0 ? (
+        {(discussions.data?.length ?? 0) > 0 ? (
           <section className="mt-4">
             <h3 className="text-grey-400 text-[11.5px] font-medium tracking-[0.14em] uppercase">
               {t("discussions")}
             </h3>
-            {/* Each one opens the feed filtered to that topic — "join" means
-                you are reading and can post into it, which is the only thing
-                joining a discussion can mean when topics are the vocabulary.
-                No participant count is shown: a topic carries a key and a
-                label and nothing else, so any number here would be invented. */}
             <ul className="mt-2 flex flex-col gap-1.5">
-              {topics.data.slice(0, 4).map((topic) => (
-                <li key={topic.key}>
+              {discussions.data?.map((discussion) => (
+                <li key={discussion.tag}>
                   <button
                     type="button"
                     onClick={() => {
-                      onPickTopic?.(topic.key);
+                      onPickDiscussion?.(discussion.tag);
                       onClose();
                     }}
                     className="ws-inset flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-white/5"
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-[13.5px] font-semibold text-white">
-                        #{topic.label}
+                        {discussion.label}
                       </span>
-                      <span className="text-grey-500 block text-[12px]">{t("joinDiscussion")}</span>
+                      {/* Real numbers from the service. Participants lead
+                          because that is what the ranking is: a discussion is
+                          people talking, not one person repeating a tag. */}
+                      <span className="text-grey-500 block text-[12px]">
+                        {t("discussing", { count: discussion.participantCount })} ·{" "}
+                        {t("postsCount", { count: discussion.postCount })}
+                      </span>
                     </span>
                     <span className="text-grey-600 shrink-0" aria-hidden>
                       <svg viewBox="0 0 24 24" className="h-4 w-4">
@@ -221,6 +242,27 @@ export function SquareActionsSheet({
                 </li>
               ))}
             </ul>
+          </section>
+        ) : topics.data && topics.data.length > 0 ? (
+          <section className="mt-4">
+            <h3 className="text-grey-400 text-[11.5px] font-medium tracking-[0.14em] uppercase">
+              {t("browseTopics")}
+            </h3>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {topics.data.map((topic) => (
+                <button
+                  key={topic.key}
+                  type="button"
+                  onClick={() => {
+                    onPickTopic?.(topic.key);
+                    onClose();
+                  }}
+                  className="border-grey-800 text-grey-300 hover:bg-grey-800 rounded-full border px-3 py-1.5 text-[12.5px] font-medium transition-colors"
+                >
+                  {topic.label}
+                </button>
+              ))}
+            </div>
           </section>
         ) : null}
 

@@ -2534,6 +2534,9 @@
     "mediaUploading": "Subiendo…",
     "mediaFailed": "No se pudo adjuntar. Solo imágenes y clips cortos.",
     "mediaRemove": "Quitar adjunto",
-    "joinDiscussion": "Únete al debate"
+    "joinDiscussion": "Únete al debate",
+    "browseTopics": "Explorar temas",
+    "discussing": "{count, plural, one {# persona} other {# personas}} debatiendo",
+    "postsCount": "{count, plural, one {# publicación} other {# publicaciones}}"
   }
 }

@@ -2534,6 +2534,9 @@
     "mediaUploading": "Wird hochgeladen…",
     "mediaFailed": "Anhängen fehlgeschlagen. Nur Bilder und kurze Clips.",
     "mediaRemove": "Anhang entfernen",
-    "joinDiscussion": "An der Diskussion teilnehmen"
+    "joinDiscussion": "An der Diskussion teilnehmen",
+    "browseTopics": "Themen durchsuchen",
+    "discussing": "{count, plural, one {# Person} other {# Personen}} diskutieren",
+    "postsCount": "{count, plural, one {# Beitrag} other {# Beiträge}}"
   }
 }

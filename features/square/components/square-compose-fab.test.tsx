@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SquareComposeFab } from "./square-compose-fab";
@@ -14,14 +14,24 @@ vi.mock("@/lib/square/links", () => ({
     live: (id: string) => `https://square.test/live/${id}`,
   },
 }));
+const fetchTrendingDiscussions = vi.fn();
 vi.mock("@/lib/api/market-square", () => ({
   fetchSquareMe: vi.fn().mockResolvedValue(null),
   fetchSquareTopics: vi.fn().mockResolvedValue([{ key: "crypto", label: "Crypto" }]),
   fetchSquareUnread: vi.fn().mockResolvedValue(0),
+  fetchTrendingDiscussions: (...args: unknown[]) => fetchTrendingDiscussions(...args),
   createSquarePost: vi.fn(),
 }));
 
-function renderFab(props: { onPickTopic?: (key: string) => void } = {}) {
+beforeEach(() => {
+  // Default: nothing trending yet, which is the state of a fresh deployment.
+  fetchTrendingDiscussions.mockReset();
+  fetchTrendingDiscussions.mockResolvedValue([]);
+});
+
+function renderFab(
+  props: { onPickTopic?: (key: string) => void; onPickDiscussion?: (tag: string) => void } = {}
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
@@ -69,12 +79,25 @@ describe("SquareComposeFab", () => {
    * optional prop, so the wiring is asserted here instead.
    */
   it("reports the discussion that was tapped", async () => {
+    fetchTrendingDiscussions.mockResolvedValue([
+      { tag: "btc", label: "#btc", postCount: 4, participantCount: 3 },
+    ]);
+    const onPickDiscussion = vi.fn();
+    renderFab({ onPickDiscussion });
+    fireEvent.click(screen.getByRole("button", { name: "compose" }));
+
+    fireEvent.click(await screen.findByText("#btc"));
+    expect(onPickDiscussion).toHaveBeenCalledWith("btc");
+  });
+
+  // A fresh deployment has nothing trending. An empty "Discussions" heading
+  // is worse than offering the curated shelf, so topics stand in.
+  it("falls back to topics when nothing is trending yet", async () => {
     const onPickTopic = vi.fn();
     renderFab({ onPickTopic });
     fireEvent.click(screen.getByRole("button", { name: "compose" }));
 
-    const discussion = await screen.findByText("#Crypto");
-    fireEvent.click(discussion);
+    fireEvent.click(await screen.findByText("Crypto"));
     expect(onPickTopic).toHaveBeenCalledWith("crypto");
   });
 
