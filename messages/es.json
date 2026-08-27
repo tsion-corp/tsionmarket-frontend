@@ -2416,7 +2416,13 @@
     "newCount": "{count} nuevas",
     "prevPage": "Anterior",
     "nextPage": "Siguiente",
-    "pageOf": "Página {current} de {total}"
+    "pageOf": "Página {current} de {total}",
+    "share": "Share",
+    "pnlHeading": "Results",
+    "onCost": "on {cost}",
+    "pnlPartial": "{qty} {symbol} sold with no purchase on record here, so it is not scored.",
+    "pnlShareWin": "Closed {symbol} in profit",
+    "pnlShareLoss": "Closed {symbol} at a loss"
   },
   "launchGate": {
     "title": "Muy pronto",

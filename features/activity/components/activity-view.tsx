@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ChevronLeftIcon, ClockIcon } from "@/components/ui/icons";
 import { ActivityRow, dayHeading } from "@/features/activity/components/activity-row";
+import { PnlCards } from "@/features/activity/components/pnl-cards";
 import { useActivity, type ActivityEntry } from "@/features/activity/hooks/use-activity";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { displaySymbol } from "@/lib/buy";
@@ -105,6 +106,9 @@ export function ActivityView({ gameEntries = NO_GAMES }: { gameEntries?: Activit
         </div>
       ) : (
         <>
+          {/* What the trades actually made, above the transactions that made
+              it. Realised only — see PnlCards. */}
+          <PnlCards entries={items} />
           {groups.map((group) => (
             <div key={group.heading} className="mt-[18px]">
               <div className="mb-2 px-1 text-[11.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
