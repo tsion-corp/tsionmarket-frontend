@@ -91,10 +91,10 @@ describe("convert", () => {
 });
 
 describe("claim", () => {
-  it("settles only the caller's own wallet", async () => {
-    await postKashClaim(WALLET);
+  it("settles only the caller's own wallet, carrying its signature and timestamp", async () => {
+    await postKashClaim(WALLET, "0xsig", 1_700_000_000_000);
     expect(urlOf(0)).toContain("/api/kash/settlements/claim");
-    expect(bodyOf(0)).toEqual({ wallet: WALLET });
+    expect(bodyOf(0)).toEqual({ wallet: WALLET, signature: "0xsig", timestamp: 1_700_000_000_000 });
   });
 });
 

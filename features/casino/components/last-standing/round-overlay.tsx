@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import confetti from "canvas-confetti";
-import { MoneyTicker } from "@/features/casino/components/last-standing/money-ticker";
+import { MoneyTicker } from "@/components/ui/money-ticker";
 
 // The confetti palette. Confetti is the winner's alone: everyone else sees
 // the announcement card and nothing falls.

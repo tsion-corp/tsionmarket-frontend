@@ -16,6 +16,9 @@ const SEND = readFileSync(
   join(process.cwd(), "features/portfolio/components/kash-send-modal.tsx"),
   "utf8"
 );
+// useInvalidateKash lives below the feature line (hooks/use-kash-invalidate.ts),
+// since features/trade needs it too and features never import each other.
+const INVALIDATE = readFileSync(join(process.cwd(), "hooks/use-kash-invalidate.ts"), "utf8");
 
 describe("balance-changing actions refresh on success", () => {
   it.each(["useKashPurchase", "useKashConversion", "useKashSubscribe", "useKashClaim"])(
@@ -39,8 +42,8 @@ describe("refresh survives chain propagation", () => {
     // A mint confirms while the RPC replica the engine reads is still a block
     // behind, so a single immediate refetch returns the pre-transaction
     // balance and a successful claim looks like it did nothing.
-    expect(HOOKS).toContain("CHAIN_SETTLE_RETRIES_MS");
-    const delays = HOOKS.match(/CHAIN_SETTLE_RETRIES_MS = \[([^\]]+)\]/)?.[1] ?? "";
+    expect(INVALIDATE).toContain("CHAIN_SETTLE_RETRIES_MS");
+    const delays = INVALIDATE.match(/CHAIN_SETTLE_RETRIES_MS = \[([^\]]+)\]/)?.[1] ?? "";
     expect(delays.split(",").length).toBeGreaterThanOrEqual(2);
   });
 

@@ -13,6 +13,7 @@ import {
   type TradePhase,
 } from "@/features/trade/hooks/use-meme-trade";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { useInvalidateKash } from "@/hooks/use-kash-invalidate";
 import { displaySymbol } from "@/lib/buy";
 import { friendlyError } from "@/lib/errors";
 import { TradeApiError, isValidTradeAmount, visibleWarnings, type MemeToken } from "@/lib/meme/api";
@@ -73,6 +74,7 @@ export function MemeTradeSheet({
   const [debouncedAmount, setDebouncedAmount] = useState("");
   const { wallet, phase, error, received, trade, reset, linkForPreview } = useMemeTrade();
   const portfolio = usePortfolio();
+  const invalidateKash = useInvalidateKash();
   const linkTriedRef = useRef(false);
 
   useEffect(() => {
@@ -200,6 +202,7 @@ export function MemeTradeSheet({
       );
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged();
+      invalidateKash();
     } catch (e) {
       track("trade_failed", {
         vertical: "memecoin",
@@ -409,6 +412,14 @@ export function MemeTradeSheet({
                 <span className="tnum text-white">
                   {preview.data?.priceImpactBps != null
                     ? `${(preview.data.priceImpactBps / 100).toFixed(2)}%`
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/55">{t("platformFee")}</span>
+                <span className="tnum text-white">
+                  {preview.data
+                    ? `${preview.data.platformFeeAmountFormatted} ${displaySymbol(preview.data.buyToken.symbol ?? "")}`
                     : "—"}
                 </span>
               </div>

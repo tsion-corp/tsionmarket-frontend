@@ -27,15 +27,22 @@ export interface KashStatus {
   /**
    * Points economics, straight from the engine.
    *
-   * `tierBoundsUsd` are the VOLUME band edges and `tierRatesPer10Usd` the rate
-   * inside each band — one more rate than bounds, the last being open-ended.
-   * Both are config; restating them in the UI would let the two drift.
+   * Flat per-tier share of the fee an activity produced — no volume banding.
+   * `tierRevenueSharePct[0]` is tier 1 (free)'s share, as a percentage
+   * (3 means 3%). One entry per subscription tier; restating it in the UI
+   * would let the two drift.
    */
   points: {
     pointValueUsd: number;
-    tierBoundsUsd: number[];
-    tierRatesPer10Usd: number[];
+    tierRevenueSharePct: number[];
   };
+  /**
+   * A self-serve claim (POST /settlements/claim) below `minClaimKash` mints
+   * for less KSH than the gas is worth — the engine skips it rather than
+   * spending the holder's money on a dust transaction, so the "Claim" control
+   * must gate on this instead of any wallet holding > 0.
+   */
+  settlement: { periodSeconds: number; minClaimKash: string };
   subscriptions: { periodDays: number; tiers: { tier: number; priceUsd: number }[] };
   desk: {
     purchaseMinUsdc: number;
@@ -186,11 +193,27 @@ export interface KashLedgerEntry {
 }
 
 /**
- * Settle this wallet's accrued points into KSH now, instead of waiting for the
- * weekly batch. Only ever affects the caller's own wallet.
+ * The exact message a client must sign to claim — MUST match the backend's
+ * WalletSignatureVerifier.claimSettlementMessage byte-for-byte, or the
+ * signature won't recover to the signer and the engine rejects it. No
+ * on-chain event proves who is claiming (unlike a purchase or a conversion's
+ * permit), so this signature IS the authorization.
  */
-export const postKashClaim = (wallet: string) =>
-  kash.post<KashClaim>("/settlements/claim", { wallet });
+export function claimSettlementMessage(wallet: string, timestamp: number): string {
+  return [
+    "World Street — claim Kash settlement",
+    `wallet: ${wallet.toLowerCase()}`,
+    `ts: ${timestamp}`,
+  ].join("\n");
+}
+
+/**
+ * Settle this wallet's accrued points into KSH now, instead of waiting for the
+ * weekly batch. Only ever affects the caller's own wallet — `signature` must
+ * recover to `wallet` over `claimSettlementMessage(wallet, timestamp)`.
+ */
+export const postKashClaim = (wallet: string, signature: string, timestamp: number) =>
+  kash.post<KashClaim>("/settlements/claim", { wallet, signature, timestamp });
 
 export const getKashStatus = () => kash.get<KashStatus>("/status");
 
@@ -304,32 +327,26 @@ function trimZeros(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1).replace(/\.0$/, "");
 }
 
-/** One volume band: what it covers, what it pays, and what unlocks it. */
-export interface VolumeBand {
-  /** 1-based, and the subscription tier that unlocks this band's rate. */
+/** One subscription tier's flat reward rate. */
+export interface TierShare {
+  /** 1-based subscription tier. */
   tier: number;
-  fromUsd: number;
-  /** null on the final, open-ended band. */
-  toUsd: number | null;
-  ratePer10Usd: number;
+  /** Share of the fee an activity produced that this tier pays out, e.g. 3 = 3%. */
+  sharePct: number;
 }
 
 /**
- * The volume ladder, derived from the engine's bounds and rates.
+ * The reward ladder, derived from the engine's per-tier shares.
  *
- * Volume is split across these bands like tax brackets, so the first slice
- * always earns the tier-1 rate no matter how large the trade. A wallet's
- * SUBSCRIPTION tier caps how high the later bands may reach: trade into band 3
- * on tier 1 and that slice still pays the tier-1 rate.
+ * Flat, not banded: every dollar of fee at a given tier earns that tier's
+ * share, whatever the trade size — `reward = fee × tier's sharePct`. A
+ * wallet's subscription tier is simply which flat rate it earns at.
  */
-export function volumeBands(points: KashStatus["points"] | undefined): VolumeBand[] {
+export function tierShares(points: KashStatus["points"] | undefined): TierShare[] {
   if (!points) return [];
-  const { tierBoundsUsd: bounds, tierRatesPer10Usd: rates } = points;
-  return rates.map((ratePer10Usd, index) => ({
+  return points.tierRevenueSharePct.map((sharePct, index) => ({
     tier: index + 1,
-    fromUsd: index === 0 ? 0 : (bounds[index - 1] ?? 0),
-    toUsd: bounds[index] ?? null,
-    ratePer10Usd,
+    sharePct,
   }));
 }
 

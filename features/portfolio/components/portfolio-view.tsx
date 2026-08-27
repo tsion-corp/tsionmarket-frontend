@@ -21,14 +21,13 @@ import { KashConvertModal } from "@/features/portfolio/components/kash-convert-m
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
 import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-modal";
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
-import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
+import { useKashAccount } from "@/features/portfolio/hooks/use-kash";
 import { Switch } from "@/components/ui/switch";
 import { HoldingsMobile } from "@/features/portfolio/components/holdings-mobile";
 import { TypeChip } from "@/features/portfolio/components/type-chip";
 import { displayNetworkIconKey, displayNetworkLabel } from "@/features/portfolio/lib/network-label";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { tokenBg } from "@/lib/trade/assets";
-import { track } from "@/lib/analytics/mixpanel";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -100,7 +99,6 @@ export function PortfolioView({
   const router = useRouter();
   const t = useTranslations("portfolio");
   const { wallet: kashWallet } = useKashAccount();
-  const claimPoints = useKashClaim();
   const [kashModal, setKashModal] = useState<
     "buy" | "send" | "convert" | "history" | "upgrade" | null
   >(null);
@@ -265,21 +263,6 @@ export function PortfolioView({
         <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
         <KashCard
           onBuy={() => setKashModal("buy")}
-          onClaim={
-            kashWallet
-              ? () =>
-                  claimPoints.mutate(
-                    { wallet: kashWallet },
-                    {
-                      // Reported on settlement, so the figure is what the engine
-                      // actually minted rather than what was claimable.
-                      onSuccess: (result) =>
-                        track("kash_earned", { kash_amount: Number(result.kashMinted) }),
-                    }
-                  )
-              : undefined
-          }
-          claiming={claimPoints.isPending}
           onSend={() => setKashModal("send")}
           onConvert={() => setKashModal("convert")}
           onHistory={() => setKashModal("history")}

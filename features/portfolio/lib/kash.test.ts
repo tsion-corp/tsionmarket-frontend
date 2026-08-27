@@ -17,7 +17,7 @@ import {
   pointsToKash,
   postKashConversion,
   settlesIn,
-  volumeBands,
+  tierShares,
 } from "./kash";
 
 const account = (balance: string, min: string) => ({
@@ -164,30 +164,22 @@ describe("pointsToKash", () => {
   });
 });
 
-describe("volumeBands", () => {
+describe("tierShares", () => {
   const points = {
     pointValueUsd: 0.001,
-    tierBoundsUsd: [50, 100, 150, 200],
-    tierRatesPer10Usd: [1, 1.5, 2, 2.5, 3],
+    tierRevenueSharePct: [3, 5, 7, 9, 10],
   };
 
-  it("derives one band per rate, the last open-ended", () => {
-    const bands = volumeBands(points);
-    expect(bands).toHaveLength(5);
-    expect(bands[0]).toEqual({ tier: 1, fromUsd: 0, toUsd: 50, ratePer10Usd: 1 });
-    expect(bands[2]).toEqual({ tier: 3, fromUsd: 100, toUsd: 150, ratePer10Usd: 2 });
-    expect(bands[4]).toEqual({ tier: 5, fromUsd: 200, toUsd: null, ratePer10Usd: 3 });
-  });
-
-  it("leaves no gap between bands", () => {
-    // A gap would be volume that earns nothing, and the ladder is contiguous
-    // by construction in the engine.
-    const bands = volumeBands(points);
-    bands.slice(1).forEach((band, i) => expect(band.fromUsd).toBe(bands[i]!.toUsd));
+  it("derives one flat share per tier", () => {
+    const shares = tierShares(points);
+    expect(shares).toHaveLength(5);
+    expect(shares[0]).toEqual({ tier: 1, sharePct: 3 });
+    expect(shares[2]).toEqual({ tier: 3, sharePct: 7 });
+    expect(shares[4]).toEqual({ tier: 5, sharePct: 10 });
   });
 
   it("is empty until the engine has answered", () => {
-    expect(volumeBands(undefined)).toEqual([]);
+    expect(tierShares(undefined)).toEqual([]);
   });
 });
 
