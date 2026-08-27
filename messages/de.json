@@ -670,7 +670,9 @@
     "confirming": "Wird bestätigt…",
     "buyToken": "{name} kaufen",
     "sellToken": "{name} verkaufen",
-    "transactionFee": "Transaktionsgebühr"
+    "transactionFee": "Transaktionsgebühr",
+    "shareToSquare": "Share to Market Square",
+    "boughtShareTitle": "Bought {name}"
   },
   "rwa": {
     "eyebrow": "Reale Vermögenswerte",

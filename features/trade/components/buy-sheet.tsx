@@ -17,6 +17,9 @@ import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
+import { tradeShareRef } from "@/lib/trade-share";
+import { useMoney } from "@/components/ui/currency-select";
+import { ShareToSquare } from "@/components/share/share-to-square";
 import { track } from "@/lib/analytics/mixpanel";
 import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { friendlyError } from "@/lib/errors";
@@ -82,6 +85,10 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   const [amount, setAmount] = useState("");
   const buy = useBuy();
   const [requestId, setRequestId] = useState<string | null>(null);
+  // The settled transaction for the order path. The swap path carries its own
+  // on the trade hook, since only it knows which of its calls was the swap.
+  const [settledTx, setSettledTx] = useState<{ txHash: string; chainId: number } | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [bought, setBought] = useState<string>("");
   const [picking, setPicking] = useState(false);
   const status = useDepositStatus(requestId, "trade");
@@ -96,6 +103,9 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   );
 
   const value = Number(amount) || 0;
+  // The same formatter the activity rows use, so a shared figure reads
+  // identically wherever it is shared from.
+  const money = useMoney();
   // Only flag a shortfall once the balance has actually loaded; until then we
   // don't know it, and a zero must block like any other insufficient balance.
   const notEnough = !portfolio.loading && value > balance;
@@ -267,6 +277,9 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       });
       setBought(formatAmount(Number(fromBaseUnits(result.estimatedOutput, route.decimals))));
       setRequestId(result.requestId);
+      // Kept so the confirmation can offer to share it. It was discarded
+      // before, which is why the settled screen had nothing to point at.
+      setSettledTx({ txHash: result.txHash, chainId: route.destinationChainId });
     } catch {
       // The detailed message is surfaced from buy.error below; resolve the toast.
       toast.error(t("buyFailedToast", { name: payload.name }), { id: toastRef.current });
@@ -278,6 +291,10 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
   if (showTracking) {
     const failed = stage === "failed" || stage === "refunded";
     const done = stage === "settled";
+    // Whichever path settled. Null means the trade cannot be pointed at, and
+    // then no share is offered at all.
+    const settlement = isSwapMarket ? memeTrade.settled : settledTx;
+    const shareRef = tradeShareRef(settlement?.chainId ?? null, settlement?.txHash ?? null);
     const color = failed ? "#f6a5a5" : done ? "#7ce7b0" : "#d4d4d8";
     const boughtAmount = isSwapMarket ? (memeTrade.received?.amount ?? "") : bought;
     return (
@@ -318,12 +335,46 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
           )}
         </div>
 
+        {/* Offered at the moment it happened, which is the only moment somebody
+            actually wants to post about it. Until now the only way to share a
+            trade was to leave, open the activity list and find the row.
+
+            Only when the trade can be pointed at: an unknown chain or a hash
+            that is not one yields no ref and no button, because a share that
+            posts a dead link is worse than no share. */}
+        {done && shareRef && (
+          <button
+            onClick={() => setSharing(true)}
+            className="ws-press mt-5 w-full cursor-pointer rounded-[14px] border border-white/20 p-3.5 font-sans text-[15px] font-semibold text-white hover:bg-white/8"
+          >
+            {t("shareToSquare")}
+          </button>
+        )}
+
         <button
           onClick={onClose}
-          className="ws-chrome text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+          className={`ws-chrome text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 ${
+            done && shareRef ? "mt-3" : "mt-5"
+          }`}
         >
           {t("done")}
         </button>
+
+        {sharing && shareRef && (
+          <ShareToSquare
+            draft={{
+              title: t("boughtShareTitle", { name: payload.name }),
+              subtitle: boughtAmount ? `${boughtAmount} ${payload.symbol}` : payload.symbol,
+              deepLink: { kind: "trade", ref: shareRef },
+              suggestedText: "",
+              // Same rule the activity rows follow: the figure is opt-in,
+              // never carried into the card because the sharing code knew it.
+              amount: value > 0 ? money.format(value) : undefined,
+            }}
+            open
+            onClose={() => setSharing(false)}
+          />
+        )}
       </div>
     );
   }

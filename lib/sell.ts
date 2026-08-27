@@ -18,7 +18,7 @@ export const SELL_DESTINATION = {
 
 // Dextopus chain id per Alchemy network id, limited to the chains we hold
 // balances on. Keep in sync with EVM_NETWORKS in lib/server/alchemy.ts.
-const NETWORK_TO_CHAIN: Record<string, number> = {
+export const NETWORK_TO_CHAIN: Record<string, number> = {
   "base-mainnet": 8453,
   "eth-mainnet": 1,
   "arb-mainnet": 42161,

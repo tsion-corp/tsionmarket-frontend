@@ -59,6 +59,9 @@ export function useMemeTrade() {
   // The on-chain verified delivery ("142,244.11 FART"), set the moment the
   // balanceOf delta confirms it — usually minutes before the server does.
   const [received, setReceived] = useState<{ amount: string; symbol: string } | null>(null);
+  // What the confirmation needs to offer a share: the settled transaction and
+  // the chain it settled on.
+  const [settled, setSettled] = useState<{ txHash: string; chainId: number } | null>(null);
   const activeRef = useRef(false);
 
   // Challenge → exact-message signature → verify, cached per (user, wallet) so
@@ -151,6 +154,9 @@ export function useMemeTrade() {
             chainId: quote.chainId,
           });
           await registerSubmission(quote.swapId, callIndex, wallet, hash, newIdempotencyKey());
+          // The last call IS the swap; anything before it is an approval, so
+          // this ends up holding the hash worth pointing a share at.
+          setSettled({ txHash: hash, chainId: quote.chainId });
         }
 
         // The swap's receipt is in, so the tokens should already sit in the
@@ -203,9 +209,11 @@ export function useMemeTrade() {
     setError(null);
     setSwapId(null);
     setReceived(null);
+    // Or the next trade offers to share the previous one.
+    setSettled(null);
   }, []);
 
-  return { wallet, phase, error, swapId, received, trade, reset, linkForPreview };
+  return { wallet, phase, error, swapId, received, settled, trade, reset, linkForPreview };
 }
 
 // Debounced-by-caller indicative preview; rate limited upstream (20/min).
