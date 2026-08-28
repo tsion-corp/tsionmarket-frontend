@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { MarketSquareTopic } from "@/lib/api/market-square";
 import type { TradableSymbol } from "@/lib/square/tradable";
@@ -94,6 +94,27 @@ export function ComposerTools({
   const t = useTranslations("square");
   const [panel, setPanel] = useState<"symbol" | "topic" | "emoji" | null>(null);
   const [query, setQuery] = useState("");
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Bring a freshly-opened panel into view.
+   *
+   * These open INSIDE a modal that caps at 92vh and scrolls. On a short
+   * viewport the composer already fills it, so a panel appended below the tool
+   * row lands past the fold: the button toggles, nothing visibly happens, and
+   * the panel looks cut off or missing. Nothing is broken — it is simply
+   * off-screen — but that is indistinguishable from broken to whoever pressed
+   * the button.
+   *
+   * `block: "nearest"` scrolls the minimum needed, so an already-visible panel
+   * does not jump the modal under the reader.
+   */
+  useEffect(() => {
+    if (!panel) return;
+    const node = panelRef.current;
+    // A nicety, never a requirement — see the tab strip for the same guard.
+    node?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [panel]);
 
   const matches = useMemo(() => {
     const needle = query.trim().toUpperCase();
@@ -158,7 +179,10 @@ export function ComposerTools({
         // A fixed set, not a full picker. A composer for market takes lives on
         // a dozen reactions; pulling in an emoji library for the rest would
         // cost more bundle than the long tail is worth here.
-        <div className="border-grey-800 mt-2 flex flex-wrap gap-1 rounded-xl border bg-black/40 p-2.5">
+        <div
+          ref={panelRef}
+          className="border-grey-800 mt-2 flex flex-wrap gap-1 rounded-xl border bg-black/40 p-2.5"
+        >
           {EMOJI.map((emoji) => (
             <button
               key={emoji}
@@ -174,7 +198,7 @@ export function ComposerTools({
       ) : null}
 
       {panel === "symbol" ? (
-        <div className="border-grey-800 mt-2 rounded-xl border bg-black/40 p-2">
+        <div ref={panelRef} className="border-grey-800 mt-2 rounded-xl border bg-black/40 p-2">
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -208,7 +232,10 @@ export function ComposerTools({
       ) : null}
 
       {panel === "topic" ? (
-        <div className="border-grey-800 mt-2 flex flex-wrap gap-1.5 rounded-xl border bg-black/40 p-2.5">
+        <div
+          ref={panelRef}
+          className="border-grey-800 mt-2 flex flex-wrap gap-1.5 rounded-xl border bg-black/40 p-2.5"
+        >
           {topics.length === 0 ? (
             <p className="text-grey-500 text-[12.5px]">{t("topicsNone")}</p>
           ) : (
