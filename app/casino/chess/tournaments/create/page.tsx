@@ -1,11 +1,13 @@
 "use client";
 
-import { ArenaCreateForm, CasinoPage } from "@/features/casino";
+import { CasinoPage, SwissCreateForm } from "@/features/casino";
 
-export default function ChessArenaCreatePage() {
+export default function ChessTournamentCreatePage() {
   return (
     <CasinoPage hideBackLink>
-      <ArenaCreateForm />
+      <div className="mx-auto w-full max-w-[760px] px-4 pt-8 pb-20 sm:px-6">
+        <SwissCreateForm game="chess" format="champions" />
+      </div>
     </CasinoPage>
   );
 }

@@ -6,7 +6,12 @@ import { useTranslations } from "next-intl";
 import { useSwissList } from "@/features/casino/hooks/use-casino-swiss";
 import { CasinoEmpty, CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { SwissCreateForm } from "@/features/casino/components/chess/swiss/create-form";
-import type { SwissGameKind, SwissState, SwissSummary } from "@/features/casino/lib/api/swiss";
+import type {
+  SwissFormat,
+  SwissGameKind,
+  SwissState,
+  SwissSummary,
+} from "@/features/casino/lib/api/swiss";
 import { hasPositiveUsdc } from "@/features/casino/lib/api/cashier";
 
 // Running events lead: they are what a visitor can watch right now. Open ones
@@ -25,14 +30,24 @@ function TournamentRow({ tournament }: { tournament: SwissSummary }) {
   const roundCell =
     tournament.state === "open"
       ? t("notStarted")
-      : t("roundOf", { round: tournament.round, total: tournament.nbRounds });
+      : tournament.format !== "champions"
+        ? t("roundOf", { round: tournament.round, total: tournament.nbRounds })
+        : tournament.phase === "league"
+          ? `League ${tournament.round}/${tournament.leagueRounds}`
+          : tournament.phase === "playoff"
+            ? "Playoffs"
+            : tournament.phase === "knockout"
+              ? `Knockout ${tournament.knockoutRound}`
+              : "Finished";
 
   return (
     <Link
       href={
         tournament.game === "draughts"
           ? `/casino/checkers/tournaments/${tournament.id}`
-          : `/casino/chess/swiss/${tournament.id}`
+          : tournament.format === "champions"
+            ? `/casino/chess/tournaments/${tournament.id}`
+            : `/casino/chess/swiss/${tournament.id}`
       }
       className="grid grid-cols-[2fr_1fr_1fr_1fr_90px] items-center border-t border-white/6 px-4.5 py-3 text-[13px] transition-colors hover:bg-white/4"
     >
@@ -92,17 +107,26 @@ function TournamentGroup({ state, items }: { state: SwissState; items: SwissSumm
   );
 }
 
-export function SwissListSection({ game }: { game?: SwissGameKind } = {}) {
+export function SwissListSection({
+  game,
+  format,
+}: { game?: SwissGameKind; format?: SwissFormat } = {}) {
   const t = useTranslations("casino.chess.swiss");
-  const { tournaments, isLoading, error, refetch } = useSwissList(game);
+  const { tournaments, isLoading, error, refetch } = useSwissList(game, format);
   const [showCreate, setShowCreate] = useState(false);
 
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 pt-8 pb-20 sm:px-6">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="ws-display text-[26px]">{t("title")}</div>
-          <div className="text-[12.5px] font-normal text-white/55">{t("intro")}</div>
+          <div className="ws-display text-[26px]">
+            {format === "champions" ? "Champions tournaments" : t("title")}
+          </div>
+          <div className="text-[12.5px] font-normal text-white/55">
+            {format === "champions"
+              ? "League games decide the seeds. The best players advance to playoffs and knockout chess."
+              : t("intro")}
+          </div>
         </div>
         <button
           onClick={() => setShowCreate((v) => !v)}
@@ -112,7 +136,7 @@ export function SwissListSection({ game }: { game?: SwissGameKind } = {}) {
         </button>
       </div>
 
-      {showCreate ? <SwissCreateForm game={game} /> : null}
+      {showCreate ? <SwissCreateForm game={game} format={format} /> : null}
 
       {error ? (
         <CasinoError error={error} subject={t("subject")} onRetry={refetch} />

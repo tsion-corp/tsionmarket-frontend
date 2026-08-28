@@ -318,11 +318,11 @@ describe("chess lobby", () => {
     expect(screen.queryByRole("textbox", { name: "Computer stake in USD" })).toBeNull();
 
     for (const level of [5, 6, 7, 8]) {
-      fireEvent.click(screen.getByRole("button", { name: String(level) }));
+      fireEvent.click(screen.getByRole("button", { name: `Stockfish ${level}` }));
       expect(screen.getByRole("textbox", { name: "Computer stake in USD" })).toBeInTheDocument();
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "5" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stockfish 5" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USD" }), {
       target: { value: "0" },
     });
@@ -338,11 +338,26 @@ describe("chess lobby", () => {
     expect(screen.getByText("Draw return")).toBeInTheDocument();
     expect(screen.getByText("0 USD")).toBeInTheDocument();
     expect(
-      screen.getByText(/maximum-strength level-8 engine.*fixed 5\+0 clock/)
+      screen.getByText(/maximum-strength level-8 engine.*fixed 10\+0 clock/)
     ).toBeInTheDocument();
     expect(screen.getByText(/until a moderator clears it/)).toBeInTheDocument();
     expect(screen.getByText(/waits there if the cashier wallet needs funding/)).toBeInTheDocument();
     expect(screen.getByText("Balance after stake")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Play against computer" }));
+    await waitFor(() =>
+      expect(chessApi.createComputerMatch).toHaveBeenCalledWith({
+        player: "0xabc",
+        level: 5,
+        color: "random",
+        timeMode: "real_time",
+        initialSeconds: 600,
+        incrementSeconds: 0,
+        stakeUsdc: "10",
+        coachEnabled: false,
+        idempotencyKey: expect.any(String),
+      })
+    );
   });
 
   it("lists an open challenge with its time control", async () => {

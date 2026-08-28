@@ -32,6 +32,7 @@ import {
   PLAYER_NAME_MAX,
   swissSurfaceRoutes,
   type SwissDetail,
+  type SwissFormat,
   type SwissGameKind,
   type SwissSurfaceRoutes,
 } from "@/features/casino/lib/api/swiss";
@@ -67,7 +68,15 @@ function headerLine(t: Translator, detail: SwissDetail): string {
   const parts = [
     detail.state === "open"
       ? t("notStarted")
-      : t("roundOf", { round: detail.round, total: detail.nbRounds }),
+      : detail.format !== "champions"
+        ? t("roundOf", { round: detail.round, total: detail.nbRounds })
+        : detail.phase === "league"
+          ? `League round ${detail.round} of ${detail.leagueRounds}`
+          : detail.phase === "playoff"
+            ? "Seeded playoffs"
+            : detail.phase === "knockout"
+              ? `Knockout round ${detail.knockoutRound}`
+              : "Tournament complete",
     detail.timeControl,
     t("playersCount", { count: detail.participantCount }),
     t("organizerLine", { name: detail.organizer }),
@@ -153,6 +162,49 @@ function CompactMessage({ children }: { children: React.ReactNode }) {
       style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
     >
       {children}
+    </div>
+  );
+}
+
+function PageControls({
+  offset,
+  visible,
+  total,
+  hasMore,
+  onPrevious,
+  onNext,
+}: {
+  offset: number;
+  visible: number;
+  total: number;
+  hasMore: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+}) {
+  if (total <= visible && offset === 0) return null;
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-[12px] border border-white/6 bg-black/10 px-3 py-2.5 text-[11.5px] text-white/55">
+      <span className="tnum">
+        {offset + 1}–{offset + visible} of {total}
+      </span>
+      <div className="flex gap-2">
+        <button
+          type="button"
+          disabled={offset === 0}
+          onClick={onPrevious}
+          className="cursor-pointer rounded-lg border border-white/10 px-3 py-1.5 font-semibold text-white/70 disabled:cursor-default disabled:opacity-30"
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          disabled={!hasMore}
+          onClick={onNext}
+          className="cursor-pointer rounded-lg border border-white/10 px-3 py-1.5 font-semibold text-white/70 disabled:cursor-default disabled:opacity-30"
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 }
@@ -274,6 +326,8 @@ function OrganizerPanel({
   startingRound,
   onReconcile,
   reconciling,
+  format,
+  phase,
 }: {
   state: SwissDetail["state"];
   round: number;
@@ -285,10 +339,26 @@ function OrganizerPanel({
   startingRound: boolean;
   onReconcile: () => Promise<void>;
   reconciling: boolean;
+  format: SwissFormat;
+  phase: SwissDetail["phase"];
 }) {
   const t = useTranslations("casino.chess.swiss");
-  const title = state === "open" ? "Start the tournament" : "Start the next round";
-  const ctaLabel = state === "open" ? "Start round 1" : t("startRound");
+  const title =
+    state === "open"
+      ? "Start the tournament"
+      : format === "champions"
+        ? "Advance the tournament"
+        : "Start the next round";
+  const ctaLabel =
+    state === "open"
+      ? "Start league round 1"
+      : format !== "champions"
+        ? t("startRound")
+        : phase === "league"
+          ? "Start next league round"
+          : phase === "playoff"
+            ? "Advance playoffs"
+            : "Advance knockout";
   const description =
     state === "open"
       ? `${t("organizerHint")} Round 1 starts when you click the button below, and Play now appears as soon as the board is paired.`
@@ -309,18 +379,20 @@ function OrganizerPanel({
             : `At least ${minimumPlayers} players must join before round 1 can start.`}
         </div>
       ) : null}
-      <div className="mt-4">
-        <div className="mb-2 text-[11px] tracking-[0.05em] text-white/38 uppercase">
-          {t("manualLabel")}
+      {format === "swiss" || phase === "league" ? (
+        <div className="mt-4">
+          <div className="mb-2 text-[11px] tracking-[0.05em] text-white/38 uppercase">
+            {t("manualLabel")}
+          </div>
+          <textarea
+            value={manual}
+            onChange={(e) => setManual(e.target.value)}
+            placeholder={t("manualPlaceholder")}
+            rows={3}
+            className="w-full resize-y rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 font-mono text-[13px] text-white placeholder:text-white/28 focus:border-white/18 focus:outline-none"
+          />
         </div>
-        <textarea
-          value={manual}
-          onChange={(e) => setManual(e.target.value)}
-          placeholder={t("manualPlaceholder")}
-          rows={3}
-          className="w-full resize-y rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 font-mono text-[13px] text-white placeholder:text-white/28 focus:border-white/18 focus:outline-none"
-        />
-      </div>
+      ) : null}
       <button
         type="button"
         onClick={() => void onStartRound()}
@@ -480,10 +552,12 @@ export function SwissDetailSection({
   tournamentId,
   showCreatedShare = false,
   game,
+  format,
 }: {
   tournamentId: string;
   showCreatedShare?: boolean;
   game?: SwissGameKind;
+  format?: SwissFormat;
 }) {
   const t = useTranslations("casino.chess.swiss");
   const wallet = useCasinoWallet();
@@ -504,10 +578,15 @@ export function SwissDetailSection({
     startingRound,
     reconcile,
     reconciling,
+    standingsPrevious,
+    standingsNext,
+    pairingsPrevious,
+    pairingsNext,
   } = useSwissTournament(tournamentId);
 
   const surfaceGame = detail?.game ?? game ?? "chess";
-  const routes = swissSurfaceRoutes(surfaceGame);
+  const surfaceFormat = detail?.format ?? format ?? "swiss";
+  const routes = swissSurfaceRoutes(surfaceGame, surfaceFormat);
   const [manual, setManual] = useState("");
   const [railTabChoice, setRailTabChoice] = useState<RailTab | null>(null);
   const [shareDismissed, setShareDismissed] = useState(!showCreatedShare);
@@ -596,7 +675,9 @@ export function SwissDetailSection({
     detail.state === "open"
       ? "Share the tournament page to gather players."
       : detail.state === "running"
-        ? "Rounds and live boards are managed from the rail."
+        ? detail.format === "champions"
+          ? `${detail.phase === "league" ? "League" : detail.phase === "playoff" ? "Playoffs" : "Knockout"} boards are managed from the rail.`
+          : "Rounds and live boards are managed from the rail."
         : "Tournament complete.";
   const railTab: RailTab =
     railTabChoice ??
@@ -653,7 +734,15 @@ export function SwissDetailSection({
               />
               <ShellBadge
                 label={
-                  detail.state === "finished" ? "Final" : `R${detail.round}/${detail.nbRounds}`
+                  detail.state === "finished"
+                    ? "Final"
+                    : detail.format !== "champions"
+                      ? `R${detail.round}/${detail.nbRounds}`
+                      : detail.phase === "league"
+                        ? `L${detail.round}/${detail.leagueRounds}`
+                        : detail.phase === "playoff"
+                          ? "Playoffs"
+                          : `KO ${detail.knockoutRound}`
                 }
               />
             </div>
@@ -720,7 +809,22 @@ export function SwissDetailSection({
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2.5">
-                <SummaryStat label="Rounds" value={`${detail.round}/${detail.nbRounds}`} />
+                <SummaryStat
+                  label={detail.format === "champions" ? "Stage" : "Rounds"}
+                  value={
+                    detail.format !== "champions"
+                      ? `${detail.round}/${detail.nbRounds}`
+                      : detail.phase === "league"
+                        ? `League ${detail.round}/${detail.leagueRounds}`
+                        : detail.phase === "playoff"
+                          ? "Playoffs"
+                          : detail.phase === "knockout"
+                            ? `Knockout ${detail.knockoutRound}`
+                            : detail.phase === "registration"
+                              ? "Registration"
+                              : "Finished"
+                  }
+                />
                 <SummaryStat
                   label="Players"
                   value={`${detail.participantCount}/${detail.maxPlayers}`}
@@ -733,6 +837,13 @@ export function SwissDetailSection({
                   }
                 />
               </div>
+
+              {detail.format === "champions" && detail.bracketSize > 0 ? (
+                <div className="mt-3 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[11.5px] leading-5 text-white/58">
+                  Top {detail.directQualifiers} qualify directly. The next {detail.playoffPlayers}{" "}
+                  enter playoffs. The final knockout bracket has {detail.bracketSize} players.
+                </div>
+              ) : null}
 
               {detail.state === "finished" && detail.winner ? (
                 <div className="mt-4 rounded-[12px] border border-white/8 bg-black/12 px-3 py-3 text-[13.5px] font-semibold text-white">
@@ -809,6 +920,8 @@ export function SwissDetailSection({
                   startingRound={startingRound}
                   onReconcile={onReconcile}
                   reconciling={reconciling}
+                  format={detail.format}
+                  phase={detail.phase}
                 />
               ) : null}
 
@@ -843,6 +956,14 @@ export function SwissDetailSection({
                 {railTab === "standings" ? (
                   <div className="space-y-4">
                     <SwissStandings standings={detail.standings} yourName={yourName} />
+                    <PageControls
+                      offset={detail.standingsOffset}
+                      visible={detail.standings.length}
+                      total={detail.standingsTotal}
+                      hasMore={detail.standingsHasMore}
+                      onPrevious={standingsPrevious}
+                      onNext={standingsNext}
+                    />
                     <SwissBettingPanel detail={detail} yourName={yourName} />
                   </div>
                 ) : railTab === "games" ? (
@@ -852,6 +973,17 @@ export function SwissDetailSection({
                         {rounds.map((round) => (
                           <SwissRoundPairings key={round.round} round={round} yourName={yourName} />
                         ))}
+                        <PageControls
+                          offset={detail.pairingsOffset}
+                          visible={rounds.reduce(
+                            (total, round) => total + round.pairings.length,
+                            0
+                          )}
+                          total={detail.pairingsTotal}
+                          hasMore={detail.pairingsHasMore}
+                          onPrevious={pairingsPrevious}
+                          onNext={pairingsNext}
+                        />
                       </div>
                     ) : (
                       <CompactMessage>No boards have been paired yet.</CompactMessage>
@@ -867,7 +999,9 @@ export function SwissDetailSection({
                       routes={routes}
                     />
 
-                    {joined && detail.state !== "finished" ? (
+                    {joined &&
+                    detail.state !== "finished" &&
+                    (detail.format !== "champions" || detail.state === "open" || pairingOngoing) ? (
                       <div
                         className="flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-white/6 px-4 py-4"
                         style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}

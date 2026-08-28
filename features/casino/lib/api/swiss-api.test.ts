@@ -65,4 +65,54 @@ describe("Swiss api", () => {
       minimumPlayers: 4,
     });
   });
+
+  it("creates a 10,000-player Champions event with knockout settings", async () => {
+    chessClient.chessPost.mockResolvedValue({
+      id: "4dd9f506-194f-4e39-9b39-adee3e86e26f",
+      name: "World Champions Cup",
+      organizer: "0x001122-2233",
+      game: "chess",
+      status: "created",
+      format: "champions",
+      phase: "registration",
+      round: 0,
+      nbRounds: 8,
+      leagueRounds: 0,
+      participantCount: 0,
+      ongoingCount: 0,
+      timeControl: { mode: "real_time", initialSeconds: 300, incrementSeconds: 0 },
+      entryFeeUsdc: "0",
+      maxPlayers: 10_000,
+      winner: null,
+      createdAt: "2026-08-28T01:00:00.000Z",
+      startedAt: null,
+      finishedAt: null,
+    });
+
+    const result = await createSwiss({
+      organizer: "0x001122-2233",
+      name: "World Champions Cup",
+      game: "chess",
+      format: "champions",
+      nbRounds: 8,
+      initialSeconds: 300,
+      incrementSeconds: 0,
+      maxPlayers: 10_000,
+      knockoutGamesPerTie: 2,
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(
+      "/swiss",
+      expect.objectContaining({
+        format: "champions",
+        maxPlayers: 10_000,
+        knockoutGamesPerTie: 2,
+      })
+    );
+    expect(result).toMatchObject({
+      format: "champions",
+      phase: "registration",
+      maxPlayers: 10_000,
+    });
+  });
 });

@@ -17,6 +17,8 @@ import { formatTimeControl, isMatchId } from "@/features/casino/lib/api/chess-wi
 export type SwissStatusWire = "created" | "started" | "finished";
 export type SwissPairingStatus = "bye" | "ongoing" | "white" | "black" | "draw";
 export type SwissPrizePolicy = "standard" | "highStakes";
+export type SwissFormat = "swiss" | "champions";
+export type SwissPhase = "registration" | "league" | "playoff" | "knockout" | "finished";
 
 export interface SwissTimeControlWire {
   initialSeconds: number;
@@ -45,7 +47,10 @@ export interface SwissSurfaceRoutes {
 // The tournament API is shared, but each game owns its own browser surface.
 // Keeping every route in one mapping prevents a draughts tournament from
 // leaking back into chess when a user shares or opens a paired board.
-export function swissSurfaceRoutes(game: SwissGameKind): SwissSurfaceRoutes {
+export function swissSurfaceRoutes(
+  game: SwissGameKind,
+  format: SwissFormat = "swiss"
+): SwissSurfaceRoutes {
   if (game === "draughts") {
     return {
       label: "Checkers",
@@ -61,10 +66,13 @@ export function swissSurfaceRoutes(game: SwissGameKind): SwissSurfaceRoutes {
   return {
     label: "Chess",
     home: "/casino/chess",
-    tournaments: "/casino/chess/swiss",
-    create: "/casino/chess/create",
+    tournaments: format === "champions" ? "/casino/chess/tournaments" : "/casino/chess/swiss",
+    create: format === "champions" ? "/casino/chess/tournaments/create" : "/casino/chess/create",
     games: "/casino/chess/history",
-    detail: (tournamentId) => `/casino/chess/swiss/${tournamentId}`,
+    detail: (tournamentId) =>
+      format === "champions"
+        ? `/casino/chess/tournaments/${tournamentId}`
+        : `/casino/chess/swiss/${tournamentId}`,
     play: (matchId, playerName) =>
       `/casino/chess/play?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerName ?? "")}`,
   };
@@ -91,6 +99,15 @@ export interface SwissSummaryWire {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  format?: SwissFormat;
+  phase?: SwissPhase;
+  leagueRounds?: number;
+  bracketSize?: number;
+  directQualifiers?: number;
+  playoffPlayers?: number;
+  eliminatedPlayers?: number;
+  knockoutRound?: number;
+  knockoutGamesPerTie?: number;
 }
 
 export interface SwissStandingWire {
@@ -98,6 +115,9 @@ export interface SwissStandingWire {
   name: string;
   points: number;
   tieBreak: number;
+  directEncounter?: number;
+  buchholzCutOne?: number;
+  sonnebornBerger?: number;
   wins: number;
   draws: number;
   losses: number;
@@ -116,6 +136,13 @@ export interface SwissPairingWire {
   status: SwissPairingStatus;
   result: string | null;
   isForfeit: boolean;
+  stage?: "league" | "playoff" | "knockout";
+  stageRound?: number;
+  tieNumber?: number | null;
+  leg?: number;
+  armageddon?: boolean;
+  whiteSeed?: number | null;
+  blackSeed?: number | null;
 }
 
 export interface SwissRoundWire {
@@ -126,6 +153,13 @@ export interface SwissRoundWire {
 export interface SwissDetailWire extends SwissSummaryWire {
   standings: SwissStandingWire[];
   rounds: SwissRoundWire[];
+  standingsTotal?: number;
+  standingsOffset?: number;
+  standingsHasMore?: boolean;
+  pairingsTotal?: number;
+  pairingsOffset?: number;
+  pairingsHasMore?: boolean;
+  myPairing?: SwissPairingWire | null;
 }
 
 // Domain types. Standings and pairings pass through nearly as-is, but the seam
@@ -154,6 +188,15 @@ export interface SwissSummary {
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
+  format: SwissFormat;
+  phase: SwissPhase;
+  leagueRounds: number;
+  bracketSize: number;
+  directQualifiers: number;
+  playoffPlayers: number;
+  eliminatedPlayers: number;
+  knockoutRound: number;
+  knockoutGamesPerTie: number;
 }
 
 export interface SwissStanding {
@@ -161,6 +204,9 @@ export interface SwissStanding {
   name: string;
   points: number;
   tieBreak: number;
+  directEncounter: number;
+  buchholzCutOne: number;
+  sonnebornBerger: number;
   wins: number;
   draws: number;
   losses: number;
@@ -177,6 +223,13 @@ export interface SwissPairing {
   matchId: string | null;
   status: SwissPairingStatus;
   isForfeit: boolean;
+  stage: "league" | "playoff" | "knockout";
+  stageRound: number;
+  tieNumber: number | null;
+  leg: number;
+  armageddon: boolean;
+  whiteSeed: number | null;
+  blackSeed: number | null;
 }
 
 export interface SwissRound {
@@ -187,6 +240,13 @@ export interface SwissRound {
 export interface SwissDetail extends SwissSummary {
   standings: SwissStanding[];
   rounds: SwissRound[];
+  standingsTotal: number;
+  standingsOffset: number;
+  standingsHasMore: boolean;
+  pairingsTotal: number;
+  pairingsOffset: number;
+  pairingsHasMore: boolean;
+  myPairing: SwissPairing | null;
 }
 
 const STATE_BY_STATUS: Record<SwissStatusWire, SwissState> = {
@@ -224,10 +284,42 @@ export function toSwissSummary(wire: SwissSummaryWire): SwissSummary {
     createdAt: wire.createdAt,
     startedAt: wire.startedAt,
     finishedAt: wire.finishedAt,
+    format: wire.format ?? "swiss",
+    phase:
+      wire.phase ??
+      (wire.status === "created"
+        ? "registration"
+        : wire.status === "finished"
+          ? "finished"
+          : "league"),
+    leagueRounds: wire.leagueRounds ?? wire.nbRounds,
+    bracketSize: wire.bracketSize ?? 0,
+    directQualifiers: wire.directQualifiers ?? 0,
+    playoffPlayers: wire.playoffPlayers ?? 0,
+    eliminatedPlayers: wire.eliminatedPlayers ?? 0,
+    knockoutRound: wire.knockoutRound ?? 0,
+    knockoutGamesPerTie: wire.knockoutGamesPerTie ?? 1,
   };
 }
 
 export function toSwissDetail(wire: SwissDetailWire): SwissDetail {
+  const mapPairing = (pairing: SwissPairingWire): SwissPairing => ({
+    round: pairing.round,
+    board: pairing.board,
+    game: toSwissGameKind(pairing.game ?? wire.game),
+    white: pairing.white,
+    black: pairing.black,
+    matchId: pairing.matchId,
+    status: pairing.status,
+    isForfeit: pairing.isForfeit,
+    stage: pairing.stage ?? "league",
+    stageRound: pairing.stageRound ?? pairing.round,
+    tieNumber: pairing.tieNumber ?? null,
+    leg: pairing.leg ?? 1,
+    armageddon: pairing.armageddon ?? false,
+    whiteSeed: pairing.whiteSeed ?? null,
+    blackSeed: pairing.blackSeed ?? null,
+  });
   return {
     ...toSwissSummary(wire),
     standings: wire.standings.map((s) => ({
@@ -235,6 +327,9 @@ export function toSwissDetail(wire: SwissDetailWire): SwissDetail {
       name: s.name,
       points: s.points,
       tieBreak: s.tieBreak,
+      directEncounter: s.directEncounter ?? 0,
+      buchholzCutOne: s.buchholzCutOne ?? s.tieBreak,
+      sonnebornBerger: s.sonnebornBerger ?? 0,
       wins: s.wins,
       draws: s.draws,
       losses: s.losses,
@@ -243,25 +338,26 @@ export function toSwissDetail(wire: SwissDetailWire): SwissDetail {
     })),
     rounds: wire.rounds.map((r) => ({
       round: r.round,
-      pairings: r.pairings.map((p) => ({
-        round: p.round,
-        board: p.board,
-        // A pairing falls back to the tournament's own kind, so a board always
-        // opens on the right surface even if the field is missing.
-        game: toSwissGameKind(p.game ?? wire.game),
-        white: p.white,
-        black: p.black,
-        matchId: p.matchId,
-        status: p.status,
-        isForfeit: p.isForfeit,
-      })),
+      pairings: r.pairings.map(mapPairing),
     })),
+    standingsTotal: wire.standingsTotal ?? wire.standings.length,
+    standingsOffset: wire.standingsOffset ?? 0,
+    standingsHasMore: wire.standingsHasMore ?? false,
+    pairingsTotal:
+      wire.pairingsTotal ?? wire.rounds.reduce((total, round) => total + round.pairings.length, 0),
+    pairingsOffset: wire.pairingsOffset ?? 0,
+    pairingsHasMore: wire.pairingsHasMore ?? false,
+    myPairing: wire.myPairing ? mapPairing(wire.myPairing) : null,
   };
 }
 
 // The pairings of the round in play, or of the last round once it is over.
 export function currentRound(detail: SwissDetail): SwissRound | null {
-  return detail.rounds.find((r) => r.round === detail.round) ?? null;
+  const round = detail.rounds.find((item) => item.round === detail.round) ?? null;
+  if (!detail.myPairing || detail.myPairing.round !== detail.round) return round;
+  if (!round) return { round: detail.round, pairings: [detail.myPairing] };
+  if (round.pairings.some((pairing) => pairing.board === detail.myPairing?.board)) return round;
+  return { ...round, pairings: [...round.pairings, detail.myPairing] };
 }
 
 // Name rules. The service documents 1 to 30 characters with no spaces, and its
@@ -276,6 +372,39 @@ export const ROUNDS_MAX = 32;
 export const HIGH_STAKES_ENTRY_MIN_USDC = "2";
 export const HIGH_STAKES_PLAYERS_MIN = 4;
 export const HIGH_STAKES_PLAYERS_MAX = 200;
+export const CHAMPIONS_PLAYERS_MIN = 4;
+export const CHAMPIONS_PLAYERS_MAX = 10_000;
+
+export interface ChampionsPlan {
+  leagueRounds: number;
+  bracketSize: number;
+  directQualifiers: number;
+  playoffPlayers: number;
+  eliminatedPlayers: number;
+}
+
+export function championsPlan(players: number): ChampionsPlan | null {
+  if (
+    !Number.isInteger(players) ||
+    players < CHAMPIONS_PLAYERS_MIN ||
+    players > CHAMPIONS_PLAYERS_MAX
+  ) {
+    return null;
+  }
+  const target = Math.max(2, Math.floor((players * 2) / 3));
+  const bracketSize = 2 ** Math.floor(Math.log2(target));
+  const directQualifiers = bracketSize / 2;
+  const playoffPlayers = bracketSize;
+  const leagueRounds =
+    players <= 5 ? players - 1 : players <= 16 ? 5 : players <= 24 ? 6 : players <= 32 ? 7 : 8;
+  return {
+    leagueRounds,
+    bracketSize,
+    directQualifiers,
+    playoffPlayers,
+    eliminatedPlayers: players - directQualifiers - playoffPlayers,
+  };
+}
 
 const PRINTABLE_ASCII_NO_SPACE = /^[\x21-\x7e]+$/;
 
@@ -335,6 +464,7 @@ export function seatedName(
   rememberedName: string | null,
   wallet: string | null
 ): string | null {
+  if (detail.format === "champions" && rememberedName) return rememberedName;
   const candidates = [rememberedName, defaultPlayerName(wallet) || null];
   for (const candidate of candidates) {
     if (candidate && detail.standings.some((s) => s.name === candidate)) return candidate;
@@ -363,13 +493,45 @@ interface SwissListWire {
   items: SwissSummaryWire[];
 }
 
-export async function fetchSwissList(): Promise<SwissSummary[]> {
-  const data = await chessGet<SwissListWire>("/swiss", { limit: "50" });
+export async function fetchSwissList(format?: SwissFormat): Promise<SwissSummary[]> {
+  const data = await chessGet<SwissListWire>("/swiss", {
+    limit: "50",
+    ...(format ? { format } : {}),
+  });
   return data.items.map(toSwissSummary);
 }
 
-export async function fetchSwiss(id: string): Promise<SwissDetail> {
-  return toSwissDetail(await chessGet<SwissDetailWire>(`/swiss/${requireSwissId(id)}`));
+export interface FetchSwissOptions {
+  player?: string;
+  standingsOffset?: number;
+  standingsLimit?: number;
+  round?: number;
+  pairingsOffset?: number;
+  pairingsLimit?: number;
+}
+
+export async function fetchSwiss(
+  id: string,
+  options: FetchSwissOptions = {}
+): Promise<SwissDetail> {
+  return toSwissDetail(
+    await chessGet<SwissDetailWire>(`/swiss/${requireSwissId(id)}`, {
+      ...(options.standingsOffset !== undefined
+        ? { standingsOffset: String(options.standingsOffset) }
+        : {}),
+      ...(options.player ? { player: options.player } : {}),
+      ...(options.standingsLimit !== undefined
+        ? { standingsLimit: String(options.standingsLimit) }
+        : {}),
+      ...(options.round !== undefined ? { round: String(options.round) } : {}),
+      ...(options.pairingsOffset !== undefined
+        ? { pairingsOffset: String(options.pairingsOffset) }
+        : {}),
+      ...(options.pairingsLimit !== undefined
+        ? { pairingsLimit: String(options.pairingsLimit) }
+        : {}),
+    })
+  );
 }
 
 export interface CreateSwissInput {
@@ -388,6 +550,8 @@ export interface CreateSwissInput {
   // Optional newline-separated "A B" lines the service must never pair; passed
   // through to the bbpPairings TRF as forbidden pairings.
   forbiddenPairings?: string;
+  format?: SwissFormat;
+  knockoutGamesPerTie?: 1 | 2;
 }
 
 export async function createSwiss(input: CreateSwissInput): Promise<SwissSummary> {
@@ -404,6 +568,8 @@ export async function createSwiss(input: CreateSwissInput): Promise<SwissSummary
     ...(input.prizePolicy ? { prizePolicy: input.prizePolicy } : {}),
     ...(input.password ? { password: input.password } : {}),
     ...(forbidden ? { forbiddenPairings: forbidden } : {}),
+    ...(input.format ? { format: input.format } : {}),
+    ...(input.knockoutGamesPerTie ? { knockoutGamesPerTie: input.knockoutGamesPerTie } : {}),
   });
   return toSwissSummary(wire);
 }

@@ -15,6 +15,7 @@ import {
   withdrawSwiss,
   type SwissDetail,
   type SwissGameKind,
+  type SwissFormat,
   type SwissPrizePolicy,
   type SwissSummary,
 } from "@/features/casino/lib/api/swiss";
@@ -28,6 +29,8 @@ import { track } from "@/lib/analytics/mixpanel";
 // cannot, since it is where "the round is over, start the next" shows up.
 const LIST_POLL_MS = 10_000;
 const DETAIL_POLL_MS = 5_000;
+const STANDINGS_PAGE_SIZE = 200;
+const PAIRINGS_PAGE_SIZE = 1000;
 
 export const SWISS_KEYS = {
   list: ["casino", "chess", "swiss", "list"] as const,
@@ -65,10 +68,10 @@ function rememberJoinedName(tournamentId: string, wallet: string | null, name: s
   }
 }
 
-export function useSwissList(game?: SwissGameKind) {
+export function useSwissList(game?: SwissGameKind, format?: SwissFormat) {
   const query = useQuery({
-    queryKey: SWISS_KEYS.list,
-    queryFn: fetchSwissList,
+    queryKey: [...SWISS_KEYS.list, format ?? "all"],
+    queryFn: () => fetchSwissList(format),
     refetchInterval: LIST_POLL_MS,
   });
 
@@ -95,6 +98,8 @@ export interface CreateSwissFormInput {
   entryFeeUsdc?: string;
   maxPlayers?: number;
   prizePolicy?: SwissPrizePolicy;
+  format?: SwissFormat;
+  knockoutGamesPerTie?: 1 | 2;
   password?: string;
   forbiddenPairings?: string;
 }
@@ -119,6 +124,8 @@ export function useCreateSwiss() {
         prizePolicy: input.prizePolicy,
         password: input.password,
         forbiddenPairings: input.forbiddenPairings,
+        format: input.format,
+        knockoutGamesPerTie: input.knockoutGamesPerTie,
       });
     },
     onSuccess: () => {
@@ -136,10 +143,31 @@ export function useSwissTournament(tournamentId: string | null) {
   const wallet = useCasinoWallet();
   // Bumped after a join so the remembered name is re-read without a reload.
   const [nameVersion, setNameVersion] = useState(0);
+  const [standingsOffset, setStandingsOffset] = useState(0);
+  const [pairingsOffset, setPairingsOffset] = useState(0);
+  const requestedPlayer = tournamentId
+    ? recallJoinedName(tournamentId, wallet.address) ||
+      defaultPlayerName(wallet.address) ||
+      undefined
+    : undefined;
+
+  const detailKey = [
+    ...SWISS_KEYS.detail(tournamentId ?? "none"),
+    standingsOffset,
+    pairingsOffset,
+    requestedPlayer ?? "anonymous",
+  ] as const;
 
   const query = useQuery({
-    queryKey: SWISS_KEYS.detail(tournamentId ?? "none"),
-    queryFn: () => fetchSwiss(tournamentId as string),
+    queryKey: detailKey,
+    queryFn: () =>
+      fetchSwiss(tournamentId as string, {
+        standingsOffset,
+        standingsLimit: STANDINGS_PAGE_SIZE,
+        pairingsOffset,
+        pairingsLimit: PAIRINGS_PAGE_SIZE,
+        player: requestedPlayer,
+      }),
     enabled: !!tournamentId,
     refetchInterval: (q) => (q.state.data?.state === "finished" ? false : DETAIL_POLL_MS),
   });
@@ -155,7 +183,12 @@ export function useSwissTournament(tournamentId: string | null) {
   const isOrganizer = !!detail && organizerWalletMatches(detail.organizer, wallet.address);
 
   const applyDetail = (next: SwissDetail) => {
-    queryClient.setQueryData(SWISS_KEYS.detail(next.id), next);
+    setStandingsOffset(0);
+    setPairingsOffset(0);
+    queryClient.setQueryData(
+      [...SWISS_KEYS.detail(next.id), 0, 0, requestedPlayer ?? "anonymous"],
+      next
+    );
     void queryClient.invalidateQueries({ queryKey: SWISS_KEYS.list });
   };
 
@@ -219,5 +252,10 @@ export function useSwissTournament(tournamentId: string | null) {
     startingRound: nextRound.isPending,
     reconcile: reconcile.mutateAsync,
     reconciling: reconcile.isPending,
+    standingsPrevious: () =>
+      setStandingsOffset((offset) => Math.max(0, offset - STANDINGS_PAGE_SIZE)),
+    standingsNext: () => setStandingsOffset((offset) => offset + STANDINGS_PAGE_SIZE),
+    pairingsPrevious: () => setPairingsOffset((offset) => Math.max(0, offset - PAIRINGS_PAGE_SIZE)),
+    pairingsNext: () => setPairingsOffset((offset) => offset + PAIRINGS_PAGE_SIZE),
   };
 }

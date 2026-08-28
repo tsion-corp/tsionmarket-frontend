@@ -23,6 +23,7 @@ import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
 const LEVELS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
+const STAKED_INITIAL_SECONDS = 600;
 
 // These are Lichess's time slider values. Keeping the same index mapping makes
 // the setup behave predictably for players already familiar with that dialog.
@@ -181,7 +182,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
         color: stakedGame ? "random" : setup.color,
         timeMode: stakedGame ? "real_time" : setup.timeMode,
         ...(stakedGame
-          ? { initialSeconds: 300, incrementSeconds: 0 }
+          ? { initialSeconds: STAKED_INITIAL_SECONDS, incrementSeconds: 0 }
           : setup.timeMode === "real_time"
             ? {
                 initialSeconds: Math.round(minutes * 60),
@@ -262,7 +263,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
 
           {stakedGame ? (
             <p className="mt-5 rounded-[3px] border border-white/10 bg-[#262421] px-4 py-3 text-center text-[13px] leading-6 text-white/62">
-              Every paid choice uses the maximum-strength level-8 engine with a fixed 5+0 clock.
+              Every paid choice uses the maximum-strength level-8 engine with a fixed 10+0 clock.
             </p>
           ) : setup.timeMode === "real_time" ? (
             <div className="mt-5 grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-end gap-3">
@@ -319,7 +320,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
 
         <fieldset>
           <legend className="mb-3 text-[14px] font-semibold text-white/86">Strength</legend>
-          <div className="grid grid-cols-8 overflow-hidden rounded-[3px] border border-white/10">
+          <div className="grid grid-cols-4 gap-2">
             {LEVELS.map((level) => (
               <button
                 key={level}
@@ -329,13 +330,13 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
                   setSetup((current) => ({ ...current, level }));
                   if (level < MIN_STAKED_CHESS_COMPUTER_LEVEL) setStake("");
                 }}
-                className={`tnum h-10 cursor-pointer border-r border-white/10 text-[14px] last:border-r-0 ${
+                className={`tnum flex h-11 cursor-pointer items-center justify-center rounded-[3px] border text-[13px] ${
                   setup.level === level
-                    ? "bg-[#629924] font-semibold text-white"
-                    : "bg-[#262421] text-white/68 hover:bg-white/8 hover:text-white"
+                    ? "border-[#78b32d] bg-[#629924] font-semibold text-white"
+                    : "border-white/10 bg-[#262421] text-white/68 hover:border-white/22 hover:bg-white/8 hover:text-white"
                 }`}
               >
-                {level}
+                {level >= MIN_STAKED_CHESS_COMPUTER_LEVEL ? `Stockfish ${level}` : level}
               </button>
             ))}
           </div>

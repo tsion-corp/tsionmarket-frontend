@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   currentRound,
+  championsPlan,
   defaultPlayerName,
   hasOngoingPairing,
   isSeated,
@@ -114,6 +115,32 @@ describe("rounds validation", () => {
   });
 });
 
+describe("Champions tournament planning", () => {
+  it.each([
+    [4, 3, 2, 1, 2, 1],
+    [8, 5, 4, 2, 4, 2],
+    [16, 5, 8, 4, 8, 4],
+    [36, 8, 16, 8, 16, 12],
+    [10_000, 8, 4096, 2048, 4096, 3856],
+  ])(
+    "plans %i players",
+    (players, leagueRounds, bracketSize, directQualifiers, playoffPlayers, eliminatedPlayers) => {
+      expect(championsPlan(players)).toEqual({
+        leagueRounds,
+        bracketSize,
+        directQualifiers,
+        playoffPlayers,
+        eliminatedPlayers,
+      });
+    }
+  );
+
+  it("rejects capacities outside 4 to 10,000", () => {
+    expect(championsPlan(3)).toBeNull();
+    expect(championsPlan(10_001)).toBeNull();
+  });
+});
+
 describe("default player name", () => {
   it("shortens a full address to an ascii name that fits the 30-char cap", () => {
     const name = defaultPlayerName(WALLET);
@@ -218,6 +245,20 @@ describe("detail mapping", () => {
   it("has no current round before the first is paired", () => {
     const detail = toSwissDetail(detailWire({ status: "created", round: 0, rounds: [] }));
     expect(currentRound(detail)).toBeNull();
+  });
+
+  it("adds the viewer's board when it is outside the current pairing page", () => {
+    const own = pairing({ board: 2500, white: "alice", black: "charlie" });
+    const detail = toSwissDetail(
+      detailWire({
+        format: "champions",
+        pairingsTotal: 5000,
+        pairingsHasMore: true,
+        myPairing: own,
+        rounds: [{ round: 1, pairings: [pairing({ board: 1 })] }],
+      })
+    );
+    expect(currentRound(detail)?.pairings.map((game) => game.board)).toEqual([1, 2500]);
   });
 });
 

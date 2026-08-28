@@ -1,11 +1,11 @@
 "use client";
 
-import { ArenaListSection, CasinoPage } from "@/features/casino";
+import { CasinoPage, SwissListSection } from "@/features/casino";
 
-export default function ChessArenaPage() {
+export default function ChessTournamentsPage() {
   return (
     <CasinoPage hideBackLink>
-      <ArenaListSection />
+      <SwissListSection game="chess" format="champions" />
     </CasinoPage>
   );
 }
