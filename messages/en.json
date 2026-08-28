@@ -2537,6 +2537,7 @@
     "joinDiscussion": "Join the discussion",
     "browseTopics": "Browse topics",
     "discussing": "{count, plural, one {# person} other {# people}} discussing",
-    "postsCount": "{count, plural, one {# post} other {# posts}}"
+    "postsCount": "{count, plural, one {# post} other {# posts}}",
+    "viewsCount": "{count, plural, one {# view} other {# views}}"
   }
 }

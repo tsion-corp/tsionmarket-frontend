@@ -696,6 +696,15 @@ export interface TrendingDiscussion {
   postCount: number;
   /** Distinct authors — what makes it a discussion rather than one person. */
   participantCount: number;
+  /**
+   * Reach: the sum of the posts' view tallies.
+   *
+   * NOT a number of people. Each post counts a reader once, but someone who
+   * reads three posts in a discussion counts three times — so it is labelled
+   * "views" and never "people", unlike participants. Defaults to 0 so a
+   * deployment without the field renders no figure instead of NaN.
+   */
+  viewCount?: number;
 }
 
 /**

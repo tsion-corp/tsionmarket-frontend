@@ -101,13 +101,15 @@ describe("SquareComposeFab", () => {
    */
   it("reports the discussion that was tapped", async () => {
     fetchTrendingDiscussions.mockResolvedValue([
-      { tag: "btc", label: "#btc", postCount: 4, participantCount: 3 },
+      { tag: "btc", label: "#btc", postCount: 4, participantCount: 3, viewCount: 1240 },
     ]);
     const onPickDiscussion = vi.fn();
     renderFab({ onPickDiscussion });
     fireEvent.click(screen.getByRole("button", { name: "compose" }));
 
-    fireEvent.click(await screen.findByText("#btc"));
+    // Reach is shown next to people, compacted, and the two are never merged.
+    expect(await screen.findByText(/viewsCount/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText("#btc"));
     expect(onPickDiscussion).toHaveBeenCalledWith("btc");
   });
 

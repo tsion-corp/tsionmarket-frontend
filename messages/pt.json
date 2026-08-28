@@ -2537,6 +2537,7 @@
     "joinDiscussion": "Juntar-se à discussão",
     "browseTopics": "Explorar tópicos",
     "discussing": "{count, plural, one {# pessoa} other {# pessoas}} a discutir",
-    "postsCount": "{count, plural, one {# publicação} other {# publicações}}"
+    "postsCount": "{count, plural, one {# publicação} other {# publicações}}",
+    "viewsCount": "{count, plural, one {# visualização} other {# visualizações}}"
   }
 }

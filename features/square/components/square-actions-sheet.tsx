@@ -12,6 +12,7 @@ import {
 import { squareLinks } from "@/lib/square/links";
 import { SquareAvatar } from "@/features/square/components/square-avatar";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
+import { DiscussionRail } from "@/features/square/components/discussion-rail";
 
 /**
  * What the plus opens.
@@ -196,45 +197,15 @@ export function SquareActionsSheet({
             <h3 className="text-grey-400 text-[11.5px] font-medium tracking-[0.14em] uppercase">
               {t("discussions")}
             </h3>
-            <ul className="mt-2 flex flex-col gap-1.5">
-              {discussions.data?.map((discussion) => (
-                <li key={discussion.tag}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onPickDiscussion?.(discussion.tag);
-                      onClose();
-                    }}
-                    className="ws-inset flex w-full items-center justify-between gap-3 p-3 text-left transition-colors hover:bg-white/5"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-[13.5px] font-semibold text-white">
-                        {discussion.label}
-                      </span>
-                      {/* Real numbers from the service. Participants lead
-                          because that is what the ranking is: a discussion is
-                          people talking, not one person repeating a tag. */}
-                      <span className="text-grey-500 block text-[12px]">
-                        {t("discussing", { count: discussion.participantCount })} ·{" "}
-                        {t("postsCount", { count: discussion.postCount })}
-                      </span>
-                    </span>
-                    <span className="text-grey-600 shrink-0" aria-hidden>
-                      <svg viewBox="0 0 24 24" className="h-4 w-4">
-                        <path
-                          d="m9 6 6 6-6 6"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="mt-2">
+              <DiscussionRail
+                discussions={discussions.data ?? []}
+                onOpen={(tag) => {
+                  onPickDiscussion?.(tag);
+                  onClose();
+                }}
+              />
+            </div>
           </section>
         ) : topics.data && topics.data.length > 0 ? (
           <section className="mt-4">
