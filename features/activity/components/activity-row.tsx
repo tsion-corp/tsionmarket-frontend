@@ -115,7 +115,7 @@ function GameRow({ item }: { item: ActivityEntry }) {
     <div className="group relative">
       <div
         title={fullTimestamp(item.timestamp)}
-        className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 first:border-t-0 sm:px-6"
+        className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 py-3.5 pr-[60px] pl-4 first:border-t-0 sm:pr-16 sm:pl-6"
       >
         <div className="flex min-w-0 items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-[11px] bg-white/8 text-white/80">
@@ -205,7 +205,7 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
         target="_blank"
         rel="noopener noreferrer"
         title={fullTimestamp(item.timestamp)}
-        className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 px-4 py-3.5 transition-colors first:border-t-0 hover:bg-white/4 sm:px-6"
+        className="grid grid-cols-[1fr_auto] items-center gap-3 border-t border-white/6 py-3.5 pr-[60px] pl-4 transition-colors first:border-t-0 hover:bg-white/4 sm:pr-16 sm:pl-6"
       >
         <div className="flex min-w-0 items-center gap-3">
           <span className="relative shrink-0">
@@ -243,17 +243,17 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
   );
 }
 
-// The control was `text-white/0` until `group-hover`, so on a phone it was
-// invisible and untappable: there is no hover on touch, which made sharing a
-// desktop-only feature by accident. It is visible by default now and only
-// gains its emphasis on hover, and the hit area is 44px on touch.
+// Visible by default rather than on hover: there is no hover on touch, and an
+// invisible control made sharing a desktop-only feature by accident. The hit
+// area is 44px on touch, and the row reserves a gutter for it (see the row
+// padding above) so it sits beside the amount instead of on top of it.
 function ShareButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={`Share ${label} to Market Square`}
-      className="absolute top-1/2 right-1 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full text-white/45 transition-colors group-hover:bg-white/8 group-hover:text-white/70 hover:!text-white focus-visible:bg-white/8 focus-visible:text-white/70 sm:size-8"
+      className="absolute top-1/2 right-2 grid size-11 -translate-y-1/2 cursor-pointer place-items-center rounded-full border border-white/10 bg-white/5 text-white/55 transition-colors hover:border-white/20 hover:bg-white/12 hover:text-white focus-visible:border-white/25 focus-visible:bg-white/12 focus-visible:text-white sm:right-3 sm:size-9"
     >
       <ShareGlyph />
     </button>

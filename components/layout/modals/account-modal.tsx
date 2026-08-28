@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
 import { Avatar } from "@/components/ui/avatar";
 import { LanguageSelect } from "@/components/ui/language-select";
-import { WalletList } from "@/features/portfolio";
 import { InviteFriendsModal } from "@/features/referrals";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
@@ -97,7 +96,6 @@ export function AccountModal({ onClose }: AccountModalProps) {
         <span className="text-[13.5px] font-normal text-white/60">{tLanguage("label")}</span>
         <LanguageSelect />
       </div>
-      <WalletList user={user} />
       <div className="mt-[18px] flex flex-col gap-1.5">
         {!hasPasskey ? (
           <button onClick={() => linkWithPasskey()} className={`${item} text-white`}>

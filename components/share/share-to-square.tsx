@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckIcon } from "@/components/ui/icons";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { createPost, type MarketSquareDeepLink } from "@/lib/api/market-square";
 import { marketSquareHref } from "@/lib/market-square";
@@ -89,78 +90,101 @@ export function ShareToSquare({
 
   return (
     <ModalShell open={open} onClose={onClose}>
-      <div className="p-5">
-        <h2 className="font-sans text-[17px] font-semibold text-white">Share to Market Square</h2>
-        <p className="mt-1 text-[13px] text-white/55">
+      {/* ModalShell already pads the panel and draws its own close button, so
+          nothing here adds padding of its own. The heading just keeps clear of
+          that button. */}
+      <div className="pr-10">
+        <h2 className="ws-display text-[21px] tracking-[-0.01em]">Share to Market Square</h2>
+        <p className="mt-1.5 text-[13px] font-normal text-white/55">
           Add your own words. This posts as you, and anyone can open what it links to.
         </p>
+      </div>
 
-        <textarea
-          value={text}
-          onChange={(event) => setText(event.target.value.slice(0, 2000))}
-          placeholder="Say something about this…"
-          aria-label="Your message"
-          className="mt-4 h-24 w-full resize-none rounded-xl border border-white/12 bg-white/5 p-3 font-sans text-[14px] text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
-        />
+      <textarea
+        value={text}
+        onChange={(event) => setText(event.target.value.slice(0, 2000))}
+        placeholder="Say something about this…"
+        aria-label="Your message"
+        className="mt-4 h-24 w-full resize-none rounded-xl border border-white/12 bg-white/5 p-3.5 font-sans text-[14px] text-white transition-colors outline-none placeholder:text-white/35 focus:border-white/28 focus:bg-white/[0.07]"
+      />
 
-        {/* The card exactly as the square will render it. */}
-        <div className="mt-3 overflow-hidden rounded-xl border border-white/12 bg-white/4">
-          {draft.imageUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={draft.imageUrl} alt="" className="h-28 w-full object-cover" />
+      {/* The card exactly as the square will render it, labelled so it reads as
+          a preview rather than another field to fill in. */}
+      <p className="mt-4 text-[11.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
+        Preview
+      </p>
+      <div className="mt-2 overflow-hidden rounded-xl border border-white/12 bg-white/4">
+        {draft.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={draft.imageUrl} alt="" className="h-28 w-full object-cover" />
+        ) : null}
+        <div className="p-3.5">
+          <p className="font-sans text-[14px] font-medium text-white">{draft.title}</p>
+          {subtitle ? (
+            <p className="tnum mt-0.5 text-[12.5px] font-normal text-white/55">{subtitle}</p>
           ) : null}
-          <div className="p-3">
-            <p className="font-sans text-[14px] font-medium text-white">{draft.title}</p>
-            {subtitle ? <p className="mt-0.5 text-[12.5px] text-white/55">{subtitle}</p> : null}
-            <p className="mt-2 text-[11.5px] tracking-wide text-violet-300/80 uppercase">
-              Opens in Ark
-            </p>
-          </div>
+          {/* The one violet touch in the sheet: it marks the Market Square
+              destination, the same accent the square carries in the nav. */}
+          <span className="mt-2.5 inline-flex items-center rounded-full border border-violet-400/30 bg-violet-500/12 px-2.5 py-1 text-[10.5px] font-medium tracking-[0.04em] text-violet-200 uppercase">
+            Opens in Ark
+          </span>
         </div>
+      </div>
 
-        {draft.amount ? (
-          <label className="mt-3 flex cursor-pointer items-center gap-2.5 text-[13px] text-white/70">
-            <input
-              type="checkbox"
-              checked={withAmount}
-              onChange={(event) => setWithAmount(event.target.checked)}
-              className="size-4 accent-violet-500"
-            />
+      {draft.amount ? (
+        <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border border-white/8 bg-white/4 px-3.5 py-3 transition-colors hover:bg-white/6">
+          {/* The native control keeps the semantics and the keyboard behaviour;
+              the span beside it carries the look, since a checkbox cannot be
+              styled to match the sheet. The tick is drawn in currentColor, so
+              flipping the span's text colour is what reveals it. */}
+          <input
+            type="checkbox"
+            checked={withAmount}
+            onChange={(event) => setWithAmount(event.target.checked)}
+            className="peer sr-only"
+          />
+          <span
+            aria-hidden
+            className="peer-checked:text-ink grid size-[19px] shrink-0 place-items-center rounded-[7px] border border-white/22 bg-white/6 text-transparent transition-colors peer-checked:border-white peer-checked:bg-white peer-focus-visible:ring-2 peer-focus-visible:ring-white/40"
+          >
+            <CheckIcon size={13} />
+          </span>
+          <span className="text-[13px] font-normal text-white/70">
             Include the amount ({draft.amount})
-          </label>
-        ) : null}
+          </span>
+        </label>
+      ) : null}
 
-        {error ? <p className="mt-3 text-[13px] text-red-300">{error}</p> : null}
-        {posted ? (
-          <p className="mt-3 text-[13px] text-white/70">
-            {posted}{" "}
-            {squareUrl ? (
-              <a href={squareUrl} className="text-violet-300 underline">
-                Open Market Square
-              </a>
-            ) : null}
-          </p>
-        ) : null}
+      {error ? <p className="mt-3 text-[13px] font-normal text-red-300">{error}</p> : null}
+      {posted ? (
+        <p className="mt-3 text-[13px] font-normal text-white/70">
+          {posted}{" "}
+          {squareUrl ? (
+            <a href={squareUrl} className="text-white underline underline-offset-2">
+              Open Market Square
+            </a>
+          ) : null}
+        </p>
+      ) : null}
 
-        <div className="mt-5 flex items-center justify-end gap-2">
+      <div className="mt-5 flex items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex-1 cursor-pointer rounded-full border border-white/12 bg-white/5 px-4 py-3 font-sans text-[14.5px] font-medium text-white/75 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          {posted ? "Done" : "Cancel"}
+        </button>
+        {posted ? null : (
           <button
             type="button"
-            onClick={onClose}
-            className="cursor-pointer rounded-full px-4 py-2 text-[13.5px] text-white/70 hover:text-white"
+            onClick={() => void share()}
+            disabled={posting}
+            className="ws-chrome text-ink flex-1 cursor-pointer rounded-full bg-white px-4 py-3 font-sans text-[14.5px] font-semibold hover:opacity-90 disabled:cursor-default disabled:opacity-40"
           >
-            {posted ? "Done" : "Cancel"}
+            {posting ? "Sharing…" : "Post"}
           </button>
-          {posted ? null : (
-            <button
-              type="button"
-              onClick={() => void share()}
-              disabled={posting}
-              className="cursor-pointer rounded-full bg-violet-500 px-4 py-2 font-sans text-[13.5px] font-semibold text-white disabled:opacity-60"
-            >
-              {posting ? "Sharing…" : "Post"}
-            </button>
-          )}
-        </div>
+        )}
       </div>
     </ModalShell>
   );
