@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { createPost, type MarketSquareDeepLink } from "@/lib/api/market-square";
 import { marketSquareHref } from "@/lib/market-square";
+import { shareErrorMessage } from "@/lib/square/share-error";
 
 /**
  * Share an Ark activity into Market Square.
@@ -74,8 +75,11 @@ export function ShareToSquare({
           ? "Shared to Market Square."
           : "Shared — this deployment posted the link only."
       );
-    } catch {
-      setError("Could not share to Market Square. Nothing was posted.");
+    } catch (failure) {
+      // Named, not flattened: the cause is always on the other side of a
+      // deployment boundary, so a generic sentence leaves the reader with
+      // nothing to act on and us with nothing to diagnose.
+      setError(shareErrorMessage(failure));
     } finally {
       setPosting(false);
     }
