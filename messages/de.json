@@ -2538,6 +2538,15 @@
     "browseTopics": "Themen durchsuchen",
     "discussing": "{count, plural, one {# Person} other {# Personen}} diskutieren",
     "postsCount": "{count, plural, one {# Beitrag} other {# Beiträge}}",
-    "viewsCount": "{count, plural, one {# Aufruf} other {# Aufrufe}}"
+    "viewsCount": "{count, plural, one {# Aufruf} other {# Aufrufe}}",
+    "promoPostsTitle": "Gesprächsthema auf dem Marktplatz",
+    "promoLiveTitle": "Live auf dem Marktplatz",
+    "promoPeopleTitle": "Leute zum Folgen",
+    "joinLive": "Raum betreten",
+    "createdBy": "Von {name} auf dem Marktplatz erstellt",
+    "createdInSquare": "Auf dem Marktplatz erstellt",
+    "joinedCount": "{count, plural, one {# beigetreten} other {# beigetreten}}",
+    "followersCount": "{count, plural, one {# Follower} other {# Follower}}",
+    "viewProfile": "Profil ansehen"
   }
 }

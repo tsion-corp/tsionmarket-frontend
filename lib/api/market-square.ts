@@ -719,3 +719,29 @@ export async function fetchTrendingDiscussions(limit = 6): Promise<TrendingDiscu
   );
   return Array.isArray(page?.items) ? page.items : [];
 }
+
+export interface SuggestedProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  verification: string;
+  role: MarketSquareRole;
+  followerCount: number;
+  /** Omitted entirely for anonymous readers — never a misleading `false`. */
+  isFollowing?: boolean;
+}
+
+/**
+ * People worth following, busiest first.
+ *
+ * Public, like the rest of discovery. The service omits `isFollowing` for an
+ * anonymous caller rather than sending false, so the button can tell "not
+ * following" apart from "we cannot know".
+ */
+export async function fetchSuggestedProfiles(limit = 8): Promise<SuggestedProfile[]> {
+  const page = await marketSquare.get<{ items?: SuggestedProfile[] }>(
+    `/profiles?sort=followers&limit=${limit}`
+  );
+  return Array.isArray(page?.items) ? page.items : [];
+}

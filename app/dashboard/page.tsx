@@ -23,6 +23,7 @@ import { RwaSection, RwaTradeModal } from "@/features/rwa";
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SquareComposeFab, SquareSection } from "@/features/square";
+import { SquareLivePromo, SquarePeoplePromo } from "@/features/square";
 import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
@@ -52,6 +53,30 @@ const INTERLEAVED_BANNERS: readonly ("prediction" | "earn" | "casino" | undefine
   "prediction",
   "earn",
   "casino",
+];
+
+/**
+ * Market Square blocks, by the same index — a SECOND track rather than entries
+ * in the one above.
+ *
+ * Keeping them separate is the point: a square block can sit in a gap that
+ * already has a product doorway without evicting it, and a new dashboard
+ * section brings a new gap that either track can fill without renumbering the
+ * other. The alternative — one array where a slot holds exactly one thing —
+ * means every square block costs a doorway, which is a trade nobody wanted to
+ * make.
+ *
+ * Live leads because it is perishable: it earns an early position that a post
+ * does not. People sit mid-page, far from the full section at the bottom, so
+ * the square is met twice in genuinely different forms rather than twice in a
+ * row. Each block renders nothing when it has nothing, so a quiet deployment
+ * simply closes back up.
+ */
+const INTERLEAVED_SQUARE: readonly ("live" | "people" | undefined)[] = [
+  "live",
+  undefined,
+  undefined,
+  "people",
 ];
 
 // The scroll-spy sections mounted inline on this page. Prediction, earn and
@@ -232,6 +257,8 @@ export default function DashboardPage() {
             {INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
+            {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
+            {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
           </Fragment>
         ))}
         {/* The social floor of the dashboard. It sits AFTER the markets on

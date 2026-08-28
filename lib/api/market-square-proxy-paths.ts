@@ -27,6 +27,8 @@ const GET_PATHS = [
   /^topics$/u,
   // Trending discussions — the hashtags people are actually using.
   /^hashtags\/trending$/u,
+  // The people directory, for the dashboard's "suggested creators" rail.
+  /^profiles$/u,
   // A post's comment thread, read in place on the dashboard.
   /^posts\/[^/]+\/comments$/u,
   // The reader's own square identity and inbox, for the compose sheet's
@@ -114,6 +116,7 @@ const PUBLIC_GET_PATHS = [
   /^feed$/u,
   /^topics$/u,
   /^hashtags\/trending$/u,
+  /^profiles$/u,
   /^posts\/[^/]+\/comments$/u,
 ];
 

@@ -2538,6 +2538,15 @@
     "browseTopics": "Explorar tópicos",
     "discussing": "{count, plural, one {# pessoa} other {# pessoas}} a discutir",
     "postsCount": "{count, plural, one {# publicação} other {# publicações}}",
-    "viewsCount": "{count, plural, one {# visualização} other {# visualizações}}"
+    "viewsCount": "{count, plural, one {# visualização} other {# visualizações}}",
+    "promoPostsTitle": "Fala-se na Praça",
+    "promoLiveTitle": "Em direto na Praça",
+    "promoPeopleTitle": "Pessoas a seguir",
+    "joinLive": "Entrar na sala",
+    "createdBy": "Criado por {name} na Praça do Mercado",
+    "createdInSquare": "Criado na Praça do Mercado",
+    "joinedCount": "{count, plural, one {# entrou} other {# entraram}}",
+    "followersCount": "{count, plural, one {# seguidor} other {# seguidores}}",
+    "viewProfile": "Ver perfil"
   }
 }

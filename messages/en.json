@@ -2538,6 +2538,15 @@
     "browseTopics": "Browse topics",
     "discussing": "{count, plural, one {# person} other {# people}} discussing",
     "postsCount": "{count, plural, one {# post} other {# posts}}",
-    "viewsCount": "{count, plural, one {# view} other {# views}}"
+    "viewsCount": "{count, plural, one {# view} other {# views}}",
+    "promoPostsTitle": "Talk of the Square",
+    "promoLiveTitle": "Live in the Square",
+    "promoPeopleTitle": "People to follow",
+    "joinLive": "Join the room",
+    "createdBy": "Created by {name} in Market Square",
+    "createdInSquare": "Created in Market Square",
+    "joinedCount": "{count, plural, one {# joined} other {# joined}}",
+    "followersCount": "{count, plural, one {# follower} other {# followers}}",
+    "viewProfile": "View profile"
   }
 }

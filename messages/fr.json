@@ -2538,6 +2538,15 @@
     "browseTopics": "Parcourir les sujets",
     "discussing": "{count, plural, one {# personne} other {# personnes}} en discussion",
     "postsCount": "{count, plural, one {# message} other {# messages}}",
-    "viewsCount": "{count, plural, one {# vue} other {# vues}}"
+    "viewsCount": "{count, plural, one {# vue} other {# vues}}",
+    "promoPostsTitle": "On en parle sur la Place",
+    "promoLiveTitle": "En direct sur la Place",
+    "promoPeopleTitle": "Personnes à suivre",
+    "joinLive": "Rejoindre le salon",
+    "createdBy": "Créé par {name} sur la Place du Marché",
+    "createdInSquare": "Créé sur la Place du Marché",
+    "joinedCount": "{count, plural, one {# participant} other {# participants}}",
+    "followersCount": "{count, plural, one {# abonné} other {# abonnés}}",
+    "viewProfile": "Voir le profil"
   }
 }

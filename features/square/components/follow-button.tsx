@@ -16,7 +16,14 @@ import { setFollow, type MarketSquareAuthor } from "@/lib/api/market-square";
  * holds, "Unfollow" on hover, so the destructive reading only appears when the
  * pointer is on it and a glance never suggests you are about to undo something.
  */
-export function FollowButton({ author }: { author: MarketSquareAuthor }) {
+export function FollowButton({
+  author,
+  block = false,
+}: {
+  author: MarketSquareAuthor;
+  /** Full-width, for the suggested-people card where it is the card's action. */
+  block?: boolean;
+}) {
   const t = useTranslations("square");
   // Seeded from the feed's viewer state; owned locally afterwards so the
   // button answers instantly rather than waiting on a feed refetch.
@@ -50,10 +57,13 @@ export function FollowButton({ author }: { author: MarketSquareAuthor }) {
       disabled={mutation.isPending}
       aria-pressed={following}
       className={
-        "shrink-0 rounded-full px-3 py-1 text-[12px] font-semibold transition-colors disabled:opacity-60 " +
+        (block ? "w-full py-1.5 text-[11.5px] " : "shrink-0 px-3 py-1 text-[12px] ") +
+        "rounded-full font-semibold transition-colors disabled:opacity-60 " +
         (following
           ? "border-grey-700 text-grey-300 hover:border-down hover:text-down border"
-          : "bg-accent text-ink hover:brightness-110")
+          : // The design draws this as a white pill with black ink — the one
+            // bright surface on an otherwise dark card.
+            "bg-white text-black hover:brightness-90")
       }
     >
       {label}

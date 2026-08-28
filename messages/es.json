@@ -2538,6 +2538,15 @@
     "browseTopics": "Explorar temas",
     "discussing": "{count, plural, one {# persona} other {# personas}} debatiendo",
     "postsCount": "{count, plural, one {# publicación} other {# publicaciones}}",
-    "viewsCount": "{count, plural, one {# visualización} other {# visualizaciones}}"
+    "viewsCount": "{count, plural, one {# visualización} other {# visualizaciones}}",
+    "promoPostsTitle": "Se habla en la Plaza",
+    "promoLiveTitle": "En directo en la Plaza",
+    "promoPeopleTitle": "Personas a seguir",
+    "joinLive": "Entrar a la sala",
+    "createdBy": "Creado por {name} en la Plaza del Mercado",
+    "createdInSquare": "Creado en la Plaza del Mercado",
+    "joinedCount": "{count, plural, one {# se unió} other {# se unieron}}",
+    "followersCount": "{count, plural, one {# seguidor} other {# seguidores}}",
+    "viewProfile": "Ver perfil"
   }
 }

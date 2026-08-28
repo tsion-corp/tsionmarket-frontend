@@ -3,3 +3,4 @@
 export { SquareSection } from "./components/square-section";
 export { SquareComposeFab } from "./components/square-compose-fab";
 export type { TradableSymbol } from "@/lib/square/tradable";
+export { SquareLivePromo, SquarePeoplePromo, SquarePostsPromo } from "./components/square-promos";
