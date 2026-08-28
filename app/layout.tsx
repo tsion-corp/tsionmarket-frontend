@@ -42,6 +42,11 @@ export const metadata: Metadata = {
   title: "Ark",
   description:
     "The onchain superapp for global markets. Own stocks, gold, crypto and real-world assets from one self-custody account, funded in Naira.",
+  // Proves ownership of the domain to Google Search Console. Next renders this
+  // as <meta name="google-site-verification">, so it goes through the metadata
+  // API rather than a hand-written tag in the markup. The token is public by
+  // design: it only identifies the property, and Google reads it from the page.
+  verification: { google: "qvpvsWHk9DpJjouUjo4pNbVgCiaCwF_JeAHH7sCADFM" },
 };
 
 export default async function RootLayout({
