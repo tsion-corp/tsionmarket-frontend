@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import { ShareToSquare, type ShareDraft } from "@/components/share/share-to-square";
-import { closedPositions, realisedPercent, type AssetPnl } from "@/lib/pnl";
+import { closedPositions, realisedPercent, type AssetPnl, shareRef } from "@/lib/pnl";
 import { tokenBg } from "@/lib/trade/assets";
 import { displaySymbol } from "@/lib/buy";
 import { formatQty } from "@/lib/format";
@@ -88,7 +88,7 @@ export function PnlCards({ entries }: { entries: ActivityEntry[] }) {
     return {
       title: t(up ? "pnlShareWin" : "pnlShareLoss", { symbol }),
       subtitle: percent === null ? symbol : `${up ? "+" : "−"}${Math.abs(percent).toFixed(1)}%`,
-      deepLink: { kind: "activity", ref: "" },
+      deepLink: { kind: "activity", ref: shareRef(asset) },
       suggestedText: "",
       // The money stays behind the same opt-in every other share uses: one
       // careless tap must not publish what somebody's trade was worth.

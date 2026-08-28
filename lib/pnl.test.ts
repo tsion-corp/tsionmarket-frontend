@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { closedPositions, realisedPercent, realisedPnl } from "@/lib/pnl";
+import { closedPositions, realisedPercent, realisedPnl, shareRef } from "@/lib/pnl";
 import type { ActivityEntry, ActivityKind } from "@/lib/activity/entries";
 
 let seq = 0;
@@ -133,5 +133,20 @@ describe("closedPositions", () => {
         unbackedQuantity: 5,
       })
     ).toBeNull();
+  });
+});
+
+describe("shareRef", () => {
+  // Market Square's deepLinkSchema is `ref: z.string().min(1)`, so an empty
+  // ref is a 400 — and the whole share flow LOOKS correct right up to the
+  // point it silently fails. Every closed position must produce a usable ref.
+  it("never produces an empty ref for a closed position", () => {
+    const closed = closedPositions([
+      trade("bought", "DOGE", 100, 50),
+      trade("sold", "DOGE", 100, 80),
+    ]);
+    expect(closed).toHaveLength(1);
+    expect(shareRef(closed[0]).length).toBeGreaterThan(0);
+    expect(shareRef(closed[0])).toBe("DOGE");
   });
 });

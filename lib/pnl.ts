@@ -116,3 +116,16 @@ export function realisedPercent(asset: AssetPnl): number | null {
   if (asset.realisedCostBasis <= 0) return null;
   return (asset.realised / asset.realisedCostBasis) * 100;
 }
+
+/**
+ * The deep-link ref a shared PNL card carries.
+ *
+ * Market Square's `deepLinkSchema` requires `ref` to be at least one character,
+ * so this can never return an empty string: a share built with one is rejected
+ * by the service and the user is told nothing was posted, with every visible
+ * part of the flow — the sheet, the card, the copy — looking correct. The
+ * symbol is also the meaningful value, naming which result the card describes.
+ */
+export function shareRef(asset: AssetPnl): string {
+  return asset.symbol;
+}
