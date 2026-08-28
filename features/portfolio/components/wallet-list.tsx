@@ -6,14 +6,14 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { truncateAddress } from "@/lib/format";
 import { getWalletAddress } from "@/lib/user";
 
-// The profile hands out the user's own embedded wallets: one EVM address and
-// one Solana address. They come off the Privy user object, so there is nothing
-// to fetch and nothing to mint.
-
-const WALLETS = [
-  { chainType: "ethereum", label: "EVM" },
-  { chainType: "solana", label: "Solana" },
-] as const;
+// The profile hands out the user's own embedded EVM address. It comes off the
+// Privy user object, so there is nothing to fetch and nothing to mint.
+//
+// The Solana address is deliberately not listed. Privy still provisions it and
+// the app still uses it (Solana settlement, RWA trades), it is just not
+// something we ask the user to look at or copy. Kept as a list so putting it
+// back is one line.
+const WALLETS = [{ chainType: "ethereum", label: "EVM" }] as const;
 
 interface AddressRowProps {
   label: string;
@@ -53,11 +53,11 @@ export function WalletList({ user }: WalletListProps) {
   return (
     <div className="mt-[18px]">
       <div className="text-[11.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
-        Your wallet addresses
+        Your wallet address
       </div>
       {wallets.length === 0 ? (
         <div className="mt-2 text-[13px] font-normal text-white/50">
-          Your wallets are being set up.
+          Your wallet is being set up.
         </div>
       ) : (
         <div className="mt-2 flex flex-col gap-1.5">
