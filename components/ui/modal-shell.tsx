@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CloseIcon } from "@/components/ui/icons";
+import { Portal } from "@/components/ui/portal";
 import { cn } from "@/lib/utils";
 
 interface ModalShellProps {
@@ -38,61 +39,66 @@ export function ModalShell({
   const reduce = useReducedMotion();
 
   return (
-    <AnimatePresence>
-      {open ? (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.18 }}
-          onClick={onClose}
-          className="fixed inset-0 z-[300] flex items-end justify-center bg-black/62 backdrop-blur-[7px] md:pb-6"
-        >
+    // Portalled so a sheet is always measured against the viewport. Opened
+    // from inside a transformed ancestor (the sidebar slides with translate-x)
+    // a `fixed` overlay would otherwise be trapped inside it.
+    <Portal>
+      <AnimatePresence>
+        {open ? (
           <motion.div
-            initial={reduce ? { opacity: 0 } : { y: "100%" }}
-            animate={reduce ? { opacity: 1 } : { y: 0 }}
-            exit={reduce ? { opacity: 0 } : { y: "100%" }}
-            transition={
-              reduce
-                ? { duration: 0.15 }
-                : { type: "spring", stiffness: 380, damping: 38, mass: 0.9 }
-            }
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "bg-sheet ws-no-scrollbar relative max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:rounded-[24px] md:pt-[26px]",
-              SIZE_WIDTH[size],
-              panelClassName
-            )}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            onClick={onClose}
+            className="fixed inset-0 z-[300] flex items-end justify-center bg-black/62 backdrop-blur-[7px] md:pb-6"
           >
-            <span
-              aria-hidden
-              className="mx-auto mb-4 block h-1 w-9 rounded-full bg-white/20 md:hidden"
-            />
-            <button
-              onClick={onClose}
-              aria-label="Close"
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { y: "100%" }}
+              animate={reduce ? { opacity: 1 } : { y: 0 }}
+              exit={reduce ? { opacity: 0 } : { y: "100%" }}
+              transition={
+                reduce
+                  ? { duration: 0.15 }
+                  : { type: "spring", stiffness: 380, damping: 38, mass: 0.9 }
+              }
+              onClick={(e) => e.stopPropagation()}
               className={cn(
-                "absolute top-[18px] right-[18px] z-[1] grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full border border-white/12 bg-white/6 text-white/70",
-                closeButtonClassName
+                "bg-sheet ws-no-scrollbar relative max-h-[92vh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:rounded-[24px] md:pt-[26px]",
+                SIZE_WIDTH[size],
+                panelClassName
               )}
             >
-              <CloseIcon />
-            </button>
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.div
-                key={contentKey}
-                className={contentClassName}
-                initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }}
-                animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, y: -10 }}
-                transition={{ duration: 0.16, ease: "easeOut" }}
+              <span
+                aria-hidden
+                className="mx-auto mb-4 block h-1 w-9 rounded-full bg-white/20 md:hidden"
+              />
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className={cn(
+                  "absolute top-[18px] right-[18px] z-[1] grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full border border-white/12 bg-white/6 text-white/70",
+                  closeButtonClassName
+                )}
               >
-                {children}
-              </motion.div>
-            </AnimatePresence>
+                <CloseIcon />
+              </button>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={contentKey}
+                  className={contentClassName}
+                  initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                  animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
+                  exit={reduce ? { opacity: 0 } : { opacity: 0, y: -10 }}
+                  transition={{ duration: 0.16, ease: "easeOut" }}
+                >
+                  {children}
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      ) : null}
-    </AnimatePresence>
+        ) : null}
+      </AnimatePresence>
+    </Portal>
   );
 }

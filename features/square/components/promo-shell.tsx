@@ -31,16 +31,19 @@ export function PromoShell({
   return (
     <section className="mx-auto w-full max-w-[1520px] px-4 sm:px-6 lg:px-8">
       <div className="ws-card overflow-hidden p-4 sm:p-5">
-        <header className="mb-3 flex items-center justify-between gap-3">
-          <h2 className="text-[13.5px] font-semibold text-white">{title}</h2>
+        <header className="mb-3.5 flex items-center justify-between gap-3">
+          <h2 className="ws-display text-[17px] tracking-[-0.01em] text-white">{title}</h2>
           {href ? (
             <a
               href={href}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-grey-500 hover:text-grey-200 shrink-0 text-[12px] font-medium transition-colors"
+              className="group inline-flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[12px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
             >
               {action}
+              <span aria-hidden className="transition-transform group-hover:translate-x-0.5">
+                ›
+              </span>
             </a>
           ) : null}
         </header>
@@ -48,7 +51,7 @@ export function PromoShell({
         {/* One rail. Scroll-snap rather than a JS carousel, so a trackpad, a
             swipe, shift-wheel and the keyboard all work and the browser is
             left to do what it is good at. */}
-        <div className="ws-no-scrollbar -mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-1">
+        <div className="ws-no-scrollbar -mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:-mx-5 sm:px-5">
           {children}
         </div>
       </div>
@@ -60,7 +63,7 @@ export function PromoShell({
 export function PromoCard({
   href,
   width,
-  height = "h-[210px]",
+  height = "h-[186px]",
   children,
 }: {
   href: string | null;

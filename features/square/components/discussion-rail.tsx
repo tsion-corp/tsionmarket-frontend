@@ -47,7 +47,9 @@ export function DiscussionRail({
       <div
         ref={trackRef}
         onScroll={onScroll}
-        className="ws-no-scrollbar -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1"
+        // Bleeds to the sheet's edges (it pads by 26px) so the next card peeks off
+        // the side and reads as "swipe for more" rather than as a clipped card.
+        className="ws-no-scrollbar -mx-[26px] flex snap-x snap-mandatory gap-2 overflow-x-auto px-[26px] pb-1"
       >
         {discussions.map((discussion) => (
           <button

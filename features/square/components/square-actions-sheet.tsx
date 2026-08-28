@@ -118,8 +118,10 @@ export function SquareActionsSheet({
 
   return (
     <ModalShell open={open} onClose={onClose}>
-      <div className="p-5">
-        <header className="flex items-center justify-between gap-3">
+      <div>
+        {/* pr-10 keeps the bell clear of ModalShell's own close button, which
+            sits in this row's top-right corner. */}
+        <header className="flex items-center justify-between gap-3 pr-10">
           <div className="flex min-w-0 items-center gap-2.5">
             <SquareAvatar src={me.data?.avatarUrl ?? null} seed={me.data?.id ?? "me"} size={38} />
             <div className="min-w-0">

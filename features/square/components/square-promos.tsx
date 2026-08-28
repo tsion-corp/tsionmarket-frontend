@@ -247,7 +247,7 @@ export function SquarePeoplePromo() {
       {profiles.map((profile) => (
         <div
           key={profile.id}
-          className="bg-grey-800 flex h-[252px] w-[210px] shrink-0 snap-start flex-col rounded-lg p-4"
+          className="bg-grey-800 flex h-[232px] w-[196px] shrink-0 snap-start flex-col rounded-lg p-4"
         >
           {/* Centred stack, as the design draws it: portrait, name, handle,
               reach, action. The avatar is deliberately large — on a card whose

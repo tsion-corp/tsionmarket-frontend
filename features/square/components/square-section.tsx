@@ -37,10 +37,10 @@ const LANE_FOLLOWING = "lane:following";
  * with every table above it.
  *
  * ── Width ───────────────────────────────────────────────────────────────────
- * A feed reads at roughly 600px however wide the monitor is. Centring one
- * column in a 1520px shell leaves two dead gutters; fanning it into a grid
- * destroys the stream. So: feed at reading width, secondary content in a rail
- * beside it, and the rail folded back into the single column below `lg`.
+ * A feed reads at roughly 600px, so up to `lg` this is one reading column with
+ * the rail folded underneath it. On a wide monitor that column left most of a
+ * 1520px shell empty, so from `xl` the posts fan into two, which fills the
+ * shell without ever making a single column longer than it reads well at.
  */
 export function SquareSection({
   onOpenBuy,
@@ -139,7 +139,7 @@ export function SquareSection({
       <Eyebrow>{t("title")}</Eyebrow>
 
       <div className="ws-card mt-4 flex gap-8 p-4 sm:p-5 lg:p-6">
-        <div className="w-full min-w-0 lg:max-w-[680px]">
+        <div className="w-full min-w-0 lg:max-w-[680px] xl:max-w-none">
           <div className="border-grey-800 border-b">
             <SquareTabs tabs={tabs} active={tab} onSelect={setTab} label={t("tabsLabel")} />
           </div>
@@ -184,7 +184,7 @@ export function SquareSection({
                     </button>
                   </div>
                 ) : (
-                  <div>
+                  <div className="grid gap-x-6 xl:grid-cols-2">
                     {posts.map((post) => (
                       <SquarePostCard
                         key={post.id}
