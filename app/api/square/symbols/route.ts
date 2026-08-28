@@ -90,7 +90,11 @@ export async function GET() {
     // the symbols still publish and the chip simply shows no number. A ticker
     // that links is worth more than a ticker that waits for a price.
     const listed = new Set(symbols);
-    const feed = await fetchMarketTokens("popular").catch(() => []);
+    // null, not "popular". fetchMarketTokens takes a COINGECKO CATEGORY;
+    // "popular" is the filter KEY whose category is null, meaning "no category
+    // filter, just the top by market cap". Passing the key queried a category
+    // that does not exist, so the feed came back empty and every chip with it.
+    const feed = await fetchMarketTokens(null).catch(() => []);
     const markets = feed
       .filter((token) => listed.has(token.symbol.toUpperCase()))
       .map((token) => ({
