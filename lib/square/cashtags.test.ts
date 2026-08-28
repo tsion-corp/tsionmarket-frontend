@@ -63,3 +63,62 @@ describe("parseCashtags", () => {
     expect(tags("ending on $ETH")).toEqual(["ETH"]);
   });
 });
+
+describe("the rest of the caption format", () => {
+  // These match Market Square's rules exactly. A caption must read the same on
+  // both surfaces, and two parsers is how $BTC ends up a chip on one screen
+  // and plain text on the other.
+  const kinds = (text: string, tradeable: string[] = []) =>
+    parseCashtags(text, tradeable).map((s) => s.kind);
+
+  it("marks up hashtags, and lowercases them to match the index", () => {
+    const tag = parseCashtags("big for #Kospi", []).find((s) => s.kind === "hashtag");
+    expect(tag).toMatchObject({ value: "#Kospi", tag: "kospi" });
+  });
+
+  it("refuses a numeric tag, a URL fragment and an id", () => {
+    expect(kinds("in #2026")).toEqual(["text"]);
+    expect(kinds("fixed issue#42")).toEqual(["text"]);
+    // The URL wins; #section is part of the address.
+    expect(kinds("see https://x.com/a#section")).toEqual(["text", "url"]);
+  });
+
+  it("marks up mentions but not an email", () => {
+    expect(kinds("hey @prince")).toEqual(["text", "mention"]);
+    expect(kinds("mail a@b.com")).toEqual(["text"]);
+  });
+
+  it("links only http(s), never a script or data URL", () => {
+    // The value becomes an anchor href.
+    for (const hostile of [
+      "javascript:alert(1)",
+      "data:text/html;base64,x",
+      "file:///etc/passwd",
+    ]) {
+      expect(kinds(`go ${hostile}`)).toEqual(["text"]);
+    }
+    expect(kinds("go www.example.com")).toEqual(["text"]);
+  });
+
+  it("keeps the sentence's full stop out of the address", () => {
+    const link = parseCashtags("read https://example.com/a.", []).find((s) => s.kind === "url");
+    expect(link).toMatchObject({ href: "https://example.com/a" });
+  });
+
+  it("orders everything and loses no characters", () => {
+    const text = "hi @prince $BTC up #kospi see https://example.com now";
+    const segments = parseCashtags(text, ["BTC"]);
+    expect(segments.map((s) => s.kind)).toEqual([
+      "text",
+      "mention",
+      "text",
+      "cashtag",
+      "text",
+      "hashtag",
+      "text",
+      "url",
+      "text",
+    ]);
+    expect(segments.map((s) => s.value).join("")).toBe(text);
+  });
+});

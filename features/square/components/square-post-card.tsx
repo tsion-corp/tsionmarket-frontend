@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { timeAgo } from "@/lib/format";
 import { squareLinks } from "@/lib/square/links";
 import { parseCashtags } from "@/lib/square/cashtags";
+import { marketSquareHref } from "@/lib/market-square";
 import { formatCompact } from "@/lib/square/format-count";
 import { useSquareEngage } from "@/features/square/hooks/use-square-engage";
 import { useRecordView } from "@/features/square/hooks/use-record-view";
@@ -113,6 +114,28 @@ function Action({
  * their own actions — nesting those in an anchor would make a tap ambiguous.
  * The author and the timestamp carry the link instead.
  */
+/**
+ * A tag or a handle, pointing at the square.
+ *
+ * Renders as plain text when no Market Square origin is configured, which is
+ * the same rule every other cross-product link follows: a link with nowhere to
+ * go is worse than no link.
+ */
+function SquareLink({ path, value }: { path: string; value: string }) {
+  const href = marketSquareHref(path);
+  if (!href) return <span>{value}</span>;
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-accent hover:underline"
+    >
+      {value}
+    </a>
+  );
+}
+
 export function SquarePostCard({
   post,
   markets,
@@ -232,6 +255,26 @@ export function SquarePostCard({
               >
                 {segment.value}
               </button>
+            ) : segment.kind === "hashtag" ? (
+              // Opens the discussion on the square. Ark shows the square's
+              // posts; it does not host its discussion pages.
+              <SquareLink key={index} path={`t/${segment.tag}`} value={segment.value} />
+            ) : segment.kind === "mention" ? (
+              <SquareLink key={index} path={`u/${segment.handle}`} value={segment.value} />
+            ) : segment.kind === "url" ? (
+              <a
+                key={index}
+                href={segment.href}
+                target="_blank"
+                // The destination is author-supplied: it must not get a handle
+                // on this tab, and a feed anybody can write to is otherwise a
+                // link farm.
+                rel="noopener noreferrer nofollow"
+                title={segment.href}
+                className="text-accent hover:underline"
+              >
+                {segment.label}
+              </a>
             ) : (
               <span key={index}>{segment.value}</span>
             )
