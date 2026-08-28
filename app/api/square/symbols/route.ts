@@ -40,7 +40,11 @@ export async function GET() {
     });
     // No leading slash: dextopusRequest builds `${BASE}/${path}`, so "/trade/..."
     // produced "api//trade/...". Every other caller passes a bare path.
-    const res = await dextopusRequest("trade/deposit/destinations", {
+    // "deposit/destinations", NOT "trade/deposit/destinations". `purpose`
+    // selects the API KEY; it is not part of the URL. The catch-all proxy
+    // strips the prefix with splitPurpose before calling, so passing it here
+    // requested /api/trade/deposit/destinations and got a 404 from Dextopus.
+    const res = await dextopusRequest("deposit/destinations", {
       method: "GET",
       purpose: "trade",
       query,
