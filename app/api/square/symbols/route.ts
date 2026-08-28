@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { dextopusRequest } from "@/lib/server/dextopus";
 import { BUY_ORIGIN, buyableSymbols, type BuyRoute } from "@/lib/buy";
 import { swapRouteSymbols } from "@/lib/spot-swap";
+import { fetchMarketTokens } from "@/lib/server/market-tokens";
 
 /**
  * The symbols this platform can actually trade, as a plain list.
@@ -30,7 +31,7 @@ interface RawDestination {
   logoUrl?: string | null;
 }
 
-export const revalidate = 300;
+export const revalidate = 60;
 
 export async function GET() {
   try {
@@ -84,15 +85,36 @@ export async function GET() {
       }));
     const symbols = [...new Set([...buyableSymbols(routes), ...swapRouteSymbols()])].sort();
 
+    // Price and 24h move, so the square can draw the same chip Ark does.
+    // Best-effort and SEPARATE from the catalogue: if the feed is unavailable
+    // the symbols still publish and the chip simply shows no number. A ticker
+    // that links is worth more than a ticker that waits for a price.
+    const listed = new Set(symbols);
+    const feed = await fetchMarketTokens("popular").catch(() => []);
+    const markets = feed
+      .filter((token) => listed.has(token.symbol.toUpperCase()))
+      .map((token) => ({
+        symbol: token.symbol.toUpperCase(),
+        name: token.name,
+        priceUsd: token.priceUsd,
+        change24h: token.change24h,
+        logo: token.logo,
+      }));
+
     return NextResponse.json(
-      { symbols },
+      // `asOf` is the honest part: a price is only true at an instant, and a
+      // consumer that caches this needs to know which one. The catalogue could
+      // be cached for hours; the prices in it cannot.
+      { symbols, markets, asOf: new Date().toISOString() },
       {
         headers: {
-          // Served from the edge cache for five minutes, and allowed to go
-          // stale for an hour while it refreshes. A catalogue that is an hour
-          // old marks up the same tickers; an outage that empties it would
-          // silently un-link every ticker on the square.
-          "Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+          // Sixty seconds, not five minutes: this now carries prices, and a
+          // five-minute-old price on a finance product is a wrong number
+          // rendered confidently. The catalogue itself changes on the order of
+          // days and would happily cache for hours — the prices are what set
+          // this window. `stale-while-revalidate` still keeps an outage from
+          // silently un-linking every ticker on the square.
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=600",
         },
       }
     );
