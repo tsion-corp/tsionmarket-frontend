@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
@@ -117,7 +118,54 @@ export default function DashboardPage() {
 
   // Stable handler identities so the memoized section views below don't
   // re-render when this page re-renders (modal open/close, active-section scroll).
-  const close = useCallback(() => setModal(null), []);
+  /**
+   * `?buy=ETH` opens the buy sheet for that symbol.
+   *
+   * Market Square posts are full of $TICKER, and tapping one should land where
+   * Ark would put you: the sheet that buys it. Without a URL for that, a
+   * cross-product link could only drop somebody on a page and leave them to
+   * find the coin themselves.
+   *
+   * DERIVED, not set in an effect. The catalogue arrives asynchronously, so an
+   * effect would have to setState once it lands and trigger a second render
+   * pass; deriving means the sheet is simply part of what this render already
+   * knows. Dismissal is explicit rather than implied by clearing state, or the
+   * derivation would immediately reopen what was just closed.
+   *
+   * An unknown symbol opens nothing: the square cannot know what this
+   * deployment lists, and an empty sheet is worse than no sheet.
+   */
+  const buyParam = useSearchParams().get("buy");
+  const [deepLinkDismissed, setDeepLinkDismissed] = useState(false);
+  const deepLinkBuy = useMemo((): DashboardModal => {
+    if (!buyParam || deepLinkDismissed) return null;
+    const wanted = buyParam.toUpperCase();
+    const market = spotMarkets.find((m) => m.symbol.toUpperCase() === wanted);
+    if (!market) return null;
+    return {
+      type: "buy",
+      buy: {
+        symbol: market.symbol,
+        name: market.name,
+        priceUsd: market.priceUsd,
+        logo: market.logo,
+      },
+    };
+  }, [buyParam, deepLinkDismissed, spotMarkets]);
+
+  // Strips the parameter so a refresh or a back does not reopen a sheet
+  // somebody already dismissed. No setState here, only history.
+  useEffect(() => {
+    if (buyParam) window.history.replaceState(null, "", window.location.pathname);
+  }, [buyParam]);
+
+  // The deep-linked sheet only shows when nothing else is open.
+  const active = modal ?? deepLinkBuy;
+
+  const close = useCallback(() => {
+    setModal(null);
+    setDeepLinkDismissed(true);
+  }, []);
   const openDetail = useCallback(
     (detail: DetailPayload) => setModal({ type: "detail", detail }),
     []
@@ -127,6 +175,7 @@ export default function DashboardPage() {
     []
   );
   const openBuy = useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []);
+
   const openSell = useCallback((sell: SellPayload) => setModal({ type: "sell", sell }), []);
   const openMemeSell = useCallback(
     (memeSell: MemeToken) => setModal({ type: "memeSell", memeSell }),
@@ -208,40 +257,40 @@ export default function DashboardPage() {
         open={modal !== null}
         onClose={close}
         contentKey={modal?.type ?? "none"}
-        size={modal?.type === "funds" || modal?.type === "withdraw" ? "lg" : "md"}
+        size={active?.type === "funds" || active?.type === "withdraw" ? "lg" : "md"}
       >
-        {modal?.type === "detail" ? <DetailModal detail={modal.detail} /> : null}
-        {modal?.type === "confirm" ? (
+        {active?.type === "detail" ? <DetailModal detail={active.detail} /> : null}
+        {active?.type === "confirm" ? (
           <ConfirmModal
-            confirm={modal.confirm}
+            confirm={active.confirm}
             onConfirm={() =>
               setModal({
                 type: "done",
-                title: modal.confirm.successTitle,
-                msg: modal.confirm.successMsg,
+                title: active.confirm.successTitle,
+                msg: active.confirm.successMsg,
               })
             }
           />
         ) : null}
-        {modal?.type === "buy" ? <BuySheet payload={modal.buy} onClose={close} /> : null}
-        {modal?.type === "sell" ? <SellSheet payload={modal.sell} onClose={close} /> : null}
-        {modal?.type === "memeSell" ? (
+        {active?.type === "buy" ? <BuySheet payload={active.buy} onClose={close} /> : null}
+        {active?.type === "sell" ? <SellSheet payload={active.sell} onClose={close} /> : null}
+        {active?.type === "memeSell" ? (
           <MemeTradeSheet
-            token={modal.memeSell}
+            token={active.memeSell}
             defaultSide="SELL"
             onClose={close}
             showRisk={false}
           />
         ) : null}
-        {modal?.type === "rwaTrade" ? (
-          <RwaTradeModal payload={modal.rwaTrade} onContinueInBackground={close} />
+        {active?.type === "rwaTrade" ? (
+          <RwaTradeModal payload={active.rwaTrade} onContinueInBackground={close} />
         ) : null}
-        {modal?.type === "funds" ? <FundsModal onClose={close} deposit={modal.deposit} /> : null}
-        {modal?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
-        {modal?.type === "account" ? <AccountModal onClose={close} /> : null}
-        {modal?.type === "done" ? (
-          <SuccessPanel title={modal.title} onDone={close}>
-            {modal.msg}
+        {active?.type === "funds" ? <FundsModal onClose={close} deposit={active.deposit} /> : null}
+        {active?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
+        {active?.type === "account" ? <AccountModal onClose={close} /> : null}
+        {active?.type === "done" ? (
+          <SuccessPanel title={active.title} onDone={close}>
+            {active.msg}
           </SuccessPanel>
         ) : null}
       </ModalShell>
