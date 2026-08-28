@@ -2547,6 +2547,8 @@
     "createdInSquare": "Auf dem Marktplatz erstellt",
     "joinedCount": "{count, plural, one {# beigetreten} other {# beigetreten}}",
     "followersCount": "{count, plural, one {# Follower} other {# Follower}}",
-    "viewProfile": "Profil ansehen"
+    "viewProfile": "Profil ansehen",
+    "showMore": "Mehr anzeigen",
+    "showLess": "Weniger anzeigen"
   }
 }

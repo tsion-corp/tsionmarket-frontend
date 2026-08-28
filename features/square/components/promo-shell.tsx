@@ -60,13 +60,25 @@ export function PromoShell({
 export function PromoCard({
   href,
   width,
+  height = "h-[210px]",
   children,
 }: {
   href: string | null;
   width: string;
+  /**
+   * A FIXED height, deliberately.
+   *
+   * Cards in a rail hold captions of wildly different lengths, so sized to
+   * their content the engagement pill lands at a different height on every
+   * card — it rides up under a short post and drops under a long one, and the
+   * row reads as ragged. Fixing the height lets the action sit at the same
+   * baseline across the whole rail: the card's footer is pinned with
+   * `mt-auto`, and only the text absorbs the difference.
+   */
+  height?: string;
   children: React.ReactNode;
 }) {
-  const className = `bg-grey-800 ${width} shrink-0 snap-start rounded-lg p-3 text-left transition-colors hover:brightness-110`;
+  const className = `bg-grey-800 ${width} ${height} flex shrink-0 snap-start flex-col rounded-lg p-3 text-left transition-colors hover:brightness-110`;
   return href ? (
     <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
       {children}

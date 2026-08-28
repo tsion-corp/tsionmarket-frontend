@@ -489,6 +489,8 @@ export interface MarketSquarePreview {
 
 export interface MarketSquareFeedPost {
   id: string;
+  /** Present even when the author is not hydrated — used to group by person. */
+  authorId?: string;
   text: string;
   mediaUrl: string | null;
   mediaKind: string | null;

@@ -23,7 +23,7 @@ import { RwaSection, RwaTradeModal } from "@/features/rwa";
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SquareComposeFab, SquareSection } from "@/features/square";
-import { SquareLivePromo, SquarePeoplePromo } from "@/features/square";
+import { SquareLivePromo, SquarePeoplePromo, SquarePostsPromo } from "@/features/square";
 import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
@@ -67,14 +67,15 @@ const INTERLEAVED_BANNERS: readonly ("prediction" | "earn" | "casino" | undefine
  * make.
  *
  * Live leads because it is perishable: it earns an early position that a post
- * does not. People sit mid-page, far from the full section at the bottom, so
- * the square is met twice in genuinely different forms rather than twice in a
- * row. Each block renders nothing when it has nothing, so a quiet deployment
- * simply closes back up.
+ * does not. Posts follow it, a whole section down and three sections clear of
+ * the full feed at the bottom — near enough the top to be seen, far enough
+ * from the real feed that the two are not read as the same shelf twice.
+ * People sit mid-page. Each block renders nothing when it has nothing, so a
+ * quiet deployment simply closes back up.
  */
-const INTERLEAVED_SQUARE: readonly ("live" | "people" | undefined)[] = [
+const INTERLEAVED_SQUARE: readonly ("live" | "posts" | "people" | undefined)[] = [
   "live",
-  undefined,
+  "posts",
   undefined,
   "people",
 ];
@@ -258,6 +259,7 @@ export default function DashboardPage() {
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
             {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
+            {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
             {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
           </Fragment>
         ))}

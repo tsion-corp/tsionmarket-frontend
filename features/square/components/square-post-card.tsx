@@ -11,6 +11,7 @@ import { useSquareEngage } from "@/features/square/hooks/use-square-engage";
 import { useRecordView } from "@/features/square/hooks/use-record-view";
 import { SquareComments } from "@/features/square/components/square-comments";
 import { CoinChip } from "@/features/square/components/coin-chip";
+import { ExpandableText } from "@/features/square/components/expandable-text";
 import { FollowButton } from "@/features/square/components/follow-button";
 import { authorName } from "@/lib/square/author";
 import { SquareAvatar } from "@/features/square/components/square-avatar";
@@ -234,7 +235,10 @@ export function SquarePostCard({
       </header>
 
       {post.text ? (
-        <p className="mt-2.5 text-[14px] leading-[22px] whitespace-pre-wrap text-white/85">
+        <ExpandableText
+          className="mt-2.5 text-[14px] leading-[22px] whitespace-pre-wrap text-white/85"
+          clampClass="line-clamp-6"
+        >
           {segments.map((segment, index) =>
             segment.kind === "cashtag" ? (
               <button
@@ -279,7 +283,7 @@ export function SquarePostCard({
               <span key={index}>{segment.value}</span>
             )
           )}
-        </p>
+        </ExpandableText>
       ) : null}
 
       {mentioned.length > 0 ? (

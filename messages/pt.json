@@ -2547,6 +2547,8 @@
     "createdInSquare": "Criado na Praça do Mercado",
     "joinedCount": "{count, plural, one {# entrou} other {# entraram}}",
     "followersCount": "{count, plural, one {# seguidor} other {# seguidores}}",
-    "viewProfile": "Ver perfil"
+    "viewProfile": "Ver perfil",
+    "showMore": "Ver mais",
+    "showLess": "Ver menos"
   }
 }

@@ -2547,6 +2547,8 @@
     "createdInSquare": "Créé sur la Place du Marché",
     "joinedCount": "{count, plural, one {# participant} other {# participants}}",
     "followersCount": "{count, plural, one {# abonné} other {# abonnés}}",
-    "viewProfile": "Voir le profil"
+    "viewProfile": "Voir le profil",
+    "showMore": "Afficher plus",
+    "showLess": "Afficher moins"
   }
 }

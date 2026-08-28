@@ -2547,6 +2547,8 @@
     "createdInSquare": "Creado en la Plaza del Mercado",
     "joinedCount": "{count, plural, one {# se unió} other {# se unieron}}",
     "followersCount": "{count, plural, one {# seguidor} other {# seguidores}}",
-    "viewProfile": "Ver perfil"
+    "viewProfile": "Ver perfil",
+    "showMore": "Ver más",
+    "showLess": "Ver menos"
   }
 }

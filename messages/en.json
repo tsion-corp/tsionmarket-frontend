@@ -2547,6 +2547,8 @@
     "createdInSquare": "Created in Market Square",
     "joinedCount": "{count, plural, one {# joined} other {# joined}}",
     "followersCount": "{count, plural, one {# follower} other {# followers}}",
-    "viewProfile": "View profile"
+    "viewProfile": "View profile",
+    "showMore": "Show more",
+    "showLess": "Show less"
   }
 }
