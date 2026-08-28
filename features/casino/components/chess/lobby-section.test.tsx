@@ -308,16 +308,21 @@ describe("chess lobby", () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith("/casino/chess/play?match=computer-1"));
   });
 
-  it("keeps levels one to seven free and quotes the level-eight ten-percent profit", async () => {
+  it("shows paid labels five to eight while disclosing the level-eight engine", async () => {
     cashierStatus.configured = true;
     cashierStatus.available = "20";
     render(<LobbySection />, { wrapper });
 
     fireEvent.click(await screen.findByRole("button", { name: "Set up a computer game" }));
-    expect(screen.getByText(/Levels 1 to 7 are free-only/)).toBeInTheDocument();
+    expect(screen.getByText(/Levels 1 to 4 are free-only/)).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Computer stake in USD" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "8" }));
+    for (const level of [5, 6, 7, 8]) {
+      fireEvent.click(screen.getByRole("button", { name: String(level) }));
+      expect(screen.getByRole("textbox", { name: "Computer stake in USD" })).toBeInTheDocument();
+    }
+
+    fireEvent.click(screen.getByRole("button", { name: "5" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Computer stake in USD" }), {
       target: { value: "0" },
     });
@@ -328,12 +333,15 @@ describe("chess lobby", () => {
       target: { value: "10" },
     });
 
-    expect(screen.getByText("Win profit (10%)")).toBeInTheDocument();
-    expect(screen.getByText("11 USD")).toBeInTheDocument();
+    expect(screen.getByText("Win profit (100%)")).toBeInTheDocument();
+    expect(screen.getByText("20 USD")).toBeInTheDocument();
     expect(screen.getByText("Draw return")).toBeInTheDocument();
     expect(screen.getByText("0 USD")).toBeInTheDocument();
-    expect(screen.getByText(/fixed 5\+0 clock/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/maximum-strength level-8 engine.*fixed 5\+0 clock/)
+    ).toBeInTheDocument();
     expect(screen.getByText(/until a moderator clears it/)).toBeInTheDocument();
+    expect(screen.getByText(/waits there if the cashier wallet needs funding/)).toBeInTheDocument();
     expect(screen.getByText("Balance after stake")).toBeInTheDocument();
   });
 

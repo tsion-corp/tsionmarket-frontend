@@ -42,6 +42,7 @@ import {
   CHESS_MODAL_PANEL_CLASS,
   CHESS_SURFACE_BG,
 } from "@/features/casino/lib/chess/ui";
+import { computerWagerStatusLine } from "@/features/casino/lib/chess/computer-wager-copy";
 import {
   armAudioUnlock,
   moveSoundFromSan,
@@ -1440,24 +1441,23 @@ export function PlaySection({
   // One quiet line for staked matches. Computer rewards are server quotes and
   // must not pass through the equal-pot PvP wording or calculation.
   const wagerRefunded =
-    match.state === "cancelled" ||
-    match.result?.kind === "draw" ||
-    (match.wagerStatus ?? "").toLowerCase().includes("refund");
+    match.state === "cancelled" || (match.wagerStatus ?? "").toLowerCase().includes("refund");
   const computerWager = match.computer?.wager ?? null;
   const wonComputerWager =
     result !== null && result.kind !== "draw" && you !== null && result.winner === you;
-  const computerPayout =
-    computerWager && hasPositiveUsdc(computerWager.payoutUsdc)
-      ? computerWager.payoutUsdc
-      : computerWager?.potentialPayoutUsdc;
   const wagerLine = computerWager
-    ? !over
-      ? `Staked ${computerWager.stakeUsdc} USDC · win pays ${computerWager.potentialPayoutUsdc} USDC`
-      : wagerRefunded
-        ? "Your stake was refunded."
-        : wonComputerWager && computerPayout
-          ? `You received ${computerPayout} USDC.`
-          : "Computer wager settled."
+    ? computerWagerStatusLine({
+        over,
+        cancelled: match.state === "cancelled",
+        humanWon: wonComputerWager,
+        stakeUsdc: computerWager.stakeUsdc,
+        potentialPayoutUsdc: computerWager.potentialPayoutUsdc,
+        creditedPayoutUsdc:
+          computerWager.status === "settled" && hasPositiveUsdc(computerWager.payoutUsdc)
+            ? computerWager.payoutUsdc
+            : null,
+        status: computerWager.status,
+      })
     : !match.stakeUsdc
       ? null
       : !over

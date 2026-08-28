@@ -160,7 +160,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
   const minutes = MINUTES_PER_SIDE[setup.timeIndex];
   const increment = INCREMENTS[setup.incrementIndex];
   const realTimeValid = minutes > 0 || increment > 0;
-  const stakingAllowed = setup.level === MIN_STAKED_CHESS_COMPUTER_LEVEL;
+  const stakingAllowed = setup.level >= MIN_STAKED_CHESS_COMPUTER_LEVEL;
   const stakeUsdc = cashier.configured && stakingAllowed ? normalizeUsdcAmount(stake) : null;
   const wagerBreakdown = stakeUsdc
     ? chessComputerWagerBreakdown(stakeUsdc, cashier.available, setup.level)
@@ -262,7 +262,7 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
 
           {stakedGame ? (
             <p className="mt-5 rounded-[3px] border border-white/10 bg-[#262421] px-4 py-3 text-center text-[13px] leading-6 text-white/62">
-              Paid level-8 games use a fixed 5+0 clock.
+              Every paid choice uses the maximum-strength level-8 engine with a fixed 5+0 clock.
             </p>
           ) : setup.timeMode === "real_time" ? (
             <div className="mt-5 grid grid-cols-[minmax(0,1fr)_24px_minmax(0,1fr)] items-end gap-3">
@@ -456,10 +456,10 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
                       chessLevelEightTerms
                     />
                     <p className="mt-1.5 text-[10.5px] leading-4 text-white/36">
-                      A reviewed win pays 1.1x your stake, returning your principal plus 10% profit.
-                      A draw or loss forfeits your stake to the computer. An abort or system
-                      cancellation returns 100%. After engine analysis, every winning payout stays
-                      held until a moderator clears it.
+                      A reviewed win pays 2x your stake. A draw or loss forfeits your stake to the
+                      computer. An abort or system cancellation returns 100%. After engine analysis,
+                      every win stays held until a moderator clears it. An approved win is credited
+                      to your chess balance and waits there if the cashier wallet needs funding.
                     </p>
                   </div>
                 ) : (
@@ -470,7 +470,8 @@ export function ChessComputerDialog({ open, onClose }: ChessComputerDialogProps)
               </div>
             ) : (
               <p className="rounded-[3px] border border-white/10 bg-[#262421] px-4 py-3 text-[12px] leading-5 text-white/48">
-                Levels 1 to 7 are free-only. Choose level 8 to stake real money.
+                Levels 1 to 4 are free-only. Levels 5 to 8 accept stakes, and every paid choice uses
+                the maximum-strength level-8 engine.
               </p>
             )}
           </fieldset>
