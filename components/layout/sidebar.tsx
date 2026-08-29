@@ -10,7 +10,7 @@ import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 import { deriveProfile } from "@/lib/user";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
-import { marketSquareHref } from "@/lib/market-square";
+import { MARKET_SQUARE_HIDDEN, marketSquareHref } from "@/lib/market-square";
 
 /** Four seats around an open square — people gathered, not a shop front. */
 function SquareIcon({ size = 20 }: { size?: number }) {
@@ -59,7 +59,9 @@ export function Sidebar({
   const { user } = usePrivy();
   const profile = deriveProfile(user);
   const t = useTranslations("topbar");
-  const squareHref = marketSquareHref();
+  // Null while the square is hidden, which is the same state a deployment
+  // without the URL is in, so the entry below needs no second condition.
+  const squareHref = MARKET_SQUARE_HIDDEN ? null : marketSquareHref();
 
   // While the drawer is open the page behind it does not scroll, and Escape
   // closes it. Both undone on close and on unmount.
@@ -135,7 +137,8 @@ export function Sidebar({
             thing that makes every other section visible to other people — so
             burying it in the list would rank it as one product among nine.
             It is a sibling deployment, hence a link and an outbound mark; with
-            the URL unset it renders nothing rather than a dead entry. */}
+            the URL unset it renders nothing rather than a dead entry.
+            Hidden for now: see MARKET_SQUARE_HIDDEN in lib/market-square.ts. */}
         {squareHref !== null ? (
           <>
             <a

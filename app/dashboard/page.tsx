@@ -30,6 +30,7 @@ import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
 import { useDashboardTour } from "@/features/tour";
 import type { DepositPrefill } from "@/lib/voice/intent";
 import { loadInterest } from "@/lib/preferences";
+import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
 import type { SectionId } from "@/lib/sections";
 import type { MemeToken } from "@/lib/meme/api";
 import type {
@@ -258,29 +259,40 @@ export default function DashboardPage() {
             {INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
-            {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
-            {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
-            {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
+            {/* Hidden for now, so the gaps close up and the doorway track
+                above is unaffected. */}
+            {MARKET_SQUARE_HIDDEN ? null : (
+              <>
+                {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
+                {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
+                {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
+              </>
+            )}
           </Fragment>
         ))}
         {/* The social floor of the dashboard. It sits AFTER the markets on
             purpose: someone opening Ark came for their money, and the square
             is what they scroll into once they are done reading it — met by
-            browsing rather than by deciding to leave for another deployment. */}
-        <SquareSection
-          onOpenBuy={openBuy}
-          markets={spotMarkets}
-          tab={squareTab}
-          onTabChange={setSquareTab}
-        />
+            browsing rather than by deciding to leave for another deployment.
+            Hidden for now: see MARKET_SQUARE_HIDDEN in lib/market-square.ts. */}
+        {MARKET_SQUARE_HIDDEN ? null : (
+          <SquareSection
+            onOpenBuy={openBuy}
+            markets={spotMarkets}
+            tab={squareTab}
+            onTabChange={setSquareTab}
+          />
+        )}
       </DashboardShell>
       {/* Outside the shell so it anchors to the viewport rather than the
           scrolling column. It reveals itself once the square is in reach. */}
-      <SquareComposeFab
-        markets={spotMarkets}
-        onPickTopic={openTopic}
-        onPickDiscussion={openDiscussion}
-      />
+      {MARKET_SQUARE_HIDDEN ? null : (
+        <SquareComposeFab
+          markets={spotMarkets}
+          onPickTopic={openTopic}
+          onPickDiscussion={openDiscussion}
+        />
+      )}
 
       <ModalShell
         open={modal !== null}

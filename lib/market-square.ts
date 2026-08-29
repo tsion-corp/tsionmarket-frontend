@@ -12,6 +12,23 @@
  */
 export const MARKET_SQUARE_URL = process.env.NEXT_PUBLIC_MARKET_SQUARE_URL ?? "";
 
+/**
+ * Whether the product currently offers a way in to the square. It does not.
+ *
+ * This is a visibility switch, not a removal. Two surfaces read it: the
+ * sidebar entry and the square blocks on the dashboard. While it is true they
+ * render nothing, and everything behind them stays wired, so the square's own
+ * deployment is still reachable at its URL and the proxy in
+ * `app/api/market-square` still serves the broadcast flows that need it.
+ *
+ * To bring the entries back, set this to false. Nothing else has to change.
+ *
+ * Deliberately not read from the environment. A deployment that forgets the
+ * variable should keep the square hidden rather than reveal it by omission,
+ * and the decision to show it again belongs in a reviewed change.
+ */
+export const MARKET_SQUARE_HIDDEN: boolean = true;
+
 export function marketSquareHref(path = ""): string | null {
   if (MARKET_SQUARE_URL === "") return null;
   const base = MARKET_SQUARE_URL.replace(/\/+$/, "");
