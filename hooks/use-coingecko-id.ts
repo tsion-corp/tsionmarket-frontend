@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 
 // Resolves a token's CoinGecko coin id from its contract address (via
 // /api/token-chart-id), so a spot market outside the top-coins feed can still be
@@ -14,7 +15,7 @@ export function useCoingeckoId(platform: string | null, address: string | null) 
     gcTime: Infinity,
     queryFn: async () => {
       const params = new URLSearchParams({ platform: platform!, address: address! });
-      const res = await fetch(`/api/token-chart-id?${params.toString()}`);
+      const res = await apiFetch(`/api/token-chart-id?${params.toString()}`);
       if (!res.ok) return { id: null };
       return res.json();
     },

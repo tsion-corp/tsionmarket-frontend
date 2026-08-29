@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type { BankAccountInput, OfframpCreation, VerifiedBank } from "@/lib/pouch/offramp";
+import { apiFetch } from "@/lib/api";
 
 // Client hooks over the offramp proxy routes. The routes return normalized
 // domain objects; raw provider shapes stay behind /api/pouch. The bank list is
@@ -26,7 +27,7 @@ export function useOfframpRate() {
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
     queryFn: async () => {
-      const res = await fetch("/api/pouch/rate?type=SELL");
+      const res = await apiFetch("/api/pouch/rate?type=SELL");
       if (!res.ok) await readError(res, "Could not load the rate");
       return res.json();
     },

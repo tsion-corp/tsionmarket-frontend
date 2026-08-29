@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 
 interface AccessResult {
   country: string | null;
@@ -19,7 +20,7 @@ export function usePolymarketAccess() {
     gcTime: ONE_HOUR,
     refetchOnWindowFocus: false,
     queryFn: async () => {
-      const res = await fetch("/api/polymarket/access");
+      const res = await apiFetch("/api/polymarket/access");
       if (!res.ok) throw new Error("Could not check region");
       return (await res.json()) as AccessResult;
     },

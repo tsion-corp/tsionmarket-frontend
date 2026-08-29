@@ -15,6 +15,7 @@ import {
   serverPendingOnrampSnapshot,
   subscribePendingOnramp,
 } from "@/lib/pouch/pending";
+import { apiFetch } from "@/lib/api";
 
 // Client hooks over the onramp proxy routes. The routes already return normalized
 // domain objects, so these hooks only type the response and surface errors.
@@ -26,7 +27,7 @@ export function usePouchOnrampRate() {
   return useQuery<{ rate: number }>({
     queryKey: ["pouch-onramp-rate"],
     queryFn: async () => {
-      const res = await fetch("/api/pouch/rate");
+      const res = await apiFetch("/api/pouch/rate");
       if (!res.ok) await readError(res, "Could not load the rate");
       return res.json();
     },

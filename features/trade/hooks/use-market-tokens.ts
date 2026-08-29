@@ -2,6 +2,7 @@
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { MarketToken } from "@/lib/market-catalog";
+import { apiFetch } from "@/lib/api";
 
 const TWO_MINUTES = 2 * 60 * 1000;
 
@@ -14,7 +15,7 @@ export function useMarketTokens(filter: string) {
     // slow/rate-limited fetch never blanks the table.
     placeholderData: keepPreviousData,
     queryFn: async () => {
-      const res = await fetch(`/api/market-tokens?filter=${encodeURIComponent(filter)}`);
+      const res = await apiFetch(`/api/market-tokens?filter=${encodeURIComponent(filter)}`);
       if (!res.ok) throw new Error("Could not load markets");
       const data = await res.json();
       return (data.tokens ?? []) as MarketToken[];

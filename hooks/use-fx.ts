@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 
 const TEN_MINUTES = 10 * 60 * 1000;
 
@@ -16,7 +17,7 @@ export function useFx() {
   const { data } = useQuery<FxResponse>({
     queryKey: ["fx-rates"],
     queryFn: async () => {
-      const res = await fetch("/api/fx");
+      const res = await apiFetch("/api/fx");
       if (!res.ok) throw new Error("FX request failed");
       return res.json();
     },

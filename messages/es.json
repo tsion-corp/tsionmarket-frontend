@@ -555,7 +555,8 @@
     "addPasskey": "Añade una passkey para entrar más rápido",
     "inviteFriends": "Invitar amigos",
     "helpSupport": "Ayuda y soporte",
-    "signOut": "Cerrar sesión"
+    "signOut": "Cerrar sesión",
+    "wallets": "Carteras"
   },
   "common": {
     "addressCopied": "Dirección copiada",
@@ -2550,5 +2551,11 @@
     "viewProfile": "Ver perfil",
     "showMore": "Ver más",
     "showLess": "Ver menos"
+  },
+  "connection": {
+    "offline": "No se puede conectar con el servidor.",
+    "retryIn": "Reintentando en {seconds} s",
+    "retryNow": "Reintentar",
+    "reconnecting": "Reconectando…"
   }
 }

@@ -555,7 +555,8 @@
     "addPasskey": "Add a passkey for faster sign-in",
     "inviteFriends": "Invite friends",
     "helpSupport": "Help & support",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "wallets": "Wallets"
   },
   "common": {
     "addressCopied": "Address copied",
@@ -2550,5 +2551,11 @@
     "viewProfile": "View profile",
     "showMore": "Show more",
     "showLess": "Show less"
+  },
+  "connection": {
+    "offline": "Can't reach the server.",
+    "retryIn": "Retrying in {seconds}s",
+    "retryNow": "Try now",
+    "reconnecting": "Reconnecting…"
   }
 }

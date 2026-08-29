@@ -555,7 +555,8 @@
     "addPasskey": "Ajouter une passkey pour se connecter plus vite",
     "inviteFriends": "Inviter des amis",
     "helpSupport": "Aide et assistance",
-    "signOut": "Se déconnecter"
+    "signOut": "Se déconnecter",
+    "wallets": "Portefeuilles"
   },
   "common": {
     "addressCopied": "Adresse copiée",
@@ -2550,5 +2551,11 @@
     "viewProfile": "Voir le profil",
     "showMore": "Afficher plus",
     "showLess": "Afficher moins"
+  },
+  "connection": {
+    "offline": "Serveur injoignable.",
+    "retryIn": "Nouvel essai dans {seconds} s",
+    "retryNow": "Réessayer",
+    "reconnecting": "Reconnexion…"
   }
 }

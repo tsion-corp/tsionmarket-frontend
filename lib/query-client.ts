@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { retryDelay } from "@/lib/retry-delay";
 
 export function createQueryClient(): QueryClient {
   return new QueryClient({
@@ -22,9 +23,13 @@ export function createQueryClient(): QueryClient {
           ) {
             return false;
           }
+          // The breaker has already established that the server is
+          // unreachable. Retrying asks the same question two more times and
+          // pays for both; the cooldown decides when to ask again.
+          if (message.includes("can't reach the server")) return false;
           return failureCount < 2;
         },
-        retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
+        retryDelay: (attempt) => retryDelay(attempt),
       },
     },
   });

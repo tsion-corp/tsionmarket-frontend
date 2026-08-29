@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { RANGE_DAYS, type ChartRange } from "@/lib/coingecko";
+import { apiFetch } from "@/lib/api";
 
 export interface AreaPoint {
   time: number;
@@ -26,7 +27,7 @@ export function useChart(id: string | null, range: ChartRange, type: "area" | "c
     enabled: Boolean(id),
     queryFn: async () => {
       const params = new URLSearchParams({ id: id!, days: RANGE_DAYS[range], type });
-      const res = await fetch(`/api/chart?${params.toString()}`);
+      const res = await apiFetch(`/api/chart?${params.toString()}`);
       if (!res.ok) throw new Error("Chart request failed");
       return res.json();
     },

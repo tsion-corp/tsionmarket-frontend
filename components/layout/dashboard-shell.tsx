@@ -6,6 +6,7 @@ import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
 import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
 import { FeatureMarquee } from "@/components/layout/feature-marquee";
@@ -90,6 +91,10 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
 
         {children}
       </main>
+
+      {/* One sentence for the whole app when the server is unreachable — see
+          the note in the component for why it is not one per panel. */}
+      <ConnectionBanner />
 
       <MobileTabBar
         items={nav}
