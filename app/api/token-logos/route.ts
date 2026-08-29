@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
         try {
           const res = await fetch(
             `https://api.geckoterminal.com/api/v2/networks/${network}/tokens/multi/${addresses}`,
-            { next: { revalidate: ONE_DAY } }
+            { next: { revalidate: ONE_DAY }, signal: AbortSignal.timeout(8_000) }
           );
           if (!res.ok) continue;
           const data = await res.json();

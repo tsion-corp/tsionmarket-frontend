@@ -34,7 +34,12 @@ export async function fetchMarketTokens(category: string | null): Promise<Market
   let lastError: unknown;
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
-      const res = await fetch(url, { next: { revalidate: FIVE_MINUTES } });
+      const res = await fetch(url, {
+        next: { revalidate: FIVE_MINUTES },
+        // See buyable-registry: unbounded reads are what hold a function open
+        // through an upstream outage.
+        signal: AbortSignal.timeout(8_000),
+      });
       if (res.ok) {
         const data = await res.json();
         const rows = (Array.isArray(data) ? data : []) as CoinGeckoMarket[];

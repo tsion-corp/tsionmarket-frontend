@@ -75,7 +75,7 @@ function formatVol(n: number): string {
 export async function fetchPredictions(limit = 12): Promise<Prediction[]> {
   const res = await fetch(
     `${GAMMA}/events?closed=false&active=true&order=volume24hr&ascending=false&limit=60`,
-    { next: { revalidate: FIVE_MINUTES } }
+    { next: { revalidate: FIVE_MINUTES }, signal: AbortSignal.timeout(8_000) }
   );
   if (!res.ok) throw new Error(`Polymarket events failed: ${res.status}`);
   const events = (await res.json()) as GammaEvent[];

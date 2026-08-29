@@ -31,6 +31,7 @@ export async function fetchOndoMarkets(ids: string[]): Promise<OndoMarket[]> {
 
   const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params.toString()}`, {
     next: { revalidate: FIVE_MINUTES },
+    signal: AbortSignal.timeout(8_000),
   });
   if (!res.ok) throw new Error(`CoinGecko markets failed: ${res.status}`);
 

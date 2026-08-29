@@ -15,7 +15,10 @@ export async function GET(req: NextRequest) {
       : `${base}/coins/${id}/market_chart?vs_currency=usd&days=${days}`;
 
   try {
-    const res = await fetch(url, { next: { revalidate: FIVE_MINUTES } });
+    const res = await fetch(url, {
+      next: { revalidate: FIVE_MINUTES },
+      signal: AbortSignal.timeout(8_000),
+    });
     if (!res.ok) throw new Error(`CoinGecko failed: ${res.status}`);
     const data = await res.json();
 

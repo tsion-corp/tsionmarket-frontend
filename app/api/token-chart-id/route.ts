@@ -16,7 +16,10 @@ export async function GET(req: NextRequest) {
   )}`;
 
   try {
-    const res = await fetch(url, { next: { revalidate: ONE_DAY } });
+    const res = await fetch(url, {
+      next: { revalidate: ONE_DAY },
+      signal: AbortSignal.timeout(8_000),
+    });
     if (!res.ok) return NextResponse.json({ id: null });
     const data = await res.json();
     return NextResponse.json({ id: typeof data?.id === "string" ? data.id : null });

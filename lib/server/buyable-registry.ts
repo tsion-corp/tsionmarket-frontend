@@ -73,6 +73,10 @@ async function addTradeCatalog(out: BuyableRegistry, meta: MemeRegistry): Promis
   try {
     const res = await fetch(`${TRADE_BASE}/tokens?page=1&limit=100`, {
       next: { revalidate: 600 },
+      // Bounded: an upstream that has not answered in 8s is not going to, and
+      // an unbounded read holds the function open for as long as the upstream
+      // feels like — which is how an outage becomes a bill.
+      signal: AbortSignal.timeout(8_000),
     });
     if (!res.ok) return;
     const data = await res.json();
