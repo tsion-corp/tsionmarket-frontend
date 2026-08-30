@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AsyncError } from "@/components/ui/async-state";
 import { DraughtsBoardView } from "@/features/casino/components/draughts/draughts-board";
 import { DraughtsMoveTable } from "@/features/casino/components/draughts/draughts-move-table";
 import {
@@ -554,7 +555,15 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
     return <p className="py-16 text-center text-[14px] text-white/50">Loading game…</p>;
   }
   if (error && !match) {
-    return <p className="py-16 text-center text-[14px] text-red-400">{error}</p>;
+    // A board that has not loaded is not an emergency, and it was drawn in
+    // alarm red with the raw error string in it. Same surface as every other
+    // panel now: it says what happened, stays quiet while the app is already
+    // retrying, and keeps red for the things that involve money.
+    return (
+      <div className="py-10">
+        <AsyncError error={new Error(error)} subject="this game" onRetry={() => router.refresh()} />
+      </div>
+    );
   }
   if (!match || !board) return null;
 

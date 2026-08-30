@@ -1,6 +1,8 @@
 "use client";
 
 import { isUnconfigured } from "@/lib/api/envelope";
+import { classifyLoadFailure, offersRetry } from "@/lib/load-failure";
+import { useCircuit } from "@/lib/api/circuit-store";
 
 // Shared async states for any screen backed by a gateway service. Real data
 // means real failure modes, so every screen shows one of these rather than
@@ -35,26 +37,63 @@ interface AsyncErrorProps {
   onRetry?: () => void;
 }
 
-// One error surface per feature. A gateway that isn't configured yet reads as
-// "not available", not as a fault the user can retry away.
+/**
+ * One panel could not load, said the way you would say it out loud.
+ *
+ * This used to print `error.message` under the heading, so a reader whose wifi
+ * blinked was shown "Failed to fetch" or "HTTP 502" — text written for whoever
+ * reads the logs. It named something they could not act on, in language that
+ * makes a hiccup look like a broken product.
+ *
+ * Three states now, because they call for three different things:
+ *
+ *  · the server is unreachable — the connection bar is already announcing it
+ *    and already retrying, so this panel says the calm half of that and offers
+ *    no button of its own. Five panels each offering a retry during one outage
+ *    is how a frustrated reader personally multiplies the load.
+ *  · the service is not switched on — nothing to retry, ever.
+ *  · something else failed — a plain sentence and a real Try again.
+ *
+ * No red. Red is for money: a trade that did not go through, a bet that was
+ * rejected. A list that has not arrived has hurt nobody, and spending the
+ * reader's alarm on it means they have learned to ignore red by the time it
+ * matters.
+ */
 export function AsyncError({
   error,
   subject,
   unconfiguredDetail = "This goes live once the service is switched on.",
   onRetry,
 }: AsyncErrorProps) {
-  const unconfigured = isUnconfigured(error);
-  const message = unconfigured ? `${subject} isn't available yet.` : `Couldn't load ${subject}.`;
-  const detail = unconfigured
-    ? unconfiguredDetail
-    : ((error as Error | null)?.message ?? "Something went wrong on our side.");
+  const circuit = useCircuit();
+  const circuitOpen = circuit.state !== "closed";
+  const kind = classifyLoadFailure(error, isUnconfigured(error));
+  // The breaker is the more reliable witness: it has seen every request, not
+  // just this one.
+  const effective = circuitOpen && kind !== "unconfigured" ? "offline" : kind;
+
+  const message =
+    effective === "unconfigured"
+      ? `${subject} isn't available yet.`
+      : effective === "offline"
+        ? `Waiting to reach the server.`
+        : `Couldn't load ${subject}.`;
+
+  const detail =
+    effective === "unconfigured"
+      ? unconfiguredDetail
+      : effective === "offline"
+        ? `${subject} will fill in by itself once the connection is back.`
+        : "This one is on us — try again in a moment.";
 
   return (
     <div className="ws-inset grid place-items-center px-5 py-12 text-center">
-      <div className="max-w-[42ch]">
+      {/* The real message stays reachable for anyone debugging, and nowhere
+          near the reader's eye. */}
+      <div className="max-w-[42ch]" title={error instanceof Error ? error.message : undefined}>
         <div className="text-[14px] font-semibold text-white/85">{message}</div>
         <div className="mt-1.5 text-[12.5px] font-normal text-white/50">{detail}</div>
-        {onRetry && !unconfigured ? (
+        {onRetry && offersRetry(effective, circuitOpen) ? (
           <button
             onClick={onRetry}
             className="mt-4 cursor-pointer rounded-full border border-white/15 px-4 py-2 font-sans text-[12.5px] font-semibold text-white transition-colors hover:border-white/35"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -45,7 +46,12 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   const [done, setDone] = useState<{ usdc: string; kash: string; txHash?: string } | null>(null);
 
   const { data: status } = useKashStatus();
-  const { data: account, wallet } = useKashAccount();
+  const {
+    data: account,
+    isPending: accountPending,
+    isError: accountFailed,
+    wallet,
+  } = useKashAccount();
   // The redeem desk supersedes the engine conversion whenever it is
   // configured: one KASH+ permit signature, one on-chain redeemWithPermit, and
   // the USDC arrives from the public reserve. A 503 from /desk keeps the
@@ -67,14 +73,20 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   const attemptKey = useRef<string | null>(null);
 
   const convertible = account?.convertible ?? "0";
-  const hasConvertible = Number(convertible) > 0;
+  // The balance is only KNOWN once the account has loaded. Falling back to "0"
+  // while it is pending or failed made the modal tell the user they had
+  // nothing to convert when it simply did not know yet — the balance is on
+  // screen behind this dialog, so the contradiction reads as a broken app.
+  const balanceKnown = Boolean(account);
+  const hasConvertible = balanceKnown && Number(convertible) > 0;
   const paused = deskConfigured ? deskPaused : quote.data?.coverageState === "paused";
   // The desk refuses a payout its reserve cannot cover; surfacing it before
   // the signature saves the user signing for a transaction that must revert.
   const uncovered = deskLive && deskQuote.data?.covered === false;
   const withinBalance = isValidKashAmount(amount) && Number(amount) <= Number(convertible);
   const busy = conversion.isPending || signing || deskSell.isPending;
-  const canSubmit = Boolean(wallet) && withinBalance && !paused && !uncovered && !busy;
+  const canSubmit =
+    Boolean(wallet) && balanceKnown && withinBalance && !paused && !uncovered && !busy;
 
   const close = () => {
     setDone(null);
@@ -171,8 +183,30 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
           <div className="flex flex-col gap-3.5">
             <div>
               <div className="ws-display text-[22px]">{t("convertTitle")}</div>
-              <p className="mt-1 text-[13px] leading-[1.5] font-normal text-white/60">
-                {t("convertSubtitle")}
+              {/* The subtitle used to promise "your full balance is available,
+                  nothing is locked" unconditionally — directly above a Max of 0
+                  and a pause notice. Lead with the actual state instead: a
+                  promise the service cannot honour reads as a broken app, and
+                  the user learns the truth before typing an amount. */}
+              <p
+                className={cn(
+                  "mt-1 text-[13px] leading-[1.5] font-normal",
+                  accountPending
+                    ? "text-white/45"
+                    : accountFailed || paused || !hasConvertible
+                      ? "text-amber-200/80"
+                      : "text-white/60"
+                )}
+              >
+                {accountPending
+                  ? t("convertSubtitleLoading")
+                  : accountFailed
+                    ? t("convertSubtitleUnavailable")
+                    : paused
+                      ? t("conversionsPaused")
+                      : hasConvertible
+                        ? t("convertSubtitle")
+                        : t("convertSubtitleNothing")}
               </p>
             </div>
 
@@ -181,8 +215,13 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                 <label className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
                   {t("amountKash")}
                 </label>
+                {/* An em dash while the balance is unknown: "Max 0" is a claim
+                    about the user's money, and we have not earned the right to
+                    make it until the account has actually loaded. */}
                 <span className="tnum text-[12px] font-normal text-white/40">
-                  {t("maxConvertible", { amount: formatKashAmount(convertible) })}
+                  {balanceKnown
+                    ? t("maxConvertible", { amount: formatKashAmount(convertible) })
+                    : t("maxConvertible", { amount: "—" })}
                 </span>
               </div>
               <input
@@ -269,17 +308,15 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               )}
             </div>
 
-            {paused && (
-              <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
-                {t("conversionsPaused")}
-              </p>
-            )}
             {uncovered && (
               <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
                 {t("reserveCannotCover")}
               </p>
             )}
-            {isValidKashAmount(amount) && !withinBalance && (
+            {/* Only worth saying when there IS a ceiling to be over. At zero the
+                subtitle and the Max already carry it, and a third copy of the
+                same number reads as an error the user cannot act on. */}
+            {hasConvertible && isValidKashAmount(amount) && !withinBalance && (
               <p className="text-[12.5px] font-normal text-white/50">
                 {t("exceedsConvertible", { amount: convertible })}
               </p>
