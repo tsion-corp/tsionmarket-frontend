@@ -88,7 +88,7 @@ const HOLDINGS_COLUMNS = [
 export function PortfolioView({
   onOpenFunds,
   onOpenWithdraw,
-  crossBorderSlot,
+  // crossBorderSlot is unused while the section below is commented out.
   onOpenDetail,
   onOpenBuy,
   onOpenSell,
@@ -287,7 +287,9 @@ export function PortfolioView({
         />
       </div>
 
-      <div className="mt-3">{crossBorderSlot}</div>
+      {/* Commented out for now, at explicit request — cross-border is still
+          just a "coming soon" announcement banner, not a live flow. */}
+      {/* <div className="mt-3">{crossBorderSlot}</div> */}
 
       {errored ? (
         <div className="ws-card mt-[18px] flex flex-col items-center gap-3 px-6 py-12 text-center">

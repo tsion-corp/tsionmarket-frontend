@@ -35,8 +35,10 @@ interface KashConvertModalProps {
 
 // Convert unlocked KSH back to USDC. This is a redemption at a discount to
 // market, not a market sell, and the modal says so up front: the quote shows
-// both prices and the discount before the user commits. Vesting KSH is not
-// convertible, so the ceiling is the account's `convertible`, never `balance`.
+// both prices and the discount before the user commits. The legacy engine
+// flow ceilings at the account's `convertible` (vesting KSH is not
+// convertible); the desk flow ceilings at the wallet's real `balance`
+// instead, since it redeems on-chain and has no notion of vesting.
 // KSH presets. Any above the wallet's balance are filtered out at render.
 const QUICK_KASH = ["1000", "10000", "100000"];
 
@@ -72,7 +74,14 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   // Survives re-renders and retries; see submit().
   const attemptKey = useRef<string | null>(null);
 
-  const convertible = account?.convertible ?? "0";
+  // The desk redeems against the wallet's real on-chain KASH+ balance, gated
+  // only by its own reserve (see `uncovered` below) — it has no notion of the
+  // ledger's `convertible`, which floors at what the LEGACY backend-mediated
+  // flow itself minted (see accounts.service.ts's profile()). Using that
+  // floor here under-reports the max the desk will actually let you redeem,
+  // e.g. for a wallet that bought KASH+ directly through the on-chain sale
+  // desk rather than through the legacy purchase flow.
+  const convertible = deskLive ? (account?.balance ?? "0") : (account?.convertible ?? "0");
   // The balance is only KNOWN once the account has loaded. Falling back to "0"
   // while it is pending or failed made the modal tell the user they had
   // nothing to convert when it simply did not know yet — the balance is on
