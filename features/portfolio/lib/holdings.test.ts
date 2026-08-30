@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { isDepositSettlementToken, selectHoldings } from "@/features/portfolio/lib/holdings";
+import {
+  isDepositSettlementToken,
+  isZeroValueHolding,
+  selectHoldings,
+} from "@/features/portfolio/lib/holdings";
 import type { TokenBalance } from "@/lib/server/alchemy";
 
 // Minimal TokenBalance factory. Only the fields the holdings filter reads
@@ -78,5 +82,47 @@ describe("selectHoldings", () => {
     const tokens = [token({ symbol: "USDC", network: "base-mainnet" })];
     selectHoldings(tokens);
     expect(tokens).toHaveLength(1);
+  });
+});
+
+describe("isZeroValueHolding", () => {
+  it("hides the baseline rows the portfolio always adds at a zero balance", () => {
+    expect(isZeroValueHolding(token({ balance: 0, priceUsd: 1, valueUsd: 0 }))).toBe(true);
+  });
+
+  it("hides dust that the table would render as $0.00", () => {
+    expect(
+      isZeroValueHolding(token({ balance: 0.000001, priceUsd: 2467, valueUsd: 0.002467 }))
+    ).toBe(true);
+  });
+
+  it("keeps a real balance we could not price — the APE-on-ApeChain report", () => {
+    const ape = token({
+      symbol: "APE",
+      network: "apechain-mainnet",
+      address: null,
+      kind: "coin",
+      balance: 451.2,
+      priceUsd: 0,
+      valueUsd: 0,
+    });
+    expect(isZeroValueHolding(ape)).toBe(false);
+  });
+
+  it("keeps a real balance we could not price — the HYPE-on-HyperEVM report", () => {
+    const hype = token({
+      symbol: "HYPE",
+      network: "hyperliquid-mainnet",
+      address: null,
+      kind: "coin",
+      balance: 0.75,
+      priceUsd: 0,
+      valueUsd: 0,
+    });
+    expect(isZeroValueHolding(hype)).toBe(false);
+  });
+
+  it("keeps an ordinary priced holding", () => {
+    expect(isZeroValueHolding(token({}))).toBe(false);
   });
 });

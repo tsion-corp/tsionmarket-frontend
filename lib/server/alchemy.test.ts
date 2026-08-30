@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { EVM_NETWORKS, isAllowedHolding } from "@/lib/server/alchemy";
+import {
+  EVM_NETWORKS,
+  NATIVE_PRICE_SYMBOLS,
+  PRICE_SYMBOLS_PER_REQUEST,
+  isAllowedHolding,
+} from "@/lib/server/alchemy";
 import { CONTRACTS } from "@/lib/polymarket/config";
 
 const emptyRwa = {};
@@ -54,5 +59,26 @@ describe("isAllowedHolding, newly added chains", () => {
     expect(isAllowedHolding("polygon-mainnet", CONTRACTS.pusd, false, emptyRwa, emptyBuyable)).toBe(
       true
     );
+  });
+});
+
+// Two users had a buy delivered on a chain the portfolio reads (APE on
+// ApeChain, HYPE on HyperEVM) and saw nothing in holdings. The allowlist was
+// not the problem — these assert the layer that was: the Portfolio API returns
+// no price for those natives, so the by-symbol backfill has to cover every
+// chain we track, or the holding is valued at $0 and hidden by default.
+describe("NATIVE_PRICE_SYMBOLS", () => {
+  it("covers the native symbol of every chain we resolve a native balance on", () => {
+    for (const symbol of ["ETH", "POL", "SOL", "APE", "HYPE", "BNB", "BERA", "CELO", "AVAX"]) {
+      expect(NATIVE_PRICE_SYMBOLS).toContain(symbol);
+    }
+  });
+
+  it("stays inside the price endpoint's 25-symbol per-request cap", () => {
+    expect(NATIVE_PRICE_SYMBOLS.length).toBeLessThanOrEqual(PRICE_SYMBOLS_PER_REQUEST);
+  });
+
+  it("carries no duplicates, so the cache key is stable", () => {
+    expect(new Set(NATIVE_PRICE_SYMBOLS).size).toBe(NATIVE_PRICE_SYMBOLS.length);
   });
 });

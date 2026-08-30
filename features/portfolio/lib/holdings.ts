@@ -24,3 +24,22 @@ export function isDepositSettlementToken(token: TokenBalance): boolean {
 export function selectHoldings(tokens: TokenBalance[]): TokenBalance[] {
   return tokens.filter((token) => !isDepositSettlementToken(token));
 }
+
+// The floor the holdings table renders as "$0.00": one rounded cent.
+const ZERO_VALUE_USD = 0.005;
+
+// True for a row the "hide zero-value assets" toggle should drop: the
+// always-present USDC/USDT/native baseline (balance 0) and dust that rounds to
+// $0.00.
+//
+// A held balance we could not PRICE is deliberately not zero-value. valueUsd is
+// balance x price, so an unpriced holding is $0 while the balance is real, and
+// hiding it tells the owner they do not have something they do — which is how a
+// delivered APE on ApeChain and a delivered HYPE on HyperEVM both read as "the
+// app didn't show it". Only the portfolio allowlist decides what is a real
+// holding, so anything reaching here with a balance has already been recognized
+// and is worth showing at an unknown value rather than not at all.
+export function isZeroValueHolding(token: TokenBalance): boolean {
+  if (token.balance > 0 && token.priceUsd === 0) return false;
+  return token.valueUsd < ZERO_VALUE_USD;
+}

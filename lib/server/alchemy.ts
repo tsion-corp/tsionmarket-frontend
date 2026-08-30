@@ -149,6 +149,24 @@ const NATIVE_TOKEN: Record<string, { symbol: string; name: string; decimals: num
   "abstract-mainnet": { symbol: "ETH", name: "ETH", decimals: 18 },
 };
 
+// The symbols to ask the by-symbol price endpoint for when a native balance
+// comes back unpriced. Derived from NATIVE_TOKEN rather than written out, so a
+// chain added there can never be left unpriced.
+//
+// This is not a rare fallback. The Portfolio API prices native ETH on
+// eth-mainnet and base-mainnet but returns an EMPTY tokenPrices array for the
+// native coin of every chain past the original set — verified live against
+// apechain-mainnet (APE) and hyperliquid-mainnet (HYPE). This list used to be a
+// hard-coded ["ETH", "POL", "SOL"], so a bought APE or a swapped HYPE was
+// fetched correctly, valued at $0, and then dropped by the holdings table,
+// whose "hide zero-value assets" toggle defaults on: the owner was told they
+// held nothing. Two users reported exactly that, on exactly those two chains.
+// All twelve symbols resolve against the price endpoint, and twelve is inside
+// its 25-symbol per-request cap, so this stays one upstream call.
+export const NATIVE_PRICE_SYMBOLS = [
+  ...new Set(Object.values(NATIVE_TOKEN).map((t) => t.symbol)),
+].sort();
+
 // The stablecoins we always surface per chain. Balances come from Alchemy; a
 // tracked stablecoin the user doesn't hold still shows as a zero row so the
 // portfolio reflects the full supported set (4 chains x USDC/USDT) for everyone.
@@ -307,7 +325,7 @@ async function withTrackedBaseline(
   networks: string[]
 ): Promise<TokenBalance[]> {
   const present = new Set(held.map((t) => `${t.network}:${(t.address ?? "native").toLowerCase()}`));
-  const nativePrices = await fetchPrices(["ETH", "POL", "SOL"]).catch(() => [] as SymbolPrice[]);
+  const nativePrices = await fetchPrices(NATIVE_PRICE_SYMBOLS).catch(() => [] as SymbolPrice[]);
   const priceOf = (symbol: string) => nativePrices.find((p) => p.symbol === symbol)?.priceUsd ?? 0;
 
   const baseline: TokenBalance[] = [];
@@ -346,9 +364,11 @@ async function withTrackedBaseline(
     }
   }
 
-  // Alchemy occasionally returns a native balance with no price (POL has done
-  // this). Backfill from the by-symbol price so gas tokens are never valued at $0
-  // when they shouldn't be.
+  // Alchemy returns a native balance with no price for every chain outside the
+  // original set, and occasionally for one inside it (POL has done this).
+  // Backfill from the by-symbol price so a gas token is never valued at $0 when
+  // it shouldn't be — a $0 value is what makes a real holding disappear from the
+  // holdings table entirely.
   const patched = held.map((t) => {
     if (t.address === null && t.priceUsd === 0 && priceOf(t.symbol) > 0) {
       const price = priceOf(t.symbol);
@@ -418,7 +438,7 @@ async function alchemyFetch(
 // Short in-memory cache so a burst of near-simultaneous requests — multiple
 // browser tabs on the same wallet, every dashboard section re-rendering on
 // load, the native-price lookup below that every user's portfolio fetch
-// triggers with the identical ["ETH","POL","SOL"] key — collapses into one
+// triggers with the identical NATIVE_PRICE_SYMBOLS key — collapses into one
 // upstream Alchemy call instead of one per caller. Short enough that it never
 // reads as stale next to the 30s client poll interval; it only absorbs
 // bursts. In-process only: fine for smoothing load, not meant to survive a

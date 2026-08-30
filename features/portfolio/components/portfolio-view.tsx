@@ -34,7 +34,7 @@ import { useMoney } from "@/components/ui/currency-select";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
-import { selectHoldings } from "@/features/portfolio/lib/holdings";
+import { isZeroValueHolding, selectHoldings } from "@/features/portfolio/lib/holdings";
 import { canSellAsset } from "@/lib/sell";
 import { isPolymarketCollateral } from "@/lib/polymarket/config";
 import type { MemeToken } from "@/lib/meme/api";
@@ -118,11 +118,11 @@ export function PortfolioView({
   // The table shows bought assets only, so drop the USDC-on-Base deposit float
   // first (see selectHoldings). Then, when hideZero is on, drop rows with no real
   // value — the always-present USDC/USDT/native baseline (shown at $0) plus dust
-  // that rounds to $0.00. The 0.005 floor is one rounded cent, so anything the
-  // table would render as "$0.00" is hidden.
+  // that rounds to $0.00. A held balance we could not price is not zero-value and
+  // survives the toggle; see isZeroValueHolding.
   const visibleTokens = useMemo(() => {
     const holdings = selectHoldings(tokens);
-    return hideZero ? holdings.filter((t) => t.valueUsd >= 0.005) : holdings;
+    return hideZero ? holdings.filter((t) => !isZeroValueHolding(t)) : holdings;
   }, [tokens, hideZero]);
 
   const table = useReactTable({
