@@ -13,7 +13,7 @@ import {
   formatUsdMicro,
   spendableUsdcMicro,
   usdToMicro,
-  volumeBands,
+  revenueShareTiers,
 } from "@/features/portfolio/lib/kash";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import {
@@ -36,9 +36,9 @@ interface KashUpgradeModalProps {
 export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
   const t = useTranslations("kash");
   const { data: status } = useKashStatus();
-  // The volume ladder is engine config; deriving it here keeps the prices,
-  // bands and rates from ever disagreeing with what actually pays out.
-  const bands = volumeBands(status?.points);
+  // Read from the engine, never restated here, so the number on a tier row is
+  // always the number that actually pays out.
+  const shares = revenueShareTiers(status?.points);
   const { wallet } = useKashAccount();
   const { data: subscription } = useKashSubscription();
   const tiers = useKashSubscriptionTiers(open);
@@ -149,7 +149,7 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
             {(tiers.data ?? []).map((tier) => {
               const isCurrent = tier.tier === currentTier;
               const isDowngrade = tier.tier < currentTier;
-              const band = bands.find((entry) => entry.tier === tier.tier);
+              const share = shares.find((entry) => entry.tier === tier.tier);
               const reachable = tier.tier <= currentTier;
               const unaffordable = !affordableMicro(tier.priceUsd);
               return (
@@ -196,23 +196,22 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
                     )}
                   </div>
 
-                  {/* The volume band this tier unlocks, and its rate. Without
-                      these a price is just a price — the whole reason to
-                      upgrade is that volume above your band is being paid at
-                      your tier's rate, not the band's. */}
-                  {band && (
+                  {/* What this tier actually earns. Without it a price is just
+                      a price — the whole reason to upgrade is the larger share
+                      of the fees you generate. Absent when the engine does not
+                      publish a ladder, which is a missing row rather than a
+                      broken page. */}
+                  {share && (
                     <div className="mt-2.5 flex items-center justify-between border-t border-white/8 pt-2.5">
                       <span className="tnum text-[12px] font-normal text-white/45">
-                        {band.toUsd === null
-                          ? t("tierBandOpen", { from: band.fromUsd })
-                          : t("tierBand", { from: band.fromUsd, to: band.toUsd })}
+                        {t("tierShareLabel")}
                       </span>
                       <span
                         className={`tnum text-[12px] font-medium ${
                           reachable ? "text-amber-200/90" : "text-white/35"
                         }`}
                       >
-                        {t("tierRate", { rate: band.ratePer10Usd })}
+                        {t("tierShare", { pct: share.sharePct })}
                         {!reachable && <span className="ml-1.5">{t("tierLockedRate")}</span>}
                       </span>
                     </div>

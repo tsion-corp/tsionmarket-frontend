@@ -17,7 +17,7 @@ import {
   pointsToKash,
   postKashConversion,
   settlesIn,
-  volumeBands,
+  revenueShareTiers,
 } from "./kash";
 
 const account = (balance: string, min: string) => ({
@@ -164,30 +164,49 @@ describe("pointsToKash", () => {
   });
 });
 
-describe("volumeBands", () => {
+describe("revenueShareTiers", () => {
+  // The shape the engine actually publishes today.
   const points = {
     pointValueUsd: 0.001,
-    tierBoundsUsd: [50, 100, 150, 200],
-    tierRatesPer10Usd: [1, 1.5, 2, 2.5, 3],
+    tierRevenueSharePct: [3, 5, 7, 9, 10],
   };
 
-  it("derives one band per rate, the last open-ended", () => {
-    const bands = volumeBands(points);
-    expect(bands).toHaveLength(5);
-    expect(bands[0]).toEqual({ tier: 1, fromUsd: 0, toUsd: 50, ratePer10Usd: 1 });
-    expect(bands[2]).toEqual({ tier: 3, fromUsd: 100, toUsd: 150, ratePer10Usd: 2 });
-    expect(bands[4]).toEqual({ tier: 5, fromUsd: 200, toUsd: null, ratePer10Usd: 3 });
-  });
-
-  it("leaves no gap between bands", () => {
-    // A gap would be volume that earns nothing, and the ladder is contiguous
-    // by construction in the engine.
-    const bands = volumeBands(points);
-    bands.slice(1).forEach((band, i) => expect(band.fromUsd).toBe(bands[i]!.toUsd));
+  it("derives one tier per published share, numbered from 1", () => {
+    const tiers = revenueShareTiers(points);
+    expect(tiers).toHaveLength(5);
+    expect(tiers[0]).toEqual({ tier: 1, sharePct: 3 });
+    expect(tiers[4]).toEqual({ tier: 5, sharePct: 10 });
   });
 
   it("is empty until the engine has answered", () => {
-    expect(volumeBands(undefined)).toEqual([]);
+    expect(revenueShareTiers(undefined)).toEqual([]);
+  });
+
+  it("SURVIVES the engine renaming or dropping the field", () => {
+    // This is the regression. `tierRatesPer10Usd` was destructured and mapped,
+    // so the day the engine replaced it the whole portfolio page died with
+    // "Cannot read properties of undefined (reading 'map')". A ladder nobody
+    // can read is a missing row, not a broken dashboard.
+    expect(revenueShareTiers({ pointValueUsd: 0.001 })).toEqual([]);
+    expect(revenueShareTiers({ pointValueUsd: 0.001, tierRevenueSharePct: undefined })).toEqual([]);
+    // Not an array at all — a shape change, not just an absence.
+    expect(
+      revenueShareTiers({
+        pointValueUsd: 0.001,
+        tierRevenueSharePct: 7,
+      } as unknown as Parameters<typeof revenueShareTiers>[0])
+    ).toEqual([]);
+  });
+
+  it("drops a share that is not a usable number rather than rendering NaN", () => {
+    const tiers = revenueShareTiers({
+      pointValueUsd: 0.001,
+      tierRevenueSharePct: [3, Number.NaN, 7],
+    });
+    expect(tiers).toEqual([
+      { tier: 1, sharePct: 3 },
+      { tier: 3, sharePct: 7 },
+    ]);
   });
 });
 
