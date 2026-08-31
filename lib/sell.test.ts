@@ -65,9 +65,27 @@ describe("canSellAsset", () => {
     expect(canSellAsset("fantom-mainnet", "0xtoken")).toBe(false);
   });
 
-  it("routes Polygon pUSD through Prediction cash-out instead of generic sell", () => {
-    expect(canSellAsset("polygon-mainnet", CONTRACTS.pusd)).toBe(false);
-    expect(canSellAsset("polygon-mainnet", CONTRACTS.pusd.toLowerCase())).toBe(false);
+  // Users held pUSD in their own wallet with no way to sell it. Dextopus quotes
+  // it directly at the same rate as USDC.e, so the generic sell route is the way
+  // out; see the comment on canSellAsset.
+  it("sells Polygon pUSD through the generic Dextopus route, in either casing", () => {
+    expect(canSellAsset("polygon-mainnet", CONTRACTS.pusd)).toBe(true);
+    expect(canSellAsset("polygon-mainnet", CONTRACTS.pusd.toLowerCase())).toBe(true);
+  });
+
+  it("builds a pUSD sell body against Polygon, settling to USDC on Base", () => {
+    const body = buildSellQuoteBody({
+      network: "polygon-mainnet",
+      asset: CONTRACTS.pusd,
+      amount: 25_000_000n,
+      recipient: "0xbase",
+      refundTo: "0xpolygon",
+      slippageBps: 100,
+    });
+    expect(body.originChainId).toBe(137);
+    expect(body.originAsset).toBe(CONTRACTS.pusd);
+    expect(body.destinationChainId).toBe(8453);
+    expect(body.amount).toBe("25000000");
   });
 });
 

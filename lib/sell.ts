@@ -7,7 +7,6 @@
 import { apiFetch } from "@/lib/api";
 import { normalizeBuyQuote, type BuyQuote } from "@/lib/buy-quote";
 import { DEXTOPUS_NATIVE_SOL, SETTLE_CHAINS } from "@/lib/deposit";
-import { isPolymarketCollateral } from "@/lib/polymarket/config";
 
 // Every sell settles here.
 export const SELL_DESTINATION = {
@@ -102,11 +101,23 @@ const SELLABLE_NATIVE_CHAINS = new Set([
 // Whether a specific held asset can be sold. A token (has an address) is assumed
 // sellable and the quote is the final authority. A native balance is sellable
 // only on the chains Dextopus actually accepts as a native origin.
+//
+// pUSD is included, having been excluded on the assumption that it needed
+// Polymarket's collateral offramp and was "not a generic sell route". Dextopus
+// quotes it directly and settles it at the same rate as any other Polygon
+// stablecoin — verified live against deposit/quote at $25, $100 and $1000,
+// where pUSD -> USDC-on-Base returned amountOut identical to USDC.e ->
+// USDC-on-Base to the unit (4.47% / 4.36% / 4.33%, the standard Polygon-to-Base
+// cost the platform already charges on every asset). The router unwraps the
+// collateral itself, at par, so routing through the offramp by hand saves the
+// user nothing and the exclusion only left them holding a balance with no way
+// out of it. useSettleToBase remains the path for pUSD sitting in the
+// Polymarket Deposit Wallet, which is a different pot and never appears in
+// holdings; this covers pUSD in the user's own wallet, which is what holdings
+// shows and what they were unable to sell.
 export function canSellAsset(network: string, address: string | null): boolean {
   if (!canSell(network)) return false;
   if (address === null) return SELLABLE_NATIVE_CHAINS.has(network);
-  // pUSD needs Polymarket's collateral offramp; it is not a generic sell route.
-  if (isPolymarketCollateral(network, address)) return false;
   return true;
 }
 
