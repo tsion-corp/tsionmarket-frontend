@@ -2293,8 +2293,7 @@
     "referralsLabel": "Indicações",
     "pendingNote": "{count} entraram · primeiro depósito pendente",
     "howTitle": "Como funciona?",
-    "howBody": "Compartilhe seu link. Quando um amigo entra na ARK e faz o primeiro depósito, sua indicação conta aqui. As recompensas em Kash+ por indicações estão a caminho.",
-    "howMinimum": "O primeiro depósito do seu amigo deve ser de pelo menos $1 para contar.",
+    "howBody": "Partilha o teu link com um amigo para aderir à ARK e fazer um primeiro depósito de pelo menos 1 $ para a indicação contar.",
     "cta": "Convide e ganhe",
     "shareTitle": "Junte-se a mim na ARK",
     "shareText": "Cadastre-se com meu link de convite e vamos crescer juntos na ARK.",
@@ -2309,7 +2308,17 @@
     "claimCta": "Garantir nome de usuário",
     "claimFailed": "Não foi possível garantir esse nome de usuário. Tente novamente.",
     "loadFailed": "Não foi possível carregar suas indicações.",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "listTitle": "Indicações",
+    "activeTab": "Indicações ativas",
+    "inactiveTab": "Indicações inativas",
+    "counted": "Contabilizado",
+    "depositPending": "Depósito pendente",
+    "noActive": "Ainda não há indicações contabilizadas.",
+    "noInactive": "Ninguém está a aguardar um primeiro depósito.",
+    "listUnavailable": "{count, plural, one {# indicação aparecerá aqui quando houver nomes disponíveis.} other {# indicações aparecerão aqui quando houver nomes disponíveis.}}",
+    "eligibilityTitle": "Elegibilidade de indicações",
+    "eligibilityBody": "O teu amigo tem de aderir através do teu link de indicação e fazer um primeiro depósito de pelo menos 1 $ para a indicação contar."
   },
   "marquee": {
     "liveLabel": "Ao vivo",

@@ -6,6 +6,7 @@
 // invited wallet makes its first deposit after claiming.
 
 import { createServiceClient } from "@/lib/api/service";
+import { truncateAddress } from "@/lib/format";
 
 const kash = createServiceClient("/api/kash", "Referrals are unavailable right now.");
 
@@ -68,6 +69,58 @@ export interface ReferralStats {
   username: string | null;
   referred: number;
   pending: number;
+  /**
+   * The invited people themselves, which the engine does not send yet.
+   *
+   * `/referrals/me` answers with the two counts above and nothing else, so the
+   * Active/Inactive lists have no rows to draw until it also returns who was
+   * invited. Optional rather than absent so the moment the engine adds the
+   * field the lists fill in on their own, with no further change here.
+   */
+  referrals?: ReferralEntry[];
+}
+
+/**
+ * Counted is a referral that has paid out: joined through the link AND made a
+ * first deposit of at least $1. Pending is joined but not yet deposited. Those
+ * are the two states the comp draws as "Counted" and "Deposit Pending".
+ */
+export type ReferralStatus = "counted" | "deposit_pending";
+
+export interface ReferralEntry {
+  /** The invitee's claimed username, absent until they claim one. */
+  username: string | null;
+  /** The invitee's wallet, which is what names the row when there is no username. */
+  wallet: string;
+  status: ReferralStatus;
+}
+
+/**
+ * The two lists behind the Active / Inactive tabs.
+ *
+ * Split here rather than in the component so the rule is one testable place,
+ * and so an unknown status from the engine cannot silently land in the wrong
+ * tab: only an explicit "counted" is active.
+ */
+export function splitReferrals(entries: readonly ReferralEntry[] | undefined): {
+  active: ReferralEntry[];
+  inactive: ReferralEntry[];
+} {
+  const list = entries ?? [];
+  return {
+    active: list.filter((entry) => entry.status === "counted"),
+    inactive: list.filter((entry) => entry.status !== "counted"),
+  };
+}
+
+/**
+ * What names a row. The comp writes a handle as `@name`, but an invitee who
+ * never claimed a username has no name to write, so the row falls back to
+ * their truncated wallet. Truncated, not full: 42 characters do not fit the
+ * row and the short form is enough to tell two invitees apart.
+ */
+export function referralHandle(entry: ReferralEntry): string {
+  return entry.username ? `@${entry.username}` : truncateAddress(entry.wallet);
 }
 
 export function getUsernameAvailability(username: string): Promise<UsernameAvailability> {

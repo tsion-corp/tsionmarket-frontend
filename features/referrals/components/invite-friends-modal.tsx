@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { CloseIcon } from "@/components/ui/icons";
+import { CloseIcon, InfoIcon } from "@/components/ui/icons";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
@@ -20,7 +20,14 @@ import {
   referralProgress,
   sanitizeUsernameInput,
   usernameProblem,
+  type ReferralEntry,
 } from "@/features/referrals/lib/referrals";
+import { ReferralListCard } from "@/features/referrals/components/referral-list-card";
+import {
+  ReferralCard,
+  ReferralCardBody,
+  ReferralCardTitle,
+} from "@/features/referrals/components/referral-card";
 import { CANONICAL_SITE_URL, shareOrigin } from "@/lib/site-url";
 
 // The Invite Friends screen, built to the designer's comp: the three mascots
@@ -110,10 +117,12 @@ function InviteScreen({
   username,
   referred,
   pending,
+  referrals,
 }: {
   username: string;
   referred: number;
   pending: number;
+  referrals?: ReferralEntry[];
 }) {
   const t = useTranslations("referral");
   const origin = useOrigin();
@@ -169,8 +178,8 @@ function InviteScreen({
         </button>
       </div>
 
-      <div className="ws-glass mt-4 rounded-[18px] p-4">
-        <div className="text-[15px] font-semibold text-white">{t("progress")}</div>
+      <ReferralCard className="mt-4">
+        <ReferralCardTitle>{t("progress")}</ReferralCardTitle>
         <div className="mt-3">
           <ProgressBar pct={pct} />
         </div>
@@ -185,17 +194,24 @@ function InviteScreen({
             {t("pendingNote", { count: pending })}
           </p>
         ) : null}
-      </div>
+      </ReferralCard>
 
-      <div className="ws-glass mt-3 rounded-[18px] p-4">
-        <div className="text-[15px] font-semibold text-white">{t("howTitle")}</div>
-        <p className="mt-1.5 text-[13px] leading-[1.55] font-normal text-white/60">
-          {t("howBody")}
-        </p>
-        <p className="mt-2 text-[12.5px] leading-[1.5] font-medium text-white/80">
-          {t("howMinimum")}
-        </p>
-      </div>
+      {/* The comp puts eligibility ahead of how-it-works, and marks it with a
+          red info glyph: it states the rule that decides whether a referral
+          pays out at all, so it is a warning, not a description. */}
+      <ReferralCard className="mt-3">
+        <ReferralCardTitle icon={<InfoIcon size={16} className="shrink-0 text-[#FF0909]" />}>
+          {t("eligibilityTitle")}
+        </ReferralCardTitle>
+        <ReferralCardBody>{t("eligibilityBody")}</ReferralCardBody>
+      </ReferralCard>
+
+      <ReferralCard className="mt-3">
+        <ReferralCardTitle>{t("howTitle")}</ReferralCardTitle>
+        <ReferralCardBody>{t("howBody")}</ReferralCardBody>
+      </ReferralCard>
+
+      <ReferralListCard referrals={referrals} referred={referred} pending={pending} />
 
       <button
         onClick={() => void share()}
@@ -349,6 +365,7 @@ export function InviteFriendsModal({ open, onClose }: { open: boolean; onClose: 
                   username={stats.data.username}
                   referred={stats.data.referred}
                   pending={stats.data.pending}
+                  referrals={stats.data.referrals}
                 />
               ) : (
                 <ClaimScreen />

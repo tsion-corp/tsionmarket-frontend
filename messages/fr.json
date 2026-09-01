@@ -2293,8 +2293,7 @@
     "referralsLabel": "Parrainages",
     "pendingNote": "{count} inscrits · premier dépôt en attente",
     "howTitle": "Comment ça marche ?",
-    "howBody": "Partagez votre lien. Quand un ami rejoint ARK et effectue son premier dépôt, votre parrainage compte ici. Les récompenses Kash+ pour les parrainages arrivent bientôt.",
-    "howMinimum": "Le premier dépôt de votre ami doit être d’au moins 1 $ pour être comptabilisé.",
+    "howBody": "Partagez votre lien avec un ami pour qu'il rejoigne ARK et effectue un premier dépôt d'au moins 1 $ pour que le parrainage soit comptabilisé.",
     "cta": "Inviter et gagner",
     "shareTitle": "Rejoins-moi sur ARK",
     "shareText": "Inscris-toi avec mon lien d'invitation et grandissons ensemble sur ARK.",
@@ -2309,7 +2308,17 @@
     "claimCta": "Réserver le nom d'utilisateur",
     "claimFailed": "Impossible de réserver ce nom d'utilisateur. Réessayez.",
     "loadFailed": "Impossible de charger vos parrainages.",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "listTitle": "Parrainages",
+    "activeTab": "Parrainages actifs",
+    "inactiveTab": "Parrainages inactifs",
+    "counted": "Comptabilisé",
+    "depositPending": "Dépôt en attente",
+    "noActive": "Aucun parrainage n'a encore été comptabilisé.",
+    "noInactive": "Personne n'est en attente d'un premier dépôt.",
+    "listUnavailable": "{count, plural, one {# parrainage s'affichera ici lorsque les noms seront disponibles.} other {# parrainages s'afficheront ici lorsque les noms seront disponibles.}}",
+    "eligibilityTitle": "Éligibilité au parrainage",
+    "eligibilityBody": "Votre ami doit s'inscrire via votre lien de parrainage et effectuer un premier dépôt d'au moins 1 $ pour que le parrainage soit comptabilisé."
   },
   "marquee": {
     "liveLabel": "En direct",

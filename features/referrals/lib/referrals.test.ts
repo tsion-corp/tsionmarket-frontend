@@ -3,9 +3,12 @@ import {
   displayLink,
   inviteLink,
   referralGoal,
+  referralHandle,
   referralProgress,
   sanitizeUsernameInput,
+  splitReferrals,
   usernameProblem,
+  type ReferralEntry,
 } from "./referrals";
 import { readRefCode } from "./ref-cookie";
 
@@ -92,5 +95,69 @@ describe("readRefCode", () => {
 
   it("refuses a value that fails to decode", () => {
     expect(readRefCode("ark_ref=%zz")).toBeNull();
+  });
+});
+
+describe("splitReferrals", () => {
+  const counted: ReferralEntry = {
+    username: "micahdi",
+    wallet: "0xaaaa1111bbbb2222cccc3333dddd4444eeee5555",
+    status: "counted",
+  };
+  const pending: ReferralEntry = {
+    username: "jackol",
+    wallet: "0xffff6666aaaa7777bbbb8888cccc9999dddd0000",
+    status: "deposit_pending",
+  };
+
+  it("sends counted referrals to the active tab and the rest to inactive", () => {
+    expect(splitReferrals([counted, pending])).toEqual({
+      active: [counted],
+      inactive: [pending],
+    });
+  });
+
+  it("returns two empty lists when the engine sends no referrals", () => {
+    expect(splitReferrals(undefined)).toEqual({ active: [], inactive: [] });
+  });
+
+  it("keeps an unrecognised status out of the active tab", () => {
+    // The active tab is the one that claims a referral has paid out, so a
+    // status we do not know must never land there.
+    const unknown = {
+      username: "newcomer",
+      wallet: "0x9999888877776666555544443333222211110000",
+      status: "queued",
+    } as unknown as ReferralEntry;
+    const { active, inactive } = splitReferrals([counted, unknown]);
+    expect(active).toEqual([counted]);
+    expect(inactive).toEqual([unknown]);
+  });
+
+  it("preserves the order the engine sent within each tab", () => {
+    const second: ReferralEntry = {
+      username: "tonyareos",
+      wallet: "0x1111222233334444555566667777888899990000",
+      status: "counted",
+    };
+    expect(splitReferrals([counted, pending, second]).active).toEqual([counted, second]);
+  });
+});
+
+describe("referralHandle", () => {
+  it("prefixes a claimed username with @", () => {
+    expect(referralHandle({ username: "jackol", wallet: "0xabc", status: "counted" })).toBe(
+      "@jackol"
+    );
+  });
+
+  it("falls back to the truncated wallet when the invitee never claimed a name", () => {
+    expect(
+      referralHandle({
+        username: null,
+        wallet: "0x1234567890abcdef1234567890abcdefabcd",
+        status: "deposit_pending",
+      })
+    ).toBe("0x1234…abcd");
   });
 });

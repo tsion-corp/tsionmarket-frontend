@@ -2293,8 +2293,7 @@
     "referralsLabel": "Referidos",
     "pendingNote": "{count} se unieron · primer depósito pendiente",
     "howTitle": "¿Cómo funciona?",
-    "howBody": "Comparte tu enlace. Cuando un amigo se une a ARK y hace su primer depósito, tu referido cuenta aquí. Las recompensas en Kash+ por referidos están en camino.",
-    "howMinimum": "El primer depósito de tu amigo debe ser de al menos $1 para que cuente.",
+    "howBody": "Comparte tu enlace con un amigo para que se una a ARK y haga un primer depósito de al menos 1 $ para que el referido cuente.",
     "cta": "Invita y gana",
     "shareTitle": "Únete conmigo en ARK",
     "shareText": "Regístrate con mi enlace de invitación y crezcamos juntos en ARK.",
@@ -2309,7 +2308,17 @@
     "claimCta": "Reclamar nombre de usuario",
     "claimFailed": "No se pudo reclamar ese nombre de usuario. Inténtalo de nuevo.",
     "loadFailed": "No se pudieron cargar tus referidos.",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "listTitle": "Referidos",
+    "activeTab": "Referidos activos",
+    "inactiveTab": "Referidos inactivos",
+    "counted": "Contabilizado",
+    "depositPending": "Depósito pendiente",
+    "noActive": "Todavía no se ha contabilizado ningún referido.",
+    "noInactive": "Nadie está pendiente de un primer depósito.",
+    "listUnavailable": "{count, plural, one {# referido aparecerá aquí cuando haya nombres disponibles.} other {# referidos aparecerán aquí cuando haya nombres disponibles.}}",
+    "eligibilityTitle": "Elegibilidad de referidos",
+    "eligibilityBody": "Tu amigo debe unirse a través de tu enlace de referido y hacer un primer depósito de al menos 1 $ para que el referido cuente."
   },
   "marquee": {
     "liveLabel": "En vivo",

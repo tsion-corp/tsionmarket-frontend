@@ -360,6 +360,15 @@ export function HelpIcon({ size = 20, className }: IconProps) {
   );
 }
 
+export function InfoIcon({ size = 16, className }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
+      <circle cx="12" cy="12" r="8.5" stroke={stroke} strokeWidth="1.7" />
+      <path d="M12 11v5.5M12 7.75h.01" stroke={stroke} strokeWidth="1.7" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export function SignOutIcon({ size = 20, className }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>

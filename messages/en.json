@@ -2293,8 +2293,7 @@
     "referralsLabel": "Referrals",
     "pendingNote": "{count} joined · first deposit pending",
     "howTitle": "How it works?",
-    "howBody": "Share your link. When a friend joins ARK and makes their first deposit, your referral counts here. Kash+ rewards for referrals are on the way.",
-    "howMinimum": "Your friend’s first deposit must be at least $1 for it to count.",
+    "howBody": "Share your link with a friend to join ARK and make a first deposit of at least $1 for the referral to count.",
     "cta": "Invite and Earn",
     "shareTitle": "Join me on ARK",
     "shareText": "Sign up with my invite link and let's grow together on ARK.",
@@ -2309,7 +2308,17 @@
     "claimCta": "Claim username",
     "claimFailed": "Couldn't claim that username. Try again.",
     "loadFailed": "Couldn't load your referrals.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "listTitle": "Referrals",
+    "activeTab": "Active Referrals",
+    "inactiveTab": "Inactive Referrals",
+    "counted": "Counted",
+    "depositPending": "Deposit Pending",
+    "noActive": "No referrals have counted yet.",
+    "noInactive": "Nobody is waiting on a first deposit.",
+    "listUnavailable": "{count, plural, one {# referral to show here once names are available.} other {# referrals to show here once names are available.}}",
+    "eligibilityTitle": "Referral Eligibility",
+    "eligibilityBody": "Your friend must join through your referral link and make a first deposit of at least $1 for the referral to count."
   },
   "marquee": {
     "liveLabel": "Live",
