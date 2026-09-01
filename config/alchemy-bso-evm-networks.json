@@ -216,7 +216,8 @@
     "network": "polygon-mainnet",
     "policyNetwork": "MATIC_MAINNET",
     "alchemyHost": "polygon-mainnet.g.alchemy.com",
-    "chainKey": "polygon"
+    "chainKey": "polygon",
+    "sponsorshipMode": "paymaster"
   },
   {
     "network": "polygon-amoy",

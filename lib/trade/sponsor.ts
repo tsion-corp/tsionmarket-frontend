@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient, http, type EIP1193Provider, type SignedAuthorization } from "viem";
-import { createBundlerClient } from "viem/account-abstraction";
+import { createBundlerClient, createPaymasterClient } from "viem/account-abstraction";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
 import { getSponsoredEvmChainById } from "@/lib/trade/sponsored-evm";
 import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
@@ -111,19 +111,33 @@ export async function sendSponsoredEvmCalls({
   // The bundler client reads through `client` (fast node) and submits the userOp
   // through `transport` (bundler proxy) — the split that keeps eth_getCode off
   // the bundler endpoint.
-  // This policy is a Bundler Sponsored Operations policy, not an onchain
-  // paymaster. The proxy adds its policy header only when the userOp is sent.
-  const bundlerClient = createBundlerClient({ account, client, chain: target.chain, transport });
-
-  const hash = await bundlerClient.sendUserOperation({
-    calls,
-    authorization,
-    // These zero values are Alchemy's BSO signal. The bundler estimates and
-    // fills the actual sponsored gas values before inclusion.
-    maxFeePerGas: 0n,
-    maxPriorityFeePerGas: 0n,
-    preVerificationGas: 0n,
+  // Most chains use Bundler Sponsored Operations. Polygon requires Alchemy's
+  // onchain Gas Manager paymaster, selected by the chain registry below.
+  const bundlerClient = createBundlerClient({
+    account,
+    client,
+    chain: target.chain,
+    transport,
+    // Polygon requires an onchain Gas Manager paymaster. The proxy injects the
+    // server-only policy id into these paymaster RPC calls.
+    ...(target.sponsorshipMode === "paymaster"
+      ? { paymaster: createPaymasterClient({ transport }) }
+      : {}),
   });
+
+  const hash = await bundlerClient.sendUserOperation(
+    target.sponsorshipMode === "paymaster"
+      ? { calls, authorization }
+      : {
+          calls,
+          authorization,
+          // These zero values are Alchemy's BSO signal. The bundler estimates
+          // and fills the actual sponsored gas values before inclusion.
+          maxFeePerGas: 0n,
+          maxPriorityFeePerGas: 0n,
+          preVerificationGas: 0n,
+        }
+  );
 
   const receipt = await bundlerClient.waitForUserOperationReceipt({ hash });
   return receipt.receipt.transactionHash;

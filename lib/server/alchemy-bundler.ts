@@ -2,7 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
 
-const POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
+const BSO_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
+const POLYGON_PAYMASTER_POLICY_ID = process.env.ALCHEMY_POLYGON_GAS_POLICY_ID;
 const API_KEY = process.env.ALCHEMY_API_KEY;
 
 // Every JSON-RPC method this flow's viem bundler/public client can call. Kept
@@ -23,15 +24,32 @@ const ALLOWED_METHODS = new Set([
   "eth_getUserOperationReceipt",
   "eth_getUserOperationByHash",
   "eth_supportedEntryPoints",
+  "pm_getPaymasterStubData",
+  "pm_getPaymasterData",
 ]);
 
 const SPONSORED_SEND_METHOD = "eth_sendUserOperation";
+const PAYMASTER_METHODS = new Set(["pm_getPaymasterStubData", "pm_getPaymasterData"]);
 
 interface RpcCall {
   jsonrpc?: string;
   id?: string | number | null;
   method: string;
   params?: unknown[];
+}
+
+function withPaymasterPolicy(call: RpcCall, policyId: string): RpcCall {
+  if (!PAYMASTER_METHODS.has(call.method)) return call;
+
+  const params = Array.isArray(call.params) ? [...call.params] : [];
+  const currentContext = params[3];
+  params[3] = {
+    ...(currentContext && typeof currentContext === "object" && !Array.isArray(currentContext)
+      ? currentContext
+      : {}),
+    policyId,
+  };
+  return { ...call, params };
 }
 
 export async function forwardAlchemyBundlerRequest(req: NextRequest, network: string) {
@@ -55,19 +73,42 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
       return NextResponse.json({ error: "Method not allowed" }, { status: 403 });
     }
   }
-  const needsPolicy = calls.some((call) => call?.method === SPONSORED_SEND_METHOD);
-  if (needsPolicy && !POLICY_ID) {
+  const needsPaymasterPolicy =
+    target.sponsorshipMode === "paymaster" &&
+    calls.some((call) => (call ? PAYMASTER_METHODS.has(call.method) : false));
+  const needsBsoPolicy =
+    target.sponsorshipMode === "bso" &&
+    calls.some((call) => call?.method === SPONSORED_SEND_METHOD);
+  if (needsPaymasterPolicy && !POLYGON_PAYMASTER_POLICY_ID) {
+    return NextResponse.json(
+      { error: "Polygon gas sponsorship policy is missing" },
+      { status: 424 }
+    );
+  }
+  if (needsBsoPolicy && !BSO_POLICY_ID) {
     return NextResponse.json({ error: "Alchemy gas policy is missing" }, { status: 503 });
   }
+
+  const upstreamBody = Array.isArray(body)
+    ? calls.map((call) =>
+        call && needsPaymasterPolicy
+          ? withPaymasterPolicy(call, POLYGON_PAYMASTER_POLICY_ID as string)
+          : call
+      )
+    : calls[0]
+      ? needsPaymasterPolicy
+        ? withPaymasterPolicy(calls[0], POLYGON_PAYMASTER_POLICY_ID as string)
+        : calls[0]
+      : body;
 
   try {
     const res = await fetch(`https://${target.alchemyHost}/v2/${API_KEY}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(needsPolicy && POLICY_ID ? { "x-alchemy-policy-id": POLICY_ID } : {}),
+        ...(needsBsoPolicy && BSO_POLICY_ID ? { "x-alchemy-policy-id": BSO_POLICY_ID } : {}),
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify(upstreamBody),
       signal: AbortSignal.timeout(30000),
     });
     const data = await res.json().catch(() => ({}));

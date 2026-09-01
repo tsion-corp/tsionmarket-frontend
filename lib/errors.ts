@@ -145,6 +145,13 @@ export function friendlyError(
   if (/house reserve insufficient/.test(m)) {
     return "Stockfish staking is temporarily unavailable because the reward reserve is low. You can still play a free game.";
   }
+  if (
+    /polygon gas sponsorship policy is missing|unsupported policy type:\s*bundler_sponsorship|status:\s*424[\s\S]*alchemy-bundler\/polygon-mainnet/.test(
+      m
+    )
+  ) {
+    return "Cashout to Base is temporarily unavailable because Polygon gas sponsorship is not configured. Your funds are safe.";
+  }
   // Not enough of the specific asset being moved (e.g. an ERC-20 balance revert).
   if (/insufficient[- ]?balance|amount exceeds balance|exceeds allowance/.test(m)) {
     return "You don't have enough of this asset for that. Try a smaller amount.";

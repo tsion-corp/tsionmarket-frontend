@@ -9,6 +9,7 @@ export interface SponsoredEvmChainConfig {
   alchemyHost: string;
   chain: Chain;
   supportsReceiptPolling: boolean;
+  sponsorshipMode: "bso" | "paymaster";
 }
 
 interface SponsoredEvmRegistryEntry {
@@ -23,6 +24,7 @@ interface SponsoredEvmRegistryEntry {
     symbol: string;
     decimals: number;
   };
+  sponsorshipMode?: "bso" | "paymaster";
 }
 
 function chainFromRegistryEntry(entry: SponsoredEvmRegistryEntry): Chain {
@@ -60,6 +62,7 @@ export const SPONSORED_EVM_CHAINS: readonly SponsoredEvmChainConfig[] = (
     alchemyHost: entry.alchemyHost,
     chain,
     supportsReceiptPolling: entry.chainKey !== null,
+    sponsorshipMode: entry.sponsorshipMode ?? "bso",
   };
 });
 
