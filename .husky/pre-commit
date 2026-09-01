@@ -1,0 +1,4 @@
+# Fast gate. Formats and lints ONLY the files being committed, so a commit
+# costs seconds. The slow checks live in pre-push, and the authoritative run is
+# the `quality` job in CI, which main's branch protection requires.
+pnpm exec lint-staged

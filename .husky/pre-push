@@ -1,0 +1,11 @@
+# Slower gate, paid once per push instead of once per commit. These are the two
+# checks that actually catch broken code, and they take about a minute together
+# — worth it before a push, punitive on every commit.
+#
+# `pnpm build` is deliberately NOT here. It takes minutes, and a hook that slow
+# gets bypassed with --no-verify, which protects nothing. CI runs the build on
+# every pull request and main cannot merge without it passing.
+echo "pre-push: typecheck"
+pnpm typecheck
+echo "pre-push: tests"
+pnpm test
