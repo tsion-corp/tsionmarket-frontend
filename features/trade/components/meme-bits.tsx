@@ -16,14 +16,20 @@ const RISK_STYLE: Record<TokenRiskLevel, string> = {
 
 export function RiskBadge({ level }: { level: TokenRiskLevel }) {
   const t = useTranslations("meme");
+  // The trade service documents riskLevel as always present, but a token can
+  // reach here without one, and level.charAt() on a missing value took the
+  // whole page down with Next's unrecoverable-error screen. A badge is not
+  // worth a white screen: an unrated token renders as Unrated, which this
+  // component already knows how to draw.
+  const safe: TokenRiskLevel = level && level in RISK_STYLE ? level : "UNKNOWN";
   return (
     // shrink-0 keeps it inside the card when the price beside it is long, and
     // nowrap stops "LOW RISK" breaking onto a second line, which made those
     // cards taller than the rest of their row.
     <span
-      className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] whitespace-nowrap uppercase ${RISK_STYLE[level]}`}
+      className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] whitespace-nowrap uppercase ${RISK_STYLE[safe]}`}
     >
-      {t(`risk${level.charAt(0)}${level.slice(1).toLowerCase()}`)}
+      {t(`risk${safe.charAt(0)}${safe.slice(1).toLowerCase()}`)}
     </span>
   );
 }

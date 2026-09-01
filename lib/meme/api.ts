@@ -197,8 +197,32 @@ const TRENDING_FALLBACK_LIMIT = 40;
 // so the fallback lands while the loading placeholders are still on screen.
 const TRENDING_TIMEOUT_MS = 4_000;
 
+// /tokens/trending omits the whole risk block that /tokens returns:
+// riskLevel, warnings, buyEnabled and sellEnabled are simply absent. Rendering
+// one of those rows raw crashed the dashboard — RiskBadge called .charAt on a
+// missing level and Next replaced the page with its unrecoverable-error
+// screen. Normalising here rather than in each component keeps every consumer
+// safe, per this app's rule that upstream payloads are mapped into our own
+// types at the boundary.
+//
+// buyEnabled/sellEnabled default to TRUE deliberately. The service documents
+// them as display hints and repeats every policy check when a quote is
+// created, so the server still refuses a token it will not trade. Defaulting
+// to false would instead make every trending coin look untradable.
+export function withRiskDefaults(token: MemeToken): MemeToken {
+  return {
+    ...token,
+    riskLevel: token.riskLevel ?? "UNKNOWN",
+    warnings: token.warnings ?? [],
+    buyEnabled: token.buyEnabled ?? true,
+    sellEnabled: token.sellEnabled ?? true,
+  };
+}
+
 function withoutQuoteCurrency(page: Paged<MemeToken>): Paged<MemeToken> {
-  const items = page.items.filter((t) => t.address.toLowerCase() !== BASE_USDC);
+  const items = page.items
+    .filter((t) => t.address.toLowerCase() !== BASE_USDC)
+    .map(withRiskDefaults);
   return { items, meta: { ...page.meta, total: items.length } };
 }
 
@@ -224,16 +248,18 @@ export async function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
   }
 }
 
-export function fetchTokenCatalog(page = 1, limit = 20): Promise<Paged<MemeToken>> {
-  return request(`/tokens?page=${page}&limit=${limit}`);
+export async function fetchTokenCatalog(page = 1, limit = 20): Promise<Paged<MemeToken>> {
+  const page_ = await request<Paged<MemeToken>>(`/tokens?page=${page}&limit=${limit}`);
+  return { ...page_, items: page_.items.map(withRiskDefaults) };
 }
 
-export function searchTokens(q: string): Promise<MemeToken[]> {
-  return request(`/tokens/search?q=${encodeURIComponent(q.trim())}`);
+export async function searchTokens(q: string): Promise<MemeToken[]> {
+  const rows = await request<MemeToken[]>(`/tokens/search?q=${encodeURIComponent(q.trim())}`);
+  return rows.map(withRiskDefaults);
 }
 
-export function fetchToken(address: string): Promise<MemeToken> {
-  return request(`/tokens/${address}`);
+export async function fetchToken(address: string): Promise<MemeToken> {
+  return withRiskDefaults(await request<MemeToken>(`/tokens/${address}`));
 }
 
 export function fetchTradability(

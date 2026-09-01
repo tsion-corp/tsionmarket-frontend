@@ -25,6 +25,14 @@ import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { friendlyError } from "@/lib/errors";
 import type { BuyPayload } from "@/lib/modal-types";
 
+// A route can arrive without a chainName. Capitalising undefined throws, and a
+// thrown render here blanks the whole page, so an unnamed chain gets a label
+// rather than taking the sheet down.
+function titleCaseChain(name: string | null | undefined): string {
+  if (!name) return "Unknown chain";
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
 // 1% price tolerance, kept out of the UI. Non-crypto users should not have to
 // reason about slippage.
 const SLIPPAGE_BPS = 100;
@@ -76,7 +84,9 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       const c = meta.get(r.destinationChainId);
       return {
         chainId: r.destinationChainId,
-        name: c?.name ?? r.chainName.charAt(0).toUpperCase() + r.chainName.slice(1),
+        // r.chainName comes straight off the route payload; capitalising a
+        // missing one used to throw and take the sheet down with it.
+        name: c?.name ?? titleCaseChain(r.chainName),
         logoUrl: c?.logoUrl ?? null,
       };
     });
