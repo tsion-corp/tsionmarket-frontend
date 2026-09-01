@@ -184,8 +184,44 @@ interface Paged<T> {
   meta: { page: number; limit: number; total: number };
 }
 
-export function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
-  return request("/tokens/trending");
+// Base mainnet USDC. The trade service refuses it as a meme-token selection —
+// it is the quote currency on both sides of every swap — so a card for it can
+// only dead-end when tapped. The catalog lists it because the catalog is every
+// indexed token, not every tradable meme coin.
+const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+
+// Enough Base rows to fill several pages of eight after USDC is dropped.
+const TRENDING_FALLBACK_LIMIT = 40;
+
+// The trending upstream currently hangs for ~10s before failing. Give up early
+// so the fallback lands while the loading placeholders are still on screen.
+const TRENDING_TIMEOUT_MS = 4_000;
+
+function withoutQuoteCurrency(page: Paged<MemeToken>): Paged<MemeToken> {
+  const items = page.items.filter((t) => t.address.toLowerCase() !== BASE_USDC);
+  return { items, meta: { ...page.meta, total: items.length } };
+}
+
+// The discovery feed and the persisted catalog are separate upstreams on the
+// trade service, so trending can be down while the catalog is healthy. When
+// that happens, fall back rather than showing an empty guided view beside a
+// working pro table. A catalog page is not ranked by trend, but real tradable
+// coins beat an "unavailable" panel. If the catalog is down too, that error
+// surfaces and the view shows its unavailable state.
+export async function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
+  try {
+    return withoutQuoteCurrency(
+      await request<Paged<MemeToken>>("/tokens/trending", {
+        signal: AbortSignal.timeout(TRENDING_TIMEOUT_MS),
+      })
+    );
+  } catch {
+    // chain=base matches the "Trending on Base" heading and keeps every address
+    // in the EVM form the token detail routes expect.
+    return withoutQuoteCurrency(
+      await request<Paged<MemeToken>>(`/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`)
+    );
+  }
 }
 
 export function fetchTokenCatalog(page = 1, limit = 20): Promise<Paged<MemeToken>> {

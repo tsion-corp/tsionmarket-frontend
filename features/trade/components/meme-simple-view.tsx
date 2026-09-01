@@ -9,8 +9,10 @@ import { ListPagination } from "@/components/ui/list-pagination";
 import { usePaged } from "@/hooks/use-paged";
 import type { MemeToken } from "@/lib/meme/api";
 
-// Coins per page, matching the other market lists.
-const PER_PAGE = 6;
+// Eight fills the grid exactly at every breakpoint (4x2, 3+3+2, 2x4) and
+// matches the eight loading placeholders, so the list does not reflow as it
+// settles.
+const PER_PAGE = 8;
 
 // The guided interface: trending memecoins as tap-to-trade cards. No table, no
 // address bars — pick a coin, the sheet walks the rest.
