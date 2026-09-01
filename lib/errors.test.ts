@@ -44,6 +44,16 @@ describe("friendlyError", () => {
     expect(friendlyError("Unsupported network")).toMatch(/couldn't complete this/i);
   });
 
+  it("explains an incompatible Polygon sponsorship policy", () => {
+    const expected =
+      "Cashout to Base is temporarily unavailable because Polygon gas sponsorship is not configured. Your funds are safe.";
+    expect(friendlyError("Unsupported Policy Type: BUNDLER_SPONSORSHIP")).toBe(expected);
+    expect(friendlyError("Polygon gas sponsorship policy is missing")).toBe(expected);
+    expect(
+      friendlyError("HTTP request failed. Status: 424 URL: /api/alchemy-bundler/polygon-mainnet")
+    ).toBe(expected);
+  });
+
   it("explains chess cashier balance failures precisely", () => {
     expect(friendlyError(apiError("CONFLICT", "insufficient available balance", 409))).toMatch(
       /chess balance/i

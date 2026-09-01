@@ -88,14 +88,6 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>{t("eyebrow")}</Eyebrow>
-      <div className="mt-3.5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="ws-display text-[26px] tracking-[-0.01em]">{t("heading")}</h2>
-          <p className="mt-1 max-w-[52ch] text-[13.5px] font-normal text-white/55">
-            {t("subheading")}
-          </p>
-        </div>
-      </div>
 
       <div className="mt-5">
         <RwaAssetList
