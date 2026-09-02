@@ -10,7 +10,7 @@ import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
-import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
+import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError, supportDetail } from "@/lib/errors";
@@ -57,7 +57,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   // Sending the asset needs a little of the chain's native token for the fee,
   // except where the send is sponsored: EVM networks behind the bundler, and
   // Solana behind the platform gas sponsor.
-  const sponsored = isSponsoredEvmNetwork(payload.network) || payload.network === "solana-mainnet";
+  const sponsored = hasGasPolicyForNetwork(payload.network) || payload.network === "solana-mainnet";
   const hasGas = useMemo(
     () =>
       sponsored ||

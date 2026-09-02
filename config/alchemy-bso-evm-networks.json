@@ -15,7 +15,8 @@
     "network": "base-mainnet",
     "policyNetwork": "BASE_MAINNET",
     "alchemyHost": "base-mainnet.g.alchemy.com",
-    "chainKey": "base"
+    "chainKey": "base",
+    "gasPolicy": true
   },
   {
     "network": "base-sepolia",
@@ -108,7 +109,11 @@
     "chainKey": null,
     "chainId": 3343,
     "name": "Edge Mainnet",
-    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+    "nativeCurrency": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    }
   },
   {
     "network": "edge-testnet",
@@ -117,7 +122,11 @@
     "chainKey": null,
     "chainId": 33431,
     "name": "Edge Testnet",
-    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+    "nativeCurrency": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    }
   },
   {
     "network": "frax-mainnet",
@@ -138,7 +147,11 @@
     "chainKey": null,
     "chainId": 685685,
     "name": "Gensyn Testnet",
-    "nativeCurrency": { "name": "Ether", "symbol": "ETH", "decimals": 18 }
+    "nativeCurrency": {
+      "name": "Ether",
+      "symbol": "ETH",
+      "decimals": 18
+    }
   },
   {
     "network": "hyperliquid-mainnet",
@@ -217,7 +230,8 @@
     "policyNetwork": "MATIC_MAINNET",
     "alchemyHost": "polygon-mainnet.g.alchemy.com",
     "chainKey": "polygon",
-    "sponsorshipMode": "paymaster"
+    "sponsorshipMode": "paymaster",
+    "gasPolicy": true
   },
   {
     "network": "polygon-amoy",

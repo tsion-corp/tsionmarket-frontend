@@ -10,6 +10,12 @@ export interface SponsoredEvmChainConfig {
   chain: Chain;
   supportsReceiptPolling: boolean;
   sponsorshipMode: "bso" | "paymaster";
+  // Whether a Gas Manager policy actually exists for this network. An Alchemy
+  // policy is scoped to a single network, so being in this registry only means
+  // the chain could be sponsored, not that it is. Sending a userOp on a chain
+  // with no policy is rejected by the bundler as invalid fields, because the
+  // zero gas values that signal sponsorship are then just invalid numbers.
+  gasPolicy: boolean;
 }
 
 interface SponsoredEvmRegistryEntry {
@@ -25,6 +31,7 @@ interface SponsoredEvmRegistryEntry {
     decimals: number;
   };
   sponsorshipMode?: "bso" | "paymaster";
+  gasPolicy?: boolean;
 }
 
 function chainFromRegistryEntry(entry: SponsoredEvmRegistryEntry): Chain {
@@ -63,6 +70,7 @@ export const SPONSORED_EVM_CHAINS: readonly SponsoredEvmChainConfig[] = (
     chain,
     supportsReceiptPolling: entry.chainKey !== null,
     sponsorshipMode: entry.sponsorshipMode ?? "bso",
+    gasPolicy: entry.gasPolicy ?? false,
   };
 });
 
@@ -92,4 +100,16 @@ export function getSponsoredEvmChainByPolicyNetwork(
   policyNetwork: string
 ): SponsoredEvmChainConfig | null {
   return BY_POLICY_NETWORK.get(policyNetwork) ?? null;
+}
+
+// Whether sponsorship will actually work here, as opposed to the chain merely
+// being sponsorable. Callers deciding whether to take the bundler path, or
+// whether a wallet needs its own native gas, want this rather than mere
+// registry membership.
+export function hasGasPolicyForNetwork(network: string): boolean {
+  return BY_NETWORK.get(network)?.gasPolicy ?? false;
+}
+
+export function hasGasPolicyForChainId(chainId: number): boolean {
+  return BY_CHAIN_ID.get(chainId)?.gasPolicy ?? false;
 }

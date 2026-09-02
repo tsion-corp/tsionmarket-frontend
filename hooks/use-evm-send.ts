@@ -10,7 +10,7 @@ import {
 import type { EIP1193Provider } from "viem";
 import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
 import { sendSponsoredEvmCalls } from "@/lib/trade/sponsor";
-import { getSponsoredEvmChainById, isSponsoredEvmChainId } from "@/lib/trade/sponsored-evm";
+import { getSponsoredEvmChainById, hasGasPolicyForChainId } from "@/lib/trade/sponsored-evm";
 
 export interface EvmSendInput {
   to: `0x${string}`;
@@ -45,7 +45,10 @@ export function useEvmSend() {
       address,
       gasLimit,
     }: EvmSendInput): Promise<`0x${string}`> => {
-      const sponsored = getSponsoredEvmChainById(chainId);
+      // Registry membership alone is not enough: a chain with no Gas Manager
+      // policy has its userOp rejected by the bundler, so it takes the ordinary
+      // user-paid path instead of failing.
+      const sponsored = hasGasPolicyForChainId(chainId) ? getSponsoredEvmChainById(chainId) : null;
       if (sponsored) {
         const wallet = wallets.find((w) => w.walletClientType === "privy");
         if (!wallet) throw new Error("No EVM wallet is connected.");
@@ -95,7 +98,7 @@ export function useEvmSendBatch() {
 
   return useCallback(
     async (calls: EvmBatchCall[], chainId: number): Promise<`0x${string}`> => {
-      if (!isSponsoredEvmChainId(chainId)) {
+      if (!hasGasPolicyForChainId(chainId)) {
         throw new Error("Batched transactions are only supported on sponsored EVM chains.");
       }
       if (calls.length === 0) throw new Error("Nothing to send.");

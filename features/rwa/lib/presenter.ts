@@ -3,7 +3,7 @@
 // exact base-unit helpers from lib/trade/math and never floating point.
 
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
-import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
+import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import {
   assetPriceUsd,
   USDC_BY_CHAIN,
@@ -261,7 +261,7 @@ export function requiresNativeGas(chain: RwaChain): boolean {
   const network = CHAIN_GAS[chain]?.network;
   if (!network) return true;
   if (network === "solana-mainnet") return false;
-  return !isSponsoredEvmNetwork(network);
+  return !hasGasPolicyForNetwork(network);
 }
 
 // A sell can only be sized from a holding we can actually see, and the holding

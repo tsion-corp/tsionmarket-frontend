@@ -11,7 +11,7 @@ import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { usdcBaseUnits, depositProgress, type DepositStage } from "@/lib/deposit";
 import { canSellAsset } from "@/lib/sell";
 import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
-import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
+import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { belowMinimumBuy, isSolanaChainId, minimumBuyUsd } from "@/lib/trade/minimums";
@@ -144,7 +144,7 @@ export function SpotPanel({
   // fine.
   const sellSponsored =
     heldToken != null &&
-    (isSponsoredEvmNetwork(heldToken.network) || heldToken.network === "solana-mainnet");
+    (hasGasPolicyForNetwork(heldToken.network) || heldToken.network === "solana-mainnet");
   const sellNativeSym = heldToken ? (NATIVE_SYMBOL[heldToken.network] ?? "") : "";
   const sellHasGas =
     heldToken == null ||

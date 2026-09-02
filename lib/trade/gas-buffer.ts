@@ -1,14 +1,17 @@
-import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
+import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 
 // Gas headroom for selling a chain's native token. A native-token sell spends
 // the same asset that pays the network fee, so sending the full balance leaves
 // nothing for gas and the wallet rejects the transaction. Holding back a small
 // buffer keeps a "max" sell payable.
 //
-// Sponsored EVM chains are absent on purpose: their sends route through the
-// 7702 + bundler path, so the wallet never needs native gas there and the full
-// balance is sellable. Values are in native units, sized to cover a simple
-// transfer with room for fee spikes while staying negligible next to any realistic balance.
+// Chains with a Gas Manager policy are absent on purpose: their sends route
+// through the 7702 + bundler path, so the wallet never needs native gas there
+// and the full balance is sellable. A chain that is merely in the sponsorship
+// registry does not qualify, because without a policy its sends are paid by
+// the user like anywhere else. Values are in native units, sized to cover a
+// simple transfer with room for fee spikes while staying negligible next to any
+// realistic balance.
 const NATIVE_GAS_BUFFER: Record<string, number> = {
   "eth-mainnet": 0.0003,
   "arb-mainnet": 0.0003,
@@ -16,18 +19,29 @@ const NATIVE_GAS_BUFFER: Record<string, number> = {
   "polygon-mainnet": 0.01,
 };
 
+// A chain we have not sized yet still has to leave something for the fee, so it
+// holds back a small share of the balance rather than nothing at all. Gas on
+// these chains is far below one percent of any balance worth selling.
+const UNSIZED_BUFFER_RATIO = 0.01;
+
+// Solana sends go through the platform's own gas sponsor, not the EVM bundler,
+// so a full-balance SOL sell stays payable.
+const SOLANA_NETWORK = "solana-mainnet";
+
 // How much of `network`'s native token to hold back when selling it. Zero for
 // contract tokens (their gas is paid in the native token, not the sold asset)
 // and for chains where sends are sponsored. A null asset address marks the
 // chain's native token, matching TokenBalance and SellPayload.
-export function gasBufferFor(network: string, assetAddress: string | null): number {
+export function gasBufferFor(network: string, assetAddress: string | null, balance = 0): number {
   if (assetAddress !== null) return 0;
-  if (isSponsoredEvmNetwork(network)) return 0;
-  return NATIVE_GAS_BUFFER[network] ?? 0;
+  if (network === SOLANA_NETWORK) return 0;
+  if (hasGasPolicyForNetwork(network)) return 0;
+  const sized = NATIVE_GAS_BUFFER[network];
+  return sized ?? balance * UNSIZED_BUFFER_RATIO;
 }
 
 // The largest amount of a holding that can actually be sold: the balance,
 // minus the gas buffer when the sold asset is the chain's own gas token.
 export function maxSellable(network: string, assetAddress: string | null, balance: number): number {
-  return Math.max(0, balance - gasBufferFor(network, assetAddress));
+  return Math.max(0, balance - gasBufferFor(network, assetAddress, balance));
 }

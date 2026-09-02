@@ -200,15 +200,22 @@ describe("hasNativeGas", () => {
     expect(hasNativeGas([token({ symbol: "BNB", balance: 1 })], "bsc")).toBeNull();
   });
 
-  it("never requires native gas on sponsored EVM chains", () => {
+  it("never requires native gas where a gas policy covers the trade", () => {
     expect(requiresNativeGas("base")).toBe(false);
-    expect(requiresNativeGas("ethereum")).toBe(false);
-    expect(requiresNativeGas("arbitrum")).toBe(false);
     expect(requiresNativeGas("polygon")).toBe(false);
-    expect(requiresNativeGas("bsc")).toBe(false);
     // Solana joined the sponsored set: fee by the platform sponsor, first-time
     // token-account rent by the funding plan's setup leg.
     expect(requiresNativeGas("solana")).toBe(false);
+  });
+
+  // These chains are in the sponsorship registry but hold no Gas Manager
+  // policy, so their sends are paid by the user and the wallet does need to
+  // hold the native token. Saying otherwise sent people into a bundler
+  // rejection they could not act on.
+  it("requires native gas on registry chains that hold no policy", () => {
+    expect(requiresNativeGas("ethereum")).toBe(true);
+    expect(requiresNativeGas("arbitrum")).toBe(true);
+    expect(requiresNativeGas("bsc")).toBe(true);
   });
 });
 

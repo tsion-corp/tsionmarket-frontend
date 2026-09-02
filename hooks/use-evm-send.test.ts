@@ -28,7 +28,8 @@ import { useEvmSend } from "@/hooks/use-evm-send";
 
 const BASE = 8453;
 const ARBITRUM = 42161;
-const ROBINHOOD = 4663;
+const POLYGON = 137;
+const HYPERLIQUID = 999;
 const ZKSYNC = 324;
 
 describe("useEvmSend routing", () => {
@@ -45,20 +46,31 @@ describe("useEvmSend routing", () => {
     expect(hash).toBe("0xsponsoredhash");
   });
 
-  it("routes other sponsored EVM chains through the same sponsored path", async () => {
+  it("routes the other chain we hold a policy for through the sponsored path", async () => {
     const { result } = renderHook(() => useEvmSend());
-    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM });
+    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: POLYGON });
     expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(hash).toBe("0xsponsoredhash");
   });
 
-  it("routes newly added sponsored chains through the same sponsored path", async () => {
+  // The reported HYPE failure. These chains are in the sponsorship registry but
+  // no Gas Manager policy exists for them, so a userOp is rejected by the
+  // bundler as invalid fields. The user pays their own gas instead, which is a
+  // send that actually completes.
+  it("routes registry chains with no policy through the normal EOA send", async () => {
     const { result } = renderHook(() => useEvmSend());
-    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: ROBINHOOD });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
-    expect(sendTransaction).not.toHaveBeenCalled();
-    expect(hash).toBe("0xsponsoredhash");
+    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: HYPERLIQUID });
+    expect(sendTransaction).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
+    expect(hash).toBe("0xnormalhash");
+  });
+
+  it("does the same for Arbitrum, which has no policy either", async () => {
+    const { result } = renderHook(() => useEvmSend());
+    await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM });
+    expect(sendTransaction).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
   });
 
   it("routes unsupported EVM chains through the normal EOA send", async () => {
