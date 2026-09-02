@@ -270,6 +270,14 @@ export function PerpPositions(props: PerpPositionsProps) {
   const t = useTranslations("perps");
   const { positions, loading, errored, pairByIndex, priceOf } = props;
 
+  // Nothing to say, so say nothing: a heading over an empty card is a section
+  // that never applies to a trader who has not opened anything. It stays while
+  // loading, so a trader who does hold positions sees the placeholder rather
+  // than the card appearing from nowhere, and it stays on an error, because
+  // hiding a failed load would tell someone with open positions that they have
+  // none.
+  if (!loading && !errored && positions.length === 0) return null;
+
   return (
     <div className="ws-card overflow-hidden">
       <div className="flex items-center justify-between px-4 pt-4 pb-3 sm:px-5">
@@ -285,10 +293,6 @@ export function PerpPositions(props: PerpPositionsProps) {
       ) : errored && positions.length === 0 ? (
         <div className="text-down/90 border-t border-white/6 px-5 py-6 text-center text-[13px] font-normal">
           {t("positionsUnavailable")}
-        </div>
-      ) : positions.length === 0 ? (
-        <div className="border-t border-white/6 px-5 py-6 text-center text-[13px] font-normal text-white/45">
-          {t("noOpenPositions")}
         </div>
       ) : (
         positions.map((p) => {
