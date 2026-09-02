@@ -19,11 +19,15 @@ describe("gasBufferFor", () => {
     expect(gasBufferFor("arb-mainnet", null, 1)).toBe(0.0003);
   });
 
-  it("holds back a share of the balance on a chain nobody has sized", () => {
-    expect(gasBufferFor("hyperliquid-mainnet", null, 0.747158265771075558)).toBeCloseTo(
-      0.00747158,
-      8
-    );
+  // HYPE trades around $80, so the percentage backstop would reserve several
+  // dollars of a five-token balance to cover a fee worth a fraction of a cent.
+  it("uses a measured buffer on HyperEVM rather than a share of the balance", () => {
+    expect(gasBufferFor("hyperliquid-mainnet", null, 5)).toBe(0.001);
+    expect(gasBufferFor("hyperliquid-mainnet", null, 0.747158265771075558)).toBe(0.001);
+  });
+
+  it("still holds back a share on a chain nobody has sized", () => {
+    expect(gasBufferFor("madeup-mainnet", null, 1)).toBeCloseTo(0.01, 8);
   });
 
   it("reserves nothing for contract tokens, whose gas is paid in the native asset", () => {
@@ -52,7 +56,10 @@ describe("maxSellable", () => {
     expect(maxSellable("hyperliquid-mainnet", null, 0.747158265771075558)).toBeLessThan(
       0.747158265771075558
     );
-    expect(maxSellable("hyperliquid-mainnet", null, 0.747158265771075558)).toBeGreaterThan(0.7);
+    expect(maxSellable("hyperliquid-mainnet", null, 0.747158265771075558)).toBeCloseTo(
+      0.746158265771,
+      9
+    );
   });
 
   it("keeps the full balance for contract tokens", () => {

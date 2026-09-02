@@ -17,11 +17,18 @@ const NATIVE_GAS_BUFFER: Record<string, number> = {
   "arb-mainnet": 0.0003,
   "opt-mainnet": 0.0003,
   "polygon-mainnet": 0.01,
+  // A simple HyperEVM transfer costs a small fraction of a cent, but HYPE is
+  // worth tens of dollars, so the percentage fallback below would hold back
+  // several dollars of a balance to cover it. Sized absolutely instead, with
+  // room for a fee spike and still under a dime.
+  "hyperliquid-mainnet": 0.001,
 };
 
-// A chain we have not sized yet still has to leave something for the fee, so it
-// holds back a small share of the balance rather than nothing at all. Gas on
-// these chains is far below one percent of any balance worth selling.
+// A chain nobody has sized yet still has to leave something for the fee, so it
+// holds back a small share of the balance rather than nothing at all. This is a
+// backstop, not a good answer: on a chain whose native token is worth tens of
+// dollars it reserves far more than the fee costs, so a chain people actually
+// hold belongs in the map above with a measured value.
 const UNSIZED_BUFFER_RATIO = 0.01;
 
 // Solana sends go through the platform's own gas sponsor, not the EVM bundler,

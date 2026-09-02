@@ -12,6 +12,7 @@ import { usdcBaseUnits, depositProgress, type DepositStage } from "@/lib/deposit
 import { canSellAsset } from "@/lib/sell";
 import { gasBufferFor, maxSellable } from "@/lib/trade/gas-buffer";
 import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
+import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { belowMinimumBuy, isSolanaChainId, minimumBuyUsd } from "@/lib/trade/minimums";
@@ -67,22 +68,6 @@ function swapOrderPhase(phase: TradePhase): SpotOrderPhase {
 
 const DECIMAL_INPUT = /^\d*\.?\d*$/;
 const PERCENTS = [25, 50, 75, 100];
-const NATIVE_SYMBOL: Record<string, string> = {
-  "base-mainnet": "ETH",
-  "eth-mainnet": "ETH",
-  "arb-mainnet": "ETH",
-  "opt-mainnet": "ETH",
-  "polygon-mainnet": "POL",
-  "solana-mainnet": "SOL",
-};
-const CHAIN_LABEL: Record<string, string> = {
-  "base-mainnet": "Base",
-  "eth-mainnet": "Ethereum",
-  "arb-mainnet": "Arbitrum",
-  "opt-mainnet": "Optimism",
-  "polygon-mainnet": "Polygon",
-  "solana-mainnet": "Solana",
-};
 // Indicative taker fee shown on the ticket. The real price tolerance is applied
 // by the quote at execution.
 const FEE_PCT = 0.001;
@@ -145,10 +130,12 @@ export function SpotPanel({
   const sellSponsored =
     heldToken != null &&
     (hasGasPolicyForNetwork(heldToken.network) || heldToken.network === "solana-mainnet");
-  const sellNativeSym = heldToken ? (NATIVE_SYMBOL[heldToken.network] ?? "") : "";
+  const sellNativeSym = heldToken ? nativeSymbol(heldToken.network) : null;
+  // An unnamed native token means unknown, not missing — see lib/trade/networks.
   const sellHasGas =
     heldToken == null ||
     sellSponsored ||
+    sellNativeSym === null ||
     portfolio.tokens.some(
       (p) => p.network === heldToken.network && p.symbol === sellNativeSym && p.balance > 0
     );
@@ -421,8 +408,8 @@ export function SpotPanel({
         ? t("ctaNotSellable", { symbol: base })
         : sellNeedsGas
           ? t("ctaNeedsGas", {
-              symbol: sellNativeSym,
-              chain: heldToken ? (CHAIN_LABEL[heldToken.network] ?? heldToken.network) : "",
+              symbol: sellNativeSym ?? "",
+              chain: heldToken ? networkLabel(heldToken.network) : "",
             })
           : amountNum <= 0
             ? t("ctaEnterAmount")

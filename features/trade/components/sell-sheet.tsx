@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -9,8 +10,10 @@ import { useSell } from "@/features/trade/hooks/use-sell";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
+import { nativeSendCost } from "@/lib/trade/native-gas";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
+import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError, supportDetail } from "@/lib/errors";
@@ -21,23 +24,6 @@ const SLIPPAGE_BPS = 100;
 // Quick-sell fractions of the balance.
 const PRESETS = [25, 50, 100];
 const DECIMAL = /^\d*\.?\d*$/;
-
-const NATIVE_SYMBOL: Record<string, string> = {
-  "base-mainnet": "ETH",
-  "eth-mainnet": "ETH",
-  "arb-mainnet": "ETH",
-  "opt-mainnet": "ETH",
-  "polygon-mainnet": "POL",
-  "solana-mainnet": "SOL",
-};
-const CHAIN_LABEL: Record<string, string> = {
-  "base-mainnet": "Base",
-  "eth-mainnet": "Ethereum",
-  "arb-mainnet": "Arbitrum",
-  "opt-mainnet": "Optimism",
-  "polygon-mainnet": "Polygon",
-  "solana-mainnet": "Solana",
-};
 
 interface SellSheetProps {
   payload: SellPayload;
@@ -51,27 +37,45 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   const [maxRequested, setMaxRequested] = useState(false);
   const sell = useSell();
 
-  const nativeSym = NATIVE_SYMBOL[payload.network] ?? "";
-  const chainLabel = CHAIN_LABEL[payload.network] ?? payload.network;
+  const nativeSym = nativeSymbol(payload.network);
+  const chainLabel = networkLabel(payload.network);
 
   // Sending the asset needs a little of the chain's native token for the fee,
   // except where the send is sponsored: EVM networks behind the bundler, and
   // Solana behind the platform gas sponsor.
   const sponsored = hasGasPolicyForNetwork(payload.network) || payload.network === "solana-mainnet";
+  // A chain whose native token we cannot name is treated as having gas: we
+  // cannot prove the wallet is short of a token we cannot identify, and refusing
+  // the sale on that guess blocks someone who is holding plenty.
   const hasGas = useMemo(
     () =>
       sponsored ||
+      nativeSym === null ||
       portfolio.tokens.some(
         (t) => t.network === payload.network && t.symbol === nativeSym && t.balance > 0
       ),
     [sponsored, portfolio.tokens, payload.network, nativeSym]
   );
 
-  // Selling the chain's own gas token can't spend the whole balance: the fee
-  // comes out of the same asset, so a full-balance send always fails. maxSell
-  // holds back a small per-chain buffer for that case (Base keeps the full
-  // balance, its sends are sponsored) and the max/percent fills stay under it.
-  const maxSell = maxSellable(payload.network, payload.address, payload.balance);
+  // Selling a chain's own gas token pays the fee out of the same balance, so the
+  // amount sent has to be the balance minus that fee. Reading the live gas price
+  // makes the difference the fee itself rather than a round number picked in
+  // advance: on HyperEVM that is the difference between holding back a few cents
+  // and holding back several dollars of an eighty-dollar token. A chain with no
+  // read node, or a node that will not answer, falls back to the sized reserve.
+  const sellsNativeToken = payload.address === null && !sponsored;
+  const measuredGas = useQuery({
+    queryKey: ["nativeSendCost", payload.network],
+    queryFn: () => nativeSendCost(payload.network),
+    enabled: sellsNativeToken,
+    staleTime: 30_000,
+    retry: 1,
+  });
+
+  const maxSell =
+    sellsNativeToken && measuredGas.data !== undefined
+      ? Math.max(0, payload.balance - measuredGas.data)
+      : maxSellable(payload.network, payload.address, payload.balance);
 
   // Plain decimal string for the amount input. String() renders very small
   // numbers in scientific notation, which the input regex and base-unit
@@ -218,7 +222,7 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       </p>
       {noFee ? (
         <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-white/55">
-          {t("needGasFee", { symbol: nativeSym, network: chainLabel })}
+          {t("needGasFee", { symbol: nativeSym ?? "", network: chainLabel })}
         </p>
       ) : null}
       {sell.error ? (
