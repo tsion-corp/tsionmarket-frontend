@@ -7,6 +7,7 @@ import { track } from "@/lib/analytics/mixpanel";
 import { CryptoWithdrawScreen } from "@/features/funds/components/crypto-withdraw-screen";
 import { BankWithdrawScreen } from "@/features/funds/components/bank-withdraw-screen";
 import { SwapIcon, BankIcon } from "@/components/ui/icons";
+import { BANK_WITHDRAW_ENABLED } from "@/features/funds/lib/flags";
 
 type Step = "chooser" | "crypto" | "bank";
 
@@ -35,12 +36,14 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
           badge={t("popular")}
           onClick={() => setStep("crypto")}
         />
-        <MethodTile
-          icon={<BankIcon size={22} />}
-          title={t("bankTitle")}
-          subtitle={t("bankSubtitle")}
-          onClick={() => setStep("bank")}
-        />
+        {BANK_WITHDRAW_ENABLED && (
+          <MethodTile
+            icon={<BankIcon size={22} />}
+            title={t("bankTitle")}
+            subtitle={t("bankSubtitle")}
+            onClick={() => setStep("bank")}
+          />
+        )}
       </div>
       <button
         onClick={onClose}
