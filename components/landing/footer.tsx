@@ -32,6 +32,13 @@ const SOCIALS = [
   { href: "#", label: "Discord" },
 ] as const;
 
+const SUPPORT_EMAIL = "tsionarksupport@gmail.com";
+
+// Support takes WhatsApp messages on this line, not voice calls, so it is a
+// wa.me link rather than a tel: one. wa.me wants the number in international
+// form with no plus and no leading zero.
+const WHATSAPP_NUMBER = "2349137089482";
+
 interface FooterProps {
   // When set, the film landing owns navigation: waypoint links scroll to
   // waypoint indices instead of anchor targets. When absent, anchors work
@@ -94,6 +101,17 @@ export function Footer({ onNavigate }: FooterProps) {
             {/* Rings the support line: 09035725241. */}
             <a href="tel:+2349035725241" className="hover:text-accent text-white/60">
               {t("contact")}
+            </a>
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-accent text-white/60">
+              {t("email")}
+            </a>
+            <a
+              href={`https://wa.me/${WHATSAPP_NUMBER}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-accent text-white/60"
+            >
+              WhatsApp
             </a>
           </div>
         </div>
