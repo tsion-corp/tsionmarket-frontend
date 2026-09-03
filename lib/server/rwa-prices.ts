@@ -16,6 +16,7 @@ import "server-only";
 // depends on it: a rate-limited response costs a dash, never a price.
 
 import { change24hFrom, fetchTokenHistory } from "@/lib/server/token-history";
+import { alchemyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 
 const JUPITER_PRICE_URL = "https://lite-api.jup.ag/price/v3";
 const GECKOTERMINAL_URL = "https://api.geckoterminal.com/api/v2";
@@ -98,7 +99,6 @@ async function jupiterStats(mints: string[]): Promise<Map<string, RwaMarketStats
           signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
           cache: "no-store",
         });
-        if (!res.ok) return;
         const data = (await res.json()) as Record<string, JupiterPrice>;
         for (const [mint, value] of Object.entries(data ?? {})) {
           out.set(mint, {
@@ -120,20 +120,21 @@ async function alchemyPrices(
   items: { network: string; address: string }[]
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) return out;
+  if (!hasAlchemyKey()) return out;
 
   await Promise.all(
     chunk(items, ALCHEMY_BATCH).map(async (batch) => {
       try {
-        const res = await fetch(`https://api.g.alchemy.com/prices/v1/${key}/tokens/by-address`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ addresses: batch }),
-          signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-          cache: "no-store",
-        });
-        if (!res.ok) return;
+        const res = await alchemyFetch(
+          (key) => `https://api.g.alchemy.com/prices/v1/${key}/tokens/by-address`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ addresses: batch }),
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+            cache: "no-store",
+          }
+        );
         const data = (await res.json()) as {
           data?: {
             network: string;
@@ -187,7 +188,6 @@ async function geckoTerminalStats(
           signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
           cache: "no-store",
         });
-        if (!res.ok) return;
         const body = (await res.json()) as {
           data?: GeckoTerminalToken[];
           included?: GeckoTerminalPool[];

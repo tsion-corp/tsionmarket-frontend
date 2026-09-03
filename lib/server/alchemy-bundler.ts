@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
+import { alchemyProxyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 
 const BSO_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 const POLYGON_PAYMASTER_POLICY_ID = process.env.ALCHEMY_POLYGON_GAS_POLICY_ID;
-const API_KEY = process.env.ALCHEMY_API_KEY;
 
 // Every JSON-RPC method this flow's viem bundler/public client can call. Kept
 // tight so this route cannot become a generic paid RPC proxy.
@@ -62,7 +62,7 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
   if (!target) {
     return NextResponse.json({ error: "Unsupported sponsored network" }, { status: 404 });
   }
-  if (!API_KEY) {
+  if (!hasAlchemyKey()) {
     return NextResponse.json({ error: "Alchemy API key is missing" }, { status: 500 });
   }
 
@@ -102,7 +102,7 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
       : body;
 
   try {
-    const res = await fetch(`https://${target.alchemyHost}/v2/${API_KEY}`, {
+    const res = await alchemyProxyFetch((key) => `https://${target.alchemyHost}/v2/${key}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

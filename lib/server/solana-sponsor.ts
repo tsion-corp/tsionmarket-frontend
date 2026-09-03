@@ -7,6 +7,7 @@ import {
   rewriteFeePayerWithRpc,
 } from "@/lib/server/solana-cosigner";
 import { wsapiService } from "@/lib/wsapi-base";
+import { alchemyUrls } from "@/lib/server/alchemy-keys";
 
 // Solana gas sponsorship, in the gas-sponsor service's contract: prepare puts
 // the sponsor wallet in the fee-payer seat before the user signs, and sponsor
@@ -20,10 +21,11 @@ const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 const RPC_URLS = () => {
   const configured = process.env.SOLANA_RPC_URL;
-  const key = process.env.ALCHEMY_API_KEY;
+  // One entry per configured Alchemy key, so a throttled or rejected key is
+  // just another upstream to step past rather than the end of the list.
   return [
     configured,
-    key ? `https://solana-mainnet.g.alchemy.com/v2/${key}` : undefined,
+    ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
 };

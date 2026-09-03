@@ -14,6 +14,7 @@ import {
   partiallySignTransaction,
   setTransactionMessageFeePayer,
 } from "@solana/kit";
+import { alchemyUrls } from "@/lib/server/alchemy-keys";
 
 // In-house Solana fee sponsorship, following the same contract as the
 // platform gas-sponsor service: the transaction is first prepared with the
@@ -30,10 +31,11 @@ import {
 const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 const RPC_URLS = () => {
   const configured = process.env.SOLANA_RPC_URL;
-  const key = process.env.ALCHEMY_API_KEY;
+  // One entry per configured Alchemy key, so a throttled or rejected key is
+  // just another upstream to step past rather than the end of the list.
   return [
     configured,
-    key ? `https://solana-mainnet.g.alchemy.com/v2/${key}` : undefined,
+    ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
 };

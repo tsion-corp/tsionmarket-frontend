@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { alchemyUrls } from "@/lib/server/alchemy-keys";
 
 // Solana JSON-RPC for the browser. Privy needs an RPC endpoint to broadcast a
 // Solana transaction, and the wallet code needs one to read blockhashes and
@@ -35,10 +36,11 @@ interface RpcCall {
 
 function upstreams(): string[] {
   const configured = process.env.SOLANA_RPC_URL;
-  const key = process.env.ALCHEMY_API_KEY;
+  // One entry per configured Alchemy key, so a throttled or rejected key is
+  // just another upstream to step past rather than the end of the list.
   return [
     configured,
-    key ? `https://solana-mainnet.g.alchemy.com/v2/${key}` : undefined,
+    ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
 }

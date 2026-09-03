@@ -13,6 +13,7 @@ import {
   type ActionKind,
   type ActionRegistry,
 } from "@/lib/server/action-registry";
+import { alchemyFetch } from "@/lib/server/alchemy-keys";
 
 type RwaRegistry = Record<string, Map<string, RwaTokenInfo>>;
 
@@ -95,27 +96,17 @@ const RPC_HOST: Record<string, string> = {
 
 const PER_NETWORK = 25;
 
-function key(): string {
-  const k = process.env.ALCHEMY_API_KEY;
-  if (!k) throw new Error("No Alchemy API key configured");
-  return k;
-}
-
 async function rpc<T>(network: string, method: string, params: unknown): Promise<T | null> {
   const host = RPC_HOST[network];
   if (!host) return null;
   try {
-    const res = await fetch(`https://${host}.g.alchemy.com/v2/${key()}`, {
+    const res = await alchemyFetch((key) => `https://${host}.g.alchemy.com/v2/${key}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
       signal: AbortSignal.timeout(12_000),
       cache: "no-store",
     });
-    if (!res.ok) {
-      if (res.status === 429) throw new Error("Alchemy request failed: 429");
-      return null;
-    }
     const data = await res.json();
     return (data?.result ?? null) as T | null;
   } catch (error) {

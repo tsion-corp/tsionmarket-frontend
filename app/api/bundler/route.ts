@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
+import { alchemyProxyFetch } from "@/lib/server/alchemy-keys";
 
 // Server-side proxy for Alchemy's bundler/Gas Manager. Keeps the Alchemy key
 // and the gas-sponsorship policy id off the client: the client only ever posts
@@ -61,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const res = await fetch(`https://${host}.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`, {
+    const res = await alchemyProxyFetch((key) => `https://${host}.g.alchemy.com/v2/${key}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",

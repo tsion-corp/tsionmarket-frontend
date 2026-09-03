@@ -1,4 +1,5 @@
 import "server-only";
+import { alchemyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 
 // Hourly price history for one token, from Alchemy's historical prices — the
 // same premium key the portfolio uses, covering Solana and every EVM chain we
@@ -57,8 +58,7 @@ function normalize(rows: AlchemyHistoryResponse["data"]): HistoryPoint[] {
 // Never throws: a missing chart is a dash, not a failed page.
 export async function fetchTokenHistory(chain: string, address: string): Promise<HistoryPoint[]> {
   const network = CHAIN_TO_ALCHEMY_NETWORK[chain];
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!network || !key) return [];
+  if (!network || !hasAlchemyKey()) return [];
 
   const cacheKey = `${network}:${address.toLowerCase()}`;
   const hit = cache.get(cacheKey);
@@ -68,7 +68,7 @@ export async function fetchTokenHistory(chain: string, address: string): Promise
   const startTime = new Date(endTime.getTime() - WINDOW_HOURS * 3_600_000);
 
   try {
-    const res = await fetch(`${ALCHEMY_PRICES_URL}/${key}/tokens/historical`, {
+    const res = await alchemyFetch((key) => `${ALCHEMY_PRICES_URL}/${key}/tokens/historical`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -81,7 +81,6 @@ export async function fetchTokenHistory(chain: string, address: string): Promise
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       cache: "no-store",
     });
-    if (!res.ok) return [];
     const points = normalize(((await res.json()) as AlchemyHistoryResponse).data);
     cache.set(cacheKey, { expires: Date.now() + CACHE_TTL_MS, points });
     return points;

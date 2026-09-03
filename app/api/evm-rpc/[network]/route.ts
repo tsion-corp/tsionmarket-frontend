@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
+import { alchemyProxyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 
 // EVM JSON-RPC reads for the browser, on our paid Alchemy key.
 //
@@ -68,8 +69,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ network: s
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) {
+  if (!hasAlchemyKey()) {
     return NextResponse.json({ error: "EVM RPC is not configured" }, { status: 503 });
   }
 
@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ network: s
   }
 
   try {
-    const res = await fetch(`https://${chain.alchemyHost}/v2/${key}`, {
+    const res = await alchemyProxyFetch((key) => `https://${chain.alchemyHost}/v2/${key}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),

@@ -1,4 +1,5 @@
 import "server-only";
+import { alchemyFetch } from "@/lib/server/alchemy-keys";
 import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
 import {
   fetchBuyableRegistry,
@@ -386,53 +387,9 @@ export interface SymbolPrice {
   priceUsd: number;
 }
 
-// Free-tier Alchemy keys are partitioned by purpose to spread load, and each
-// call rotates through a small pool (purpose key -> fallback -> default) so a
-// slow or throttled key fails over instead of hanging. Set the per-purpose keys
-// in env; each falls back to ALCHEMY_API_KEY.
-// One premium Alchemy key now covers every purpose (portfolio, prices, RPC). The
-// old per-purpose key pool only existed to spread free-tier rate limits.
-function alchemyKey(): string {
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) throw new Error("No Alchemy API key configured");
-  return key;
-}
-
-// Thrown with the upstream status folded into the message so route handlers
-// and the client's retry guard can both recognize a 429 without re-parsing
-// anything. Kept as a plain Error (not a subclass) since it crosses a
-// server/client boundary via JSON, where only the message survives anyway.
-function alchemyError(status: number): Error {
-  return new Error(`Alchemy request failed: ${status}`);
-}
-
 export function isRateLimitError(error: unknown): boolean {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
   return message.includes("429") || message.includes("rate limit") || message.includes("too many");
-}
-
-async function alchemyFetch(
-  buildUrl: (key: string) => string,
-  init?: RequestInit
-): Promise<Response> {
-  const key = alchemyKey();
-  let lastError: unknown;
-  // Retry the single key on a transient failure (network error or 5xx). A 4xx
-  // (rate limit, bad key) won't improve on retry, so surface it immediately.
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      // 12s, not 7s: a cold serverless start plus a cold Alchemy connection on
-      // the first request can exceed 7s and abort, showing "could not load" on
-      // first paint even though a warm retry succeeds.
-      const res = await fetch(buildUrl(key), { ...init, signal: AbortSignal.timeout(12_000) });
-      if (res.ok) return res;
-      lastError = alchemyError(res.status);
-      if (res.status < 500) break;
-    } catch (error) {
-      lastError = error;
-    }
-  }
-  throw lastError ?? new Error("Alchemy request failed");
 }
 
 // Short in-memory cache so a burst of near-simultaneous requests — multiple
