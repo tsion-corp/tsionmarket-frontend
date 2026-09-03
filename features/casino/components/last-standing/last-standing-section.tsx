@@ -91,9 +91,10 @@ const WIN_POLL_INTERVAL_MS = 2_500;
 // the result settles.
 const CALCULATING_MS = 1_200;
 
-// On-chain-derived queries the block watcher refreshes each new Base block while
-// the vault is open, so balance and claimable winnings react within ~2s.
-const BLOCK_WATCH_KEYS = [["portfolio"], ["vault-winnings"]] as const;
+// Claimable winnings are a direct contract read and can follow Base blocks.
+// Portfolio discovery is an indexed multi-chain API and refreshes explicitly
+// after transactions plus its bounded background poll instead.
+const BLOCK_WATCH_KEYS = [["vault-winnings"]] as const;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
 

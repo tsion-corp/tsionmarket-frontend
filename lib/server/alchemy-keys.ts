@@ -26,6 +26,18 @@ export function hasAlchemyKey(): boolean {
   return alchemyKeys().length > 0;
 }
 
+/** Dedicated standard JSON-RPC keys, falling back to the legacy pool. */
+export function alchemyRpcKeys(): string[] {
+  const dedicated = [process.env.ALCHEMY_RPC_API_KEY, process.env.ALCHEMY_RPC_API_KEY_FALLBACK]
+    .map((key) => key?.trim())
+    .filter((key, index, all): key is string => Boolean(key) && all.indexOf(key) === index);
+  return dedicated.length > 0 ? dedicated : alchemyKeys();
+}
+
+export function hasAlchemyRpcKey(): boolean {
+  return alchemyRpcKeys().length > 0;
+}
+
 /**
  * One URL per configured key, primary first.
  *
@@ -62,10 +74,10 @@ function worthAnotherKey(status: number): boolean {
  * walk immediately, since no key will answer it differently.
  */
 async function rotate(
+  keys: string[],
   buildUrl: (key: string) => string,
   init?: RequestInit
 ): Promise<{ res?: Response; error?: unknown }> {
-  const keys = alchemyKeys();
   if (keys.length === 0) return { error: new Error("No Alchemy API key configured") };
 
   let last: { res?: Response; error?: unknown } = {};
@@ -107,7 +119,7 @@ export async function alchemyFetch(
   buildUrl: (key: string) => string,
   init?: RequestInit
 ): Promise<Response> {
-  const { res, error } = await rotate(buildUrl, init);
+  const { res, error } = await rotate(alchemyKeys(), buildUrl, init);
   if (res?.ok) return res;
   throw error ?? new Error("Alchemy request failed");
 }
@@ -126,7 +138,17 @@ export async function alchemyProxyFetch(
   buildUrl: (key: string) => string,
   init?: RequestInit
 ): Promise<Response> {
-  const { res, error } = await rotate(buildUrl, init);
+  const { res, error } = await rotate(alchemyKeys(), buildUrl, init);
   if (res) return res;
   throw error ?? new Error("Alchemy request failed");
+}
+
+/** Standard node-RPC fallback isolated from Portfolio/Prices API quotas. */
+export async function alchemyRpcProxyFetch(
+  buildUrl: (key: string) => string,
+  init?: RequestInit
+): Promise<Response> {
+  const { res, error } = await rotate(alchemyRpcKeys(), buildUrl, init);
+  if (res) return res;
+  throw error ?? new Error("Alchemy RPC request failed");
 }

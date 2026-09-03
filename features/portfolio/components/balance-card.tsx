@@ -6,17 +6,9 @@ import { BalanceCardDesktop } from "@/features/portfolio/components/balance-card
 import { BalanceCardMobile } from "@/features/portfolio/components/balance-card-mobile";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePendingBankDeposit } from "@/hooks/use-ramping";
-import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { readyToSpendUsd } from "@/features/portfolio/lib/breakdown";
 import { OFFRAMP_MIN_USDC } from "@/lib/ramping/orders";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
-
-// Refresh the portfolio on Base blocks, so a deposit, withdrawal or add-money
-// shows in the balance quickly instead of on the slow poll. Rate-limited:
-// every refetch is a real Alchemy round trip, and an unthrottled per-block
-// (~2s) cadence ran the shared key into 429s.
-const PORTFOLIO_KEY = [["portfolio"]] as const;
-const PORTFOLIO_REFRESH_MIN_MS = 10_000;
 
 interface BalanceCardProps {
   onOpenFunds: () => void;
@@ -32,7 +24,6 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
   const { totalUsd, tokens, loading, refreshing, error } = usePortfolio();
   const money = useMoney();
   const { hidden, toggle, mask } = useBalanceVisibility();
-  useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
   // A confirmed bank deposit that has not settled yet holds the withdraw
   // button, so an unchanged balance next to a live button doesn't read as
   // "withdraw your new money now" and invite repeated attempts.

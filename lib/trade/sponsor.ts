@@ -11,9 +11,9 @@ import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 // create or migrate funds into a separate smart-wallet address.
 const SIMPLE_7702_IMPL = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as const;
 
-// Every sponsored EVM transaction routes through our own proxy instead of
-// Alchemy directly, so the API key and policy id never reach the client.
-const BUNDLER_PATH = "/api/alchemy-bundler";
+// Every sponsored EVM transaction routes through our authenticated proxy so
+// the ZeroDev project URL never reaches the client.
+const BUNDLER_PATH = "/api/zerodev-bundler";
 
 export interface SponsoredCall {
   to: `0x${string}`;
@@ -43,7 +43,7 @@ async function isAlreadyDelegated(request: ReadRequest, address: `0x${string}`):
 
 // Sends a sponsored EVM transaction from the user's embedded EOA, upgraded in
 // place via EIP-7702. The EOA signs the one-time delegation if needed, then
-// the userOp, and Alchemy's bundler + paymaster path covers the gas cost.
+// the userOp, and ZeroDev's bundler + paymaster path covers the gas cost.
 export async function sendSponsoredEvmCalls({
   chainId,
   address,
@@ -60,13 +60,13 @@ export async function sendSponsoredEvmCalls({
   calls: SponsoredCall[];
 }): Promise<`0x${string}`> {
   const target = getSponsoredEvmChainById(chainId);
-  if (!target) {
+  if (!target || !target.gasPolicy) {
     throw new Error(`This chain is not configured for sponsored EVM sends (${chainId}).`);
   }
 
   // Bundler transport: ONLY the ERC-4337 UserOperation methods
   // (eth_sendUserOperation, eth_estimateUserOperationGas, …) go here, through
-  // our Alchemy proxy.
+  // our ZeroDev proxy.
   const transport = http(`${BUNDLER_PATH}/${target.network}`, {
     fetchOptions: { headers: { Authorization: `Bearer ${accessToken}` } },
   });
@@ -111,33 +111,15 @@ export async function sendSponsoredEvmCalls({
   // The bundler client reads through `client` (fast node) and submits the userOp
   // through `transport` (bundler proxy) — the split that keeps eth_getCode off
   // the bundler endpoint.
-  // Most chains use Bundler Sponsored Operations. Polygon requires Alchemy's
-  // onchain Gas Manager paymaster, selected by the chain registry below.
   const bundlerClient = createBundlerClient({
     account,
     client,
     chain: target.chain,
     transport,
-    // Polygon requires an onchain Gas Manager paymaster. The proxy injects the
-    // server-only policy id into these paymaster RPC calls.
-    ...(target.sponsorshipMode === "paymaster"
-      ? { paymaster: createPaymasterClient({ transport }) }
-      : {}),
+    paymaster: createPaymasterClient({ transport }),
   });
 
-  const hash = await bundlerClient.sendUserOperation(
-    target.sponsorshipMode === "paymaster"
-      ? { calls, authorization }
-      : {
-          calls,
-          authorization,
-          // These zero values are Alchemy's BSO signal. The bundler estimates
-          // and fills the actual sponsored gas values before inclusion.
-          maxFeePerGas: 0n,
-          maxPriorityFeePerGas: 0n,
-          preVerificationGas: 0n,
-        }
-  );
+  const hash = await bundlerClient.sendUserOperation({ calls, authorization });
 
   const receipt = await bundlerClient.waitForUserOperationReceipt({ hash });
   return receipt.receipt.transactionHash;

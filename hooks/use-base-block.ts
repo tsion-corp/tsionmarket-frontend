@@ -35,13 +35,9 @@ export function useBaseBlockNumber() {
   });
 }
 
-// Invalidates the given query keys on new Base blocks, so balances and
-// winnings react to a deposit, withdrawal, wager or claim quickly instead of
-// waiting for their own long poll. Enable it only where those balances are
-// shown, so idle pages don't poll the chain. `minIntervalMs` rate-limits the
-// invalidation for queries whose refetch is a real upstream call: every ~2s
-// block forcing a refetch is what drove the portfolio route into Alchemy's
-// rate limit, and a bounded cadence still reacts fast without the pile-up.
+// Invalidates direct Base contract reads on new blocks. Do not use this for
+// indexed multi-chain APIs such as portfolio discovery: a block tick there
+// turns one cheap chain read into several expensive provider requests.
 export function useInvalidateOnBlock(
   queryKeys: readonly (readonly unknown[])[],
   enabled = true,

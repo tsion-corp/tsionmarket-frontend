@@ -9,12 +9,8 @@ export interface SponsoredEvmChainConfig {
   alchemyHost: string;
   chain: Chain;
   supportsReceiptPolling: boolean;
-  sponsorshipMode: "bso" | "paymaster";
-  // Whether a Gas Manager policy actually exists for this network. An Alchemy
-  // policy is scoped to a single network, so being in this registry only means
-  // the chain could be sponsored, not that it is. Sending a userOp on a chain
-  // with no policy is rejected by the bundler as invalid fields, because the
-  // zero gas values that signal sponsorship are then just invalid numbers.
+  // Whether this network is enabled by the active ZeroDev gas policy. Registry
+  // membership alone only means the app knows how to read the chain.
   gasPolicy: boolean;
 }
 
@@ -30,7 +26,6 @@ interface SponsoredEvmRegistryEntry {
     symbol: string;
     decimals: number;
   };
-  sponsorshipMode?: "bso" | "paymaster";
   gasPolicy?: boolean;
 }
 
@@ -69,7 +64,6 @@ export const SPONSORED_EVM_CHAINS: readonly SponsoredEvmChainConfig[] = (
     alchemyHost: entry.alchemyHost,
     chain,
     supportsReceiptPolling: entry.chainKey !== null,
-    sponsorshipMode: entry.sponsorshipMode ?? "bso",
     gasPolicy: entry.gasPolicy ?? false,
   };
 });

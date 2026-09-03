@@ -1,9 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
-import { alchemyProxyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
+import { forwardEvmRpcRead } from "@/lib/server/evm-rpc";
 
-// EVM JSON-RPC reads for the browser, on our paid Alchemy key.
+// EVM JSON-RPC reads for the browser. Public providers are pooled first and
+// Alchemy is retained as the final fallback for availability.
 //
 // Without this, viem's `http()` with no URL falls back to the chain's DEFAULT
 // PUBLIC endpoint (mainnet.base.org, polygon-rpc.com, …). Those are free, shared,
@@ -17,8 +18,6 @@ import { alchemyProxyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 // Auth-gated like the Solana and Polygon proxies, which spend the same key.
 // Privy's same-origin fetch carries the privy-token cookie, so the client needs
 // no header plumbing.
-
-const UPSTREAM_TIMEOUT_MS = 15_000;
 
 // What the read paths actually call: state reads, the receipt poll
 // (waitForTransactionReceipt), and gas estimation. Deliberately no
@@ -69,10 +68,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ network: s
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  if (!hasAlchemyKey()) {
-    return NextResponse.json({ error: "EVM RPC is not configured" }, { status: 503 });
-  }
-
   const body = await req.json().catch(() => null);
   if (!body || !methodsAllowed(body)) {
     // A bare 404 so the endpoint does not describe itself to anyone probing it.
@@ -89,18 +84,13 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ network: s
   }
 
   try {
-    const res = await alchemyProxyFetch((key) => `https://${chain.alchemyHost}/v2/${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      cache: "no-store",
-    });
-    // Pass the payload through untouched: it is a JSON-RPC envelope, and an
-    // error inside it is the caller's to interpret, not ours to rewrite.
-    return new NextResponse(await res.text(), {
-      status: res.status,
-      headers: { "Content-Type": "application/json" },
+    const result = await forwardEvmRpcRead(chain, body);
+    return NextResponse.json(result.payload, {
+      status: result.status,
+      headers: {
+        "Cache-Control": "no-store",
+        ...(result.retryAfter ? { "Retry-After": result.retryAfter } : {}),
+      },
     });
   } catch (error) {
     console.error("EVM RPC proxy failed:", network, error);

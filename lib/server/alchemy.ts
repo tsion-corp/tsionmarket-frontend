@@ -405,11 +405,9 @@ const CACHE_TTL_MS = 15_000;
 // each distinct symbol set costs at most one upstream call per interval, and
 // a 429 during a burst finds a fresh-enough snapshot to serve instead.
 const PRICES_CACHE_TTL_MS = 45_000;
-// Balances change on every deposit/withdraw/wager/claim, and the client
-// refetches on Base blocks (throttled client-side). Keep the portfolio TTL
-// short so those refreshes see movement; prices keep the longer TTL (they
-// move slowly).
-const PORTFOLIO_CACHE_TTL_MS = 4_000;
+// Transaction flows bypass this cache explicitly when they need to observe
+// their own writes. Background reads can share this short snapshot.
+const PORTFOLIO_CACHE_TTL_MS = 15_000;
 // How long past expiry a snapshot may still stand in when the upstream call
 // fails. Slightly stale balances beat an error flash — but a snapshot old
 // enough to be from a different world must not.
@@ -427,11 +425,15 @@ async function cached<T>(
   skipCache = false
 ): Promise<T> {
   const hit = responseCache.get(cacheKey);
+  const inflightKey = skipCache ? `fresh:${cacheKey}` : cacheKey;
   if (!skipCache) {
     if (hit && hit.expires > Date.now()) return hit.value as T;
     // Concurrent misses share one upstream call instead of each firing their
     // own — the burst pattern that walks straight into a rate limit.
-    const pending = inflight.get(cacheKey);
+    const pending = inflight.get(inflightKey);
+    if (pending) return pending as Promise<T>;
+  } else {
+    const pending = inflight.get(inflightKey);
     if (pending) return pending as Promise<T>;
   }
   const run = (async () => {
@@ -445,10 +447,10 @@ async function cached<T>(
       if (hit && hit.expires > Date.now() - STALE_SERVE_MS) return hit.value as T;
       throw error;
     } finally {
-      inflight.delete(cacheKey);
+      inflight.delete(inflightKey);
     }
   })();
-  if (!skipCache) inflight.set(cacheKey, run);
+  inflight.set(inflightKey, run);
   return run;
 }
 

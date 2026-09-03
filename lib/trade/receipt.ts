@@ -17,8 +17,8 @@ const READ_CHAINS: Record<number, { chain: Chain; network: string }> = Object.fr
 
 // Cap the wait so a genuinely stuck transaction surfaces an error instead of
 // hanging the flow. Fast L2 blocks (~2s) confirm well inside this.
-const RECEIPT_TIMEOUT_MS = 120_000;
-const RECEIPT_POLL_MS = 2_000;
+const RECEIPT_TIMEOUT_MS = 90_000;
+const RECEIPT_POLL_MS = 4_000;
 
 // Whether a read client exists for this chain, so callers can decide to wait for
 // a receipt rather than call publicClientForChain and catch a throw.
@@ -36,12 +36,9 @@ const FALLBACK_RPCS: Record<number, string> = {
   10: "https://optimism-rpc.publicnode.com",
 };
 
-// Reads go through our own proxy on the paid Alchemy key first, with the public
-// node above as the fallback. `http()` with no URL would use the chain's default
-// public endpoint, which is shared and rate-limited, and this carries every
-// on-chain read in the app. viem's fallback transport moves to the backup the
-// moment the primary errors, so a proxy outage degrades to a slower public node
-// instead of stalling the flow.
+// Reads go through our own pooled public-RPC proxy first, with a direct public
+// node as the browser's last-resort fallback. The server proxy itself retains
+// Alchemy only after its public providers fail.
 //
 // The proxy is same-origin, so the privy-token cookie authenticates it with no
 // header plumbing. Browser-only by construction: every caller runs in a hook or

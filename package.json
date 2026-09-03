@@ -9,7 +9,6 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "alchemy:policy-check": "node scripts/alchemy-policy-check.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "format": "prettier --write .",

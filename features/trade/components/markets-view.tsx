@@ -12,7 +12,6 @@ import { MobileTradeSheet } from "@/features/trade/components/mobile-trade-sheet
 import { ListPagination } from "@/components/ui/list-pagination";
 import { usePaged } from "@/hooks/use-paged";
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useCoingeckoId } from "@/hooks/use-coingecko-id";
 import { useSpotMarkets, type SpotMarket } from "@/features/trade/hooks/use-spot-markets";
@@ -23,11 +22,6 @@ import { tokenBg } from "@/lib/trade/assets";
 import { coingeckoId, coingeckoPlatform } from "@/lib/coingecko";
 import { spotChartSource } from "@/lib/spot-chart";
 import type { TokenBalance } from "@/lib/server/alchemy";
-
-const PORTFOLIO_KEY = [["portfolio"]] as const;
-// Rate-limits the block-driven refresh: each refetch is an Alchemy round trip,
-// and the raw per-block (~2s) cadence ran the shared key into 429s.
-const PORTFOLIO_REFRESH_MIN_MS = 10_000;
 
 // Rows per page in the phone market list.
 const MOBILE_PER_PAGE = 6;
@@ -57,7 +51,6 @@ export function MarketsView() {
   const tCommon = useTranslations("common");
   const { markets, destinations, loading, error: marketsError } = useSpotMarkets();
   const portfolio = usePortfolio();
-  useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);

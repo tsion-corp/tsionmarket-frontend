@@ -16,7 +16,7 @@ export type { Portfolio, TokenBalance } from "@/lib/server/alchemy";
 // is plenty for background polling. Anything that needs to see its own
 // effect immediately (e.g. right after a trade or withdrawal) calls
 // `refetch()` directly instead of waiting on this interval.
-const POLL_MS = 20 * 1000;
+const POLL_MS = 60 * 1000;
 
 // Stable identity for the empty/loading state. Consumers key memos and effects
 // on `tokens` (trade balances, swap net-balances, global search, funding), so a
@@ -28,7 +28,7 @@ const EMPTY_TOKENS: TokenBalance[] = [];
 // seconds to appear in the balance index, well past the transaction's own
 // confirmation.
 const SETTLE_DEADLINE_MS = 40_000;
-const SETTLE_BACKOFF_MS = [0, 1_500, 3_000, 5_000, 5_000, 8_000, 8_000];
+const SETTLE_BACKOFF_MS = [0, 2_500, 5_000, 8_000, 12_000];
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -99,6 +99,7 @@ export function usePortfolio() {
     retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 4000),
     staleTime: POLL_MS,
     refetchInterval: POLL_MS,
+    refetchOnWindowFocus: false,
   });
 
   const { refetch } = query;

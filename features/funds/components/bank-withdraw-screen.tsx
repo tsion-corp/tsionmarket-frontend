@@ -8,7 +8,6 @@ import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { useSendToken } from "@/hooks/use-withdraw";
 import {
   useCreateOfframpOrder,
@@ -37,12 +36,6 @@ interface BankWithdrawScreenProps {
 
 const DECIMAL = /^\d*\.?\d*$/;
 const BASE = SETTLE_CHAINS.base;
-
-// Refresh the portfolio on Base blocks, rate-limited like the balance card, so
-// the balance shown next to the amount entry is live rather than the slow-poll
-// snapshot.
-const PORTFOLIO_KEY = [["portfolio"]] as const;
-const PORTFOLIO_REFRESH_MIN_MS = 10_000;
 
 // The banks most users reach for, shown first and resolved against the live
 // bank list by name. Everything else is one search away. Colours are just a
@@ -152,7 +145,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const banks = useRampingBanks(true);
   const resolve = useResolveBankAccount();
   const create = useCreateOfframpOrder();
-  useInvalidateOnBlock(PORTFOLIO_KEY, true, PORTFOLIO_REFRESH_MIN_MS);
 
   const [query, setQuery] = useState("");
   const [bank, setBank] = useState<SelectedBank | null>(null);
