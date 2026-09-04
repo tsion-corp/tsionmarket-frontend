@@ -1,5 +1,5 @@
 import "server-only";
-import { alchemyRpcProxyFetch, hasAlchemyRpcKey } from "@/lib/server/alchemy-keys";
+import { zeroDevRpcUrl } from "@/lib/server/zerodev";
 import type { SponsoredEvmChainConfig } from "@/lib/trade/sponsored-evm";
 
 type RpcId = string | number | null | undefined;
@@ -14,6 +14,7 @@ interface RpcCall {
 interface RpcEnvelope {
   id?: RpcId;
   error?: { code?: number; message?: string };
+  result?: unknown;
   [key: string]: unknown;
 }
 
@@ -23,41 +24,44 @@ export interface EvmRpcResult {
   retryAfter?: string;
 }
 
-const PUBLIC_RPC_POOLS: Readonly<Record<number, readonly string[]>> = {
-  1: ["https://ethereum-rpc.publicnode.com", "https://cloudflare-eth.com"],
-  10: ["https://optimism-rpc.publicnode.com", "https://mainnet.optimism.io"],
-  137: ["https://polygon-bor-rpc.publicnode.com", "https://polygon-rpc.com"],
-  8453: [
-    "https://base-rpc.publicnode.com",
-    "https://mainnet.base.org",
-    "https://base.drpc.org",
-    "https://base.gateway.tenderly.co",
-    "https://rpc-base.blockmachine.io",
-    "https://base-mainnet.g.alchemy.com/public",
-  ],
-  42161: ["https://arbitrum-one-rpc.publicnode.com", "https://arb1.arbitrum.io/rpc"],
-};
-
-const PUBLIC_TIMEOUT_MS = 2_500;
-const ALCHEMY_TIMEOUT_MS = 8_000;
-const PUBLIC_ATTEMPTS_PER_REQUEST = 2;
-const CIRCUIT_FAILURES = 3;
-const CIRCUIT_OPEN_MS = 30_000;
+const ZERODEV_TIMEOUT_MS = 8_000;
 const DEFAULT_CACHE_MS = 1_000;
+const BLOCK_CACHE_MS = 4_000;
+const STATE_CACHE_MS = 2_000;
+const CODE_CACHE_MS = 10_000;
+const LOG_CACHE_MS = 5_000;
+const TRANSACTION_CACHE_MS = 30_000;
+const CONFIRMED_RECEIPT_CACHE_MS = 5 * 60_000;
 const STATIC_CACHE_MS = 5 * 60_000;
+const STALE_IF_ERROR_MS = 30_000;
+const DEFAULT_RATE_LIMIT_BACKOFF_MS = 5_000;
+const DEFAULT_FAILURE_BACKOFF_MS = 2_000;
+const MAX_BACKOFF_MS = 30_000;
+const MAX_UPSTREAM_CONCURRENCY = 8;
 const MAX_CACHE_ENTRIES = 2_000;
 
-const cursors = new Map<number, number>();
-const health = new Map<string, { failures: number; blockedUntil: number }>();
-const responseCache = new Map<string, { expires: number; payload: unknown }>();
+interface CachedResponse {
+  expires: number;
+  staleUntil: number;
+  payload: unknown;
+}
+
+interface ProviderBackoff {
+  until: number;
+  status: number;
+}
+
+const responseCache = new Map<string, CachedResponse>();
 const inflight = new Map<string, Promise<EvmRpcResult>>();
+const upstreamWaiters: Array<() => void> = [];
+let activeUpstreamRequests = 0;
+let providerBackoff: ProviderBackoff | null = null;
 
 function canonicalize(body: unknown): {
   cacheKey: string;
   upstreamBody: RpcCall | RpcCall[];
   originalIds: RpcId[];
   batch: boolean;
-  methods: string[];
 } {
   const batch = Array.isArray(body);
   const calls = (batch ? body : [body]) as RpcCall[];
@@ -74,7 +78,6 @@ function canonicalize(body: unknown): {
     upstreamBody: batch ? normalized : normalized[0],
     originalIds,
     batch,
-    methods: calls.map((call) => call.method),
   };
 }
 
@@ -105,42 +108,6 @@ function rpcErrors(payload: unknown): RpcEnvelope[] {
   );
 }
 
-function shouldFailOver(status: number, payload: unknown): boolean {
-  if (status === 401 || status === 403 || status === 429 || status >= 500) return true;
-  return rpcErrors(payload).some(({ error }) => {
-    const code = error?.code;
-    const message = error?.message?.toLowerCase() ?? "";
-    return (
-      code === -32601 ||
-      code === -32005 ||
-      code === -32016 ||
-      /rate|limit|busy|capacity|temporar|timeout|gateway|unavailable|method not found|unsupported/.test(
-        message
-      )
-    );
-  });
-}
-
-function recordFailure(url: string): void {
-  const previous = health.get(url);
-  const failures = (previous?.failures ?? 0) + 1;
-  health.set(url, {
-    failures: failures >= CIRCUIT_FAILURES ? 0 : failures,
-    blockedUntil: failures >= CIRCUIT_FAILURES ? Date.now() + CIRCUIT_OPEN_MS : 0,
-  });
-}
-
-function publicCandidates(chainId: number): string[] {
-  const pool = PUBLIC_RPC_POOLS[chainId] ?? [];
-  if (pool.length === 0) return [];
-  const start = cursors.get(chainId) ?? 0;
-  cursors.set(chainId, (start + 1) % pool.length);
-  const rotated = [...pool.slice(start), ...pool.slice(0, start)];
-  return rotated
-    .filter((url) => (health.get(url)?.blockedUntil ?? 0) <= Date.now())
-    .slice(0, PUBLIC_ATTEMPTS_PER_REQUEST);
-}
-
 async function callRpc(url: string, body: unknown, timeoutMs: number): Promise<EvmRpcResult> {
   const response = await fetch(url, {
     method: "POST",
@@ -163,8 +130,53 @@ async function callRpc(url: string, body: unknown, timeoutMs: number): Promise<E
   };
 }
 
-function cacheTtl(methods: string[]): number {
-  return methods.every((method) => method === "eth_chainId") ? STATIC_CACHE_MS : DEFAULT_CACHE_MS;
+function responseForCall(payload: unknown, id: RpcId): RpcEnvelope | undefined {
+  const values = Array.isArray(payload) ? payload : [payload];
+  return values.find(
+    (value): value is RpcEnvelope =>
+      Boolean(value) &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      (value as RpcEnvelope).id === id
+  );
+}
+
+function cacheTtlForCall(call: RpcCall, payload: unknown): number {
+  const response = responseForCall(payload, call.id);
+  const params = Array.isArray(call.params) ? call.params : [];
+
+  switch (call.method) {
+    case "eth_chainId":
+      return STATIC_CACHE_MS;
+    case "eth_blockNumber":
+      return BLOCK_CACHE_MS;
+    case "eth_getTransactionReceipt":
+      return response?.result ? CONFIRMED_RECEIPT_CACHE_MS : STATE_CACHE_MS;
+    case "eth_getTransactionByHash":
+      return response?.result ? TRANSACTION_CACHE_MS : STATE_CACHE_MS;
+    case "eth_getBlockByNumber":
+      return typeof params[0] === "string" && !["latest", "pending", "safe"].includes(params[0])
+        ? TRANSACTION_CACHE_MS
+        : BLOCK_CACHE_MS;
+    case "eth_getCode":
+      return CODE_CACHE_MS;
+    case "eth_getLogs":
+      return LOG_CACHE_MS;
+    case "eth_call":
+    case "eth_getBalance":
+    case "eth_feeHistory":
+    case "eth_gasPrice":
+    case "eth_maxPriorityFeePerGas":
+      return STATE_CACHE_MS;
+    case "eth_getTransactionCount":
+      return params[1] === "pending" ? DEFAULT_CACHE_MS : STATE_CACHE_MS;
+    default:
+      return DEFAULT_CACHE_MS;
+  }
+}
+
+function cacheTtl(calls: RpcCall[], payload: unknown): number {
+  return Math.min(...calls.map((call) => cacheTtlForCall(call, payload)));
 }
 
 function putCache(key: string, payload: unknown, ttlMs: number): void {
@@ -173,52 +185,76 @@ function putCache(key: string, payload: unknown, ttlMs: number): void {
     if (!oldest) break;
     responseCache.delete(oldest);
   }
-  responseCache.set(key, { expires: Date.now() + ttlMs, payload });
+  const expires = Date.now() + ttlMs;
+  responseCache.set(key, { expires, staleUntil: expires + STALE_IF_ERROR_MS, payload });
+}
+
+function retryAfterMs(value: string | undefined, fallbackMs: number): number {
+  if (!value) return fallbackMs;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? Math.max(0, date - Date.now()) : fallbackMs;
+}
+
+function startProviderBackoff(result: EvmRpcResult): void {
+  if (result.status !== 429 && result.status < 500) return;
+  const fallback =
+    result.status === 429 ? DEFAULT_RATE_LIMIT_BACKOFF_MS : DEFAULT_FAILURE_BACKOFF_MS;
+  const delay = Math.min(
+    MAX_BACKOFF_MS,
+    Math.max(1_000, retryAfterMs(result.retryAfter, fallback))
+  );
+  providerBackoff = { until: Date.now() + delay, status: result.status };
+}
+
+function backoffResult(body: RpcCall | RpcCall[], backoff: ProviderBackoff): EvmRpcResult {
+  const calls = Array.isArray(body) ? body : [body];
+  const payload = calls.map((call) => ({
+    jsonrpc: "2.0",
+    id: call.id,
+    error: {
+      code: -32005,
+      message:
+        backoff.status === 429
+          ? "ZeroDev RPC is rate limited. Retry shortly."
+          : "ZeroDev RPC is temporarily unavailable. Retry shortly.",
+    },
+  }));
+  return {
+    status: backoff.status,
+    payload: Array.isArray(body) ? payload : payload[0],
+    retryAfter: String(Math.max(1, Math.ceil((backoff.until - Date.now()) / 1_000))),
+  };
+}
+
+function currentProviderBackoff(): ProviderBackoff | null {
+  if (!providerBackoff) return null;
+  if (providerBackoff.until > Date.now()) return providerBackoff;
+  providerBackoff = null;
+  return null;
+}
+
+async function withUpstreamSlot<T>(run: () => Promise<T>): Promise<T> {
+  if (activeUpstreamRequests >= MAX_UPSTREAM_CONCURRENCY) {
+    await new Promise<void>((resolve) => upstreamWaiters.push(resolve));
+  }
+  activeUpstreamRequests += 1;
+  try {
+    return await run();
+  } finally {
+    activeUpstreamRequests -= 1;
+    upstreamWaiters.shift()?.();
+  }
 }
 
 async function loadRpc(
   chain: SponsoredEvmChainConfig,
   body: RpcCall | RpcCall[]
 ): Promise<EvmRpcResult> {
-  let lastError: unknown;
-  for (const url of publicCandidates(chain.chainId)) {
-    try {
-      const result = await callRpc(url, body, PUBLIC_TIMEOUT_MS);
-      if (!shouldFailOver(result.status, result.payload)) {
-        health.delete(url);
-        return result;
-      }
-      recordFailure(url);
-      lastError = result.payload;
-    } catch (error) {
-      recordFailure(url);
-      lastError = error;
-    }
-  }
-
-  if (hasAlchemyRpcKey()) {
-    const response = await alchemyRpcProxyFetch((key) => `https://${chain.alchemyHost}/v2/${key}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(ALCHEMY_TIMEOUT_MS),
-      cache: "no-store",
-    });
-    const text = await response.text();
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      payload = { error: { message: text || `RPC returned HTTP ${response.status}` } };
-    }
-    return {
-      status: response.status,
-      payload,
-      retryAfter: response.headers.get("retry-after") ?? undefined,
-    };
-  }
-
-  throw lastError ?? new Error(`No RPC endpoint is available for chain ${chain.chainId}`);
+  const upstream = zeroDevRpcUrl(chain.chainId);
+  if (!upstream) throw new Error("ZeroDev RPC is not configured");
+  return callRpc(upstream, body, ZERODEV_TIMEOUT_MS);
 }
 
 export async function forwardEvmRpcRead(
@@ -226,6 +262,7 @@ export async function forwardEvmRpcRead(
   body: unknown
 ): Promise<EvmRpcResult> {
   const request = canonicalize(body);
+  const calls = Array.isArray(request.upstreamBody) ? request.upstreamBody : [request.upstreamBody];
   const key = `${chain.chainId}:${request.cacheKey}`;
   const hit = responseCache.get(key);
   if (hit && hit.expires > Date.now()) {
@@ -234,6 +271,7 @@ export async function forwardEvmRpcRead(
       payload: restoreIds(hit.payload, request.originalIds, request.batch),
     };
   }
+  if (hit && hit.staleUntil <= Date.now()) responseCache.delete(key);
 
   const pending = inflight.get(key);
   if (pending) {
@@ -244,13 +282,32 @@ export async function forwardEvmRpcRead(
     };
   }
 
-  const load = (async () => {
-    const result = await loadRpc(chain, request.upstreamBody);
+  const load = withUpstreamSlot(async () => {
+    const backoff = currentProviderBackoff();
+    if (backoff) {
+      if (hit && hit.staleUntil > Date.now()) return { status: 200, payload: hit.payload };
+      return backoffResult(request.upstreamBody, backoff);
+    }
+
+    let result: EvmRpcResult;
+    try {
+      result = await loadRpc(chain, request.upstreamBody);
+    } catch (error) {
+      providerBackoff = { until: Date.now() + DEFAULT_FAILURE_BACKOFF_MS, status: 502 };
+      if (hit && hit.staleUntil > Date.now()) return { status: 200, payload: hit.payload };
+      throw error;
+    }
     if (result.status === 200 && rpcErrors(result.payload).length === 0) {
-      putCache(key, result.payload, cacheTtl(request.methods));
+      putCache(key, result.payload, cacheTtl(calls, result.payload));
+      return result;
+    }
+
+    startProviderBackoff(result);
+    if (hit && hit.staleUntil > Date.now() && (result.status === 429 || result.status >= 500)) {
+      return { status: 200, payload: hit.payload };
     }
     return result;
-  })();
+  });
   inflight.set(key, load);
   try {
     const result = await load;

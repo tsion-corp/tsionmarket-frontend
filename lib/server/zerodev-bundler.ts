@@ -2,6 +2,7 @@ import "server-only";
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
+import { zeroDevRpcUrl } from "@/lib/server/zerodev";
 
 const ALLOWED_METHODS = new Set([
   "eth_chainId",
@@ -18,12 +19,6 @@ interface RpcCall {
   method?: unknown;
 }
 
-function rpcUrlForChain(chainId: number): string | null {
-  const projectId = process.env.ZERODEV_PROJECT_ID?.trim();
-  if (!projectId || !/^[A-Za-z0-9_-]{16,128}$/.test(projectId)) return null;
-  return `https://rpc.zerodev.app/api/v3/${projectId}/chain/${chainId}`;
-}
-
 export async function forwardZeroDevBundlerRequest(req: NextRequest, network: string) {
   const claims = await verifyRequest(req);
   if (!claims) {
@@ -35,7 +30,7 @@ export async function forwardZeroDevBundlerRequest(req: NextRequest, network: st
     return NextResponse.json({ error: "Unsupported sponsored network" }, { status: 404 });
   }
 
-  const upstream = rpcUrlForChain(target.chainId);
+  const upstream = zeroDevRpcUrl(target.chainId);
   if (!upstream) {
     return NextResponse.json({ error: "ZeroDev sponsorship is not configured" }, { status: 503 });
   }

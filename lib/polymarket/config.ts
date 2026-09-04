@@ -45,5 +45,5 @@ export const BUILDER_SIGN_PATH = "/api/polymarket/sign";
 // Path of the Polygon JSON-RPC proxy the SDK reads through, replacing the
 // public endpoint it ships with (polygon.drpc.org, which answers 500 often
 // enough to break trading approvals). Shares the app's one EVM RPC proxy on the
-// paid Alchemy key. See app/api/evm-rpc/[network].
+// server-only ZeroDev project. See app/api/evm-rpc/[network].
 export const POLYGON_RPC_PATH = "/api/evm-rpc/polygon-mainnet";

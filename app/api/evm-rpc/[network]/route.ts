@@ -3,19 +3,18 @@ import { verifyRequest } from "@/lib/server/auth";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
 import { forwardEvmRpcRead } from "@/lib/server/evm-rpc";
 
-// EVM JSON-RPC reads for the browser. Public providers are pooled first and
-// Alchemy is retained as the final fallback for availability.
+// EVM JSON-RPC reads for the browser, routed through the server-only ZeroDev
+// project so no provider credential is exposed to the client.
 //
-// Without this, viem's `http()` with no URL falls back to the chain's DEFAULT
-// PUBLIC endpoint (mainnet.base.org, polygon-rpc.com, …). Those are free, shared,
-// aggressively rate-limited, and they back every on-chain read the app makes:
+// Without this, viem's `http()` with no URL falls back to shared public RPCs.
+// This route gives every supported chain one consistent provider for:
 // prediction pool state and market structs, perp allowances, Polymarket
 // collateral, and the eth_getCode/nonce reads in the sponsored 7702 send path.
 //
 // Reads only. Signing and broadcast go through Privy and the bundler, never
 // here, so nothing that reaches this endpoint can move funds.
 //
-// Auth-gated like the Solana and Polygon proxies, which spend the same key.
+// Auth-gated like the Solana and Polygon proxies.
 // Privy's same-origin fetch carries the privy-token cookie, so the client needs
 // no header plumbing.
 
@@ -94,6 +93,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ network: s
     });
   } catch (error) {
     console.error("EVM RPC proxy failed:", network, error);
-    return NextResponse.json({ error: "EVM RPC unreachable" }, { status: 502 });
+    return NextResponse.json({ error: "ZeroDev EVM RPC unreachable" }, { status: 502 });
   }
 }

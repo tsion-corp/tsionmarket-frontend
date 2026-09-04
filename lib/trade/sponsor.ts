@@ -27,8 +27,8 @@ export type SignAuthorization = (input: {
   nonce?: number;
 }) => Promise<SignedAuthorization<number>>;
 
-// A minimal "can serve node reads" shape — satisfied by both a public read
-// client (mainnet.base.org node) and the bundler-proxy client. Typed as a bare
+// A minimal "can serve node reads" shape — satisfied by both the ZeroDev-backed
+// read client and the bundler-proxy client. Typed as a bare
 // callable so viem's method-union request signatures on either client widen to
 // it; `params` is passed through untouched to the JSON-RPC layer.
 type ReadRequest = (args: { method: string; params: unknown }) => Promise<unknown>;

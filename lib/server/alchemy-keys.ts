@@ -4,8 +4,8 @@ import "server-only";
  * The Alchemy key pool and the fetch that rotates through it.
  *
  * One key is a single point of failure: when it is throttled or revoked, every
- * surface that reads it goes down at once, which is the whole portfolio, the
- * prices, the activity feed and the RPC proxies. A second key configured as
+ * surface that reads it goes down at once, including portfolio discovery,
+ * prices, activity and Solana. A second key configured as
  * ALCHEMY_API_KEY_FALLBACK is tried when the first one cannot serve the call.
  *
  * Read at call time rather than module load. A module-level const captures
@@ -24,18 +24,6 @@ export function alchemyKeys(): string[] {
 /** True when at least one key is configured. Routes use it to answer 503. */
 export function hasAlchemyKey(): boolean {
   return alchemyKeys().length > 0;
-}
-
-/** Dedicated standard JSON-RPC keys, falling back to the legacy pool. */
-export function alchemyRpcKeys(): string[] {
-  const dedicated = [process.env.ALCHEMY_RPC_API_KEY, process.env.ALCHEMY_RPC_API_KEY_FALLBACK]
-    .map((key) => key?.trim())
-    .filter((key, index, all): key is string => Boolean(key) && all.indexOf(key) === index);
-  return dedicated.length > 0 ? dedicated : alchemyKeys();
-}
-
-export function hasAlchemyRpcKey(): boolean {
-  return alchemyRpcKeys().length > 0;
 }
 
 /**
@@ -128,11 +116,11 @@ export async function alchemyFetch(
  * Fetch through the key pool, handing back the last response even when it
  * failed.
  *
- * For the JSON-RPC proxies, which forward the upstream status verbatim. If a
- * throttled upstream became a thrown error here, a 429 the client knows how to
- * back off from would reach it as an opaque 502 instead. Still throws when
- * every attempt failed at the network level, since then there is no status to
- * forward.
+ * For Alchemy-backed JSON-RPC proxies such as Solana, which forward the upstream
+ * status verbatim. If a throttled upstream became a thrown error here, a 429 the
+ * client knows how to back off from would reach it as an opaque 502 instead.
+ * Still throws when every attempt failed at the network level, since then there
+ * is no status to forward.
  */
 export async function alchemyProxyFetch(
   buildUrl: (key: string) => string,
@@ -141,14 +129,4 @@ export async function alchemyProxyFetch(
   const { res, error } = await rotate(alchemyKeys(), buildUrl, init);
   if (res) return res;
   throw error ?? new Error("Alchemy request failed");
-}
-
-/** Standard node-RPC fallback isolated from Portfolio/Prices API quotas. */
-export async function alchemyRpcProxyFetch(
-  buildUrl: (key: string) => string,
-  init?: RequestInit
-): Promise<Response> {
-  const { res, error } = await rotate(alchemyRpcKeys(), buildUrl, init);
-  if (res) return res;
-  throw error ?? new Error("Alchemy RPC request failed");
 }

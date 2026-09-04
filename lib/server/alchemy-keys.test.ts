@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  alchemyFetch,
-  alchemyKeys,
-  alchemyRpcKeys,
-  hasAlchemyKey,
-} from "@/lib/server/alchemy-keys";
+import { alchemyFetch, alchemyKeys, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 
 const PRIMARY = "primary-key";
 const FALLBACK = "fallback-key";
@@ -27,20 +22,6 @@ const url = (key: string) => `https://eth-mainnet.g.alchemy.com/v2/${key}`;
 beforeEach(() => {
   vi.stubEnv("ALCHEMY_API_KEY", PRIMARY);
   vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", FALLBACK);
-  vi.stubEnv("ALCHEMY_RPC_API_KEY", "");
-  vi.stubEnv("ALCHEMY_RPC_API_KEY_FALLBACK", "");
-});
-
-describe("alchemyRpcKeys", () => {
-  it("keeps node-RPC traffic on its dedicated key pool", () => {
-    vi.stubEnv("ALCHEMY_RPC_API_KEY", "rpc-primary");
-    vi.stubEnv("ALCHEMY_RPC_API_KEY_FALLBACK", "rpc-fallback");
-    expect(alchemyRpcKeys()).toEqual(["rpc-primary", "rpc-fallback"]);
-  });
-
-  it("uses the legacy pool when dedicated RPC keys are not configured", () => {
-    expect(alchemyRpcKeys()).toEqual([PRIMARY, FALLBACK]);
-  });
 });
 
 afterEach(() => {
