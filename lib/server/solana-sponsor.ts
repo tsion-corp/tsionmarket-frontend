@@ -6,9 +6,8 @@ import {
   prepareWithLocalSponsor,
   rewriteFeePayerWithRpc,
 } from "@/lib/server/solana-cosigner";
-import { heliusSolanaRpcUrls } from "@/lib/server/helius";
 import { wsapiService } from "@/lib/wsapi-base";
-import { alchemyUrls } from "@/lib/server/alchemy-keys";
+import { solanaRpcUpstreams } from "@/lib/server/solana-rpc-upstreams";
 
 // Solana gas sponsorship, in the gas-sponsor service's contract: prepare puts
 // the sponsor wallet in the fee-payer seat before the user signs, and sponsor
@@ -18,19 +17,6 @@ import { alchemyUrls } from "@/lib/server/alchemy-keys";
 
 const GAS_SPONSOR_BASE = process.env.GAS_SPONSOR_API_URL ?? wsapiService("gas-sponsor");
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
-
-const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
-const RPC_URLS = () => {
-  const configured = process.env.SOLANA_RPC_URL;
-  // One entry per configured Alchemy key, so a throttled or rejected key is
-  // just another upstream to step past rather than the end of the list.
-  return [
-    configured,
-    ...heliusSolanaRpcUrls(),
-    ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
-    PUBLIC_SOLANA_RPC,
-  ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
-};
 
 interface SponsorBody {
   serializedTransaction: string;
@@ -129,7 +115,7 @@ export async function prepareSolanaSponsorRequest(req: NextRequest) {
       : await rewriteFeePayerWithRpc(
           body.serializedTransaction,
           await serviceSponsorPublicKey(req),
-          RPC_URLS(),
+          solanaRpcUpstreams(),
           body.prefundRent
         );
     return NextResponse.json({

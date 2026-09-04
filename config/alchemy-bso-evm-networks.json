@@ -230,6 +230,7 @@
     "policyNetwork": "MATIC_MAINNET",
     "alchemyHost": "polygon-mainnet.g.alchemy.com",
     "chainKey": "polygon",
+    "sponsorshipMode": "paymaster",
     "gasPolicy": true
   },
   {

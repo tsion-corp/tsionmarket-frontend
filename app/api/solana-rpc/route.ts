@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
-import { alchemyUrls } from "@/lib/server/alchemy-keys";
-import { heliusSolanaRpcUrls } from "@/lib/server/helius";
+import { solanaRpcUpstreams } from "@/lib/server/solana-rpc-upstreams";
 
 // Solana JSON-RPC for the browser. Privy needs an RPC endpoint to broadcast a
 // Solana transaction, and the wallet code needs one to read blockhashes and
@@ -14,7 +13,6 @@ import { heliusSolanaRpcUrls } from "@/lib/server/helius";
 // needed on the client.
 
 const UPSTREAM_TIMEOUT_MS = 15_000;
-const PUBLIC_SOLANA_RPC = "https://api.mainnet-beta.solana.com";
 
 // Only what the wallet flows actually call. An open proxy would be a free
 // Alchemy relay for anyone who found it.
@@ -33,18 +31,6 @@ const ALLOWED_METHODS = new Set([
 
 interface RpcCall {
   method?: unknown;
-}
-
-function upstreams(): string[] {
-  const configured = process.env.SOLANA_RPC_URL;
-  // One entry per configured Alchemy key, so a throttled or rejected key is
-  // just another upstream to step past rather than the end of the list.
-  return [
-    configured,
-    ...heliusSolanaRpcUrls(),
-    ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
-    PUBLIC_SOLANA_RPC,
-  ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);
 }
 
 function methodsAllowed(body: unknown): boolean {
@@ -66,7 +52,7 @@ export async function POST(req: NextRequest) {
 
   const serialized = JSON.stringify(body);
   let lastFailure: unknown;
-  for (const upstream of upstreams()) {
+  for (const upstream of solanaRpcUpstreams()) {
     try {
       const res = await fetch(upstream, {
         method: "POST",
