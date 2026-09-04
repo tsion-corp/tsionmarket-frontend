@@ -21,7 +21,7 @@ const ALLOWED: Array<{ method: "GET" | "POST"; pattern: RegExp }> = [
   { method: "POST", pattern: /^banks\/resolve$/ },
 ];
 
-export function isAllowedRampingPath(method: "GET" | "POST", path: string): boolean {
+function isAllowedRampingPath(method: "GET" | "POST", path: string): boolean {
   return ALLOWED.some((rule) => rule.method === method && rule.pattern.test(path));
 }
 

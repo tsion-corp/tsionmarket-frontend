@@ -36,6 +36,17 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: import.meta.dirname,
   },
+  webpack(config) {
+    // Privy's root bundle references optional Stripe/Farcaster integrations
+    // even though this app uses neither. Mark them unavailable explicitly so
+    // webpack does not emit a missing-module warning on every Fast Refresh.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@stripe/crypto": false,
+      "@farcaster/mini-app-solana": false,
+    };
+    return config;
+  },
   experimental: {
     // Import only the referenced members of these barrel packages instead of the
     // whole module graph. @privy-io/react-auth alone is a 332-module barrel and

@@ -10,6 +10,14 @@ import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 // EOA delegates to this logic at the same address, so sponsorship does not
 // create or migrate funds into a separate smart-wallet address.
 const SIMPLE_7702_IMPL = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as const;
+const ENTRY_POINT_V08 = "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108" as const;
+const USER_OPERATION_EVENT_TOPIC =
+  "0x49628fd1471006c1482da88028e9ce4dbb080b815c9b0344d39e5a8e6ec1419f" as const;
+const USER_OPERATION_RECEIPT_TIMEOUT_MS = 45_000;
+const ONCHAIN_RECOVERY_TIMEOUT_MS = 30_000;
+const USER_OPERATION_RECEIPT_POLL_MS = 4_000;
+const ONCHAIN_RECOVERY_POLL_MS = 5_000;
+const ONCHAIN_RECOVERY_BLOCKS = 2_000n;
 
 // The proxy exposes only Alchemy's UserOperation/paymaster methods. Every
 // ordinary eth_* read uses the separate ZeroDev-backed read client below.
@@ -28,6 +36,75 @@ export type SignAuthorization = (input: {
 }) => Promise<SignedAuthorization<number>>;
 
 type ReadRequest = (args: { method: string; params: unknown }) => Promise<unknown>;
+
+export class SubmittedEvmOperationError extends Error {
+  readonly code = "EVM_OPERATION_SUBMITTED";
+
+  constructor(
+    readonly userOperationHash: `0x${string}`,
+    options?: { cause?: unknown }
+  ) {
+    super("The transaction was submitted but its on-chain receipt is not available yet.", options);
+    this.name = "SubmittedEvmOperationError";
+  }
+}
+
+export function isSubmittedEvmOperationError(error: unknown): error is SubmittedEvmOperationError {
+  if (!error || typeof error !== "object" || !("code" in error)) return false;
+  return error.code === "EVM_OPERATION_SUBMITTED";
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+interface EntryPointLog {
+  transactionHash?: `0x${string}`;
+}
+
+async function recoverTransactionHash(
+  request: ReadRequest,
+  userOperationHash: `0x${string}`,
+  fromBlock: string
+): Promise<`0x${string}` | null> {
+  const logs = (await request({
+    method: "eth_getLogs",
+    params: [
+      {
+        address: ENTRY_POINT_V08,
+        fromBlock,
+        toBlock: "latest",
+        topics: [USER_OPERATION_EVENT_TOPIC, userOperationHash],
+      },
+    ],
+  })) as EntryPointLog[];
+  return logs.at(-1)?.transactionHash ?? null;
+}
+
+async function waitForOnchainRecovery(
+  request: ReadRequest,
+  userOperationHash: `0x${string}`
+): Promise<`0x${string}` | null> {
+  const deadline = Date.now() + ONCHAIN_RECOVERY_TIMEOUT_MS;
+  let fromBlock: string | null = null;
+  do {
+    try {
+      if (!fromBlock) {
+        const latestHex = (await request({ method: "eth_blockNumber", params: [] })) as string;
+        const latest = BigInt(latestHex);
+        const from = latest > ONCHAIN_RECOVERY_BLOCKS ? latest - ONCHAIN_RECOVERY_BLOCKS : 0n;
+        fromBlock = `0x${from.toString(16)}`;
+      }
+      const hash = await recoverTransactionHash(request, userOperationHash, fromBlock);
+      if (hash) return hash;
+    } catch {
+      // A transient read-provider failure must not hide a transaction the
+      // bundler already accepted. Keep polling within the bounded window.
+    }
+    await sleep(ONCHAIN_RECOVERY_POLL_MS);
+  } while (Date.now() < deadline);
+  return null;
+}
 
 async function isAlreadyDelegated(request: ReadRequest, address: `0x${string}`): Promise<boolean> {
   const code = (await request({
@@ -112,6 +189,19 @@ export async function sendSponsoredEvmCalls({
         }
   );
 
-  const receipt = await bundlerClient.waitForUserOperationReceipt({ hash });
-  return receipt.receipt.transactionHash;
+  try {
+    const receipt = await bundlerClient.waitForUserOperationReceipt({
+      hash,
+      pollingInterval: USER_OPERATION_RECEIPT_POLL_MS,
+      timeout: USER_OPERATION_RECEIPT_TIMEOUT_MS,
+    });
+    return receipt.receipt.transactionHash;
+  } catch (error) {
+    // Alchemy can lag or a local route can be interrupted by a deployment/HMR
+    // after accepting the user operation. The EntryPoint event is the source of
+    // truth and contains both the operation hash and final transaction hash.
+    const recovered = await waitForOnchainRecovery(read, hash);
+    if (recovered) return recovered;
+    throw new SubmittedEvmOperationError(hash, { cause: error });
+  }
 }

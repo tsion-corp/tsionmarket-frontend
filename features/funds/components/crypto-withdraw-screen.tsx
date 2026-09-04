@@ -36,6 +36,7 @@ import {
   extractScannedAddress,
 } from "@/lib/wallet-address";
 import { friendlyError } from "@/lib/errors";
+import { isSubmittedEvmOperationError } from "@/lib/trade/sponsor";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
@@ -331,17 +332,12 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     if (!selectedDestination) return;
     setError(null);
     setSubmitting(true);
-    // Flipped the moment a transfer is handed to the wallet. Past that point a
-    // failure cannot be reported as "not sent": the transfer may already be
-    // on-chain, and inviting a retry would send real money twice.
-    let broadcasting = false;
     // One processing toast that resolves in place; dismissed if we bail on a
     // validation check before anything is actually sent.
     const toastId = toast.loading(t("sendingWithdrawal"));
     try {
       const sendAmount = toBaseUnits(amount, source.decimals);
       if (isDirectSend) {
-        broadcasting = true;
         const hash = await sendToken({
           network: sourceNetwork,
           tokenAddress: source.usdc,
@@ -376,7 +372,6 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         toast.dismiss(toastId);
         return;
       }
-      broadcasting = true;
       const hash = await sendToken({
         network: sourceNetwork,
         tokenAddress: source.usdc,
@@ -402,7 +397,10 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         { id: toastId }
       );
     } catch (e) {
-      if (broadcasting) {
+      // Only the sponsored sender can prove that a request reached the
+      // bundler: it wraps failures after eth_sendUserOperation returned a hash.
+      // Validation, signing and pre-submission failures remain safe to retry.
+      if (isSubmittedEvmOperationError(e)) {
         setError(t("withdrawalUnconfirmed"));
         toast.error(t("withdrawalUnconfirmedToast"), { id: toastId });
       } else {
