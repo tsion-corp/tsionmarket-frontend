@@ -14,6 +14,7 @@ import { useRwaEnrichedAssets } from "@/features/rwa/hooks/use-rwa-prices";
 import type { RwaApiAsset } from "@/features/rwa/lib/api";
 import type { TradePrefill } from "@/lib/voice/intent";
 import type { ConfirmPayload, DetailPayload } from "@/lib/modal-types";
+import { SectionVisibility } from "@/components/ui/section-visibility";
 
 // The dashboard page passes detail and confirm openers, but the RWA section owns
 // its own detail sheet and trade flow, so it does not use them. The prop shape
@@ -86,7 +87,7 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+    <SectionVisibility className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>{t("eyebrow")}</Eyebrow>
 
       <div className="mt-5">
@@ -119,6 +120,6 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
           <RwaDetailSheet asset={detailAsset} onTrade={openTrade} />
         ) : null}
       </ModalShell>
-    </div>
+    </SectionVisibility>
   );
 };

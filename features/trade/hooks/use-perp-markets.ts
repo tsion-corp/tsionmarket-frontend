@@ -7,6 +7,7 @@ import {
   fetchPerpPairs,
   fetchPerpPrices,
   isPerpUnavailable,
+  perpErrorCode,
 } from "@/lib/perp/api";
 import { isLikelyClosed } from "@/lib/perp/logic";
 import type { PerpPair, PerpPairMarket, PerpPrice } from "@/lib/perp/types";
@@ -26,10 +27,27 @@ const PRICE_POLL_SLOW_MS = 30_000;
 const MARKET_POLL_MS = 5_000;
 const PAIRS_STALE_MS = 5 * 60 * 1000;
 
+// How often a failing read is retried. React Query keeps firing
+// refetchInterval while every attempt errors, so a gateway answering NOT_FOUND
+// was asked again every 5s, two retries deep, for as long as the tab stayed
+// open. That is 36 failed requests a minute per hook, from every screen that
+// mounts one, and it is most of what a page load spends. Backing off rather
+// than stopping means the UI still recovers by itself when the gateway
+// returns, at a twelfth of the cost while it is down.
+const FAILING_POLL_MS = 60_000;
+
+export function pollUnlessFailing(healthyMs: number) {
+  return (query: { state: { status: string } }): number =>
+    query.state.status === "error" ? FAILING_POLL_MS : healthyMs;
+}
+
 // Not-deployed is terminal for the session: retrying cannot fix it, so stop
-// after the first response instead of hammering the proxy.
-function retryUnlessUnavailable(failureCount: number, error: unknown): boolean {
+// after the first response instead of hammering the proxy. NOT_FOUND is
+// terminal for the same reason. The gateway has answered about this exact
+// pair, and asking twice more changes nothing.
+export function retryUnlessUnavailable(failureCount: number, error: unknown): boolean {
   if (isPerpUnavailable(error)) return false;
+  if (perpErrorCode(error) === "NOT_FOUND") return false;
   return failureCount < 2;
 }
 
@@ -55,7 +73,7 @@ export function usePerpPrices(enabled: boolean, streaming = false) {
     queryKey: ["perp-prices"],
     queryFn: fetchPerpPrices,
     enabled,
-    refetchInterval: pollMs,
+    refetchInterval: pollUnlessFailing(pollMs),
     staleTime: pollMs,
     retry: retryUnlessUnavailable,
   });
@@ -83,7 +101,7 @@ export function usePerpMarket(pair: string | null) {
       return { market, closed };
     },
     enabled: pair != null,
-    refetchInterval: MARKET_POLL_MS,
+    refetchInterval: pollUnlessFailing(MARKET_POLL_MS),
     staleTime: MARKET_POLL_MS,
     retry: retryUnlessUnavailable,
   });

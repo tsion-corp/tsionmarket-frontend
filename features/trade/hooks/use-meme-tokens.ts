@@ -9,14 +9,17 @@ import {
   searchTokens,
   type MemeToken,
 } from "@/lib/meme/api";
+import { useSectionActive } from "@/components/ui/section-visibility";
 
 const TRENDING_POLL_MS = 30_000;
 const SEARCH_DEBOUNCE_MS = 350;
 
 export function useTrendingMemes() {
+  const active = useSectionActive();
   const query = useQuery({
     queryKey: ["meme", "trending"],
     queryFn: fetchTrendingTokens,
+    enabled: active,
     refetchInterval: TRENDING_POLL_MS,
     staleTime: 15_000,
   });
@@ -31,6 +34,7 @@ export function useTrendingMemes() {
 // The pro table's server-paginated catalog. The previous page stays on screen
 // while the next loads, so paging never blanks the table.
 export function useMemeCatalog(page: number, limit = 10) {
+  const active = useSectionActive();
   const query = useQuery({
     queryKey: ["meme", "catalog", page, limit],
     queryFn: () => fetchTokenCatalog(page, limit),
@@ -49,6 +53,7 @@ export function useMemeCatalog(page: number, limit = 10) {
 // Debounced provider-backed search (rate limited upstream at 30/min). Queries
 // under two characters never leave the client.
 export function useMemeSearch(raw: string) {
+  const active = useSectionActive();
   const [debounced, setDebounced] = useState("");
   useEffect(() => {
     const q = raw.trim();
@@ -72,10 +77,11 @@ export function useMemeSearch(raw: string) {
 // Fresh risk-assessed details for the selected token; search rows don't carry
 // current risk/tradability, so the trade surface always re-reads this.
 export function useMemeToken(address: string | null) {
+  const active = useSectionActive();
   const query = useQuery({
     queryKey: ["meme", "token", address],
     queryFn: () => fetchToken(address as string),
-    enabled: !!address,
+    enabled: active && !!address,
     staleTime: 20_000,
     refetchInterval: 30_000,
   });

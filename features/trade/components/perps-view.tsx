@@ -11,6 +11,7 @@ import { usePrices } from "@/hooks/use-prices";
 import { pairSymbol, toWirePrice } from "@/lib/perp/logic";
 import { TRADE_PRICE_SYMBOLS } from "@/lib/trade/assets";
 import type { PerpPair } from "@/lib/perp/types";
+import { useSectionActive } from "@/components/ui/section-visibility";
 
 // The perpetuals body: one data layer, two interfaces (simple/pro) chosen by the
 // shared perp-mode store. Rendered inside the trade hub, which owns the section
@@ -61,6 +62,9 @@ export function PerpsView() {
   // into whichever interface is showing, which STAGES the visible form and then
   // auto-fires its own submit (usePerpFormAutostage) — the user watches the order
   // fill in and place itself.
+  // False while the perp section is scrolled away, which pauses the five
+  // second price poll, the five second market poll and the price socket.
+  const active = useSectionActive();
   const perpPrefill = usePerpPrefill();
   const { pairs, unavailable, loading } = usePerpPairs();
   const live = !unavailable && pairs.length > 0;
@@ -70,8 +74,8 @@ export function PerpsView() {
   // today the REST path carries the section; the socket takes over on its own
   // the moment frames start flowing.
   const streamSymbols = useMemo(() => (live ? pairs.map(pairSymbol) : []), [live, pairs]);
-  const stream = usePerpPriceStream(streamSymbols, live);
-  const { prices: livePrices } = usePerpPrices(live, stream.healthy);
+  const stream = usePerpPriceStream(streamSymbols, live && active);
+  const { prices: livePrices } = usePerpPrices(live && active, stream.healthy);
   const fallbackPrices = usePrices(FALLBACK_PRICE_SYMBOLS);
 
   const effectivePairs = live ? pairs : FALLBACK_PAIRS;

@@ -401,7 +401,6 @@ export function isRateLimitError(error: unknown): boolean {
 // reads as stale next to the 30s client poll interval; it only absorbs
 // bursts. In-process only: fine for smoothing load, not meant to survive a
 // restart or span multiple server instances.
-const CACHE_TTL_MS = 15_000;
 // Prices move slowly and the client polls at 60s; a longer window here means
 // each distinct symbol set costs at most one upstream call per interval, and
 // a 429 during a burst finds a fresh-enough snapshot to serve instead.

@@ -5,6 +5,7 @@ import { fetchRwaAssets, fetchRwaCategories } from "@/features/rwa/lib/api";
 import type { RwaApiAsset } from "@/features/rwa/lib/api";
 import { isListedAsset } from "@/features/rwa/lib/presenter";
 import { PERSISTED_GC_TIME } from "@/lib/query-persist";
+import { useSectionActive } from "@/components/ui/section-visibility";
 
 const SIXTY_SECONDS = 60 * 1000;
 
@@ -15,11 +16,13 @@ const EMPTY_ASSETS: Awaited<ReturnType<typeof fetchRwaAssets>> = [];
 const EMPTY_CATEGORIES: Awaited<ReturnType<typeof fetchRwaCategories>> = [];
 
 export function useRwaAssets(filters: Record<string, string> = {}) {
+  const active = useSectionActive();
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ["rwa-assets", filters],
     queryFn: () => fetchRwaAssets(filters),
     staleTime: SIXTY_SECONDS,
     gcTime: PERSISTED_GC_TIME,
+    enabled: active,
     refetchInterval: SIXTY_SECONDS,
   });
   const assets = data ?? EMPTY_ASSETS;
@@ -35,6 +38,7 @@ export function useRwaAssets(filters: Record<string, string> = {}) {
 }
 
 export function useRwaCategories() {
+  const active = useSectionActive();
   const { data } = useQuery({
     queryKey: ["rwa-categories"],
     queryFn: fetchRwaCategories,
@@ -57,11 +61,13 @@ export function useRwaCategories() {
  * resolves against the full registry.
  */
 export function useListedRwaAssets() {
+  const active = useSectionActive();
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: ["rwa-assets", {}],
     queryFn: () => fetchRwaAssets({}),
     staleTime: SIXTY_SECONDS,
     gcTime: PERSISTED_GC_TIME,
+    enabled: active,
     refetchInterval: SIXTY_SECONDS,
     select: (all: RwaApiAsset[]) => all.filter(isListedAsset),
   });
