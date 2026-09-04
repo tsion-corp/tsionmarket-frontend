@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { alchemyUrls } from "@/lib/server/alchemy-keys";
+import { heliusSolanaRpcUrls } from "@/lib/server/helius";
 
 // Solana JSON-RPC for the browser. Privy needs an RPC endpoint to broadcast a
 // Solana transaction, and the wallet code needs one to read blockhashes and
 // confirm signatures. The public mainnet endpoint rate-limits browser traffic
-// hard, so this proxies our Alchemy key instead — server-side, because a key
-// shipped to the client is a key anyone can spend.
+// hard, so this proxies server-side provider keys instead. They must never be
+// shipped to the client because a key exposed there is a key anyone can spend.
 //
 // Auth-gated exactly like the portfolio, which spends the same key. Privy's
 // same-origin fetch carries the privy-token cookie, so no header plumbing is
@@ -40,6 +41,7 @@ function upstreams(): string[] {
   // just another upstream to step past rather than the end of the list.
   return [
     configured,
+    ...heliusSolanaRpcUrls(),
     ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);

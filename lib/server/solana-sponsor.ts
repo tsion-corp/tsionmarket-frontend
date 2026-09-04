@@ -6,6 +6,7 @@ import {
   prepareWithLocalSponsor,
   rewriteFeePayerWithRpc,
 } from "@/lib/server/solana-cosigner";
+import { heliusSolanaRpcUrls } from "@/lib/server/helius";
 import { wsapiService } from "@/lib/wsapi-base";
 import { alchemyUrls } from "@/lib/server/alchemy-keys";
 
@@ -25,6 +26,7 @@ const RPC_URLS = () => {
   // just another upstream to step past rather than the end of the list.
   return [
     configured,
+    ...heliusSolanaRpcUrls(),
     ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);

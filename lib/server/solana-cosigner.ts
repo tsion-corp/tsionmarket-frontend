@@ -15,6 +15,7 @@ import {
   setTransactionMessageFeePayer,
 } from "@solana/kit";
 import { alchemyUrls } from "@/lib/server/alchemy-keys";
+import { heliusSolanaRpcUrls } from "@/lib/server/helius";
 
 // In-house Solana fee sponsorship, following the same contract as the
 // platform gas-sponsor service: the transaction is first prepared with the
@@ -35,6 +36,7 @@ const RPC_URLS = () => {
   // just another upstream to step past rather than the end of the list.
   return [
     configured,
+    ...heliusSolanaRpcUrls(),
     ...alchemyUrls((key) => `https://solana-mainnet.g.alchemy.com/v2/${key}`),
     PUBLIC_SOLANA_RPC,
   ].filter((url, index, all): url is string => Boolean(url) && all.indexOf(url) === index);

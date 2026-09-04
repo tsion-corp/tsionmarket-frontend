@@ -18,6 +18,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   auth.verifyRequest.mockResolvedValue({ sub: "user" });
   process.env.ALCHEMY_API_KEY = "test-key";
+  delete process.env.HELIUS_API_KEY;
+  delete process.env.HELIUS_API_KEY_FALLBACK;
   delete process.env.SOLANA_RPC_URL;
   // A fresh Response per call: a body can only be read once.
   fetchMock.mockImplementation(
@@ -100,5 +102,26 @@ describe("solana rpc proxy", () => {
 
     expect(res.status).toBe(200);
     expect(fetchMock.mock.calls[0][0]).toBe("https://rpc.example.test");
+  });
+
+  it("uses both Helius keys before falling back to Alchemy", async () => {
+    process.env.HELIUS_API_KEY = "helius-primary";
+    process.env.HELIUS_API_KEY_FALLBACK = "helius-fallback";
+    fetchMock
+      .mockImplementationOnce(async () => new Response("rate limited", { status: 429 }))
+      .mockImplementationOnce(
+        async () =>
+          new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: "helius-ok" }), {
+            status: 200,
+          })
+      );
+
+    const res = await POST(makeReq({ jsonrpc: "2.0", id: 1, method: "getBalance" }));
+
+    expect(res.status).toBe(200);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://mainnet.helius-rpc.com/?api-key=helius-primary",
+      "https://mainnet.helius-rpc.com/?api-key=helius-fallback",
+    ]);
   });
 });
