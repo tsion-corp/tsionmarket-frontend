@@ -6,7 +6,11 @@ import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { BellIcon } from "@/components/ui/icons";
-import { useActivity, type ActivityEntry } from "@/features/activity/hooks/use-activity";
+import {
+  BELL_POLL_MS,
+  useActivity,
+  type ActivityEntry,
+} from "@/features/activity/hooks/use-activity";
 import { tokenBg } from "@/lib/trade/assets";
 import { displayNetwork, displaySymbol } from "@/lib/buy";
 import { formatQty } from "@/lib/format";
@@ -70,7 +74,9 @@ function Row({ item, unread }: { item: ActivityEntry; unread: boolean }) {
 // is the full record; this is the nudge that something happened.
 export function NotificationBell() {
   const t = useTranslations("activity");
-  const { items, loading } = useActivity();
+  // The topbar renders on every screen, so this observer sets the floor on
+  // how often the whole signed-in population sweeps its history.
+  const { items, loading } = useActivity({ pollMs: BELL_POLL_MS });
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const lastReadAt = useSyncExternalStore(

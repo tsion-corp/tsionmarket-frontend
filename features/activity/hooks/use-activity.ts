@@ -13,11 +13,23 @@ export type { ActivityEntry, ActivityKind } from "@/lib/activity/entries";
 
 // History changes only when a transaction lands, so a slow poll is plenty;
 // anything that needs to see its own effect immediately calls refetch().
+//
+// One sweep is the most expensive read in the app: an upstream call per
+// network per direction. So the rate depends on who is asking.
+//
+// The activity screen is being looked at, so it stays on a minute.
 const POLL_MS = 60_000;
+// The notification bell is in the topbar on EVERY screen, so its poll is the
+// one that multiplies across the whole signed-in population. It is a nudge
+// that something happened, not a live feed, and five minutes is well inside
+// what anyone notices. React Query drives a shared key at its shortest
+// observer interval, so opening the activity screen still pulls it back to a
+// minute for as long as that screen is mounted.
+export const BELL_POLL_MS = 5 * 60_000;
 const EMPTY: ActivityItem[] = [];
 const EMPTY_ENTRIES: ActivityEntry[] = [];
 
-export function useActivity() {
+export function useActivity({ pollMs = POLL_MS }: { pollMs?: number } = {}) {
   const { user, ready, authenticated } = usePrivy();
   const evm = getWalletAddress(user, "ethereum");
   const solana = getWalletAddress(user, "solana");
@@ -38,7 +50,7 @@ export function useActivity() {
       }
       return res.json();
     },
-    refetchInterval: POLL_MS,
+    refetchInterval: pollMs,
     staleTime: POLL_MS,
     // Keep the current list rendered while a poll refetches, so the feed never
     // drops back to a loading state or flashes empty between ticks.

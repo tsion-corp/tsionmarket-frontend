@@ -1,5 +1,6 @@
 import "server-only";
 import { alchemyFetch } from "@/lib/server/alchemy-keys";
+import { cached } from "@/lib/server/response-cache";
 import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
 import {
   fetchBuyableRegistry,
@@ -411,49 +412,6 @@ const PORTFOLIO_CACHE_TTL_MS = 15_000;
 // How long past expiry a snapshot may still stand in when the upstream call
 // fails. Slightly stale balances beat an error flash — but a snapshot old
 // enough to be from a different world must not.
-const STALE_SERVE_MS = 60_000;
-const responseCache = new Map<string, { expires: number; value: unknown }>();
-const inflight = new Map<string, Promise<unknown>>();
-
-async function cached<T>(
-  cacheKey: string,
-  load: () => Promise<T>,
-  ttlMs: number = CACHE_TTL_MS,
-  // Set when the caller has just changed the balances and needs to observe its
-  // own effect. Reading a cached snapshot there shows the pre-trade state and
-  // then holds it until the next poll.
-  skipCache = false
-): Promise<T> {
-  const hit = responseCache.get(cacheKey);
-  const inflightKey = skipCache ? `fresh:${cacheKey}` : cacheKey;
-  if (!skipCache) {
-    if (hit && hit.expires > Date.now()) return hit.value as T;
-    // Concurrent misses share one upstream call instead of each firing their
-    // own — the burst pattern that walks straight into a rate limit.
-    const pending = inflight.get(inflightKey);
-    if (pending) return pending as Promise<T>;
-  } else {
-    const pending = inflight.get(inflightKey);
-    if (pending) return pending as Promise<T>;
-  }
-  const run = (async () => {
-    try {
-      const value = await load();
-      responseCache.set(cacheKey, { expires: Date.now() + ttlMs, value });
-      return value;
-    } catch (error) {
-      // A throttled or failing upstream serves the recent snapshot rather
-      // than erroring every caller for the length of the outage.
-      if (hit && hit.expires > Date.now() - STALE_SERVE_MS) return hit.value as T;
-      throw error;
-    } finally {
-      inflight.delete(inflightKey);
-    }
-  })();
-  inflight.set(inflightKey, run);
-  return run;
-}
-
 function cachedPrices<T>(cacheKey: string, load: () => Promise<T>): Promise<T> {
   return cached(cacheKey, load, PRICES_CACHE_TTL_MS);
 }
