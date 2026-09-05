@@ -2,7 +2,6 @@ import "server-only";
 import {
   EVM_NETWORKS,
   SOLANA_NETWORK,
-  fetchPortfolio,
   isAllowedHolding,
   isRateLimitError,
 } from "@/lib/server/alchemy";
@@ -293,46 +292,23 @@ async function solanaActivity(
 // filtered with the same allowlist the portfolio uses, so a dusting airdrop
 // never appears here either.
 /**
- * Networks always swept, whatever the wallet holds right now.
+ * The sweep asks every EVM network, and that is deliberate.
  *
- * A wallet that spent everything on a chain still has history there, and a
- * first deposit has to show up before any balance read has caught it. These
- * two are where the product actually operates, so they are never skipped.
- */
-const ACTIVITY_CORE_NETWORKS = ["base-mainnet", "eth-mainnet"];
-
-/**
- * Which networks are worth sweeping for this wallet.
+ * It looks expensive and is not: `rpc()` returns without a call for any
+ * network missing from RPC_HOST, and RPC_HOST holds five. So the ceiling is
+ * five networks either way, and narrowing it further can save at most twelve
+ * upstream calls once per cache window.
  *
- * The cost of a sweep is one upstream call per network per direction, so
- * asking all 28 for a wallet that has only ever touched two is where the bill
- * came from. The portfolio read already covers all 28 in two batched calls and
- * is cached, which makes it the cheap index for where this wallet actually
- * holds anything.
+ * A previous version selected networks from the wallet's current balances to
+ * claim that saving. It cost more than it was worth: a wallet that had spent
+ * everything on a chain lost its history there, a first deposit could stay
+ * invisible for the length of two cache windows, and reading the balances
+ * added a portfolio fetch of its own. Twelve calls per ninety seconds is not
+ * worth quietly deleting someone's transaction history.
+ *
+ * The real savings on this path are the snapshot below and the bell's slower
+ * poll, neither of which can hide anything.
  */
-async function activityNetworks(evm: string, solana?: string): Promise<string[]> {
-  const known = new Set<string>(EVM_NETWORKS);
-  try {
-    // `solana` is passed through only to match /api/portfolio's cache key
-    // (`portfolio:evm:solana`). Called without it this asked for a DIFFERENT
-    // key, so it never shared that snapshot and paid for a second full sweep
-    // of its own on every activity read.
-    const portfolio = await fetchPortfolio(evm, solana);
-    const held = portfolio.tokens
-      // Balance, not mere presence. The portfolio pads its rows with a
-      // zero-balance native entry for every network it tracks, so filtering on
-      // presence alone returned all of them and this function selected nothing.
-      .filter((token) => token.balance > 0)
-      .map((token) => token.network)
-      .filter((network) => network !== SOLANA_NETWORK && known.has(network));
-    return [...new Set([...ACTIVITY_CORE_NETWORKS, ...held])];
-  } catch {
-    // Usually a throttled provider. Answering that with a full 28-network
-    // sweep is the worst thing we could do, so the core set stands in and the
-    // next poll restores the rest.
-    return [...ACTIVITY_CORE_NETWORKS];
-  }
-}
 
 /**
  * How long one wallet's history may be served from a snapshot.
@@ -365,9 +341,8 @@ async function loadActivity(evm?: string, solana?: string, limit = 40): Promise<
 
   const evmItems: ActivityItem[] = [];
   if (evm) {
-    const networks = await activityNetworks(evm, solana);
     const batches = await Promise.all(
-      networks.flatMap((network) =>
+      EVM_NETWORKS.flatMap((network) =>
         (["in", "out"] as const).map(async (direction) => ({
           network,
           direction,

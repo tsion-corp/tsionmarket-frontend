@@ -401,13 +401,22 @@ export function isRateLimitError(error: unknown): boolean {
 // reads as stale next to the 30s client poll interval; it only absorbs
 // bursts. In-process only: fine for smoothing load, not meant to survive a
 // restart or span multiple server instances.
-// Prices move slowly and the client polls at 60s; a longer window here means
-// each distinct symbol set costs at most one upstream call per interval, and
-// a 429 during a burst finds a fresh-enough snapshot to serve instead.
-const PRICES_CACHE_TTL_MS = 45_000;
-// Transaction flows bypass this cache explicitly when they need to observe
-// their own writes. Background reads can share this short snapshot.
-const PORTFOLIO_CACHE_TTL_MS = 15_000;
+// Both of these sat BELOW the 60s client poll, which meant a repeat poll could
+// never hit them: the snapshot expired before the next request arrived, so the
+// cache only ever absorbed concurrent duplicates and every user paid full price
+// on their own timer. Measured on the dev server, /api/prices was being 429'd
+// by the provider while this window was 45s.
+//
+// Above the poll interval, a poll lands inside the previous snapshot roughly
+// half the time. Prices are keyed by the symbol set and shared by every user,
+// so this is close to free; balances are per wallet, and a background read of
+// a balance up to 75s old is the same staleness the 60s poll already implies.
+const PRICES_CACHE_TTL_MS = 75_000;
+// Transaction flows bypass this cache explicitly (`fresh=1`) when they need to
+// observe their own writes, so lengthening it cannot make a trade look like it
+// did nothing. It also makes the snapshot activity borrows actually warm: that
+// read shares this key, and at 15s it missed on nearly every sweep.
+const PORTFOLIO_CACHE_TTL_MS = 75_000;
 // How long past expiry a snapshot may still stand in when the upstream call
 // fails. Slightly stale balances beat an error flash — but a snapshot old
 // enough to be from a different world must not.
