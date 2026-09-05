@@ -260,6 +260,18 @@ export function pairSymbol(pair: PerpPair): string {
   return `${pair.from}/${pair.to}`;
 }
 
+// The curated major markets, in display order. The simple desk offers exactly
+// these, and the dashboard overview previews the first few of them, so the set
+// lives here rather than inside either component.
+export const PERP_MAJOR_SYMBOLS = [
+  "BTC/USD",
+  "ETH/USD",
+  "SOL/USD",
+  "BNB/USD",
+  "DOGE/USD",
+  "AAVE/USD",
+];
+
 // Categories in presentation order for the market tabs.
 export const CATEGORY_ORDER: readonly PerpCategory[] = [
   "crypto",

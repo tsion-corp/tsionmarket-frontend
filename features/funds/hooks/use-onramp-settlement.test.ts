@@ -46,7 +46,7 @@ function openDeposit(): void {
       reused: false,
       expectedNgn: 5000,
       quotedRate: 1450,
-      bank: "Rubies MFB",
+      provider: "Rubies MFB",
     },
     Date.now()
   );
@@ -124,7 +124,7 @@ describe("following a bank deposit to settlement", () => {
         reused: true,
         expectedNgn: 5000,
         quotedRate: 1450,
-        bank: "Rubies MFB",
+        provider: "Rubies MFB",
       },
       Date.now()
     );

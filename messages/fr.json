@@ -19,6 +19,15 @@
     "casinoBody": "Échecs avec mise, The Last Man et plus.",
     "cta": "Explorer"
   },
+  "overview": {
+    "spotBlurb": "Achetez et vendez les principaux tokens aux prix du marché en direct.",
+    "perpsBlurb": "Tradez la crypto avec effet de levier, à la hausse ou à la baisse.",
+    "memeBlurb": "Les memecoins en vogue sur Base, avec un contrôle du risque avant l'achat.",
+    "rwaBlurb": "Bons du Trésor, actions, crédit et métaux tokenisés.",
+    "viewAll": "Voir tout dans {section}",
+    "leverage": "Jusqu'à {max}x",
+    "empty": "Rien à afficher pour l'instant."
+  },
   "meme": {
     "riskLow": "Risque faible",
     "riskMedium": "Moyen",

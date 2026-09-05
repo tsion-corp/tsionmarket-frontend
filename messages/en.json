@@ -19,6 +19,15 @@
     "casinoBody": "Staked chess, The Last Man and more.",
     "cta": "Explore"
   },
+  "overview": {
+    "spotBlurb": "Buy and sell major tokens at live market prices.",
+    "perpsBlurb": "Trade crypto with leverage, long or short.",
+    "memeBlurb": "Trending memecoins on Base, with a risk check before you buy.",
+    "rwaBlurb": "Tokenised treasuries, equities, credit and metals.",
+    "viewAll": "View all {section}",
+    "leverage": "Up to {max}x",
+    "empty": "Nothing to show yet."
+  },
   "meme": {
     "riskLow": "Low risk",
     "riskMedium": "Medium",

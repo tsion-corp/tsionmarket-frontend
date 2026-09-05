@@ -9,6 +9,10 @@ import type { SectionId } from "@/lib/sections";
 
 // Sections that are their own page rather than an anchor on /dashboard.
 const SECTION_ROUTES: Partial<Record<SectionId, string>> = {
+  spot: "/spot",
+  perps: "/perps",
+  meme: "/meme",
+  rwa: "/rwa",
   casino: "/casino",
   earn: "/earn",
   prediction: "/prediction",
@@ -19,6 +23,10 @@ const SECTION_ROUTES: Partial<Record<SectionId, string>> = {
 // in SECTION_ROUTES is a real route, so it always navigates there; every other
 // section is a scroll-spy anchor that only exists on /dashboard, so it scrolls
 // in-page when already there and otherwise navigates to /dashboard#id first.
+//
+// Every service now has a page of its own, so the anchor path carries just the
+// portfolio. The dashboard still renders an anchored brief per service, which
+// is what a /dashboard#spot link from outside the app lands on.
 //
 // A voice buy/sell passes an optional `prefill`, encoded as URL query params so
 // the target section opens its trade form staged (the user then confirms). When

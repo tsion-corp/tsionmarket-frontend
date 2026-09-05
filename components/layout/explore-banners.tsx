@@ -12,13 +12,6 @@ const BANNERS = [
     tintRgb: "96 165 250",
   },
   {
-    id: "earn",
-    href: "/earn",
-    image:
-      "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?w=1200&q=80&auto=format&fit=crop",
-    tintRgb: "251 191 36",
-  },
-  {
     id: "casino",
     href: "/casino",
     image:
@@ -31,13 +24,14 @@ type BannerId = (typeof BANNERS)[number]["id"];
 
 interface ExploreBannersProps {
   // Renders one banner rather than the set. The dashboard uses this to place
-  // them between sections on a phone, where three at the foot of a long page
-  // is three the reader has already scrolled past.
+  // them between the service briefs, where a pair at the foot of the page is a
+  // pair the reader has already scrolled past.
   only?: BannerId;
 }
 
-// Doorways to the routed destinations (prediction, earn, casino), pitched
-// where the prediction section used to scroll.
+// Doorways to the destinations that have no brief on the dashboard. Earn is not
+// among them: it is commented out of the nav in lib/sections.ts, and a doorway
+// into a section the app otherwise hides is a dead end dressed as a feature.
 export function ExploreBanners({ only }: ExploreBannersProps = {}) {
   const t = useTranslations("explore");
   const shown = only ? BANNERS.filter((b) => b.id === only) : BANNERS;
@@ -46,12 +40,12 @@ export function ExploreBanners({ only }: ExploreBannersProps = {}) {
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       {/* One banner is a full-width card in its own right. The set is a swipe
           track on a phone, one card at a time with the next one peeking, and a
-          row of three from 900px. */}
+          row from 900px. */}
       <div
         className={
           only
             ? "grid grid-cols-1"
-            : "flex snap-x snap-mandatory [scrollbar-width:none] gap-4 overflow-x-auto pb-1 min-[900px]:grid min-[900px]:grid-cols-3 min-[900px]:overflow-visible [&::-webkit-scrollbar]:hidden"
+            : "flex snap-x snap-mandatory [scrollbar-width:none] gap-4 overflow-x-auto pb-1 min-[900px]:grid min-[900px]:grid-cols-2 min-[900px]:overflow-visible [&::-webkit-scrollbar]:hidden"
         }
       >
         {shown.map((b) => (

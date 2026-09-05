@@ -39,7 +39,7 @@ function openBankDeposit(expectedNgn: number): void {
       reused: true,
       expectedNgn,
       quotedRate: 1450,
-      bank: "Rubies MFB",
+      provider: "Rubies MFB",
     },
     Date.now()
   );
@@ -89,7 +89,7 @@ describe("reporting a settled deposit", () => {
       amount_usd: 3.448275,
       amount_ngn: 5000,
       fx_rate: 1450,
-      bank: "Rubies MFB",
+      provider: "Rubies MFB",
     });
   });
 

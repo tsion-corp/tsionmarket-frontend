@@ -245,8 +245,20 @@ export type DepositCompleted =
        * equals `amount_usd` to rounding.
        */
       fx_rate: number;
-      // The provider that held the payment account the user paid into.
-      bank: string;
+      /**
+       * The institution the money settled through: the bank holding the
+       * virtual account the user paid into.
+       *
+       * Deliberately not called `bank`. On a withdrawal `bank` is the user's
+       * own bank, and one property name meaning the rail on one event and the
+       * customer on the other misleads whoever queries it next.
+       */
+      provider: string;
+      /**
+       * There is no `bank` here on purpose. A deposit is pushed from whatever
+       * bank app the user chooses and the rail reports only where the money
+       * landed, so their own bank is not observable. Absent beats guessed.
+       */
       // Only when the provider actually charged one. Omitted when there is
       // genuinely no fee, rather than reported as a zero.
       fee_ngn?: number;
@@ -285,7 +297,19 @@ export type WithdrawCompleted =
       amount_ngn: number;
       // Naira per dollar actually applied at payout.
       fx_rate: number;
+      /**
+       * The user's own bank, receiving the money. Always the customer's
+       * institution, never the rail: the rail is `provider` on a deposit.
+       *
+       * Sent as the bank registry's own name rather than the short label the
+       * picker shows, so the same bank cannot arrive as both "OPay" and
+       * "Opay" and split a breakdown into two rows.
+       */
       bank: string;
+      /**
+       * No `provider` here: a payout reports the account it reached, not the
+       * institution it passed through, so there is nothing honest to send.
+       */
       // The difference between gross and net, when the rail charges one.
       fee_ngn?: number;
     };

@@ -66,7 +66,9 @@ export interface OnrampWatch {
   // What the user said they would send, and the rate they were quoted for it.
   expectedNgn: number;
   quotedRate: number;
-  bank: string;
+  // The bank holding the payment account, which is the rail the money settles
+  // through, not the user's own bank. Reported as `provider`.
+  provider: string;
   openedAt: number;
   // What the rail says it actually moved. Only a polled order ever has these.
   settledNgn?: number;
@@ -78,7 +80,7 @@ export interface OnrampWatch {
 export interface BankDepositFigures {
   amount_ngn: number;
   fx_rate: number;
-  bank: string;
+  provider: string;
 }
 
 function isWatch(value: unknown): value is OnrampWatch {
@@ -93,7 +95,7 @@ function isWatch(value: unknown): value is OnrampWatch {
     Number.isFinite(w.expectedNgn) &&
     typeof w.quotedRate === "number" &&
     Number.isFinite(w.quotedRate) &&
-    typeof w.bank === "string" &&
+    typeof w.provider === "string" &&
     typeof w.openedAt === "number" &&
     Number.isFinite(w.openedAt)
   );
@@ -153,7 +155,11 @@ export function bankFigures(watch: OnrampWatch, amountUsd: number): BankDepositF
   // Two decimals, the precision the rail itself quotes rates at. Dividing the
   // legs raw gives a rate with a dozen digits of float noise behind it, which
   // reads as spurious precision in every report it lands in.
-  return { amount_ngn: ngn, fx_rate: Math.round((ngn / amountUsd) * 100) / 100, bank: watch.bank };
+  return {
+    amount_ngn: ngn,
+    fx_rate: Math.round((ngn / amountUsd) * 100) / 100,
+    provider: watch.provider,
+  };
 }
 
 export function pruneWatches(watches: readonly OnrampWatch[], now: number): OnrampWatch[] {

@@ -279,7 +279,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
                   reused: true,
                   expectedNgn: ngnAmount,
                   quotedRate: Number(rate) || 0,
-                  bank: cached.account.bankName,
+                  provider: cached.account.bankName,
                 },
                 Date.now()
               );
@@ -316,7 +316,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
                       reused: false,
                       expectedNgn: ngnAmount,
                       quotedRate: Number(rate) || 0,
-                      bank: result.paymentAccount?.bankName ?? "",
+                      provider: result.paymentAccount?.bankName ?? "",
                     },
                     Date.now()
                   );

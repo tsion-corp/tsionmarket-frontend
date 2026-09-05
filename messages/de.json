@@ -19,6 +19,15 @@
     "casinoBody": "Schach um Einsätze, The Last Man und mehr.",
     "cta": "Entdecken"
   },
+  "overview": {
+    "spotBlurb": "Große Token zu aktuellen Marktpreisen kaufen und verkaufen.",
+    "perpsBlurb": "Krypto mit Hebel handeln, long oder short.",
+    "memeBlurb": "Angesagte Memecoins auf Base, mit Risikoprüfung vor dem Kauf.",
+    "rwaBlurb": "Tokenisierte Staatsanleihen, Aktien, Kredite und Metalle.",
+    "viewAll": "Alles in {section} ansehen",
+    "leverage": "Bis zu {max}x",
+    "empty": "Noch nichts zu sehen."
+  },
   "meme": {
     "riskLow": "Geringes Risiko",
     "riskMedium": "Mittel",

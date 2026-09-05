@@ -19,6 +19,15 @@
     "casinoBody": "Xadrez com apostas, The Last Man e mais.",
     "cta": "Explorar"
   },
+  "overview": {
+    "spotBlurb": "Compre e venda os principais tokens a preços de mercado ao vivo.",
+    "perpsBlurb": "Negocie cripto com alavancagem, comprado ou vendido.",
+    "memeBlurb": "Memecoins em alta na Base, com verificação de risco antes de comprar.",
+    "rwaBlurb": "Títulos do Tesouro, ações, crédito e metais tokenizados.",
+    "viewAll": "Ver tudo em {section}",
+    "leverage": "Até {max}x",
+    "empty": "Ainda não há nada para mostrar."
+  },
   "meme": {
     "riskLow": "Risco baixo",
     "riskMedium": "Médio",

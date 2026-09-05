@@ -17,7 +17,12 @@ import { usePerpActions } from "@/features/trade/hooks/use-perp-actions";
 import { usePerpPositions } from "@/features/trade/hooks/use-perp-positions";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatAmount, formatUsd, liquidationPrice } from "@/lib/trade/math";
-import { orderFieldValidity, pairSymbol, validateOrder } from "@/lib/perp/logic";
+import {
+  PERP_MAJOR_SYMBOLS,
+  orderFieldValidity,
+  pairSymbol,
+  validateOrder,
+} from "@/lib/perp/logic";
 import { tradingViewFallbackSymbol, tradingViewSymbol } from "@/lib/perp/tradingview";
 import { findAsset } from "@/lib/trade/assets";
 import { usePerpFormAutostage } from "@/features/trade/hooks/use-perp-form-autostage";
@@ -47,8 +52,6 @@ interface SimplePerpsProps {
   onSheetOpenChange: (open: boolean) => void;
 }
 
-// The curated market set for the simple view, in display order.
-const SIMPLE_SYMBOLS = ["BTC/USD", "ETH/USD", "SOL/USD", "BNB/USD", "DOGE/USD", "AAVE/USD"];
 // The desktop ticket keeps its three chips: they sit above the form in a narrow
 // column, where a second row of them pushes the amount and leverage off the
 // fold. The phone lists all six instead, as its own screen.
@@ -96,7 +99,7 @@ export function SimplePerps({
     setSideChosen(true);
   };
   const simplePairs = useMemo(() => {
-    const majors = SIMPLE_SYMBOLS.map((s) => pairs.find((p) => pairSymbol(p) === s)).filter(
+    const majors = PERP_MAJOR_SYMBOLS.map((s) => pairs.find((p) => pairSymbol(p) === s)).filter(
       (p): p is PerpPair => p != null
     );
     // A voice command may target a non-major (gold, tesla); include the currently
@@ -300,7 +303,7 @@ export function SimplePerps({
         {/* The phone's trade screen reaches every market through the selector
             in its header, so these would say it twice there. */}
         <div className={`mb-3.5 grid grid-cols-3 gap-2 ${isMobile ? "hidden" : ""}`}>
-          {SIMPLE_SYMBOLS.slice(0, DESKTOP_CHIPS).map((s) => {
+          {PERP_MAJOR_SYMBOLS.slice(0, DESKTOP_CHIPS).map((s) => {
             const sym = s.split("/")[0];
             const on = s === symbol;
             const p = priceOf(s);
@@ -544,7 +547,7 @@ export function SimplePerps({
   if (isMobile) {
     return (
       <>
-        {renderMarketList(SIMPLE_SYMBOLS)}
+        {renderMarketList(PERP_MAJOR_SYMBOLS)}
 
         <MobileTradeSheet
           open={sheetOpen}

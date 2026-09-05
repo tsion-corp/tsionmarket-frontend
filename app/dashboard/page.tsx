@@ -7,20 +7,17 @@ import { toast } from "@/lib/toast";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { buildNav } from "@/components/layout/nav-items";
 import { PortfolioView } from "@/features/portfolio";
-import { SpotSection } from "@/features/trade/components/spot-section";
-import { PerpsSection } from "@/features/trade/components/perps-section";
-import { MemeSection } from "@/features/trade/components/meme-section";
+import { SectionOverview } from "@/components/ui/section-overview";
+import { SpotOverview } from "@/features/trade/components/spot-overview";
+import { PerpsOverview } from "@/features/trade/components/perps-overview";
+import { MemeOverview } from "@/features/trade/components/meme-overview";
+import { RwaOverview } from "@/features/rwa/components/rwa-overview";
 import { ExploreBanners } from "@/components/layout/explore-banners";
 import { DepositAnalytics } from "@/features/activity";
-import { ModalShell } from "@/components/ui/modal-shell";
 import { SectionVisibility } from "@/components/ui/section-visibility";
-import { SuccessPanel } from "@/components/ui/success-panel";
-import { DetailModal } from "@/components/layout/modals/detail-modal";
-import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
-import { BankDepositAnalytics, FundsModal, WithdrawModal } from "@/features/funds";
+import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
+import { BankDepositAnalytics } from "@/features/funds";
 import { CrossBorderBanner } from "@/features/remit";
-import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
-import { RwaSection, RwaTradeModal } from "@/features/rwa";
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { SquareComposeFab, SquareSection } from "@/features/square";
@@ -29,31 +26,46 @@ import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
 import { useDashboardTour } from "@/features/tour";
-import type { DepositPrefill } from "@/lib/voice/intent";
 import { loadInterest } from "@/lib/preferences";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
 import type { SectionId } from "@/lib/sections";
-import type { MemeToken } from "@/lib/meme/api";
-import type {
-  BuyPayload,
-  ConfirmPayload,
-  DetailPayload,
-  DashboardModal,
-  RwaTradePayload,
-  SellPayload,
-} from "@/lib/modal-types";
-import { AccountModal } from "@/components/layout/modals/account-modal";
+import type { DashboardModal } from "@/lib/modal-types";
+import type { DepositPrefill } from "@/lib/voice/intent";
 
 const SECTION_CLASS = "scroll-mt-[124px] md:scroll-mt-[76px]";
 
-// Which doorway follows which section, indexed by section position. Portfolio
-// leads the page, so nothing is pitched under it; the three doorways then
-// follow the sections after it. An index with no entry gets no banner, so a
-// shorter or reordered section list still works.
-const INTERLEAVED_BANNERS: readonly ("prediction" | "earn" | "casino" | undefined)[] = [
-  undefined,
+// Rows in each service brief. Four is enough to show the market is real and
+// moving, and few enough that all four briefs together cost less scroll than
+// the single spot table they replaced.
+const PREVIEW_ROWS = 4;
+
+/**
+ * The services that appear on the dashboard as a brief rather than in full.
+ *
+ * Each has a page of its own; what stands here is a header, a line on what the
+ * service is, four live rows, and the way in. The order is not fixed here: the
+ * nav decides it, so the section a user chose at onboarding still leads.
+ */
+const BRIEFED_SECTIONS = ["spot", "perps", "meme", "rwa"] as const;
+type BriefedSectionId = (typeof BRIEFED_SECTIONS)[number];
+
+function isBriefed(id: SectionId): id is BriefedSectionId {
+  return (BRIEFED_SECTIONS as readonly SectionId[]).includes(id);
+}
+
+const BRIEF_HREF: Record<BriefedSectionId, string> = {
+  spot: "/spot",
+  perps: "/perps",
+  meme: "/meme",
+  rwa: "/rwa",
+};
+
+// Which doorway follows which brief, indexed by the brief's position. Spread
+// rather than stacked, so Prediction and Arkade are met while reading. An index
+// with no entry gets no banner, so a reordered or shorter list still works.
+const INTERLEAVED_BANNERS: readonly ("prediction" | "casino" | undefined)[] = [
   "prediction",
-  "earn",
+  undefined,
   "casino",
 ];
 
@@ -69,49 +81,47 @@ const INTERLEAVED_BANNERS: readonly ("prediction" | "earn" | "casino" | undefine
  * make.
  *
  * Live leads because it is perishable: it earns an early position that a post
- * does not. Posts follow it, a whole section down and three sections clear of
- * the full feed at the bottom — near enough the top to be seen, far enough
- * from the real feed that the two are not read as the same shelf twice.
- * People sit mid-page. Each block renders nothing when it has nothing, so a
- * quiet deployment simply closes back up.
+ * does not. Posts follow it, and People sits at the foot of the briefs. Each
+ * block renders nothing when it has nothing, so a quiet deployment simply
+ * closes back up.
  */
 const INTERLEAVED_SQUARE: readonly ("live" | "posts" | "people" | undefined)[] = [
   "live",
-  "posts",
   undefined,
+  "posts",
   "people",
 ];
 
-// The scroll-spy sections mounted inline on this page. Prediction, earn and
-// casino live on their own routes and are never one of these — the dashboard
-// points at them through the explore banners instead.
-const ROUTED_SECTIONS = ["casino", "earn", "prediction", "activity"] as const;
-type RoutedSectionId = (typeof ROUTED_SECTIONS)[number];
-type ScrollSectionId = Exclude<SectionId, RoutedSectionId>;
+// Portfolio is the only section still rendered in full here, so it is the only
+// scroll-spy anchor: every other nav entry is now a route of its own.
+const SCROLL_SECTIONS: readonly SectionId[] = ["portfolio"];
 
-function isScrollSection(id: SectionId): id is ScrollSectionId {
-  return !(ROUTED_SECTIONS as readonly SectionId[]).includes(id);
-}
-
-// The five scroll-spy sections stay mounted at once, so memoize them: with
-// stable handler props they skip re-rendering when the page re-renders for a
-// modal open/close or an active-section scroll change. Each still re-renders
-// on its own data.
+// The briefs stay mounted at once, so memoize them: with a stable row count
+// they skip re-rendering when the page re-renders for a modal open/close. Each
+// still re-renders on its own data.
 const Portfolio = memo(PortfolioView);
-const Spot = memo(SpotSection);
-const Perps = memo(PerpsSection);
-const Meme = memo(MemeSection);
-const Rwa = memo(RwaSection);
+const Spot = memo(SpotOverview);
+const Perps = memo(PerpsOverview);
+const Meme = memo(MemeOverview);
+const Rwa = memo(RwaOverview);
+
+const BRIEF_BODY: Record<BriefedSectionId, (props: { rows: number }) => React.ReactNode> = {
+  spot: Spot,
+  perps: Perps,
+  meme: Meme,
+  rwa: Rwa,
+};
 
 export default function DashboardPage() {
-  const [modal, setModal] = useState<DashboardModal>(null);
   const tSections = useTranslations("sections");
+  const tOverview = useTranslations("overview");
   const tRemit = useTranslations("remitBanner");
   const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
-  const scrollSectionIds = useMemo(() => nav.map((n) => n.id).filter(isScrollSection), [nav]);
-  const activeSection = useScrollSpy(scrollSectionIds);
+  const activeSection = useScrollSpy(SCROLL_SECTIONS);
+  // The services briefed on this page, in the nav's own order.
+  const briefs = useMemo(() => nav.map((n) => n.id).filter(isBriefed), [nav]);
   // The tradeable universe, so a $TICKER in a square post can open the real
-  // buy sheet. The spot section above already caches this, so it costs nothing
+  // buy sheet. The spot brief above already caches this, so it costs nothing
   // extra; the square slice takes a plain shape and never imports trade.
   const { markets: spotMarkets } = useSpotMarkets();
   // The square's feed tab lives here because two siblings drive it: the
@@ -129,6 +139,8 @@ export default function DashboardPage() {
   }, []);
   useDashboardTour();
 
+  const modals = useAppModals();
+
   // A spoken deposit ("deposit USDC on Solana") lands here as URL params: open
   // the funds modal on the crypto screen with the chain/token pre-selected. The
   // hook returns a NEW prefill object each time a fresh deposit command arrives
@@ -138,14 +150,13 @@ export default function DashboardPage() {
   // block every deposit after the first, which is why it only worked on refresh.
   const depositPrefill = useDepositPrefill();
   const openedDepositRef = useRef<DepositPrefill | null>(null);
+  const openDeposit = modals.openDeposit;
   useEffect(() => {
     if (!depositPrefill || openedDepositRef.current === depositPrefill) return;
     openedDepositRef.current = depositPrefill;
-    setModal({ type: "funds", deposit: depositPrefill });
-  }, [depositPrefill]);
+    openDeposit(depositPrefill);
+  }, [depositPrefill, openDeposit]);
 
-  // Stable handler identities so the memoized section views below don't
-  // re-render when this page re-renders (modal open/close, active-section scroll).
   /**
    * `?buy=ETH` opens the buy sheet for that symbol.
    *
@@ -188,55 +199,17 @@ export default function DashboardPage() {
   }, [buyParam]);
 
   // The deep-linked sheet only shows when nothing else is open.
-  const active = modal ?? deepLinkBuy;
+  const active = modals.modal ?? deepLinkBuy;
 
+  const closeModal = modals.close;
   const close = useCallback(() => {
-    setModal(null);
+    closeModal();
     setDeepLinkDismissed(true);
-  }, []);
-  const openDetail = useCallback(
-    (detail: DetailPayload) => setModal({ type: "detail", detail }),
-    []
-  );
-  const openConfirm = useCallback(
-    (confirm: ConfirmPayload) => setModal({ type: "confirm", confirm }),
-    []
-  );
-  const openBuy = useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []);
+  }, [closeModal]);
 
-  const openSell = useCallback((sell: SellPayload) => setModal({ type: "sell", sell }), []);
-  const openMemeSell = useCallback(
-    (memeSell: MemeToken) => setModal({ type: "memeSell", memeSell }),
-    []
-  );
-  const openRwaTrade = useCallback(
-    (rwaTrade: RwaTradePayload) => setModal({ type: "rwaTrade", rwaTrade }),
-    []
-  );
-  const openFunds = useCallback(() => setModal({ type: "funds" }), []);
-  const openWithdraw = useCallback(() => setModal({ type: "withdraw" }), []);
   // Cross-border is not open yet. The banner stays as the announcement; a tap
   // says so rather than opening a flow that cannot complete.
   const openCrossBorder = useCallback(() => toast.info(tRemit("comingSoonToast")), [tRemit]);
-
-  const sections: Record<ScrollSectionId, React.ReactNode> = {
-    portfolio: (
-      <Portfolio
-        onOpenFunds={openFunds}
-        onOpenWithdraw={openWithdraw}
-        crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
-        onOpenDetail={openDetail}
-        onOpenBuy={openBuy}
-        onOpenSell={openSell}
-        onOpenMemeSell={openMemeSell}
-        onOpenRwaTrade={openRwaTrade}
-      />
-    ),
-    spot: <Spot onOpenDetail={openDetail} onOpenBuy={openBuy} />,
-    perps: <Perps />,
-    meme: <Meme />,
-    rwa: <Rwa onOpenDetail={openDetail} onOpenConfirm={openConfirm} onAddFunds={openFunds} />,
-  };
 
   return (
     <AuthGuard>
@@ -249,34 +222,66 @@ export default function DashboardPage() {
         {/* Follows a bank deposit to settlement so the arrival above can be
             reported as the Naira deposit it is, rather than as a chain one. */}
         <BankDepositAnalytics />
-        {scrollSectionIds.map((id, index) => (
-          <Fragment key={id}>
-            {/* The provider sits here, not inside each section, because a
-                section that calls its own data hooks in its component body is
-                ABOVE its own returned JSX and would read the context default
-                instead. RwaSection does exactly that, and its gating silently
-                did nothing until this moved up. Renders a div with the same id
-                and classes, so the scroll-spy anchor is unchanged. */}
-            <SectionVisibility id={id} className={SECTION_CLASS}>
-              {sections[id]}
-            </SectionVisibility>
-            {/* One doorway after each of the first few sections, so Prediction,
-                Earn and Arkade are met while reading rather than only at the
-                very bottom. */}
-            {INTERLEAVED_BANNERS[index] ? (
-              <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
-            ) : null}
-            {/* Hidden for now, so the gaps close up and the doorway track
-                above is unaffected. */}
-            {MARKET_SQUARE_HIDDEN ? null : (
-              <>
-                {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
-                {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
-                {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
-              </>
-            )}
-          </Fragment>
-        ))}
+
+        {/* The account, in full. It is what someone opened Ark to see, and the
+            only section that is not a doorway to somewhere else. */}
+        <SectionVisibility id="portfolio" className={SECTION_CLASS}>
+          <Portfolio
+            onOpenFunds={modals.openFunds}
+            onOpenWithdraw={modals.openWithdraw}
+            crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
+            onOpenDetail={modals.openDetail}
+            onOpenBuy={modals.openBuy}
+            onOpenSell={modals.openSell}
+            onOpenMemeSell={modals.openMemeSell}
+            onOpenRwaTrade={modals.openRwaTrade}
+          />
+        </SectionVisibility>
+
+        {briefs.map((id, index) => {
+          const Body = BRIEF_BODY[id];
+          return (
+            <Fragment key={id}>
+              {/* The id stays what it always was, so /dashboard#spot from
+                  outside the app still lands here, and the walkthrough still
+                  finds a section to point at.
+
+                  The gate sits HERE, above the brief, not inside it. A brief
+                  that called useSectionActive() in its own body would sit
+                  ABOVE its own returned JSX and read the context default, so
+                  it would poll regardless — the trap that made the RWA gating
+                  dead code. RwaOverview and MemeOverview both run gated hooks
+                  in their bodies, so a brief off screen must be wrapped from
+                  out here to stay quiet. Renders a div with the same id and
+                  classes, so the scroll-spy anchor is unchanged. */}
+              <SectionVisibility id={id} className={SECTION_CLASS}>
+                <SectionOverview
+                  title={tSections(id)}
+                  blurb={tOverview(`${id}Blurb`)}
+                  href={BRIEF_HREF[id]}
+                  action={tOverview("viewAll", { section: tSections(id) })}
+                >
+                  <Body rows={PREVIEW_ROWS} />
+                </SectionOverview>
+              </SectionVisibility>
+              {/* One doorway between the briefs, so Prediction and Arkade are
+                  met while reading rather than only at the very bottom. */}
+              {INTERLEAVED_BANNERS[index] ? (
+                <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
+              ) : null}
+              {/* Hidden for now, so the gaps close up and the doorway track
+                  above is unaffected. */}
+              {MARKET_SQUARE_HIDDEN ? null : (
+                <>
+                  {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
+                  {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
+                  {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
+                </>
+              )}
+            </Fragment>
+          );
+        })}
+
         {/* The social floor of the dashboard. It sits AFTER the markets on
             purpose: someone opening Ark came for their money, and the square
             is what they scroll into once they are done reading it — met by
@@ -284,7 +289,7 @@ export default function DashboardPage() {
             Hidden for now: see MARKET_SQUARE_HIDDEN in lib/market-square.ts. */}
         {MARKET_SQUARE_HIDDEN ? null : (
           <SquareSection
-            onOpenBuy={openBuy}
+            onOpenBuy={modals.openBuy}
             markets={spotMarkets}
             tab={squareTab}
             onTabChange={setSquareTab}
@@ -301,47 +306,7 @@ export default function DashboardPage() {
         />
       )}
 
-      <ModalShell
-        open={modal !== null}
-        onClose={close}
-        contentKey={modal?.type ?? "none"}
-        size={active?.type === "funds" || active?.type === "withdraw" ? "lg" : "md"}
-      >
-        {active?.type === "detail" ? <DetailModal detail={active.detail} /> : null}
-        {active?.type === "confirm" ? (
-          <ConfirmModal
-            confirm={active.confirm}
-            onConfirm={() =>
-              setModal({
-                type: "done",
-                title: active.confirm.successTitle,
-                msg: active.confirm.successMsg,
-              })
-            }
-          />
-        ) : null}
-        {active?.type === "buy" ? <BuySheet payload={active.buy} onClose={close} /> : null}
-        {active?.type === "sell" ? <SellSheet payload={active.sell} onClose={close} /> : null}
-        {active?.type === "memeSell" ? (
-          <MemeTradeSheet
-            token={active.memeSell}
-            defaultSide="SELL"
-            onClose={close}
-            showRisk={false}
-          />
-        ) : null}
-        {active?.type === "rwaTrade" ? (
-          <RwaTradeModal payload={active.rwaTrade} onContinueInBackground={close} />
-        ) : null}
-        {active?.type === "funds" ? <FundsModal onClose={close} deposit={active.deposit} /> : null}
-        {active?.type === "withdraw" ? <WithdrawModal onClose={close} /> : null}
-        {active?.type === "account" ? <AccountModal onClose={close} /> : null}
-        {active?.type === "done" ? (
-          <SuccessPanel title={active.title} onDone={close}>
-            {active.msg}
-          </SuccessPanel>
-        ) : null}
-      </ModalShell>
+      <AppModalHost active={active} onClose={close} onConfirmed={modals.showDone} />
     </AuthGuard>
   );
 }

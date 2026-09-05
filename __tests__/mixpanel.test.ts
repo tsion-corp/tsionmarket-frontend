@@ -287,7 +287,7 @@ describe("profile totals derived from events", () => {
       amount_ngn: 40000,
       amount_usd: 25,
       fx_rate: 1600,
-      bank: "GTB",
+      provider: "GTB",
     });
 
     expect(peopleIncrement).toHaveBeenCalledWith({ total_deposit_usd: 25 });
@@ -328,7 +328,7 @@ describe("profile totals derived from events", () => {
       amount_ngn: 5000,
       amount_usd: 3.448275,
       fx_rate: 1450,
-      bank: "Rubies MFB",
+      provider: "Rubies MFB",
     });
 
     const totals = peopleIncrement.mock.calls.filter(
@@ -397,5 +397,52 @@ describe("withdrawal recipients", () => {
 
     const [, props] = track.mock.calls.at(-1) as [string, Record<string, unknown>];
     expect(props).not.toHaveProperty("recipient_address");
+  });
+});
+
+describe("catalog enforcement", () => {
+  // TypeScript blocks a malformed payload at every real call site, so the only
+  // way to reach the runtime check is to go around the overloads, which is what
+  // a value asserted from an API response effectively does.
+  type Loose = (name: string, props: Record<string, unknown>) => void;
+
+  it("fails outside production, rather than sending a quoted number", async () => {
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    expect(() =>
+      (send as unknown as Loose)("deposit_completed", {
+        method: "bank",
+        amount_usd: 3.448275,
+        amount_ngn: "5000",
+        fx_rate: 1450,
+        provider: "Rubies MFB",
+      })
+    ).toThrow(/unquoted number/);
+    expect(track).not.toHaveBeenCalled();
+  });
+
+  it("fails on a property the catalog does not declare", async () => {
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    expect(() => (send as unknown as Loose)("withdraw_opened", { amount_usd: 25 })).toThrow(
+      /unknown property/
+    );
+  });
+
+  it("reports instead of throwing in production", async () => {
+    // A user's deposit must not break because a property was misspelled. The
+    // violation is still said out loud, because one that reached real traffic
+    // is worth finding.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "production");
+    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    initAnalytics();
+
+    expect(() => (send as unknown as Loose)("withdraw_opened", { amount_usd: 25 })).not.toThrow();
+    expect(error).toHaveBeenCalledWith(expect.stringContaining("unknown property"));
+    expect(track).toHaveBeenCalled();
+    error.mockRestore();
   });
 });

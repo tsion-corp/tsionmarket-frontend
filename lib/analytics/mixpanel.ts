@@ -14,6 +14,7 @@ import type {
   SuperProperties,
   UserProfile,
 } from "@/lib/analytics/events";
+import { validateEvent } from "@/lib/analytics/schema";
 
 const TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN;
 
@@ -116,17 +117,47 @@ export function resetAnalytics(): void {
 export function track<E extends EventsWithoutProps>(name: E): void;
 export function track<E extends EventsWithProps>(name: E, properties: AnalyticsEvents[E]): void;
 export function track(name: AnalyticsEventName, properties?: unknown): void {
+  const props = properties ? compact(properties as Record<string, unknown>) : undefined;
+  // Checked before the token is: a developer running without one still finds
+  // out that a payload is wrong, which is where it is cheapest to fix.
+  assertValidPayload(name, props ?? {});
   if (!ready()) return;
   // Analytics must never be the reason a user flow breaks. Several of these
   // calls sit inside mutation success handlers, where a throw would take the
   // navigation or the toast with it, so nothing here is allowed to escape.
   try {
-    const props = properties ? compact(properties as Record<string, unknown>) : undefined;
     mixpanel.track(name, props);
     accumulateProfile(name, props ?? {});
   } catch (error) {
     console.warn("[analytics] failed to track", name, error);
   }
+}
+
+/**
+ * Checks the payload against the catalog and reacts to what it finds.
+ *
+ * Outside production this throws, on purpose. A silent warning is how
+ * `amount_ngn` shipped as a quoted string through two rounds of review: it is
+ * still readable in Mixpanel, so nothing forces anyone to look. Failing the
+ * developer's own run, and with it the suite in CI, is what makes the catalog
+ * a rule rather than a document.
+ *
+ * In production it reports instead. A user's deposit must not break because a
+ * property was misspelled, but a violation that reached real traffic is worth
+ * saying out loud rather than swallowing.
+ *
+ * Validated after compaction, so what is checked is exactly what goes on the
+ * wire rather than what the call site wrote.
+ */
+function assertValidPayload(name: AnalyticsEventName, props: Record<string, unknown>): void {
+  const violations = validateEvent(name, props);
+  if (violations.length === 0) return;
+  const detail = `[analytics] ${name}: ${violations.map((v) => v.message).join("; ")}`;
+  if (process.env.NODE_ENV === "production") {
+    console.error(detail);
+    return;
+  }
+  throw new Error(detail);
 }
 
 // The profile totals the spec asks for are all restatements of events that

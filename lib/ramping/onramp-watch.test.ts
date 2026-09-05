@@ -12,7 +12,7 @@ function watch(over: Partial<OnrampWatch> = {}): OnrampWatch {
     // ₦5,000 at ₦1,450 buys 3.448275 USDC.
     expectedNgn: 5000,
     quotedRate: 1450,
-    bank: "Rubies MFB",
+    provider: "Rubies MFB",
     openedAt: NOW,
     ...over,
   };
@@ -107,7 +107,7 @@ describe("the store", () => {
         reused: true,
         expectedNgn: 5000,
         quotedRate: 1450,
-        bank: "Rubies MFB",
+        provider: "Rubies MFB",
       },
       NOW
     );
@@ -125,7 +125,7 @@ describe("the store", () => {
         reused: false,
         expectedNgn: 5000,
         quotedRate: 1450,
-        bank: "Rubies MFB",
+        provider: "Rubies MFB",
       },
       NOW
     );
@@ -143,7 +143,7 @@ describe("the store", () => {
         reused: false,
         expectedNgn: 5000,
         quotedRate: 1450,
-        bank: "Rubies MFB",
+        provider: "Rubies MFB",
       },
       NOW
     );
@@ -161,7 +161,7 @@ describe("the store", () => {
         reused: true,
         expectedNgn: 5000,
         quotedRate: 1450,
-        bank: "Rubies MFB",
+        provider: "Rubies MFB",
       },
       NOW
     );
