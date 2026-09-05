@@ -3,7 +3,14 @@
 import { useCallback, useState } from "react";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
-import { DetailModal } from "@/components/layout/modals/detail-modal";
+// Dynamic: DetailModal pulls lightweight-charts (~168KB) through AssetChart,
+// and it only renders once a detail view is actually opened. Imported
+// statically it shipped in the initial payload of every route that mounts this
+// host, none of which draws a chart on load.
+const DetailModal = dynamic(
+  () => import("@/components/layout/modals/detail-modal").then((m) => m.DetailModal),
+  { ssr: false }
+);
 import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { FundsModal, WithdrawModal } from "@/features/funds";
@@ -19,6 +26,7 @@ import type {
   RwaTradePayload,
   SellPayload,
 } from "@/lib/modal-types";
+import dynamic from "next/dynamic";
 
 export interface AppModals {
   modal: DashboardModal;

@@ -6,7 +6,7 @@
 // The event catalog lives in ./events and is enforced by the signature of
 // `track`, so a screen cannot invent or misspell a name.
 
-import mixpanel from "mixpanel-browser";
+import type { OverridedMixpanel } from "mixpanel-browser";
 import type {
   AnalyticsEventName,
   AnalyticsEvents,
@@ -18,10 +18,38 @@ import { validateEvent } from "@/lib/analytics/schema";
 
 const TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN;
 
-let initialized = false;
+/**
+ * The SDK, once it has loaded. It is fetched on demand rather than imported at
+ * the top of this file: mixpanel-browser is ~420KB and it was sitting in the
+ * initial payload of every route, ahead of anything a user came to see. Clarity
+ * next door already loads this way.
+ */
+let mp: OverridedMixpanel | null = null;
+let started = false;
 
+/**
+ * Calls made in the window between boot and the SDK arriving.
+ *
+ * The first page_view fires on the line after initAnalytics(), so without this
+ * every session would silently lose it. Bounded, because a queue that grows
+ * without limit while a script fails to load is a leak, and analytics is never
+ * worth one.
+ */
+const pending: Array<(m: OverridedMixpanel) => void> = [];
+const PENDING_MAX = 50;
+
+/** Whether analytics is switched on at all. Not whether it has loaded yet. */
 function ready(): boolean {
-  return initialized && typeof window !== "undefined";
+  return typeof window !== "undefined" && Boolean(TOKEN);
+}
+
+function withMixpanel(job: (m: OverridedMixpanel) => void): void {
+  if (mp) {
+    job(mp);
+    return;
+  }
+  if (!ready()) return;
+  if (pending.length < PENDING_MAX) pending.push(job);
 }
 
 /**
@@ -47,9 +75,30 @@ function compact(properties: Record<string, unknown>): Record<string, unknown> {
 // silent no-op if no token is configured, so local dev
 // without NEXT_PUBLIC_MIXPANEL_TOKEN set never crashes and never phones home.
 export function initAnalytics(): void {
-  if (initialized || typeof window === "undefined") return;
+  if (started || typeof window === "undefined") return;
   if (!TOKEN) return;
-  mixpanel.init(TOKEN, {
+  started = true;
+  bootPromise = bootMixpanel();
+  void bootPromise;
+}
+
+let bootPromise: Promise<void> | null = null;
+
+/**
+ * Resolves once the SDK has loaded and its queued calls have drained.
+ *
+ * Boot is deliberately fire-and-forget for the app, which must not wait on
+ * analytics. Anything that needs to observe the loaded SDK awaits this.
+ */
+export function analyticsReady(): Promise<void> {
+  return bootPromise ?? Promise.resolve();
+}
+
+// Kept sync above so the caller does not have to await: boot order there puts
+// a track() on the very next line, and the queue covers that gap.
+async function bootMixpanel(): Promise<void> {
+  const { default: loaded } = await import("mixpanel-browser");
+  loaded.init(TOKEN as string, {
     persistence: "localStorage",
     // Off: the catalog in ./events is a deliberate taxonomy, and autocapture
     // adds click, scroll and pageview rows that report nothing the named events
@@ -64,7 +113,14 @@ export function initAnalytics(): void {
     // persists that decision, so the browser stays silent on later visits too.
     ignore_dnt: false,
   });
-  initialized = true;
+  mp = loaded;
+  for (const job of pending.splice(0)) {
+    try {
+      job(loaded);
+    } catch {
+      // A queued event must not take the boot down with it.
+    }
+  }
 
   // A session that sends nothing looks identical from the outside whether the
   // SDK failed or is doing exactly what it was told. Mixpanel disables itself
@@ -73,7 +129,7 @@ export function initAnalytics(): void {
   // too. Saying so costs one line and turns "Mixpanel is broken on this
   // account" into an answer instead of an investigation.
   try {
-    if (mixpanel.has_opted_out_tracking()) {
+    if (loaded.has_opted_out_tracking()) {
       console.warn(
         "[analytics] this browser is opted out of tracking (Do Not Track, or a stored opt-out from an earlier visit). No events will be sent."
       );
@@ -95,8 +151,8 @@ export function initAnalytics(): void {
 export function identifyUser(walletEvm: string, profile?: UserProfile): void {
   if (!ready() || !walletEvm) return;
   try {
-    mixpanel.identify(walletEvm);
-    if (profile) mixpanel.people.set(compact(profile as Record<string, unknown>));
+    withMixpanel((m) => m.identify(walletEvm));
+    if (profile) withMixpanel((m) => m.people.set(compact(profile as Record<string, unknown>)));
   } catch (error) {
     console.warn("[analytics] failed to identify", error);
   }
@@ -106,7 +162,7 @@ export function identifyUser(walletEvm: string, profile?: UserProfile): void {
 // this device starts anonymous again instead of inheriting the last user's.
 export function resetAnalytics(): void {
   if (!ready()) return;
-  mixpanel.reset();
+  withMixpanel((m) => m.reset());
 }
 
 /**
@@ -126,7 +182,7 @@ export function track(name: AnalyticsEventName, properties?: unknown): void {
   // calls sit inside mutation success handlers, where a throw would take the
   // navigation or the toast with it, so nothing here is allowed to escape.
   try {
-    mixpanel.track(name, props);
+    withMixpanel((m) => m.track(name, props));
     accumulateProfile(name, props ?? {});
   } catch (error) {
     console.warn("[analytics] failed to track", name, error);
@@ -220,7 +276,7 @@ type EventsWithProps = Exclude<AnalyticsEventName, EventsWithoutProps>;
 export function setSuper(properties: Partial<SuperProperties>): void {
   if (!ready()) return;
   try {
-    mixpanel.register(compact(properties as Record<string, unknown>));
+    withMixpanel((m) => m.register(compact(properties as Record<string, unknown>)));
   } catch (error) {
     console.warn("[analytics] failed to register super properties", error);
   }
@@ -233,7 +289,7 @@ export function setSuper(properties: Partial<SuperProperties>): void {
 export function setProfile(properties: UserProfile): void {
   if (!ready()) return;
   try {
-    mixpanel.people.set(compact(properties as Record<string, unknown>));
+    withMixpanel((m) => m.people.set(compact(properties as Record<string, unknown>)));
   } catch (error) {
     console.warn("[analytics] failed to set profile", error);
   }
@@ -248,7 +304,7 @@ export function setProfile(properties: UserProfile): void {
 export function setProfileOnce(properties: UserProfile): void {
   if (!ready()) return;
   try {
-    mixpanel.people.set_once(compact(properties as Record<string, unknown>));
+    withMixpanel((m) => m.people.set_once(compact(properties as Record<string, unknown>)));
   } catch (error) {
     console.warn("[analytics] failed to set profile defaults", error);
   }
@@ -268,7 +324,7 @@ export function incrementProfile(properties: Partial<Record<ProfileCounter, numb
       if (value === 0) delete amounts[key];
     }
     if (Object.keys(amounts).length > 0)
-      mixpanel.people.increment(amounts as Record<string, number>);
+      withMixpanel((m) => m.people.increment(amounts as Record<string, number>));
   } catch (error) {
     console.warn("[analytics] failed to increment profile", error);
   }
@@ -281,7 +337,7 @@ export function incrementProfile(properties: Partial<Record<ProfileCounter, numb
 export function unionProfile(field: "verticals_used", values: string[]): void {
   if (!ready() || values.length === 0) return;
   try {
-    mixpanel.people.union({ [field]: values });
+    withMixpanel((m) => m.people.union({ [field]: values }));
   } catch (error) {
     console.warn("[analytics] failed to union profile", error);
   }

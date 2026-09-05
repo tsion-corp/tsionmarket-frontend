@@ -20,7 +20,11 @@ import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 import { ClickRipple } from "@/components/ui/click-ripple";
-import { MiniTimerHost } from "@/features/casino";
+// Deep import, not the barrel. `@/features/casino` re-exports 27 components,
+// including the chess and arkjet screens, and this provider is mounted on
+// every route — so the barrel pulled the whole casino into the initial payload
+// for one timer. optimizePackageImports only rewrites npm barrels, not ours.
+import { MiniTimerHost } from "@/features/casino/components/last-standing/mini-timer";
 import { BroadcastSessionProvider } from "@/components/broadcast/broadcast-session";
 import { PrivyModalWatch } from "@/components/broadcast/privy-modal-watch";
 import { WALLET_CHAINS } from "@/lib/trade/wallet-chains";

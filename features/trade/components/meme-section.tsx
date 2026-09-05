@@ -1,10 +1,19 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { MemeModeSwitch, useMemeMode } from "@/features/trade/components/meme-mode";
 import { MemeSimpleView } from "@/features/trade/components/meme-simple-view";
-import { MemeProView } from "@/features/trade/components/meme-pro-view";
+// Dynamic: the pro desk carries lightweight-charts and a data-table, and it
+// only renders for someone who has flipped the mode switch. Statically
+// imported it shipped in every dashboard payload, including the default
+// simple view that draws no chart at all.
+const MemeProView = dynamic(
+  () => import("@/features/trade/components/meme-pro-view").then((m) => m.MemeProView),
+  { ssr: false }
+);
 
 // Memecoin trading on Base: trending cards for the simple interface, the
 // search/table/chart desk for pro. Both trade through the same sheet.

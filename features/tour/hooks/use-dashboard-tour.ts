@@ -2,8 +2,7 @@
 
 import { useEffect } from "react";
 import { useTranslations } from "next-intl";
-import { driver, type DriveStep } from "driver.js";
-import "driver.js/dist/driver.css";
+import type { DriveStep } from "driver.js";
 import {
   consumeTourReplay,
   hasSeenDashboardTour,
@@ -91,7 +90,7 @@ function sectionAnchor(id: string): () => Element {
 }
 
 /** Builds and starts the walkthrough from whatever this layout renders. */
-export function startDashboardTour(t: Translate): void {
+export async function startDashboardTour(t: Translate): Promise<void> {
   const steps: DriveStep[] = [];
   for (const def of STEP_DEFS) {
     const popover = {
@@ -114,6 +113,14 @@ export function startDashboardTour(t: Translate): void {
     steps.push({ popover });
   }
   if (steps.length < 2) return;
+
+  // Loaded here, not at module scope. The caller has already checked that this
+  // user has not seen the tour, so a returning visitor never pays for it: the
+  // library and its stylesheet are ~380KB that only a first-time visitor needs.
+  const [{ driver }] = await Promise.all([
+    import("driver.js"),
+    import("driver.js/dist/driver.css"),
+  ]);
 
   driver({
     showProgress: true,
@@ -150,7 +157,7 @@ export function useDashboardTour(): void {
   useEffect(() => {
     const replay = consumeTourReplay();
     if (!replay && hasSeenDashboardTour()) return;
-    const id = window.setTimeout(() => startDashboardTour(t), START_DELAY_MS);
+    const id = window.setTimeout(() => void startDashboardTour(t), START_DELAY_MS);
     return () => window.clearTimeout(id);
   }, [t]);
 }

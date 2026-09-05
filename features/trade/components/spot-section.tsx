@@ -1,9 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
+
 import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { SpotModeSwitch, useSpotMode } from "@/features/trade/components/spot-mode";
-import { MarketsView } from "@/features/trade/components/markets-view";
+// Dynamic: the pro desk carries lightweight-charts and a data-table, and it
+// only renders for someone who has flipped the mode switch. Statically
+// imported it shipped in every dashboard payload, including the default
+// simple view that draws no chart at all.
+const MarketsView = dynamic(
+  () => import("@/features/trade/components/markets-view").then((m) => m.MarketsView),
+  { ssr: false }
+);
 import { SpotSimpleView } from "@/features/trade/components/spot-simple-view";
 import type { BuyPayload, DetailPayload } from "@/lib/modal-types";
 

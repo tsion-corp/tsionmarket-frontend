@@ -61,12 +61,14 @@ describe("without a configured token", () => {
   it("never reaches the SDK", async () => {
     const {
       initAnalytics,
+      analyticsReady,
       identifyUser,
       resetAnalytics,
       track: send,
       setSuper,
     } = await loadWithToken(undefined);
     initAnalytics();
+    await analyticsReady();
     identifyUser("0xabc");
     resetAnalytics();
     setSuper({ platform: "web" });
@@ -81,16 +83,19 @@ describe("without a configured token", () => {
 
 describe("with a configured token", () => {
   it("initializes once, with DNT honoured", async () => {
-    const { initAnalytics } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     initAnalytics();
+    await analyticsReady();
     expect(init).toHaveBeenCalledTimes(1);
     expect(init).toHaveBeenCalledWith("test_token", expect.objectContaining({ ignore_dnt: false }));
   });
 
   it("keeps autocapture off, so only the named catalog is reported", async () => {
-    const { initAnalytics } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     expect(init).toHaveBeenCalledWith(
       "test_token",
       expect.objectContaining({ autocapture: false })
@@ -103,10 +108,24 @@ describe("with a configured token", () => {
     // from a broken integration.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     hasOptedOut.mockReturnValue(true);
-    const { initAnalytics } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     expect(warn).toHaveBeenCalledWith(expect.stringContaining("opted out of tracking"));
     warn.mockRestore();
+  });
+
+  it("keeps an event fired before the SDK finished loading", async () => {
+    // The SDK is fetched on demand now, and boot order puts a page_view on the
+    // line after initAnalytics(). Without the queue that event is dropped on
+    // every single session, silently.
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test_token");
+    initAnalytics();
+    send("withdraw_opened");
+    expect(track).not.toHaveBeenCalled();
+
+    await analyticsReady();
+    expect(track).toHaveBeenCalledWith("withdraw_opened", undefined);
   });
 
   it("boots even if the SDK has no opt-out method to ask", async () => {
@@ -114,24 +133,27 @@ describe("with a configured token", () => {
     hasOptedOut.mockImplementation(() => {
       throw new Error("not available");
     });
-    const { initAnalytics, track: send } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test_token");
     expect(() => initAnalytics()).not.toThrow();
+    await analyticsReady();
     send("withdraw_opened");
     expect(track).toHaveBeenCalledWith("withdraw_opened", undefined);
     warn.mockRestore();
   });
 
   it("identifies by the EVM wallet address", async () => {
-    const { initAnalytics, identifyUser } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, identifyUser } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     identifyUser("0x1111111111111111111111111111111111111111", { $email: "a@b.com" });
     expect(identify).toHaveBeenCalledWith("0x1111111111111111111111111111111111111111");
     expect(peopleSet).toHaveBeenCalledWith({ $email: "a@b.com" });
   });
 
   it("ignores an identify with no address, so anonymous events stay mergeable", async () => {
-    const { initAnalytics, identifyUser } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, identifyUser } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     identifyUser("");
     expect(identify).not.toHaveBeenCalled();
   });
@@ -145,22 +167,25 @@ describe("with a configured token", () => {
   });
 
   it("tracks an event with its properties", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     send("fund_method_selected", { method: "bank" });
     expect(track).toHaveBeenCalledWith("fund_method_selected", { method: "bank" });
   });
 
   it("registers super properties", async () => {
-    const { initAnalytics, setSuper } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, setSuper } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     setSuper({ platform: "web", has_deposited: false });
     expect(register).toHaveBeenCalledWith({ platform: "web", has_deposited: false });
   });
 
   it("resets the local identity", async () => {
-    const { initAnalytics, resetAnalytics } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, resetAnalytics } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     resetAnalytics();
     expect(reset).toHaveBeenCalledTimes(1);
   });
@@ -186,8 +211,9 @@ describe("property compaction", () => {
   });
 
   it("strips empty properties off a tracked event", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test_token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     send("withdraw_completed", {
       method: "bank",
       asset: "USDC",
@@ -241,11 +267,13 @@ describe("failure containment", () => {
     // has to stay contained.
     const {
       initAnalytics,
+      analyticsReady,
       track: send,
       setSuper,
       identifyUser,
     } = await loadWithToken("test_token");
     initAnalytics();
+    await analyticsReady();
     track.mockImplementationOnce(() => {
       throw new Error("sdk exploded");
     });
@@ -264,8 +292,9 @@ describe("failure containment", () => {
 
 describe("profile totals derived from events", () => {
   it("counts a completed trade and adds its volume and vertical", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     send("trade_completed", {
       vertical: "spot",
@@ -279,8 +308,9 @@ describe("profile totals derived from events", () => {
   });
 
   it("records the first deposit once, and the running total every time", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     send("deposit_completed", {
       method: "bank",
@@ -302,8 +332,9 @@ describe("profile totals derived from events", () => {
     // Both rails send the same event now. The method property is the only
     // thing that knows which one it was, so a hardcoded default here would
     // put every user's first deposit on the wrong rail.
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     send("deposit_completed", {
       method: "crypto",
@@ -320,8 +351,9 @@ describe("profile totals derived from events", () => {
     // The bank rail used to have an event of its own, and a Naira deposit
     // fired both it and deposit_completed: the same money added to the
     // lifetime total twice.
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     send("deposit_completed", {
       method: "bank",
@@ -338,8 +370,9 @@ describe("profile totals derived from events", () => {
   });
 
   it("leaves the profile alone for an event that implies no total", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     send("page_view", { page: "portfolio" });
 
@@ -348,8 +381,9 @@ describe("profile totals derived from events", () => {
   });
 
   it("does not spend a request on a zero amount", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     // A free trade still counts as a trade, but zero volume moves nothing.
     send("trade_completed", { vertical: "spot", asset: "ETH", side: "buy", amount_usd: 0 });
@@ -360,8 +394,9 @@ describe("profile totals derived from events", () => {
 
 describe("withdrawal recipients", () => {
   it("carries the destination address on a crypto withdrawal", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     send("withdraw_completed", {
       method: "wallet",
@@ -380,8 +415,9 @@ describe("withdrawal recipients", () => {
   });
 
   it("sends no recipient on a bank withdrawal", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     // A bank recipient is an account number, which must never be sent. The
     // property is simply absent rather than blanked, so this asserts the key
@@ -407,8 +443,9 @@ describe("catalog enforcement", () => {
   type Loose = (name: string, props: Record<string, unknown>) => void;
 
   it("fails outside production, rather than sending a quoted number", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     expect(() =>
       (send as unknown as Loose)("deposit_completed", {
@@ -423,8 +460,9 @@ describe("catalog enforcement", () => {
   });
 
   it("fails on a property the catalog does not declare", async () => {
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     expect(() => (send as unknown as Loose)("withdraw_opened", { amount_usd: 25 })).toThrow(
       /unknown property/
@@ -437,8 +475,9 @@ describe("catalog enforcement", () => {
     // is worth finding.
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.stubEnv("NODE_ENV", "production");
-    const { initAnalytics, track: send } = await loadWithToken("test-token");
+    const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
+    await analyticsReady();
 
     expect(() => (send as unknown as Loose)("withdraw_opened", { amount_usd: 25 })).not.toThrow();
     expect(error).toHaveBeenCalledWith(expect.stringContaining("unknown property"));
