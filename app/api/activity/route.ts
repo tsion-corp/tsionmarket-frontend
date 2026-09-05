@@ -16,7 +16,21 @@ export async function GET(req: NextRequest) {
   const solana = req.nextUrl.searchParams.get("solana") ?? undefined;
 
   try {
-    return NextResponse.json({ items: await fetchActivity(evm, solana) });
+    return NextResponse.json(
+      { items: await fetchActivity(evm, solana) },
+      {
+        headers: {
+          // `private`, never `s-maxage`: this is one wallet's data, and a
+          // shared cache that stored it would serve it to somebody else. This
+          // only lets the USER'S OWN browser skip a duplicate within the
+          // window, which is what a second tab and an alt-tab return produce.
+          // Kept below the 60s client staleTime so an invalidation cannot be
+          // answered from stale bytes, and `fresh=1` carries its own URL so a
+          // post-trade read bypasses this entirely.
+          "Cache-Control": "private, max-age=30",
+        },
+      }
+    );
   } catch (error) {
     console.error("Activity fetch failed:", error);
     if (isRateLimitError(error)) {

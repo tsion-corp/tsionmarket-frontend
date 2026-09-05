@@ -9,7 +9,16 @@ export async function GET(req: NextRequest) {
 
   try {
     const tokens = await fetchMarketTokens(filter.category);
-    return NextResponse.json({ tokens });
+    // Public list, same for every caller. Sent anonymously by the client so a
+    // shared cache can hold it.
+    return NextResponse.json(
+      { tokens },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600, max-age=60",
+        },
+      }
+    );
   } catch (error) {
     console.error("Market tokens fetch failed:", error);
     return NextResponse.json({ error: "Could not load market tokens" }, { status: 502 });

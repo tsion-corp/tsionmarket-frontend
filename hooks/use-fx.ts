@@ -17,7 +17,11 @@ export function useFx() {
   const { data } = useQuery<FxResponse>({
     queryKey: ["fx-rates"],
     queryFn: async () => {
-      const res = await apiFetch("/api/fx");
+      // Anonymous on purpose. This response is identical for every caller,
+      // and a request carrying an Authorization header can never be stored by
+      // a shared cache, so sending credentials here would make the route's
+      // s-maxage inert.
+      const res = await apiFetch("/api/fx", {}, { anonymous: true });
       if (!res.ok) throw new Error("FX request failed");
       return res.json();
     },

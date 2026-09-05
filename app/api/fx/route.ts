@@ -37,7 +37,13 @@ async function fromCurrencyApi() {
 export async function GET() {
   try {
     const data = await fromErApi();
-    return NextResponse.json(data);
+    // Public rates. The client holds these for ten minutes, so the shared
+    // cache may too.
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "public, s-maxage=600, stale-while-revalidate=3600, max-age=300",
+      },
+    });
   } catch {
     try {
       const data = await fromCurrencyApi();
