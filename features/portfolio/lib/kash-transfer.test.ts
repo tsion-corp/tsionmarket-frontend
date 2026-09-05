@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   isEvmAddress,
-  kashToWei,
   kashTransferData,
   usdcAmountForPrice,
   usdcToAtomic,
@@ -20,26 +19,6 @@ describe("isEvmAddress", () => {
     expect(isEvmAddress("0x1234")).toBe(false);
     expect(isEvmAddress(TO.slice(2))).toBe(false);
     expect(isEvmAddress("0x" + "g".repeat(40))).toBe(false);
-  });
-});
-
-describe("kashToWei", () => {
-  it("converts whole and fractional amounts exactly", () => {
-    expect(kashToWei("1")).toBe(10n ** 18n);
-    expect(kashToWei("2000")).toBe(2000n * 10n ** 18n);
-    expect(kashToWei("0.000001")).toBe(10n ** 12n);
-    expect(kashToWei("1.5")).toBe(15n * 10n ** 17n);
-  });
-
-  it("stays exact past float precision", () => {
-    // 10 billion KSH in wei is 1e28, far beyond 2^53.
-    expect(kashToWei("10000000000")).toBe(10n ** 28n);
-  });
-
-  it("rejects malformed amounts", () => {
-    expect(() => kashToWei("1.0000001")).toThrow();
-    expect(() => kashToWei("-5")).toThrow();
-    expect(() => kashToWei("abc")).toThrow();
   });
 });
 

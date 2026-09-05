@@ -287,8 +287,7 @@ describe("chess lobby", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Set up a computer game" }));
     expect(screen.getByRole("heading", { name: "Game setup" })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "Real time" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Minutes per side")).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Unlimited" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("computer-game-setup-scroll-region")).toHaveClass(
       "min-h-0",
       "flex-1",
@@ -338,7 +337,9 @@ describe("chess lobby", () => {
     expect(screen.getByText("20 USD")).toBeInTheDocument();
     expect(screen.getByText("Draw return")).toBeInTheDocument();
     expect(screen.getByText("0 USD")).toBeInTheDocument();
-    expect(screen.queryByText(/fixed 10\+0 clock/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/maximum-strength level-8 engine.*fixed 10\+0 clock/)
+    ).toBeInTheDocument();
     expect(screen.getByText(/until a moderator clears it/)).toBeInTheDocument();
     expect(screen.getByText(/waits there if the cashier wallet needs funding/)).toBeInTheDocument();
     expect(screen.getByText("Balance after stake")).toBeInTheDocument();
@@ -349,7 +350,9 @@ describe("chess lobby", () => {
         player: "0xabc",
         level: 5,
         color: "random",
-        timeMode: "unlimited",
+        timeMode: "real_time",
+        initialSeconds: 600,
+        incrementSeconds: 0,
         stakeUsdc: "10",
         coachEnabled: false,
         idempotencyKey: expect.any(String),

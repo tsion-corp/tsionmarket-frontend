@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
@@ -9,7 +9,13 @@ import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
-import { useKashAccount, useKashStatus } from "@/features/portfolio/hooks/use-kash";
+import {
+  useKashAccount,
+  useKashConversion,
+  useKashConversionQuote,
+  useKashStatus,
+} from "@/features/portfolio/hooks/use-kash";
+import { useKashPermitSigner } from "@/features/portfolio/hooks/use-kash-permit";
 import {
   useKashDeskInfo,
   useKashDeskSell,
@@ -19,6 +25,7 @@ import {
   compactAmountLabel,
   formatKashAmount,
   isValidKashAmount,
+  newConversionKey,
 } from "@/features/portfolio/lib/kash";
 
 interface KashConvertModalProps {
@@ -26,12 +33,12 @@ interface KashConvertModalProps {
   onClose: () => void;
 }
 
-// Convert unlocked KSH back to USDC, on-chain, through the redeem desk — a
-// redemption at a discount to market, not a market sell, and the modal says
-// so up front: the quote shows both prices and the discount before the user
-// commits. The ceiling is the wallet's real `balance`, since the desk
-// redeems on-chain against what the wallet actually holds, not a ledger
-// concept of vesting.
+// Convert unlocked KSH back to USDC. This is a redemption at a discount to
+// market, not a market sell, and the modal says so up front: the quote shows
+// both prices and the discount before the user commits. The legacy engine
+// flow ceilings at the account's `convertible` (vesting KSH is not
+// convertible); the desk flow ceilings at the wallet's real `balance`
+// instead, since it redeems on-chain and has no notion of vesting.
 // KSH presets. Any above the wallet's balance are filtered out at render.
 const QUICK_KASH = ["1000", "10000", "100000"];
 
@@ -47,48 +54,113 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
     isError: accountFailed,
     wallet,
   } = useKashAccount();
+  // The redeem desk supersedes the engine conversion whenever it is
+  // configured: one KASH+ permit signature, one on-chain redeemWithPermit, and
+  // the USDC arrives from the public reserve. A 503 from /desk keeps the
+  // legacy engine flow below untouched.
   const deskInfo = useKashDeskInfo(status?.chainMode === "ethers");
+  // Configured-but-paused is a halt, not a reason to fall back: the legacy
+  // engine path would sidestep an intentional stop. Legacy applies only when
+  // no desks exist at all.
   const deskConfigured = Boolean(deskInfo.data);
-  // Not-configured and explicitly-paused both mean the same thing to a
-  // seller: nothing can be redeemed right now. One state, one message,
-  // rather than separate copy for a config gap versus an intentional halt.
-  const paused = !deskConfigured || deskInfo.data?.paused.redeem === true;
-  const deskQuote = useKashDeskSellQuote(amount, !paused);
+  const deskPaused = deskConfigured && deskInfo.data?.paused.redeem === true;
+  const deskLive = deskConfigured && !deskPaused;
+  const deskQuote = useKashDeskSellQuote(amount, deskLive);
   const deskSell = useKashDeskSell();
+  const quote = useKashConversionQuote(amount, !deskConfigured);
+  const conversion = useKashConversion();
+  const signPermit = useKashPermitSigner();
+  const [signing, setSigning] = useState(false);
+  // Survives re-renders and retries; see submit().
+  const attemptKey = useRef<string | null>(null);
 
   // The desk redeems against the wallet's real on-chain KASH+ balance, gated
-  // only by its own reserve (see `uncovered` below).
-  const convertible = account?.balance ?? "0";
+  // only by its own reserve (see `uncovered` below) — it has no notion of the
+  // ledger's `convertible`, which floors at what the LEGACY backend-mediated
+  // flow itself minted (see accounts.service.ts's profile()). Using that
+  // floor here under-reports the max the desk will actually let you redeem,
+  // e.g. for a wallet that bought KASH+ directly through the on-chain sale
+  // desk rather than through the legacy purchase flow.
+  const convertible = deskLive ? (account?.balance ?? "0") : (account?.convertible ?? "0");
   // The balance is only KNOWN once the account has loaded. Falling back to "0"
   // while it is pending or failed made the modal tell the user they had
   // nothing to convert when it simply did not know yet — the balance is on
   // screen behind this dialog, so the contradiction reads as a broken app.
   const balanceKnown = Boolean(account);
   const hasConvertible = balanceKnown && Number(convertible) > 0;
+  const paused = deskConfigured ? deskPaused : quote.data?.coverageState === "paused";
   // The desk refuses a payout its reserve cannot cover; surfacing it before
   // the signature saves the user signing for a transaction that must revert.
-  const uncovered = !paused && deskQuote.data?.covered === false;
+  const uncovered = deskLive && deskQuote.data?.covered === false;
   const withinBalance = isValidKashAmount(amount) && Number(amount) <= Number(convertible);
-  const busy = deskSell.isPending;
+  const busy = conversion.isPending || signing || deskSell.isPending;
   const canSubmit =
     Boolean(wallet) && balanceKnown && withinBalance && !paused && !uncovered && !busy;
 
   const close = () => {
     setDone(null);
     setAmount("");
+    attemptKey.current = null;
+    conversion.reset();
     onClose();
   };
 
-  // Backend builds the KASH+ permit payload (domain "Kash" — a subtlety it
-  // owns so no client gets it wrong), the wallet signs, and one transaction
-  // burns the KASH+ and pays the USDC — the backend never holds funds.
+  const setAmountForNewAttempt = (next: string) => {
+    // A different amount is a different intent — reusing the key would return
+    // the earlier conversion and silently ignore what the user just typed.
+    if (next !== amount) attemptKey.current = null;
+    setAmount(next);
+  };
+
   const submit = async () => {
     if (!wallet || !canSubmit) return;
+
+    // Desk flow: the backend builds the KASH+ permit payload (domain "Kash" —
+    // a subtlety it owns so no client gets it wrong), the wallet signs, and
+    // one transaction burns the KASH+ and pays the USDC.
+    if (deskLive) {
+      try {
+        const result = await deskSell.mutateAsync({ wallet, kashAmount: amount });
+        const usdcOut = deskQuote.data?.usdcOut ?? "";
+        track("kash_sold", { kash_amount: Number(amount), amount_usd: Number(usdcOut) });
+        setDone({ usdc: usdcOut, kash: amount, txHash: result.txHash });
+      } catch (error) {
+        toast.error(friendlyError(error, t("convertFailed")));
+      }
+      return;
+    }
+
     try {
-      const result = await deskSell.mutateAsync({ wallet, kashAmount: amount });
-      const usdcOut = deskQuote.data?.usdcOut ?? "";
-      track("kash_sold", { kash_amount: Number(amount), amount_usd: Number(usdcOut) });
-      setDone({ usdc: usdcOut, kash: amount, txHash: result.txHash });
+      // On the real chain the burn needs the holder's consent: a free permit
+      // signature for exactly this amount. Mock mode skips it, there is no
+      // token to sign against.
+      let permit;
+      if (status?.chainMode === "ethers" && status.chain) {
+        setSigning(true);
+        try {
+          permit = await signPermit(status.chain, wallet, amount);
+        } finally {
+          setSigning(false);
+        }
+      }
+      // Held across attempts on purpose. A conversion is three sequential Base
+      // transactions and can exceed the gateway timeout, so "it failed, click
+      // again" is a real user path — and the first attempt may in fact have
+      // burned and paid. Reusing the key makes the retry return that original
+      // conversion instead of burning a second time.
+      attemptKey.current ??= newConversionKey();
+      const result = await conversion.mutateAsync({
+        wallet,
+        kashAmount: amount,
+        permit,
+        idempotencyKey: attemptKey.current,
+      });
+      attemptKey.current = null;
+      track("kash_sold", {
+        kash_amount: Number(result.kashBurned),
+        amount_usd: Number(result.usdcPaid),
+      });
+      setDone({ usdc: result.usdcPaid, kash: result.kashBurned, txHash: result.burnTxHash });
     } catch (error) {
       toast.error(friendlyError(error, t("convertFailed")));
     }
@@ -164,7 +236,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               <input
                 inputMode="decimal"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => setAmountForNewAttempt(e.target.value)}
                 className="tnum mt-1.5 w-full rounded-[14px] border border-white/12 bg-white/6 px-4 py-3 text-[17px] outline-none focus:border-amber-200/50"
                 placeholder="0"
               />
@@ -177,7 +249,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                   (preset) => (
                     <button
                       key={preset}
-                      onClick={() => setAmount(preset)}
+                      onClick={() => setAmountForNewAttempt(preset)}
                       className={`flex-1 cursor-pointer rounded-xl border px-2 py-1.5 text-[12.5px] font-medium transition-colors ${
                         amount === preset
                           ? "border-amber-200/60 bg-amber-200/12 text-amber-200"
@@ -189,7 +261,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                   )
                 )}
                 <button
-                  onClick={() => setAmount(convertible)}
+                  onClick={() => setAmountForNewAttempt(convertible)}
                   disabled={!hasConvertible}
                   className={`flex-1 cursor-pointer rounded-xl border px-2 py-1.5 text-[12.5px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                     amount === convertible && hasConvertible
@@ -206,12 +278,41 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               <div className="flex items-center justify-between text-[13px]">
                 <span className="font-normal text-white/55">{t("youReceiveUsdc")}</span>
                 <span className="tnum font-semibold text-white">
-                  {deskQuote.data ? `$${deskQuote.data.usdcOut}` : deskQuote.isFetching ? "…" : "–"}
+                  {deskLive
+                    ? deskQuote.data
+                      ? `$${deskQuote.data.usdcOut}`
+                      : deskQuote.isFetching
+                        ? "…"
+                        : "–"
+                    : quote.data
+                      ? `$${quote.data.usdcPayout}`
+                      : quote.isFetching
+                        ? "…"
+                        : "–"}
                 </span>
               </div>
-              {deskQuote.isError && (
+              {(deskLive ? deskQuote.isError : quote.isError) && (
                 <div className="mt-2 border-t border-white/8 pt-2 text-[12px] font-normal text-amber-200/80">
                   {t("quoteFailed")}
+                </div>
+              )}
+              {deskLive && deskQuote.data && (
+                // The reserve is the public backing figure: showing it beside
+                // the payout is the honesty that makes redemption credible.
+                <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                  <span className="font-normal text-white/45">{t("redeemReserve")}</span>
+                  <span className="tnum text-white/60">${deskQuote.data.reserveUsdc}</span>
+                </div>
+              )}
+              {!deskLive && quote.data && (
+                // The fee in dollars, not a discounted unit price: at 0.5% the
+                // two prices differ in the fourth decimal, which reads as a
+                // glitch rather than a charge.
+                <div className="mt-1.5 flex items-center justify-between text-[12px]">
+                  <span className="font-normal text-white/45">
+                    {t("withdrawalFee", { pct: quote.data.feePct })}
+                  </span>
+                  <span className="tnum text-white/60">${quote.data.feeUsd}</span>
                 </div>
               )}
             </div>
@@ -238,7 +339,7 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
               {busy ? (
                 <>
                   <ButtonSpinner />
-                  {t("converting")}
+                  {signing ? t("signingPermit") : t("converting")}
                 </>
               ) : (
                 t("convertCta")

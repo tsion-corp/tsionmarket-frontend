@@ -34,7 +34,7 @@ export function isConflictError(e: unknown): boolean {
 function looksSafeServerMessage(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed || trimmed.length > 160) return false;
-  return !/(\bwallet_[a-z]+|alchemy|json-rpc|rpc\b|stack trace|traceback|panic\b|sqlstate|select\s|insert\s|update\s|delete\s|<!doctype|<html|hyperliquid|hypercore|clearinghouse|hyperliquidchain)/i.test(
+  return !/(\bwallet_[a-z]+|alchemy|json-rpc|rpc\b|stack trace|traceback|panic\b|sqlstate|select\s|insert\s|update\s|delete\s|<!doctype|<html)/i.test(
     trimmed
   );
 }

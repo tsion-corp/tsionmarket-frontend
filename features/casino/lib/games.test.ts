@@ -19,36 +19,21 @@ describe("casino game catalogue", () => {
     expect(shown.slice(0, 2).map((g) => g.id)).toEqual(["chess", "last-standing"]);
   });
 
-  it("uses the Last Man footprint for every game after Chess", () => {
-    expect(CASINO_GAMES[0].size).toBe("hero");
-    expect(CASINO_GAMES.slice(1).every((game) => game.size === "tall")).toBe(true);
-  });
+  it("keeps Draw intact and adds ArkBall immediately after Checkers", () => {
+    const draw = CASINO_GAMES.find((game) => game.id === "draw");
+    expect(draw).toMatchObject({
+      name: "Draw",
+      href: null,
+      comingSoon: true,
+      note: "Pick 5 numbers and a bonus",
+    });
 
-  it("places ArkBall, Arkjet, and Chicken together after Checkers", () => {
     const checkersIndex = CASINO_GAMES.findIndex((game) => game.id === "checkers");
     expect(CASINO_GAMES[checkersIndex + 1]).toMatchObject({
       id: "arkball",
       href: "/casino/arkball",
       comingSoon: false,
     });
-    expect(CASINO_GAMES[checkersIndex + 2]).toMatchObject({
-      id: "arkjet",
-      name: "Arkjet",
-      image: "/casino/arkjet/hero.webp",
-      preserveImageColor: true,
-      href: "/casino/arkjet",
-      comingSoon: false,
-      note: "Cash out before the multiplier crashes",
-    });
-    expect(CASINO_GAMES[checkersIndex + 3]).toMatchObject({
-      id: "chicken",
-      name: "Pilot Chicken",
-      image: "/casino/chicken/ark-chicken.png",
-      preserveImageColor: true,
-      href: "/casino/chicken",
-      comingSoon: false,
-    });
-    expect(CASINO_GAMES.some((game) => game.id === "draw")).toBe(false);
   });
 
   it("only links games that are actually playable", () => {
@@ -59,9 +44,7 @@ describe("casino game catalogue", () => {
   });
 
   it("filters by category and by name search", () => {
-    expect(filterGames(CASINO_GAMES, "Draws", "").map((g) => g.id)).toEqual(["arkball"]);
-    expect(filterGames(CASINO_GAMES, "All games", "arkjet").map((g) => g.id)).toEqual(["arkjet"]);
-    expect(filterGames(CASINO_GAMES, "All games", "chicken").map((g) => g.id)).toEqual(["chicken"]);
+    expect(filterGames(CASINO_GAMES, "Draws", "").map((g) => g.id)).toEqual(["draw", "arkball"]);
     expect(filterGames(CASINO_GAMES, "All games", "last").map((g) => g.id)).toEqual([
       "last-standing",
     ]);

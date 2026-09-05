@@ -32,8 +32,6 @@ export interface CasinoGame {
   // composed into tint gradients at varying alphas by the tile.
   image?: string;
   tintRgb?: string;
-  // Keeps branded artwork vivid even when the game is still coming soon.
-  preserveImageColor?: boolean;
   // Shows the "New" badge regardless of category.
   isNew?: boolean;
   href: string | null;
@@ -73,10 +71,23 @@ export const CASINO_GAMES: CasinoGame[] = [
     comingSoon: false,
   },
   {
+    id: "draw",
+    name: "Draw",
+    category: "Draws",
+    size: "tall",
+    glyph: "✦",
+    image:
+      "https://images.unsplash.com/photo-1518688248740-7c31f1a945c4?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "167 139 250",
+    href: null,
+    note: "Pick 5 numbers and a bonus",
+    comingSoon: true,
+  },
+  {
     id: "checkers",
     name: "Checkers",
     category: "Skill",
-    size: "tall",
+    size: "medium",
     glyph: "⛃",
     image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
     tintRgb: "148 163 184",
@@ -89,7 +100,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     id: "arkball",
     name: "ArkBall",
     category: "Draws",
-    size: "tall",
+    size: "medium",
     glyph: "●",
     image: "/casino/arkball/hero.png",
     tintRgb: "225 29 53",
@@ -99,36 +110,10 @@ export const CASINO_GAMES: CasinoGame[] = [
     comingSoon: false,
   },
   {
-    id: "arkjet",
-    name: "Arkjet",
-    category: "New",
-    size: "tall",
-    glyph: "✈",
-    image: "/casino/arkjet/hero.webp",
-    preserveImageColor: true,
-    isNew: true,
-    href: "/casino/arkjet",
-    note: "Cash out before the multiplier crashes",
-    comingSoon: false,
-  },
-  {
-    id: "chicken",
-    name: "Pilot Chicken",
-    category: "New",
-    size: "tall",
-    glyph: "C",
-    image: "/casino/chicken/ark-chicken.png",
-    preserveImageColor: true,
-    isNew: true,
-    href: "/casino/chicken",
-    note: "Cross each lane and cash out before the crash",
-    comingSoon: false,
-  },
-  {
     id: "ayo",
     name: "Ayo",
     category: "New",
-    size: "tall",
+    size: "medium",
     glyph: "◉",
     image:
       "https://images.unsplash.com/photo-1585504198199-20277593b94f?w=900&q=80&auto=format&fit=crop",
@@ -141,7 +126,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     id: "poker",
     name: "Poker",
     category: "Cards",
-    size: "tall",
+    size: "wide",
     glyph: "♠",
     image:
       "https://images.unsplash.com/photo-1541278107931-e006523892df?w=900&q=80&auto=format&fit=crop",
@@ -153,7 +138,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     id: "racing",
     name: "Racing outrights",
     category: "Racing",
-    size: "tall",
+    size: "wide",
     glyph: "⚑",
     image:
       "https://images.unsplash.com/photo-1541348263662-e068662d82af?w=900&q=80&auto=format&fit=crop",

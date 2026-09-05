@@ -27,13 +27,7 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
         { status: 401 }
       );
     }
-    // The trader in a build body must be the wallet the session owns. The
-    // Ark prepare/submit bodies carry an opaque walletId instead of a
-    // raw address, so this check does not apply to them — their real
-    // authorization is the client-signed action itself, which the perp
-    // service independently verifies against the wallet it resolves for that
-    // walletId (see apps/perp/src/signing/README.md). This route still gates
-    // them on a valid session above.
+    // The trader in a build body must be the wallet the session owns.
     if (body != null && typeof body === "object" && "trader" in body) {
       const claimed = (body as { trader?: unknown }).trader;
       const wallet = walletOfUser(await getRequestUser(req, claims));
@@ -50,29 +44,6 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
           { status: 403 }
         );
       }
-    }
-  }
-
-  // The Ark wallet-identity/margin-state reads and the Base deposit
-  // address carry the target address in the path rather than a body, so the
-  // ownership check has to happen here instead of the body-shaped one above.
-  // Both fall back to NOT_FOUND (not FORBIDDEN) for an unauthenticated
-  // request so an unauthenticated probe cannot distinguish "wrong path" from
-  // "not yours".
-  const addressMatch =
-    method === "GET"
-      ? /^(?:ark\/(?:wallet|account-state|arbitrum-balance)|funding\/deposit-address)\/([^/]+)$/.exec(
-          joined
-        )
-      : null;
-  if (addressMatch) {
-    const claims = await verifyRequest(req);
-    const wallet = claims ? walletOfUser(await getRequestUser(req, claims)) : null;
-    if (!wallet || addressMatch[1]!.toLowerCase() !== wallet.toLowerCase()) {
-      return NextResponse.json(
-        { success: false, error: { code: "NOT_FOUND", message: "Not found" } },
-        { status: 404 }
-      );
     }
   }
 

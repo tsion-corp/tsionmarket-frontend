@@ -560,62 +560,6 @@ export function DotsIcon({ size = 20, className }: IconProps) {
   );
 }
 
-export function ExpandIcon({ size = 16, className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M9 3H4v5M15 3h5v5M9 21H4v-5M15 21h5v-5"
-        stroke={stroke}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function CollapseIcon({ size = 16, className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5"
-        stroke={stroke}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-export function CameraIcon({ size = 16, className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"
-        stroke={stroke}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="14" r="3.2" stroke={stroke} strokeWidth="1.8" />
-    </svg>
-  );
-}
-
-export function RefreshIcon({ size = 16, className }: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" className={className}>
-      <path
-        d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6"
-        stroke={stroke}
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 export const INTEREST_ICONS: Record<string, (props: IconProps) => React.ReactNode> = {
   "chart-bars": ChartBarsIcon,
   gold: GoldIcon,

@@ -675,8 +675,6 @@
     "network": "Rede",
     "chooseNetwork": "Escolha uma rede",
     "unavailable": "Indisponível",
-    "tradingPaused": "As negociações estão pausadas para este token",
-    "checkingTradability": "Verificando…",
     "enterAmount": "Introduza um montante",
     "minimumUsd": "Mínimo {amount} $",
     "notEnoughBalance": "Saldo insuficiente",
@@ -1435,14 +1433,6 @@
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
-        },
-        "arkjet": {
-          "name": "Arkjet",
-          "note": "Levante antes de o multiplicador cair"
-        },
-        "chicken": {
-          "name": "Pilot Chicken",
-          "note": "Atravesse cada faixa e levante antes da queda"
         },
         "ayo": {
           "name": "Ayo",
@@ -2224,8 +2214,6 @@
     "signInFirst": "Entre para comprar Kash+.",
     "history": "Histórico",
     "historyTitle": "Histórico de Kash+",
-    "historyTabActivity": "Transações",
-    "historyTabPoints": "Pontos de atividade",
     "historyLoading": "Carregando seu histórico…",
     "historyFailed": "Não foi possível carregar seu histórico. Tente novamente mais tarde.",
     "historyEmpty": "Nada aqui ainda. Compras, recompensas e conversões aparecerão aqui.",
@@ -2282,14 +2270,11 @@
     "tierLockedRate": "· bloqueado",
     "tierCapExplainer": "O volume é dividido em faixas de $50 e cada faixa paga a sua própria taxa, como escalões de imposto. O seu nível limita quanto podem pagar: no nível 1, uma transação de $150 ganha a taxa do nível 1 em cada dólar.",
     "tierCapExample": "Está no nível {current}. O volume acima da sua faixa continua a ganhar à taxa do seu nível até fazer upgrade.",
-    "historySubtitle": "Compras, vendas, envios e resgates.",
-    "historySubtitlePoints": "Cada ponto ganho, semana a semana.",
+    "historySubtitle": "Cada ponto ganho e cada conversão liquidada.",
     "historyOnVolume": "{type} · ${volume} de volume",
     "historyOnChain": "tx",
     "historyFromFee": "de ${fee} de taxa",
     "historyEmptyHint": "Compre KASH e comece a negociar para ver atividade aqui.",
-    "historyEmptyPoints": "Ainda sem pontos.",
-    "historyEmptyPointsHint": "Negocie para começar a ganhar pontos para o próximo pagamento.",
     "syncing": "A atualizar…",
     "maxLabel": "Máx",
     "upgrading": "A confirmar…",
@@ -2303,7 +2288,8 @@
     "tierUnaffordable": "Insuficiente",
     "comingSoon": "Em breve",
     "comingSoonToast": "Kash chega em breve. Comprar, ganhar e converter abrem em breve.",
-    "reserveCannotCover": "Não é possível resgatar esse valor agora. Tente menos ou volte mais tarde.",
+    "redeemReserve": "Reserva de resgate",
+    "reserveCannotCover": "A reserva de resgate não pode cobrir este valor no momento. Tente um valor menor ou volte em breve.",
     "buyingPaused": "A compra está pausada no momento. Volte em breve."
   },
   "referral": {

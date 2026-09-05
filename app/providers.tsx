@@ -5,10 +5,7 @@ import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { createSolanaRpcSubscriptions } from "@solana/kit";
 import { createAppSolanaRpc } from "@/lib/solana-rpc";
 import { defaultShouldDehydrateQuery } from "@tanstack/react-query";
-import {
-  PersistQueryClientProvider,
-  removeOldestQuery,
-} from "@tanstack/react-query-persist-client";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import { createQueryClient } from "@/lib/query-client";
 import {
@@ -30,8 +27,6 @@ import { ClickRipple } from "@/components/ui/click-ripple";
 import { MiniTimerHost } from "@/features/casino/components/last-standing/mini-timer";
 import { BroadcastSessionProvider } from "@/components/broadcast/broadcast-session";
 import { PrivyModalWatch } from "@/components/broadcast/privy-modal-watch";
-import { PredictionCashoutTracker } from "@/features/prediction/components/prediction-cashout-tracker";
-import { usePredictionQueryBroadcast } from "@/features/prediction/markets/query-broadcast";
 import { WALLET_CHAINS } from "@/lib/trade/wallet-chains";
 import { base } from "viem/chains";
 
@@ -43,7 +38,6 @@ type SolanaRpcEntry = NonNullable<SolanaRpcs[keyof SolanaRpcs]>;
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(createQueryClient);
-  usePredictionQueryBroadcast(queryClient);
   // Without this Privy has nowhere to broadcast a Solana transaction and every
   // Solana signature fails with "No RPC configuration found for chain
   // solana:mainnet". Reads and sends go through our proxy; the subscription
@@ -66,10 +60,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       storage: typeof window !== "undefined" ? window.localStorage : undefined,
       key: RQ_PERSIST_KEY,
       throttleTime: 1000,
-      // localStorage quotas vary by browser. Match Polymarket's behavior by
-      // dropping the oldest dehydrated query and retrying instead of silently
-      // losing the entire cache write.
-      retry: removeOldestQuery,
     })
   );
   return (
@@ -140,7 +130,6 @@ export default function Providers({ children }: { children: React.ReactNode }) {
                 inside PrivyProvider to read it. Renders nothing. */}
               <AnalyticsIdentity />
               <AnalyticsSegments />
-              <PredictionCashoutTracker />
               {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
                 pages, so the floating window survives navigating anywhere in
                 the app; it only subscribes to game data while open. */}

@@ -2,9 +2,7 @@
 // imports. On-chain amounts stay in integer base units (bigint) so we never
 // lose precision to floating point.
 
-// transfer(address,uint256), approve(address,uint256), and
-// allowance(address,address) function selectors.
-const TRANSFER_SELECTOR = "a9059cbb";
+// approve(address,uint256) and allowance(address,address) function selectors.
 const APPROVE_SELECTOR = "095ea7b3";
 const ALLOWANCE_SELECTOR = "dd62ed3e";
 
@@ -27,15 +25,6 @@ function pad32(hex: string): string {
 // assets do not need an allowance or an approve transaction.
 export function isNativeToken(address: string): boolean {
   return address.trim().toLowerCase() === NATIVE_TOKEN_ADDRESS.toLowerCase();
-}
-
-// Calldata for transfer(to, amount) on an ERC-20 token — a plain send, no
-// allowance involved.
-export function encodeTransfer(to: string, amount: bigint): `0x${string}` {
-  if (amount < 0n) throw new Error("Amount must not be negative");
-  const paddedTo = pad32(cleanAddress(to));
-  const paddedAmount = pad32(amount.toString(16));
-  return `0x${TRANSFER_SELECTOR}${paddedTo}${paddedAmount}`;
 }
 
 // Calldata for approve(spender, amount) on an ERC-20 token.

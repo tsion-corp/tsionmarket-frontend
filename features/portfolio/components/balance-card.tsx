@@ -6,7 +6,6 @@ import { BalanceCardDesktop } from "@/features/portfolio/components/balance-card
 import { BalanceCardMobile } from "@/features/portfolio/components/balance-card-mobile";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePendingBankDeposit } from "@/hooks/use-ramping";
-import { useGlobalBalance } from "@/hooks/use-global-balance";
 import { readyToSpendUsd } from "@/features/portfolio/lib/breakdown";
 import { OFFRAMP_MIN_USDC } from "@/lib/ramping/orders";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
@@ -22,11 +21,7 @@ interface BalanceCardProps {
 // with CSS. Both are presentational, so mounting both runs no effect twice and
 // costs no extra request.
 export function BalanceCard({ onOpenFunds, onOpenWithdraw }: BalanceCardProps) {
-  const { tokens, loading, refreshing, error } = usePortfolio();
-  // The headline figure spans everything the wallet holds today (spot +
-  // perps); readyToSpend below stays spot-only on purpose, see its own
-  // comment.
-  const { totalUsd } = useGlobalBalance();
+  const { totalUsd, tokens, loading, refreshing, error } = usePortfolio();
   const money = useMoney();
   const { hidden, toggle, mask } = useBalanceVisibility();
   // A confirmed bank deposit that has not settled yet holds the withdraw

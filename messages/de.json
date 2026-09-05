@@ -675,8 +675,6 @@
     "network": "Netzwerk",
     "chooseNetwork": "Netzwerk wählen",
     "unavailable": "Nicht verfügbar",
-    "tradingPaused": "Der Handel für diesen Token ist pausiert",
-    "checkingTradability": "Wird geprüft…",
     "enterAmount": "Betrag eingeben",
     "minimumUsd": "Minimum {amount} $",
     "notEnoughBalance": "Guthaben reicht nicht",
@@ -1435,14 +1433,6 @@
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
-        },
-        "arkjet": {
-          "name": "Arkjet",
-          "note": "Auszahlen, bevor der Multiplikator abstürzt"
-        },
-        "chicken": {
-          "name": "Pilot Chicken",
-          "note": "Überquere jede Spur und zahle vor dem Absturz aus"
         },
         "ayo": {
           "name": "Ayo",
@@ -2224,8 +2214,6 @@
     "signInFirst": "Melde dich an, um Kash+ zu kaufen.",
     "history": "Verlauf",
     "historyTitle": "Kash+ Verlauf",
-    "historyTabActivity": "Transaktionen",
-    "historyTabPoints": "Aktivitätspunkte",
     "historyLoading": "Verlauf wird geladen…",
     "historyFailed": "Ihr Verlauf konnte nicht geladen werden. Versuchen Sie es später erneut.",
     "historyEmpty": "Noch nichts hier. Käufe, Belohnungen und Umwandlungen erscheinen hier.",
@@ -2282,14 +2270,11 @@
     "tierLockedRate": "· gesperrt",
     "tierCapExplainer": "Volumen wird in $50-Stufen aufgeteilt und jede zahlt ihren eigenen Satz, wie Steuerstufen. Deine Stufe begrenzt, wie viel sie zahlen: auf Stufe 1 verdient ein $150-Trade auf jeden Dollar den Satz von Stufe 1.",
     "tierCapExample": "Du bist auf Stufe {current}. Volumen über deiner Stufe verdient weiter zu deinem Satz, bis du upgradest.",
-    "historySubtitle": "Käufe, Verkäufe, Sendungen und Auszahlungen.",
-    "historySubtitlePoints": "Jeder verdiente Punkt, Woche für Woche.",
+    "historySubtitle": "Jeder verdiente Punkt und jede abgewickelte Umwandlung.",
     "historyOnVolume": "{type} · ${volume} Volumen",
     "historyOnChain": "tx",
     "historyFromFee": "aus ${fee} Gebühr",
     "historyEmptyHint": "Kaufe KASH und starte zu traden, um hier Aktivität zu sehen.",
-    "historyEmptyPoints": "Noch keine Punkte.",
-    "historyEmptyPointsHint": "Handle, um Punkte für deine nächste Auszahlung zu verdienen.",
     "syncing": "Aktualisiert…",
     "maxLabel": "Max",
     "upgrading": "Wird bestätigt…",
@@ -2303,7 +2288,8 @@
     "tierUnaffordable": "Zu wenig",
     "comingSoon": "Bald verfügbar",
     "comingSoonToast": "Kash kommt bald. Kaufen, Verdienen und Umwandeln öffnen in Kürze.",
-    "reserveCannotCover": "Kann diesen Betrag gerade nicht einlösen. Versuche weniger oder schau später vorbei.",
+    "redeemReserve": "Einlösereserve",
+    "reserveCannotCover": "Die Einlösereserve kann diesen Betrag gerade nicht decken. Versuchen Sie einen kleineren Betrag oder schauen Sie bald wieder vorbei.",
     "buyingPaused": "Der Kauf ist derzeit pausiert. Schauen Sie bald wieder vorbei."
   },
   "referral": {

@@ -675,8 +675,6 @@
     "network": "Red",
     "chooseNetwork": "Elige una red",
     "unavailable": "No disponible",
-    "tradingPaused": "El trading está en pausa para este token",
-    "checkingTradability": "Comprobando…",
     "enterAmount": "Introduce un importe",
     "minimumUsd": "Mínimo {amount} $",
     "notEnoughBalance": "Saldo insuficiente",
@@ -1435,14 +1433,6 @@
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
-        },
-        "arkjet": {
-          "name": "Arkjet",
-          "note": "Retira antes de que caiga el multiplicador"
-        },
-        "chicken": {
-          "name": "Pilot Chicken",
-          "note": "Cruza cada carril y retira antes del choque"
         },
         "ayo": {
           "name": "Ayo",
@@ -2224,8 +2214,6 @@
     "signInFirst": "Entra para comprar Kash+.",
     "history": "Historial",
     "historyTitle": "Historial de Kash+",
-    "historyTabActivity": "Transacciones",
-    "historyTabPoints": "Puntos de actividad",
     "historyLoading": "Cargando tu historial…",
     "historyFailed": "No pudimos cargar tu historial. Inténtalo más tarde.",
     "historyEmpty": "Nada por aquí todavía. Las compras, recompensas y conversiones aparecerán aquí.",
@@ -2282,14 +2270,11 @@
     "tierLockedRate": "· bloqueado",
     "tierCapExplainer": "El volumen se divide en tramos de $50 y cada tramo paga su propia tasa, como los tramos fiscales. Tu nivel limita cuánto pueden pagar: en el nivel 1, una operación de $150 gana la tasa del nivel 1 en cada dólar.",
     "tierCapExample": "Estás en el nivel {current}. El volumen por encima de tu tramo sigue ganando a la tasa de tu nivel hasta que mejores.",
-    "historySubtitle": "Compras, ventas, envíos y reclamos.",
-    "historySubtitlePoints": "Cada punto ganado, semana a semana.",
+    "historySubtitle": "Cada punto ganado y cada conversión liquidada.",
     "historyOnVolume": "{type} · ${volume} de volumen",
     "historyOnChain": "tx",
     "historyFromFee": "de ${fee} de comisión",
     "historyEmptyHint": "Compra KASH y empieza a operar para ver actividad aquí.",
-    "historyEmptyPoints": "Aún no hay puntos.",
-    "historyEmptyPointsHint": "Opera para empezar a ganar puntos para tu próximo pago.",
     "syncing": "Actualizando…",
     "maxLabel": "Máx",
     "upgrading": "Confirmando…",
@@ -2303,7 +2288,8 @@
     "tierUnaffordable": "Insuficiente",
     "comingSoon": "Próximamente",
     "comingSoonToast": "Kash llega pronto. Comprar, ganar y convertir se abrirán en breve.",
-    "reserveCannotCover": "No se puede canjear esa cantidad ahora. Prueba con menos o vuelve más tarde.",
+    "redeemReserve": "Reserva de canje",
+    "reserveCannotCover": "La reserva de canje no puede cubrir esta cantidad ahora mismo. Prueba con una cantidad menor o vuelve pronto.",
     "buyingPaused": "La compra está pausada por ahora. Vuelve pronto."
   },
   "referral": {

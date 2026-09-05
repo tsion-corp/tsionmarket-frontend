@@ -25,27 +25,23 @@ export function rwaRevalidate(path: string): number | undefined {
   return undefined;
 }
 
-// The perp surface: funding (Base -> Arbitrum) plus Ark's own reads and
-// prepare/submit write pairs (see apps/perp's own README for the signing
-// model: every write is signed client-side, this backend never forwards a
-// private key).
+// The perp surface: reads plus the quote and the non-custodial build calls that
+// return unsigned transaction steps. Nothing else is forwarded.
 const PERP_ALLOWED =
-  /^(health|funding\/deposit-address\/[^/]+|funding\/deposit-status\/[^/]+|ark\/wallet\/[^/]+|ark\/assets|ark\/prices|ark\/market-contexts|ark\/funding-history\/[^/]+|ark\/candles\/[^/]+|ark\/account-state\/[^/]+|ark\/arbitrum-balance\/[^/]+|ark\/wallets\/[^/]+\/(positions|positions\/closed|orders|builder-fee|abstraction-mode|withdrawals\/pending)|ark\/orders\/(prepare|submit|cancel\/(prepare|submit)|trigger\/(prepare|submit))|ark\/leverage\/(prepare|submit)|ark\/bridge\/(prepare|confirm)|ark\/dex-transfer\/(prepare|submit)|ark\/withdrawals\/(prepare|submit)|ark\/positions\/close\/(prepare|submit)|ark\/builder-fee\/(prepare|submit)|ark\/abstraction-mode\/(prepare|submit))$/;
+  /^(health|pairs|market|prices|snapshot|trades|orders|quote|build\/(approve-usdc|open-trade|close-trade|update-margin|update-tp-sl|cancel-order))$/;
 
 export function isAllowedPerpPath(path: string): boolean {
-  // Same traversal guard as the RWA allowlist: a raw ".." or encoded segment
-  // would otherwise slip through the pattern once the gateway normalizes the URL.
-  if (path.includes("..") || path.includes("%") || path.includes("\\")) return false;
   return PERP_ALLOWED.test(path);
 }
 
-// Ark's asset registry barely changes; live prices and per-market metrics turn
-// over in seconds, so a short shared cache collapses concurrent users into one
-// upstream call without serving stale marks. Everything else in the surface
-// (margin, positions, orders) must never be stale.
+// Pair config barely changes; live prices and per-market metrics turn over in
+// seconds, so a short shared cache collapses concurrent users into one upstream
+// call without serving stale marks. Trades and pending orders are polled after
+// keeper-executed fills and cancels, so they must always be fresh.
 export function perpRevalidate(path: string): number | undefined {
-  if (path === "ark/assets") return 300;
-  if (path === "ark/prices") return 3;
+  if (path === "pairs") return 300;
+  if (path === "prices" || path === "market") return 3;
+  if (path === "snapshot") return 60;
   return undefined;
 }
 

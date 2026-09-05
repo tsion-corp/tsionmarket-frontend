@@ -17,31 +17,21 @@ const TV_LOCALE: Record<string, string> = {
 
 interface TradingViewChartProps {
   symbol: string;
-  height?: number | string;
-  /** TradingView interval code — "1"/"5"/"15"/"60"/"240"/"D"/"W"/"M". */
-  interval?: string;
+  height?: number;
 }
 
-export function TradingViewChart({ symbol, height = 380, interval = "60" }: TradingViewChartProps) {
+export function TradingViewChart({ symbol, height = 380 }: TradingViewChartProps) {
   const locale = useLocale();
   const params = new URLSearchParams({
     symbol,
-    interval,
+    interval: "60",
     theme: "dark",
     style: "1",
     locale: TV_LOCALE[locale] ?? "en",
+    hidelegend: "1",
     saveimage: "0",
     withdateranges: "1",
     allow_symbol_change: "0",
-    // Explicit, not left to default: TradingView's own widget generator
-    // always sends these even at their default values, and a bare iframe
-    // hit directly (bypassing their tv.js loader) does NOT reliably fall
-    // back the same way — omitting them is what was hiding the left
-    // drawing-tools toolbar and the top indicators/screenshot toolbar.
-    hide_side_toolbar: "0",
-    hide_top_toolbar: "0",
-    enable_publishing: "0",
-    studies_overrides: "{}",
   });
   return (
     <iframe

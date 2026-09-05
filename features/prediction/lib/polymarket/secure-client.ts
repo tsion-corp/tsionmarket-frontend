@@ -4,67 +4,13 @@ import {
   createSecureClient,
   forkEnvironmentConfig,
   remoteBuilderSigning,
-  type Signer,
-  type TransactionHandle,
 } from "@polymarket/client";
-import {
-  prepareGaslessTransaction,
-  type GaslessWorkflow,
-  type PrepareGaslessTransactionRequest,
-} from "@polymarket/client/actions";
 import { signerFrom } from "@polymarket/client/viem";
 import { createWalletClient, custom, type EIP1193Provider } from "viem";
 import { polygon } from "viem/chains";
 import { BUILDER_SIGN_PATH, POLYGON_RPC_PATH } from "@/lib/polymarket/config";
 
 export type SecureClient = Awaited<ReturnType<typeof createSecureClient>>;
-
-const signerByClient = new WeakMap<SecureClient, Signer>();
-
-async function completeGaslessWorkflow(
-  workflow: GaslessWorkflow,
-  signer: Signer
-): Promise<TransactionHandle> {
-  let result = await workflow.next();
-
-  while (!result.done) {
-    try {
-      switch (result.value.kind) {
-        case "requestAddress":
-          result = await workflow.next(await signer.getAddress());
-          break;
-        case "signGaslessTypedData":
-          result = await workflow.next(await signer.signTypedData(result.value.payload));
-          break;
-        case "signGaslessMessage":
-          result = await workflow.next(await signer.signMessage(result.value.payload));
-          break;
-      }
-    } catch (error) {
-      result = await workflow.throw(error);
-    }
-  }
-
-  return result.value;
-}
-
-// The high-level SDK only exposes predefined wallet actions. Cashing out pUSD
-// needs an atomic approve + offramp call, so complete its low-level gasless
-// workflow with the same signer used to create this authenticated client.
-export async function executeGaslessCalls(
-  client: SecureClient,
-  calls: PrepareGaslessTransactionRequest["calls"],
-  metadata: string
-): Promise<TransactionHandle> {
-  const signer = signerByClient.get(client);
-  if (!signer) throw new Error("The Polymarket wallet signer is unavailable.");
-
-  const workflow = await prepareGaslessTransaction(client, {
-    calls,
-    metadata,
-  });
-  return completeGaslessWorkflow(workflow, signer);
-}
 
 // Production, but reading the chain through our own proxy instead of the
 // public endpoint the SDK hardcodes. Everything else (contracts, CLOB, relayer)
@@ -99,12 +45,9 @@ export async function buildSecureClient(
     chain: polygon,
     transport: custom(provider),
   });
-  const signer = signerFrom(walletClient);
-  const client = await createSecureClient({
-    signer,
+  return createSecureClient({
+    signer: signerFrom(walletClient),
     apiKey: remoteBuilderSigning({ url: BUILDER_SIGN_PATH }),
     environment: appEnvironment(),
   });
-  signerByClient.set(client, signer);
-  return client;
 }

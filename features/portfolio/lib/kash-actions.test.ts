@@ -6,7 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const apiFetchMock = vi.fn();
 vi.mock("@/lib/api", () => ({ apiFetch: (...args: unknown[]) => apiFetchMock(...args) }));
 
-import { claimSettlementMessage, postKashClaim, postKashPurchase, postKashSubscribe } from "./kash";
+import {
+  newConversionKey,
+  postKashClaim,
+  postKashConversion,
+  postKashPurchase,
+  postKashSubscribe,
+} from "./kash";
 import { usdcAmountForPrice, usdcToAtomic, usdcTransferData } from "./kash-transfer";
 
 const WALLET = "0xe03a10efc2980cfb2c8153f80cb0e3992eb89a83";
@@ -66,27 +72,29 @@ describe("send", () => {
   });
 });
 
-describe("claim", () => {
-  it("settles only the caller's own wallet, carrying the signed proof of control", async () => {
-    await postKashClaim(WALLET, "0xsig", 1_700_000_000_000);
-    expect(urlOf(0)).toContain("/api/kash/settlements/claim");
-    expect(bodyOf(0)).toEqual({ wallet: WALLET, signature: "0xsig", timestamp: 1_700_000_000_000 });
+describe("convert", () => {
+  it("sends a retry key so a timeout cannot burn twice", async () => {
+    // The real path is three sequential Base transactions against a 10s
+    // gateway timeout, so the client WILL retry conversions that already
+    // burned and already paid.
+    const key = newConversionKey();
+    await postKashConversion(WALLET, "500", undefined, key);
+    await postKashConversion(WALLET, "500", undefined, key);
+    expect(bodyOf(0).idempotencyKey).toBe(bodyOf(1).idempotencyKey);
+  });
+
+  it("passes the permit through untouched", async () => {
+    const permit = { deadline: 1, v: 27, r: "0xr", s: "0xs" };
+    await postKashConversion(WALLET, "500", permit, "k");
+    expect(bodyOf(0).permit).toEqual(permit);
   });
 });
 
-describe("claimSettlementMessage", () => {
-  it("matches the backend's WalletSignatureVerifier format byte-for-byte", () => {
-    // The backend recovers the signer over this exact string — drifting the
-    // format here breaks every claim with a wallet-signature mismatch, not a
-    // visible error at the call site.
-    expect(claimSettlementMessage(WALLET, 1_700_000_000_000)).toBe(
-      "World Street — claim Kash settlement\nwallet: 0xe03a10efc2980cfb2c8153f80cb0e3992eb89a83\nts: 1700000000000"
-    );
-  });
-
-  it("lowercases the wallet, since the backend recovers and compares lowercase", () => {
-    const upper = "0xE03A10EFC2980CFB2C8153F80CB0E3992EB89A83";
-    expect(claimSettlementMessage(upper, 1)).toBe(claimSettlementMessage(WALLET, 1));
+describe("claim", () => {
+  it("settles only the caller's own wallet", async () => {
+    await postKashClaim(WALLET);
+    expect(urlOf(0)).toContain("/api/kash/settlements/claim");
+    expect(bodyOf(0)).toEqual({ wallet: WALLET });
   });
 });
 

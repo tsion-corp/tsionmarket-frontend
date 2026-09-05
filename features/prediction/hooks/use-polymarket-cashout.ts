@@ -5,12 +5,11 @@ import { OrderSide, OrderType } from "@polymarket/client";
 import { approveErc1155ForAll, fetchNegRisk } from "@polymarket/client/actions";
 import { friendlyError } from "@/lib/errors";
 import { usePolymarketSession } from "@/features/prediction/hooks/use-polymarket-session";
-import { refreshCollateralUsd } from "@/features/prediction/lib/polymarket/collateral";
 import { sellFloorPrice } from "@/features/prediction/lib/positions";
 import { BUILDER_CODE, CONTRACTS } from "@/lib/polymarket/config";
 import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
 
-export type CashoutPhase = "idle" | "selling" | "approving" | "settling";
+export type CashoutPhase = "idle" | "selling" | "approving";
 
 // A user-facing error whose message is already friendly. Every failure leaves
 // this hook as one of these, so a caller can read the reason off the error it
@@ -62,9 +61,8 @@ export interface CashOutInput {
 }
 
 export interface CashOutResult {
-  // Actual pUSD received from the matched sell.
+  // Estimated proceeds in USD at the estimated fill price.
   proceedsUsd: number;
-  settlementPending: boolean;
 }
 
 // Sells a held position back into the market before resolution — the standard
@@ -79,30 +77,25 @@ export function usePolymarketCashout() {
 
   const placeSell = useCallback(async (client: SecureClient, input: CashOutInput) => {
     const shares = String(input.shares);
-    const [book, estimate] = await Promise.all([
-      client.fetchOrderBook({ tokenId: input.tokenId }),
-      client.estimateMarketPrice({
-        tokenId: input.tokenId,
-        side: OrderSide.SELL,
-        shares,
-        orderType: OrderType.FOK,
-      }),
-    ]);
+    const estimate = await client.estimateMarketPrice({
+      tokenId: input.tokenId,
+      side: OrderSide.SELL,
+      shares,
+      orderType: OrderType.FAK,
+    });
     // No bid depth to sell into: the book is empty on the buy side.
-    if (book.bids.length === 0 || !(estimate > 0)) {
-      throw new CashoutError(NO_LIQUIDITY_MESSAGE);
-    }
+    if (!(estimate > 0)) throw new CashoutError(NO_LIQUIDITY_MESSAGE);
 
     const res = await client.placeMarketOrder({
       tokenId: input.tokenId,
       side: OrderSide.SELL,
       shares,
-      minPrice: sellFloorPrice(estimate, book.tickSize),
-      orderType: OrderType.FOK,
+      minPrice: sellFloorPrice(estimate),
+      orderType: OrderType.FAK,
       ...(BUILDER_CODE ? { builderCode: BUILDER_CODE as `0x${string}` } : {}),
     });
     if (!res.ok) throw new Error(res.message || "The sell was not accepted.");
-    return res;
+    return { proceedsUsd: input.shares * estimate };
   }, []);
 
   const cashOut = useCallback(
@@ -111,9 +104,8 @@ export function usePolymarketCashout() {
       setPhase("selling");
       try {
         const client = await ensureReady();
-        let response;
         try {
-          response = await placeSell(client, input);
+          return await placeSell(client, input);
         } catch (e) {
           if (!isApprovalError(e)) throw e;
           // Selling conditional tokens needs an ERC-1155 operator approval;
@@ -121,28 +113,8 @@ export function usePolymarketCashout() {
           setPhase("approving");
           await grantSellApprovals(client, input.tokenId);
           setPhase("selling");
-          response = await placeSell(client, input);
+          return await placeSell(client, input);
         }
-
-        setPhase("settling");
-        let settlementPending = false;
-        try {
-          await client.waitForOrderFillSettlement(response, { timeoutMs: 60_000 });
-          await refreshCollateralUsd(client);
-        } catch (settlementError) {
-          // The FOK order was already accepted and matched. A local settlement
-          // timeout must not invite a duplicate sell; the next refresh retries
-          // the balance-cache update safely.
-          settlementPending = true;
-          console.warn("Polymarket cash-out settlement is still pending", {
-            orderId: response.orderId,
-            error: settlementError,
-          });
-        }
-        return {
-          proceedsUsd: Number(response.takingAmount),
-          settlementPending,
-        };
       } catch (e) {
         // The message the user sees is deliberately plain, so log what actually
         // failed. Without this the CLOB's own reason for a rejection is only

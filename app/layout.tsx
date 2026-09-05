@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Inter, Noto_Sans, Roboto } from "next/font/google";
+import { Geist, Noto_Sans, Roboto } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -10,11 +10,6 @@ import "./globals.css";
 // to medium in globals.css) ships in one file, no per-weight requests.
 const geist = Geist({
   variable: "--font-body",
-  subsets: ["latin"],
-});
-
-const sportsbookInter = Inter({
-  variable: "--font-sportsbook",
   subsets: ["latin"],
 });
 
@@ -68,7 +63,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${geist.variable} ${sportsbookInter.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased`}
+      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>

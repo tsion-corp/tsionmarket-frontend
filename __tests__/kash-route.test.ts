@@ -51,7 +51,7 @@ describe("kash proxy route", () => {
 
   it("keeps status and quotes open to signed-out visitors", async () => {
     const { GET } = await loadRoute();
-    for (const path of [["status"], ["purchases", "quote"], ["desk", "sell", "quote"]]) {
+    for (const path of [["status"], ["purchases", "quote"], ["conversions", "quote"]]) {
       const res = await GET(makeReq(`https://app.test/api/kash/${path.join("/")}?amount=10`), {
         params: Promise.resolve({ path }),
       });
