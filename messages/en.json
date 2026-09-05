@@ -2177,6 +2177,8 @@
     "bannerSub": "Trade, play and refer. Every activity pays you back in Kash+.",
     "bannerCta": "Buy Kash+",
     "balanceTitle": "Kash+ balance",
+    "balanceUnavailable": "Couldn't load your balance. It is safe; retrying…",
+    "balanceNoWallet": "Your wallet is still setting up. Your balance appears once it is ready.",
     "buy": "Buy",
     "convert": "Convert",
     "gateTitle": "Progress to earning",

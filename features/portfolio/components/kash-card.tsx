@@ -50,8 +50,14 @@ export function KashCard({
   // True only while an action's effects are still landing — not on the
   // background poll, which would leave the card permanently pulsing.
   const syncing = useKashSyncing();
-  const { data: account } = useKashAccount();
+  const { data: account, isError, walletMissing } = useKashAccount();
   const { data: subscription } = useKashSubscription();
+
+  // An unknown balance must never render as zero. Someone who holds KASH would
+  // read that as their money gone, and the two states are indistinguishable
+  // once the fallback has been applied, so say which one this is.
+  const unavailable = !account && (isError || walletMissing);
+  const loading = !account && !unavailable;
 
   const balance = account?.balance ?? "0";
 
@@ -138,23 +144,36 @@ export function KashCard({
       </div>
 
       <div className="mt-3">
-        <div
-          className={`ws-display tnum flex items-end gap-1.5 leading-none tracking-[-0.02em] ${balanceTextSize}`}
-        >
-          <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>{" "}
-          <span className="ml-2 text-[19px] whitespace-nowrap text-amber-200/90">KASH+</span>
-          <span className="tnum ml-4 text-[13px] font-normal text-white/50">ESP</span>
-        </div>
-        <div className="mt-1.5 flex items-baseline gap-2">
-          <span className="tnum text-[13px] font-normal text-white/50">${balanceUsd}</span>
-          {/* The unit price, so the dollar figure above is checkable rather
-              than a second number the user has to trust. */}
-          {engineStatus && (
-            <span className="tnum text-[11.5px] font-normal text-white/30">
-              @ ${engineStatus.price.kashPriceUsd}
-            </span>
-          )}
-        </div>
+        {loading ? (
+          <>
+            <div className="h-[34px] w-40 animate-pulse rounded-lg bg-white/8" />
+            <div className="mt-1.5 h-[13px] w-20 animate-pulse rounded bg-white/6" />
+          </>
+        ) : unavailable ? (
+          <p className="text-[13px] leading-[1.5] font-normal text-white/50">
+            {walletMissing ? t("balanceNoWallet") : t("balanceUnavailable")}
+          </p>
+        ) : (
+          <>
+            <div
+              className={`ws-display tnum flex items-end gap-1.5 leading-none tracking-[-0.02em] ${balanceTextSize}`}
+            >
+              <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>{" "}
+              <span className="ml-2 text-[19px] whitespace-nowrap text-amber-200/90">KASH+</span>
+              <span className="tnum ml-4 text-[13px] font-normal text-white/50">ESP</span>
+            </div>
+            <div className="mt-1.5 flex items-baseline gap-2">
+              <span className="tnum text-[13px] font-normal text-white/50">${balanceUsd}</span>
+              {/* The unit price, so the dollar figure above is checkable rather
+                  than a second number the user has to trust. */}
+              {engineStatus && (
+                <span className="tnum text-[11.5px] font-normal text-white/30">
+                  @ ${engineStatus.price.kashPriceUsd}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="mt-5 flex gap-2">
@@ -185,7 +204,7 @@ export function KashCard({
           cumulative counter that never falls made a claimed balance look
           unclaimed, and the number stopped meaning anything actionable.
           Everything already converted lives in history. */}
-      {KASH_POINTS_LIVE && (
+      {KASH_POINTS_LIVE && account && (
         <div className="mt-4 border-t border-white/8 pt-3.5">
           <div className="mb-2.5 flex items-baseline justify-between">
             <span className="text-[11px] font-normal tracking-[0.05em] text-white/40 uppercase">

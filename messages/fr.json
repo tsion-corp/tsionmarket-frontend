@@ -2177,6 +2177,8 @@
     "bannerSub": "Tradez, jouez et parrainez. Chaque activité vous récompense en Kash+.",
     "bannerCta": "Acheter du Kash+",
     "balanceTitle": "Solde Kash+",
+    "balanceUnavailable": "Impossible de charger votre solde. Il est en sécurité ; nouvelle tentative…",
+    "balanceNoWallet": "Votre portefeuille est en cours de configuration. Votre solde s'affichera dès qu'il sera prêt.",
     "buy": "Acheter",
     "convert": "Convertir",
     "gateTitle": "Progression vers les gains",

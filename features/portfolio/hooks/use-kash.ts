@@ -70,7 +70,12 @@ export function useKashAccount() {
     refetchOnWindowFocus: true,
   });
 
-  return { ...query, wallet };
+  // The query only runs once Privy has resolved an embedded EVM wallet, so a
+  // signed-in user without one stays pending forever. Callers have to tell that
+  // apart from a load that is still in flight.
+  const walletMissing = ready && authenticated && !wallet;
+
+  return { ...query, wallet, walletMissing };
 }
 
 // The tier catalogue is engine config; it moves on deploys, not minutes.

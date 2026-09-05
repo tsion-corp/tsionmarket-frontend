@@ -2177,6 +2177,8 @@
     "bannerSub": "Handeln, spielen, empfehlen. Jede Aktivität zahlt sich in Kash+ aus.",
     "bannerCta": "Kash+ kaufen",
     "balanceTitle": "Kash+ Guthaben",
+    "balanceUnavailable": "Dein Guthaben konnte nicht geladen werden. Es ist sicher; neuer Versuch…",
+    "balanceNoWallet": "Deine Wallet wird noch eingerichtet. Dein Guthaben erscheint, sobald sie bereit ist.",
     "buy": "Kaufen",
     "convert": "Umwandeln",
     "gateTitle": "Fortschritt zum Verdienen",

@@ -2177,6 +2177,8 @@
     "bannerSub": "Negocie, jogue e indique. Cada atividade recompensa você em Kash+.",
     "bannerCta": "Comprar Kash+",
     "balanceTitle": "Saldo de Kash+",
+    "balanceUnavailable": "Não foi possível carregar o seu saldo. Ele está seguro; tentando de novo…",
+    "balanceNoWallet": "A sua carteira ainda está sendo configurada. O seu saldo aparece assim que ela estiver pronta.",
     "buy": "Comprar",
     "convert": "Converter",
     "gateTitle": "Progresso para ganhar",
