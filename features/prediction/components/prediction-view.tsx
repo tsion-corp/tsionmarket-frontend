@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { ArrowRightIcon } from "@/components/ui/icons";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { useMoney } from "@/components/ui/currency-select";
 import { PredictionCard } from "@/features/prediction/components/prediction-card";
@@ -24,13 +26,13 @@ import {
 } from "@/features/prediction/hooks/use-polymarket-cashout";
 import { useClaimedOnce } from "@/features/prediction/hooks/use-claimed-once";
 import { usePolymarketRedeem } from "@/features/prediction/hooks/use-polymarket-redeem";
-import { useSettleToBase } from "@/features/prediction/hooks/use-settle";
+import { SettleError, useSettleToBase } from "@/features/prediction/hooks/use-settle";
 import { PREDICTIONS } from "@/lib/data/dashboard";
 import { toast } from "@/lib/toast";
 import type { RawPosition } from "@/features/prediction/lib/positions";
 import type { Prediction } from "@/lib/types";
 
-export function PredictionView() {
+export function PredictionView({ showAll = false }: { showAll?: boolean }) {
   const t = useTranslations("prediction");
   const money = useMoney();
   const [desktop, setDesktop] = useState(false);
@@ -85,11 +87,22 @@ export function PredictionView() {
     if (!tokenId || !(shares > 0)) return;
     const toastId = toast.loading(t("toastSellingPosition"));
     try {
-      const { proceedsUsd } = await cashout.cashOut({ tokenId, shares });
-      toast.success(t("toastSoldPosition", { amount: money.formatExact(proceedsUsd) }), {
-        id: toastId,
-        sensitive: true,
-      });
+      const result = await cashout.cashOut({ tokenId, shares });
+      if (result.settlementPending) {
+        toast.success(t("toastSoldPosition", { amount: money.formatExact(result.proceedsUsd) }), {
+          id: toastId,
+          sensitive: true,
+        });
+      } else {
+        try {
+          await settle.settleToBase();
+          toast.success(t("toastCashOutSuccess"), { id: toastId, sensitive: true });
+        } catch {
+          // The CLOB sale already succeeded. Keep that outcome explicit so a
+          // failed bridge never invites the user to sell the position twice.
+          toast.error(t("toastClaimSettleFailed"), { id: toastId });
+        }
+      }
       setSlip(null);
       positions.refresh();
     } catch (e) {
@@ -107,14 +120,15 @@ export function PredictionView() {
       await settle.settleToBase();
       toast.success(t("toastCashOutSuccess"), { id: toastId });
       positions.refresh();
-    } catch {
-      toast.error(settle.error ?? t("toastCashOutFailed"), { id: toastId });
+    } catch (e) {
+      toast.error(e instanceof SettleError ? e.message : t("toastCashOutFailed"), { id: toastId });
     }
   };
 
   // Live Polymarket markets, with the static set as a fallback so the section
   // never blanks if the feed is briefly unavailable.
   const predictions = live && live.length > 0 ? live : PREDICTIONS;
+  const visiblePredictions = showAll ? predictions : predictions.slice(0, 8);
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -128,8 +142,22 @@ export function PredictionView() {
 
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <Eyebrow>{t("eyebrow")}</Eyebrow>
-      <h2 className="ws-display mt-2.5 text-[30px] tracking-[-0.02em]">{t("heading")}</h2>
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-end">
+        <div>
+          <Eyebrow>{t("eyebrow")}</Eyebrow>
+          <h2 className="ws-display mt-2.5 text-[30px] tracking-[-0.02em]">{t("heading")}</h2>
+        </div>
+
+        {!showAll && source === "polymarket" ? (
+          <Link
+            href="/prediction/markets"
+            className="group inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.12),rgba(255,255,255,0.055))] px-4 text-[13px] font-semibold text-white/75 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] transition-[border-color,color,transform] hover:-translate-y-px hover:border-white/20 hover:text-white"
+          >
+            {t("exploreAllMarkets")}
+            <ArrowRightIcon className="transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        ) : null}
+      </div>
 
       {/* Source switch: live Polymarket markets vs our on-chain CPMM markets. */}
       <div className="mt-4 inline-flex gap-1 rounded-xl bg-white/5 p-1">
@@ -167,13 +195,13 @@ export function PredictionView() {
             // three and four step in as the container genuinely fits them.
             <div className="@container">
               <div className="grid grid-cols-2 gap-4 @min-[900px]:grid-cols-3 @min-[900px]:gap-6 @min-[1240px]:grid-cols-4 @min-[1240px]:gap-7">
-                {predictions.slice(0, 8).map((p) => (
+                {visiblePredictions.map((p) => (
                   <PredictionCard key={p.q} prediction={p} onBuy={(yes) => openBet(p, yes)} />
                 ))}
               </div>
             </div>
           ) : (
-            <PredictionSlider predictions={predictions} onBuy={openBet} />
+            <PredictionSlider predictions={visiblePredictions} onBuy={openBet} />
           )}
 
           <PositionsPanel

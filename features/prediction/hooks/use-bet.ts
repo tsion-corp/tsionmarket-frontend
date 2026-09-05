@@ -8,15 +8,14 @@ import {
   type SessionStatus,
 } from "@/features/prediction/hooks/use-polymarket-session";
 import { usePolymarketFunding } from "@/features/prediction/hooks/use-polymarket-funding";
-import { readCollateralUsd } from "@/features/prediction/lib/polymarket/collateral";
+import {
+  readCollateralUsd,
+  waitForCollateralUsd,
+} from "@/features/prediction/lib/polymarket/collateral";
 import { BUILDER_CODE, CONTRACTS } from "@/lib/polymarket/config";
 import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
 
 export type BetPhase = "idle" | "placing" | "funding" | "settling" | "approving";
-
-// How long to keep waiting while the deposit bridge credits pUSD.
-const SETTLE_POLL_MS = 5000;
-const SETTLE_MAX_MS = 120_000;
 
 // Polymarket's deposit bridge silently ignores deposits below a per-asset
 // minimum; Base USDC is $2 (bridge /supported-assets). Fund at least this so a
@@ -36,8 +35,6 @@ function crossingPrice(estimate: number): number {
   const bumped = Math.ceil(estimate * (1 + PRICE_SLIPPAGE) * 100) / 100;
   return Math.min(Math.max(bumped, 0.01), MAX_SHARE_PRICE);
 }
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // A user-facing error whose message is already friendly, so the outer handler
 // shows it verbatim instead of running it through the generic translator.
@@ -135,14 +132,12 @@ export function useBet() {
 
           // Wait for the bridge to credit the pUSD before placing.
           setPhase("settling");
-          const started = Date.now();
-          while (available < input.amountUsd && Date.now() - started < SETTLE_MAX_MS) {
-            await delay(SETTLE_POLL_MS);
-            available = await readCollateralUsd(client);
-          }
+          available = await waitForCollateralUsd(client, input.amountUsd, {
+            initialAvailableUsd: available,
+          });
           if (available < input.amountUsd) {
             throw new BetError(
-              "Your funds are on the way. This can take a minute, so try placing the bet again shortly."
+              "Your Base transfer succeeded, but the Polygon pUSD credit is still pending. It will remain available for the next attempt."
             );
           }
         }

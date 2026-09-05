@@ -14,22 +14,21 @@ const RISK_STYLE: Record<TokenRiskLevel, string> = {
   UNKNOWN: "bg-white/6 text-white/45 border-white/12",
 };
 
-export function RiskBadge({ level }: { level: TokenRiskLevel }) {
+export function RiskBadge({ level }: { level: TokenRiskLevel | null | undefined }) {
   const t = useTranslations("meme");
-  // The trade service documents riskLevel as always present, but a token can
-  // reach here without one, and level.charAt() on a missing value took the
-  // whole page down with Next's unrecoverable-error screen. A badge is not
-  // worth a white screen: an unrated token renders as Unrated, which this
-  // component already knows how to draw.
-  const safe: TokenRiskLevel = level && level in RISK_STYLE ? level : "UNKNOWN";
+  // The wire schema marks riskLevel optional (lib/api/schemas/trade.ts) and
+  // the fetch layer casts without normalizing, so a token can arrive with no
+  // level at all: treat missing or unrecognized values as UNKNOWN instead of
+  // crashing the whole list.
+  const resolved: TokenRiskLevel = level && level in RISK_STYLE ? level : "UNKNOWN";
   return (
     // shrink-0 keeps it inside the card when the price beside it is long, and
     // nowrap stops "LOW RISK" breaking onto a second line, which made those
     // cards taller than the rest of their row.
     <span
-      className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] whitespace-nowrap uppercase ${RISK_STYLE[safe]}`}
+      className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] whitespace-nowrap uppercase ${RISK_STYLE[resolved]}`}
     >
-      {t(`risk${safe.charAt(0)}${safe.slice(1).toLowerCase()}`)}
+      {t(`risk${resolved.charAt(0)}${resolved.slice(1).toLowerCase()}`)}
     </span>
   );
 }

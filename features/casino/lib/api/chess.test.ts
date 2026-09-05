@@ -306,7 +306,7 @@ describe("computer matches", () => {
     expect(match.black?.username).toBe("Stockfish level 4");
   });
 
-  it("creates a staked game with the retry key the cashier requires", async () => {
+  it("forces staked computer games to unlimited time", async () => {
     chessClient.chessPost.mockResolvedValue(activeMatch("computer-staked"));
 
     await createComputerMatch({
@@ -324,9 +324,7 @@ describe("computer matches", () => {
       player: "0xhost",
       level: 8,
       color: "black",
-      time_mode: "real_time",
-      initial_seconds: 300,
-      increment_seconds: 3,
+      time_mode: "unlimited",
       stake_usdc: "2.5",
       idempotency_key: "computer-create-1",
     });

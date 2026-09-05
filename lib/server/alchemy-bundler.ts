@@ -12,7 +12,13 @@ const USER_OPERATION_METHODS = new Set([
   "pm_getPaymasterStubData",
   "pm_getPaymasterData",
 ]);
-const SPONSORED_SEND_METHOD = "eth_sendUserOperation";
+// The policy header goes on BOTH the estimate and the send. Alchemy's BSO docs
+// mention only the send, but the live bundler rejects a zero-fee
+// eth_estimateUserOperationGas that arrives without the policy context, quoted
+// verbatim: "Invalid fields set on User Operation ... User operation must
+// include a paymaster for sponsorship." Every sponsored action estimates before
+// sending, so a header-less estimate kills the flow before the send is tried.
+const SPONSORED_METHODS = new Set(["eth_sendUserOperation", "eth_estimateUserOperationGas"]);
 const PAYMASTER_METHODS = new Set(["pm_getPaymasterStubData", "pm_getPaymasterData"]);
 const MAX_BATCH_CALLS = 100;
 
@@ -78,7 +84,7 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
     calls.some((call) => Boolean(call && PAYMASTER_METHODS.has(call.method)));
   const needsBsoPolicy =
     target.sponsorshipMode === "bso" &&
-    calls.some((call) => call?.method === SPONSORED_SEND_METHOD);
+    calls.some((call) => Boolean(call && SPONSORED_METHODS.has(call.method)));
 
   if (needsPaymasterPolicy && !polygonPolicyId) {
     return NextResponse.json(
@@ -111,7 +117,25 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
       signal: AbortSignal.timeout(30_000),
       cache: "no-store",
     });
-    return new NextResponse(await response.text(), {
+    const body = await response.text();
+    // A JSON-RPC error from the bundler (schema rejection, wrong policy type,
+    // exhausted credits) otherwise passes through invisibly and surfaces only as
+    // a truncated toast, so log the full detail with the method that caused it.
+    try {
+      const parsed = JSON.parse(body);
+      for (const item of Array.isArray(parsed) ? parsed : [parsed]) {
+        const rpcError = (item as { error?: unknown })?.error;
+        if (rpcError) {
+          console.error(
+            `Alchemy bundler RPC error on ${network} (${calls.map((c) => c?.method).join(",")}):`,
+            JSON.stringify(rpcError)
+          );
+        }
+      }
+    } catch {
+      // A non-JSON body is the transport's problem, not ours to report here.
+    }
+    return new NextResponse(body, {
       status: response.status,
       headers: {
         "Content-Type": "application/json",

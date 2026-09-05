@@ -675,6 +675,8 @@
     "network": "Network",
     "chooseNetwork": "Choose a network",
     "unavailable": "Unavailable",
+    "tradingPaused": "Trading is paused for this token",
+    "checkingTradability": "Checking…",
     "enterAmount": "Enter an amount",
     "minimumUsd": "Minimum ${amount}",
     "notEnoughBalance": "Not enough balance",
@@ -1433,6 +1435,14 @@
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
+        },
+        "arkjet": {
+          "name": "Arkjet",
+          "note": "Cash out before the multiplier crashes"
+        },
+        "chicken": {
+          "name": "Pilot Chicken",
+          "note": "Cross each lane and cash out before the crash"
         },
         "ayo": {
           "name": "Ayo",
@@ -2214,6 +2224,8 @@
     "signInFirst": "Log in to buy Kash+.",
     "history": "History",
     "historyTitle": "Kash+ history",
+    "historyTabActivity": "Transactions",
+    "historyTabPoints": "Activity Points",
     "historyLoading": "Loading your history…",
     "historyFailed": "We couldn't load your history. Try again later.",
     "historyEmpty": "Nothing here yet. Purchases, rewards and conversions will appear here.",
@@ -2270,11 +2282,14 @@
     "tierLockedRate": "· locked",
     "tierCapExplainer": "Volume is split into $50 bands and each band pays its own rate, like tax brackets. Your tier caps how high those bands can pay: on tier 1, a $150 trade still earns the tier-1 rate on every dollar of it.",
     "tierCapExample": "You are on tier {current}. Volume above your band keeps earning at your tier’s rate until you upgrade.",
-    "historySubtitle": "Every point earned and conversion settled.",
+    "historySubtitle": "Buys, sells, sends and claims.",
+    "historySubtitlePoints": "Every point earned, week by week.",
     "historyOnVolume": "{type} · ${volume} volume",
     "historyOnChain": "tx",
     "historyFromFee": "from ${fee} fee",
     "historyEmptyHint": "Buy KASH and start trading to see activity here.",
+    "historyEmptyPoints": "No points yet.",
+    "historyEmptyPointsHint": "Trade to start earning points toward your next payout.",
     "syncing": "Updating…",
     "maxLabel": "Max",
     "upgrading": "Confirming…",
@@ -2288,8 +2303,7 @@
     "tierUnaffordable": "Not enough",
     "comingSoon": "Coming soon",
     "comingSoonToast": "Kash is almost here. Buying, earning and converting open soon.",
-    "redeemReserve": "Redemption reserve",
-    "reserveCannotCover": "The redemption reserve can't cover this amount right now. Try a smaller amount or check back soon.",
+    "reserveCannotCover": "Can't redeem that amount right now. Try less or check back soon.",
     "buyingPaused": "Buying is paused right now. Check back soon."
   },
   "referral": {

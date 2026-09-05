@@ -47,12 +47,38 @@ export function liquidationPrice(
   return side === "long" ? entry * (1 - distance) : entry * (1 + distance);
 }
 
-// Estimated fee to open a position, a flat rate on the notional size. Like the
-// liquidation model this is a UI estimate; real venues vary the rate per market.
-export const OPEN_FEE_RATE = 0.0006;
+// Estimated fee on a perps open or close, a flat rate on the notional size —
+// mirrors Ark's Hyperliquid builder fee (PERPS_BUILDER_FEE_TENTHS_BPS, see
+// apps/perp), charged on BOTH legs of a round trip. Like the liquidation
+// model this is a UI estimate shown before signing; the real deduction
+// happens on Hyperliquid's side at fill.
+export const PERPS_TAKER_FEE_RATE = 0.0008;
 
 export function openFee(size: number): number {
-  return size > 0 ? size * OPEN_FEE_RATE : 0;
+  return size > 0 ? size * PERPS_TAKER_FEE_RATE : 0;
+}
+
+export function closeFee(size: number): number {
+  return size > 0 ? size * PERPS_TAKER_FEE_RATE : 0;
+}
+
+// Withdrawing from the perps wallet is two hops under the hood (HyperCore ->
+// Arbitrum -> Base) — this is a UI estimate of the combined cost, shown to
+// the user up front as one "platform fee" rather than the two-hop breakdown.
+// Hyperliquid's own flat withdrawal fee (verified against its docs this
+// session): $1, taken off the top before the second leg's conversion fee
+// applies to what's left.
+export const WITHDRAWAL_FLAT_FEE_USDC = 1;
+// The Arbitrum -> Base conversion leg's fee rate, applied to the balance
+// remaining after the flat fee above. The real amount is fixed by a live
+// quote at withdrawal time; this estimate just sets expectations beforehand.
+export const WITHDRAWAL_CONVERSION_FEE_RATE = 0.002;
+
+export function estimatedWithdrawalFee(amountUsdc: number): number {
+  if (amountUsdc <= 0) return 0;
+  const flatFee = Math.min(amountUsdc, WITHDRAWAL_FLAT_FEE_USDC);
+  const afterFlatFee = amountUsdc - flatFee;
+  return flatFee + afterFlatFee * WITHDRAWAL_CONVERSION_FEE_RATE;
 }
 
 // Amount of the receive asset you get by paying `amount` of the pay asset,
@@ -66,10 +92,13 @@ export function formatUsd(value: number): string {
   if (!Number.isFinite(value)) return "$0.00";
   const abs = Math.abs(value);
   const maxDigits = abs >= 1 ? 2 : abs >= 0.01 ? 4 : 6;
-  return `$${value.toLocaleString(undefined, {
+  const formatted = abs.toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: maxDigits,
-  })}`;
+  });
+  // The sign belongs before the currency symbol ("-$1.00"), not inside the
+  // number ("$-1.00") — toLocaleString on a negative value does the latter.
+  return value < 0 ? `-$${formatted}` : `$${formatted}`;
 }
 
 // Trimmed token amount for display. Large amounts show fewer decimals.
@@ -78,4 +107,15 @@ export function formatAmount(value: number): string {
   const abs = Math.abs(value);
   const maxDigits = abs >= 1000 ? 2 : abs >= 1 ? 4 : 6;
   return value.toLocaleString(undefined, { maximumFractionDigits: maxDigits });
+}
+
+// Large dollar figures (volume, open interest) as "$1.2M" rather than every digit.
+export function formatCompactUsd(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: "USD",
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
 }

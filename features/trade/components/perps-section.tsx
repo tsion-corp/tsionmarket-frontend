@@ -14,7 +14,7 @@ import { PerpsView } from "@/features/trade/components/perps-view";
 export function PerpsSection() {
   const tSections = useTranslations("sections");
   return (
-    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto w-full max-w-[1920px] p-4 sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Eyebrow>{tSections("perps")}</Eyebrow>
         <PerpModeSwitch />

@@ -43,7 +43,7 @@ const STEP_DEFS: StepDef[] = [
   { key: "kash", chrome: "[data-tour='kash']", side: "bottom" },
   { key: "addFunds", chrome: "[data-tour='add-funds']", side: "top" },
   { key: "spot", section: "spot", side: "bottom" },
-  { key: "perps", section: "perps", side: "bottom" },
+  { key: "perps", chrome: "[data-tour-nav='perps']", side: "right" },
   { key: "meme", section: "meme", side: "bottom" },
   { key: "rwa", section: "rwa", side: "bottom" },
   { key: "prediction", chrome: "[data-tour-nav='prediction']", side: "right" },

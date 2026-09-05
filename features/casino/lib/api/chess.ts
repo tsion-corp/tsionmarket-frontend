@@ -336,13 +336,7 @@ export async function createComputerMatch(
     player: input.player,
     level: input.level,
     color: input.color,
-    time_mode: input.timeMode,
-    ...(input.timeMode === "real_time"
-      ? {
-          initial_seconds: input.initialSeconds,
-          increment_seconds: input.incrementSeconds,
-        }
-      : {}),
+    time_mode: "unlimited",
     ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
     ...(input.coachEnabled ? { coach_enabled: true } : {}),
     ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),

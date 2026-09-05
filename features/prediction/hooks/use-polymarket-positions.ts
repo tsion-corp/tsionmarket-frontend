@@ -5,9 +5,9 @@ import { usePrivy } from "@privy-io/react-auth";
 import { friendlyError } from "@/lib/errors";
 import { usePolymarketSession } from "@/features/prediction/hooks/use-polymarket-session";
 import {
-  readCollateralUsd,
   readUnsettledUsdcUsd,
   readWalletPusdUsd,
+  refreshCollateralUsd,
 } from "@/features/prediction/lib/polymarket/collateral";
 import { getWalletAddress } from "@/lib/user";
 import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
@@ -38,7 +38,7 @@ export function usePolymarketPositions() {
       const eoa = getWalletAddress(user, "ethereum");
       const [page, collateral, walletPusd, unsettled] = await Promise.all([
         client.listPositions().firstPage(),
-        readCollateralUsd(client).catch(() => 0),
+        refreshCollateralUsd(client).catch(() => 0),
         eoa ? readWalletPusdUsd(eoa) : Promise.resolve(0),
         eoa ? readUnsettledUsdcUsd(eoa) : Promise.resolve(0),
       ]);

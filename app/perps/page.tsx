@@ -1,24 +1,22 @@
 "use client";
 
-import { useMemo } from "react";
-import { useTranslations } from "next-intl";
-import { DashboardShell } from "@/components/layout/dashboard-shell";
-import { buildNav } from "@/components/layout/nav-items";
 import { AuthGuard } from "@/components/auth/auth-guard";
-import { PerpsSection } from "@/features/trade/components/perps-section";
-import { loadInterest } from "@/lib/preferences";
+import { PerpsSection, PerpsBackLink } from "@/features/trade";
 
-// Perpetuals as its own page. The perps desk owns its order ticket and its
-// own sheets, so this route needs no modal host.
+// Perpetuals as its own immersive, full-viewport screen: no sidebar, no
+// topbar, just a back link to Portfolio (the account home) and the perps
+// desk itself. PerpsSection is the same component /dashboard's own portfolio
+// scroll-anchor mounts, so the body is identical either way — only the
+// chrome around it differs here.
 export default function PerpsPage() {
-  const tSections = useTranslations("sections");
-  const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
-
   return (
     <AuthGuard>
-      <DashboardShell nav={nav} activeSection="perps">
+      <div className="min-h-screen bg-black text-white">
+        <div className="mx-auto w-full max-w-[1920px] px-4 pt-5 sm:px-6 lg:px-8">
+          <PerpsBackLink href="/dashboard#portfolio" label="Portfolio" />
+        </div>
         <PerpsSection />
-      </DashboardShell>
+      </div>
     </AuthGuard>
   );
 }

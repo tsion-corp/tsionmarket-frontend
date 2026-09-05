@@ -139,6 +139,14 @@ export async function sendSponsoredEvmCalls({
 
   const bundlerTransport = http(`${BUNDLER_PATH}/${target.network}`, {
     fetchOptions: { headers: { Authorization: `Bearer ${accessToken}` } },
+    // The Alchemy app enforces a compute-units-per-SECOND cap shared with the
+    // dashboard's read traffic, and a page-load burst can 429 the very send
+    // the user just clicked. viem's default 3 retries at ~150ms base give up
+    // inside the same burst; spacing them out rides past it instead.
+    // Resubmitting an identical signed userOp is safe (same hash, the bundler
+    // dedupes), so patient retries cannot double-send.
+    retryCount: 4,
+    retryDelay: 1200,
   });
   const client = publicClientForChain(target.chainId);
   const read: ReadRequest = (args) =>

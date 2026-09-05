@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -79,7 +79,7 @@ describe("KashHistoryModal — rendering ledger entry kinds, including the new t
     expect(screen.getByText("-30 KASH")).toBeInTheDocument();
   });
 
-  it("links a transfer's tx hash to Basescan, same as any other on-chain row", () => {
+  it("shows a transfer's tx hash, a copy control and a Basescan link", () => {
     const txHash = `0x${"a".repeat(64)}`;
     kashHooks.useKashLedger.mockReturnValue({
       data: [
@@ -93,7 +93,82 @@ describe("KashHistoryModal — rendering ledger entry kinds, including the new t
       isError: false,
     });
     render(<KashHistoryModal open onClose={() => {}} />, { wrapper });
+    expect(screen.getByText("0xaaaa…aaaa")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
     const link = screen.getByRole("link", { name: "tx" });
     expect(link).toHaveAttribute("href", `https://basescan.org/tx/${txHash}`);
+  });
+
+  it("never shows a tx hash, copy control or Basescan link for a purchase or a claim — those are mints", () => {
+    const txHash = `0x${"b".repeat(64)}`;
+    kashHooks.useKashLedger.mockReturnValue({
+      data: [
+        entry({ id: "1", kind: "purchase", deltaKash: "500", txHash }),
+        entry({ id: "2", kind: "settlement", deltaKash: "40", txHash }),
+      ],
+      isPending: false,
+      isError: false,
+    });
+    render(<KashHistoryModal open onClose={() => {}} />, { wrapper });
+    expect(screen.queryByText("0xbbbb…bbbb")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "tx" })).not.toBeInTheDocument();
+  });
+});
+
+describe("KashHistoryModal — transactions vs activity points split", () => {
+  const mixed = [
+    entry({ id: "1", kind: "purchase", deltaKash: "500" }),
+    entry({ id: "2", kind: "transfer-in", deltaKash: "30", counterparty: entry().wallet }),
+    entry({ id: "3", kind: "points", deltaKash: "0", points: "275" }),
+    entry({ id: "4", kind: "locked-activity", deltaKash: "0" }),
+  ];
+
+  it("defaults to the Transactions tab, showing only real KSH movement", () => {
+    kashHooks.useKashLedger.mockReturnValue({ data: mixed, isPending: false, isError: false });
+    render(<KashHistoryModal open onClose={() => {}} />, { wrapper });
+
+    expect(screen.getByText("Purchase")).toBeInTheDocument();
+    expect(screen.getByText("Received")).toBeInTheDocument();
+    expect(screen.queryByText("Points earned")).not.toBeInTheDocument();
+    expect(screen.queryByText("Arkivity (below gate)")).not.toBeInTheDocument();
+  });
+
+  it("switches to the Activity Points tab and shows only points/locked-activity rows", () => {
+    kashHooks.useKashLedger.mockReturnValue({ data: mixed, isPending: false, isError: false });
+    render(<KashHistoryModal open onClose={() => {}} />, { wrapper });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Activity Points" }));
+
+    expect(screen.getByText("Points earned")).toBeInTheDocument();
+    expect(screen.getByText("Arkivity (below gate)")).toBeInTheDocument();
+    expect(screen.queryByText("Purchase")).not.toBeInTheDocument();
+    expect(screen.queryByText("Received")).not.toBeInTheDocument();
+  });
+
+  it("shows the transactions-specific empty state when there are only points rows", () => {
+    kashHooks.useKashLedger.mockReturnValue({
+      data: [entry({ kind: "points", deltaKash: "0", points: "10" })],
+      isPending: false,
+      isError: false,
+    });
+    render(<KashHistoryModal open onClose={() => {}} />, { wrapper });
+
+    expect(
+      screen.getByText("Nothing here yet. Purchases, rewards and conversions will appear here.")
+    ).toBeInTheDocument();
+  });
+
+  it("shows the points-specific empty state when there are only transaction rows", () => {
+    kashHooks.useKashLedger.mockReturnValue({
+      data: [entry({ kind: "purchase", deltaKash: "500" })],
+      isPending: false,
+      isError: false,
+    });
+    render(<KashHistoryModal open onClose={() => {}} />, { wrapper });
+
+    fireEvent.click(screen.getByRole("tab", { name: "Activity Points" }));
+
+    expect(screen.getByText("No points yet.")).toBeInTheDocument();
   });
 });

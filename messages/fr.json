@@ -675,6 +675,8 @@
     "network": "Réseau",
     "chooseNetwork": "Choisissez un réseau",
     "unavailable": "Indisponible",
+    "tradingPaused": "Le trading est en pause pour ce token",
+    "checkingTradability": "Vérification…",
     "enterAmount": "Saisissez un montant",
     "minimumUsd": "Minimum {amount} $",
     "notEnoughBalance": "Solde insuffisant",
@@ -1433,6 +1435,14 @@
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
+        },
+        "arkjet": {
+          "name": "Arkjet",
+          "note": "Encaissez avant la chute du multiplicateur"
+        },
+        "chicken": {
+          "name": "Pilot Chicken",
+          "note": "Traversez chaque voie et encaissez avant le crash"
         },
         "ayo": {
           "name": "Ayo",
@@ -2214,6 +2224,8 @@
     "signInFirst": "Connectez-vous pour acheter du Kash+.",
     "history": "Historique",
     "historyTitle": "Historique Kash+",
+    "historyTabActivity": "Transactions",
+    "historyTabPoints": "Points d'activité",
     "historyLoading": "Chargement de votre historique…",
     "historyFailed": "Impossible de charger votre historique. Réessayez plus tard.",
     "historyEmpty": "Rien ici pour l'instant. Les achats, récompenses et conversions apparaîtront ici.",
@@ -2270,11 +2282,14 @@
     "tierLockedRate": "· verrouillé",
     "tierCapExplainer": "Le volume est découpé en tranches de 50 $ et chaque tranche paie son propre taux, comme des tranches d’imposition. Votre niveau plafonne ce qu’elles peuvent payer : au niveau 1, une transaction de 150 $ rapporte le taux du niveau 1 sur chaque dollar.",
     "tierCapExample": "Vous êtes au niveau {current}. Le volume au-dessus de votre tranche continue de rapporter au taux de votre niveau jusqu’à ce que vous passiez au niveau supérieur.",
-    "historySubtitle": "Chaque point gagné et chaque conversion réglée.",
+    "historySubtitle": "Achats, ventes, envois et réclamations.",
+    "historySubtitlePoints": "Chaque point gagné, semaine après semaine.",
     "historyOnVolume": "{type} · {volume} $ de volume",
     "historyOnChain": "tx",
     "historyFromFee": "sur {fee} $ de frais",
     "historyEmptyHint": "Achetez du KASH et tradez pour voir votre activité ici.",
+    "historyEmptyPoints": "Pas encore de points.",
+    "historyEmptyPointsHint": "Tradez pour commencer à gagner des points pour votre prochain paiement.",
     "syncing": "Mise à jour…",
     "maxLabel": "Max",
     "upgrading": "Confirmation…",
@@ -2288,8 +2303,7 @@
     "tierUnaffordable": "Insuffisant",
     "comingSoon": "Bientôt disponible",
     "comingSoonToast": "Kash arrive bientôt. L'achat, les gains et la conversion ouvriront prochainement.",
-    "redeemReserve": "Réserve de rachat",
-    "reserveCannotCover": "La réserve de rachat ne peut pas couvrir ce montant pour le moment. Essayez un montant plus petit ou revenez bientôt.",
+    "reserveCannotCover": "Impossible d'échanger ce montant pour l'instant. Essayez moins, ou revenez plus tard.",
     "buyingPaused": "L'achat est suspendu pour le moment. Revenez bientôt."
   },
   "referral": {

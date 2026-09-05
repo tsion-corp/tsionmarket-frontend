@@ -3,7 +3,6 @@
 // engine is not involved. Pure so the encoding is exactly testable.
 
 import { encodeFunctionData } from "viem";
-import { kashToWei } from "@/features/portfolio/lib/kash-permit";
 
 const TRANSFER_ABI = [
   {
@@ -63,6 +62,15 @@ export function usdcToAtomic(usdcAmount: string): bigint {
   const [whole, fraction = ""] = trimmed.split(".");
   if (fraction.length > 6) throw new Error(`USDC has at most 6 decimals: ${usdcAmount}`);
   return BigInt(whole + fraction.padEnd(6, "0"));
+}
+
+/** KSH is 18-decimal. Parsed from the decimal string, never via a float. */
+export function kashToWei(amount: string): bigint {
+  const match = /^(\d+)(?:\.(\d{1,6}))?$/.exec(amount.trim());
+  if (!match) throw new Error(`not a Kash amount: ${amount}`);
+  const whole = match[1];
+  const fraction = (match[2] ?? "").padEnd(18, "0");
+  return BigInt(whole) * 10n ** 18n + BigInt(fraction);
 }
 
 export function kashTransferData(to: string, kashAmount: string): `0x${string}` {
