@@ -100,7 +100,7 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
             alt=""
             loading="lazy"
             className={`h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.04] ${
-              game.comingSoon && !game.preserveImageColor ? "opacity-50 grayscale" : ""
+              game.comingSoon ? "opacity-50 grayscale" : ""
             }`}
           />
           {game.tintRgb ? (
