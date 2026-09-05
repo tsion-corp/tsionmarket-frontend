@@ -10,6 +10,7 @@ import {
   perpErrorCode,
 } from "@/lib/perp/api";
 import { isLikelyClosed } from "@/lib/perp/logic";
+import { pollUnlessFailing } from "@/lib/query-poll";
 import type { PerpPair, PerpPairMarket, PerpPrice } from "@/lib/perp/types";
 
 // Market data hooks for the perp section. Pair config barely changes, so it is
@@ -26,20 +27,6 @@ const PRICE_POLL_MS = 5_000;
 const PRICE_POLL_SLOW_MS = 30_000;
 const MARKET_POLL_MS = 5_000;
 const PAIRS_STALE_MS = 5 * 60 * 1000;
-
-// How often a failing read is retried. React Query keeps firing
-// refetchInterval while every attempt errors, so a gateway answering NOT_FOUND
-// was asked again every 5s, two retries deep, for as long as the tab stayed
-// open. That is 36 failed requests a minute per hook, from every screen that
-// mounts one, and it is most of what a page load spends. Backing off rather
-// than stopping means the UI still recovers by itself when the gateway
-// returns, at a twelfth of the cost while it is down.
-const FAILING_POLL_MS = 60_000;
-
-export function pollUnlessFailing(healthyMs: number) {
-  return (query: { state: { status: string } }): number =>
-    query.state.status === "error" ? FAILING_POLL_MS : healthyMs;
-}
 
 // Not-deployed is terminal for the session: retrying cannot fix it, so stop
 // after the first response instead of hammering the proxy. NOT_FOUND is

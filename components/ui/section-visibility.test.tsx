@@ -52,6 +52,7 @@ describe("SectionVisibility", () => {
   });
 
   it("pauses again on the way past", () => {
+    vi.useFakeTimers();
     render(
       <SectionVisibility>
         <Poller />
@@ -59,7 +60,11 @@ describe("SectionVisibility", () => {
     );
     act(() => trigger?.([{ isIntersecting: true }]));
     act(() => trigger?.([{ isIntersecting: false }]));
+    act(() => {
+      vi.advanceTimersByTime(2_500);
+    });
     expect(screen.getByTestId("poller")).toHaveTextContent("paused");
+    vi.useRealTimers();
   });
 
   it("reaches a hook nested well below the section", () => {
@@ -86,6 +91,27 @@ describe("SectionVisibility", () => {
     // just because nobody wrapped them.
     render(<Poller />);
     expect(screen.getByTestId("poller")).toHaveTextContent("polling");
+  });
+
+  it("cannot gate a component that renders the provider itself", () => {
+    // The trap that made the real RWA gating dead code. A section calling
+    // useSectionActive() in its OWN body sits ABOVE its own returned JSX, so
+    // it reads the default and polls forever. The provider has to be hoisted
+    // above the section component, which is why app/dashboard/page.tsx wraps
+    // each section rather than each section wrapping itself.
+    function SelfWrapping() {
+      const active = useSectionActive();
+      return (
+        <SectionVisibility>
+          <span data-testid="self">{active ? "polling" : "paused"}</span>
+        </SectionVisibility>
+      );
+    }
+    render(<SelfWrapping />);
+    act(() => trigger?.([{ isIntersecting: false }]));
+    // Still "polling": proof the pattern does not work, kept so nobody
+    // reintroduces it believing it does.
+    expect(screen.getByTestId("self")).toHaveTextContent("polling");
   });
 
   it("keeps rendering its children either way, so no layout depends on this", () => {

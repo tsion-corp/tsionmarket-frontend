@@ -6,6 +6,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { fetchPerpPositions, isPerpUnavailable } from "@/lib/perp/api";
 import { getWalletAddress } from "@/lib/user";
 import type { OpenPosition } from "@/lib/perp/types";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 // The trader's open positions. Market opens and closes are keeper-executed
 // with a few seconds of delay, so after a trade this is polled (not assumed)
@@ -27,7 +28,7 @@ export function usePerpPositions(enabled = true) {
     queryKey: ["perp-positions", trader],
     queryFn: () => fetchPerpPositions(trader as string),
     enabled: enabled && trader != null,
-    refetchInterval: POSITIONS_POLL_MS,
+    refetchInterval: pollUnlessFailing(POSITIONS_POLL_MS),
     retry: (count, error) => !isPerpUnavailable(error) && count < 2,
   });
 

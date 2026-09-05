@@ -310,11 +310,19 @@ const ACTIVITY_CORE_NETWORKS = ["base-mainnet", "eth-mainnet"];
  * is cached, which makes it the cheap index for where this wallet actually
  * holds anything.
  */
-async function activityNetworks(evm: string): Promise<string[]> {
+async function activityNetworks(evm: string, solana?: string): Promise<string[]> {
   const known = new Set<string>(EVM_NETWORKS);
   try {
-    const portfolio = await fetchPortfolio(evm);
+    // `solana` is passed through only to match /api/portfolio's cache key
+    // (`portfolio:evm:solana`). Called without it this asked for a DIFFERENT
+    // key, so it never shared that snapshot and paid for a second full sweep
+    // of its own on every activity read.
+    const portfolio = await fetchPortfolio(evm, solana);
     const held = portfolio.tokens
+      // Balance, not mere presence. The portfolio pads its rows with a
+      // zero-balance native entry for every network it tracks, so filtering on
+      // presence alone returned all of them and this function selected nothing.
+      .filter((token) => token.balance > 0)
       .map((token) => token.network)
       .filter((network) => network !== SOLANA_NETWORK && known.has(network));
     return [...new Set([...ACTIVITY_CORE_NETWORKS, ...held])];
@@ -357,7 +365,7 @@ async function loadActivity(evm?: string, solana?: string, limit = 40): Promise<
 
   const evmItems: ActivityItem[] = [];
   if (evm) {
-    const networks = await activityNetworks(evm);
+    const networks = await activityNetworks(evm, solana);
     const batches = await Promise.all(
       networks.flatMap((network) =>
         (["in", "out"] as const).map(async (direction) => ({

@@ -50,9 +50,16 @@ export function createServiceClient(basePath: string, fallbackMessage: string): 
     apiFetch(path, init, { requireAuth: true }).then((res) => unwrap<T>(res, fallbackMessage));
 
   return {
-    // Public reads stay on plain fetch so they remain cacheable.
+    // Public reads send no credentials, so they stay cacheable, but they go
+    // through the one transport so the circuit breaker sees them. On plain
+    // fetch they did not: the lobby polls are among the loudest readers in the
+    // app, and while their gateway was returning 502 every tick still left the
+    // tab and cost an invocation, which is exactly what the breaker exists to
+    // stop.
     get: <T>(path: string, params?: QueryParams) =>
-      fetch(url(path, params)).then((res) => unwrap<T>(res, fallbackMessage)),
+      apiFetch(url(path, params), {}, { anonymous: true }).then((res) =>
+        unwrap<T>(res, fallbackMessage)
+      ),
     authedGet: <T>(path: string, params?: QueryParams) => authed<T>(url(path, params), {}),
     post: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("POST", body)),
     put: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("PUT", body)),

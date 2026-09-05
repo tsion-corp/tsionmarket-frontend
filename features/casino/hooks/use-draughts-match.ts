@@ -42,6 +42,7 @@ import type {
   DraughtsMatchState,
 } from "@/features/casino/lib/draughts/types";
 import type { DraughtsSide } from "@/features/casino/lib/draughts/engine";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 export const DRAUGHTS_KEYS = {
   challenges: ["casino", "draughts", "challenges"] as const,
@@ -209,14 +210,14 @@ export function useDraughtsLobby(wallet: string | null) {
   const challenges = useQuery({
     queryKey: DRAUGHTS_KEYS.challenges,
     queryFn: fetchOpenChallenges,
-    refetchInterval: LOBBY_POLL_MS,
+    refetchInterval: pollUnlessFailing(LOBBY_POLL_MS),
   });
 
   const history = useQuery({
     queryKey: DRAUGHTS_KEYS.history(wallet ?? "anon"),
     queryFn: () => fetchPlayerMatches(wallet as string),
     enabled: !!wallet,
-    refetchInterval: LOBBY_POLL_MS,
+    refetchInterval: pollUnlessFailing(LOBBY_POLL_MS),
   });
 
   // A finished game is history, not something to walk back into.
@@ -232,7 +233,7 @@ export function useDraughtsLobby(wallet: string | null) {
   const live = useQuery({
     queryKey: DRAUGHTS_KEYS.live,
     queryFn: fetchLiveMatches,
-    refetchInterval: LOBBY_POLL_MS,
+    refetchInterval: pollUnlessFailing(LOBBY_POLL_MS),
   });
 
   return {
@@ -254,7 +255,7 @@ export function useDraughtsLiveMatches(enabled = true) {
     queryKey: DRAUGHTS_KEYS.live,
     queryFn: fetchLiveMatches,
     enabled,
-    refetchInterval: LOBBY_POLL_MS,
+    refetchInterval: pollUnlessFailing(LOBBY_POLL_MS),
   });
   return {
     matches: live.data ?? EMPTY_MATCHES,

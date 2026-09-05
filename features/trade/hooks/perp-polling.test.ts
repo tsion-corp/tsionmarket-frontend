@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { pollUnlessFailing, retryUnlessUnavailable } from "@/features/trade/hooks/use-perp-markets";
+import { retryUnlessUnavailable } from "@/features/trade/hooks/use-perp-markets";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 /** A React Query state shape, only the field these predicates read. */
 const state = (status: "success" | "error" | "pending") => ({ state: { status } });

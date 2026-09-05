@@ -1,7 +1,7 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { useActivity } from "@/features/activity/hooks/use-activity";
+import { BELL_POLL_MS, useActivity } from "@/features/activity/hooks/use-activity";
 import { useDepositAnalytics } from "@/features/activity/hooks/use-deposit-analytics";
 import { getWalletAddress } from "@/lib/user";
 
@@ -19,7 +19,11 @@ import { getWalletAddress } from "@/lib/user";
 // chain deposit.
 export function DepositAnalytics() {
   const { user } = usePrivy();
-  const { items } = useActivity();
+  // Same query key as the notification bell. React Query drives a shared key
+  // at its shortest observer interval, so asking at the default 60s here
+  // silently cancelled the bell's five minute throttle for every dashboard.
+  // This only needs to NOTICE an arrival, not watch for one.
+  const { items } = useActivity({ pollMs: BELL_POLL_MS });
   useDepositAnalytics(items, getWalletAddress(user, "ethereum") ?? "");
   return null;
 }

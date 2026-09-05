@@ -30,6 +30,21 @@ vi.mock("@/lib/server/alchemy-keys", () => ({
 
 const WALLET = "0x1111111111111111111111111111111111111111";
 
+/**
+ * What the portfolio really returns for a wallet holding nothing: a padded
+ * zero-balance native row per tracked network. Any test that mocks an empty
+ * token list is testing a shape the code never sees.
+ */
+const BASELINE_ROWS = [
+  "base-mainnet",
+  "eth-mainnet",
+  "arb-mainnet",
+  "opt-mainnet",
+  "polygon-mainnet",
+  "apechain-mainnet",
+  "celo-mainnet",
+].map((network) => ({ network, symbol: "NATIVE", balance: 0 }));
+
 /** Distinct networks touched, since each is swept once per direction. */
 function networksSwept(): string[] {
   return [...new Set(swept)].sort();
@@ -47,7 +62,11 @@ afterEach(() => {
 
 describe("activity network scope", () => {
   it("sweeps only the core networks for a wallet holding nothing", async () => {
-    fetchPortfolio.mockResolvedValue({ totalUsd: 0, tokens: [] });
+    // The real portfolio pads its rows with a zero-balance native entry for
+    // every network it tracks, so an empty wallet still comes back with one
+    // row per chain. The first version of this test mocked a bare empty list,
+    // which is why it passed while the filter it was guarding did nothing.
+    fetchPortfolio.mockResolvedValue({ totalUsd: 0, tokens: BASELINE_ROWS });
     const { fetchActivity } = await import("@/lib/server/activity");
     await fetchActivity(WALLET);
 
@@ -59,8 +78,9 @@ describe("activity network scope", () => {
     fetchPortfolio.mockResolvedValue({
       totalUsd: 10,
       tokens: [
-        { network: "arb-mainnet", symbol: "USDC" },
-        { network: "polygon-mainnet", symbol: "USDT" },
+        ...BASELINE_ROWS,
+        { network: "arb-mainnet", symbol: "USDC", balance: 12 },
+        { network: "polygon-mainnet", symbol: "USDT", balance: 3 },
       ],
     });
     const { fetchActivity } = await import("@/lib/server/activity");
@@ -78,8 +98,9 @@ describe("activity network scope", () => {
     fetchPortfolio.mockResolvedValue({
       totalUsd: 10,
       tokens: [
-        { network: "base-mainnet", symbol: "USDC" },
-        { network: "base-mainnet", symbol: "DAI" },
+        ...BASELINE_ROWS,
+        { network: "base-mainnet", symbol: "USDC", balance: 5 },
+        { network: "base-mainnet", symbol: "DAI", balance: 5 },
       ],
     });
     const { fetchActivity } = await import("@/lib/server/activity");
@@ -101,7 +122,7 @@ describe("activity network scope", () => {
   it("ignores a Solana holding when choosing EVM networks", async () => {
     fetchPortfolio.mockResolvedValue({
       totalUsd: 5,
-      tokens: [{ network: "solana-mainnet", symbol: "SOL" }],
+      tokens: [...BASELINE_ROWS, { network: "solana-mainnet", symbol: "SOL", balance: 2 }],
     });
     const { fetchActivity } = await import("@/lib/server/activity");
     await fetchActivity(WALLET);
@@ -110,7 +131,7 @@ describe("activity network scope", () => {
   });
 
   it("serves a second read from the snapshot without sweeping again", async () => {
-    fetchPortfolio.mockResolvedValue({ totalUsd: 0, tokens: [] });
+    fetchPortfolio.mockResolvedValue({ totalUsd: 0, tokens: BASELINE_ROWS });
     const { fetchActivity } = await import("@/lib/server/activity");
     await fetchActivity(WALLET);
     const afterFirst = swept.length;

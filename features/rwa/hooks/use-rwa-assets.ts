@@ -22,7 +22,12 @@ export function useRwaAssets(filters: Record<string, string> = {}) {
     queryFn: () => fetchRwaAssets(filters),
     staleTime: SIXTY_SECONDS,
     gcTime: PERSISTED_GC_TIME,
-    enabled: active,
+    // `subscribed`, not `enabled`. Both stop the timer, but `enabled: false`
+    // also parks the query in `pending` with its data unavailable and
+    // `refetch()` refused, so scrolling back showed a skeleton. `subscribed`
+    // only detaches the observer: the last data stays on screen, `refetch()`
+    // still works, and the query drops out of the window-focus herd too.
+    subscribed: active,
     refetchInterval: SIXTY_SECONDS,
   });
   const assets = data ?? EMPTY_ASSETS;
@@ -38,7 +43,7 @@ export function useRwaAssets(filters: Record<string, string> = {}) {
 }
 
 export function useRwaCategories() {
-  const active = useSectionActive();
+  // No interval and a five minute staleTime, so there is no poll to pause.
   const { data } = useQuery({
     queryKey: ["rwa-categories"],
     queryFn: fetchRwaCategories,

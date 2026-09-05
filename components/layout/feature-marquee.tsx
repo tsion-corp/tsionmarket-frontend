@@ -13,6 +13,7 @@ import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import type { SectionId } from "@/lib/sections";
 import { playNotify } from "@/lib/notify-sound";
 import { cn } from "@/lib/utils";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 // The chrome strip under the topbar: every feature slides by as one-line
 // marketing, and live games take priority as a pinned chip that never scrolls
@@ -84,7 +85,7 @@ function useLiveEvents(): LiveEvent[] {
     queryKey: VAULT_KEYS.games,
     queryFn: fetchActiveGames,
     staleTime: LIVE_REFRESH_MS,
-    refetchInterval: LIVE_REFRESH_MS,
+    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
   });
   // The index trails the chain by minutes and drops games it considers done,
   // so a round someone started moments ago is invisible to it: the exact gap
@@ -94,20 +95,20 @@ function useLiveEvents(): LiveEvent[] {
     queryKey: [...VAULT_KEYS.games, "chain"],
     queryFn: readActiveGames,
     staleTime: LIVE_REFRESH_MS,
-    refetchInterval: LIVE_REFRESH_MS,
+    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
   });
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
   const chess = useQuery({
     queryKey: ["marquee", "chess-live"],
     queryFn: fetchChessLive,
     staleTime: LIVE_REFRESH_MS,
-    refetchInterval: LIVE_REFRESH_MS,
+    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
   });
   const checkers = useQuery({
     queryKey: ["marquee", "checkers-live"],
     queryFn: fetchCheckersLive,
     staleTime: LIVE_REFRESH_MS,
-    refetchInterval: LIVE_REFRESH_MS,
+    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
   });
 
   const lastmanData = lastman.isError ? null : (lastman.data ?? null);

@@ -18,15 +18,25 @@ import { circuitAllows, recordCircuitFailure, recordCircuitSuccess } from "@/lib
 export async function apiFetch(
   path: string,
   init: RequestInit = {},
-  opts: { requireAuth?: boolean } = {}
+  opts: { requireAuth?: boolean; anonymous?: boolean } = {}
 ): Promise<Response> {
-  const { accessToken, idToken } = await resolveAuthTokens();
-  if (opts.requireAuth && (!accessToken || !idToken)) {
-    throw new Error("Auth not ready, retrying");
-  }
   const headers = new Headers(init.headers);
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-  if (idToken) headers.set("privy-id-token", idToken);
+
+  // `anonymous` sends no credentials at all, for reads that are the same for
+  // everyone. It exists so a public read can still sit behind the breaker
+  // below without becoming uncacheable: a request carrying an Authorization
+  // header is private to one user, so a shared cache must not store it. That
+  // is why these reads used to go straight to `fetch` and skip the breaker
+  // entirely, which is the wrong trade — the breaker is what stops a failing
+  // endpoint costing an invocation per poll.
+  if (!opts.anonymous) {
+    const { accessToken, idToken } = await resolveAuthTokens();
+    if (opts.requireAuth && (!accessToken || !idToken)) {
+      throw new Error("Auth not ready, retrying");
+    }
+    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+    if (idToken) headers.set("privy-id-token", idToken);
+  }
 
   /**
    * The breaker sits at the ONE transport, not in each hook.

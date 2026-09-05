@@ -57,10 +57,16 @@ export function useKashAccount() {
     queryFn: () => getKashAccount(wallet as string),
     enabled: ready && authenticated && Boolean(wallet),
     refetchInterval: ACCOUNT_POLL_MS,
-    // Keep polling while the tab is backgrounded: a demo often means switching
-    // to a wallet or an explorer and coming back expecting the number to have
-    // moved. Refetch on return too, so it is never a stale frame.
-    refetchIntervalInBackground: true,
+    // Only while the tab is in front. Backgrounded, this was the single most
+    // expensive call in the app: a ten second poll that never slept, so one
+    // forgotten tab cost 360 authed reads an hour whether or not anyone was
+    // there. Every other poll in the app already pauses on blur.
+    //
+    // The case that comment defended, leaving to a wallet or an explorer and
+    // coming back expecting a new number, is what refetchOnWindowFocus is for.
+    // Returning to the tab still refetches immediately, so the number appears
+    // on its own exactly as before.
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { render, screen, act } from "@testing-library/react";
 import { useInView } from "@/hooks/use-in-view";
 
@@ -59,10 +60,64 @@ describe("useInView", () => {
   it("goes idle again when the section scrolls away", () => {
     // The half that actually saves the traffic: scrolling past the perp desk
     // has to stop its five second poll, not just delay starting it.
+    vi.useFakeTimers();
     render(<Probe />);
     act(() => trigger?.([{ isIntersecting: true }]));
     act(() => trigger?.([{ isIntersecting: false }]));
+    act(() => {
+      vi.advanceTimersByTime(2_500);
+    });
     expect(screen.getByTestId("probe")).toHaveTextContent("idle");
+    vi.useRealTimers();
+  });
+
+  it("does not thrash when a flick-scroll crosses the section twice", () => {
+    // Leaving is delayed on purpose. Without it, scrolling past the perp desk
+    // tore down and rebuilt its price socket on every pass.
+    vi.useFakeTimers();
+    render(<Probe />);
+    act(() => trigger?.([{ isIntersecting: true }]));
+    act(() => trigger?.([{ isIntersecting: false }]));
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+    act(() => trigger?.([{ isIntersecting: true }]));
+    act(() => {
+      vi.advanceTimersByTime(5_000);
+    });
+    // Back in view before the grace expired, so it never went idle.
+    expect(screen.getByTestId("probe")).toHaveTextContent("polling");
+    vi.useRealTimers();
+  });
+
+  it("observes an element that mounts LATER, not just one present on first render", () => {
+    // The bug this hook shipped with. The perp chart on a phone lives inside a
+    // trade sheet that renders null until opened, so the node did not exist
+    // when the old effect ran. With constant deps it never re-ran and the
+    // chart never appeared at all.
+    function LateMount() {
+      const [ref, inView] = useInView<HTMLDivElement>();
+      const [mounted, setMounted] = useState(false);
+      return (
+        <>
+          <button onClick={() => setMounted(true)}>show</button>
+          {mounted ? (
+            <div ref={ref} data-testid="late">
+              {inView ? "polling" : "idle"}
+            </div>
+          ) : null}
+        </>
+      );
+    }
+    render(<LateMount />);
+    expect(screen.queryByTestId("late")).not.toBeInTheDocument();
+
+    act(() => {
+      screen.getByText("show").click();
+    });
+    // The observer must have attached on mount, so an intersection reaches it.
+    act(() => trigger?.([{ isIntersecting: true }]));
+    expect(screen.getByTestId("late")).toHaveTextContent("polling");
   });
 
   it("disconnects the observer on unmount", () => {

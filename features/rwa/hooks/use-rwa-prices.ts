@@ -34,7 +34,13 @@ export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaAssetView[] {
 
   const { data } = useQuery<Record<string, RwaMarketStats>>({
     queryKey: ["rwa-market", key],
-    enabled: active && targets.length > 0,
+    // `subscribed`, not `enabled`. Both stop the timer, but `enabled: false`
+    // also parks the query in `pending` with its data unavailable and
+    // `refetch()` refused, so scrolling back showed a skeleton. `subscribed`
+    // only detaches the observer: the last data stays on screen, `refetch()`
+    // still works, and the query drops out of the window-focus herd too.
+    subscribed: active,
+    enabled: targets.length > 0,
     staleTime: MARKET_STALE_MS,
     refetchInterval: MARKET_STALE_MS,
     retry: 1,

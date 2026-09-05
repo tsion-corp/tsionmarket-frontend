@@ -13,6 +13,7 @@ import { MemeSection } from "@/features/trade/components/meme-section";
 import { ExploreBanners } from "@/components/layout/explore-banners";
 import { DepositAnalytics } from "@/features/activity";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { SectionVisibility } from "@/components/ui/section-visibility";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { DetailModal } from "@/components/layout/modals/detail-modal";
 import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
@@ -250,9 +251,15 @@ export default function DashboardPage() {
         <BankDepositAnalytics />
         {scrollSectionIds.map((id, index) => (
           <Fragment key={id}>
-            <section id={id} className={SECTION_CLASS}>
+            {/* The provider sits here, not inside each section, because a
+                section that calls its own data hooks in its component body is
+                ABOVE its own returned JSX and would read the context default
+                instead. RwaSection does exactly that, and its gating silently
+                did nothing until this moved up. Renders a div with the same id
+                and classes, so the scroll-spy anchor is unchanged. */}
+            <SectionVisibility id={id} className={SECTION_CLASS}>
               {sections[id]}
-            </section>
+            </SectionVisibility>
             {/* One doorway after each of the first few sections, so Prediction,
                 Earn and Arkade are met while reading rather than only at the
                 very bottom. */}

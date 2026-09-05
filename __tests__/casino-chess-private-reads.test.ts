@@ -23,13 +23,14 @@ beforeEach(() => {
 });
 
 describe("chess private reads", () => {
-  it("keeps cashier config on the public transport", async () => {
+  it("keeps cashier config credential-free so it stays cacheable", async () => {
     const { fetchCashierConfig } = await import("@/features/casino/lib/api/cashier");
 
     await fetchCashierConfig();
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/chess/cashier/config");
-    expect(api.apiFetch).not.toHaveBeenCalled();
+    // Anonymous, so no Authorization header and a shared cache may store it,
+    // but through the one transport so the breaker still sees it.
+    expect(api.apiFetch).toHaveBeenCalledWith("/api/chess/cashier/config", {}, { anonymous: true });
   });
 
   it("sends cashier balance through the auth-aware transport", async () => {

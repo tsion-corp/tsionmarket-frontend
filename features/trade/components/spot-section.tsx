@@ -6,7 +6,6 @@ import { SpotModeSwitch, useSpotMode } from "@/features/trade/components/spot-mo
 import { MarketsView } from "@/features/trade/components/markets-view";
 import { SpotSimpleView } from "@/features/trade/components/spot-simple-view";
 import type { BuyPayload, DetailPayload } from "@/lib/modal-types";
-import { SectionVisibility } from "@/components/ui/section-visibility";
 
 interface SpotSectionProps {
   onOpenDetail: (detail: DetailPayload) => void;
@@ -27,7 +26,7 @@ export function SpotSection({ onOpenDetail, onOpenBuy }: SpotSectionProps) {
   const { mode } = useSpotMode();
 
   return (
-    <SectionVisibility className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Eyebrow>{tSections("spot")}</Eyebrow>
         <SpotModeSwitch />
@@ -39,6 +38,6 @@ export function SpotSection({ onOpenDetail, onOpenBuy }: SpotSectionProps) {
           <SpotSimpleView onOpenDetail={onOpenDetail} onOpenBuy={onOpenBuy} />
         )}
       </div>
-    </SectionVisibility>
+    </div>
   );
 }

@@ -44,16 +44,7 @@ describe("refresh survives chain propagation", () => {
     expect(delays.split(",").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("polls fast enough that outside changes feel live", () => {
-    // Points now arrive from outside the app entirely; a minute of lag reads
-    // as "they never arrived".
-    const poll = Number(HOOKS.match(/ACCOUNT_POLL_MS = (\d+)/)?.[1] ?? 0);
-    expect(poll).toBeGreaterThan(0);
-    expect(poll).toBeLessThanOrEqual(15);
-  });
-
-  it("keeps polling while the tab is backgrounded", () => {
-    expect(HOOKS).toContain("refetchIntervalInBackground: true");
-    expect(HOOKS).toContain("refetchOnWindowFocus: true");
-  });
+  // The poll rate, the background pause and the catch-up on return are
+  // asserted behaviourally in use-kash-poll.test.tsx. They used to be grepped
+  // out of this file's source text, which could not tell 10s from 10 minutes.
 });

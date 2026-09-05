@@ -23,6 +23,7 @@ import { findAsset } from "@/lib/trade/assets";
 import { usePerpFormAutostage } from "@/features/trade/hooks/use-perp-form-autostage";
 import type { OpenPosition, PerpPair } from "@/lib/perp/types";
 import type { PerpPrefill } from "@/lib/voice/intent";
+import { useInView } from "@/hooks/use-in-view";
 
 // The guided interface: pick a major market, long or short, an amount and a
 // leverage, one tap to trade. Market orders only; TP/SL, limit orders and the
@@ -68,6 +69,8 @@ export function SimplePerps({
 }: SimplePerpsProps) {
   const t = useTranslations("perps");
   const tCommon = useTranslations("common");
+  // Holds the chart iframe back until the card is actually near the viewport.
+  const [chartRef, chartInView] = useInView<HTMLDivElement>();
   const setSelected = onSelect;
   const isMobile = useIsMobile();
   const setSheetOpen = onSheetOpenChange;
@@ -461,7 +464,7 @@ export function SimplePerps({
   );
 
   const chartCard = (
-    <div className="ws-card p-4 sm:p-5">
+    <div ref={chartRef} className="ws-card p-4 sm:p-5">
       <div className="mb-3 flex items-center gap-2.5">
         <AssetIcon sym={baseSym} bg={findAsset(baseSym)?.bg ?? "#3c3c3c"} size={30} />
         <div className="min-w-0 flex-1">
@@ -474,10 +477,22 @@ export function SimplePerps({
           {priceNum > 0 ? formatUsd(priceNum) : "—"}
         </FlashPrice>
       </div>
-      <TradingViewChart
-        symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
-        height={320}
-      />
+      {/* The iframe pulls TradingView's whole chart runtime from their CDN,
+          which is roughly two hundred requests. A perp symbol is always
+          selected and this card renders unconditionally on desktop, so the
+          dashboard was paying all of it before anyone scrolled to the desk.
+
+          SectionVisibility does not help here: it pauses polling hooks, it
+          deliberately does not unmount, so the iframe still mounted. This
+          gates the iframe itself and holds its height so nothing shifts. */}
+      {chartInView ? (
+        <TradingViewChart
+          symbol={pair ? tradingViewSymbol(pair) : tradingViewFallbackSymbol(baseSym)}
+          height={320}
+        />
+      ) : (
+        <div className="animate-pulse rounded-xl bg-white/6" style={{ height: 320 }} />
+      )}
     </div>
   );
 

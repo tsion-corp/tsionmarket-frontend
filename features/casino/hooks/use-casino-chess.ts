@@ -68,6 +68,7 @@ import {
 } from "@/features/casino/lib/api/chess-wire";
 import { subscribeChessTopic } from "@/features/casino/lib/chess/live-socket";
 import { applyUciToFen } from "@/features/casino/lib/chess/engine";
+import { pollUnlessFailing } from "@/lib/query-poll";
 import { resolveViewerColor } from "@/features/casino/lib/chess/viewer";
 import type {
   ChessChatMessage,
@@ -184,12 +185,12 @@ export function useChessLobby(wallet: string | null) {
   const challenges = useQuery({
     queryKey: [...CHESS_KEYS.challenges, wallet ?? "anon"],
     queryFn: () => fetchLobbyChallenges(wallet),
-    refetchInterval: LOBBY_POLL_MS,
+    refetchInterval: pollUnlessFailing(LOBBY_POLL_MS),
   });
   const live = useQuery({
     queryKey: CHESS_KEYS.liveMatches,
     queryFn: fetchLiveMatches,
-    refetchInterval: LOBBY_POLL_MS,
+    refetchInterval: pollUnlessFailing(LOBBY_POLL_MS),
   });
   const mine = wallet?.toLowerCase() ?? null;
   const allLive =

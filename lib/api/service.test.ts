@@ -1,16 +1,26 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createServiceClient } from "@/lib/api/service";
 
-// apiFetch pulls a Privy token, which is irrelevant here: what matters is that
-// authed calls route through it and public reads do not.
+// apiFetch pulls a Privy token. What matters here is not WHICH transport is
+// used but WHAT is sent: an authed read carries credentials, a public read
+// carries none, because a response to a request bearing an Authorization
+// header can never be stored by a shared cache. Both now go through the one
+// transport so the circuit breaker sees them; `anonymous` is what keeps the
+// public ones credential-free.
 vi.mock("@/lib/api", () => ({
-  apiFetch: vi.fn((path: string, init?: RequestInit) =>
-    Promise.resolve(
-      new Response(JSON.stringify({ success: true, data: { via: "apiFetch", path, init } }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
-    )
+  // An anonymous read is passed through to the stubbed global fetch, so the
+  // envelope, query-string and error cases below still exercise a real
+  // response. An authed read returns a marker instead, which is how those
+  // cases assert it never reached the network with credentials attached.
+  apiFetch: vi.fn((path: string, init?: RequestInit, opts?: { anonymous?: boolean }) =>
+    opts?.anonymous
+      ? fetch(path, init)
+      : Promise.resolve(
+          new Response(JSON.stringify({ success: true, data: { via: "apiFetch", path, init } }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        )
   ),
 }));
 
@@ -39,28 +49,30 @@ describe("createServiceClient", () => {
 
   it("prefixes the base path and unwraps the envelope", async () => {
     await expect(client.get("/thing")).resolves.toEqual({ ok: true });
-    expect(fetchSpy).toHaveBeenCalledWith("/api/demo/thing");
+    expect(fetchSpy).toHaveBeenCalledWith("/api/demo/thing", {});
   });
 
   it("drops undefined query values instead of sending the string undefined", async () => {
     await client.get("/list", { page: 2, status: undefined, live: true });
-    expect(fetchSpy).toHaveBeenCalledWith("/api/demo/list?page=2&live=true");
+    expect(fetchSpy).toHaveBeenCalledWith("/api/demo/list?page=2&live=true", {});
   });
 
   it("omits the query string entirely when nothing survives", async () => {
     await client.get("/list", { status: undefined });
-    expect(fetchSpy).toHaveBeenCalledWith("/api/demo/list");
+    expect(fetchSpy).toHaveBeenCalledWith("/api/demo/list", {});
   });
 
-  it("keeps a public read on plain fetch so it stays cacheable", async () => {
+  it("sends no credentials on a public read, so it stays cacheable", async () => {
     await client.get("/public");
-    expect(apiFetch).not.toHaveBeenCalled();
+    expect(apiFetch).toHaveBeenCalledWith("/api/demo/public", {}, { anonymous: true });
   });
 
   it("routes an authed read through apiFetch with requireAuth", async () => {
     await client.authedGet("/mine", { limit: 5 });
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(apiFetch).toHaveBeenCalledWith("/api/demo/mine?limit=5", {}, { requireAuth: true });
+    // And the public path must NOT be given credentials.
+    expect(apiFetch).not.toHaveBeenCalledWith("/api/demo/mine?limit=5", {}, { anonymous: true });
   });
 
   it("sends a JSON content-type only when there is a body", async () => {
