@@ -2451,6 +2451,15 @@
     "body": "We're putting the finishing touches on {brand}. Check back shortly. It'll be worth the wait.",
     "close": "Got it"
   },
+  "maintenance": {
+    "eyebrow": "Scheduled maintenance",
+    "title": "We are working on some updates to serve you better.",
+    "funds": "Your money is untouched. Balances, positions and holdings are exactly where you left them.",
+    "back": "We'll be back shortly. You can check in with us if you need anything in the meantime.",
+    "contactTitle": "Need us before then?",
+    "email": "Email support",
+    "whatsapp": "Message us on WhatsApp"
+  },
   "waitlist": {
     "countdownTitle": "The whole market, <accent>about to open.</accent>",
     "countdownSubtitle": "Stocks, gold, crypto and predictions in one app, with your money staying yours. The doors open when the clock hits zero.",

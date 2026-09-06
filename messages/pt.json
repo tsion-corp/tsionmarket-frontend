@@ -2451,6 +2451,15 @@
     "body": "Estamos a dar os últimos retoques no {brand}. Volte em breve. Vai valer a pena.",
     "close": "Entendi"
   },
+  "maintenance": {
+    "eyebrow": "Manutenção programada",
+    "title": "Estamos trabalhando em algumas melhorias para atender você melhor.",
+    "funds": "O seu dinheiro está intacto. Saldos, posições e ativos estão exatamente onde você deixou.",
+    "back": "Voltamos em breve. Fale com a gente se precisar de algo nesse meio-tempo.",
+    "contactTitle": "Precisa da gente antes disso?",
+    "email": "Falar com o suporte",
+    "whatsapp": "Fale com a gente no WhatsApp"
+  },
   "waitlist": {
     "countdownTitle": "O mercado inteiro, <accent>prestes a abrir.</accent>",
     "countdownSubtitle": "Ações, ouro, cripto e previsões num só app, com o seu dinheiro sempre seu. As portas abrem quando o relógio chegar a zero.",

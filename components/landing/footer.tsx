@@ -1,4 +1,4 @@
-import { BRAND } from "@/lib/brand";
+import { BRAND, SUPPORT_EMAIL, WHATSAPP_NUMBER } from "@/lib/brand";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 
@@ -31,13 +31,6 @@ const SOCIALS = [
   { href: "#", label: "Telegram" },
   { href: "#", label: "Discord" },
 ] as const;
-
-const SUPPORT_EMAIL = "tsionarksupport@gmail.com";
-
-// Support takes WhatsApp messages on this line, not voice calls, so it is a
-// wa.me link rather than a tel: one. wa.me wants the number in international
-// form with no plus and no leading zero.
-const WHATSAPP_NUMBER = "2349137089482";
 
 interface FooterProps {
   // When set, the film landing owns navigation: waypoint links scroll to

@@ -2451,6 +2451,15 @@
     "body": "Nous apportons les dernières touches à {brand}. Revenez bientôt. Cela en vaudra la peine.",
     "close": "Compris"
   },
+  "maintenance": {
+    "eyebrow": "Maintenance planifiée",
+    "title": "Nous travaillons à des améliorations pour mieux vous servir.",
+    "funds": "Votre argent n'est pas touché. Vos soldes, vos positions et vos avoirs sont exactement là où vous les avez laissés.",
+    "back": "Nous revenons très vite. Écrivez-nous si vous avez besoin de quelque chose entre-temps.",
+    "contactTitle": "Besoin de nous avant ?",
+    "email": "Écrire au support",
+    "whatsapp": "Nous écrire sur WhatsApp"
+  },
   "waitlist": {
     "countdownTitle": "Tout le marché, <accent>sur le point d'ouvrir.</accent>",
     "countdownSubtitle": "Actions, or, crypto et prédictions dans une seule app, votre argent restant le vôtre. Les portes s'ouvrent quand le compte atteint zéro.",

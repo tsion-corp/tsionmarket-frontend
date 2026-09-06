@@ -2451,6 +2451,15 @@
     "body": "Wir legen gerade letzte Hand an {brand}. Schauen Sie in Kürze wieder vorbei. Es lohnt sich.",
     "close": "Verstanden"
   },
+  "maintenance": {
+    "eyebrow": "Geplante Wartung",
+    "title": "Wir arbeiten an einigen Updates, um dich besser zu bedienen.",
+    "funds": "Dein Geld bleibt unberührt. Guthaben, Positionen und Bestände sind genau dort, wo du sie gelassen hast.",
+    "back": "Wir sind bald zurück. Melde dich gern bei uns, falls du in der Zwischenzeit etwas brauchst.",
+    "contactTitle": "Brauchst du uns vorher?",
+    "email": "Support per E-Mail",
+    "whatsapp": "Schreib uns auf WhatsApp"
+  },
   "waitlist": {
     "countdownTitle": "Der ganze Markt <accent>öffnet gleich.</accent>",
     "countdownSubtitle": "Aktien, Gold, Krypto und Prognosen in einer App, und Ihr Geld bleibt Ihres. Die Türen öffnen sich, wenn die Uhr auf null steht.",
