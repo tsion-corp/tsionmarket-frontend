@@ -1,3 +1,5 @@
+import { SUPPORT_EMAIL } from "@/lib/brand";
+
 // The privacy policy text.
 //
 // Kept out of the page component so the policy reads as a document and can be
@@ -8,7 +10,8 @@
 // file changes with it.
 
 export const LAST_UPDATED = "5 September 2026";
-export const SUPPORT_EMAIL = "tsionarksupport@gmail.com";
+// One inbox for the whole product; the privacy page must never name another.
+export { SUPPORT_EMAIL };
 
 interface Bullets {
   items: string[];

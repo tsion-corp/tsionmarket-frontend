@@ -17,7 +17,7 @@ describe("Footer support channels", () => {
     renderFooter();
     expect(screen.getByRole("link", { name: "Email" })).toHaveAttribute(
       "href",
-      "mailto:tsionarksupport@gmail.com"
+      "mailto:support@tsionark.com"
     );
   });
 

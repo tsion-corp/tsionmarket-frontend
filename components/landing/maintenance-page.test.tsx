@@ -29,7 +29,7 @@ describe("MaintenancePage", () => {
     renderPage();
     expect(screen.getByRole("link", { name: messages.maintenance.email })).toHaveAttribute(
       "href",
-      "mailto:tsionarksupport@gmail.com"
+      "mailto:support@tsionark.com"
     );
   });
 

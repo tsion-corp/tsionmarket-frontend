@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import PrivacyPage from "@/app/privacy/page";
 import { SECTIONS, SUPPORT_EMAIL } from "@/app/privacy/content";
+import { SUPPORT_EMAIL as BRAND_SUPPORT_EMAIL } from "@/lib/brand";
 
 describe("Privacy page", () => {
   it("renders every section, with an anchor the contents list can reach", () => {
@@ -36,4 +37,10 @@ describe("Privacy page", () => {
     expect(screen.getByText(/never by your email address/)).toBeInTheDocument();
     expect(screen.getByText(/are not in any replay/)).toBeInTheDocument();
   });
+});
+
+// The privacy page's contact address is the brand's one support inbox, not
+// a copy that can drift from it.
+it("reaches support at the brand's support address", () => {
+  expect(SUPPORT_EMAIL).toBe(BRAND_SUPPORT_EMAIL);
 });
