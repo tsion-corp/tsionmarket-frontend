@@ -279,8 +279,8 @@ export function DashboardPage() {
             {INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
-            {/* Hidden for now, so the gaps close up and the doorway track
-                  above is unaffected. */}
+            {/* Closed by the launch switch, the gaps close up and the doorway
+                  track above is unaffected. */}
             {MARKET_SQUARE_HIDDEN ? null : (
               <>
                 {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
@@ -296,7 +296,7 @@ export function DashboardPage() {
             purpose: someone opening Ark came for their money, and the square
             is what they scroll into once they are done reading it — met by
             browsing rather than by deciding to leave for another deployment.
-            Hidden for now: see MARKET_SQUARE_HIDDEN in lib/market-square.ts. */}
+            MARKET_SQUARE_HIDDEN in lib/market-square.ts is the off switch. */}
       {MARKET_SQUARE_HIDDEN ? null : (
         <SquareSection
           onOpenBuy={modals.openBuy}

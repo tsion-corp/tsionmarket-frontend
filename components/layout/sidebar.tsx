@@ -137,8 +137,8 @@ export function Sidebar({
             thing that makes every other section visible to other people — so
             burying it in the list would rank it as one product among nine.
             It is a sibling deployment, hence a link and an outbound mark; with
-            the URL unset it renders nothing rather than a dead entry.
-            Hidden for now: see MARKET_SQUARE_HIDDEN in lib/market-square.ts. */}
+            the URL unset it renders nothing rather than a dead entry, and
+            MARKET_SQUARE_HIDDEN in lib/market-square.ts is the off switch. */}
         {squareHref !== null ? (
           <>
             <a
