@@ -23,10 +23,17 @@ interface RpcCall {
   params?: unknown[];
 }
 
+// The Gas Manager policy is scoped to the Alchemy account owning this key, so
+// sponsorship reads ALCHEMY_API_KEY and nothing else.
+//
+// There used to be an ALCHEMY_GAS_MANAGER_API_KEY read ahead of this one, for
+// a policy-owning key on a separate account from the portfolio reads. It was
+// preferred silently, so when the account behind it ran out of monthly
+// capacity, rotating ALCHEMY_API_KEY fixed nothing and every sponsored call
+// kept 429ing. Restore that indirection only alongside a way to tell which key
+// is in play, and never leave it set to a key that is not the policy's.
 function primaryAlchemyKey(): string | null {
-  return (
-    process.env.ALCHEMY_GAS_MANAGER_API_KEY?.trim() || process.env.ALCHEMY_API_KEY?.trim() || null
-  );
+  return process.env.ALCHEMY_API_KEY?.trim() || null;
 }
 
 function withPaymasterPolicy(call: RpcCall, policyId: string): RpcCall {

@@ -12,7 +12,6 @@ describe("Alchemy sponsorship proxy", () => {
   beforeEach(() => {
     verifyRequest.mockReset();
     verifyRequest.mockResolvedValue({ userId: "user" });
-    vi.stubEnv("ALCHEMY_GAS_MANAGER_API_KEY", "policy-owner-key");
     vi.stubEnv("ALCHEMY_API_KEY", "data-api-key");
     vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", "different-account-key");
     vi.stubEnv("ALCHEMY_GAS_POLICY_ID", "base-policy");
@@ -33,7 +32,27 @@ describe("Alchemy sponsorship proxy", () => {
     vi.unstubAllGlobals();
   });
 
-  it("uses only the policy-owning primary key for Base sponsorship", async () => {
+  // Regression: a stale ALCHEMY_GAS_MANAGER_API_KEY once took precedence over
+  // ALCHEMY_API_KEY and built the whole bundler URL from it, so rotating
+  // ALCHEMY_API_KEY changed nothing and every sponsored call kept going to an
+  // account that was over its monthly capacity. Spot, perps and withdrawals
+  // all failed with a 429 that named no cause. The variable is gone; this
+  // proves nothing reads it again.
+  it("ignores ALCHEMY_GAS_MANAGER_API_KEY entirely, even when it is set", async () => {
+    vi.stubEnv("ALCHEMY_GAS_MANAGER_API_KEY", "stale-dead-key");
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({ method: "eth_sendUserOperation", params: [] }),
+      "base-mainnet"
+    );
+
+    expect(response.status).toBe(200);
+    const url = String(vi.mocked(fetch).mock.calls[0][0]);
+    expect(url).toContain("base-mainnet.g.alchemy.com/v2/data-api-key");
+    expect(url).not.toContain("stale-dead-key");
+  });
+
+  it("uses the primary key for Base sponsorship, with the policy in the header", async () => {
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     const response = await forwardAlchemyBundlerRequest(
       makeReq({
@@ -48,24 +67,32 @@ describe("Alchemy sponsorship proxy", () => {
     expect(response.status).toBe(200);
     expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = vi.mocked(fetch).mock.calls[0];
-    expect(String(url)).toContain("base-mainnet.g.alchemy.com/v2/policy-owner-key");
-    expect(String(url)).not.toContain("data-api-key");
-    expect(String(url)).not.toContain("different-account-key");
+    expect(String(url)).toContain("base-mainnet.g.alchemy.com/v2/data-api-key");
     expect((init?.headers as Record<string, string>)["x-alchemy-policy-id"]).toBe("base-policy");
   });
 
-  it("keeps the existing primary key as a compatibility fallback", async () => {
-    vi.stubEnv("ALCHEMY_GAS_MANAGER_API_KEY", "");
+  // A policy belongs to one Alchemy account. Rotating sponsorship onto the
+  // fallback key would present the policy to an account that does not own it.
+  it("never rotates sponsorship onto the fallback key", async () => {
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+    await forwardAlchemyBundlerRequest(
+      makeReq({ method: "eth_sendUserOperation", params: [] }),
+      "base-mainnet"
+    );
+
+    expect(String(vi.mocked(fetch).mock.calls[0][0])).not.toContain("different-account-key");
+  });
+
+  it("answers 503 when no Alchemy key is configured at all", async () => {
+    vi.stubEnv("ALCHEMY_API_KEY", "");
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     const response = await forwardAlchemyBundlerRequest(
       makeReq({ method: "eth_sendUserOperation", params: [] }),
       "base-mainnet"
     );
 
-    expect(response.status).toBe(200);
-    expect(String(vi.mocked(fetch).mock.calls[0][0])).toContain(
-      "base-mainnet.g.alchemy.com/v2/data-api-key"
-    );
+    expect(response.status).toBe(503);
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("rejects ordinary node reads so they stay on ZeroDev", async () => {
