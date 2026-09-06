@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { Switch } from "@/components/ui/switch";
 import { SearchIcon } from "@/components/ui/icons";
@@ -81,11 +82,27 @@ export function HoldingsMobile({
       </div>
 
       {loading ? (
-        [0, 1, 2].map((i) => (
-          <div key={i} className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5">
+        // Same geometry as a real row, five of them. See the desktop table for
+        // why: three short bars against a page of real rows moved everything
+        // below on every load.
+        [0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            aria-hidden="true"
+            className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5"
+          >
             <span className="size-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
-            <span className="h-4 w-28 animate-pulse rounded bg-white/8" />
-            <span className="ml-auto h-4 w-14 animate-pulse rounded bg-white/8" />
+            <span className="min-w-0 flex-1">
+              <span className="block font-sans text-[14.5px] font-medium">
+                <SkeletonLine width="w-14" />
+              </span>
+              <span className="mt-0.5 block text-[12px] font-normal">
+                <SkeletonLine width="w-28" />
+              </span>
+            </span>
+            <span className="shrink-0 text-right font-sans text-[14.5px] font-medium">
+              <SkeletonLine width="w-16" />
+            </span>
           </div>
         ))
       ) : rows.length === 0 ? (

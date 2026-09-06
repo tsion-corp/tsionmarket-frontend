@@ -1,4 +1,12 @@
 # Fast gate. Formats and lints ONLY the files being committed, so a commit
 # costs seconds. The slow checks live in pre-push, and the authoritative run is
 # the `quality` job in CI, which main's branch protection requires.
+if ! command -v pnpm >/dev/null 2>&1; then
+    NVM_LATEST=$(ls -d "$HOME/.nvm/versions/node"/v* 2>/dev/null | tail -n 1 || true)
+    if [ -n "$NVM_LATEST" ]; then
+        export PATH="$NVM_LATEST/bin:$NVM_LATEST/lib/node_modules/corepack/shims:$PATH"
+    fi
+    export PATH="$HOME/.local/share/mise/shims:/opt/homebrew/bin:/usr/local/bin:$PATH"
+fi
+
 pnpm exec lint-staged

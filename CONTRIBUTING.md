@@ -82,7 +82,7 @@ Quick decisions:
   bundle.
 
 Features never import each other, not even through the index. When one feature's
-view has to show another's, the route passes it down: `app/dashboard` renders
+view has to show another's, the route passes it down: `app/(app)/dashboard` renders
 `<PortfolioView crossBorderSlot={<CrossBorderBanner … />} />`. `pnpm lint` fails
 on a cross-feature import, so this is not a matter of taste.
 

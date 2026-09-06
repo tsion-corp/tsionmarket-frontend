@@ -12,6 +12,11 @@ export const PERSISTED_PREFIXES = new Set([
   "deposit-tokens",
   "deposit-master-eligibility",
   "deposit-static",
+  // The reuse-what-exists variant of the static address. It was documented as
+  // persisted but never was: the match below is exact on the first key
+  // element, and "deposit-static" does not cover "deposit-static-stable", so
+  // the address list call was paid on every cold load of the deposit screen.
+  "deposit-static-stable",
   "portfolio",
   "prices",
   "buy-destinations",

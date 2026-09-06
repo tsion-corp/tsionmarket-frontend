@@ -39,7 +39,8 @@ export async function apiFetch(
   }
 
   /**
-   * The breaker sits at the ONE transport, not in each hook.
+   * The breakers sit at the ONE transport, not in each hook, one per
+   * upstream service (see lib/api/circuit-store for why not one for all).
    *
    * This app polls harder than anything else we run — match state every
    * second, tickets every second, several of them deliberately continuing in
@@ -53,7 +54,7 @@ export async function apiFetch(
    * informs the breaker.
    */
   const method = (init.method ?? "GET").toUpperCase();
-  if ((method === "GET" || method === "HEAD") && !circuitAllows()) {
+  if ((method === "GET" || method === "HEAD") && !circuitAllows(path)) {
     throw new Error("Can't reach the server right now");
   }
 
@@ -62,10 +63,10 @@ export async function apiFetch(
     response = await fetch(path, { ...init, headers });
   } catch (error) {
     // No status at all: DNS, TCP, CORS, offline. The clearest signal there is.
-    recordCircuitFailure(undefined);
+    recordCircuitFailure(path, undefined);
     throw error;
   }
-  if (response.ok) recordCircuitSuccess();
-  else recordCircuitFailure(response.status);
+  if (response.ok) recordCircuitSuccess(path);
+  else recordCircuitFailure(path, response.status);
   return response;
 }

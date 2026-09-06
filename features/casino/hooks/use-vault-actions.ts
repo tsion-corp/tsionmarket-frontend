@@ -3,25 +3,21 @@
 import { useCallback, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { decodeEventLog, encodeFunctionData, getAbiItem } from "viem";
-import { base } from "viem/chains";
 import { getWalletAddress } from "@/lib/user";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { useEvmSend } from "@/hooks/use-evm-send";
-import { KING_OF_NIGHT_ABI } from "@/features/casino/lib/last-standing/king-of-night-abi";
+import { KING_OF_NIGHT_ABI } from "@/lib/vault/king-of-night-abi";
+import { VAULT_CHAIN_ID, vaultContractAddress } from "@/lib/vault/contract";
+import { CHAIN_SCAN_LIMIT, readActiveGamesWith, type ChainGame } from "@/lib/vault/read";
 import { winnerPayoutWei, type SplitBps } from "@/features/casino/lib/last-standing/split";
 
-// The Last Standing vault contract lives on Base only.
-const VAULT_CHAIN_ID = base.id;
+export type { ChainGame } from "@/lib/vault/read";
 
 // The compiled artifact, never a transcription: a hand-typed GameStarted with
 // four fields hashed to a topic that matched no log and lost every gameId.
 const VAULT_ABI = KING_OF_NIGHT_ABI;
 
-function contractAddress(): `0x${string}` {
-  const address = process.env.NEXT_PUBLIC_VAULT_CONTRACT_ADDRESS;
-  if (!address) throw new Error("Vault isn't configured yet");
-  return address as `0x${string}`;
-}
+const contractAddress = vaultContractAddress;
 
 /**
  * The contract's current split, in basis points. Owner-tunable, so the live
@@ -93,19 +89,6 @@ function gameIdFromReceipt(logs: readonly { data: string; topics: string[] }[]):
   return null;
 }
 
-// Ids are sequential from 1, so the newest games are the highest ids. Only the
-// tail is scanned: older games have settled and the lobby does not list them.
-const CHAIN_SCAN_LIMIT = 20;
-
-export interface ChainGame {
-  gameId: number;
-  starter: string;
-  king: string;
-  potWei: bigint;
-  minWagerWei: bigint;
-  endTime: number;
-}
-
 /**
  * One game's stored record, settled or not.
  *
@@ -147,63 +130,10 @@ export async function readGame(gameId: number): Promise<{
   }
 }
 
-/**
- * The live games straight from the contract.
- *
- * The indexed lobby trails the chain, so a game the user just paid for is not
- * in `GET /games` yet and the screen says nothing is running. Reading the
- * contract is what the service's own docs recommend for exactly this window.
- *
- * One multicall rather than a request per id, so the whole tail costs a single
- * round trip.
- */
+// The live games straight from the contract, through the RPC proxy. The read
+// itself lives in lib/vault/read so the dashboard feed can run it server-side.
 export async function readActiveGames(): Promise<ChainGame[]> {
-  const client = publicClientForChain(VAULT_CHAIN_ID);
-  const address = contractAddress();
-  const next = await client.readContract({
-    address,
-    abi: VAULT_ABI,
-    functionName: "nextGameId",
-  });
-
-  const highest = Number(next) - 1;
-  if (highest < 1) return [];
-  const lowest = Math.max(1, highest - CHAIN_SCAN_LIMIT + 1);
-  const ids = Array.from({ length: highest - lowest + 1 }, (_, i) => lowest + i);
-
-  const results = await client.multicall({
-    contracts: ids.map((id) => ({
-      address,
-      abi: VAULT_ABI,
-      functionName: "getGameStatus" as const,
-      args: [BigInt(id)],
-    })),
-    allowFailure: true,
-  });
-
-  const now = Math.floor(Date.now() / 1000);
-  const games: ChainGame[] = [];
-  results.forEach((result, i) => {
-    if (result.status !== "success") return;
-    const [active, pot, timeRemaining, king, starter, minWager] = result.result as readonly [
-      boolean,
-      bigint,
-      bigint,
-      string,
-      string,
-      bigint,
-    ];
-    if (!active) return;
-    games.push({
-      gameId: ids[i],
-      starter,
-      king,
-      potWei: pot,
-      minWagerWei: minWager,
-      endTime: now + Number(timeRemaining),
-    });
-  });
-  return games;
+  return readActiveGamesWith(publicClientForChain(VAULT_CHAIN_ID));
 }
 
 export interface ChainSettledGame {

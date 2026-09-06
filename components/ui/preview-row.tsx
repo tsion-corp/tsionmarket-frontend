@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { AssetIcon } from "@/components/ui/asset-icon";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
 
 interface PreviewRowProps {
   /** Where the row leads: the service's own page. */
@@ -57,15 +58,34 @@ export function PreviewRow({ href, sym, name, logo, bg, price, change, note }: P
   );
 }
 
-/** Placeholder rows, sized to PreviewRow so the block does not jump on load. */
+/**
+ * Placeholder rows with the exact geometry of PreviewRow: the same icon, the
+ * same two lines of the same font sizes on each side. Rows arrive with a name
+ * and a change figure, so the skeleton assumes both; a row without them is
+ * shorter, and shrinking is the one direction that costs nothing above.
+ */
 export function PreviewRowSkeleton({ rows }: { rows: number }) {
   return (
     <>
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="flex items-center gap-3 border-t border-white/6 px-4 py-3 sm:px-5">
           <div className="h-[30px] w-[30px] shrink-0 animate-pulse rounded-full bg-white/8" />
-          <div className="h-3 w-24 animate-pulse rounded bg-white/8" />
-          <div className="ml-auto h-3 w-16 animate-pulse rounded bg-white/8" />
+          <div className="min-w-0 flex-1">
+            <div className="font-sans text-[14px] font-medium">
+              <SkeletonLine width="w-16" />
+            </div>
+            <div className="text-[11.5px] font-normal">
+              <SkeletonLine width="w-24" />
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[13.5px] font-normal">
+              <SkeletonLine width="w-16" />
+            </div>
+            <div className="text-[11.5px] font-normal">
+              <SkeletonLine width="w-10" />
+            </div>
+          </div>
         </div>
       ))}
     </>

@@ -4,31 +4,11 @@ import { apiFetch } from "@/lib/api";
 
 export { USDC_BY_CHAIN } from "@/lib/trade/usdc";
 
-export type RwaChain = "solana" | "ethereum" | "base" | "arbitrum" | "bsc" | "polygon";
-export type AccessMode = "dex" | "issuer" | "hybrid";
-
-export interface RwaApiAsset {
-  id: string;
-  chain: RwaChain;
-  address: string;
-  symbol: string;
-  name: string;
-  issuer: string;
-  category: string;
-  // Null for most assets in practice, not merely absent.
-  yieldApyBps?: number | null;
-  priceUsd: string | null;
-  freelyTradable: boolean;
-  accessMode?: AccessMode;
-  kycRequired?: boolean;
-  minInvestmentUsd?: string | null;
-  redemption?: string;
-  issuerUrl?: string;
-  deprecated?: boolean;
-  tvlUsd?: string;
-  meta?: { note?: string };
-  issuerData?: { navPriceUsd?: string; apyBps?: number; tvlUsdTotal?: string };
-}
+// The catalog's domain type and listing rules live in lib/rwa/catalog, below
+// the feature line, so the dashboard feed can apply the same rules on the
+// server. Re-exported here so the feature's own imports read as before.
+export { assetPriceUsd, type AccessMode, type RwaApiAsset, type RwaChain } from "@/lib/rwa/catalog";
+import { rwaLogoPath, type RwaApiAsset, type RwaChain } from "@/lib/rwa/catalog";
 
 export interface RwaCategory {
   category: string;
@@ -137,18 +117,9 @@ export async function buildRwaAction(
   return unwrap<RwaAction>(res);
 }
 
-export function assetPriceUsd(a: RwaApiAsset): number | null {
-  const p = a.priceUsd ?? a.issuerData?.navPriceUsd ?? null;
-  const n = p != null ? Number(p) : NaN;
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
 // The pairing currency for buy/sell. Note BSC USDC has 18 decimals, not 6.
-// Real token logo by contract address, resolved server-side (CoinGecko first,
-// then Trust Wallet). AssetIcon tries web3icons by symbol first, then this, so
-// every asset resolves to its real logo.
 export function rwaLogoUrl(a: RwaApiAsset): string {
-  return `/api/token-logo/${a.chain}/${a.address}`;
+  return rwaLogoPath(a.chain, a.address);
 }
 
 export function assetTvlUsd(a: RwaApiAsset): string | undefined {

@@ -6,9 +6,10 @@ import { apiFetch } from "@/lib/api";
 
 const TWO_MINUTES = 2 * 60 * 1000;
 
-export function useMarketTokens(filter: string) {
+export function useMarketTokens(filter: string, enabled = true) {
   return useQuery<MarketToken[]>({
     queryKey: ["market-tokens", filter],
+    enabled,
     staleTime: TWO_MINUTES,
     gcTime: TWO_MINUTES,
     // Keep the previous chain's rows visible while the next chain loads, so a

@@ -1,8 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { PortfolioDonut } from "@/features/portfolio/components/portfolio-donut";
+import {
+  PortfolioDonut,
+  PortfolioDonutSkeleton,
+} from "@/features/portfolio/components/portfolio-donut";
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
 import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 
@@ -51,7 +55,17 @@ export function BalanceCardDesktop({
       <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
         <div>
           {loading ? (
-            <div className="h-[52px] w-44 animate-pulse rounded-xl bg-white/8" />
+            // The same two lines at the same sizes as the loaded total, so
+            // the number lands in a box that already had its height. The old
+            // 52px bar was 39px short of the total plus its spendable line.
+            <div aria-hidden="true">
+              <div className="ws-display text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
+                <SkeletonLine width="w-44" className="rounded-xl" />
+              </div>
+              <div className="mt-2.5 text-[15.5px] font-normal">
+                <SkeletonLine width="w-52" />
+              </div>
+            </div>
           ) : errored ? (
             // A failed fetch and a genuinely empty wallet both leave totalUsd
             // at 0 — showing "$0.00" here would read as "your funds are
@@ -99,13 +113,16 @@ export function BalanceCardDesktop({
         </div>
       ) : null}
 
-      {!loading && !errored && tokens.length > 0 ? (
+      {/* The ring's space is held while loading. A wallet that turns out to be
+          empty gives it back, which is the one case that still moves, and it
+          moves once; a funded wallet, the common case, lands without a jump. */}
+      {loading || (!errored && tokens.length > 0) ? (
         <div className="mt-[22px]">
           <div className="mb-3.5 flex items-center gap-2 text-[12px] font-normal text-white/45">
             <span className="bg-accent h-1 w-1 rounded-full" />
             {t("breakdownTitle")}
           </div>
-          <PortfolioDonut tokens={tokens} />
+          {loading ? <PortfolioDonutSkeleton /> : <PortfolioDonut tokens={tokens} />}
         </div>
       ) : null}
     </div>

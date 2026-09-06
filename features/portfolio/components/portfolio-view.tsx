@@ -23,6 +23,7 @@ import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-m
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
 import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
 import { Switch } from "@/components/ui/switch";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
 import { HoldingsMobile } from "@/features/portfolio/components/holdings-mobile";
 import { TypeChip } from "@/features/portfolio/components/type-chip";
 import { displayNetworkIconKey, displayNetworkLabel } from "@/features/portfolio/lib/network-label";
@@ -370,14 +371,41 @@ export function PortfolioView({
             </div>
 
             {loading ? (
-              [0, 1, 2].map((i) => (
+              // Rows with the geometry of a real holding: the same grid, the
+              // same icon box, the same two text lines at their sizes. Three
+              // 64px bars against a page of up to ten 68px rows moved every
+              // brief below by hundreds of pixels; five true rows is the
+              // typical funded wallet, and shrinking to fewer costs less than
+              // growing from three.
+              [0, 1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-3 border-t border-white/6 px-4 py-3.5 sm:px-6"
+                  aria-hidden="true"
+                  className="grid w-full grid-cols-[1.7fr_auto] items-center gap-3.5 border-t border-white/6 px-4 py-3.5 min-[560px]:grid-cols-[2fr_1fr_1fr_1fr_1fr] sm:px-6"
                 >
-                  <span className="h-9 w-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
-                  <span className="h-4 w-32 animate-pulse rounded bg-white/8" />
-                  <span className="ml-auto h-4 w-16 animate-pulse rounded bg-white/8" />
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="h-9 w-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
+                    <span className="min-w-0">
+                      <span className="block font-sans text-[14.5px] font-medium">
+                        <SkeletonLine width="w-14" />
+                      </span>
+                      <span className="block text-xs font-normal">
+                        <SkeletonLine width="w-28" />
+                      </span>
+                    </span>
+                  </span>
+                  <span className="hidden text-sm min-[560px]:block">
+                    <SkeletonLine width="w-12" />
+                  </span>
+                  <span className="hidden text-right text-sm min-[560px]:block">
+                    <SkeletonLine width="w-16" />
+                  </span>
+                  <span className="hidden text-right text-[13px] min-[560px]:block">
+                    <SkeletonLine width="w-16" />
+                  </span>
+                  <span className="text-right text-sm">
+                    <SkeletonLine width="w-16" />
+                  </span>
                 </div>
               ))
             ) : holdingRows.length === 0 ? (

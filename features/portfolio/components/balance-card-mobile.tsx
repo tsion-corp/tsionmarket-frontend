@@ -1,8 +1,12 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { PortfolioDonut } from "@/features/portfolio/components/portfolio-donut";
+import {
+  PortfolioDonut,
+  PortfolioDonutSkeleton,
+} from "@/features/portfolio/components/portfolio-donut";
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
 import { ArrowUpRightIcon, EyeIcon, EyeOffIcon, WalletIcon } from "@/components/ui/icons";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 
@@ -51,7 +55,16 @@ export function BalanceCardMobile({
       </div>
 
       {loading ? (
-        <div className="mt-3 h-[44px] w-40 animate-pulse rounded-xl bg-white/8" />
+        // Same lines, same sizes as the loaded total, so nothing under the
+        // card moves when the number arrives.
+        <div aria-hidden="true">
+          <div className="ws-display mt-2.5 text-[42px] leading-none tracking-[-0.02em]">
+            <SkeletonLine width="w-40" className="rounded-xl" />
+          </div>
+          <div className="mt-2 text-[13.5px] font-normal">
+            <SkeletonLine width="w-48" />
+          </div>
+        </div>
       ) : errored ? (
         // Zero and "we could not read it" look identical in the total, so the
         // phone says which one this is rather than showing a confident $0.00.
@@ -97,13 +110,13 @@ export function BalanceCardMobile({
         </div>
       ) : null}
 
-      {!loading && !errored ? (
+      {!errored ? (
         <div className="mt-5">
           <div className="mb-3 flex items-center gap-2 text-[12px] font-normal text-white/45">
             <span className="bg-accent size-1 rounded-full" />
             {t("breakdownTitle")}
           </div>
-          <PortfolioDonut tokens={tokens} />
+          {loading ? <PortfolioDonutSkeleton /> : <PortfolioDonut tokens={tokens} />}
         </div>
       ) : null}
     </div>

@@ -3,6 +3,7 @@
 import { useTranslations } from "next-intl";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
 import {
   heldAssetCount,
   portfolioBreakdown,
@@ -27,6 +28,32 @@ const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 // spend half the stroke past each end of the dash, so the gap has to clear the
 // full stroke on top of the space it is meant to leave.
 const GAP = STROKE + 6;
+
+/**
+ * The ring's footprint while the balance loads: the same 132px box and three
+ * legend lines. Without it the whole block appeared only once tokens arrived,
+ * and everything under the balance card dropped by the ring's full height on
+ * every load.
+ */
+export function PortfolioDonutSkeleton() {
+  return (
+    <div className="flex items-center gap-4 min-[420px]:gap-6" aria-hidden="true">
+      <div
+        className="shrink-0 animate-pulse rounded-full border-[16px] border-white/8"
+        style={{ width: SIZE, height: SIZE }}
+      />
+      <ul className="flex min-w-0 flex-1 flex-col gap-2.5 min-[420px]:gap-2">
+        {[0, 1, 2].map((i) => (
+          <li key={i} className="flex items-center gap-2.5 text-[13px]">
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-white/8" />
+            <SkeletonLine width="w-20" />
+            <SkeletonLine width="w-12" className="ml-auto hidden min-[420px]:inline-block" />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 // Where the portfolio's money actually sits, as one ring with a legend. Replaces
 // a price chart of the largest holding, which showed one asset's market rather

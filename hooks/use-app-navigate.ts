@@ -5,19 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { scrollToSection } from "@/lib/scroll";
 import { isNavTarget, type TradePrefill } from "@/lib/voice/intent";
 import { prefillToQuery } from "@/lib/voice/prefill";
-import type { SectionId } from "@/lib/sections";
-
-// Sections that are their own page rather than an anchor on /dashboard.
-const SECTION_ROUTES: Partial<Record<SectionId, string>> = {
-  spot: "/spot",
-  perps: "/perps",
-  meme: "/meme",
-  rwa: "/rwa",
-  casino: "/casino",
-  earn: "/earn",
-  prediction: "/prediction",
-  activity: "/activity",
-};
+import { SECTION_ROUTES } from "@/lib/sections";
 
 // The one place that knows how to move between app sections: a section listed
 // in SECTION_ROUTES is a real route, so it always navigates there; every other

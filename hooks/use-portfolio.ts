@@ -4,7 +4,7 @@ import { useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiFetch } from "@/lib/api";
-import { getWalletAddress } from "@/lib/user";
+import { useSessionWallet } from "@/components/providers/server-session";
 import type { Portfolio } from "@/lib/server/alchemy";
 
 import type { TokenBalance } from "@/lib/server/alchemy";
@@ -55,10 +55,14 @@ function tokenRawBalance(
 }
 
 export function usePortfolio() {
-  const { user, ready, authenticated } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const queryClient = useQueryClient();
-  const evm = getWalletAddress(user, "ethereum");
-  const solana = getWalletAddress(user, "solana");
+  // From the server's view of the session while Privy is still starting,
+  // then from Privy. Building the key from Privy alone meant that, before it
+  // was ready, this asked for ["portfolio", null, null] and missed the
+  // balance the server had already put in the cache under the real key.
+  const evm = useSessionWallet("ethereum");
+  const solana = useSessionWallet("solana");
   const enabled = ready && authenticated && Boolean(evm || solana);
   const queryKey = ["portfolio", evm, solana] as const;
 
@@ -165,7 +169,10 @@ export function usePortfolio() {
   return {
     totalUsd: query.data?.totalUsd ?? 0,
     tokens: query.data?.tokens ?? EMPTY_TOKENS,
-    loading: enabled && query.isPending,
+    // Also loading while Privy is still starting and nothing has arrived
+    // from the server. The shell now renders before Privy is ready, and a
+    // balance that is merely unknown must not read as $0.00.
+    loading: query.isPending && (enabled || !ready),
     // True while a fresh fetch is in flight but a value (possibly a
     // rehydrated one from a previous session) is already on screen — lets
     // the UI show a subtle "refreshing" hint instead of silently swapping

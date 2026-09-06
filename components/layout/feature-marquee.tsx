@@ -2,27 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { fetchActiveGames, type VaultGame } from "@/features/casino/lib/vault-api";
-import { readActiveGames, type ChainGame } from "@/features/casino/hooks/use-vault-actions";
-import { usePrices } from "@/hooks/use-prices";
-import { fetchLiveMatches as fetchChessLive } from "@/features/casino/lib/api/chess";
-import { fetchLiveMatches as fetchCheckersLive } from "@/features/casino/lib/api/draughts";
-import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
+import { useDashboardFeed } from "@/hooks/use-dashboard-feed";
+import { liveEventsFrom, type LiveEvent } from "@/lib/dashboard-feed";
 import type { SectionId } from "@/lib/sections";
 import { playNotify } from "@/lib/notify-sound";
 import { cn } from "@/lib/utils";
-import { pollUnlessFailing } from "@/lib/query-poll";
 
 // The chrome strip under the topbar: every feature slides by as one-line
 // marketing, and live games take priority as a pinned chip that never scrolls
 // out of sight — Last Man to join, chess and checkers to watch. Items
 // navigate; the bar is discovery, not decoration.
 
-// Slow polls: the casino pages keep their own caches hot; the marquee only
-// needs to notice a live game within half a minute anywhere in the app.
-const LIVE_REFRESH_MS = 30_000;
 // Several live events share the pinned chip in turns.
 const LIVE_CYCLE_MS = 4_000;
 // How often the expiry sweep re-checks the wall clock, so a Last Man round
@@ -62,113 +53,29 @@ const FEATURES: FeatureItem[] = [
   { key: "invite", emoji: "\u{1F389}", action: { kind: "invite" }, isNew: true },
 ];
 
-// One live thing happening right now, whichever game it belongs to.
-interface LiveEvent {
-  key: string;
-  kind: "lastman" | "chess" | "checkers";
-  href: string;
-  /** Formatted pot, Last Man only. */
-  pot?: string;
-}
-
 function sameEvents(a: LiveEvent[], b: LiveEvent[]): boolean {
   return a.length === b.length && a.every((e, i) => e.key === b[i].key && e.pot === b[i].pot);
 }
 
-// Everything live across the arcade: Last Man rounds (richest pot first,
-// joinable), then chess and checkers matches (watchable). Each source that
-// errors contributes nothing — a stale LIVE chip is worse than none. The
-// wall-clock expiry check lives in an effect (render must stay pure) and
-// re-runs on a short interval.
+// Everything live across the arcade, from the dashboard feed: Last Man
+// rounds (richest pot first, joinable), then chess and checkers matches
+// (watchable). The server composes the list once for everyone; this only
+// re-checks the wall clock so a round leaves the chip the moment its own
+// timer runs out, and re-runs when a fresh feed lands.
 function useLiveEvents(): LiveEvent[] {
-  const lastman = useQuery<VaultGame[]>({
-    queryKey: VAULT_KEYS.games,
-    queryFn: fetchActiveGames,
-    staleTime: LIVE_REFRESH_MS,
-    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
-  });
-  // The index trails the chain by minutes and drops games it considers done,
-  // so a round someone started moments ago is invisible to it: the exact gap
-  // the Arkade lobby covers by reading the contract directly. Same key as the
-  // lobby's chain read, so casino pages keep it hot.
-  const lastmanChain = useQuery<ChainGame[]>({
-    queryKey: [...VAULT_KEYS.games, "chain"],
-    queryFn: readActiveGames,
-    staleTime: LIVE_REFRESH_MS,
-    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
-  });
-  const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
-  const chess = useQuery({
-    queryKey: ["marquee", "chess-live"],
-    queryFn: fetchChessLive,
-    staleTime: LIVE_REFRESH_MS,
-    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
-  });
-  const checkers = useQuery({
-    queryKey: ["marquee", "checkers-live"],
-    queryFn: fetchCheckersLive,
-    staleTime: LIVE_REFRESH_MS,
-    refetchInterval: pollUnlessFailing(LIVE_REFRESH_MS),
-  });
-
-  const lastmanData = lastman.isError ? null : (lastman.data ?? null);
-  const lastmanChainData = lastmanChain.isError ? null : (lastmanChain.data ?? null);
-  const chessData = chess.isError ? null : (chess.data ?? null);
-  const checkersData = checkers.isError ? null : (checkers.data ?? null);
+  const { data: feed } = useDashboardFeed();
+  const live = feed?.live ?? null;
 
   const [events, setEvents] = useState<LiveEvent[]>([]);
   useEffect(() => {
     const sweep = () => {
-      const now = Math.floor(Date.now() / 1000);
-      const indexed = (lastmanData ?? []).filter((g) => g.active && !g.settled && g.endTime > now);
-      const indexedIds = new Set(indexed.map((g) => g.gameId));
-      // Chain rounds the index has not caught up with yet, priced here since
-      // the contract only knows wei.
-      const fromChain = (lastmanChainData ?? [])
-        .filter((g) => !indexedIds.has(g.gameId) && g.endTime > now)
-        .map((g) => {
-          const eth = Number(g.potWei) / 1e18;
-          const usd = ethPrice > 0 ? eth * ethPrice : 0;
-          return { gameId: g.gameId, usd, pot: usd > 0 ? `$${usd.toFixed(2)}` : `${eth} ETH` };
-        });
-      const rounds = [
-        ...indexed.map((g) => ({
-          gameId: g.gameId,
-          usd: g.pot.usdValue,
-          pot: g.pot.formattedUsd || `${g.pot.amount} ${g.pot.tokenSymbol}`,
-        })),
-        ...fromChain,
-      ]
-        .sort((a, b) => b.usd - a.usd)
-        .map<LiveEvent>((g) => ({
-          key: `lastman-${g.gameId}`,
-          kind: "lastman",
-          href: `/casino/last-standing/${g.gameId}`,
-          pot: g.pot,
-        }));
-      const matches = [
-        ...(chessData ?? [])
-          .filter((m) => m.result === null)
-          .map<LiveEvent>((m) => ({
-            key: `chess-${m.id}`,
-            kind: "chess",
-            href: `/casino/chess/watch?match=${encodeURIComponent(m.id)}`,
-          })),
-        ...(checkersData ?? [])
-          .filter((m) => m.result === null)
-          .map<LiveEvent>((m) => ({
-            key: `checkers-${m.id}`,
-            kind: "checkers",
-            href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
-          })),
-      ];
-      const next = [...rounds, ...matches];
+      const next = liveEventsFrom(live, Math.floor(Date.now() / 1000));
       setEvents((prev) => (sameEvents(prev, next) ? prev : next));
     };
     sweep();
     const id = setInterval(sweep, LIVE_SWEEP_MS);
     return () => clearInterval(id);
-  }, [lastmanData, lastmanChainData, chessData, checkersData, ethPrice]);
+  }, [live]);
 
   return events;
 }

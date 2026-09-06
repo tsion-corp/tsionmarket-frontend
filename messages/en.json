@@ -330,6 +330,7 @@
     "soon": "Soon"
   },
   "auth": {
+    "idleSignedOut": "Signed out after {hours} hours of inactivity. Please sign in again.",
     "beta": "Beta",
     "earlyAccess": "Early access is open",
     "welcome": "Welcome to",

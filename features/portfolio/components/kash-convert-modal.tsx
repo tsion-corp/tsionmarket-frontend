@@ -58,16 +58,18 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
   // configured: one KASH+ permit signature, one on-chain redeemWithPermit, and
   // the USDC arrives from the public reserve. A 503 from /desk keeps the
   // legacy engine flow below untouched.
-  const deskInfo = useKashDeskInfo(status?.chainMode === "ethers");
+  // Gated on `open`, like the buy sheet: mounted from the portfolio whether
+  // showing or not, and its reads must not run for a closed sheet.
+  const deskInfo = useKashDeskInfo(open && status?.chainMode === "ethers");
   // Configured-but-paused is a halt, not a reason to fall back: the legacy
   // engine path would sidestep an intentional stop. Legacy applies only when
   // no desks exist at all.
   const deskConfigured = Boolean(deskInfo.data);
   const deskPaused = deskConfigured && deskInfo.data?.paused.redeem === true;
   const deskLive = deskConfigured && !deskPaused;
-  const deskQuote = useKashDeskSellQuote(amount, deskLive);
+  const deskQuote = useKashDeskSellQuote(amount, open && deskLive);
   const deskSell = useKashDeskSell();
-  const quote = useKashConversionQuote(amount, !deskConfigured);
+  const quote = useKashConversionQuote(amount, open && !deskConfigured);
   const conversion = useKashConversion();
   const signPermit = useKashPermitSigner();
   const [signing, setSigning] = useState(false);

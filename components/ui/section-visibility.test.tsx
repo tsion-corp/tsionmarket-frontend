@@ -97,7 +97,7 @@ describe("SectionVisibility", () => {
     // The trap that made the real RWA gating dead code. A section calling
     // useSectionActive() in its OWN body sits ABOVE its own returned JSX, so
     // it reads the default and polls forever. The provider has to be hoisted
-    // above the section component, which is why app/dashboard/page.tsx wraps
+    // above the section component, which is why app/(app)/dashboard/page.tsx wraps
     // each section rather than each section wrapping itself.
     function SelfWrapping() {
       const active = useSectionActive();

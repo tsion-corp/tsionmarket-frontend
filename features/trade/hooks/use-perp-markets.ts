@@ -54,12 +54,25 @@ export function usePerpPairs() {
   };
 }
 
-export function usePerpPrices(enabled: boolean, streaming = false) {
-  const pollMs = streaming ? PRICE_POLL_SLOW_MS : PRICE_POLL_MS;
+// `slow` picks the background cadence: the desk passes it while its socket is
+// delivering, the dashboard brief passes it always, because a four-row teaser
+// does not need a mark every five seconds. One query key serves both, and
+// React Query polls at the fastest interval any mounted caller asked for, so
+// the desk still gets its five seconds whenever it is open.
+//
+// `subscribed` detaches this caller without parking the query: the last data
+// stays on screen and `refetch()` still works, which `enabled: false` would
+// not allow. The brief passes its section's visibility, so a perps teaser
+// scrolled off the bottom of the dashboard stops asking. Before this it was
+// the one brief that kept polling out of view, at 5s, and was 40% of all the
+// requests an idle dashboard made.
+export function usePerpPrices(enabled: boolean, slow = false, subscribed = true) {
+  const pollMs = slow ? PRICE_POLL_SLOW_MS : PRICE_POLL_MS;
   const query = useQuery<PerpPrice[]>({
     queryKey: ["perp-prices"],
     queryFn: fetchPerpPrices,
     enabled,
+    subscribed,
     refetchInterval: pollUnlessFailing(pollMs),
     staleTime: pollMs,
     retry: retryUnlessUnavailable,

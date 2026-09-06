@@ -32,8 +32,8 @@ describe("server auth helpers", () => {
     privy.getById.mockReset();
   });
 
-  it("prefers the identity token when one is present", async () => {
-    privy.getByToken.mockResolvedValue({ id: "user_token" });
+  it("prefers the identity token when it names the verified user", async () => {
+    privy.getByToken.mockResolvedValue({ id: "user_claim" });
 
     const user = await getRequestUser(makeReq({ "privy-id-token": "id-token" }), {
       userId: "user_claim",
@@ -44,7 +44,40 @@ describe("server auth helpers", () => {
 
     expect(privy.getByToken).toHaveBeenCalledWith({ id_token: "id-token" });
     expect(privy.getById).not.toHaveBeenCalled();
-    expect(user).toEqual({ id: "user_token" });
+    expect(user).toEqual({ id: "user_claim" });
+  });
+
+  it("ignores an identity token that names a different user than the session", async () => {
+    // The attack this guards: a valid session for user_claim paired with
+    // someone else's identity token. The token must not win.
+    privy.getByToken.mockResolvedValue({ id: "user_victim" });
+    privy.getById.mockResolvedValue({ id: "user_claim" });
+
+    const user = await getRequestUser(makeReq({ "privy-id-token": "stolen-token" }), {
+      userId: "user_claim",
+      sessionId: "session_mismatch",
+      issuedAt: 1,
+      expiration: 2,
+    });
+
+    expect(privy.getById).toHaveBeenCalledWith("user_claim");
+    expect(user).toEqual({ id: "user_claim" });
+  });
+
+  it("does not let a mismatched token poison the session cache", async () => {
+    privy.getByToken.mockResolvedValue({ id: "user_victim" });
+    privy.getById.mockResolvedValue({ id: "user_claim" });
+    const claims = {
+      userId: "user_claim",
+      sessionId: "session_poison",
+      issuedAt: 1,
+      expiration: 2,
+    };
+
+    await getRequestUser(makeReq({ "privy-id-token": "stolen-token" }), claims);
+    const second = await getRequestUser(makeReq(), claims);
+
+    expect(second).toEqual({ id: "user_claim" });
   });
 
   it("falls back to the verified user id when the identity token is missing", async () => {

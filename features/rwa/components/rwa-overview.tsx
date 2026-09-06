@@ -1,54 +1,43 @@
 "use client";
 
-import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { PreviewNotice, PreviewRow, PreviewRowSkeleton } from "@/components/ui/preview-row";
-import { useListedRwaAssets } from "@/features/rwa/hooks/use-rwa-assets";
-import { useRwaEnrichedAssets } from "@/features/rwa/hooks/use-rwa-prices";
-import { dedupeByChain } from "@/features/rwa/lib/presenter";
-import { assetPriceUsd } from "@/features/rwa/lib/api";
-import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
+import { useDashboardFeed } from "@/hooks/use-dashboard-feed";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatUsd } from "@/lib/trade/math";
 
 const HREF = "/rwa";
 
-// The real-assets brief. It runs the same listable/dedupe/enrich pipeline the
-// full section does, so what is tradable stays decided by the data layer and no
-// screen can widen it. The full page then sorts and filters on top, so these
-// four are a sample of that set rather than its first four rows.
+// The real-assets brief. The server runs the same listable/dedupe/enrich rules
+// the full section does (lib/rwa/catalog), so what is tradable stays decided
+// by the data layer and no screen can widen it. The full page then sorts and
+// filters on top, so these rows are a sample of that set rather than its
+// first four rows. Read from the dashboard feed.
 export function RwaOverview({ rows }: { rows: number }) {
   const t = useTranslations("rwa");
   const tOverview = useTranslations("overview");
-  const { assets, loading, error } = useListedRwaAssets();
-  const tradable = useMemo(() => dedupeByChain(assets), [assets]);
-  const enriched = useRwaEnrichedAssets(tradable);
-  const top = useMemo(() => enriched.slice(0, rows), [enriched, rows]);
-  const logos = useTokenLogos(
-    useMemo(() => top.map((a) => ({ chain: a.chain, address: a.address })), [top])
-  );
+  const { data: feed, isPending } = useDashboardFeed();
 
-  if (loading) return <PreviewRowSkeleton rows={rows} />;
-  if (error) return <PreviewNotice>{t("registryUnavailable")}</PreviewNotice>;
+  if (isPending && !feed) return <PreviewRowSkeleton rows={rows} />;
+  const assets = feed?.rwa ?? null;
+  if (assets === null) return <PreviewNotice>{t("registryUnavailable")}</PreviewNotice>;
+  const top = assets.slice(0, rows);
   if (top.length === 0) return <PreviewNotice>{tOverview("empty")}</PreviewNotice>;
 
   return (
     <>
-      {top.map((asset) => {
-        const price = assetPriceUsd(asset);
-        return (
-          <PreviewRow
-            key={asset.id}
-            href={HREF}
-            sym={asset.symbol}
-            name={asset.name}
-            logo={logos[tokenLogoKey(asset.chain, asset.address)]}
-            bg={tokenBg(asset.symbol)}
-            price={price != null ? formatUsd(price) : "—"}
-            change={asset.market?.change24h ?? null}
-          />
-        );
-      })}
+      {top.map((asset) => (
+        <PreviewRow
+          key={asset.id}
+          href={HREF}
+          sym={asset.symbol}
+          name={asset.name}
+          logo={asset.logo}
+          bg={tokenBg(asset.symbol)}
+          price={asset.priceUsd != null ? formatUsd(asset.priceUsd) : "—"}
+          change={asset.change24h}
+        />
+      ))}
     </>
   );
 }

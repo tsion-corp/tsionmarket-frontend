@@ -265,3 +265,40 @@ export function holdingMatchesSymbol(
   const heldSym = held.symbol.trim().toUpperCase();
   return heldSym === symbol.trim().toUpperCase() || heldSym === catalogSymbol(symbol);
 }
+
+// One row of the Dextopus destinations catalog as it arrives. Only the fields
+// the app reads; anything else passes through untouched.
+export interface RawDestination {
+  destinationChainId: number;
+  blockchain?: string;
+  currency?: string;
+  symbol?: string;
+  decimals?: number;
+  logoUrl?: string;
+}
+
+// The destinations catalog as our routes. The body is either a bare array or
+// `{ destinations: [...] }`, and a row without a currency, a symbol or a chain
+// id cannot be traded, so it is dropped here rather than crashing a table.
+// Shared by the browser's catalog hook and the dashboard feed on the server.
+export function toBuyRoutes(data: unknown): BuyRoute[] {
+  const body = data as { destinations?: unknown } | null;
+  const rows: RawDestination[] = Array.isArray(data)
+    ? (data as RawDestination[])
+    : Array.isArray(body?.destinations)
+      ? (body.destinations as RawDestination[])
+      : [];
+  return rows
+    .filter(
+      (d): d is Required<Pick<RawDestination, "currency" | "symbol">> & RawDestination =>
+        Boolean(d.currency) && Boolean(d.symbol) && Number.isFinite(d.destinationChainId)
+    )
+    .map((d) => ({
+      destinationChainId: d.destinationChainId,
+      chainName: d.blockchain ?? "",
+      asset: d.currency,
+      symbol: d.symbol,
+      decimals: d.decimals ?? 18,
+      logoUrl: d.logoUrl ?? null,
+    }));
+}

@@ -330,6 +330,7 @@
     "soon": "Bientôt"
   },
   "auth": {
+    "idleSignedOut": "Déconnecté après {hours} heures d'inactivité. Veuillez vous reconnecter.",
     "beta": "Bêta",
     "earlyAccess": "L'accès anticipé est ouvert",
     "welcome": "Bienvenue sur",

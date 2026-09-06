@@ -7,12 +7,13 @@ import { apiFetch } from "@/lib/api";
 // swaps. Amounts are decimal strings end to end; the backend verifies every
 // trade on-chain and only its CONFIRMED status means success.
 
-export type TokenRiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL" | "UNKNOWN";
+export type { MemeToken, TokenRiskLevel, TokenWarning } from "@/lib/meme/types";
+import type { MemeToken, TokenRiskLevel, TokenWarning } from "@/lib/meme/types";
+import { withRiskDefaults, withoutQuoteCurrency, type Paged } from "@/lib/meme/catalog";
 
-export interface TokenWarning {
-  code: string;
-  message: string;
-}
+// The normalisation lives in lib/meme/catalog, shared with the server; the
+// feature keeps importing it from here.
+export { withRiskDefaults };
 
 // Warnings worth showing a buyer. "The token contract is upgradeable" is
 // dropped by design: nearly every serious token (USDC included) sits behind an
@@ -21,27 +22,6 @@ export interface TokenWarning {
 // service keys it on.
 export function visibleWarnings(warnings: TokenWarning[]): TokenWarning[] {
   return warnings.filter((w) => !/upgrad/i.test(w.code) && !/upgradeable/i.test(w.message));
-}
-
-export interface MemeToken {
-  chainId: number;
-  address: string;
-  name: string | null;
-  symbol: string | null;
-  decimals: number | null;
-  logoUrl: string | null;
-  priceUsd: string | null;
-  liquidityUsd: string | null;
-  volume24hUsd: string | null;
-  priceChange24hPercent: string | null;
-  marketCapUsd: string | null;
-  fdvUsd: string | null;
-  pairAddress: string | null;
-  dexName: string | null;
-  riskLevel: TokenRiskLevel;
-  buyEnabled: boolean;
-  sellEnabled: boolean;
-  warnings: TokenWarning[];
 }
 
 export interface SwapPreview {
@@ -179,52 +159,12 @@ function post<T>(path: string, payload: unknown, idempotencyKey?: string): Promi
   );
 }
 
-interface Paged<T> {
-  items: T[];
-  meta: { page: number; limit: number; total: number };
-}
-
-// Base mainnet USDC. The trade service refuses it as a meme-token selection —
-// it is the quote currency on both sides of every swap — so a card for it can
-// only dead-end when tapped. The catalog lists it because the catalog is every
-// indexed token, not every tradable meme coin.
-const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
-
 // Enough Base rows to fill several pages of eight after USDC is dropped.
 const TRENDING_FALLBACK_LIMIT = 40;
 
 // The trending upstream currently hangs for ~10s before failing. Give up early
 // so the fallback lands while the loading placeholders are still on screen.
 const TRENDING_TIMEOUT_MS = 4_000;
-
-// /tokens/trending omits the whole risk block that /tokens returns:
-// riskLevel, warnings, buyEnabled and sellEnabled are simply absent. Rendering
-// one of those rows raw crashed the dashboard — RiskBadge called .charAt on a
-// missing level and Next replaced the page with its unrecoverable-error
-// screen. Normalising here rather than in each component keeps every consumer
-// safe, per this app's rule that upstream payloads are mapped into our own
-// types at the boundary.
-//
-// buyEnabled/sellEnabled default to TRUE deliberately. The service documents
-// them as display hints and repeats every policy check when a quote is
-// created, so the server still refuses a token it will not trade. Defaulting
-// to false would instead make every trending coin look untradable.
-export function withRiskDefaults(token: MemeToken): MemeToken {
-  return {
-    ...token,
-    riskLevel: token.riskLevel ?? "UNKNOWN",
-    warnings: token.warnings ?? [],
-    buyEnabled: token.buyEnabled ?? true,
-    sellEnabled: token.sellEnabled ?? true,
-  };
-}
-
-function withoutQuoteCurrency(page: Paged<MemeToken>): Paged<MemeToken> {
-  const items = page.items
-    .filter((t) => t.address.toLowerCase() !== BASE_USDC)
-    .map(withRiskDefaults);
-  return { items, meta: { ...page.meta, total: items.length } };
-}
 
 // The discovery feed and the persisted catalog are separate upstreams on the
 // trade service, so trending can be down while the catalog is healthy. When

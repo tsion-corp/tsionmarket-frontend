@@ -15,7 +15,11 @@ import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { AccountModal } from "@/components/layout/modals/account-modal";
 import { FundsModal, WithdrawModal } from "@/features/funds";
 import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
-import { RwaTradeModal } from "@/features/rwa";
+// Deep import, not the barrel. `@/features/rwa` also exports RwaSection, which
+// reaches lightweight-charts through the detail sheet's price chart, so the
+// barrel put the chart library back into every route's initial payload and
+// undid the dynamic DetailModal above.
+import { RwaTradeModal } from "@/features/rwa/components/rwa-trade-modal";
 import type { DepositPrefill } from "@/lib/voice/intent";
 import type { MemeToken } from "@/lib/meme/api";
 import type {

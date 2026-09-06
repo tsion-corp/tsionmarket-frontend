@@ -57,17 +57,21 @@ export function usePrefetchDepositCatalog() {
       if (!eligibility) return;
       const eligible = new Set(eligibility.keys);
 
-      for (const key of SETTLE_ORDER) {
-        if (cancelled) return;
-        const chainId = SETTLE_CHAINS[key].chainId;
-        await queryClient
-          .prefetchQuery({
-            queryKey: depositTokensKey(chainId),
-            queryFn: () => fetchDepositTokens(chainId, eligible),
-            ...PREFETCH_OPTS,
-          })
-          .catch(() => {});
-      }
+      // All four at once. The lists are independent, and awaiting them one
+      // after another made this five serial round trips on every dashboard
+      // mount, holding connections the portfolio fetch was waiting for.
+      await Promise.all(
+        SETTLE_ORDER.map((key) => {
+          const chainId = SETTLE_CHAINS[key].chainId;
+          return queryClient
+            .prefetchQuery({
+              queryKey: depositTokensKey(chainId),
+              queryFn: () => fetchDepositTokens(chainId, eligible),
+              ...PREFETCH_OPTS,
+            })
+            .catch(() => {});
+        })
+      );
     };
 
     void run();

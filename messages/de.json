@@ -330,6 +330,7 @@
     "soon": "Bald"
   },
   "auth": {
+    "idleSignedOut": "Nach {hours} Stunden Inaktivität abgemeldet. Bitte melden Sie sich erneut an.",
     "beta": "Beta",
     "earlyAccess": "Der frühe Zugang ist offen",
     "welcome": "Willkommen bei",

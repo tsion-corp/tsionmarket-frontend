@@ -68,16 +68,20 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
   // configured: one signature buys through KashSale (USDC permit + mint in a
   // single transaction) instead of the transfer-then-verify two-step. A 503
   // from /desk means no desks — the legacy flow below applies untouched.
-  const deskInfo = useKashDeskInfo(status?.chainMode === "ethers");
+  // Every read below is gated on `open`. The modal is mounted from the
+  // portfolio whether or not it is showing, and ungated it quoted a ten-USDC
+  // purchase in the background on every dashboard visit, for a sheet nobody
+  // had opened.
+  const deskInfo = useKashDeskInfo(open && status?.chainMode === "ethers");
   // Configured-but-paused is a halt, not a reason to fall back: the legacy
   // engine path would sidestep an intentional stop. Legacy applies only when
   // no desks exist at all.
   const deskConfigured = Boolean(deskInfo.data);
   const deskPaused = deskConfigured && deskInfo.data?.paused.sale === true;
   const deskLive = deskConfigured && !deskPaused;
-  const deskQuote = useKashDeskBuyQuote(amount, deskLive);
+  const deskQuote = useKashDeskBuyQuote(amount, open && deskLive);
   const deskBuy = useKashDeskBuy();
-  const quote = useKashPurchaseQuote(amount, !deskConfigured);
+  const quote = useKashPurchaseQuote(amount, open && !deskConfigured);
   const purchase = useKashPurchase();
 
   // In real-USDC mode the buyer pays on-chain first and the engine verifies

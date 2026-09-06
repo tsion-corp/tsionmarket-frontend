@@ -2,22 +2,25 @@
 
 import { useTranslations } from "next-intl";
 import { PreviewNotice, PreviewRow, PreviewRowSkeleton } from "@/components/ui/preview-row";
-import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
+import { useDashboardFeed } from "@/hooks/use-dashboard-feed";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatUsd } from "@/lib/trade/math";
 
 const HREF = "/spot";
 
 // The spot brief: the largest markets by cap, which is the order the full list
-// opens in, so the first rows here are the first rows there.
+// opens in, so the first rows here are the first rows there. Read from the
+// dashboard feed, which the server composes once for everyone and which is in
+// the HTML before this renders.
 export function SpotOverview({ rows }: { rows: number }) {
   const t = useTranslations("markets");
   const tOverview = useTranslations("overview");
-  const { markets, loading, error } = useSpotMarkets();
-  const top = markets.slice(0, rows);
+  const { data: feed, isPending } = useDashboardFeed();
 
-  if (loading) return <PreviewRowSkeleton rows={rows} />;
-  if (error) return <PreviewNotice>{t("marketsUnavailable")}</PreviewNotice>;
+  if (isPending && !feed) return <PreviewRowSkeleton rows={rows} />;
+  const markets = feed?.spot ?? null;
+  if (markets === null) return <PreviewNotice>{t("marketsUnavailable")}</PreviewNotice>;
+  const top = markets.slice(0, rows);
   if (top.length === 0) return <PreviewNotice>{tOverview("empty")}</PreviewNotice>;
 
   return (

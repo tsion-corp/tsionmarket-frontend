@@ -1,0 +1,19 @@
+{
+  "$comment": "Initial client JavaScript per route, gzipped kB. A ratchet: set just above what the route ships, lowered as it improves. See scripts/first-load.mjs.",
+  "default": 1900,
+  "routes": {
+    "/": 300,
+    "/privacy": 220,
+    "/welcome": 220,
+    "/auth": 1350,
+    "/interests": 1350,
+    "/dashboard": 1700,
+    "/spot": 1650,
+    "/perps": 1650,
+    "/meme": 1650,
+    "/rwa": 1700,
+    "/activity": 1650,
+    "/prediction": 1850,
+    "/casino": 1850
+  }
+}
