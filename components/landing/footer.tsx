@@ -1,4 +1,4 @@
-import { BRAND, SUPPORT_EMAIL, WHATSAPP_NUMBER } from "@/lib/brand";
+import { BRAND, SUPPORT_EMAIL } from "@/lib/brand";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 
@@ -97,14 +97,6 @@ export function Footer({ onNavigate }: FooterProps) {
             </a>
             <a href={`mailto:${SUPPORT_EMAIL}`} className="hover:text-accent text-white/60">
               {t("email")}
-            </a>
-            <a
-              href={`https://wa.me/${WHATSAPP_NUMBER}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-accent text-white/60"
-            >
-              WhatsApp
             </a>
           </div>
         </div>

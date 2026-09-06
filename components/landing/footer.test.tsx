@@ -21,20 +21,19 @@ describe("Footer support channels", () => {
     );
   });
 
-  // wa.me silently fails on a leading zero or a plus, so the number format is
-  // pinned here rather than left to review.
-  it("opens WhatsApp on the international number, no plus and no leading zero", () => {
-    renderFooter();
-    const wa = screen.getByRole("link", { name: "WhatsApp" });
-    expect(wa).toHaveAttribute("href", "https://wa.me/2349137089482");
-    expect(wa).toHaveAttribute("rel", "noopener noreferrer");
-  });
-
-  it("keeps the voice line separate from the WhatsApp line", () => {
+  it("rings the support line", () => {
     renderFooter();
     expect(screen.getByRole("link", { name: "Contact" })).toHaveAttribute(
       "href",
       "tel:+2349035725241"
     );
+  });
+
+  it("offers no WhatsApp channel", () => {
+    renderFooter();
+    expect(screen.queryByRole("link", { name: /whatsapp/i })).not.toBeInTheDocument();
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href") ?? "").not.toContain("wa.me");
+    }
   });
 });

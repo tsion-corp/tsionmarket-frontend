@@ -1,6 +1,6 @@
 import { useTranslations } from "next-intl";
 import { ArkMark } from "@/components/ui/ark-mark";
-import { BRAND, SUPPORT_EMAIL, WHATSAPP_NUMBER } from "@/lib/brand";
+import { BRAND, SUPPORT_EMAIL } from "@/lib/brand";
 
 // What the site serves while NEXT_PUBLIC_APP_ACTIVE is false (see
 // lib/launch-gate.ts). Distinct from the waitlist page, which is the
@@ -63,21 +63,13 @@ export function MaintenancePage() {
           <span className="text-[11px] font-normal tracking-[0.14em] text-white/40 uppercase">
             {t("contactTitle")}
           </span>
-          <div className="mt-3.5 flex flex-col items-center justify-center gap-2.5 sm:flex-row sm:gap-3">
+          <div className="mt-3.5 flex justify-center">
             <a
               href={`mailto:${SUPPORT_EMAIL}`}
               className="w-full rounded-xl border border-white/14 bg-white/6 px-5 py-2.5 text-[13.5px] font-medium text-white transition-colors hover:border-white/24 hover:bg-white/10 sm:w-auto"
             >
               {t("email")}
             </a>
-            {/*<a
-              href={`https://wa.me/${WHATSAPP_NUMBER}`}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full rounded-xl border border-white/14 bg-white/6 px-5 py-2.5 text-[13.5px] font-medium text-white transition-colors hover:border-white/24 hover:bg-white/10 sm:w-auto"
-            >
-              {t("whatsapp")}
-            </a>*/}
           </div>
         </div>
       </section>

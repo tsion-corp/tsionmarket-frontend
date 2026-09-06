@@ -25,14 +25,20 @@ describe("MaintenancePage", () => {
     expect(screen.getByText(messages.maintenance.funds)).toBeInTheDocument();
   });
 
-  it("offers both support contacts, so a worried user can reach a human", () => {
+  it("offers the support address, so a worried user can reach a human", () => {
     renderPage();
     expect(screen.getByRole("link", { name: messages.maintenance.email })).toHaveAttribute(
       "href",
       "mailto:tsionarksupport@gmail.com"
     );
-    // wa.me silently fails on a leading zero or a plus, so the number format is
-    // part of the contract, not a detail.
+  });
+
+  it("offers no WhatsApp channel", () => {
+    renderPage();
+    expect(screen.queryByRole("link", { name: /whatsapp/i })).not.toBeInTheDocument();
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href") ?? "").not.toContain("wa.me");
+    }
   });
 
   // The waitlist page is the pre-launch story. Someone who already holds a

@@ -2457,8 +2457,7 @@
     "funds": "Tu dinero está intacto. Los saldos, las posiciones y las tenencias están exactamente donde los dejaste.",
     "back": "Volvemos en breve. Escríbenos si necesitas algo mientras tanto.",
     "contactTitle": "¿Nos necesitas antes?",
-    "email": "Escribir a soporte",
-    "whatsapp": "Escríbenos por WhatsApp"
+    "email": "Escribir a soporte"
   },
   "waitlist": {
     "countdownTitle": "Todo el mercado, <accent>a punto de abrir.</accent>",

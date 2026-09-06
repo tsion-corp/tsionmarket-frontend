@@ -2457,8 +2457,7 @@
     "funds": "Your money is untouched. Balances, positions and holdings are exactly where you left them.",
     "back": "We'll be back shortly. You can check in with us if you need anything in the meantime.",
     "contactTitle": "Need us before then?",
-    "email": "Email support",
-    "whatsapp": "Message us on WhatsApp"
+    "email": "Email support"
   },
   "waitlist": {
     "countdownTitle": "The whole market, <accent>about to open.</accent>",
