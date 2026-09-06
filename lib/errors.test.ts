@@ -27,6 +27,14 @@ describe("friendlyError", () => {
     expect(friendlyError("cannot estimate gas")).toMatch(/network's coin/i);
   });
 
+  it("does not tell someone to retry when sponsorship is out of monthly capacity", () => {
+    const message = friendlyError(
+      "Gas sponsorship is out of monthly capacity on the sponsoring account; sponsored transactions are paused until it is restored."
+    );
+    expect(message).toMatch(/paused|unavailable/i);
+    expect(message).not.toMatch(/busy|try again/i);
+  });
+
   it("maps rate limits", () => {
     expect(friendlyError("Request failed with status 429: Too Many Requests")).toMatch(/busy/i);
   });

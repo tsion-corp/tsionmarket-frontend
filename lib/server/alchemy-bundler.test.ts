@@ -140,6 +140,121 @@ describe("Alchemy sponsorship proxy", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  // Seen in production on 2026-09-06: the account owning the Gas Manager policy
+  // had used its monthly capacity, so every sponsored call answered 429 with
+  // "Monthly capacity limit exceeded". Passed through as a 429, viem retried
+  // it four times and the user was told "we're a bit busy, try again", which
+  // could not be true until the next billing cycle.
+  it("turns exhausted monthly capacity into an error the client will not retry", async () => {
+    const exhausted = {
+      jsonrpc: "2.0",
+      id: 7,
+      error: {
+        code: 429,
+        message:
+          "Monthly capacity limit exceeded. Visit https://dashboard.alchemy.com/settings/billing to upgrade your scaling policy for continued service.",
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(exhausted), { status: 429 }))
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({ jsonrpc: "2.0", id: 7, method: "eth_sendUserOperation", params: [] }),
+      "base-mainnet"
+    );
+    const body = await response.json();
+
+    // 200 with a JSON-RPC error, not a 429: viem retries 429s.
+    expect(response.status).toBe(200);
+    expect(body.id).toBe(7);
+    // -32002 is "resource unavailable", which viem surfaces without retrying.
+    expect(body.error.code).toBe(-32002);
+    expect(body.error.message).toMatch(/monthly capacity/i);
+    expect(logged).toHaveBeenCalledWith(expect.stringMatching(/capacity/i), expect.anything());
+    logged.mockRestore();
+  });
+
+  it("answers every call of a batch when capacity is exhausted", async () => {
+    const exhausted = {
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: 429, message: "Monthly capacity limit exceeded." },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(exhausted), { status: 429 }))
+    );
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq([
+        { jsonrpc: "2.0", id: 1, method: "pm_getPaymasterStubData", params: [] },
+        { jsonrpc: "2.0", id: 2, method: "eth_estimateUserOperationGas", params: [] },
+      ]),
+      "base-mainnet"
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.map((entry: { id: number }) => entry.id)).toEqual([1, 2]);
+    expect(body.every((entry: { error: { code: number } }) => entry.error.code === -32002)).toBe(
+      true
+    );
+  });
+
+  // Alchemy answers a rejected user operation or a paymaster refusal with a
+  // 200 whose body is a JSON-RPC error. Relayed silently, the only record of
+  // why a sponsored send failed was a toast in one user's browser.
+  it("logs a JSON-RPC error the bundler returns inside a 200, with its method", async () => {
+    const rejected = {
+      jsonrpc: "2.0",
+      id: 3,
+      error: { code: -32521, message: "UserOperation reverted during simulation with reason: 0x" },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(rejected), { status: 200 }))
+    );
+    const logged = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({ jsonrpc: "2.0", id: 3, method: "eth_sendUserOperation", params: [] }),
+      "base-mainnet"
+    );
+
+    // Relayed unchanged: the client's bundler library reads it as before.
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual(rejected);
+    expect(logged).toHaveBeenCalledWith(
+      expect.stringMatching(/eth_sendUserOperation/),
+      -32521,
+      expect.stringMatching(/reverted during simulation/)
+    );
+    logged.mockRestore();
+  });
+
+  it("still passes an ordinary rate limit through as a 429 the client may retry", async () => {
+    const throttled = { jsonrpc: "2.0", id: 1, error: { code: 429, message: "Too many requests" } };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(throttled), { status: 429 }))
+    );
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({ jsonrpc: "2.0", id: 1, method: "eth_sendUserOperation", params: [] }),
+      "base-mainnet"
+    );
+
+    expect(response.status).toBe(429);
+  });
+
   it("requires authentication before contacting Alchemy", async () => {
     verifyRequest.mockResolvedValue(null);
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");

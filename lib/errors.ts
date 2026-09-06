@@ -156,6 +156,13 @@ export function friendlyError(
   if (/insufficient funds|out of gas|gas required|cannot estimate gas|intrinsic gas/.test(m)) {
     return "You need a little more of the network's coin to cover the fee.";
   }
+  // Sponsorship's monthly capacity is used up: not a retry situation, and
+  // saying "try again in a moment" would be a lie until the account is
+  // topped up. Checked before the rate-limit rule, which it would otherwise
+  // match through the 429 the upstream sends.
+  if (/out of monthly capacity|monthly capacity limit exceeded/.test(m)) {
+    return "Gas-sponsored transactions are paused until sponsorship capacity is restored. Your funds are safe.";
+  }
   // Provider is busy or rate limiting us.
   if (/too many requests|rate.?limit|\b429\b/.test(m)) {
     return "We're a bit busy right now. Please try again in a moment.";

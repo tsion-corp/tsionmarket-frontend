@@ -19,6 +19,58 @@ const SPONSORED_SEND_METHOD = "eth_sendUserOperation";
 const PAYMASTER_METHODS = new Set(["pm_getPaymasterStubData", "pm_getPaymasterData"]);
 const MAX_BATCH_CALLS = 100;
 
+// What Alchemy answers, with a 429, once the account owning the key has used
+// its monthly capacity. Unlike a throughput limit this does not clear on a
+// retry; it clears on the next billing cycle or a plan change.
+const MONTHLY_CAPACITY_EXHAUSTED = /monthly capacity limit exceeded/i;
+
+// JSON-RPC "resource unavailable". viem retries 429s, LimitExceeded (-32005)
+// and Internal (-32603); it surfaces this one at once, which is what an
+// exhausted month deserves: four rapid retries cannot change the answer.
+const RESOURCE_UNAVAILABLE = -32002;
+
+const SPONSORSHIP_EXHAUSTED_MESSAGE =
+  "Gas sponsorship is out of monthly capacity on the sponsoring account; sponsored transactions are paused until it is restored.";
+
+// One JSON-RPC error per call the client sent, under the ids it sent, so a
+// batch gets a batch back.
+// A JSON-RPC error inside a 2xx is how the bundler reports a rejected user
+// operation, a paymaster refusal or a simulation revert. Relayed silently,
+// the only record of why a sponsored send failed was a toast in one user's
+// browser. Logged here with the method it answered, the code and the message;
+// no addresses, no calldata.
+function logRpcErrors(network: string, calls: Array<RpcCall | null>, text: string): void {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return;
+  }
+  const methodById = new Map<string, string>();
+  for (const call of calls) if (call) methodById.set(String(call.id ?? ""), call.method);
+  const entries = Array.isArray(parsed) ? parsed : [parsed];
+  for (const entry of entries) {
+    const error = (entry as { id?: unknown; error?: { code?: unknown; message?: unknown } })?.error;
+    if (!error) continue;
+    const id = String((entry as { id?: unknown }).id ?? "");
+    const method = methodById.get(id) ?? calls[0]?.method ?? "unknown";
+    console.warn(
+      `Alchemy bundler ${network}: ${method} answered an error`,
+      typeof error.code === "number" ? error.code : null,
+      typeof error.message === "string" ? error.message.slice(0, 300) : ""
+    );
+  }
+}
+
+function exhaustedBody(calls: Array<RpcCall | null>, batch: boolean): unknown {
+  const entries = calls.map((call) => ({
+    jsonrpc: "2.0",
+    id: call?.id ?? null,
+    error: { code: RESOURCE_UNAVAILABLE, message: SPONSORSHIP_EXHAUSTED_MESSAGE },
+  }));
+  return batch ? entries : entries[0];
+}
+
 interface RpcCall {
   jsonrpc?: string;
   id?: string | number | null;
@@ -134,7 +186,23 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
       signal: AbortSignal.timeout(30_000),
       cache: "no-store",
     });
-    return new NextResponse(await response.text(), {
+    const text = await response.text();
+    if (response.status === 429 && MONTHLY_CAPACITY_EXHAUSTED.test(text)) {
+      // The one condition here that is an operations alarm, not weather: no
+      // sponsored transaction will succeed until the Alchemy account behind
+      // ALCHEMY_API_KEY has capacity again. Logged so it is seen, and answered
+      // in a form the client shows honestly instead of retrying.
+      console.error(
+        `Alchemy sponsorship for ${network}: monthly capacity exhausted on the policy's account`,
+        text.slice(0, 300)
+      );
+      return NextResponse.json(exhaustedBody(calls, Array.isArray(body)), {
+        status: 200,
+        headers: { "Cache-Control": "no-store" },
+      });
+    }
+    logRpcErrors(network, calls, text);
+    return new NextResponse(text, {
       status: response.status,
       headers: {
         "Content-Type": "application/json",
