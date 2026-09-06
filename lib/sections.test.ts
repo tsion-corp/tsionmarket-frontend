@@ -28,9 +28,20 @@ describe("sectionForPathname", () => {
 
 describe("orderedSections", () => {
   it("pins portfolio first and leads with the chosen interest", () => {
-    const order = orderedSections("perps");
+    const order = orderedSections("meme");
     expect(order[0]).toBe("portfolio");
-    expect(order[1]).toBe("perps");
+    expect(order[1]).toBe("meme");
     expect(new Set(order).size).toBe(order.length);
+  });
+
+  it("leaves perpetuals out of the navigation, like earn", () => {
+    // The desk stays reachable at /perps; it is only not offered from the
+    // rail, the tab bar, the marquee or the dashboard briefs for now.
+    expect(orderedSections(null)).not.toContain("perps");
+    expect(orderedSections("perps")).not.toContain("perps");
+  });
+
+  it("falls back to the default order for the perps interest", () => {
+    expect(orderedSections("perps")).toEqual(orderedSections(null));
   });
 });
