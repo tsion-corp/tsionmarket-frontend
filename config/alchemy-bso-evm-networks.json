@@ -16,6 +16,7 @@
     "policyNetwork": "BASE_MAINNET",
     "alchemyHost": "base-mainnet.g.alchemy.com",
     "chainKey": "base",
+    "sponsorshipMode": "paymaster",
     "gasPolicy": true
   },
   {

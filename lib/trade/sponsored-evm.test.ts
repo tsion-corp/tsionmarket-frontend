@@ -31,3 +31,12 @@ describe("gas policy coverage", () => {
     expect(hasGasPolicyForChainId(1234567)).toBe(false);
   });
 });
+
+describe("sponsorship mode per network", () => {
+  it("runs Base through the paymaster path, like Polygon", () => {
+    // The team's Base policy is a paymaster-type policy; the bundler header
+    // path rejects it. See ADR-2026-09-06-base-sponsorship-via-paymaster.
+    expect(getSponsoredEvmChainByNetwork("base-mainnet")?.sponsorshipMode).toBe("paymaster");
+    expect(getSponsoredEvmChainByNetwork("polygon-mainnet")?.sponsorshipMode).toBe("paymaster");
+  });
+});

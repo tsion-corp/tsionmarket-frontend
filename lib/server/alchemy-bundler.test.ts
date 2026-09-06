@@ -52,27 +52,30 @@ describe("Alchemy sponsorship proxy", () => {
     expect(url).not.toContain("stale-dead-key");
   });
 
-  it("uses the primary key for Base sponsorship, with the policy in the header", async () => {
+  // Base runs through the paymaster path: the policy the team holds is a
+  // paymaster-type policy, and Alchemy answers the bundler header path for it
+  // with "does not support bundler sponsorship" (ADR-2026-09-06-base-
+  // sponsorship-via-paymaster). The proxy injects Base's own policy into the
+  // paymaster context and sends no bundler header.
+  it("injects the Base policy into paymaster context and sends no bundler header", async () => {
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     const response = await forwardAlchemyBundlerRequest(
       makeReq({
         jsonrpc: "2.0",
         id: 1,
-        method: "eth_sendUserOperation",
-        params: [{ sender: "0x1" }, "0xentrypoint"],
+        method: "pm_getPaymasterStubData",
+        params: [{ sender: "0x1" }, "0xentrypoint", "0x2105", {}],
       }),
       "base-mainnet"
     );
 
     expect(response.status).toBe(200);
-    expect(fetch).toHaveBeenCalledOnce();
     const [url, init] = vi.mocked(fetch).mock.calls[0];
     expect(String(url)).toContain("base-mainnet.g.alchemy.com/v2/data-api-key");
-    expect((init?.headers as Record<string, string>)["x-alchemy-policy-id"]).toBe("base-policy");
+    expect(JSON.parse(String(init?.body)).params[3]).toEqual({ policyId: "base-policy" });
+    expect((init?.headers as Record<string, string>)["x-alchemy-policy-id"]).toBeUndefined();
   });
 
-  // A policy belongs to one Alchemy account. Rotating sponsorship onto the
-  // fallback key would present the policy to an account that does not own it.
   it("never rotates sponsorship onto the fallback key", async () => {
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     await forwardAlchemyBundlerRequest(
@@ -128,11 +131,12 @@ describe("Alchemy sponsorship proxy", () => {
     vi.stubEnv("ALCHEMY_GAS_POLICY_ID", "");
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     const response = await forwardAlchemyBundlerRequest(
-      makeReq({ method: "eth_sendUserOperation", params: [] }),
+      makeReq({ method: "pm_getPaymasterData", params: [{}, "0xentrypoint", "0x2105", {}] }),
       "base-mainnet"
     );
 
-    expect(response.status).toBe(503);
+    expect(response.status).toBe(424);
+    expect(await response.json()).toMatchObject({ error: expect.stringMatching(/base-mainnet/) });
     expect(fetch).not.toHaveBeenCalled();
   });
 
