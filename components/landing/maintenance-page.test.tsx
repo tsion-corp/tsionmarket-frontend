@@ -33,10 +33,6 @@ describe("MaintenancePage", () => {
     );
     // wa.me silently fails on a leading zero or a plus, so the number format is
     // part of the contract, not a detail.
-    expect(screen.getByRole("link", { name: messages.maintenance.whatsapp })).toHaveAttribute(
-      "href",
-      "https://wa.me/2349137089482"
-    );
   });
 
   // The waitlist page is the pre-launch story. Someone who already holds a

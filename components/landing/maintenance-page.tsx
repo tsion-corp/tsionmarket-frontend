@@ -70,14 +70,14 @@ export function MaintenancePage() {
             >
               {t("email")}
             </a>
-            <a
+            {/*<a
               href={`https://wa.me/${WHATSAPP_NUMBER}`}
               target="_blank"
               rel="noreferrer"
               className="w-full rounded-xl border border-white/14 bg-white/6 px-5 py-2.5 text-[13.5px] font-medium text-white transition-colors hover:border-white/24 hover:bg-white/10 sm:w-auto"
             >
               {t("whatsapp")}
-            </a>
+            </a>*/}
           </div>
         </div>
       </section>
