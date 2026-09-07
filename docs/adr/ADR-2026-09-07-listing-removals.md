@@ -54,6 +54,22 @@ convert people's money in the stuff we are removing back to usdc").
   actual "convert their money back to USDC" work and it is a trade-service
   policy.
 
+## Addendum, 16:29: second batch
+
+Requested: "Gun, xdai, plume, Ron, pengu on abstract, usdt0, usdzc, usdc.e".
+Where each sits in Dextopus's destinations, checked live:
+
+| symbol               | chains                                                     | treatment                                                                                 |
+| -------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| GUN                  | Avalanche (ERC-20), GUNZ (native)                          | `SPOT_DELISTED`                                                                           |
+| xDAI                 | Gnosis native                                              | `SPOT_DELISTED`                                                                           |
+| PLUME                | Ethereum (ERC-20), Plume (native)                          | `SPOT_DELISTED`                                                                           |
+| RON                  | Ronin native                                               | already delisted above                                                                    |
+| PENGU                | Solana and Abstract                                        | route exclusion `2741:PENGU` in `isOfferable`; Solana stays                               |
+| USDT0, USDC.e, USDzC | Ink/Stable/Tempo; Cronos/Polygon/Soneium/Mythos/Doma; Zora | added to `SPOT_STABLES`, the stablecoin filter that already hides USDC and USDT from spot |
+
+Same rule as above: buy list only; holdings stay visible and sell as before.
+
 ## Consequences
 
 - Spot loses three rows; the memecoin board thins to rated, non-high-risk

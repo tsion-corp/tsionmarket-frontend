@@ -73,6 +73,18 @@ describe("BUY_ORIGIN", () => {
 });
 
 describe("isOfferable", () => {
+  // Requested off the desk on 2026-09-07: PENGU on Abstract only. PENGU on
+  // Solana stays, so this is a route exclusion, not a symbol one; holdings of
+  // PENGU on Abstract remain visible and sell as before.
+  it("excludes PENGU on Abstract and keeps PENGU on Solana", () => {
+    expect(
+      isOfferable(route({ symbol: "PENGU", chainName: "abstract", destinationChainId: 2741 }))
+    ).toBe(false);
+    expect(
+      isOfferable(route({ symbol: "PENGU", chainName: "solana", destinationChainId: SOLANA }))
+    ).toBe(true);
+  });
+
   it("allows supported chains (EVM and Solana)", () => {
     expect(isOfferable(route({ chainName: "Ethereum", destinationChainId: 1 }))).toBe(true);
     expect(isOfferable(route({ chainName: "Arbitrum", destinationChainId: ARBITRUM }))).toBe(true);

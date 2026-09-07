@@ -25,7 +25,17 @@ export interface SpotMarket {
 // the BUY list only. A wallet that already holds any of them still sees the
 // holding and sells it through the same route as before; the swap route for
 // cbDOGE stays for exactly that reason.
-export const SPOT_DELISTED: ReadonlySet<string> = new Set(["DOGE", "RON", "MON"]);
+// Second batch (2026-09-07 16:29): GUN, xDAI (Gnosis native) and PLUME.
+export const SPOT_DELISTED: ReadonlySet<string> = new Set([
+  "DOGE",
+  "RON",
+  "MON",
+  "GUN",
+  "XDAI",
+  "PLUME",
+  // 2026-09-07 later: DEGEN, on the maintainers' instruction.
+  "DEGEN",
+]);
 
 // The Dextopus-buyable set, plus the small set of symbols that settle through
 // a same-chain swap instead (see lib/spot-swap.ts): currently just DOGE, which

@@ -209,3 +209,31 @@ describe("isTokenizedEquity", () => {
     expect(page.items.map((x) => x.symbol)).toEqual(["BONK"]);
   });
 });
+
+// Requested on 2026-09-07: hide DEGEN. It is a LOW-risk active row, so the
+// rating rule keeps it; a per-address hidden set takes it off discovery.
+// Holdings are unaffected, as with every other removal.
+describe("hidden memecoins", () => {
+  it("drops DEGEN on Base from discovery", () => {
+    const page = tradableHere({
+      items: [
+        {
+          chainId: BASE_CHAIN_ID,
+          address: "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed",
+          symbol: "DEGEN",
+          name: "Degen",
+          riskLevel: "LOW",
+        } as MemeToken,
+        {
+          chainId: BASE_CHAIN_ID,
+          address: "0x1234000000000000000000000000000000000000",
+          symbol: "AAA",
+          name: "A",
+          riskLevel: "LOW",
+        } as MemeToken,
+      ],
+      meta: { page: 1, limit: 2, total: 2 },
+    });
+    expect(page.items.map((t) => t.symbol)).toEqual(["AAA"]);
+  });
+});

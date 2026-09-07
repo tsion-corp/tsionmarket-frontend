@@ -126,9 +126,17 @@ export function settlementAddress(asset: string): string {
 // A route is offerable when we can deliver to its chain, it is a token Dextopus
 // can actually settle, and it is not a misleading wrapped representation of a
 // coin native to another chain.
+// Routes taken off the desk on one chain only, on the maintainers'
+// instruction (2026-09-07: "pengu on abstract"). Keyed by destination chain
+// id and symbol so the same coin elsewhere (PENGU on Solana) stays. Buy list
+// only: a holding on the excluded chain remains visible and sells as before.
+const EXCLUDED_ROUTES = new Set(["2741:PENGU"]);
+
 export function isOfferable(route: BuyRoute): boolean {
   if (!SUPPORTED_CHAINS.has(route.chainName.toLowerCase())) return false;
   if (NON_BUYABLE_ASSETS.has(route.asset.toLowerCase())) return false;
+  if (EXCLUDED_ROUTES.has(`${route.destinationChainId}:${route.symbol.toUpperCase()}`))
+    return false;
   const canonical = CANONICAL_CHAIN[route.symbol.toUpperCase()];
   return canonical == null || route.destinationChainId === canonical;
 }

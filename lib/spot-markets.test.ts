@@ -25,8 +25,32 @@ describe("spotSymbolsFor: delisted markets", () => {
     route("USDC", "base", 8453),
   ];
 
-  it("names the three delisted symbols", () => {
-    expect([...SPOT_DELISTED].sort()).toEqual(["DOGE", "MON", "RON"]);
+  it("names the delisted symbols", () => {
+    expect([...SPOT_DELISTED].sort()).toEqual([
+      "DEGEN",
+      "DOGE",
+      "GUN",
+      "MON",
+      "PLUME",
+      "RON",
+      "XDAI",
+    ]);
+  });
+
+  // Second batch, 2026-09-07 16:29: GUN (Avalanche and GUNZ), xDAI (Gnosis
+  // native), PLUME (Ethereum and Plume), and three stablecoin variants the
+  // stable filter did not yet know: USDT0, USDC.e, USDzC.
+  it("drops the second batch and the stablecoin variants", () => {
+    const symbols = spotSymbolsFor([
+      route("ETH", "base", 8453),
+      route("GUN", "avalanche", 43114),
+      route("xDAI", "gnosis", 100),
+      route("PLUME", "ethereum", 1),
+      route("USDT0", "ink", 57073),
+      route("USDC.e", "polygon", 137),
+      route("USDzC", "zora", 7777777),
+    ]);
+    expect(symbols).toEqual(["ETH"]);
   });
 
   it("drops DOGE, RON and MON and keeps everything else buyable", () => {

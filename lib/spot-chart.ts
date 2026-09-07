@@ -13,6 +13,10 @@
 const SPOT_STABLES = new Set([
   "USDC",
   "USDT",
+  // Bridged and issuer variants Dextopus lists as separate destinations.
+  "USDT0",
+  "USDC.E",
+  "USDZC",
   "USDS",
   "USD1",
   "USDE",
