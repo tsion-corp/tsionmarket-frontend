@@ -41,11 +41,23 @@ export const swapQuoteSchema = z.object({
   ),
 });
 
+// One unsigned versioned transaction for the gas sponsor. The service
+// returns more (chain id, side, amounts); only what the client relies on is
+// pinned, so an additive change upstream is not a 502.
+export const solanaSwapQuoteSchema = z.object({
+  swapId: z.string(),
+  unsignedTransactionBase64: z.string().min(1),
+  platformFeeTokenAddress: nullableString.optional(),
+  platformFeeAmountAtomic: z.string().optional(),
+  expiresAt: z.string(),
+});
+
 const TRADE_SCHEMAS: { pattern: RegExp; schema: z.ZodType }[] = [
   { pattern: /^tokens$/, schema: tokenListSchema },
   { pattern: /^tokens\/trending$/, schema: tokenListSchema },
   { pattern: /^tokens\/search$/, schema: tokenSearchSchema },
   { pattern: /^swaps\/quote$/, schema: swapQuoteSchema },
+  { pattern: /^solana\/swaps\/quote$/, schema: solanaSwapQuoteSchema },
 ];
 
 export function tradeSchemaFor(path: string): z.ZodType | null {

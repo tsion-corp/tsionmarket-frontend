@@ -89,7 +89,19 @@
     "confirmingLong": "Wird noch verifiziert, das Netzwerk ist ausgelastet. Sie können dies schließen; das Ergebnis erscheint, sobald es vorliegt.",
     "closeAndNotify": "Schließen und Ergebnis melden",
     "orderFailed": "Der Handel wurde nicht abgeschlossen.",
-    "max": "Max"
+    "max": "Max",
+    "riskAll": "Alle",
+    "allTitle": "Alle Memecoins",
+    "noneInBands": "Keine Coins in den gewählten Stufen.",
+    "colRisk": "Risiko",
+    "clearSearch": "Suche löschen",
+    "searchAllLabel": "Alle Memecoins durchsuchen",
+    "searchTrendingLabel": "Trend-Memecoins durchsuchen",
+    "filters": "Filter",
+    "chainAll": "Alle Netzwerke",
+    "chainBase": "Base",
+    "chainSolana": "Solana",
+    "retry": "Erneut versuchen"
   },
   "spot": {
     "balance": "Guthaben {amount} {symbol}",

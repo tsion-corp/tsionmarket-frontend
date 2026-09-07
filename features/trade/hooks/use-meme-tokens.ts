@@ -9,6 +9,7 @@ import {
   searchTokens,
   type MemeToken,
 } from "@/lib/meme/api";
+import type { MemeChainSlug } from "@/lib/meme/chain";
 import { useSectionActive } from "@/components/ui/section-visibility";
 
 const TRENDING_POLL_MS = 30_000;
@@ -36,12 +37,12 @@ export function useTrendingMemes() {
   };
 }
 
-// The pro table's server-paginated catalog. The previous page stays on screen
-// while the next loads, so paging never blanks the table.
-export function useMemeCatalog(page: number, limit = 10) {
+// The server-paginated catalog, optionally scoped to one chain. The previous
+// page stays on screen while the next loads, so paging never blanks the list.
+export function useMemeCatalog(page: number, limit = 10, chain?: MemeChainSlug) {
   const query = useQuery({
-    queryKey: ["meme", "catalog", page, limit],
-    queryFn: () => fetchTokenCatalog(page, limit),
+    queryKey: ["meme", "catalog", page, limit, chain ?? "all"],
+    queryFn: () => fetchTokenCatalog(page, limit, chain),
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   });
@@ -51,6 +52,8 @@ export function useMemeCatalog(page: number, limit = 10) {
     pageCount: Math.max(1, Math.ceil(total / limit)),
     isLoading: query.isPending,
     isFetching: query.isFetching,
+    error: query.error,
+    refetch: query.refetch,
   };
 }
 
@@ -74,18 +77,24 @@ export function useMemeSearch(raw: string) {
     results: query.data ?? [],
     searching: debounced.length >= 2 && query.isPending,
     active: debounced.length >= 2,
+    // A failed search is not "nothing matched"; the list says so instead.
+    error: query.error,
   };
 }
 
 // Fresh risk-assessed details for the selected token; search rows don't carry
 // current risk/tradability, so the trade surface always re-reads this.
-export function useMemeToken(address: string | null) {
+// Identity is chainId + address, per the service contract: the detail route
+// needs the chain by name, and two chains can carry the same symbol.
+export function useMemeToken(identity: Pick<MemeToken, "address" | "chainId"> | null) {
   const active = useSectionActive();
+  const address = identity?.address ?? null;
+  const chainId = identity?.chainId ?? null;
   const query = useQuery({
-    queryKey: ["meme", "token", address],
-    queryFn: () => fetchToken(address as string),
+    queryKey: ["meme", "token", chainId, address],
+    queryFn: () => fetchToken(address as string, chainId as number),
     subscribed: active,
-    enabled: !!address,
+    enabled: !!address && chainId !== null,
     staleTime: 20_000,
     refetchInterval: 30_000,
   });

@@ -2,14 +2,15 @@
 
 import { apiFetch } from "@/lib/api";
 
-// Client for the Base token-trading service (memecoins), per its integration
-// contract: public token discovery, Privy-authenticated wallet linking and
-// swaps. Amounts are decimal strings end to end; the backend verifies every
+// Client for the memecoin trade service, per its integration contract: public
+// token discovery, Privy-authenticated wallet linking and swaps on Base and
+// Solana. A token is identified by chainId + address, never by address shape. Amounts are decimal strings end to end; the backend verifies every
 // trade on-chain and only its CONFIRMED status means success.
 
 export type { MemeToken, TokenRiskLevel, TokenWarning } from "@/lib/meme/types";
 import type { MemeToken, TokenRiskLevel, TokenWarning } from "@/lib/meme/types";
-import { withRiskDefaults, withoutQuoteCurrency, type Paged } from "@/lib/meme/catalog";
+import { isMemecoinHere, tradableHere, withRiskDefaults, type Paged } from "@/lib/meme/catalog";
+import { SOLANA_CHAIN_ID, chainSlug, type MemeChainSlug } from "@/lib/meme/chain";
 
 // The normalisation lives in lib/meme/catalog, shared with the server; the
 // feature keeps importing it from here.
@@ -70,6 +71,16 @@ export interface PreparedSwap {
   executionMode: "SINGLE_CALL" | "BATCHED_CALLS";
   calls: PreparedCall[];
   warnings: TokenWarning[];
+  expiresAt: string;
+}
+
+// The Solana quote is one unsigned versioned transaction for the gas
+// sponsor, not a list of calls.
+export interface PreparedSolanaSwap {
+  swapId: string;
+  unsignedTransactionBase64: string;
+  platformFeeTokenAddress: string | null;
+  platformFeeAmountAtomic: string;
   expiresAt: string;
 }
 
@@ -161,6 +172,9 @@ function post<T>(path: string, payload: unknown, idempotencyKey?: string): Promi
 
 // Enough Base rows to fill several pages of eight after USDC is dropped.
 const TRENDING_FALLBACK_LIMIT = 40;
+// Fewer Base rows than this and the trending rail is not worth showing on its
+// own; the catalog fallback fills it instead.
+const TRENDING_MIN_ROWS = 8;
 
 // The trending upstream currently hangs for ~10s before failing. Give up early
 // so the fallback lands while the loading placeholders are still on screen.
@@ -173,39 +187,68 @@ const TRENDING_TIMEOUT_MS = 4_000;
 // coins beat an "unavailable" panel. If the catalog is down too, that error
 // surfaces and the view shows its unavailable state.
 export async function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
+  let trending: Paged<MemeToken> | null = null;
   try {
-    return withoutQuoteCurrency(
+    trending = tradableHere(
       await request<Paged<MemeToken>>("/tokens/trending", {
         signal: AbortSignal.timeout(TRENDING_TIMEOUT_MS),
       })
     );
   } catch {
-    // chain=base matches the "Trending on Base" heading and keeps every address
-    // in the EVM form the token detail routes expect.
-    return withoutQuoteCurrency(
-      await request<Paged<MemeToken>>(`/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`)
-    );
+    trending = null;
   }
+  // Trending ignores ?chain and is mostly Solana, so once the boundary has
+  // dropped those it can be three cards. The rail should not show three cards
+  // beside a full pro table, so "thin" takes the same fallback as "down".
+  if (trending && trending.items.length >= TRENDING_MIN_ROWS) return trending;
+  // chain=base matches the "Trending on Base" heading and keeps every address
+  // in the EVM form the token detail routes expect.
+  return tradableHere(
+    await request<Paged<MemeToken>>(`/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`)
+  );
 }
 
-export async function fetchTokenCatalog(page = 1, limit = 20): Promise<Paged<MemeToken>> {
-  const page_ = await request<Paged<MemeToken>>(`/tokens?page=${page}&limit=${limit}`);
-  return { ...page_, items: page_.items.map(withRiskDefaults) };
+// The catalog is the only discovery route that honours ?chain, and this
+// client executes on every chain the service does, so it asks for all of
+// them. The boundary filter still drops rows the client cannot open (an
+// unsupported chain, the quote currency); the server's page meta stays
+// authoritative for paging.
+//
+// `chain` narrows the catalog to one network, for a board lane that shows Base
+// or Solana on its own; omitted, the catalog is every chain.
+export async function fetchTokenCatalog(
+  page = 1,
+  limit = 20,
+  chain?: MemeChainSlug
+): Promise<Paged<MemeToken>> {
+  const scope = chain ? `&chain=${chain}` : "";
+  const page_ = await request<Paged<MemeToken>>(`/tokens?page=${page}&limit=${limit}${scope}`);
+  return { ...page_, items: page_.items.filter(isMemecoinHere).map(withRiskDefaults) };
 }
 
 export async function searchTokens(q: string): Promise<MemeToken[]> {
   const rows = await request<MemeToken[]>(`/tokens/search?q=${encodeURIComponent(q.trim())}`);
-  return rows.map(withRiskDefaults);
+  return rows.filter(isMemecoinHere).map(withRiskDefaults);
 }
 
-export async function fetchToken(address: string): Promise<MemeToken> {
-  return withRiskDefaults(await request<MemeToken>(`/tokens/${address}`));
+// The detail routes require the chain by name; without it a Solana mint is
+// rejected as an invalid EVM address rather than looked up. Addresses go out
+// exactly as the service gave them: a Solana address is case-sensitive.
+function detailPath(address: string, chainId: number, suffix = ""): string {
+  const slug = chainSlug(chainId);
+  if (!slug) throw new Error(`Unsupported chain ${chainId}.`);
+  return `/tokens/${encodeURIComponent(address)}${suffix}?chain=${slug}`;
+}
+
+export async function fetchToken(address: string, chainId: number): Promise<MemeToken> {
+  return withRiskDefaults(await request<MemeToken>(detailPath(address, chainId)));
 }
 
 export function fetchTradability(
-  address: string
+  address: string,
+  chainId: number
 ): Promise<{ buyEnabled: boolean; sellEnabled: boolean }> {
-  return request(`/tokens/${address}/tradability`);
+  return request(detailPath(address, chainId, "/tradability"));
 }
 
 export function createWalletChallenge(
@@ -218,8 +261,42 @@ export function verifyWallet(challengeId: string, signature: string): Promise<un
   return post("/wallets/verify", { challengeId, signature });
 }
 
-export function previewSwap(input: SwapRequest): Promise<SwapPreview> {
-  return post("/swaps/preview", input);
+// Base and Solana share one request shape and one status lifecycle; only
+// the route prefix differs.
+function swapsPrefix(chainId: number): string {
+  return chainId === SOLANA_CHAIN_ID ? "/solana/swaps" : "/swaps";
+}
+
+export function previewSwap(input: SwapRequest, chainId: number): Promise<SwapPreview> {
+  return post(`${swapsPrefix(chainId)}/preview`, input);
+}
+
+export function createSolanaWalletChallenge(
+  walletAddress: string
+): Promise<{ challengeId: string; message: string; expiresAt: string }> {
+  return post("/solana/wallets/challenges", { walletAddress });
+}
+
+/** `signature` is the base58 form of the 64-byte Ed25519 signature. */
+export function verifySolanaWallet(challengeId: string, signature: string): Promise<unknown> {
+  return post("/solana/wallets/verify", { challengeId, signature });
+}
+
+export function quoteSolanaSwap(
+  input: SwapRequest,
+  idempotencyKey: string
+): Promise<PreparedSolanaSwap> {
+  return post("/solana/swaps/quote", input, idempotencyKey);
+}
+
+// A Solana submission is the broadcast transaction's base58 signature; there
+// is no call index because the quote is one transaction.
+export function registerSolanaSubmission(
+  swapId: string,
+  walletAddress: string,
+  signature: string
+): Promise<{ swapId: string; status: string }> {
+  return post(`/solana/swaps/${swapId}/submissions`, { walletAddress, signature });
 }
 
 export function quoteSwap(input: SwapRequest, idempotencyKey: string): Promise<PreparedSwap> {

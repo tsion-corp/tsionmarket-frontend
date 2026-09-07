@@ -89,7 +89,19 @@
     "confirmingLong": "Still verifying, the network is busy. You can close this; we'll show the result the moment it lands.",
     "closeAndNotify": "Close and notify me when done",
     "orderFailed": "The trade didn't complete.",
-    "max": "Max"
+    "max": "Max",
+    "riskAll": "All",
+    "allTitle": "All memecoins",
+    "noneInBands": "No coins in the bands you picked.",
+    "colRisk": "Risk",
+    "clearSearch": "Clear search",
+    "searchAllLabel": "Search all memecoins",
+    "searchTrendingLabel": "Search trending memecoins",
+    "filters": "Filters",
+    "chainAll": "All chains",
+    "chainBase": "Base",
+    "chainSolana": "Solana",
+    "retry": "Try again"
   },
   "spot": {
     "balance": "Balance {amount} {symbol}",

@@ -84,3 +84,31 @@ describe("swap quote schema", () => {
     expect(check.ok).toBe(true);
   });
 });
+
+// A Solana quote is one transaction, not a list of calls, so it needs its
+// own shape; matching it against the Base schema would 502 every trade.
+describe("solana swap quote schema", () => {
+  it("validates a Solana quote in the contract's shape", () => {
+    const schema = tradeSchemaFor("solana/swaps/quote");
+    expect(schema).not.toBeNull();
+    expect(
+      schema!.safeParse({
+        swapId: "s1",
+        unsignedTransactionBase64: "AQAB",
+        platformFeeTokenAddress: null,
+        platformFeeAmountAtomic: "0",
+        expiresAt: "2026-09-06T00:00:00.000Z",
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects a Solana quote with no transaction to sign", () => {
+    const schema = tradeSchemaFor("solana/swaps/quote");
+    expect(schema!.safeParse({ swapId: "s1", expiresAt: "x" }).success).toBe(false);
+  });
+
+  it("does not apply the Base call-list schema to the Solana route", () => {
+    const schema = tradeSchemaFor("solana/swaps/quote");
+    expect(schema!.safeParse({ swapId: "s1", calls: [] }).success).toBe(false);
+  });
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { BASE_CHAIN_ID } from "@/lib/meme/chain";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
@@ -258,6 +259,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     if (swapRoute) {
       try {
         await memeTrade.trade({
+          chainId: BASE_CHAIN_ID,
           side: "BUY",
           tokenAddress: swapRoute.tokenAddress,
           amount,

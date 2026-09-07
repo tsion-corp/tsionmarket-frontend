@@ -5,6 +5,7 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { subscriptZeros } from "@/lib/format";
 import { tokenBg } from "@/lib/trade/assets";
 import type { MemeToken, TokenRiskLevel } from "@/lib/meme/api";
+import { chainSlug } from "@/lib/meme/chain";
 
 const RISK_STYLE: Record<TokenRiskLevel, string> = {
   LOW: "bg-up/14 text-up border-up/30",
@@ -30,6 +31,19 @@ export function RiskBadge({ level }: { level: TokenRiskLevel }) {
       className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-bold tracking-[0.06em] whitespace-nowrap uppercase ${RISK_STYLE[safe]}`}
     >
       {t(`risk${safe.charAt(0)}${safe.slice(1).toLowerCase()}`)}
+    </span>
+  );
+}
+
+// Which network a coin lives on. Base and Solana rows sit in one list now, and
+// a coin that looks the same on both is a different coin on each.
+export function ChainTag({ chainId }: { chainId: number }) {
+  const t = useTranslations("meme");
+  const slug = chainSlug(chainId);
+  if (!slug) return null;
+  return (
+    <span className="shrink-0 rounded-md border border-white/10 bg-white/4 px-1.5 py-0.5 text-[9.5px] font-semibold tracking-[0.06em] whitespace-nowrap text-white/50 uppercase">
+      {t(slug === "base" ? "chainBase" : "chainSolana")}
     </span>
   );
 }

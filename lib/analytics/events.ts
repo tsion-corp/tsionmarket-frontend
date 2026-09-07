@@ -339,7 +339,7 @@ export type TradeCompleted =
       slippage_pct?: number;
       price_impact_pct?: number;
       risk_label?: "low" | "medium" | "critical";
-      network: "base";
+      network: "base" | "solana";
     }
   | {
       vertical: "real_asset";

@@ -21,7 +21,7 @@ import {
   type RwaBriefRow,
   type SpotBriefRow,
 } from "@/lib/dashboard-feed";
-import { withoutQuoteCurrency, type Paged } from "@/lib/meme/catalog";
+import { tradableHere, type Paged } from "@/lib/meme/catalog";
 import type { MemeToken } from "@/lib/meme/types";
 import { composePerpBrief, perpBriefFallbackSymbols, type PerpBriefRow } from "@/lib/perp/brief";
 import type { PerpPair, PerpPrice } from "@/lib/perp/types";
@@ -142,7 +142,7 @@ async function memesSection(): Promise<MemeBriefRow[]> {
     envelopeData<Paged<MemeToken>>(
       await getJson(`${TRADE_BASE}/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`, 15)
     );
-  const page = withoutQuoteCurrency(await trending().catch(catalog));
+  const page = tradableHere(await trending().catch(catalog));
   return page.items.slice(0, DASHBOARD_FEED_ROWS).map((t) => {
     const change = t.priceChange24hPercent == null ? NaN : Number(t.priceChange24hPercent);
     return {

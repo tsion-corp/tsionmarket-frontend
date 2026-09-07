@@ -1,5 +1,6 @@
 "use client";
 
+import { SOLANA_CHAIN_ID, chainSlug, networkOf } from "@/lib/meme/chain";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -57,7 +58,7 @@ export function MemeTradeSheet({
 }: MemeTradeSheetProps) {
   const t = useTranslations("meme");
   // Fresh risk/tradability for the trade surface; the list row may be stale.
-  const { token: fresh } = useMemeToken(listed.address);
+  const { token: fresh } = useMemeToken(listed);
   const token = fresh ?? listed;
 
   // Known-safe wrapped spot assets (cbBTC, cbDOGE) show as the coin they
@@ -71,7 +72,11 @@ export function MemeTradeSheet({
   const [side, setSide] = useState<"BUY" | "SELL">(defaultSide);
   const [amount, setAmount] = useState("");
   const [debouncedAmount, setDebouncedAmount] = useState("");
-  const { wallet, phase, error, received, trade, reset, linkForPreview } = useMemeTrade();
+  const { walletFor, phase, error, received, trade, reset, linkForPreview } = useMemeTrade();
+  // The token's chain picks the wallet that pays and holds, and the network
+  // the portfolio files its balances under.
+  const wallet = walletFor(token.chainId);
+  const network = networkOf(token.chainId);
   const portfolio = usePortfolio();
   const linkTriedRef = useRef(false);
 
@@ -87,13 +92,15 @@ export function MemeTradeSheet({
   const amountValid = isValidTradeAmount(debouncedAmount, maxDecimals);
 
   const usdcBalance =
-    portfolio.tokens.find((p) => p.network === "base-mainnet" && p.symbol.toUpperCase() === "USDC")
+    portfolio.tokens.find((p) => p.network === network && p.symbol.toUpperCase() === "USDC")
       ?.balance ?? 0;
+  // EVM addresses compare case-insensitively; a Solana mint is case-sensitive.
+  const sameAddress = (a: string | null | undefined) =>
+    token.chainId === SOLANA_CHAIN_ID
+      ? a === token.address
+      : a?.toLowerCase() === token.address.toLowerCase();
   const heldBalance =
-    portfolio.tokens.find(
-      (p) =>
-        p.network === "base-mainnet" && p.address?.toLowerCase() === token.address.toLowerCase()
-    )?.balance ?? 0;
+    portfolio.tokens.find((p) => p.network === network && sameAddress(p.address))?.balance ?? 0;
   const balance = buying ? usdcBalance : heldBalance;
   const overBalance = amountValid && Number(debouncedAmount) > balance + 1e-9;
 
@@ -113,9 +120,24 @@ export function MemeTradeSheet({
   const previewInput = useMemo(
     () =>
       amountValid && sideEnabled && !overBalance && wallet
-        ? { side, tokenAddress: token.address, amount: debouncedAmount, walletAddress: wallet }
+        ? {
+            side,
+            tokenAddress: token.address,
+            amount: debouncedAmount,
+            walletAddress: wallet,
+            chainId: token.chainId,
+          }
         : null,
-    [amountValid, sideEnabled, overBalance, wallet, side, token.address, debouncedAmount]
+    [
+      amountValid,
+      sideEnabled,
+      overBalance,
+      wallet,
+      side,
+      token.address,
+      token.chainId,
+      debouncedAmount,
+    ]
   );
   const preview = useMemePreview(previewInput);
 
@@ -130,11 +152,11 @@ export function MemeTradeSheet({
       !linkTriedRef.current
     ) {
       linkTriedRef.current = true;
-      void linkForPreview()
+      void linkForPreview(token.chainId)
         .then(() => previewRefetch())
         .catch(() => {});
     }
-  }, [previewError, linkForPreview, previewRefetch]);
+  }, [previewError, linkForPreview, previewRefetch, token.chainId]);
 
   const busy = phase !== "idle" && phase !== "failed" && phase !== "confirmed";
   // The balanceOf delta (received) is on-chain proof of delivery, landing
@@ -184,15 +206,20 @@ export function MemeTradeSheet({
       buying ? t("buyingToast", { symbol: displaySym }) : t("sellingToast", { symbol: displaySym })
     );
     try {
-      await trade({ side, tokenAddress: token.address, amount: debouncedAmount });
-      // Memecoins always settle on Base, and carry the risk label the screen
-      // showed the user before they confirmed.
+      await trade({
+        side,
+        tokenAddress: token.address,
+        amount: debouncedAmount,
+        chainId: token.chainId,
+      });
+      // Settles on the token's own chain, and carries the risk label the
+      // screen showed the user before they confirmed.
       track("trade_completed", {
         vertical: "memecoin",
         token: token.symbol ?? token.address,
         side: buying ? "buy" : "sell",
         amount_usd: Number(debouncedAmount),
-        network: "base",
+        network: chainSlug(token.chainId) ?? "base",
       });
       toast.success(
         buying ? t("toastBought", { symbol: displaySym }) : t("toastSold", { symbol: displaySym }),

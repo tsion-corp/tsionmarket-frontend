@@ -89,7 +89,19 @@
     "confirmingLong": "Vérification toujours en cours, le réseau est chargé. Vous pouvez fermer ; le résultat s'affichera dès qu'il arrive.",
     "closeAndNotify": "Fermer et me prévenir du résultat",
     "orderFailed": "L'échange n'a pas abouti.",
-    "max": "Max"
+    "max": "Max",
+    "riskAll": "Toutes",
+    "allTitle": "Toutes les memecoins",
+    "noneInBands": "Aucun coin dans les niveaux choisis.",
+    "colRisk": "Risque",
+    "clearSearch": "Effacer la recherche",
+    "searchAllLabel": "Rechercher dans toutes les memecoins",
+    "searchTrendingLabel": "Rechercher les memecoins en vogue",
+    "filters": "Filtres",
+    "chainAll": "Tous les réseaux",
+    "chainBase": "Base",
+    "chainSolana": "Solana",
+    "retry": "Réessayer"
   },
   "spot": {
     "balance": "Solde {amount} {symbol}",

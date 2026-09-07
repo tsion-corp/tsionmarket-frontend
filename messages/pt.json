@@ -89,7 +89,19 @@
     "confirmingLong": "Ainda verificando, a rede está ocupada. Você pode fechar; o resultado aparecerá assim que chegar.",
     "closeAndNotify": "Fechar e avisar quando concluir",
     "orderFailed": "A negociação não foi concluída.",
-    "max": "Máx"
+    "max": "Máx",
+    "riskAll": "Todas",
+    "allTitle": "Todas as memecoins",
+    "noneInBands": "Nenhuma moeda nos níveis escolhidos.",
+    "colRisk": "Risco",
+    "clearSearch": "Limpar pesquisa",
+    "searchAllLabel": "Pesquisar em todas as memecoins",
+    "searchTrendingLabel": "Pesquisar memecoins em alta",
+    "filters": "Filtros",
+    "chainAll": "Todas as redes",
+    "chainBase": "Base",
+    "chainSolana": "Solana",
+    "retry": "Tentar novamente"
   },
   "spot": {
     "balance": "Saldo {amount} {symbol}",

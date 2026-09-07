@@ -1,5 +1,6 @@
 "use client";
 
+import { BASE_CHAIN_ID } from "@/lib/meme/chain";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBuy } from "@/features/trade/hooks/use-buy";
@@ -295,6 +296,7 @@ export function SpotPanel({
       if (!swapRoute) return;
       try {
         await memeTrade.trade({
+          chainId: BASE_CHAIN_ID,
           side: buying ? "BUY" : "SELL",
           tokenAddress: swapRoute.tokenAddress,
           amount,

@@ -108,6 +108,7 @@ function healthyUpstreams() {
       return ok({
         items: [
           {
+            chainId: 8453,
             address: "0xMeme",
             symbol: "MEME",
             name: "Meme",
@@ -115,7 +116,29 @@ function healthyUpstreams() {
             priceUsd: "0.01",
             priceChange24hPercent: "12.5",
           },
+          // The service mixes Solana rows into trending; the client trades
+          // both chains, so the row reaches the brief. A chain it cannot
+          // execute on (Ethereum here) still does not.
           {
+            chainId: 1,
+            address: "0xEthMeme",
+            symbol: "ETHMEME",
+            name: "Ethereum Meme",
+            logoUrl: null,
+            priceUsd: "0.03",
+            priceChange24hPercent: "1",
+          },
+          {
+            chainId: 101,
+            address: "So1anaMemeMint",
+            symbol: "SOLMEME",
+            name: "Solana Meme",
+            logoUrl: null,
+            priceUsd: "0.02",
+            priceChange24hPercent: "3",
+          },
+          {
+            chainId: 8453,
             address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
             symbol: "USDC",
             name: "USDC",
@@ -215,6 +238,14 @@ describe("buildDashboardFeed", () => {
         logoUrl: null,
         priceUsd: "0.01",
         change24h: 12.5,
+      },
+      {
+        address: "So1anaMemeMint",
+        symbol: "SOLMEME",
+        name: "Solana Meme",
+        logoUrl: null,
+        priceUsd: "0.02",
+        change24h: 3,
       },
     ]);
     expect(feed.rwa?.[0]).toMatchObject({
