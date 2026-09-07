@@ -12,8 +12,12 @@ native-token max sell assumed a transfer costs exactly 21,000 gas. On an
 Arbitrum Orbit chain the gas a transfer is charged includes the L1 posting
 component, so the node's requirement runs well above that and the amount
 left behind could not pay for the send. The reserve is now measured from the
-node's own estimate of a transfer, floored at 21,000, with the same 1.5×
-headroom; a node that will not estimate falls back to the floor.
+node's own estimate of a transfer, floored at 21,000, and priced at the fee
+cap a wallet actually sends with on an EIP-1559 chain, twice the base fee
+plus the tip (the second APE failure, "gas required exceeds allowance
+(15876)", implied a fee of exactly twice the base fee), with a quarter
+headroom; a chain without a base fee is priced at its gas price; a node that
+will not estimate falls back to the floor.
 
 ## What changed
 
