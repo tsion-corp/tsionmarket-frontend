@@ -2,6 +2,7 @@
 
 import { http, type EIP1193Provider, type SignedAuthorization } from "viem";
 import { createBundlerClient, createPaymasterClient } from "viem/account-abstraction";
+import { paymasterFeesPerGas } from "@/lib/trade/sponsor-fees";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
 import { getSponsoredEvmChainById } from "@/lib/trade/sponsored-evm";
 import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
@@ -166,14 +167,40 @@ export async function sendSponsoredEvmCalls({
     accountLogicAddress: SIMPLE_7702_IMPL,
   });
 
+  // The paymaster path also estimates its own fees: the chain's priority-fee
+  // estimate is 0 on Arbitrum, which the bundler rejects at precheck, so the
+  // bundler's published floor is read first. See lib/trade/sponsor-fees.
+  const paymaster =
+    target.sponsorshipMode === "paymaster"
+      ? createPaymasterClient({ transport: bundlerTransport })
+      : undefined;
   const bundlerClient = createBundlerClient({
     account,
     client,
     chain: target.chain,
     transport: bundlerTransport,
-    ...(target.sponsorshipMode === "paymaster"
-      ? { paymaster: createPaymasterClient({ transport: bundlerTransport }) }
-      : {}),
+    paymaster,
+    userOperation: paymaster
+      ? {
+          estimateFeesPerGas: async ({ bundlerClient: bundler }) => {
+            const [block, chainTip] = await Promise.all([
+              client.getBlock({ blockTag: "latest" }),
+              client.estimateMaxPriorityFeePerGas().catch(() => 0n),
+            ]);
+            return paymasterFeesPerGas({
+              bundlerRequest: (args) =>
+                (
+                  bundler.request as (input: {
+                    method: string;
+                    params?: unknown;
+                  }) => Promise<unknown>
+                )(args),
+              baseFeePerGas: block.baseFeePerGas ?? 0n,
+              chainPriorityFeePerGas: chainTip,
+            });
+          },
+        }
+      : undefined,
   });
 
   const hash = await bundlerClient.sendUserOperation(

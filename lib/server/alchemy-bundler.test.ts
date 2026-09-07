@@ -98,6 +98,21 @@ describe("Alchemy sponsorship proxy", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  // The paymaster path asks the bundler for its priority-fee floor before
+  // sending; the proxy must let that one bundler method through.
+  it("forwards the bundler's priority-fee floor query without a policy", async () => {
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({ jsonrpc: "2.0", id: 1, method: "rundler_maxPriorityFeePerGas", params: [] }),
+      "arb-mainnet"
+    );
+
+    expect(response.status).toBe(200);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toContain("arb-mainnet.g.alchemy.com/v2/data-api-key");
+    expect((init?.headers as Record<string, string>)["x-alchemy-policy-id"]).toBeUndefined();
+  });
+
   it("rejects ordinary node reads so they stay on ZeroDev", async () => {
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     const response = await forwardAlchemyBundlerRequest(

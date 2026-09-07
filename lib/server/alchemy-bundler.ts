@@ -22,6 +22,9 @@ const USER_OPERATION_METHODS = new Set([
   "eth_supportedEntryPoints",
   "pm_getPaymasterStubData",
   "pm_getPaymasterData",
+  // The bundler's priority-fee floor, which the paymaster path reads before
+  // sending; the chain's own estimate is 0 on Arbitrum and gets rejected.
+  "rundler_maxPriorityFeePerGas",
 ]);
 const SPONSORED_SEND_METHOD = "eth_sendUserOperation";
 const PAYMASTER_METHODS = new Set(["pm_getPaymasterStubData", "pm_getPaymasterData"]);
