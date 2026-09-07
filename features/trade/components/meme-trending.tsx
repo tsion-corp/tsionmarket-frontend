@@ -4,13 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { usePaged } from "@/hooks/use-paged";
-import {
-  ChainTag,
-  MemeCoin,
-  PctChange,
-  RiskBadge,
-  priceLabel,
-} from "@/features/trade/components/meme-bits";
+import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/components/meme-bits";
 import { MemeSearchInput } from "@/features/trade/components/meme-search-input";
 import { MemeUnavailable } from "@/features/trade/components/meme-unavailable";
 import {
@@ -96,11 +90,8 @@ export function MemeTrending({ onOpen }: { onOpen: (token: MemeToken) => void })
             >
               <MemeCoin token={token} size={36} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-sans text-[14px] font-semibold">
-                    {token.symbol ?? "?"}
-                  </span>
-                  <ChainTag chainId={token.chainId} />
+                <div className="truncate font-sans text-[14px] font-semibold">
+                  {token.symbol ?? "?"}
                 </div>
                 <div className="truncate text-[11.5px] font-normal text-white/45">
                   {token.name ?? "—"}

@@ -22,7 +22,7 @@
   "overview": {
     "spotBlurb": "Compre e venda os principais tokens a preços de mercado ao vivo.",
     "perpsBlurb": "Negocie cripto com alavancagem, comprado ou vendido.",
-    "memeBlurb": "Memecoins em alta na Base, com verificação de risco antes de comprar.",
+    "memeBlurb": "Memecoins em alta, com verificação de risco antes de comprar.",
     "rwaBlurb": "Títulos do Tesouro, ações, crédito e metais tokenizados.",
     "viewAll": "Ver tudo em {section}",
     "leverage": "Até {max}x",
@@ -98,10 +98,20 @@
     "searchAllLabel": "Pesquisar em todas as memecoins",
     "searchTrendingLabel": "Pesquisar memecoins em alta",
     "filters": "Filtros",
-    "chainAll": "Todas as redes",
-    "chainBase": "Base",
-    "chainSolana": "Solana",
-    "retry": "Tentar novamente"
+    "retry": "Tentar novamente",
+    "connectWallet": "Conecte sua carteira para negociar",
+    "fundWorking": "Movendo fundos…",
+    "fundFailed": "A transferência não foi concluída. Seus fundos serão devolvidos se a rota não puder liquidar.",
+    "fundShort": "Esta compra precisa de {amount} disponíveis. Adicione dinheiro e ela estará pronta.",
+    "purchaseQueued": "Ordem aceita. Sua compra de {symbol} será concluída em segundo plano.",
+    "purchaseBackgroundComplete": "Sua compra de {symbol} foi concluída e está chegando ao seu portfólio.",
+    "purchaseBackgroundFailed": "Seu dinheiro chegou, mas a compra de {symbol} não pôde ser concluída. Seus USD estão seguros; selecione Comprar novamente para tentar de novo.",
+    "fundReady": "Seus USD estão prontos. Reabra {symbol} para concluir a compra.",
+    "proceedsReady": "O valor da venda de {symbol} chegou ao seu saldo em USD.",
+    "proceedsFailed": "Sua venda foi concluída. A transferência do valor para o seu saldo em USD não foi concluída; o dinheiro permanece seguro e será tentado novamente.",
+    "proceedsWorking": "Vendido. Movendo o valor para o seu saldo em USD…",
+    "estimateNote": "Estimado pelo preço atual. O valor exato é cotado assim que seu dinheiro for movido.",
+    "minimumUsd": "Mínimo ${amount}"
   },
   "spot": {
     "balance": "Saldo {amount} {symbol}",

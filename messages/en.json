@@ -22,7 +22,7 @@
   "overview": {
     "spotBlurb": "Buy and sell major tokens at live market prices.",
     "perpsBlurb": "Trade crypto with leverage, long or short.",
-    "memeBlurb": "Trending memecoins on Base, with a risk check before you buy.",
+    "memeBlurb": "Trending memecoins, with a risk check before you buy.",
     "rwaBlurb": "Tokenised treasuries, equities, credit and metals.",
     "viewAll": "View all {section}",
     "leverage": "Up to {max}x",
@@ -98,10 +98,20 @@
     "searchAllLabel": "Search all memecoins",
     "searchTrendingLabel": "Search trending memecoins",
     "filters": "Filters",
-    "chainAll": "All chains",
-    "chainBase": "Base",
-    "chainSolana": "Solana",
-    "retry": "Try again"
+    "retry": "Try again",
+    "connectWallet": "Connect your wallet to trade",
+    "fundWorking": "Moving funds…",
+    "fundFailed": "The transfer did not complete. Your funds will be returned if the route cannot settle.",
+    "fundShort": "This buy needs {amount} available. Add money and it will be ready.",
+    "purchaseQueued": "Order accepted. Your {symbol} purchase will complete in the background.",
+    "purchaseBackgroundComplete": "Your {symbol} purchase is complete and is landing in your portfolio.",
+    "purchaseBackgroundFailed": "Your money arrived, but the {symbol} purchase could not finish. Your USD is safe; select Buy again to retry.",
+    "fundReady": "Your USD is ready. Reopen {symbol} to complete your purchase.",
+    "proceedsReady": "{symbol} sale proceeds arrived in your USD balance.",
+    "proceedsFailed": "Your sale succeeded. Moving the proceeds to your USD balance did not complete; the money remains safe and will be retried.",
+    "proceedsWorking": "Sold. Moving the proceeds to your USD balance…",
+    "estimateNote": "Estimated from the current price. The exact amount is quoted once your money has moved.",
+    "minimumUsd": "Minimum ${amount}"
   },
   "spot": {
     "balance": "Balance {amount} {symbol}",

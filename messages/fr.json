@@ -22,7 +22,7 @@
   "overview": {
     "spotBlurb": "Achetez et vendez les principaux tokens aux prix du marché en direct.",
     "perpsBlurb": "Tradez la crypto avec effet de levier, à la hausse ou à la baisse.",
-    "memeBlurb": "Les memecoins en vogue sur Base, avec un contrôle du risque avant l'achat.",
+    "memeBlurb": "Les memecoins en vogue, avec un contrôle du risque avant l'achat.",
     "rwaBlurb": "Bons du Trésor, actions, crédit et métaux tokenisés.",
     "viewAll": "Voir tout dans {section}",
     "leverage": "Jusqu'à {max}x",
@@ -98,10 +98,20 @@
     "searchAllLabel": "Rechercher dans toutes les memecoins",
     "searchTrendingLabel": "Rechercher les memecoins en vogue",
     "filters": "Filtres",
-    "chainAll": "Tous les réseaux",
-    "chainBase": "Base",
-    "chainSolana": "Solana",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "connectWallet": "Connectez votre portefeuille pour trader",
+    "fundWorking": "Transfert des fonds…",
+    "fundFailed": "Le transfert n'a pas abouti. Vos fonds seront restitués si la route ne peut pas régler.",
+    "fundShort": "Cet achat nécessite {amount} disponibles. Ajoutez de l'argent et il sera prêt.",
+    "purchaseQueued": "Ordre accepté. Votre achat de {symbol} se terminera en arrière-plan.",
+    "purchaseBackgroundComplete": "Votre achat de {symbol} est terminé et arrive dans votre portefeuille.",
+    "purchaseBackgroundFailed": "Votre argent est arrivé, mais l'achat de {symbol} n'a pas pu aboutir. Vos USD sont en sécurité ; sélectionnez Acheter à nouveau pour réessayer.",
+    "fundReady": "Vos USD sont prêts. Rouvrez {symbol} pour finaliser votre achat.",
+    "proceedsReady": "Le produit de la vente de {symbol} est arrivé sur votre solde en USD.",
+    "proceedsFailed": "Votre vente a réussi. Le transfert du produit vers votre solde en USD n'a pas abouti ; l'argent reste en sécurité et sera réessayé.",
+    "proceedsWorking": "Vendu. Transfert du produit vers votre solde en USD…",
+    "estimateNote": "Estimation au prix actuel. Le montant exact est coté une fois votre argent transféré.",
+    "minimumUsd": "Minimum ${amount}"
   },
   "spot": {
     "balance": "Solde {amount} {symbol}",

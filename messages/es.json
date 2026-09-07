@@ -22,7 +22,7 @@
   "overview": {
     "spotBlurb": "Compra y vende los principales tokens a precios de mercado en vivo.",
     "perpsBlurb": "Opera cripto con apalancamiento, en largo o en corto.",
-    "memeBlurb": "Memecoins en tendencia en Base, con control de riesgo antes de comprar.",
+    "memeBlurb": "Memecoins en tendencia, con control de riesgo antes de comprar.",
     "rwaBlurb": "Bonos del Tesoro, acciones, crédito y metales tokenizados.",
     "viewAll": "Ver todo en {section}",
     "leverage": "Hasta {max}x",
@@ -98,10 +98,20 @@
     "searchAllLabel": "Buscar en todas las memecoins",
     "searchTrendingLabel": "Buscar memecoins en tendencia",
     "filters": "Filtros",
-    "chainAll": "Todas las redes",
-    "chainBase": "Base",
-    "chainSolana": "Solana",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "connectWallet": "Conecta tu billetera para operar",
+    "fundWorking": "Moviendo fondos…",
+    "fundFailed": "La transferencia no se completó. Tus fondos se devolverán si la ruta no puede liquidarse.",
+    "fundShort": "Esta compra necesita {amount} disponibles. Añade dinero y estará lista.",
+    "purchaseQueued": "Orden aceptada. Tu compra de {symbol} se completará en segundo plano.",
+    "purchaseBackgroundComplete": "Tu compra de {symbol} se completó y está llegando a tu portafolio.",
+    "purchaseBackgroundFailed": "Tu dinero llegó, pero la compra de {symbol} no pudo terminar. Tus USD están a salvo; selecciona Comprar de nuevo para reintentar.",
+    "fundReady": "Tus USD están listos. Vuelve a abrir {symbol} para completar la compra.",
+    "proceedsReady": "El producto de la venta de {symbol} llegó a tu saldo en USD.",
+    "proceedsFailed": "Tu venta se realizó. El traslado del producto a tu saldo en USD no se completó; el dinero sigue a salvo y se reintentará.",
+    "proceedsWorking": "Vendido. Moviendo el producto a tu saldo en USD…",
+    "estimateNote": "Estimado con el precio actual. El importe exacto se cotiza cuando tu dinero se haya movido.",
+    "minimumUsd": "Mínimo ${amount}"
   },
   "spot": {
     "balance": "Saldo {amount} {symbol}",

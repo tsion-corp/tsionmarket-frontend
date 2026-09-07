@@ -7,6 +7,18 @@ export const PENDING_RWA_SETTLEMENT_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type RwaSettlementDirection = "base-to-solana" | "solana-to-base";
 
+// Which surface owns an entry. Real assets and memecoins share this store and
+// each runs its own tracker; a tracker must never pick up the other's order.
+// Entries written before this field existed are real-asset entries.
+export type SettlementProduct = "rwa" | "meme";
+
+export function settlementsForProduct<T extends { product?: SettlementProduct }>(
+  settlements: readonly T[],
+  product: SettlementProduct
+): T[] {
+  return settlements.filter((s) => (s.product ?? "rwa") === product);
+}
+
 export interface PendingRwaPurchase {
   assetAddress: string;
   assetSymbol: string;
@@ -30,6 +42,7 @@ export interface PendingRwaSale {
 
 export interface PendingRwaSettlement {
   requestId: string;
+  product?: SettlementProduct;
   direction: RwaSettlementDirection;
   assetSymbol: string;
   createdAt: number;
@@ -116,6 +129,9 @@ function isPendingRwaSettlement(value: unknown): value is PendingRwaSettlement {
   return (
     typeof settlement.requestId === "string" &&
     settlement.requestId !== "" &&
+    (settlement.product === undefined ||
+      settlement.product === "rwa" ||
+      settlement.product === "meme") &&
     (settlement.direction === "base-to-solana" || settlement.direction === "solana-to-base") &&
     typeof settlement.assetSymbol === "string" &&
     typeof settlement.createdAt === "number" &&

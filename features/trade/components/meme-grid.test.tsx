@@ -11,7 +11,6 @@ const catalog = vi.hoisted(() => ({
   isLoading: false,
   error: null as unknown,
   refetch: vi.fn(),
-  lastChain: undefined as string | undefined,
 }));
 const search = vi.hoisted(() => ({
   results: [] as MemeToken[],
@@ -20,10 +19,7 @@ const search = vi.hoisted(() => ({
   error: null as unknown,
 }));
 vi.mock("@/features/trade/hooks/use-meme-tokens", () => ({
-  useMemeCatalog: (_page: number, _limit: number, chain?: string) => {
-    catalog.lastChain = chain;
-    return catalog;
-  },
+  useMemeCatalog: () => catalog,
   useMemeSearch: () => search,
 }));
 
@@ -103,31 +99,6 @@ describe("MemeGrid paging", () => {
     expect(screen.queryByText("C21")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Next/ }));
     expect(screen.getByText("C21")).toBeInTheDocument();
-  });
-});
-
-describe("MemeGrid across chains", () => {
-  it("says which chain each coin lives on", () => {
-    catalog.tokens = [
-      memeToken({ symbol: "ONBASE", chainId: 8453 }),
-      memeToken({
-        symbol: "ONSOL",
-        chainId: 101,
-        address: "So11111111111111111111111111111111111111112",
-      }),
-    ];
-    renderTable();
-    const base = screen.getByText("ONBASE").closest("button");
-    const sol = screen.getByText("ONSOL").closest("button");
-    expect(base).toHaveTextContent("Base");
-    expect(sol).toHaveTextContent("Solana");
-  });
-
-  it("narrows to one chain and asks the catalogue for that chain", () => {
-    catalog.tokens = [memeToken({ symbol: "ONBASE", chainId: 8453 })];
-    renderTable();
-    fireEvent.click(screen.getByRole("button", { name: /^Solana$/ }));
-    expect(catalog.lastChain).toBe("solana");
   });
 });
 

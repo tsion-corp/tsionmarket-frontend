@@ -22,7 +22,7 @@
   "overview": {
     "spotBlurb": "Große Token zu aktuellen Marktpreisen kaufen und verkaufen.",
     "perpsBlurb": "Krypto mit Hebel handeln, long oder short.",
-    "memeBlurb": "Angesagte Memecoins auf Base, mit Risikoprüfung vor dem Kauf.",
+    "memeBlurb": "Angesagte Memecoins, mit Risikoprüfung vor dem Kauf.",
     "rwaBlurb": "Tokenisierte Staatsanleihen, Aktien, Kredite und Metalle.",
     "viewAll": "Alles in {section} ansehen",
     "leverage": "Bis zu {max}x",
@@ -98,10 +98,20 @@
     "searchAllLabel": "Alle Memecoins durchsuchen",
     "searchTrendingLabel": "Trend-Memecoins durchsuchen",
     "filters": "Filter",
-    "chainAll": "Alle Netzwerke",
-    "chainBase": "Base",
-    "chainSolana": "Solana",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "connectWallet": "Verbinden Sie Ihr Wallet, um zu handeln",
+    "fundWorking": "Guthaben wird verschoben…",
+    "fundFailed": "Die Übertragung wurde nicht abgeschlossen. Ihr Guthaben wird zurückgegeben, falls die Route nicht abrechnen kann.",
+    "fundShort": "Für diesen Kauf werden {amount} benötigt. Fügen Sie Geld hinzu, dann ist er bereit.",
+    "purchaseQueued": "Auftrag angenommen. Ihr {symbol}-Kauf wird im Hintergrund abgeschlossen.",
+    "purchaseBackgroundComplete": "Ihr {symbol}-Kauf ist abgeschlossen und erscheint in Ihrem Portfolio.",
+    "purchaseBackgroundFailed": "Ihr Geld ist angekommen, aber der {symbol}-Kauf konnte nicht abgeschlossen werden. Ihr USD-Guthaben ist sicher; wählen Sie erneut Kaufen.",
+    "fundReady": "Ihr USD-Guthaben ist bereit. Öffnen Sie {symbol} erneut, um den Kauf abzuschließen.",
+    "proceedsReady": "Der Erlös aus dem {symbol}-Verkauf ist in Ihrem USD-Guthaben eingegangen.",
+    "proceedsFailed": "Ihr Verkauf war erfolgreich. Die Übertragung des Erlöses in Ihr USD-Guthaben wurde nicht abgeschlossen; das Geld bleibt sicher und wird erneut versucht.",
+    "proceedsWorking": "Verkauft. Erlös wird in Ihr USD-Guthaben verschoben…",
+    "estimateNote": "Geschätzt aus dem aktuellen Preis. Der genaue Betrag wird angegeben, sobald Ihr Geld verschoben wurde.",
+    "minimumUsd": "Mindestens ${amount}"
   },
   "spot": {
     "balance": "Guthaben {amount} {symbol}",

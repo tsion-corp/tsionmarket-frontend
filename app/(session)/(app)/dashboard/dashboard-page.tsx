@@ -22,6 +22,7 @@ import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modal
 import { BankDepositAnalytics } from "@/features/funds";
 import { CrossBorderBanner } from "@/features/remit/components/cross-border-banner";
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
+import { MemeSettlementTracker } from "@/features/trade/components/meme-settlement-tracker";
 import { SquareComposeFab, SquareSection } from "@/features/square";
 import { SquareLivePromo, SquarePeoplePromo, SquarePostsPromo } from "@/features/square";
 import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
@@ -225,6 +226,7 @@ export function DashboardPage() {
   return (
     <>
       <RwaSettlementTracker />
+      <MemeSettlementTracker />
       {/* Reports settled deposits. It used to ride on the recent-activity
             list that stood here; it is mounted on its own now that history
             lives only on its own page. */}

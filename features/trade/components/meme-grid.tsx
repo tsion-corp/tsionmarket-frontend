@@ -3,14 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ListPagination } from "@/components/ui/list-pagination";
-import {
-  ChainTag,
-  MemeCoin,
-  PctChange,
-  RiskBadge,
-  priceLabel,
-} from "@/features/trade/components/meme-bits";
-import { MemeChainFilter } from "@/features/trade/components/meme-chain-filter";
+import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/components/meme-bits";
 import { MemeSearchInput } from "@/features/trade/components/meme-search-input";
 import { MemeFilterButton } from "@/features/trade/components/meme-filter-button";
 import { MemeUnavailable } from "@/features/trade/components/meme-unavailable";
@@ -18,7 +11,6 @@ import { RISK_FILTERS, filterByRisk } from "@/features/trade/components/meme-ris
 import { usePaged } from "@/hooks/use-paged";
 import { useMemeCatalog, useMemeSearch } from "@/features/trade/hooks/use-meme-tokens";
 import { compactUsd, type MemeToken, type TokenRiskLevel } from "@/lib/meme/api";
-import type { MemeChainSlug } from "@/lib/meme/chain";
 
 // Twenty-one: seven rows of three on a wide screen, and it divides evenly by
 // the two- and one-column layouts too, so no page ends in a ragged row.
@@ -28,13 +20,12 @@ const PER_PAGE = 21;
 // server. Paging on the server put the boundary filter after the page was
 // cut, so a page holding a dropped row came back short and the last row was
 // ragged; filtering first and cutting after is the only way a page is
-// reliably full. It also makes the risk bands and the chain lanes mean what
+// reliably full. It also makes the risk bands mean what
 // they look like they mean: they narrow the whole catalogue, not the rows
 // that happened to be loaded.
 //
 // 500 is the most the trade service returns per page. The catalogue is a
-// little over 400 rows across both chains today, so this is all of it; a
-// day it outgrows the cap, the last rows wait for a chain lane.
+// little over 400 rows across both chains today, so this is all of it.
 const CATALOG_LIMIT = 500;
 
 // The whole catalogue as cards.
@@ -46,8 +37,7 @@ const CATALOG_LIMIT = 500;
 // put one.
 export function MemeGrid({ onOpen }: { onOpen: (token: MemeToken) => void }) {
   const t = useTranslations("meme");
-  const [chain, setChain] = useState<MemeChainSlug | undefined>(undefined);
-  const { tokens, isLoading, error, refetch } = useMemeCatalog(1, CATALOG_LIMIT, chain);
+  const { tokens, isLoading, error, refetch } = useMemeCatalog(1, CATALOG_LIMIT);
   const [query, setQuery] = useState("");
   const search = useMemeSearch(query);
   const [bands, setBands] = useState<Set<TokenRiskLevel>>(new Set());
@@ -81,7 +71,6 @@ export function MemeGrid({ onOpen }: { onOpen: (token: MemeToken) => void }) {
         <div className="ws-display text-[18px]">{t("allTitle")}</div>
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <MemeSearchInput value={query} onChange={setQuery} label={t("searchAllLabel")} />
-          <MemeChainFilter active={chain} onChange={setChain} />
           <MemeFilterButton
             active={bands}
             onToggle={toggle}
@@ -120,7 +109,6 @@ export function MemeGrid({ onOpen }: { onOpen: (token: MemeToken) => void }) {
                         {token.symbol ?? "?"}
                       </span>
                       <RiskBadge level={token.riskLevel} />
-                      <ChainTag chainId={token.chainId} />
                     </div>
                     <div className="truncate text-[11.5px] font-normal text-white/45">
                       {token.name ?? "—"}
