@@ -115,6 +115,7 @@ function healthyUpstreams() {
             logoUrl: null,
             priceUsd: "0.01",
             priceChange24hPercent: "12.5",
+            riskLevel: "LOW",
           },
           // The service mixes Solana rows into trending; the client trades
           // both chains, so the row reaches the brief. A chain it cannot
@@ -127,6 +128,7 @@ function healthyUpstreams() {
             logoUrl: null,
             priceUsd: "0.03",
             priceChange24hPercent: "1",
+            riskLevel: "LOW",
           },
           {
             chainId: 101,
@@ -136,6 +138,7 @@ function healthyUpstreams() {
             logoUrl: null,
             priceUsd: "0.02",
             priceChange24hPercent: "3",
+            riskLevel: "LOW",
           },
           {
             chainId: 8453,
@@ -145,6 +148,7 @@ function healthyUpstreams() {
             logoUrl: null,
             priceUsd: "1",
             priceChange24hPercent: "0",
+            riskLevel: "LOW",
           },
         ],
         meta: { page: 1, limit: 8, total: 2 },
@@ -163,6 +167,7 @@ function healthyUpstreams() {
             logoUrl: null,
             priceUsd: "0.05",
             priceChange24hPercent: "1",
+            riskLevel: "LOW",
           },
         ],
         meta: { page: 1, limit: 40, total: 1 },
@@ -308,6 +313,7 @@ describe("buildDashboardFeed", () => {
               logoUrl: null,
               priceUsd: "0.02",
               priceChange24hPercent: "3",
+              riskLevel: "LOW",
             },
           ],
           meta: { page: 1, limit: 8, total: 1 },
@@ -325,6 +331,7 @@ describe("buildDashboardFeed", () => {
               logoUrl: null,
               priceUsd: "0.01",
               priceChange24hPercent: "5",
+              riskLevel: "LOW",
             },
           ],
           meta: { page: 1, limit: 40, total: 1 },

@@ -20,12 +20,21 @@ export interface SpotMarket {
   marketCap: number;
 }
 
+// Markets taken off the spot desk on the maintainers' instruction
+// (2026-09-07): DOGE, RON (Ronin's native coin) and MON (Monad's). This is
+// the BUY list only. A wallet that already holds any of them still sees the
+// holding and sells it through the same route as before; the swap route for
+// cbDOGE stays for exactly that reason.
+export const SPOT_DELISTED: ReadonlySet<string> = new Set(["DOGE", "RON", "MON"]);
+
 // The Dextopus-buyable set, plus the small set of symbols that settle through
 // a same-chain swap instead (see lib/spot-swap.ts): currently just DOGE, which
-// Dextopus does not offer on any chain.
+// Dextopus does not offer on any chain; minus the delisted markets.
 export function spotSymbolsFor(destinations: BuyRoute[]): string[] {
   const dextopus = buyableSymbols(destinations);
-  return [...new Set([...dextopus, ...swapRouteSymbols()])].filter((s) => !isSpotStable(s));
+  return [...new Set([...dextopus, ...swapRouteSymbols()])].filter(
+    (s) => !isSpotStable(s) && !SPOT_DELISTED.has(s.toUpperCase())
+  );
 }
 
 export function composeSpotMarkets(

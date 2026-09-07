@@ -121,13 +121,37 @@ export function withRiskDefaults(token: MemeToken): MemeToken {
 // Solana is untouched, so removing this line restores it.
 const DISCOVERY_CHAINS: ReadonlySet<number> = new Set([BASE_CHAIN_ID]);
 
+// Discovery shows rated coins outside the high band only, on the
+// maintainers' instruction (2026-09-07: "remove those unrated and low rated
+// meme coins"). In the trade service's own terms an unrated coin is
+// riskLevel UNKNOWN (status DISCOVERED), the low band is HIGH, and CRITICAL
+// rows are BLOCKED and cannot trade anyway. Holdings are unaffected: the
+// allowlist reads the catalog directly and the sell sheet fetches a held
+// token by address, so a coin bought before this still shows and sells.
+const DISCOVERY_RISK: ReadonlySet<MemeToken["riskLevel"]> = new Set(["LOW", "MEDIUM"]);
+
+// Tokenized shares are not memecoins. The issuer on Base mints them under a
+// vanity address prefix (GOOGLc, TSLAc and $BSLN all sit at 0xb2000000…),
+// and their names are the company's. The first buy of GOOGLc failed and the
+// maintainers asked for it off the board; removing the catalog rows is the
+// trade service's job, this keeps them out of discovery meanwhile.
+const TOKENIZED_EQUITY_PREFIX = "0xb2000000000000000000";
+const CORPORATE_NAME = /\b(inc\.?|corp\.?|corporation|ltd\.?|plc|s\.a\.|ag)$/i;
+
+export function isTokenizedEquity(token: Pick<MemeToken, "address" | "name">): boolean {
+  if (token.address.toLowerCase().startsWith(TOKENIZED_EQUITY_PREFIX)) return true;
+  return CORPORATE_NAME.test((token.name ?? "").trim());
+}
+
 export function isMemecoinHere(token: MemeToken): boolean {
   return (
     isSupportedChain(token.chainId) &&
     DISCOVERY_CHAINS.has(token.chainId) &&
+    DISCOVERY_RISK.has(token.riskLevel ?? "UNKNOWN") &&
     !isQuoteCurrency(token.chainId, token.address) &&
     !isWrappedMajor(token.chainId, token.address) &&
-    !impersonatesMajor(token)
+    !impersonatesMajor(token) &&
+    !isTokenizedEquity(token)
   );
 }
 

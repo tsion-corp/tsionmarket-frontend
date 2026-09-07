@@ -1,12 +1,23 @@
 import { describe, expect, it } from "vitest";
-import { impersonatesMajor, isWrappedMajor, tradableHere } from "@/lib/meme/catalog";
+import {
+  impersonatesMajor,
+  isTokenizedEquity,
+  isWrappedMajor,
+  tradableHere,
+} from "@/lib/meme/catalog";
 import { BASE_CHAIN_ID, SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import type { MemeToken } from "@/lib/meme/types";
 
 const CBBTC = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
 
 function token(chainId: number, address: string): MemeToken {
-  return { chainId, address, symbol: address.slice(0, 4), decimals: 18 } as MemeToken;
+  return {
+    chainId,
+    address,
+    symbol: address.slice(0, 4),
+    decimals: 18,
+    riskLevel: "LOW",
+  } as MemeToken;
 }
 
 // cbBTC is Bitcoin in a Base wrapper. A wrapper worth billions sitting between
@@ -81,7 +92,7 @@ describe("impersonatesMajor", () => {
 
   it("is applied at the boundary", () => {
     const onBase = (symbol: string, name: string) =>
-      ({ chainId: BASE_CHAIN_ID, address: "0xabc", symbol, name }) as MemeToken;
+      ({ chainId: BASE_CHAIN_ID, address: "0xabc", symbol, name, riskLevel: "LOW" }) as MemeToken;
     const page = tradableHere({
       items: [onBase("SOL", "Solana"), onBase("BONK", "Bonk")],
       meta: { page: 1, limit: 2, total: 2 },
@@ -102,17 +113,99 @@ describe("discovery chains while the Solana sponsor is unfunded", () => {
           address: "BonkMint",
           symbol: "BONK",
           name: "Bonk",
+          riskLevel: "LOW",
         } as MemeToken,
         {
           chainId: BASE_CHAIN_ID,
           address: "0x1234000000000000000000000000000000000000",
           symbol: "AAA",
           name: "A",
+          riskLevel: "LOW",
         } as MemeToken,
       ],
       meta: { page: 1, limit: 2, total: 2 },
     });
     expect(page.items.map((t) => t.chainId)).toEqual([BASE_CHAIN_ID]);
     expect(page.meta.total).toBe(1);
+  });
+});
+
+// Requested on 2026-09-07: unrated and low-rated coins off the board. In the
+// trade service's own terms an unrated coin is riskLevel UNKNOWN (status
+// DISCOVERED) and the low band is HIGH; CRITICAL rows are BLOCKED and cannot
+// trade anyway. Discovery keeps LOW and MEDIUM. Holdings are unaffected: the
+// allowlist reads the catalog directly, and the sell sheet fetches a held
+// token by address.
+describe("discovery keeps only rated, non-high-risk coins", () => {
+  const onBase = (symbol: string, riskLevel: MemeToken["riskLevel"] | undefined) =>
+    ({
+      chainId: BASE_CHAIN_ID,
+      address: `0x${symbol.toLowerCase().padEnd(40, "1")}`,
+      symbol,
+      name: symbol,
+      riskLevel,
+    }) as MemeToken;
+
+  it("drops UNKNOWN, HIGH and CRITICAL rows and keeps LOW and MEDIUM", () => {
+    const page = tradableHere({
+      items: [
+        onBase("AAA", "LOW"),
+        onBase("BBB", "MEDIUM"),
+        onBase("CCC", "HIGH"),
+        onBase("DDD", "CRITICAL"),
+        onBase("EEE", "UNKNOWN"),
+        onBase("FFF", undefined),
+      ],
+      meta: { page: 1, limit: 6, total: 6 },
+    });
+    expect(page.items.map((t) => t.symbol)).toEqual(["AAA", "BBB"]);
+    expect(page.meta.total).toBe(2);
+  });
+});
+
+// Requested on 2026-09-07: the "GOOGLE" token off the board. GOOGLc is a
+// tokenized share of Alphabet Inc., one of three such rows on Base sharing
+// the issuer's 0xb2000000… address prefix (GOOGLc, TSLAc, $BSLN). They are
+// equities, not memecoins, and the buy failed. Removing the catalog rows is
+// the trade service's job; discovery drops them here meanwhile.
+describe("isTokenizedEquity", () => {
+  const t = (symbol: string, name: string, address: string) =>
+    ({ chainId: BASE_CHAIN_ID, address, symbol, name, riskLevel: "LOW" }) as MemeToken;
+
+  it("catches the tokenized-stock issuer prefix and corporate names", () => {
+    expect(
+      isTokenizedEquity(t("GOOGLc", "Alphabet Inc.", "0xb2000000000000000000002d0ba3164cc74f58b7"))
+    ).toBe(true);
+    expect(
+      isTokenizedEquity(t("TSLAc", "Tesla Inc.", "0xB2000000000000000000001e800A7f5189430Cd0"))
+    ).toBe(true);
+    expect(
+      isTokenizedEquity(t("ACME", "Acme Corp.", "0x1111000000000000000000000000000000000001"))
+    ).toBe(true);
+  });
+
+  it("keeps memecoins whose names merely sound corporate", () => {
+    expect(isTokenizedEquity(t("BONK", "Bonk", "0x1111000000000000000000000000000000000002"))).toBe(
+      false
+    );
+    expect(
+      isTokenizedEquity(t("INCEL", "Incredible Coin", "0x1111000000000000000000000000000000000003"))
+    ).toBe(false);
+    expect(
+      isTokenizedEquity(
+        t("BA", "British American Oil Company", "0x27b4a79b0633d4be1bbbc2f9912a49d9204304c9")
+      )
+    ).toBe(false);
+  });
+
+  it("is applied at the boundary", () => {
+    const page = tradableHere({
+      items: [
+        t("GOOGLc", "Alphabet Inc.", "0xb2000000000000000000002d0ba3164cc74f58b7"),
+        t("BONK", "Bonk", "0x1111000000000000000000000000000000000002"),
+      ],
+      meta: { page: 1, limit: 2, total: 2 },
+    });
+    expect(page.items.map((x) => x.symbol)).toEqual(["BONK"]);
   });
 });
