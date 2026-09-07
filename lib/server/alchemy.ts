@@ -8,7 +8,8 @@ import {
   type MemeRegistry,
 } from "@/lib/server/buyable-registry";
 import { displaySymbol } from "@/lib/buy";
-import { isPolymarketCollateral } from "@/lib/polymarket/config";
+import { CONTRACTS, isPolymarketCollateral } from "@/lib/polymarket/config";
+import { readEvmPortfolioTokens } from "@/lib/server/portfolio-holdings";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -88,7 +89,7 @@ export interface Portfolio {
   tokens: TokenBalance[];
 }
 
-interface AlchemyToken {
+export interface AlchemyToken {
   network: string;
   tokenAddress?: string | null;
   tokenBalance: string;
@@ -243,6 +244,23 @@ export function isAllowedHolding(
 // when we request "polygon-mainnet". Canonicalize so native POL resolves and the
 // rest of the app (labels, gas checks, funding) sees one consistent network id.
 const NETWORK_ALIAS: Record<string, string> = { "matic-mainnet": "polygon-mainnet" };
+
+// Every contract the allowlist can admit on `network`, lowercased and
+// deduplicated: what the on-chain read asks for, so nothing outside the
+// allowlist is ever fetched. Mirrors isAllowedHolding's non-native branches.
+export function allowedContracts(
+  network: string,
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
+): string[] {
+  const out = new Set<string>();
+  for (const stable of TRACKED_STABLES[network] ?? []) out.add(stable.address.toLowerCase());
+  if (network === "polygon-mainnet") out.add(CONTRACTS.pusd.toLowerCase());
+  for (const extra of ALLOWED_EXTRA[network] ?? []) out.add(extra.toLowerCase());
+  for (const address of rwa[network]?.keys() ?? []) out.add(address.toLowerCase());
+  for (const address of buyable[network] ?? []) out.add(address.toLowerCase());
+  return [...out];
+}
 
 function normalize(
   tokens: AlchemyToken[],
@@ -457,14 +475,6 @@ export async function fetchPrices(symbols: string[]): Promise<SymbolPrice[]> {
   });
 }
 
-// Alchemy's tokens/by-address endpoint rejects a request with more than 20
-// networks total ("Invalid number of networks (1-20 allowed)") — verified
-// live. EVM_NETWORKS now has more than that, so a single request that asked
-// for all of them started failing outright the moment it grew past 20,
-// taking down the whole portfolio rather than just the newest chains. Split
-// into batches instead.
-const NETWORKS_PER_REQUEST = 20;
-
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
@@ -518,25 +528,33 @@ export async function fetchPortfolio(
   return cached(
     cacheKey,
     async () => {
+      // The registries name the contracts the on-chain read asks for, so they
+      // come first; both are cached on their own.
+      const [rwa, registries] = await Promise.all([fetchRwaRegistry(), fetchBuyableRegistry()]);
+
+      // EVM balances come from the chain through the read pool (see
+      // lib/server/portfolio-holdings); Solana still uses the Portfolio API
+      // until its own change.
       const requests: Promise<AlchemyToken[]>[] = [];
       if (evm) {
-        for (const networks of chunk(EVM_NETWORKS, NETWORKS_PER_REQUEST)) {
-          requests.push(fetchTokensByAddress([{ address: evm, networks }]));
-        }
+        requests.push(
+          readEvmPortfolioTokens(
+            evm,
+            EVM_NETWORKS,
+            (network) => allowedContracts(network, rwa, registries.buyable),
+            skipCache
+          )
+        );
       }
       if (solana) {
         requests.push(fetchTokensByAddress([{ address: solana, networks: [SOLANA_NETWORK] }]));
       }
 
-      const [batchResults, rwa, registries] = await Promise.all([
-        Promise.allSettled(requests),
-        fetchRwaRegistry(),
-        fetchBuyableRegistry(),
-      ]);
-      // One batch (a chunk of networks) failing should not blank holdings on
-      // every other chunk that succeeded — log it and keep going with what
-      // came back. Only every batch failing propagates, so cached()'s
-      // stale-serve fallback still applies to a total outage.
+      const batchResults = await Promise.allSettled(requests);
+      // One source failing should not blank holdings from the other — log it
+      // and keep going with what came back. Only every source failing
+      // propagates, so cached()'s stale-serve fallback still applies to a
+      // total outage.
       const failed = batchResults.filter((r) => r.status === "rejected");
       if (failed.length > 0 && failed.length === batchResults.length) {
         throw (failed[0] as PromiseRejectedResult).reason;
