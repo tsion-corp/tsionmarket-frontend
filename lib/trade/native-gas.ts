@@ -2,9 +2,19 @@ import { formatUnits } from "viem";
 import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
 
-// A plain native transfer is exactly this much gas. Nothing is estimated: the
-// send is value-only with no calldata, so the number is fixed by the protocol.
+// A plain native transfer is at least this much gas: the protocol minimum for
+// a value-only send with no calldata. It is a floor, not the answer. On an
+// Arbitrum Orbit chain (ApeChain, Arbitrum itself) the gas a transfer is
+// charged includes the L1 posting component, so the node's estimate runs well
+// above 21000 and a reserve built on 21000 leaves the send short: "gas
+// required exceeds allowance", selling APE on 2026-09-07. The reserve is
+// therefore measured from the node's own estimate of a transfer and floored
+// here; a node that will not estimate falls back to the floor.
 const NATIVE_TRANSFER_GAS = 21_000n;
+
+// Any destination will do for the estimate: a value-only transfer to an
+// externally owned address costs the same wherever it goes.
+const ESTIMATE_RECIPIENT = "0x000000000000000000000000000000000000dEaD" as const;
 
 // Gas price is read a moment before the send and can rise before inclusion, so
 // the reserve carries half again on top. Under-reserving fails the transaction;
@@ -23,7 +33,18 @@ export async function nativeSendCost(network: string): Promise<number> {
   if (!target || !isReceiptChain(target.chainId)) {
     throw new Error(`No read node for ${network}.`);
   }
-  const gasPrice = await publicClientForChain(target.chainId).getGasPrice();
-  const wei = (NATIVE_TRANSFER_GAS * gasPrice * HEADROOM_NUMERATOR) / HEADROOM_DENOMINATOR;
+  const client = publicClientForChain(target.chainId);
+  const [gasPrice, estimated] = await Promise.all([
+    client.getGasPrice(),
+    client.estimateGas({ to: ESTIMATE_RECIPIENT, value: 0n }).catch((error: unknown) => {
+      console.warn(
+        `nativeSendCost: ${network} would not estimate a transfer; using the floor`,
+        error
+      );
+      return NATIVE_TRANSFER_GAS;
+    }),
+  ]);
+  const gas = estimated > NATIVE_TRANSFER_GAS ? estimated : NATIVE_TRANSFER_GAS;
+  const wei = (gas * gasPrice * HEADROOM_NUMERATOR) / HEADROOM_DENOMINATOR;
   return Number(formatUnits(wei, NATIVE_DECIMALS));
 }
