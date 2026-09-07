@@ -66,6 +66,14 @@ export function useSettlementReconciler({
   const settleSolanaToBase = useSolanaToBase();
   const { refetchFresh } = usePortfolio();
   const executingRef = useRef(new Set<string>());
+  // The callers' callbacks and the hooks above take new identities on
+  // unrelated renders (a portfolio poll, a wallet list refresh). Read the
+  // latest through refs so the loop below restarts only when the pending
+  // set or the wallet's readiness changes, never on a render.
+  const latest = useRef({ completePurchase, messages, settleSolanaToBase, refetchFresh });
+  useEffect(() => {
+    latest.current = { completePurchase, messages, settleSolanaToBase, refetchFresh };
+  }, [completePurchase, messages, settleSolanaToBase, refetchFresh]);
   const all = useSyncExternalStore(
     subscribePendingRwaSettlements,
     pendingRwaSettlementsSnapshot,
@@ -109,7 +117,7 @@ export function useSettlementReconciler({
       const balance = await fetchConfirmedSolanaBalance(solanaTaker, usdc.asset);
       executingRef.current.add(settlement.requestId);
       try {
-        return await completePurchase(settlement, { solanaTaker, balance });
+        return await latest.current.completePurchase(settlement, { solanaTaker, balance });
       } finally {
         executingRef.current.delete(settlement.requestId);
       }
@@ -133,7 +141,7 @@ export function useSettlementReconciler({
 
       executingRef.current.add(settlement.requestId);
       try {
-        const result = await settleSolanaToBase({
+        const result = await latest.current.settleSolanaToBase({
           asset: usdc.asset,
           decimals: usdc.decimals,
           amount: proceedsRaw,
@@ -147,7 +155,7 @@ export function useSettlementReconciler({
           assetSymbol: settlement.assetSymbol,
           createdAt: Date.now(),
         });
-        await refetchFresh();
+        await latest.current.refetchFresh();
         return "started";
       } catch (error) {
         // Quote/provider failures happen before the transfer and are safe to
@@ -203,12 +211,12 @@ export function useSettlementReconciler({
             if (stage === "settled") {
               if (settlement.direction === "solana-to-base") {
                 clearPendingRwaSettlement(settlement.requestId);
-                await refetchFresh();
-                toast.success(messages.proceedsReady(settlement.assetSymbol));
+                await latest.current.refetchFresh();
+                toast.success(latest.current.messages.proceedsReady(settlement.assetSymbol));
               } else if (!settlement.purchase) {
                 clearPendingRwaSettlement(settlement.requestId);
-                await refetchFresh();
-                toast.success(messages.fundReady(settlement.assetSymbol));
+                await latest.current.refetchFresh();
+                toast.success(latest.current.messages.fundReady(settlement.assetSymbol));
               } else {
                 await finishPurchase(settlement);
               }
@@ -216,8 +224,8 @@ export function useSettlementReconciler({
               clearPendingRwaSettlement(settlement.requestId);
               toast.error(
                 settlement.direction === "base-to-solana"
-                  ? messages.fundFailed()
-                  : messages.proceedsFailed()
+                  ? latest.current.messages.fundFailed()
+                  : latest.current.messages.proceedsFailed()
               );
             }
           } catch {
@@ -246,14 +254,5 @@ export function useSettlementReconciler({
     };
     // `pending` is re-derived each render; its ids drive this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    completePurchase,
-    messages,
-    pendingKey,
-    product,
-    refetchFresh,
-    settleSolanaToBase,
-    solanaTaker,
-    solanaWalletReady,
-  ]);
+  }, [pendingKey, product, solanaTaker, solanaWalletReady]);
 }

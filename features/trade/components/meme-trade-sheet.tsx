@@ -366,6 +366,10 @@ export function MemeTradeSheet({
       void portfolio.refetchUntilChanged();
     } catch (e) {
       if (saleHandoffId) clearPendingRwaSettlement(saleHandoffId);
+      // A failure after signing may still have moved the balance. Read it
+      // fresh so the form does not argue with an amount the wallet no longer
+      // holds, or refuse one it now does.
+      void portfolio.refetchFresh();
       track("trade_failed", {
         vertical: "memecoin",
         asset: token.symbol ?? token.address,

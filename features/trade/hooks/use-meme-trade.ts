@@ -30,6 +30,7 @@ import {
 } from "@/lib/meme/api";
 import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import { signatureToBase58 } from "@/lib/meme/solana-signature";
+import { track } from "@/lib/analytics/mixpanel";
 
 // One trade at a time, with the states the contract demands kept explicit.
 // Only the backend's CONFIRMED ever reads as success.
@@ -265,6 +266,7 @@ export function useMemeTrade() {
         // sponsored send per call (never batched — the backend verifies one
         // hash per callIndex), each hash registered before the next call.
         setPhase("signing");
+        let settledHash: string | null = null;
         for (let callIndex = 0; callIndex < quote.calls.length; callIndex += 1) {
           if (Date.now() >= Date.parse(quote.expiresAt)) {
             throw new TradeApiError("QUOTE_EXPIRED", "The quote expired. Try again.", 410);
@@ -281,18 +283,21 @@ export function useMemeTrade() {
           await registerSubmission(quote.swapId, callIndex, wallet, hash, newIdempotencyKey());
           // The last call IS the swap; anything before it is an approval, so
           // this ends up holding the hash worth pointing a share at.
+          settledHash = hash;
           setSettled({ txHash: hash, chainId: quote.chainId });
         }
 
         // The swap's receipt is in, so the tokens should already sit in the
         // wallet — prove it with a balanceOf delta and say so, while the
         // server's formal verification finishes in the background.
+        let delivered = false;
         if (balanceBefore !== null) {
           const balanceAfter = await readBaseTokenBalance(
             receivedToken,
             wallet as `0x${string}`
           ).catch(() => null);
           if (balanceAfter !== null && balanceAfter > balanceBefore) {
+            delivered = true;
             const decimals = quote.buyToken.decimals ?? 18;
             const delta = balanceAfter - balanceBefore;
             const whole = delta / 10n ** BigInt(decimals);
@@ -311,6 +316,26 @@ export function useMemeTrade() {
           const status = await fetchSwapStatus(quote.swapId);
           if (TERMINAL.includes(status.status)) {
             if (status.status === "CONFIRMED") {
+              setPhase("confirmed");
+              return;
+            }
+            // The wallet's balance moved: the trade happened, whatever the
+            // service recorded. Its verifier compares a sponsored user
+            // operation's bundle transaction with the prepared call and
+            // fails, which is a recording fault, not a failed trade. Telling
+            // the user their money did not move when it did is the one thing
+            // this screen must never do. The discrepancy is logged for the
+            // trade team instead.
+            if (delivered) {
+              console.warn(
+                `[meme] swap ${quote.swapId} delivered on-chain (${settledHash}) but the trade service recorded ${status.status}`
+              );
+              track("trade_recording_mismatch", {
+                vertical: "memecoin",
+                asset: quote.sellToken.symbol ?? quote.sellToken.address,
+                swap_id: quote.swapId,
+                recorded: status.status,
+              });
               setPhase("confirmed");
               return;
             }
