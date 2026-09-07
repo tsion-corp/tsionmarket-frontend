@@ -71,17 +71,25 @@ describe("meme discovery across the supported chains", () => {
     expect(lastUrl()).not.toContain("chain=");
   });
 
-  it("keeps Base and Solana rows in trending and drops any other chain", async () => {
+  // TEMPORARY: while the Solana gas sponsor is unfunded, discovery shows Base
+  // only. Trending is mostly Solana, so after the gate it is thin and the
+  // Base catalogue fallback fills it, as when trending is down.
+  it("shows Base rows only in trending while discovery is Base-only", async () => {
     apiFetch.mockResolvedValueOnce(
       ok({
         items: [sol(1), base(1), eth(1), ...Array.from({ length: 8 }, (_, i) => sol(10 + i))],
         meta: { page: 1, limit: 50, total: 11 },
       })
     );
+    apiFetch.mockResolvedValueOnce(
+      ok({
+        items: Array.from({ length: 9 }, (_, i) => base(10 + i)),
+        meta: { page: 1, limit: 40, total: 9 },
+      })
+    );
     const page = await fetchTrendingTokens();
-    expect(page.items).toHaveLength(10);
-    expect(page.items.some((t) => t.chainId === 1)).toBe(false);
-    expect(page.items.some((t) => t.chainId === SOLANA_CHAIN_ID)).toBe(true);
+    expect(page.items.some((t) => t.chainId !== BASE_CHAIN_ID)).toBe(false);
+    expect(lastUrl()).toContain("chain=base");
   });
 
   it("drops the quote currency on each chain", async () => {
@@ -105,10 +113,10 @@ describe("meme discovery across the supported chains", () => {
     expect(lastUrl()).not.toContain("chain=");
   });
 
-  it("keeps Solana rows in search", async () => {
+  it("shows Base rows only in search while discovery is Base-only", async () => {
     apiFetch.mockResolvedValueOnce(ok([sol(1), base(1), eth(1)]));
     const rows = await searchTokens("bonk");
-    expect(rows.map((t) => t.chainId)).toEqual([SOLANA_CHAIN_ID, BASE_CHAIN_ID]);
+    expect(rows.map((t) => t.chainId)).toEqual([BASE_CHAIN_ID]);
   });
 
   // The contract: "Always pass chain." A Solana mint sent without it is

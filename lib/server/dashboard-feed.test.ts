@@ -239,14 +239,6 @@ describe("buildDashboardFeed", () => {
         priceUsd: "0.01",
         change24h: 12.5,
       },
-      {
-        address: "So1anaMemeMint",
-        symbol: "SOLMEME",
-        name: "Solana Meme",
-        logoUrl: null,
-        priceUsd: "0.02",
-        change24h: 3,
-      },
     ]);
     expect(feed.rwa?.[0]).toMatchObject({
       id: "usdy-base",

@@ -80,10 +80,39 @@ describe("impersonatesMajor", () => {
   });
 
   it("is applied at the boundary", () => {
+    const onBase = (symbol: string, name: string) =>
+      ({ chainId: BASE_CHAIN_ID, address: "0xabc", symbol, name }) as MemeToken;
     const page = tradableHere({
-      items: [t("SOL", "Solana"), t("BONK", "Bonk")],
+      items: [onBase("SOL", "Solana"), onBase("BONK", "Bonk")],
       meta: { page: 1, limit: 2, total: 2 },
     });
     expect(page.items.map((x) => x.symbol)).toEqual(["BONK"]);
+  });
+});
+
+// TEMPORARY: the Solana gas sponsor is unfunded, so a Solana coin cannot be
+// bought or sold. Discovery is Base-only until it is topped up; nothing on
+// screen says so, the rows are simply absent.
+describe("discovery chains while the Solana sponsor is unfunded", () => {
+  it("drops Solana rows at the boundary", () => {
+    const page = tradableHere({
+      items: [
+        {
+          chainId: SOLANA_CHAIN_ID,
+          address: "BonkMint",
+          symbol: "BONK",
+          name: "Bonk",
+        } as MemeToken,
+        {
+          chainId: BASE_CHAIN_ID,
+          address: "0x1234000000000000000000000000000000000000",
+          symbol: "AAA",
+          name: "A",
+        } as MemeToken,
+      ],
+      meta: { page: 1, limit: 2, total: 2 },
+    });
+    expect(page.items.map((t) => t.chainId)).toEqual([BASE_CHAIN_ID]);
+    expect(page.meta.total).toBe(1);
   });
 });

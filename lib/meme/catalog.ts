@@ -114,9 +114,17 @@ export function withRiskDefaults(token: MemeToken): MemeToken {
 // is each chain's quote currency, which sits on both sides of every swap and
 // which the service refuses as a meme-token selection, and so are the wrapped
 // majors, which are not memecoins at all.
+// TEMPORARY. The Solana gas sponsor wallet is unfunded, so a Solana coin
+// cannot be bought or sold: every sponsored send fails at the rent for a
+// token account. Until it is topped up, discovery shows Base rows only. The
+// rows are simply absent; nothing on screen names a chain. Trading code for
+// Solana is untouched, so removing this line restores it.
+const DISCOVERY_CHAINS: ReadonlySet<number> = new Set([BASE_CHAIN_ID]);
+
 export function isMemecoinHere(token: MemeToken): boolean {
   return (
     isSupportedChain(token.chainId) &&
+    DISCOVERY_CHAINS.has(token.chainId) &&
     !isQuoteCurrency(token.chainId, token.address) &&
     !isWrappedMajor(token.chainId, token.address) &&
     !impersonatesMajor(token)

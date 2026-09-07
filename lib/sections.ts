@@ -25,7 +25,10 @@ const REORDERABLE: SectionId[] = [
   // and its tab, all of which follow the nav.
   // "perps",
   "meme",
-  "rwa",
+  // TEMPORARY: real assets are hidden from the nav for now, like perps and
+  // earn. The section stays at /rwa; dropping it here also drops its
+  // dashboard brief, its marquee item and its tab, all of which follow the nav.
+  // "rwa",
   "prediction",
   // Earn is hidden from the nav for now.
   // "earn",
@@ -61,8 +64,9 @@ export function sectionForPathname(pathname: string | null): SectionId {
 
 // Maps an onboarding interest to the section it should surface first.
 const INTEREST_TO_SECTION: Record<string, SectionId> = {
-  stocks: "rwa",
-  gold: "rwa",
+  // Real assets are hidden from the nav for now; these interests fall back to the default order.
+  // stocks: "rwa",
+  // gold: "rwa",
   crypto: "spot",
   // Perpetuals are hidden from the nav for now; the interest falls back to the default order.
   // perps: "perps",
@@ -71,9 +75,9 @@ const INTEREST_TO_SECTION: Record<string, SectionId> = {
   casino: "casino",
   // Earn is hidden from the nav for now; the interest falls back to the default order.
   // earn: "earn",
-  yield: "rwa",
-  realestate: "rwa",
-  treasuries: "rwa",
+  // yield: "rwa",
+  // realestate: "rwa",
+  // treasuries: "rwa",
 };
 
 export function interestToSection(interest: string | null): SectionId | null {

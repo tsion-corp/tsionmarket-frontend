@@ -45,3 +45,16 @@ describe("orderedSections", () => {
     expect(orderedSections("perps")).toEqual(orderedSections(null));
   });
 });
+
+// TEMPORARY: real assets are hidden from the nav for now. The rail, the tab
+// bar, the marquee and the dashboard briefs all follow this order, so they
+// drop it together; /rwa itself is unchanged.
+describe("real assets hidden from the navigation", () => {
+  it("is absent from the default order and every interest that pointed at it", () => {
+    expect(orderedSections(null)).not.toContain("rwa");
+    for (const interest of ["stocks", "gold", "yield", "realestate", "treasuries"]) {
+      expect(orderedSections(interest)).not.toContain("rwa");
+      expect(orderedSections(interest)).toEqual(orderedSections(null));
+    }
+  });
+});
