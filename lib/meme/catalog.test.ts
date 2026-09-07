@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isWrappedMajor, tradableHere } from "@/lib/meme/catalog";
+import { impersonatesMajor, isWrappedMajor, tradableHere } from "@/lib/meme/catalog";
 import { BASE_CHAIN_ID, SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import type { MemeToken } from "@/lib/meme/types";
 
@@ -16,6 +16,15 @@ describe("isWrappedMajor", () => {
   it("names cbBTC on Base, whatever the casing", () => {
     expect(isWrappedMajor(BASE_CHAIN_ID, CBBTC)).toBe(true);
     expect(isWrappedMajor(BASE_CHAIN_ID, CBBTC.toUpperCase().replace("0X", "0x"))).toBe(true);
+  });
+
+  // Wrapped SOL is Solana's gas token in SPL form, and wrapped ETH is Base's.
+  // Both sit in the catalogue among the memecoins and neither is one.
+  it("names wrapped SOL on Solana and wrapped ETH on Base", () => {
+    expect(isWrappedMajor(SOLANA_CHAIN_ID, "So11111111111111111111111111111111111111112")).toBe(
+      true
+    );
+    expect(isWrappedMajor(BASE_CHAIN_ID, "0x4200000000000000000000000000000000000006")).toBe(true);
   });
 
   it("keeps everything else", () => {
@@ -38,5 +47,43 @@ describe("tradableHere", () => {
       "0x1234000000000000000000000000000000000000",
     ]);
     expect(page.meta.total).toBe(1);
+  });
+});
+
+// The discovery feed carries impersonators: dozens of Solana rows called
+// "SOL", "Solana", "ETH" or "Ethereum" with liquidity in the billions. A coin
+// that claims to be a major is either the major, which is not a memecoin, or
+// a scam. Neither belongs on this surface.
+describe("impersonatesMajor", () => {
+  const t = (symbol: string | null, name: string | null) =>
+    ({ chainId: SOLANA_CHAIN_ID, address: "x", symbol, name }) as MemeToken;
+
+  it("catches the majors by symbol, whatever the case or a leading $", () => {
+    expect(impersonatesMajor(t("SOL", "Solana"))).toBe(true);
+    expect(impersonatesMajor(t("sol", "anything"))).toBe(true);
+    expect(impersonatesMajor(t("$ETH", "Eth coin"))).toBe(true);
+    expect(impersonatesMajor(t("WBTC", "Wrapped Bitcoin"))).toBe(true);
+    expect(impersonatesMajor(t("USDT", "Tether"))).toBe(true);
+  });
+
+  it("catches the majors by name when the symbol is disguised", () => {
+    expect(impersonatesMajor(t("SLNA", "Solana"))).toBe(true);
+    expect(impersonatesMajor(t("XYZ", "Ethereum"))).toBe(true);
+    expect(impersonatesMajor(t("XYZ", "Wrapped Ethereum (Sollet)"))).toBe(true);
+  });
+
+  it("keeps coins that merely mention a chain", () => {
+    expect(impersonatesMajor(t("BONK", "Bonk"))).toBe(false);
+    expect(impersonatesMajor(t("SOLCAT", "Solana Cat"))).toBe(false);
+    expect(impersonatesMajor(t("ETHDOG", "Ethereumdog Coin"))).toBe(false);
+    expect(impersonatesMajor(t(null, null))).toBe(false);
+  });
+
+  it("is applied at the boundary", () => {
+    const page = tradableHere({
+      items: [t("SOL", "Solana"), t("BONK", "Bonk")],
+      meta: { page: 1, limit: 2, total: 2 },
+    });
+    expect(page.items.map((x) => x.symbol)).toEqual(["BONK"]);
   });
 });
