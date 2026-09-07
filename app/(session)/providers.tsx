@@ -7,6 +7,7 @@ import { base } from "viem/chains";
 import { createAppSolanaRpc } from "@/lib/solana-rpc";
 import { NetworkStatusProvider } from "@/components/providers/network-status";
 import { SessionCacheGuard } from "@/components/providers/session-cache-guard";
+import { IdentityTokenBridge } from "@/components/providers/identity-token-bridge";
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
@@ -111,6 +112,10 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
                 a signed-out browser holds no balances. Needs both the Privy
                 and query contexts. Renders nothing. */}
             <SessionCacheGuard />
+            {/* Mirrors the identity token Privy already holds into the store
+                the fetch wrapper reads, so authed requests never ask Privy for
+                it (each such ask is a GET /users/me). Renders nothing. */}
+            <IdentityTokenBridge />
             {/* Syncs Mixpanel's identity to Privy auth state; needs to sit
                 inside PrivyProvider to read it. Renders nothing. */}
             <AnalyticsIdentity />

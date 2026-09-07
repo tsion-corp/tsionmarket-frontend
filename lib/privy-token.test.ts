@@ -156,4 +156,144 @@ describe("createTokenResolver caching", () => {
     expect(await resolve()).toEqual({ accessToken: "access-1", idToken: identityToken });
     expect(getIdentityToken).toHaveBeenCalledTimes(2);
   });
+
+  // The SDK re-issues the identity token itself on login, page load, account
+  // link and every access-token refresh, and exposes it through
+  // useIdentityToken with no network call. getIdentityToken(), by contrast,
+  // always GETs /users/me first. Reading what the SDK holds keeps /users/me off
+  // the hot path entirely.
+  it("uses the identity token the SDK already holds without calling Privy", async () => {
+    const held = jwt({ exp: 5000 });
+    const getAccessToken = vi.fn().mockResolvedValue("access-1");
+    const getIdentityToken = vi.fn().mockResolvedValue(jwt({ exp: 5000 }));
+    const resolve = createTokenResolver({
+      getAccessToken,
+      getIdentityToken,
+      peekIdentityToken: () => held,
+      now: clock(1000).now,
+    });
+
+    expect(await resolve()).toEqual({ accessToken: "access-1", idToken: held });
+    await resolve();
+    expect(getIdentityToken).not.toHaveBeenCalled();
+  });
+
+  it("falls back to Privy when the held token is about to expire", async () => {
+    const c = clock(1000);
+    const getAccessToken = vi.fn().mockResolvedValue("access-1");
+    const fresh = jwt({ exp: 9000 });
+    const getIdentityToken = vi.fn().mockResolvedValue(fresh);
+    const resolve = createTokenResolver({
+      getAccessToken,
+      getIdentityToken,
+      // Inside the 60s refresh skew.
+      peekIdentityToken: () => jwt({ exp: 1030 }),
+      now: c.now,
+    });
+
+    expect((await resolve()).idToken).toBe(fresh);
+    expect(getIdentityToken).toHaveBeenCalledTimes(1);
+  });
+
+  // A failed refresh used to leave nothing behind: the next caller, and every
+  // poller and query retry after it, called Privy again at once. Under a 429
+  // that is a loop that keeps the limit tripped.
+  it("backs off after a failed refresh instead of retrying on the next request", async () => {
+    const c = clock(1000);
+    const getAccessToken = vi.fn().mockResolvedValue("access-1");
+    const getIdentityToken = vi.fn().mockRejectedValue(new Error("Request failed with status 500"));
+    const resolve = createTokenResolver({ getAccessToken, getIdentityToken, now: c.now });
+
+    expect(await resolve()).toEqual({ accessToken: "access-1", idToken: null });
+    await resolve();
+    await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(1);
+
+    c.advance(1); // first retry after 1s
+    await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(2);
+
+    c.advance(1); // second failure waits 2s, so nothing yet
+    await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(2);
+    c.advance(1);
+    await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits a full minute after a rate limit before asking again", async () => {
+    const c = clock(1000);
+    const getAccessToken = vi.fn().mockResolvedValue("access-1");
+    const getIdentityToken = vi
+      .fn()
+      .mockRejectedValue(new Error("Request failed with status 429: Too Many Requests"));
+    const resolve = createTokenResolver({ getAccessToken, getIdentityToken, now: c.now });
+
+    await resolve();
+    c.advance(59);
+    await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(1);
+    c.advance(1);
+    await resolve();
+    expect(getIdentityToken).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps serving an unexpired token while a refresh is failing", async () => {
+    const c = clock(1000);
+    const token = jwt({ exp: 9000 });
+    const getAccessToken = vi.fn().mockResolvedValueOnce("access-1").mockResolvedValue("access-2");
+    const getIdentityToken = vi
+      .fn()
+      .mockResolvedValueOnce(token)
+      .mockRejectedValue(new Error("Request failed with status 429"));
+    const resolve = createTokenResolver({ getAccessToken, getIdentityToken, now: c.now });
+
+    expect((await resolve()).idToken).toBe(token);
+    // The access token rotated, the refresh fails: the still-valid token is
+    // better than none, and far better than another /users/me.
+    expect(await resolve()).toEqual({ accessToken: "access-2", idToken: token });
+    expect(getIdentityToken).toHaveBeenCalledTimes(2);
+  });
+
+  // Audit finding: the SDK can move its store straight from user A's token to
+  // user B's, or B can sign in before the bridge has cleared A. A held token
+  // is only attached when it names the same user as the access token.
+  it("never attaches an identity token that names a different user", async () => {
+    const accessB = jwt({ sub: "did:privy:B", exp: 9000 });
+    const identityA = jwt({ sub: "did:privy:A", exp: 9000 });
+    const identityB = jwt({ sub: "did:privy:B", exp: 9000 });
+    const getAccessToken = vi.fn().mockResolvedValue(accessB);
+    const getIdentityToken = vi.fn().mockResolvedValue(identityB);
+    const resolve = createTokenResolver({
+      getAccessToken,
+      getIdentityToken,
+      peekIdentityToken: () => identityA,
+      now: clock(1000).now,
+    });
+
+    expect(await resolve()).toEqual({ accessToken: accessB, idToken: identityB });
+    expect(getIdentityToken).toHaveBeenCalledTimes(1);
+  });
+
+  // Audit finding: a rate limit's back-off outliving the session would make a
+  // different user, signing in within the minute, wait it out for nothing.
+  it("forgets the back-off when the session ends", async () => {
+    const c = clock(1000);
+    const getAccessToken = vi
+      .fn()
+      .mockResolvedValueOnce("access-1")
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue("access-2");
+    const getIdentityToken = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("Request failed with status 429"))
+      .mockResolvedValue(jwt({ exp: 9000 }));
+    const resolve = createTokenResolver({ getAccessToken, getIdentityToken, now: c.now });
+
+    await resolve(); // 429, back-off armed
+    await resolve(); // signed out
+    c.advance(1);
+    expect((await resolve()).idToken).toBe(jwt({ exp: 9000 })); // new session, asks at once
+    expect(getIdentityToken).toHaveBeenCalledTimes(2);
+  });
 });
