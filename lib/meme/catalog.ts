@@ -130,12 +130,18 @@ const DISCOVERY_CHAINS: ReadonlySet<number> = new Set([BASE_CHAIN_ID]);
 // token by address, so a coin bought before this still shows and sells.
 const DISCOVERY_RISK: ReadonlySet<MemeToken["riskLevel"]> = new Set(["LOW", "MEDIUM"]);
 
-// Tokenized shares are not memecoins. The issuer on Base mints them under a
-// vanity address prefix (GOOGLc, TSLAc and $BSLN all sit at 0xb2000000…),
-// and their names are the company's. The first buy of GOOGLc failed and the
-// maintainers asked for it off the board; removing the catalog rows is the
-// trade service's job, this keeps them out of discovery meanwhile.
-const TOKENIZED_EQUITY_PREFIX = "0xb2000000000000000000";
+// Tokenized shares are not memecoins. The three the trade catalog carried on
+// 2026-09-07 (GOOGLc, TSLAc, $BSLN) are named by address, and any row whose
+// name is a company's (Inc., Corp., Ltd., plc, AG, S.A.) is treated the same.
+// NOT by address prefix: the 0xb2000000… prefix those three share is a Base
+// launchpad's vanity pattern that 41 tokens carry, most of them ordinary
+// memecoins (Basecat, MOONBASE, BASEJUICE were ACTIVE and LOW risk), and a
+// rule on it hid them from the board between #403 and this change.
+const TOKENIZED_EQUITIES: ReadonlySet<string> = new Set([
+  `${BASE_CHAIN_ID}:0xb2000000000000000000002d0ba3164cc74f58b7`, // GOOGLc
+  `${BASE_CHAIN_ID}:0xb2000000000000000000001e800a7f5189430cd0`, // TSLAc
+  `${BASE_CHAIN_ID}:0xb200000000000000000000639f1e75d3a2aedd01`, // $BSLN
+]);
 const CORPORATE_NAME = /\b(inc\.?|corp\.?|corporation|ltd\.?|plc|s\.a\.|ag)$/i;
 
 // Coins hidden from discovery by name, on the maintainers' instruction,
@@ -149,8 +155,8 @@ export function isHiddenMemecoin(token: Pick<MemeToken, "chainId" | "address">):
   return HIDDEN_MEMECOINS.has(`${token.chainId}:${token.address.toLowerCase()}`);
 }
 
-export function isTokenizedEquity(token: Pick<MemeToken, "address" | "name">): boolean {
-  if (token.address.toLowerCase().startsWith(TOKENIZED_EQUITY_PREFIX)) return true;
+export function isTokenizedEquity(token: Pick<MemeToken, "chainId" | "address" | "name">): boolean {
+  if (TOKENIZED_EQUITIES.has(`${token.chainId}:${token.address.toLowerCase()}`)) return true;
   return CORPORATE_NAME.test((token.name ?? "").trim());
 }
 

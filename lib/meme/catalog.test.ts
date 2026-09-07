@@ -172,7 +172,7 @@ describe("isTokenizedEquity", () => {
   const t = (symbol: string, name: string, address: string) =>
     ({ chainId: BASE_CHAIN_ID, address, symbol, name, riskLevel: "LOW" }) as MemeToken;
 
-  it("catches the tokenized-stock issuer prefix and corporate names", () => {
+  it("catches the known tokenized shares and corporate names", () => {
     expect(
       isTokenizedEquity(t("GOOGLc", "Alphabet Inc.", "0xb2000000000000000000002d0ba3164cc74f58b7"))
     ).toBe(true);
@@ -180,8 +180,24 @@ describe("isTokenizedEquity", () => {
       isTokenizedEquity(t("TSLAc", "Tesla Inc.", "0xB2000000000000000000001e800A7f5189430Cd0"))
     ).toBe(true);
     expect(
+      isTokenizedEquity(t("$BSLN", "Baseline Corp", "0xb200000000000000000000639f1e75d3a2aedd01"))
+    ).toBe(true);
+    expect(
       isTokenizedEquity(t("ACME", "Acme Corp.", "0x1111000000000000000000000000000000000001"))
     ).toBe(true);
+  });
+
+  // The 0xb2000000… prefix is NOT an issuer mark: 41 Base tokens share it,
+  // most of them ordinary memecoins (BRIAN, Basecat, MOONBASE, BASEJUICE were
+  // all ACTIVE on 2026-09-07). A rule on the prefix hid them; only the names
+  // and the three known addresses count.
+  it("keeps memecoins that merely share the vanity address prefix", () => {
+    expect(
+      isTokenizedEquity(t("BRIAN", "Brian", "0xb2000000000000000000000000000000000000aa"))
+    ).toBe(false);
+    expect(
+      isTokenizedEquity(t("BASEJUICE", "Base Juice", "0xb20000000000000000000000000000000000bbbb"))
+    ).toBe(false);
   });
 
   it("keeps memecoins whose names merely sound corporate", () => {
@@ -202,11 +218,11 @@ describe("isTokenizedEquity", () => {
     const page = tradableHere({
       items: [
         t("GOOGLc", "Alphabet Inc.", "0xb2000000000000000000002d0ba3164cc74f58b7"),
-        t("BONK", "Bonk", "0x1111000000000000000000000000000000000002"),
+        t("BRIAN", "Brian", "0xb2000000000000000000000000000000000000aa"),
       ],
       meta: { page: 1, limit: 2, total: 2 },
     });
-    expect(page.items.map((x) => x.symbol)).toEqual(["BONK"]);
+    expect(page.items.map((x) => x.symbol)).toEqual(["BRIAN"]);
   });
 });
 
