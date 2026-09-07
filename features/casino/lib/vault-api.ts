@@ -7,6 +7,7 @@
 // cross-game feeds that stayed singular (winners, activities).
 
 import { createServiceClient } from "@/lib/api/service";
+import { isVaultGame, onlyVaultGames } from "@/features/casino/lib/vault-game";
 
 export interface TokenAmount {
   amount: string;
@@ -65,12 +66,18 @@ const vault = createServiceClient("/api/vault", "The vault is unavailable right 
 
 // The lobby: games currently accepting joins, newest first.
 export async function fetchActiveGames(): Promise<VaultGame[]> {
-  const data = await vault.get<{ games: VaultGame[] }>("/games");
-  return data.games;
+  const data = await vault.get<{ games: unknown }>("/games");
+  const rows = onlyVaultGames(data.games);
+  const total = Array.isArray(data.games) ? data.games.length : 0;
+  if (rows.length !== total) {
+    console.warn(`[vault] dropped ${total - rows.length} /games row(s) not in the API shape`);
+  }
+  return rows;
 }
 
 export async function fetchGame(gameId: number): Promise<VaultGame> {
-  const data = await vault.get<{ game: VaultGame }>(`/games/${gameId}`);
+  const data = await vault.get<{ game: unknown }>(`/games/${gameId}`);
+  if (!isVaultGame(data.game)) throw new Error("The vault returned a game in an unexpected shape.");
   return data.game;
 }
 

@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { VaultActivity, VaultGame } from "@/features/casino/lib/vault-api";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
+import { onlyVaultGames } from "@/features/casino/lib/vault-game";
 
 // One socket for the whole feature, however many components are listening.
 //
@@ -147,7 +148,10 @@ function applyActivity(client: QueryClient, entry: VaultActivity): void {
   );
 }
 
-function handleFrame(client: QueryClient, raw: string): void {
+// A frame is an upstream payload and is validated here, at the boundary,
+// before it can reach the cache and the components reading it. Exported for
+// its tests; the socket wires it up below.
+export function handleVaultFrame(client: QueryClient, raw: string): void {
   let frame: { type: string; data: unknown };
   try {
     frame = JSON.parse(raw);
@@ -157,10 +161,24 @@ function handleFrame(client: QueryClient, raw: string): void {
 
   switch (frame.type) {
     case "activeGames": {
-      const games = (frame.data as { games?: VaultGame[] } | undefined)?.games;
+      const games = (frame.data as { games?: unknown } | null | undefined)?.games;
       // The periodic lobby snapshot is authoritative, so it replaces rather
-      // than merges: a game missing from it has settled or gone away.
-      if (games) client.setQueryData<VaultGame[]>(VAULT_KEYS.games, games);
+      // than merges: a game missing from it has settled or gone away. Only a
+      // real array replaces it: the hub has sent `games: {}`, and written to
+      // the cache as-is that took the whole lobby down at `games.map`. A
+      // malformed snapshot is dropped and the last good one stands; the
+      // polled REST read keeps the lobby fresh regardless.
+      if (Array.isArray(games)) {
+        const rows = onlyVaultGames(games);
+        if (rows.length !== games.length) {
+          console.warn(
+            `[vault] dropped ${games.length - rows.length} activeGames row(s) not in the API shape`
+          );
+        }
+        client.setQueryData<VaultGame[]>(VAULT_KEYS.games, rows);
+      } else if (games !== undefined) {
+        console.warn("[vault] ignored an activeGames frame whose games is not an array");
+      }
       return;
     }
     case "gameStarted": {
@@ -218,7 +236,7 @@ function open(client: QueryClient): void {
     }, PING_MS);
   };
 
-  socket.onmessage = (event) => handleFrame(client, event.data as string);
+  socket.onmessage = (event) => handleVaultFrame(client, event.data as string);
 
   socket.onclose = () => {
     setConnected(false);
