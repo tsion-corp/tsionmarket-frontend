@@ -16,7 +16,7 @@ import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
-import { friendlyError, supportDetail } from "@/lib/errors";
+import { friendlyError, supportDetail, isStaleBalanceRevert } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
 // 1% price tolerance, hidden from the UI.
@@ -144,6 +144,11 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       if (error instanceof SolanaBalanceChangedError) {
         setAmount(fromBaseUnits(error.availableAmount, payload.decimals));
         setMaxRequested(true);
+        void portfolio.refetch();
+      } else if (isStaleBalanceRevert(error)) {
+        // The chain refused for the balance itself, so the snapshot this sheet
+        // clamps to is behind it (a refund landed, a sell went through after
+        // all). Refresh so the next press uses the live figure.
         void portfolio.refetch();
       }
       // The detailed message is surfaced from sell.error below; resolve the toast.

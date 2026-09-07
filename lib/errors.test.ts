@@ -105,6 +105,29 @@ describe("friendlyError", () => {
 describe("contract reverts never reach the user as hex", () => {
   // Real shapes: viem/ethers wrap the selector differently, so each provider's
   // phrasing is exercised rather than one canonical string.
+  // mUSD on Ethereum, 2026-09-07: a sell pressed twice after Dextopus had
+  // refunded the first one net of fees. The token reverts with Solady's
+  // InsufficientBalance(address,uint256,uint256), a different selector from
+  // OpenZeppelin's, and the user saw raw hex. The balance on screen was stale,
+  // so the copy says so.
+  it("translates InsufficientBalance(address,uint256,uint256) and tells the user the balance changed", () => {
+    const message = friendlyError(
+      new Error(
+        "execution reverted. data: 0xdb42144d00000000000000000000000053b3e659acad1582d153b8e9cda10ab79480ccf000000000000000000000000000000000000000000000000000000000000b9ebc00000000000000000000000000000000000000000000000000000000000dacca"
+      )
+    );
+    expect(message).not.toMatch(/0x/);
+    expect(message).toMatch(/balance/i);
+    expect(message).toMatch(/refresh|lower than shown/i);
+  });
+
+  it("recognises a balance revert so the sheet can refresh before the next try", async () => {
+    const { isStaleBalanceRevert } = await import("@/lib/errors");
+    expect(isStaleBalanceRevert(new Error("execution reverted. data: 0xdb42144d00"))).toBe(true);
+    expect(isStaleBalanceRevert(new Error("data: 0xe450d38c00"))).toBe(true);
+    expect(isStaleBalanceRevert(new Error("AA21 didn't pay prefund"))).toBe(false);
+  });
+
   it("translates ERC20InsufficientBalance from viem's wrapper", () => {
     const raw =
       'The contract function "transfer" reverted with the following signature:\n' +

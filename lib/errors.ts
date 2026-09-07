@@ -51,6 +51,11 @@ function looksSafeServerMessage(message: string): boolean {
 const CUSTOM_ERROR_MESSAGES: Record<string, string> = {
   // ERC20InsufficientBalance(address,uint256,uint256)
   "0xe450d38c": "You don't have enough of this asset for that. Try a smaller amount.",
+  // InsufficientBalance(address,uint256,uint256): the Solady-style variant
+  // (mUSD on Ethereum, 2026-09-07). Seen when a sell is pressed again after a
+  // refund changed the balance, so the copy names the likely cause.
+  "0xdb42144d":
+    "Your balance is lower than shown, so this amount can't be sent. Refresh and try a smaller amount.",
   // ERC20InsufficientAllowance(address,uint256,uint256)
   "0xfb8f41b2": "This transfer hasn't been approved yet. Approve it and try again.",
   // ERC20InvalidSender(address)
@@ -228,4 +233,12 @@ export function supportDetail(e: unknown, max = 160): string {
   const raw = text(e).replace(/\s+/g, " ").trim();
   if (raw.length <= max) return raw;
   return `${raw.slice(0, max - 1).trimEnd()}\u2026`;
+}
+
+// Whether a failed send was refused for the asset balance itself, which means
+// the balance on screen is behind the chain (a refund, a transfer from another
+// device, a sell that landed after all). Callers refetch before the next try.
+export function isStaleBalanceRevert(error: unknown): boolean {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  return /0xdb42144d|0xe450d38c|insufficient[- ]?balance|amount exceeds balance/i.test(raw);
 }
