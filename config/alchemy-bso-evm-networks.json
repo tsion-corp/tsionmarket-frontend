@@ -145,9 +145,7 @@
     "network": "frax-mainnet",
     "policyNetwork": "FRAX_MAINNET",
     "alchemyHost": "frax-mainnet.g.alchemy.com",
-    "chainKey": "fraxtal",
-    "sponsorshipMode": "paymaster",
-    "gasPolicy": true
+    "chainKey": "fraxtal"
   },
   {
     "network": "gensyn-mainnet",
@@ -200,9 +198,7 @@
     "network": "monad-mainnet",
     "policyNetwork": "MONAD_MAINNET",
     "alchemyHost": "monad-mainnet.g.alchemy.com",
-    "chainKey": "monad",
-    "sponsorshipMode": "paymaster",
-    "gasPolicy": true
+    "chainKey": "monad"
   },
   {
     "network": "monad-testnet",

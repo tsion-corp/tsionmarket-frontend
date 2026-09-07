@@ -31,6 +31,12 @@ export interface EvmSendInput {
 // through the 7702 + bundler flow; unsupported chains keep the normal EOA send
 // path. The sponsored path already waits for the userOp receipt, so callers can
 // treat its returned transaction hash as confirmed.
+const EIP7702_REFUSED = /EIP-7702 is not supported|Invalid fields set on User Operation/i;
+
+function refusesEip7702(error: unknown): boolean {
+  return EIP7702_REFUSED.test(error instanceof Error ? error.message : String(error));
+}
+
 export function useEvmSend() {
   const { sendTransaction } = useSendTransaction();
   const { signAuthorization } = useSign7702Authorization();
@@ -60,16 +66,31 @@ export function useEvmSend() {
         const accessToken = await getAccessToken();
         if (!accessToken) throw new Error("Your session expired. Sign in again.");
         const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-        const sponsoredHash = await sendSponsoredEvmCalls({
-          chainId,
-          address: wallet.address as `0x${string}`,
-          provider,
-          signAuthorization,
-          accessToken,
-          calls: [{ to, data, value }],
-        });
-        recordSelfInitiated([sponsoredHash]);
-        return sponsoredHash;
+        try {
+          const sponsoredHash = await sendSponsoredEvmCalls({
+            chainId,
+            address: wallet.address as `0x${string}`,
+            provider,
+            signAuthorization,
+            accessToken,
+            calls: [{ to, data, value }],
+          });
+          recordSelfInitiated([sponsoredHash]);
+          return sponsoredHash;
+        } catch (error) {
+          // Alchemy's bundler refuses the EIP-7702 authorization on some chains
+          // only at send time ("EIP-7702 is not supported on entry point … or
+          // is disabled", Monad, 2026-09-07), which no probe short of a real
+          // send reveals. That one refusal falls through to the ordinary
+          // user-paid transaction, so the chain degrades to a send that
+          // completes instead of a dead end. Every other failure is the
+          // sponsored path's own and is reported as such.
+          if (!refusesEip7702(error)) throw error;
+          console.warn(
+            `Sponsored send refused on chain ${chainId}; sending user-paid instead`,
+            error instanceof Error ? error.message : error
+          );
+        }
       }
       const { hash } = await sendTransaction(
         { to, data, value, chainId, gasLimit },

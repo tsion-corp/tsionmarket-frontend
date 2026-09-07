@@ -77,6 +77,33 @@ describe("useEvmSend routing", () => {
     expect(hash).toBe("0xnormalhash");
   });
 
+  // Alchemy's bundler refuses EIP-7702 on some chains only at send time
+  // ("EIP-7702 is not supported on entry point … or is disabled" on Monad,
+  // 2026-09-07), which no probe short of a real send reveals. A sponsored send
+  // refused for that reason falls back to the ordinary user-paid transaction
+  // once, so the chain degrades to a working send instead of a dead end.
+  it("falls back to the user-paid send when the bundler refuses EIP-7702", async () => {
+    sendSponsoredEvmCalls.mockRejectedValueOnce(
+      new Error(
+        "EIP-7702 is not supported on entry point 0x4337084d9e255ff0702461cf8895ce9e3b5ff108 or is disabled"
+      )
+    );
+    const { result } = renderHook(() => useEvmSend());
+    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: BASE });
+    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
+    expect(sendTransaction).toHaveBeenCalledOnce();
+    expect(hash).toBe("0xnormalhash");
+  });
+
+  it("does not fall back on any other sponsored failure", async () => {
+    sendSponsoredEvmCalls.mockRejectedValueOnce(new Error("AA21 didn't pay prefund"));
+    const { result } = renderHook(() => useEvmSend());
+    await expect(result.current({ to: "0xdead", data: "0xbeef", chainId: BASE })).rejects.toThrow(
+      /AA21/
+    );
+    expect(sendTransaction).not.toHaveBeenCalled();
+  });
+
   // A registry chain the key cannot reach has no policy in effect: the user
   // pays their own gas, which is a send that actually completes.
   it("routes registry chains with no policy through the normal EOA send", async () => {

@@ -140,6 +140,32 @@ back, and the sell sheet asks for native gas there as it did before. The
 policy still covers them; if Alchemy adds EIP-7702 support on those bundlers
 the flag is one line to restore, and this probe is the check to run first.
 
+## Second addendum, 2026-09-07 evening: Monad, Frax, and a runtime fallback
+
+A real send on Monad answered, through the bundler proxy:
+
+```
+-32602 EIP-7702 is not supported on entry point 0x4337084d…ff108 or is disabled
+```
+
+That is the v0.8 entry point the app's 7702 account actually uses. The
+morning probe had tested v0.7, and even against v0.8 Monad passes a gas
+estimate carrying an authorization and refuses only at send time ("or is
+disabled"). No probe short of a real send reveals this, and no chain past
+Base, Polygon and Arbitrum has had one. Two decisions:
+
+1. Monad is unflagged on the production evidence; Frax is unflagged because
+   Alchemy's bundler there has no v0.8 entry point at all ("No entry point
+   found for address").
+2. `useEvmSend` falls back to the ordinary user-paid transaction, once, when
+   a sponsored send is refused with an EIP-7702 message ("EIP-7702 is not
+   supported", "Invalid fields set on User Operation"). Any other sponsored
+   failure is still reported as the sponsored path's own. So a chain whose
+   bundler turns out to refuse 7702 degrades to a send that completes,
+   provided the wallet holds native gas; a wallet without gas gets the
+   user-paid path's own honest error. Reverting a chain's flag remains the
+   permanent fix once a real send has shown it.
+
 ## Verification plan
 
 1. Red: registry test lists the 23 networks and the two invariants; gas

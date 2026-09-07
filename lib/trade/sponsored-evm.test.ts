@@ -27,10 +27,8 @@ const SPONSORED_MAINNETS = [
   "bnb-mainnet",
   "celo-mainnet",
   "cronos-mainnet",
-  "frax-mainnet",
   "gensyn-mainnet",
   "ink-mainnet",
-  "monad-mainnet",
   "opt-mainnet",
   "plasma-mainnet",
   "polygon-mainnet",
@@ -69,6 +67,10 @@ describe("gas policy coverage", () => {
       "hyperliquid-mainnet",
       "apechain-mainnet",
       "opbnb-mainnet",
+      // Monad refused EIP-7702 at send time on the v0.8 entry point in
+      // production ("or is disabled"); Frax has no v0.8 entry point at all.
+      "monad-mainnet",
+      "frax-mainnet",
     ]) {
       expect(getSponsoredEvmChainByNetwork(network), network).not.toBeNull();
       expect(hasGasPolicyForNetwork(network), network).toBe(false);
