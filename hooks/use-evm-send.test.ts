@@ -55,19 +55,26 @@ describe("useEvmSend routing", () => {
     expect(hash).toBe("0xsponsoredhash");
   });
 
-  // The reported HYPE failure. These chains are in the sponsorship registry but
-  // no Gas Manager policy exists for them, so a userOp is rejected by the
-  // bundler as invalid fields. The user pays their own gas instead, which is a
-  // send that actually completes.
   // The one policy covers every mainnet the key can reach
-  // (ADR-2026-09-07-sponsor-all-evm-mainnets), so HyperEVM and Arbitrum, once
-  // user-paid, take the sponsored path like Base.
-  it("routes HyperEVM and Arbitrum through the sponsored path", async () => {
+  // (ADR-2026-09-07-sponsor-all-evm-mainnets), so Arbitrum, once user-paid,
+  // takes the sponsored path like Base.
+  it("routes Arbitrum through the sponsored path", async () => {
     const { result } = renderHook(() => useEvmSend());
-    await result.current({ to: "0xdead", data: "0xbeef", chainId: HYPERLIQUID });
     await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledTimes(2);
+    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
     expect(sendTransaction).not.toHaveBeenCalled();
+  });
+
+  // The reported HYPE failure, twice over. Alchemy's bundler on HyperEVM
+  // rejects the EIP-7702 authorization the sponsored path needs ("Invalid
+  // fields set on User Operation"), so a sponsored HYPE sell can never
+  // complete there; the user pays their own gas instead, which does.
+  it("routes HyperEVM through the normal EOA send, since its bundler has no EIP-7702", async () => {
+    const { result } = renderHook(() => useEvmSend());
+    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: HYPERLIQUID });
+    expect(sendTransaction).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
+    expect(hash).toBe("0xnormalhash");
   });
 
   // A registry chain the key cannot reach has no policy in effect: the user

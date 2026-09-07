@@ -14,7 +14,16 @@ describe("gasBufferFor", () => {
     expect(gasBufferFor("polygon-mainnet", null)).toBe(0);
     expect(gasBufferFor("eth-mainnet", null, 1)).toBe(0);
     expect(gasBufferFor("arb-mainnet", null, 1)).toBe(0);
-    expect(gasBufferFor("hyperliquid-mainnet", null, 5)).toBe(0);
+  });
+
+  // HyperEVM is covered by the policy but Alchemy's bundler there rejects the
+  // EIP-7702 authorization the sponsored path needs, so sends are user-paid
+  // and the measured reserve is back. HYPE trades around $80, so the
+  // percentage backstop would hold back several dollars of a five-token
+  // balance to cover a fee worth a fraction of a cent.
+  it("uses the measured buffer on HyperEVM, which sends user-paid", () => {
+    expect(gasBufferFor("hyperliquid-mainnet", null, 5)).toBe(0.001);
+    expect(gasBufferFor("hyperliquid-mainnet", null, 0.747158265771075558)).toBe(0.001);
   });
 
   // Being in the sponsorship registry is not the same as having a policy: a
@@ -49,13 +58,17 @@ describe("maxSellable", () => {
     expect(maxSellable("polygon-mainnet", null, 1)).toBe(1);
   });
 
-  // A max fill on a chain with no policy has to leave the fee behind, or the
-  // send is rejected for want of gas. HyperEVM, where this was first reported,
-  // is sponsored now, so its full balance sells; an unreachable mainnet keeps
-  // the reserve.
-  it("leaves gas behind on a max native sell without a policy", () => {
-    expect(maxSellable("hyperliquid-mainnet", null, 0.747158265771075558)).toBe(
+  // A max fill on a user-paid chain has to leave the fee behind, or the send
+  // is rejected for want of gas. HyperEVM, where this was first reported, is
+  // user-paid again (no EIP-7702 at its bundler); an unreachable mainnet keeps
+  // the sized share.
+  it("leaves gas behind on a max native sell without sponsorship", () => {
+    expect(maxSellable("hyperliquid-mainnet", null, 0.747158265771075558)).toBeLessThan(
       0.747158265771075558
+    );
+    expect(maxSellable("hyperliquid-mainnet", null, 0.747158265771075558)).toBeCloseTo(
+      0.746158265771,
+      9
     );
     expect(maxSellable("arbnova-mainnet", null, 1)).toBeLessThan(1);
     expect(maxSellable("arbnova-mainnet", null, 1)).toBeCloseTo(0.99, 9);

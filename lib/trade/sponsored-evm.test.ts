@@ -12,21 +12,25 @@ import {
 // mainnet the app can also read, and nothing else: testnets carry no policy,
 // and a chain the key cannot reach or the app cannot read would turn a working
 // user-paid send into a failing sponsored one.
+//
+// Three mainnets the policy covers are still left out: the sponsored path
+// delegates the embedded wallet with an EIP-7702 authorization, and Alchemy's
+// bundler on HyperEVM, ApeChain and opBNB answers "EIP-7702 is not supported
+// on entry point 0x…032" (probed 2026-09-07 after the first real HYPE sell
+// failed with "Invalid fields set on User Operation"). There the user-paid
+// path is the one that completes.
 const SPONSORED_MAINNETS = [
   "eth-mainnet",
   "base-mainnet",
   "arb-mainnet",
-  "apechain-mainnet",
   "berachain-mainnet",
   "bnb-mainnet",
   "celo-mainnet",
   "cronos-mainnet",
   "frax-mainnet",
   "gensyn-mainnet",
-  "hyperliquid-mainnet",
   "ink-mainnet",
   "monad-mainnet",
-  "opbnb-mainnet",
   "opt-mainnet",
   "plasma-mainnet",
   "polygon-mainnet",
@@ -50,7 +54,7 @@ describe("gas policy coverage", () => {
     expect(flagged).toEqual([...SPONSORED_MAINNETS].sort());
   });
 
-  it("leaves testnets and unreachable mainnets on the user-paid path", () => {
+  it("leaves testnets, unreachable mainnets and chains without EIP-7702 on the user-paid path", () => {
     for (const network of [
       "eth-sepolia",
       "base-sepolia",
@@ -60,6 +64,11 @@ describe("gas policy coverage", () => {
       "polynomial-mainnet",
       // No viem chain, so no read client: the send path would refuse it.
       "edge-mainnet",
+      // Alchemy's bundler rejects the EIP-7702 authorization the sponsored
+      // path needs; the first real sell there failed.
+      "hyperliquid-mainnet",
+      "apechain-mainnet",
+      "opbnb-mainnet",
     ]) {
       expect(getSponsoredEvmChainByNetwork(network), network).not.toBeNull();
       expect(hasGasPolicyForNetwork(network), network).toBe(false);
@@ -69,7 +78,7 @@ describe("gas policy coverage", () => {
   it("answers by chain id too, for the send path", () => {
     expect(hasGasPolicyForChainId(8453)).toBe(true);
     expect(hasGasPolicyForChainId(42161)).toBe(true);
-    expect(hasGasPolicyForChainId(999)).toBe(true);
+    expect(hasGasPolicyForChainId(999)).toBe(false);
     expect(hasGasPolicyForChainId(11155111)).toBe(false);
   });
 

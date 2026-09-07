@@ -117,6 +117,29 @@ eth_sendUserOperation answered an error`) and reverting one chain is one
 - Scenario impact: `updated` for spot sell and RWA buy on every newly
   sponsored chain.
 
+## Addendum, 2026-09-07 afternoon: what the first sends showed
+
+The first real HYPE sell on HyperEVM after this change failed with the
+bundler's "Invalid fields set on User Operation" (the same answer PR #343
+fixed by making HyperEVM user-paid). Probed directly against Alchemy's
+bundler on every flagged chain with a user operation carrying an EIP-7702
+authorization (`eth_estimateUserOperationGas` on entry point v0.7):
+
+| chain               | answer                                                                          |
+| ------------------- | ------------------------------------------------------------------------------- |
+| hyperliquid-mainnet | `EIP-7702 is not supported on entry point 0x…032`                               |
+| apechain-mainnet    | `EIP-7702 is not supported on entry point 0x…032`                               |
+| opbnb-mainnet       | `EIP-7702 is not supported on entry point 0x…032`                               |
+| the other 20        | accept the authorization; fail only at signature validation, as a dummy op must |
+
+The sponsored path delegates the embedded wallet with exactly that
+authorization, so on those three chains no sponsored send can ever complete.
+Their flags are removed (PR fix/unsponsor-chains-without-7702): HyperEVM,
+ApeChain and opBNB send user-paid again, the HyperEVM measured gas reserve is
+back, and the sell sheet asks for native gas there as it did before. The
+policy still covers them; if Alchemy adds EIP-7702 support on those bundlers
+the flag is one line to restore, and this probe is the check to run first.
+
 ## Verification plan
 
 1. Red: registry test lists the 23 networks and the two invariants; gas

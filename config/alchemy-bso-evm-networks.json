@@ -51,9 +51,7 @@
     "network": "apechain-mainnet",
     "policyNetwork": "APECHAIN_MAINNET",
     "alchemyHost": "apechain-mainnet.g.alchemy.com",
-    "chainKey": "apeChain",
-    "sponsorshipMode": "paymaster",
-    "gasPolicy": true
+    "chainKey": "apeChain"
   },
   {
     "network": "apechain-curtis",
@@ -176,9 +174,7 @@
     "network": "hyperliquid-mainnet",
     "policyNetwork": "HYPERLIQUID_MAINNET",
     "alchemyHost": "hyperliquid-mainnet.g.alchemy.com",
-    "chainKey": "hyperliquid",
-    "sponsorshipMode": "paymaster",
-    "gasPolicy": true
+    "chainKey": "hyperliquid"
   },
   {
     "network": "hyperliquid-testnet",
@@ -218,9 +214,7 @@
     "network": "opbnb-mainnet",
     "policyNetwork": "OPBNB_MAINNET",
     "alchemyHost": "opbnb-mainnet.g.alchemy.com",
-    "chainKey": "opBNB",
-    "sponsorshipMode": "paymaster",
-    "gasPolicy": true
+    "chainKey": "opBNB"
   },
   {
     "network": "opbnb-testnet",
