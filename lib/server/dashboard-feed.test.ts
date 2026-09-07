@@ -150,6 +150,24 @@ function healthyUpstreams() {
         meta: { page: 1, limit: 8, total: 2 },
       });
     }
+    if (url.startsWith("https://trade.test/tokens?")) {
+      // The Base catalogue, which the brief falls back to when trending is
+      // thin. One row here so the thin trending list above still wins.
+      return ok({
+        items: [
+          {
+            chainId: 8453,
+            address: "0xCatalogOnly",
+            symbol: "CATALOG",
+            name: "Catalog Only",
+            logoUrl: null,
+            priceUsd: "0.05",
+            priceChange24hPercent: "1",
+          },
+        ],
+        meta: { page: 1, limit: 40, total: 1 },
+      });
+    }
     if (url.startsWith("https://vault.test/games")) {
       return ok({
         games: [
@@ -269,6 +287,53 @@ describe("buildDashboardFeed", () => {
     expect(feed.perps).toBeNull();
     expect(feed.spot).not.toBeNull();
     expect(feed.memes).not.toBeNull();
+  });
+
+  // Trending is mostly Solana, and discovery is Base-only for now, so after
+  // the boundary it can be empty without ever erroring. The brief must then
+  // fill from the Base catalogue, as the page's own shortlist does, rather
+  // than say "nothing to show" beside a page full of coins.
+  it("fills the memecoin brief from the Base catalogue when trending is thin", async () => {
+    healthyUpstreams();
+    const base = upstream.fetch.getMockImplementation()!;
+    upstream.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://trade.test/tokens/trending")) {
+        return ok({
+          items: [
+            {
+              chainId: 101,
+              address: "So1anaOnly",
+              symbol: "SOLONLY",
+              name: "Solana Only",
+              logoUrl: null,
+              priceUsd: "0.02",
+              priceChange24hPercent: "3",
+            },
+          ],
+          meta: { page: 1, limit: 8, total: 1 },
+        });
+      }
+      if (url.startsWith("https://trade.test/tokens?")) {
+        expect(url).toContain("chain=base");
+        return ok({
+          items: [
+            {
+              chainId: 8453,
+              address: "0xBaseCat",
+              symbol: "BASECAT",
+              name: "Base Cat",
+              logoUrl: null,
+              priceUsd: "0.01",
+              priceChange24hPercent: "5",
+            },
+          ],
+          meta: { page: 1, limit: 40, total: 1 },
+        });
+      }
+      return base(url, init);
+    });
+    const feed = await buildDashboardFeed();
+    expect(feed.memes?.map((m) => m.symbol)).toEqual(["BASECAT"]);
   });
 
   it("prices the perps brief from the fallback when only the marks are down", async () => {
