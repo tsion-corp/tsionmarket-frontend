@@ -1,5 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { alchemyFetch, alchemyKeys, hasAlchemyKey } from "@/lib/server/alchemy-keys";
+import {
+  alchemyFetch,
+  alchemyKeys,
+  alchemyPairs,
+  hasAlchemyKey,
+  markAlchemyKeyBlocked,
+  resetAlchemyKeyBlocks,
+} from "@/lib/server/alchemy-keys";
 
 const PRIMARY = "primary-key";
 const FALLBACK = "fallback-key";
@@ -20,6 +27,9 @@ function scriptedFetch(answers: (number | "network")[]) {
 const url = (key: string) => `https://eth-mainnet.g.alchemy.com/v2/${key}`;
 
 beforeEach(() => {
+  // The block list is process state; a key blocked by one test must not
+  // steer the next.
+  resetAlchemyKeyBlocks();
   vi.stubEnv("ALCHEMY_API_KEY", PRIMARY);
   vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", FALLBACK);
 });
@@ -122,5 +132,90 @@ describe("alchemyFetch key rotation", () => {
     const { used } = scriptedFetch([200]);
     await expect(alchemyFetch(url)).rejects.toThrow("No Alchemy API key configured");
     expect(used).toEqual([]);
+  });
+});
+
+// The team holds several keys, each with its own gas policy, configured as
+// comma-separated lists in the same order. The pool walks them in that order
+// and a key that has answered capacity or auth is skipped for a cooldown, so
+// a request does not pay for the same failed call again and again.
+describe("alchemyKeys as a list", () => {
+  it("reads a comma-separated list in order, ignoring blanks and spaces", () => {
+    vi.stubEnv("ALCHEMY_API_KEY", " k0, k1 ,,k2 ");
+    vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", "");
+    expect(alchemyKeys()).toEqual(["k0", "k1", "k2"]);
+  });
+
+  it("still appends the deprecated fallback after the list", () => {
+    vi.stubEnv("ALCHEMY_API_KEY", "k0,k1");
+    vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", "old");
+    expect(alchemyKeys()).toEqual(["k0", "k1", "old"]);
+  });
+});
+
+describe("alchemyPairs", () => {
+  it("pairs each key with the policy at the same index", () => {
+    vi.stubEnv("ALCHEMY_API_KEY", "k0,k1,k2");
+    vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", "");
+    vi.stubEnv("ALCHEMY_GAS_POLICY_ID", "p0,p1,p2");
+    vi.stubEnv("ALCHEMY_POLYGON_GAS_POLICY_ID", "q0,,q2");
+    expect(alchemyPairs()).toEqual([
+      { index: 0, key: "k0", policyId: "p0", polygonPolicyId: "q0" },
+      { index: 1, key: "k1", policyId: "p1", polygonPolicyId: undefined },
+      { index: 2, key: "k2", policyId: "p2", polygonPolicyId: "q2" },
+    ]);
+  });
+
+  it("leaves a key without a policy at its index unpaired, never borrowing another", () => {
+    vi.stubEnv("ALCHEMY_API_KEY", "k0,k1");
+    vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", "old");
+    vi.stubEnv("ALCHEMY_GAS_POLICY_ID", "p0");
+    vi.stubEnv("ALCHEMY_POLYGON_GAS_POLICY_ID", "");
+    expect(alchemyPairs().map((p) => [p.key, p.policyId])).toEqual([
+      ["k0", "p0"],
+      ["k1", undefined],
+      ["old", undefined],
+    ]);
+  });
+});
+
+describe("blocked keys", () => {
+  beforeEach(() => {
+    resetAlchemyKeyBlocks();
+    vi.stubEnv("ALCHEMY_API_KEY", "k0,k1");
+    vi.stubEnv("ALCHEMY_API_KEY_FALLBACK", "");
+  });
+
+  it("goes straight to the next key while the first is blocked", async () => {
+    const { used } = scriptedFetch([200]);
+    markAlchemyKeyBlocked("k0", 60_000);
+    await alchemyFetch(url);
+    expect(used).toEqual(["k1"]);
+  });
+
+  it("blocks a key that answers monthly capacity, so the next request skips it", async () => {
+    const { used } = scriptedFetch([429, 200, 200]);
+    await alchemyFetch(url);
+    await alchemyFetch(url);
+    expect(used).toEqual(["k0", "k1", "k1"]);
+  });
+
+  it("tries a blocked key again once its cooldown has passed", async () => {
+    vi.useFakeTimers();
+    const { used } = scriptedFetch([200, 200]);
+    markAlchemyKeyBlocked("k0", 1_000);
+    await alchemyFetch(url);
+    vi.advanceTimersByTime(1_500);
+    await alchemyFetch(url);
+    expect(used).toEqual(["k1", "k0"]);
+    vi.useRealTimers();
+  });
+
+  it("still tries a blocked key when every key is blocked", async () => {
+    const { used } = scriptedFetch([200]);
+    markAlchemyKeyBlocked("k0", 60_000);
+    markAlchemyKeyBlocked("k1", 60_000);
+    await alchemyFetch(url);
+    expect(used).toEqual(["k0"]);
   });
 });
