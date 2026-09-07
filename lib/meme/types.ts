@@ -24,6 +24,9 @@ export interface MemeToken {
   pairAddress: string | null;
   dexName: string | null;
   riskLevel: TokenRiskLevel;
+  // The service's lifecycle state: ACTIVE, DISCOVERED (unrated), BLOCKED.
+  // Absent on the trending and search routes.
+  status?: string;
   buyEnabled: boolean;
   sellEnabled: boolean;
   warnings: TokenWarning[];

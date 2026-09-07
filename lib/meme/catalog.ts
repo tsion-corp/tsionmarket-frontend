@@ -160,6 +160,32 @@ export function isTokenizedEquity(token: Pick<MemeToken, "chainId" | "address" |
   return CORPORATE_NAME.test((token.name ?? "").trim());
 }
 
+// A buy surface shows only what can be bought. The service says so per row:
+// buyEnabled false, or a status other than ACTIVE where one is given. Below a
+// liquidity floor a buy fails at the quote or moves the price by the whole
+// order, so those rows go too; a row with no liquidity figure (the trending
+// and search routes omit it) is kept, since absence is not thinness.
+export const MIN_DISCOVERY_LIQUIDITY_USD = 10_000;
+// Liquidity alone lies: on 2026-09-07, 41 of the 104 rows the board showed had
+// six-figure "liquidity" and under a dollar of volume in 24 hours (WKC: $369k
+// and two cents). Those are dead pools whose liquidity figure is stale, and a
+// buy on them cannot fill. Daily volume is the signal that a pool is alive.
+export const MIN_DISCOVERY_VOLUME_24H_USD = 100;
+
+function belowFloor(value: string | null | undefined, floor: number): boolean {
+  if (value === null || value === undefined) return false; // absent is not thin
+  const n = Number(value);
+  return Number.isFinite(n) && n < floor;
+}
+
+export function isBuyableHere(token: MemeToken): boolean {
+  if (token.buyEnabled === false) return false;
+  if (token.status !== undefined && token.status !== "ACTIVE") return false;
+  if (belowFloor(token.liquidityUsd, MIN_DISCOVERY_LIQUIDITY_USD)) return false;
+  if (belowFloor(token.volume24hUsd, MIN_DISCOVERY_VOLUME_24H_USD)) return false;
+  return true;
+}
+
 export function isMemecoinHere(token: MemeToken): boolean {
   return (
     isSupportedChain(token.chainId) &&
@@ -169,7 +195,8 @@ export function isMemecoinHere(token: MemeToken): boolean {
     !isWrappedMajor(token.chainId, token.address) &&
     !impersonatesMajor(token) &&
     !isTokenizedEquity(token) &&
-    !isHiddenMemecoin(token)
+    !isHiddenMemecoin(token) &&
+    isBuyableHere(token)
   );
 }
 

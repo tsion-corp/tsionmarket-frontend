@@ -28,7 +28,8 @@ function token(chainId: number, address: string): MemeToken {
     logoUrl: null,
     priceUsd: "1",
     liquidityUsd: "1000000",
-    volume24hUsd: "1",
+    // A live pool: discovery drops rows under $100 of daily volume.
+    volume24hUsd: "25000",
     priceChange24hPercent: "0",
     marketCapUsd: null,
     fdvUsd: null,
