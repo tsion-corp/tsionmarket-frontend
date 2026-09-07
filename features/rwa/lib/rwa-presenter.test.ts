@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { RwaChain } from "@/lib/rwa/catalog";
 import {
   LISTED_RWA_CHAINS,
   LIVE_RWA_CHAINS,
@@ -212,10 +213,16 @@ describe("hasNativeGas", () => {
   // policy, so their sends are paid by the user and the wallet does need to
   // hold the native token. Saying otherwise sent people into a bundler
   // rejection they could not act on.
-  it("requires native gas on registry chains that hold no policy", () => {
-    expect(requiresNativeGas("ethereum")).toBe(true);
-    expect(requiresNativeGas("arbitrum")).toBe(true);
-    expect(requiresNativeGas("bsc")).toBe(true);
+  // Every RWA chain is sponsored now (ADR-2026-09-07-sponsor-all-evm-mainnets),
+  // so none of them asks the wallet to hold gas first.
+  it("requires native gas on no RWA chain now that the policy covers them all", () => {
+    for (const chain of ["ethereum", "arbitrum", "bsc", "base", "polygon", "solana"] as const) {
+      expect(requiresNativeGas(chain), chain).toBe(false);
+    }
+  });
+
+  it("still requires gas on a chain it knows nothing about", () => {
+    expect(requiresNativeGas("madeup" as RwaChain)).toBe(true);
   });
 });
 

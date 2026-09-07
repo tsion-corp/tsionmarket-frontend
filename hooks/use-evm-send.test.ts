@@ -30,6 +30,7 @@ const BASE = 8453;
 const ARBITRUM = 42161;
 const POLYGON = 137;
 const HYPERLIQUID = 999;
+const ARBITRUM_NOVA = 42170;
 const ZKSYNC = 324;
 
 describe("useEvmSend routing", () => {
@@ -58,19 +59,25 @@ describe("useEvmSend routing", () => {
   // no Gas Manager policy exists for them, so a userOp is rejected by the
   // bundler as invalid fields. The user pays their own gas instead, which is a
   // send that actually completes.
+  // The one policy covers every mainnet the key can reach
+  // (ADR-2026-09-07-sponsor-all-evm-mainnets), so HyperEVM and Arbitrum, once
+  // user-paid, take the sponsored path like Base.
+  it("routes HyperEVM and Arbitrum through the sponsored path", async () => {
+    const { result } = renderHook(() => useEvmSend());
+    await result.current({ to: "0xdead", data: "0xbeef", chainId: HYPERLIQUID });
+    await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM });
+    expect(sendSponsoredEvmCalls).toHaveBeenCalledTimes(2);
+    expect(sendTransaction).not.toHaveBeenCalled();
+  });
+
+  // A registry chain the key cannot reach has no policy in effect: the user
+  // pays their own gas, which is a send that actually completes.
   it("routes registry chains with no policy through the normal EOA send", async () => {
     const { result } = renderHook(() => useEvmSend());
-    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: HYPERLIQUID });
+    const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM_NOVA });
     expect(sendTransaction).toHaveBeenCalledOnce();
     expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
     expect(hash).toBe("0xnormalhash");
-  });
-
-  it("does the same for Arbitrum, which has no policy either", async () => {
-    const { result } = renderHook(() => useEvmSend());
-    await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM });
-    expect(sendTransaction).toHaveBeenCalledOnce();
-    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
   });
 
   it("routes unsupported EVM chains through the normal EOA send", async () => {
