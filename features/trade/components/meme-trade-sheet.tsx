@@ -21,6 +21,7 @@ import { settlementFor } from "@/lib/deposit";
 import { friendlyError } from "@/lib/errors";
 import { TradeApiError, isValidTradeAmount, visibleWarnings, type MemeToken } from "@/lib/meme/api";
 import { buyFunding, estimateReceive } from "@/lib/meme/funding";
+import { exceedsHeld, maxSellAmount } from "@/lib/meme/sell-amount";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { formatUsd, toBaseUnits } from "@/lib/trade/math";
@@ -128,10 +129,17 @@ export function MemeTradeSheet({
   // EVM addresses compare case-insensitively; a Solana mint is case-sensitive.
   const sameAddress = (a: string | null | undefined) =>
     onSolana ? a === token.address : a?.toLowerCase() === token.address.toLowerCase();
-  const heldBalance =
-    portfolio.tokens.find((p) => p.network === network && sameAddress(p.address))?.balance ?? 0;
+  const held = portfolio.tokens.find((p) => p.network === network && sameAddress(p.address));
+  const heldBalance = held?.balance ?? 0;
+  // The exact holding, in base units, sizes a sale; the float is for display.
+  const heldRaw = held?.rawBalance ?? "0";
+  const heldDecimals = held?.decimals ?? token.decimals ?? 18;
   const balance = buying ? spendableUsd : heldBalance;
-  const overBalance = amountValid && Number(debouncedAmount) > balance + 1e-9;
+  const overBalance =
+    amountValid &&
+    (buying
+      ? Number(debouncedAmount) > balance + 1e-9
+      : exceedsHeld(debouncedAmount, heldRaw, heldDecimals));
   // A Solana buy that needs the move cannot be previewed by the trade service
   // yet (it checks the Solana wallet's balance), so the sheet shows an
   // estimate from the listed price until the USDC has landed.
@@ -139,16 +147,16 @@ export function MemeTradeSheet({
   const fundingBlocked = needsFunding && !canFund;
 
   // One-tap full balance: buys floor to cents so 100% never rounds above the
-  // USDC balance; sells render at the token's own precision (String() would
-  // emit scientific notation for dust).
+  // USDC balance; sells are the exact base-unit holding, because a float
+  // rendered at the token's decimals invents digits the wallet never held
+  // and the trade service refuses an amount one base unit over.
   const fillMax = () => {
     if (balance <= 0) return;
     if (buying) {
       setAmount((Math.floor(balance * 100) / 100).toFixed(2));
       return;
     }
-    const fixed = balance.toFixed(token.decimals ?? 18);
-    setAmount(fixed.includes(".") ? fixed.replace(/\.?0+$/, "") || "0" : fixed);
+    setAmount(maxSellAmount(heldRaw, heldDecimals));
   };
 
   // The compiler memoizes this; a manual useMemo here fought its inference.
