@@ -153,7 +153,9 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
           </button>
         </div>
 
-        <AddressPanel address={staticAddr.data.depositAddress} />
+        {/* The address belongs to Dextopus and takes only the asset chosen
+            above; KASH+ must never be sent to it. */}
+        <AddressPanel address={staticAddr.data.depositAddress} notice={t("noKashToAddress")} />
 
         {/* No amount to quote against on a static address, so show the rate. */}
         <div className="ws-inset mt-3 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">

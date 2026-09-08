@@ -24,7 +24,6 @@ interface KashCardProps {
   /** Settle accrued points into KSH now. Absent while there is nothing to claim. */
   onClaim?: () => void;
   claiming?: boolean;
-  onSend: () => void;
   onConvert: () => void;
   onHistory: () => void;
   onUpgrade: () => void;
@@ -40,7 +39,6 @@ export function KashCard({
   onBuy,
   onClaim,
   claiming,
-  onSend,
   onConvert,
   onHistory,
   onUpgrade,
@@ -183,12 +181,8 @@ export function KashCard({
         >
           {t("buy")}
         </button>
-        <button
-          onClick={onSend}
-          className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white transition-colors hover:border-white/22 hover:bg-white/10"
-        >
-          {t("send")}
-        </button>
+        {/* Send is off the card for now. The modal and its wiring stay; only
+            the door is gone, so restoring it is this one button. */}
         <button
           onClick={onConvert}
           className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium text-white transition-colors hover:border-white/22 hover:bg-white/10"

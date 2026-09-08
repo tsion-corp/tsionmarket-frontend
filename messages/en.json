@@ -1331,7 +1331,8 @@
     "withdrawNeedsGas": "You need a little {symbol} on {chain} to send from there. Withdraw from Base instead, or add funds.",
     "withdrawalUnconfirmed": "We couldn't confirm this withdrawal. It may already have gone through, so check Arkivity before trying again to avoid sending twice.",
     "withdrawalUnconfirmedToast": "Couldn't confirm. Check Arkivity.",
-    "transactionFee": "Transaction fee"
+    "transactionFee": "Transaction fee",
+    "noKashToAddress": "Do not send KASH+ to this address."
   },
   "remit": {
     "sendMoney": "Send money",

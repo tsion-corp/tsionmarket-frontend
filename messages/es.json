@@ -1331,7 +1331,8 @@
     "withdrawNeedsGas": "Necesitas un poco de {symbol} en {chain} para enviar desde ahí. Retira desde Base o añade fondos.",
     "withdrawalUnconfirmed": "No pudimos confirmar este retiro. Puede que ya se haya realizado, así que revisa Arkivity antes de volver a intentarlo para no enviarlo dos veces.",
     "withdrawalUnconfirmedToast": "Sin confirmar. Revisa Arkivity.",
-    "transactionFee": "Comisión de transacción"
+    "transactionFee": "Comisión de transacción",
+    "noKashToAddress": "No envíes KASH+ a esta dirección."
   },
   "remit": {
     "sendMoney": "Enviar dinero",

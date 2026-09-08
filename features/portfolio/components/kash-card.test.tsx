@@ -43,13 +43,7 @@ const account = (over: Partial<KashAccount> = {}): KashAccount =>
 
 function renderCard() {
   render(
-    <KashCard
-      onBuy={() => {}}
-      onSend={() => {}}
-      onConvert={() => {}}
-      onHistory={() => {}}
-      onUpgrade={() => {}}
-    />,
+    <KashCard onBuy={() => {}} onConvert={() => {}} onHistory={() => {}} onUpgrade={() => {}} />,
     { wrapper }
   );
 }
@@ -114,5 +108,16 @@ describe("KashCard balance states", () => {
     expect(screen.queryByText("0")).not.toBeInTheDocument();
     expect(screen.queryByText(messages.kash.balanceUnavailable)).not.toBeInTheDocument();
     expect(screen.queryByText(messages.kash.balanceNoWallet)).not.toBeInTheDocument();
+  });
+});
+
+// Send is off the card for now; Buy and Convert stay. The send modal and its
+// wiring remain in the codebase, only the door is gone.
+describe("KashCard actions", () => {
+  it("offers Buy and Convert but not Send", () => {
+    renderCard();
+    expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
   });
 });

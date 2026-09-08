@@ -1331,7 +1331,8 @@
     "withdrawNeedsGas": "Du brauchst etwas {symbol} auf {chain}, um von dort zu senden. Hebe stattdessen von Base ab oder lade Guthaben auf.",
     "withdrawalUnconfirmed": "Wir konnten diese Auszahlung nicht bestätigen. Sie ist möglicherweise schon durchgegangen, prüfe also Arkivity, bevor du es erneut versuchst, damit du nicht doppelt sendest.",
     "withdrawalUnconfirmedToast": "Nicht bestätigt. Prüfe Arkivity.",
-    "transactionFee": "Transaktionsgebühr"
+    "transactionFee": "Transaktionsgebühr",
+    "noKashToAddress": "Senden Sie kein KASH+ an diese Adresse."
   },
   "remit": {
     "sendMoney": "Geld senden",
