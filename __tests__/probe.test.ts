@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { it, expect } from "vitest";
 it("probes localStorage", () => {
   console.log("typeof window", typeof window);

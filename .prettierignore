@@ -21,3 +21,4 @@ public/
 .agents/
 .claude/
 reference/
+.eslintcache

@@ -58,3 +58,6 @@ design_handoff_*/
 
 # Screen recordings shared for debugging, never part of the tree.
 *.mov
+
+# ESLint cache, kept by CI between runs
+.eslintcache

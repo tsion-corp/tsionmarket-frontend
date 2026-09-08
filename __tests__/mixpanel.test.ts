@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { pageNameForPath, pageNameForSection } from "@/lib/analytics/page-name";
 
