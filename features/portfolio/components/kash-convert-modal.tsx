@@ -298,14 +298,6 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
                   {t("quoteFailed")}
                 </div>
               )}
-              {deskLive && deskQuote.data && (
-                // The reserve is the public backing figure: showing it beside
-                // the payout is the honesty that makes redemption credible.
-                <div className="mt-1.5 flex items-center justify-between text-[12px]">
-                  <span className="font-normal text-white/45">{t("redeemReserve")}</span>
-                  <span className="tnum text-white/60">${deskQuote.data.reserveUsdc}</span>
-                </div>
-              )}
               {!deskLive && quote.data && (
                 // The fee in dollars, not a discounted unit price: at 0.5% the
                 // two prices differ in the fourth decimal, which reads as a
