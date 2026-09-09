@@ -240,6 +240,92 @@ describe("Alchemy sponsorship proxy", () => {
     logged.mockRestore();
   });
 
+  // Seen live on 2026-09-09: the pair's policy had reached its gas
+  // sponsorship spend limit, answered as a 200 with a JSON-RPC error rather
+  // than a 429. It is the same condition as an exhausted month: this pair
+  // cannot serve until the dashboard changes, so the next pair is tried and,
+  // when none can, the client gets the paused message it will not retry.
+  it("treats a gas sponsorship spend limit as exhausted capacity", async () => {
+    vi.stubEnv("ALCHEMY_API_KEY", "key-a,key-b");
+    vi.stubEnv("ALCHEMY_GAS_POLICY_ID", "policy-a,policy-b");
+    const overLimit = {
+      jsonrpc: "2.0",
+      id: 7,
+      error: {
+        code: -32602,
+        message:
+          "This transaction’s USD cost will put your team over your gas sponsorship Limit. To increase your limit, please upgrade your account.",
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(overLimit), { status: 200 }))
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({
+        jsonrpc: "2.0",
+        id: 7,
+        method: "alchemy_requestGasAndPaymasterAndData",
+        params: [{ userOperation: {} }],
+      }),
+      "base-mainnet"
+    );
+    const body = await response.json();
+
+    const urls = vi.mocked(fetch).mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.endsWith("/key-a"))).toBe(true);
+    expect(urls.some((u) => u.endsWith("/key-b"))).toBe(true);
+    expect(body.error.code).toBe(-32002);
+    expect(body.error.message).toMatch(/sponsorship is out of monthly capacity/i);
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
+  // A bundler-sponsorship policy cannot answer the paymaster path at all.
+  // That pair is skipped like a missing policy, not passed through as the
+  // user's own error.
+  it("moves past a pair whose policy type the paymaster path cannot use", async () => {
+    vi.stubEnv("ALCHEMY_API_KEY", "key-a,key-b");
+    vi.stubEnv("ALCHEMY_GAS_POLICY_ID", "policy-a,policy-b");
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: 1,
+              error: { code: -32602, message: "Unsupported Policy Type: BUNDLER_SPONSORSHIP" },
+            }),
+            { status: 200 }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { paymaster: "0x1" } }), {
+            status: 200,
+          })
+        )
+    );
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "alchemy_requestGasAndPaymasterAndData",
+        params: [{ userOperation: {} }],
+      }),
+      "base-mainnet"
+    );
+
+    expect((await response.json()).result).toEqual({ paymaster: "0x1" });
+    expect(String(vi.mocked(fetch).mock.calls[1][0])).toContain("/key-b");
+  });
+
   it("answers every call of a batch when capacity is exhausted", async () => {
     const exhausted = {
       jsonrpc: "2.0",

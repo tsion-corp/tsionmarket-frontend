@@ -41,7 +41,12 @@ const MAX_BATCH_CALLS = 100;
 // What Alchemy answers, with a 429, once the account owning the key has used
 // its monthly capacity. Unlike a throughput limit this does not clear on a
 // retry; it clears on the next billing cycle or a plan change.
-const MONTHLY_CAPACITY_EXHAUSTED = /monthly capacity limit exceeded/i;
+// Two wordings for the same condition: the app's monthly capacity is used
+// up (a 429), or the Gas Manager policy has reached its sponsorship spend
+// limit (a 200 carrying a JSON-RPC error, seen live 2026-09-09). Neither
+// clears on a retry; both clear on the dashboard.
+const MONTHLY_CAPACITY_EXHAUSTED =
+  /monthly capacity limit exceeded|over your gas sponsorship limit/i;
 
 // JSON-RPC "resource unavailable". viem retries 429s, LimitExceeded (-32005)
 // and Internal (-32603); it surfaces this one at once, which is what an
@@ -125,11 +130,15 @@ function sponsorPairsFor(
 // Answers that mean "this pair cannot sponsor right now, the next may": the
 // app is over capacity or rate limited, the key is refused, or the app does
 // not own the policy. Anything else is the request's own outcome.
+// A bundler-sponsorship policy answers the paymaster path "Unsupported Policy
+// Type"; that pair can never serve this path, the same as a missing policy.
 const PAIR_REJECTED =
-  /policy not found|must be authenticated|not authorized|unauthorized|invalid api key/i;
+  /policy not found|policy id\(s\) not found|unsupported policy type|must be authenticated|not authorized|unauthorized|invalid api key/i;
 
 function pairCannotServe(status: number, text: string): "capacity" | "rejected" | null {
-  if (status === 429 && MONTHLY_CAPACITY_EXHAUSTED.test(text)) return "capacity";
+  if ((status === 429 || status === 200) && MONTHLY_CAPACITY_EXHAUSTED.test(text)) {
+    return "capacity";
+  }
   if (status === 429 || status === 401 || status === 403) return "rejected";
   if (status === 200 && PAIR_REJECTED.test(text)) return "rejected";
   return null;
@@ -217,7 +226,10 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
 
   try {
     let last: { response: Response; text: string } | null = null;
-    let allExhausted = true;
+    // A pair that is misconfigured (no policy, wrong type) could never have
+    // served; if any pair that could serve is out of capacity, capacity is
+    // the true reason nothing sponsored.
+    let anyExhausted = false;
     for (const pair of pairs) {
       const response = await fetch(`https://${target.alchemyHost}/v2/${pair.key}`, {
         method: "POST",
@@ -252,7 +264,7 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
         pair.key,
         verdict === "capacity" ? MONTHLY_CAPACITY_COOLDOWN_MS : RATE_LIMIT_COOLDOWN_MS
       );
-      if (verdict !== "capacity") allExhausted = false;
+      if (verdict === "capacity") anyExhausted = true;
       console.warn(
         `Alchemy sponsorship for ${network}: pair ${pair.index} ${verdict}, trying the next`,
         text.slice(0, 200)
@@ -261,13 +273,13 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
     }
 
     if (!last) throw new Error("No Alchemy pair could be tried");
-    if (allExhausted) {
+    if (anyExhausted) {
       // The one condition here that is an operations alarm, not weather: no
       // sponsored transaction will succeed until an Alchemy app behind the
       // pool has capacity again. Logged so it is seen, and answered in a form
       // the client shows honestly instead of retrying.
       console.error(
-        `Alchemy sponsorship for ${network}: monthly capacity exhausted on every configured account`,
+        `Alchemy sponsorship for ${network}: sponsorship capacity exhausted on every account that could serve`,
         last.text.slice(0, 300)
       );
       return NextResponse.json(exhaustedBody(calls, Array.isArray(body)), {
