@@ -41,21 +41,73 @@ describe("activeGames frames", () => {
     warn.mockRestore();
   });
 
-  it("drops rows in the vault's domain shape, which have no pot to render", () => {
+  // Captured from the production hub on 2026-09-09 during game 416. The hub
+  // describes a game in the contract's shape, wei strings and all, which is
+  // exactly what the chain reader produces. Those rows belong in the chain
+  // games cache, where mergeGames prices them; dropping them left the lobby
+  // saying "no games" from the socket and relying on the 8 s chain poll.
+  const HUB_ROW = {
+    minWagerWei: "200683125358721",
+    endTime: 1788948057,
+    king: "0x6Fe0c92D880678F86a7d213695757ed58B09877F",
+    timeRemaining: 56,
+    gameId: 416,
+    active: true,
+    starter: "0x6Fe0c92D880678F86a7d213695757ed58B09877F",
+    potWei: "200683125358721",
+    settled: false,
+  };
+
+  it("keeps the hub's contract-shaped rows as chain games", () => {
     const client = new QueryClient();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     handleVaultFrame(
       client,
       JSON.stringify({
         type: "activeGames",
-        data: {
-          games: [{ gameId: 1, potWei: "1", minWagerWei: "1", endTime: 1 }, row(2)],
-        },
+        topic: "vault:king-of-night",
+        data: { games: [HUB_ROW] },
+        revision: 17181,
+      })
+    );
+    expect(client.getQueryData(VAULT_KEYS.chainGames)).toEqual([
+      {
+        gameId: 416,
+        starter: HUB_ROW.starter,
+        king: HUB_ROW.king,
+        potWei: 200683125358721n,
+        minWagerWei: 200683125358721n,
+        endTime: 1788948057,
+      },
+    ]);
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("an empty hub snapshot clears the chain games too", () => {
+    const client = new QueryClient();
+    client.setQueryData(VAULT_KEYS.chainGames, [{ gameId: 415 }]);
+    handleVaultFrame(client, JSON.stringify({ type: "activeGames", data: { games: [] } }));
+    expect(client.getQueryData(VAULT_KEYS.chainGames)).toEqual([]);
+    expect(client.getQueryData(VAULT_KEYS.games)).toEqual([]);
+  });
+
+  it("sorts each row into the cache its shape belongs to and drops the rest", () => {
+    const client = new QueryClient();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    handleVaultFrame(
+      client,
+      JSON.stringify({
+        type: "activeGames",
+        data: { games: [HUB_ROW, row(2), { gameId: 3, potWei: "not-a-number" }] },
       })
     );
     expect(
       (client.getQueryData(VAULT_KEYS.games) as { gameId: number }[]).map((g) => g.gameId)
     ).toEqual([2]);
+    expect(
+      (client.getQueryData(VAULT_KEYS.chainGames) as { gameId: number }[]).map((g) => g.gameId)
+    ).toEqual([416]);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });

@@ -1,10 +1,8 @@
 import "server-only";
 
-import { createPublicClient, custom, formatEther } from "viem";
-import { base } from "viem/chains";
+import { formatEther } from "viem";
 import { fetchPrices } from "@/lib/server/alchemy";
 import { dextopusRequest } from "@/lib/server/dextopus";
-import { forwardEvmRpcRead } from "@/lib/server/evm-rpc";
 import { fetchMarketTokens } from "@/lib/server/market-tokens";
 import { cached } from "@/lib/server/response-cache";
 import { fetchRwaMarket } from "@/lib/server/rwa-prices";
@@ -27,9 +25,8 @@ import { composePerpBrief, perpBriefFallbackSymbols, type PerpBriefRow } from "@
 import type { PerpPair, PerpPrice } from "@/lib/perp/types";
 import { assetPriceUsd, listedRwaAssets, rwaLogoPath, type RwaApiAsset } from "@/lib/rwa/catalog";
 import { composeSpotMarkets } from "@/lib/spot-markets";
-import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
-import { VAULT_CHAIN_ID } from "@/lib/vault/contract";
 import { readActiveGamesWith } from "@/lib/vault/read";
+import { baseReadClient } from "@/lib/server/vault-chain";
 
 // The dashboard's public data, composed once for every user.
 //
@@ -211,33 +208,6 @@ interface DraughtsMatchWireLite {
   id: string;
   computer?: unknown;
   result: unknown;
-}
-
-// A viem client for Base that reads through the same provider the RPC route
-// uses, without the route: this runs on the server already.
-function baseReadClient() {
-  const chain = getSponsoredEvmChainByNetwork("base-mainnet");
-  if (!chain || chain.chainId !== VAULT_CHAIN_ID) throw new Error("Base is not configured");
-  let id = 0;
-  return createPublicClient({
-    chain: base,
-    transport: custom({
-      async request({ method, params }) {
-        const { payload } = await forwardEvmRpcRead(chain, {
-          jsonrpc: "2.0",
-          id: ++id,
-          method,
-          params,
-        });
-        const envelope = (Array.isArray(payload) ? payload[0] : payload) as {
-          result?: unknown;
-          error?: { message?: string };
-        };
-        if (envelope?.error) throw new Error(envelope.error.message ?? "rpc error");
-        return envelope?.result;
-      },
-    }),
-  });
 }
 
 async function liveSection(): Promise<DashboardLive> {

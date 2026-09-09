@@ -18,7 +18,6 @@ import { LAST_MAN_START_LIVE } from "@/features/casino/lib/last-standing/start-g
 import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
 import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
 import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
-import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 
 // The lobby: every game currently taking joins, and the way to open one.
@@ -35,14 +34,14 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
   const t = useTranslations("casino.lastStanding");
   const { user } = usePrivy();
   const address = getWalletAddress(user, "ethereum");
-  const { games, gamesLoading, gamesError, refetchGames, connected, resync } = useVaultLobby();
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const { games, gamesLoading, gamesError, refetchGames, resync, winners, winnersLoading } =
+    useVaultLobby({ history: historyOpen });
 
   const [startOpen, setStartOpen] = useState(false);
-  const [historyOpen, setHistoryOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
   // Every settled game, for the history. The same feed the game pages scope
   // down to one game.
-  const { winners, winnersLoading } = useVaultFeeds(connected);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
   // The game runs on the wallet's ETH on Base. A player who holds only USDC

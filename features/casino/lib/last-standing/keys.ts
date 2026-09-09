@@ -7,8 +7,10 @@ export const VAULT_KEYS = {
   game: (gameId: number) => ["vault", "game", gameId] as const,
   winners: ["vault", "winners"] as const,
   activities: ["vault", "activities"] as const,
-  // The chain-side reads behind the two feeds. Under the same prefix, so a
-  // reconnect resync refreshes them with everything else.
+  // The chain-side reads. Under the same prefix, so a reconnect resync
+  // refreshes them with everything else, but not under `games`, so an
+  // invalidation of the API list does not fan out to the contract read.
+  chainGames: ["vault", "chain", "games"] as const,
   chainSettled: ["vault", "chain", "settled"] as const,
   chainActivity: ["vault", "chain", "activity"] as const,
 };

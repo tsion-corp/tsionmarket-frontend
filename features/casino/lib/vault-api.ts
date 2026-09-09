@@ -7,7 +7,8 @@
 // cross-game feeds that stayed singular (winners, activities).
 
 import { createServiceClient } from "@/lib/api/service";
-import { isVaultGame, onlyVaultGames } from "@/features/casino/lib/vault-game";
+import { isVaultGame, onlyVaultGames, toChainGame } from "@/features/casino/lib/vault-game";
+import type { ChainGame } from "@/lib/vault/read";
 
 export interface TokenAmount {
   amount: string;
@@ -65,6 +66,18 @@ export interface VaultActivity {
 const vault = createServiceClient("/api/vault", "The vault is unavailable right now.");
 
 // The lobby: games currently accepting joins, newest first.
+// The live games as the contract holds them, read on the server once for
+// everyone (app/api/vault/chain-games). Same wire shape as the socket hub.
+export async function fetchChainGames(): Promise<ChainGame[]> {
+  const data = await vault.get<{ games: unknown }>("/chain-games");
+  const rows = Array.isArray(data.games) ? data.games : [];
+  const games = rows.map(toChainGame).filter((game): game is ChainGame => game !== null);
+  if (games.length !== rows.length) {
+    console.warn(`[vault] dropped ${rows.length - games.length} chain-games row(s) not in shape`);
+  }
+  return games;
+}
+
 export async function fetchActiveGames(): Promise<VaultGame[]> {
   const data = await vault.get<{ games: unknown }>("/games");
   const rows = onlyVaultGames(data.games);

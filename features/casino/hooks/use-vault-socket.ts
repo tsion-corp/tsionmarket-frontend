@@ -4,7 +4,8 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { VaultActivity, VaultGame } from "@/features/casino/lib/vault-api";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
-import { onlyVaultGames } from "@/features/casino/lib/vault-game";
+import { sortGameRows } from "@/features/casino/lib/vault-game";
+import type { ChainGame } from "@/lib/vault/read";
 
 // One socket for the whole feature, however many components are listening.
 //
@@ -137,6 +138,7 @@ function applySettled(client: QueryClient, frame: GameSettledFrame): void {
     games?.filter((game) => game.gameId !== frame.gameId)
   );
   void client.invalidateQueries({ queryKey: VAULT_KEYS.winners });
+  void client.invalidateQueries({ queryKey: VAULT_KEYS.chainSettled });
   void client.invalidateQueries({ queryKey: VAULT_KEYS.activities });
 }
 
@@ -169,13 +171,17 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
       // malformed snapshot is dropped and the last good one stands; the
       // polled REST read keeps the lobby fresh regardless.
       if (Array.isArray(games)) {
-        const rows = onlyVaultGames(games);
-        if (rows.length !== games.length) {
-          console.warn(
-            `[vault] dropped ${games.length - rows.length} activeGames row(s) not in the API shape`
-          );
+        // The hub describes a game in the contract's shape (potWei,
+        // minWagerWei), which is what the chain reader produces; those rows
+        // go to the chain list, where mergeGames prices them. An API-shaped
+        // row goes to the indexed list. Both lists are replaced, since the
+        // snapshot is authoritative for both.
+        const { api, chain, dropped } = sortGameRows(games);
+        if (dropped > 0) {
+          console.warn(`[vault] dropped ${dropped} activeGames row(s) in no known shape`);
         }
-        client.setQueryData<VaultGame[]>(VAULT_KEYS.games, rows);
+        client.setQueryData<VaultGame[]>(VAULT_KEYS.games, api);
+        client.setQueryData<ChainGame[]>(VAULT_KEYS.chainGames, chain);
       } else if (games !== undefined) {
         console.warn("[vault] ignored an activeGames frame whose games is not an array");
       }

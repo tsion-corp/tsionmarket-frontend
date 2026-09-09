@@ -8,7 +8,7 @@ import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { KING_OF_NIGHT_ABI } from "@/lib/vault/king-of-night-abi";
 import { VAULT_CHAIN_ID, vaultContractAddress } from "@/lib/vault/contract";
-import { CHAIN_SCAN_LIMIT, readActiveGamesWith, type ChainGame } from "@/lib/vault/read";
+import { CHAIN_SCAN_LIMIT } from "@/lib/vault/read";
 import { winnerPayoutWei, type SplitBps } from "@/features/casino/lib/last-standing/split";
 
 export type { ChainGame } from "@/lib/vault/read";
@@ -132,10 +132,6 @@ export async function readGame(gameId: number): Promise<{
 
 // The live games straight from the contract, through the RPC proxy. The read
 // itself lives in lib/vault/read so the dashboard feed can run it server-side.
-export async function readActiveGames(): Promise<ChainGame[]> {
-  return readActiveGamesWith(publicClientForChain(VAULT_CHAIN_ID));
-}
-
 export interface ChainSettledGame {
   gameId: number;
   winner: string;
