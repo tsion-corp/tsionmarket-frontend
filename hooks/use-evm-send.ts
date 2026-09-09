@@ -9,7 +9,8 @@ import {
 } from "@privy-io/react-auth";
 import type { EIP1193Provider } from "viem";
 import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
-import { sendSponsoredEvmCalls } from "@/lib/trade/sponsor";
+import { sendSponsoredEvmCallsWithReceipt } from "@/lib/trade/sponsor";
+import type { ReceiptLog } from "@/lib/meme/delivery";
 import { getSponsoredEvmChainById, hasGasPolicyForChainId } from "@/lib/trade/sponsored-evm";
 
 export interface EvmSendInput {
@@ -37,7 +38,24 @@ function refusesEip7702(error: unknown): boolean {
   return EIP7702_REFUSED.test(error instanceof Error ? error.message : String(error));
 }
 
+export interface EvmSendResult {
+  hash: `0x${string}`;
+  // The operation's own receipt logs on the sponsored path; null when the
+  // send went user-paid or the receipt had to be recovered without them.
+  logs: ReceiptLog[] | null;
+}
+
 export function useEvmSend() {
+  const sendWithReceipt = useEvmSendWithReceipt();
+  return useCallback(
+    async (input: EvmSendInput): Promise<`0x${string}`> => (await sendWithReceipt(input)).hash,
+    [sendWithReceipt]
+  );
+}
+
+// The same send, also handing back what the receipt recorded, for a caller
+// that wants to read a delivery off it instead of paying for balance reads.
+export function useEvmSendWithReceipt() {
   const { sendTransaction } = useSendTransaction();
   const { signAuthorization } = useSign7702Authorization();
   const { wallets } = useWallets();
@@ -50,7 +68,7 @@ export function useEvmSend() {
       chainId,
       address,
       gasLimit,
-    }: EvmSendInput): Promise<`0x${string}`> => {
+    }: EvmSendInput): Promise<EvmSendResult> => {
       // Registry membership alone is not enough: a chain with no Gas Manager
       // policy has its userOp rejected by the bundler, so it takes the ordinary
       // user-paid path instead of failing.
@@ -67,7 +85,7 @@ export function useEvmSend() {
         if (!accessToken) throw new Error("Your session expired. Sign in again.");
         const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
         try {
-          const sponsoredHash = await sendSponsoredEvmCalls({
+          const receipt = await sendSponsoredEvmCallsWithReceipt({
             chainId,
             address: wallet.address as `0x${string}`,
             provider,
@@ -75,8 +93,8 @@ export function useEvmSend() {
             accessToken,
             calls: [{ to, data, value }],
           });
-          recordSelfInitiated([sponsoredHash]);
-          return sponsoredHash;
+          recordSelfInitiated([receipt.transactionHash]);
+          return { hash: receipt.transactionHash, logs: receipt.logs };
         } catch (error) {
           // Alchemy's bundler refuses the EIP-7702 authorization on some chains
           // only at send time ("EIP-7702 is not supported on entry point … or
@@ -97,7 +115,7 @@ export function useEvmSend() {
         address ? { address } : undefined
       );
       recordSelfInitiated([hash]);
-      return hash as `0x${string}`;
+      return { hash: hash as `0x${string}`, logs: null };
     },
     [sendTransaction, signAuthorization, wallets]
   );
@@ -128,7 +146,7 @@ export function useEvmSendBatch() {
       const accessToken = await getAccessToken();
       if (!accessToken) throw new Error("Your session expired. Sign in again.");
       const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
-      const hash = await sendSponsoredEvmCalls({
+      const { transactionHash: hash } = await sendSponsoredEvmCallsWithReceipt({
         chainId,
         address: wallet.address as `0x${string}`,
         provider,

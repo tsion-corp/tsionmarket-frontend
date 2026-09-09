@@ -1,22 +1,26 @@
 "use client";
 
 import { http, type EIP1193Provider, type SignedAuthorization } from "viem";
-import { createBundlerClient, createPaymasterClient } from "viem/account-abstraction";
-import { paymasterFeesPerGas } from "@/lib/trade/sponsor-fees";
+import {
+  createBundlerClient,
+  UserOperationReceiptNotFoundError,
+  WaitForUserOperationReceiptTimeoutError,
+  type BundlerClient,
+} from "viem/account-abstraction";
 import { to7702SimpleSmartAccount } from "permissionless/accounts";
 import { getSponsoredEvmChainById } from "@/lib/trade/sponsored-evm";
 import { isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
+import { isDelegated, rememberDelegated, SIMPLE_7702_IMPLEMENTATION } from "@/lib/trade/delegation";
+import { requestGasAndPaymaster, type BundlerRequest } from "@/lib/trade/gas-manager";
+import type { ReceiptLog } from "@/lib/meme/delivery";
 
-// The shared 7702 Simple Account implementation used by permissionless. The
-// EOA delegates to this logic at the same address, so sponsorship does not
-// create or migrate funds into a separate smart-wallet address.
-const SIMPLE_7702_IMPL = "0xe6Cae83BdE06E4c305530e199D7217f42808555B" as const;
 const ENTRY_POINT_V08 = "0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108" as const;
 const USER_OPERATION_EVENT_TOPIC =
   "0x49628fd1471006c1482da88028e9ce4dbb080b815c9b0344d39e5a8e6ec1419f" as const;
 const USER_OPERATION_RECEIPT_TIMEOUT_MS = 45_000;
 const ONCHAIN_RECOVERY_TIMEOUT_MS = 30_000;
-const USER_OPERATION_RECEIPT_POLL_MS = 4_000;
+const USER_OPERATION_RECEIPT_FIRST_LOOK_MS = 2_000;
+const USER_OPERATION_RECEIPT_POLL_MS = 3_000;
 const ONCHAIN_RECOVERY_POLL_MS = 5_000;
 const ONCHAIN_RECOVERY_BLOCKS = 2_000n;
 
@@ -28,6 +32,15 @@ export interface SponsoredCall {
   to: `0x${string}`;
   data?: `0x${string}`;
   value?: bigint;
+}
+
+// What a sponsored send comes back with. The logs are the operation's own,
+// straight from the bundler's receipt, so a caller can read what the
+// operation delivered without a balance read; null when the receipt never
+// came and the hash was recovered from the EntryPoint event instead.
+export interface SponsoredSendReceipt {
+  transactionHash: `0x${string}`;
+  logs: ReceiptLog[] | null;
 }
 
 export type SignAuthorization = (input: {
@@ -107,33 +120,31 @@ async function waitForOnchainRecovery(
   return null;
 }
 
-async function isAlreadyDelegated(request: ReadRequest, address: `0x${string}`): Promise<boolean> {
-  const code = (await request({
-    method: "eth_getCode",
-    params: [address, "latest"],
-  })) as string;
-  return code.toLowerCase() === `0xef0100${SIMPLE_7702_IMPL.slice(2).toLowerCase()}`;
-}
-
-// Sends from the user's embedded EOA through EIP-7702. ZeroDev handles all
-// state reads; Alchemy is used only for the bundler/paymaster operations whose
-// policy is tied to the Alchemy app of the key it is paired with, and the
-// proxy walks the configured pairs in order (ADR-2026-09-07-alchemy-key-pool).
-export async function sendSponsoredEvmCalls({
-  chainId,
-  address,
-  provider,
-  signAuthorization,
-  accessToken,
-  calls,
-}: {
+// Sends from the user's embedded EOA through EIP-7702. ZeroDev handles the
+// two state reads (delegation, once per wallet, and the account nonce);
+// Alchemy fills gas and paymaster data in one call under the policy the proxy
+// attaches (ADR-2026-09-09-one-call-sponsorship), then bundles the operation.
+export interface SponsoredSendInput {
   chainId: number;
   address: `0x${string}`;
   provider: EIP1193Provider;
   signAuthorization: SignAuthorization;
   accessToken: string;
   calls: SponsoredCall[];
-}): Promise<`0x${string}`> {
+}
+
+export async function sendSponsoredEvmCalls(input: SponsoredSendInput): Promise<`0x${string}`> {
+  return (await sendSponsoredEvmCallsWithReceipt(input)).transactionHash;
+}
+
+export async function sendSponsoredEvmCallsWithReceipt({
+  chainId,
+  address,
+  provider,
+  signAuthorization,
+  accessToken,
+  calls,
+}: SponsoredSendInput): Promise<SponsoredSendReceipt> {
   const target = getSponsoredEvmChainById(chainId);
   if (!target?.gasPolicy || !isReceiptChain(target.chainId)) {
     throw new Error(`This chain is not configured for sponsored EVM sends (${chainId}).`);
@@ -146,90 +157,106 @@ export async function sendSponsoredEvmCalls({
   const read: ReadRequest = (args) =>
     (client.request as (input: { method: string; params: unknown }) => Promise<unknown>)(args);
 
-  let authorization: SignedAuthorization<number> | undefined;
-  if (!(await isAlreadyDelegated(read, address))) {
-    const nonce = Number(
-      (await read({
-        method: "eth_getTransactionCount",
-        params: [address, "latest"],
-      })) as string
-    );
-    authorization = await signAuthorization({
-      contractAddress: SIMPLE_7702_IMPL,
-      chainId: target.chainId,
-      nonce,
-    });
-  }
-
   const account = await to7702SimpleSmartAccount({
     client,
     owner: provider,
-    accountLogicAddress: SIMPLE_7702_IMPL,
+    accountLogicAddress: SIMPLE_7702_IMPLEMENTATION,
   });
 
-  // The paymaster path also estimates its own fees: the chain's priority-fee
-  // estimate is 0 on Arbitrum, which the bundler rejects at precheck, so the
-  // bundler's published floor is read first. See lib/trade/sponsor-fees.
-  const paymaster =
-    target.sponsorshipMode === "paymaster"
-      ? createPaymasterClient({ transport: bundlerTransport })
-      : undefined;
+  // The delegation check and the nonce are independent reads; issued together
+  // they travel in one JSON-RPC batch.
+  const [delegated, nonce, callData] = await Promise.all([
+    isDelegated(read, target.chainId, address),
+    account.getNonce(),
+    account.encodeCalls(calls),
+  ]);
+
+  // viem re-reads the code to decide whether the account needs deploying or
+  // an authorization; the answer is already in hand.
+  account.isDeployed = async () => delegated;
+
+  let authorization: SignedAuthorization<number> | undefined;
+  if (!delegated) {
+    const authNonce = Number(
+      (await read({ method: "eth_getTransactionCount", params: [address, "latest"] })) as string
+    );
+    authorization = await signAuthorization({
+      contractAddress: SIMPLE_7702_IMPLEMENTATION,
+      chainId: target.chainId,
+      nonce: authNonce,
+    });
+  }
+
   const bundlerClient = createBundlerClient({
     account,
     client,
     chain: target.chain,
     transport: bundlerTransport,
-    paymaster,
-    userOperation: paymaster
-      ? {
-          estimateFeesPerGas: async ({ bundlerClient: bundler }) => {
-            const [block, chainTip] = await Promise.all([
-              client.getBlock({ blockTag: "latest" }),
-              client.estimateMaxPriorityFeePerGas().catch(() => 0n),
-            ]);
-            return paymasterFeesPerGas({
-              bundlerRequest: (args) =>
-                (
-                  bundler.request as (input: {
-                    method: string;
-                    params?: unknown;
-                  }) => Promise<unknown>
-                )(args),
-              baseFeePerGas: block.baseFeePerGas ?? 0n,
-              chainPriorityFeePerGas: chainTip,
-            });
-          },
-        }
-      : undefined,
   });
+  const bundlerRequest: BundlerRequest = (args) =>
+    (bundlerClient.request as (input: { method: string; params?: unknown[] }) => Promise<unknown>)(
+      args
+    );
 
-  const hash = await bundlerClient.sendUserOperation(
-    target.sponsorshipMode === "paymaster"
-      ? { calls, authorization }
-      : {
-          calls,
-          authorization,
-          // Alchemy BSO fills these values under the policy attached by the
-          // server proxy. No node read is sent through the bundler transport.
-          maxFeePerGas: 0n,
-          maxPriorityFeePerGas: 0n,
-          preVerificationGas: 0n,
-        }
-  );
+  let hash: `0x${string}`;
+  if (target.sponsorshipMode === "paymaster") {
+    const sponsored = await requestGasAndPaymaster({
+      request: bundlerRequest,
+      entryPoint: ENTRY_POINT_V08,
+      sender: address,
+      nonce,
+      callData,
+      dummySignature: await account.getStubSignature(),
+      authorization,
+    });
+    // Every field is filled, so viem signs and sends without estimating.
+    hash = await bundlerClient.sendUserOperation({ calls, authorization, nonce, ...sponsored });
+  } else {
+    // Alchemy BSO fills these values under the policy attached by the server
+    // proxy. No node read is sent through the bundler transport.
+    hash = await bundlerClient.sendUserOperation({
+      calls,
+      authorization,
+      nonce,
+      maxFeePerGas: 0n,
+      maxPriorityFeePerGas: 0n,
+      preVerificationGas: 0n,
+    });
+  }
 
   try {
-    const receipt = await bundlerClient.waitForUserOperationReceipt({
-      hash,
-      pollingInterval: USER_OPERATION_RECEIPT_POLL_MS,
-      timeout: USER_OPERATION_RECEIPT_TIMEOUT_MS,
-    });
-    return receipt.receipt.transactionHash;
+    const receipt = await waitForReceipt(bundlerClient, hash);
+    if (authorization) rememberDelegated(target.chainId, address);
+    return receipt;
   } catch (error) {
     // Alchemy can lag or a local route can be interrupted by a deployment/HMR
     // after accepting the user operation. The EntryPoint event is the source of
     // truth and contains both the operation hash and final transaction hash.
     const recovered = await waitForOnchainRecovery(read, hash);
-    if (recovered) return recovered;
+    if (recovered) return { transactionHash: recovered, logs: null };
     throw new SubmittedEvmOperationError(hash, { cause: error });
+  }
+}
+
+// The bundler cannot have a receipt before the next block, so the first look
+// waits one Base block rather than asking at once, then asks every
+// USER_OPERATION_RECEIPT_POLL_MS until the deadline.
+async function waitForReceipt(
+  bundlerClient: BundlerClient,
+  hash: `0x${string}`
+): Promise<SponsoredSendReceipt> {
+  const deadline = Date.now() + USER_OPERATION_RECEIPT_TIMEOUT_MS;
+  await sleep(USER_OPERATION_RECEIPT_FIRST_LOOK_MS);
+  for (;;) {
+    try {
+      const receipt = await bundlerClient.getUserOperationReceipt({ hash });
+      return { transactionHash: receipt.receipt.transactionHash, logs: receipt.logs };
+    } catch (error) {
+      if (!(error instanceof UserOperationReceiptNotFoundError)) throw error;
+    }
+    if (Date.now() >= deadline) {
+      throw new WaitForUserOperationReceiptTimeoutError({ hash });
+    }
+    await sleep(USER_OPERATION_RECEIPT_POLL_MS);
   }
 }

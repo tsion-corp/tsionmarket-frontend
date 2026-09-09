@@ -76,6 +76,53 @@ describe("Alchemy sponsorship proxy", () => {
     expect((init?.headers as Record<string, string>)["x-alchemy-policy-id"]).toBeUndefined();
   });
 
+  // The send path asks for gas and paymaster data in one call. The policy is
+  // the request object's own field there, and a policy the browser names is
+  // discarded: sponsorship is always under the server's policy for the pair.
+  it("injects the policy into a Gas Manager request and overrides any the client sent", async () => {
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+    const response = await forwardAlchemyBundlerRequest(
+      makeReq({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "alchemy_requestGasAndPaymasterAndData",
+        params: [
+          {
+            policyId: "client-chosen",
+            entryPoint: "0xentrypoint",
+            dummySignature: "0xff",
+            userOperation: { sender: "0x1", nonce: "0x1", callData: "0x" },
+          },
+        ],
+      }),
+      "base-mainnet"
+    );
+
+    expect(response.status).toBe(200);
+    const [url, init] = vi.mocked(fetch).mock.calls[0];
+    expect(String(url)).toContain("base-mainnet.g.alchemy.com/v2/data-api-key");
+    const sent = JSON.parse(String(init?.body)).params[0];
+    expect(sent.policyId).toBe("base-policy");
+    expect(sent.userOperation).toEqual({ sender: "0x1", nonce: "0x1", callData: "0x" });
+    expect((init?.headers as Record<string, string>)["x-alchemy-policy-id"]).toBeUndefined();
+  });
+
+  it("uses the Polygon policy for a Gas Manager request on Polygon", async () => {
+    const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
+    await forwardAlchemyBundlerRequest(
+      makeReq({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "alchemy_requestGasAndPaymasterAndData",
+        params: [{ entryPoint: "0xentrypoint", dummySignature: "0xff", userOperation: {} }],
+      }),
+      "polygon-mainnet"
+    );
+
+    const [, init] = vi.mocked(fetch).mock.calls[0];
+    expect(JSON.parse(String(init?.body)).params[0].policyId).toBe("polygon-policy");
+  });
+
   it("never rotates sponsorship onto the fallback key", async () => {
     const { forwardAlchemyBundlerRequest } = await import("./alchemy-bundler");
     await forwardAlchemyBundlerRequest(

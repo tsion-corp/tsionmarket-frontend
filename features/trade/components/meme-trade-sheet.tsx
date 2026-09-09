@@ -160,8 +160,17 @@ export function MemeTradeSheet({
   };
 
   // The compiler memoizes this; a manual useMemo here fought its inference.
+  // Off from the moment a trade starts: a refetch after the sale would ask
+  // for the amount just sold and be refused for a balance no longer there.
+  const previewOpen = phase === "idle" || phase === "failed";
   const previewInput =
-    amountValid && sideEnabled && !overBalance && !belowMin && !needsFunding && wallet
+    previewOpen &&
+    amountValid &&
+    sideEnabled &&
+    !overBalance &&
+    !belowMin &&
+    !needsFunding &&
+    wallet
       ? {
           side,
           tokenAddress: token.address,

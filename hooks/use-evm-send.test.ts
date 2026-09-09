@@ -3,13 +3,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 // Hoisted so the vi.mock factories (which run before top-level consts) can see them.
-const { sendSponsoredEvmCalls, sendTransaction, signAuthorization } = vi.hoisted(() => ({
-  sendSponsoredEvmCalls: vi.fn(async () => "0xsponsoredhash"),
+const { sendSponsoredEvmCallsWithReceipt, sendTransaction, signAuthorization } = vi.hoisted(() => ({
+  sendSponsoredEvmCallsWithReceipt: vi.fn(async () => ({
+    transactionHash: "0xsponsoredhash",
+    logs: [],
+  })),
   sendTransaction: vi.fn(async () => ({ hash: "0xnormalhash" })),
   signAuthorization: vi.fn(),
 }));
 
-vi.mock("@/lib/trade/sponsor", () => ({ sendSponsoredEvmCalls }));
+vi.mock("@/lib/trade/sponsor", () => ({ sendSponsoredEvmCallsWithReceipt }));
 vi.mock("@privy-io/react-auth", () => ({
   useSendTransaction: () => ({ sendTransaction }),
   useSign7702Authorization: () => ({ signAuthorization }),
@@ -36,14 +39,14 @@ const ZKSYNC = 324;
 
 describe("useEvmSend routing", () => {
   beforeEach(() => {
-    sendSponsoredEvmCalls.mockClear();
+    sendSponsoredEvmCallsWithReceipt.mockClear();
     sendTransaction.mockClear();
   });
 
   it("routes Base transactions through the gasless sponsored path", async () => {
     const { result } = renderHook(() => useEvmSend());
     const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: BASE });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCallsWithReceipt).toHaveBeenCalledOnce();
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(hash).toBe("0xsponsoredhash");
   });
@@ -51,7 +54,7 @@ describe("useEvmSend routing", () => {
   it("routes the other chain we hold a policy for through the sponsored path", async () => {
     const { result } = renderHook(() => useEvmSend());
     const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: POLYGON });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCallsWithReceipt).toHaveBeenCalledOnce();
     expect(sendTransaction).not.toHaveBeenCalled();
     expect(hash).toBe("0xsponsoredhash");
   });
@@ -62,7 +65,7 @@ describe("useEvmSend routing", () => {
   it("routes Arbitrum through the sponsored path", async () => {
     const { result } = renderHook(() => useEvmSend());
     await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCallsWithReceipt).toHaveBeenCalledOnce();
     expect(sendTransaction).not.toHaveBeenCalled();
   });
 
@@ -74,7 +77,7 @@ describe("useEvmSend routing", () => {
     const { result } = renderHook(() => useEvmSend());
     const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: HYPERLIQUID });
     expect(sendTransaction).toHaveBeenCalledOnce();
-    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
+    expect(sendSponsoredEvmCallsWithReceipt).not.toHaveBeenCalled();
     expect(hash).toBe("0xnormalhash");
   });
 
@@ -84,20 +87,20 @@ describe("useEvmSend routing", () => {
   // refused for that reason falls back to the ordinary user-paid transaction
   // once, so the chain degrades to a working send instead of a dead end.
   it("falls back to the user-paid send when the bundler refuses EIP-7702", async () => {
-    sendSponsoredEvmCalls.mockRejectedValueOnce(
+    sendSponsoredEvmCallsWithReceipt.mockRejectedValueOnce(
       new Error(
         "EIP-7702 is not supported on entry point 0x4337084d9e255ff0702461cf8895ce9e3b5ff108 or is disabled"
       )
     );
     const { result } = renderHook(() => useEvmSend());
     const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: BASE });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledOnce();
+    expect(sendSponsoredEvmCallsWithReceipt).toHaveBeenCalledOnce();
     expect(sendTransaction).toHaveBeenCalledOnce();
     expect(hash).toBe("0xnormalhash");
   });
 
   it("does not fall back on any other sponsored failure", async () => {
-    sendSponsoredEvmCalls.mockRejectedValueOnce(new Error("AA21 didn't pay prefund"));
+    sendSponsoredEvmCallsWithReceipt.mockRejectedValueOnce(new Error("AA21 didn't pay prefund"));
     const { result } = renderHook(() => useEvmSend());
     await expect(result.current({ to: "0xdead", data: "0xbeef", chainId: BASE })).rejects.toThrow(
       /AA21/
@@ -111,7 +114,7 @@ describe("useEvmSend routing", () => {
     const { result } = renderHook(() => useEvmSend());
     const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: ARBITRUM_NOVA });
     expect(sendTransaction).toHaveBeenCalledOnce();
-    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
+    expect(sendSponsoredEvmCallsWithReceipt).not.toHaveBeenCalled();
     expect(hash).toBe("0xnormalhash");
   });
 
@@ -119,14 +122,14 @@ describe("useEvmSend routing", () => {
     const { result } = renderHook(() => useEvmSend());
     const hash = await result.current({ to: "0xdead", data: "0xbeef", chainId: ZKSYNC });
     expect(sendTransaction).toHaveBeenCalledOnce();
-    expect(sendSponsoredEvmCalls).not.toHaveBeenCalled();
+    expect(sendSponsoredEvmCallsWithReceipt).not.toHaveBeenCalled();
     expect(hash).toBe("0xnormalhash");
   });
 
   it("forwards the exact call (to/data/value) into the sponsored path", async () => {
     const { result } = renderHook(() => useEvmSend());
     await result.current({ to: "0xrouter", data: "0x1234", value: 5n, chainId: BASE });
-    expect(sendSponsoredEvmCalls).toHaveBeenCalledWith(
+    expect(sendSponsoredEvmCallsWithReceipt).toHaveBeenCalledWith(
       expect.objectContaining({ calls: [{ to: "0xrouter", data: "0x1234", value: 5n }] })
     );
   });

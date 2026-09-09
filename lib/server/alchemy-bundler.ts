@@ -22,12 +22,20 @@ const USER_OPERATION_METHODS = new Set([
   "eth_supportedEntryPoints",
   "pm_getPaymasterStubData",
   "pm_getPaymasterData",
+  // Gas limits, fees and paymaster data in one answer; the send path's only
+  // sponsorship call (ADR-2026-09-09-one-call-sponsorship).
+  "alchemy_requestGasAndPaymasterAndData",
   // The bundler's priority-fee floor, which the paymaster path reads before
   // sending; the chain's own estimate is 0 on Arbitrum and gets rejected.
   "rundler_maxPriorityFeePerGas",
 ]);
 const SPONSORED_SEND_METHOD = "eth_sendUserOperation";
-const PAYMASTER_METHODS = new Set(["pm_getPaymasterStubData", "pm_getPaymasterData"]);
+const GAS_AND_PAYMASTER_METHOD = "alchemy_requestGasAndPaymasterAndData";
+const PAYMASTER_METHODS = new Set([
+  "pm_getPaymasterStubData",
+  "pm_getPaymasterData",
+  GAS_AND_PAYMASTER_METHOD,
+]);
 const MAX_BATCH_CALLS = 100;
 
 // What Alchemy answers, with a 429, once the account owning the key has used
@@ -127,10 +135,21 @@ function pairCannotServe(status: number, text: string): "capacity" | "rejected" 
   return null;
 }
 
+// The policy rides in the paymaster context for the pm_* pair and at the top
+// of the single request object for the Gas Manager call. Whatever the client
+// sent in that slot is replaced: the policy is the server's to choose.
 function withPaymasterPolicy(call: RpcCall, policyId: string): RpcCall {
   if (!PAYMASTER_METHODS.has(call.method)) return call;
 
   const params = Array.isArray(call.params) ? [...call.params] : [];
+  if (call.method === GAS_AND_PAYMASTER_METHOD) {
+    const request = params[0];
+    params[0] = {
+      ...(request && typeof request === "object" && !Array.isArray(request) ? request : {}),
+      policyId,
+    };
+    return { ...call, params };
+  }
   const currentContext = params[3];
   params[3] = {
     ...(currentContext && typeof currentContext === "object" && !Array.isArray(currentContext)
