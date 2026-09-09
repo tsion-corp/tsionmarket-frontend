@@ -17,15 +17,15 @@ export type { ActivityEntry, ActivityKind } from "@/lib/activity/entries";
 // One sweep is the most expensive read in the app: an upstream call per
 // network per direction. So the rate depends on who is asking.
 //
-// The activity screen is being looked at, so it stays on a minute.
-const POLL_MS = 60_000;
+// The activity screen is being looked at, so it stays close: two minutes.
+const POLL_MS = 2 * 60_000;
 // The notification bell is in the topbar on EVERY screen, so its poll is the
 // one that multiplies across the whole signed-in population. It is a nudge
-// that something happened, not a live feed, and five minutes is well inside
+// that something happened, not a live feed, and ten minutes is well inside
 // what anyone notices. React Query drives a shared key at its shortest
-// observer interval, so opening the activity screen still pulls it back to a
-// minute for as long as that screen is mounted.
-export const BELL_POLL_MS = 5 * 60_000;
+// observer interval, so opening the activity screen still pulls it back to
+// two minutes for as long as that screen is mounted.
+export const BELL_POLL_MS = 10 * 60_000;
 const EMPTY: ActivityItem[] = [];
 const EMPTY_ENTRIES: ActivityEntry[] = [];
 

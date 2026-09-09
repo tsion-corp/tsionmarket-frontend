@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiFetch } from "@/lib/api";
@@ -19,7 +20,18 @@ export type { Portfolio, TokenBalance } from "@/lib/server/alchemy";
 // effect immediately (e.g. right after a trade or withdrawal) calls
 // `refetch()` directly instead of waiting on this interval.
 const POLL_MS = 60 * 1000;
+// Off the portfolio page only the balance chip in the shell reads this, and
+// a trade gets its own scoped fresh read, so three minutes is plenty there
+// (ADR-2026-09-09-portfolio-polling-at-scale).
+const GLANCED_POLL_MS = 3 * 60 * 1000;
 const INCOMPLETE_POLL_MS = 5_000;
+
+function watchesBalance(pathname: string | null): boolean {
+  if (!pathname) return true;
+  return ["/portfolio", "/dashboard"].some(
+    (page) => pathname === page || pathname.startsWith(`${page}/`)
+  );
+}
 
 // Stable identity for the empty/loading state. Consumers key memos and effects
 // on `tokens` (trade balances, swap net-balances, global search, funding), so a
@@ -68,6 +80,7 @@ export function usePortfolio() {
   const solana = useSessionWallet("solana");
   const enabled = ready && authenticated && Boolean(evm || solana);
   const queryKey = ["portfolio", evm, solana] as const;
+  const pollMs = watchesBalance(usePathname()) ? POLL_MS : GLANCED_POLL_MS;
 
   // Set while waiting for a just-made trade to show up, naming the networks
   // the trade touched so only those skip the server's caches. A ref because
@@ -104,10 +117,10 @@ export function usePortfolio() {
       return failureCount < 5;
     },
     retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 4000),
-    staleTime: POLL_MS,
+    staleTime: pollMs,
     // A snapshot that names a network which did not answer in time is a
     // floor, not the balance: ask again in seconds rather than a minute.
-    refetchInterval: (query) => (query.state.data?.missing?.length ? INCOMPLETE_POLL_MS : POLL_MS),
+    refetchInterval: (query) => (query.state.data?.missing?.length ? INCOMPLETE_POLL_MS : pollMs),
     refetchOnWindowFocus: false,
   });
 

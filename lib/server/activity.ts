@@ -315,11 +315,12 @@ async function solanaActivity(
  *
  * One sweep costs an upstream call per network per direction, which is the
  * most expensive read in the app by a wide margin, and history only changes
- * when a transaction lands. 90s is longer than the notification bell's poll on
- * purpose: the bell sits in the topbar on every screen, so without this every
- * signed-in tab paid for a full sweep every minute.
+ * when a transaction lands. Five minutes is half the notification bell's poll
+ * on purpose: the bell sits in the topbar on every screen, so without this
+ * every signed-in tab paid for a full sweep on every poll
+ * (ADR-2026-09-09-portfolio-polling-at-scale).
  */
-const ACTIVITY_CACHE_TTL_MS = 90_000;
+const ACTIVITY_CACHE_TTL_MS = 5 * 60_000;
 
 export function fetchActivity(evm?: string, solana?: string, limit = 40): Promise<ActivityItem[]> {
   if (!evm && !solana) return Promise.resolve([]);

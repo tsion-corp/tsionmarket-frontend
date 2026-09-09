@@ -1,4 +1,7 @@
+import { Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import { QueryHydration } from "@/components/providers/query-hydration";
+import { dehydratedPortfolio } from "@/lib/server/portfolio-snapshot";
 import { getServerSession } from "@/lib/server/session";
 
 // The signed-in product routes: dashboard, spot, perps, memecoins, real
@@ -18,7 +21,22 @@ import { getServerSession } from "@/lib/server/session";
 // route (the chess site shell, the bare board, or this shell) from inside the
 // feature, and earn wraps its ten routes the same way; both keep mounting the
 // shell per page until they are brought in on their own.
+//
+// The balance is prefetched here for every page in the group, not only the
+// dashboard: the shell shows it everywhere, and landing on spot or memecoins
+// used to pay a cold client fetch after the render. The promise is handed
+// down without awaiting, so the page streams at once; the server cache
+// dedupes it with the dashboard's own prefetch
+// (ADR-2026-09-09-portfolio-polling-at-scale).
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession();
-  return <AppShell session={session}>{children}</AppShell>;
+  const balance = dehydratedPortfolio();
+  return (
+    <AppShell session={session}>
+      <Suspense fallback={null}>
+        <QueryHydration snapshot={balance} />
+      </Suspense>
+      {children}
+    </AppShell>
+  );
 }

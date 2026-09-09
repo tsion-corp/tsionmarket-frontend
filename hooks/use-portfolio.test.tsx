@@ -17,6 +17,8 @@ vi.mock("@privy-io/react-auth", () => ({
 vi.mock("@/components/providers/server-session", () => ({
   useSessionWallet: (chain: string) => (chain === "ethereum" ? EVM : null),
 }));
+const location = vi.hoisted(() => ({ pathname: "/dashboard" }));
+vi.mock("next/navigation", () => ({ usePathname: () => location.pathname }));
 
 import { usePortfolio } from "@/hooks/use-portfolio";
 
@@ -174,5 +176,45 @@ describe("usePortfolio.applyReceipt", () => {
     await vi.waitFor(() => expect(result.current.tokens[0].rawBalance).toBe("7000000"));
     expect(result.current.totalUsd).toBe(7);
     expect(apiFetch.mock.calls.length).toBe(before);
+  });
+});
+
+// The balance is the page on /portfolio and /dashboard and a chip in the
+// shell everywhere else. The poll follows: a minute where it is watched,
+// three minutes where it is glanced at (ADR-2026-09-09-portfolio-polling-at-scale).
+describe("usePortfolio poll cadence by page", () => {
+  let client: QueryClient;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    apiFetch.mockReset();
+    apiFetch.mockImplementation(async () => answer(snapshot));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    client.clear();
+    location.pathname = "/dashboard";
+  });
+
+  it("polls every minute on the portfolio page", async () => {
+    location.pathname = "/portfolio";
+    renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    await act(() => vi.advanceTimersByTimeAsync(61_000));
+    expect(apiFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("polls every three minutes elsewhere", async () => {
+    location.pathname = "/meme";
+    renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    await act(() => vi.advanceTimersByTimeAsync(61_000));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(120_000));
+    expect(apiFetch).toHaveBeenCalledTimes(2);
   });
 });

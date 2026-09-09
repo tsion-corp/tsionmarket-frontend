@@ -373,3 +373,79 @@ describe("holdings cache", () => {
     expect(rows).toEqual([{ network: "zora-mainnet", tokenAddress: null, tokenBalance: "0x0" }]);
   });
 });
+
+// A cold network that keeps answering "nothing" is asked less and less
+// often: 10 min, then 1 h, then every 2 h. Twenty-three such networks were
+// read every 10 min for wallets that had never touched them
+// (ADR-2026-09-09-portfolio-polling-at-scale).
+describe("readHoldings empty-network backoff", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("ZERODEV_PROJECT_ID", "test-project-id-123");
+    vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
+  });
+  afterEach(async () => {
+    const { resetResponseCache } = await import("./response-cache");
+    const { resetHoldingsState } = await import("./portfolio-holdings");
+    resetResponseCache();
+    resetHoldingsState();
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const MIN = 60_000;
+
+  it("stretches the wait after each empty answer and resets on a balance", async () => {
+    vi.mocked(fetch).mockImplementation(async () => answerBatch(0n, [0n]));
+    const { readHoldings } = await import("./portfolio-holdings");
+    const read = () => readHoldings(WALLET, "linea-mainnet", [USDC], false);
+
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // First empty answer: back on the ordinary cold cadence.
+    vi.advanceTimersByTime(11 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    // Second empty answer: an hour before it is worth asking again.
+    vi.advanceTimersByTime(11 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    vi.advanceTimersByTime(50 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(3);
+
+    // Third: two hours, and it stays there.
+    vi.advanceTimersByTime(61 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(3);
+    vi.advanceTimersByTime(60 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(4);
+
+    // Something arrives: the network is hot again and read on the short cadence.
+    vi.mocked(fetch).mockImplementation(async () => answerBatch(0n, [5_000_000n]));
+    vi.advanceTimersByTime(121 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(5);
+    vi.advanceTimersByTime(2 * MIN);
+    await read();
+    expect(fetch).toHaveBeenCalledTimes(6);
+  });
+
+  it("lets a fresh read through the backoff", async () => {
+    vi.mocked(fetch).mockImplementation(async () => answerBatch(0n, [0n]));
+    const { readHoldings } = await import("./portfolio-holdings");
+    await readHoldings(WALLET, "linea-mainnet", [USDC], false);
+    vi.advanceTimersByTime(11 * MIN);
+    await readHoldings(WALLET, "linea-mainnet", [USDC], false);
+    vi.advanceTimersByTime(11 * MIN);
+    await readHoldings(WALLET, "linea-mainnet", [USDC], true);
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+});

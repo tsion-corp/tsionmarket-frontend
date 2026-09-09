@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildActivityEntries, isStable } from "@/lib/activity/entries";
 import type { ActivityItem } from "@/lib/server/activity";
 
@@ -208,5 +208,61 @@ describe("cross-chain moves are not withdrawals", () => {
       }),
     ]);
     expect(entries[0].kind).toBe("withdrew");
+  });
+});
+
+// One sweep is the most expensive read in the app and history changes only
+// when a transaction lands. The bell asks every 10 min; a snapshot served
+// for 5 min means at most one sweep per poll, never one per tab.
+describe("fetchActivity snapshot window", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
+    vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.doMock("@/lib/server/rwa-registry", () => ({ fetchRwaRegistry: async () => ({}) }));
+    vi.doMock("@/lib/server/buyable-registry", () => ({
+      fetchBuyableRegistry: async () => ({ buyable: {}, meme: {} }),
+    }));
+    vi.doMock("@/lib/server/action-registry", () => ({
+      fetchActionRegistry: async () => ({}),
+      actionFor: () => null,
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { transfers: [] } }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+      )
+    );
+  });
+  afterEach(async () => {
+    const { resetResponseCache } = await import("@/lib/server/response-cache");
+    resetResponseCache();
+    vi.doUnmock("@/lib/server/rwa-registry");
+    vi.doUnmock("@/lib/server/buyable-registry");
+    vi.doUnmock("@/lib/server/action-registry");
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it("serves a wallet's history from one sweep for five minutes", async () => {
+    const { fetchActivity } = await import("@/lib/server/activity");
+    const wallet = "0x1111111111111111111111111111111111111111";
+    await fetchActivity(wallet, undefined);
+    const sweep = vi.mocked(fetch).mock.calls.length;
+    expect(sweep).toBeGreaterThan(0);
+
+    vi.advanceTimersByTime(4 * 60_000);
+    await fetchActivity(wallet, undefined);
+    expect(fetch).toHaveBeenCalledTimes(sweep);
+
+    vi.advanceTimersByTime(2 * 60_000);
+    await fetchActivity(wallet, undefined);
+    expect(fetch).toHaveBeenCalledTimes(sweep * 2);
   });
 });
