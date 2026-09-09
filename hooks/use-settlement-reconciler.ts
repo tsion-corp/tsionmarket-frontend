@@ -24,6 +24,8 @@ import {
 } from "@/lib/trade/pending-settlement";
 
 const ACTIVE_RECONCILE_MS = 8_000;
+// Every settlement here is a move between Base and Solana.
+const CROSS_CHAIN = ["base-mainnet", "solana-mainnet"] as const;
 const PROVIDER_BACKOFF_MS = [30_000, 60_000, 120_000] as const;
 
 export interface SettlementMessages {
@@ -155,7 +157,7 @@ export function useSettlementReconciler({
           assetSymbol: settlement.assetSymbol,
           createdAt: Date.now(),
         });
-        await latest.current.refetchFresh();
+        await latest.current.refetchFresh(CROSS_CHAIN);
         return "started";
       } catch (error) {
         // Quote/provider failures happen before the transfer and are safe to
@@ -211,11 +213,11 @@ export function useSettlementReconciler({
             if (stage === "settled") {
               if (settlement.direction === "solana-to-base") {
                 clearPendingRwaSettlement(settlement.requestId);
-                await latest.current.refetchFresh();
+                await latest.current.refetchFresh(CROSS_CHAIN);
                 toast.success(latest.current.messages.proceedsReady(settlement.assetSymbol));
               } else if (!settlement.purchase) {
                 clearPendingRwaSettlement(settlement.requestId);
-                await latest.current.refetchFresh();
+                await latest.current.refetchFresh(CROSS_CHAIN);
                 toast.success(latest.current.messages.fundReady(settlement.assetSymbol));
               } else {
                 await finishPurchase(settlement);

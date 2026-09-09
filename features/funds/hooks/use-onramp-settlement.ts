@@ -15,11 +15,6 @@ import {
   subscribeOnrampWatches,
 } from "@/lib/ramping/onramp-watch";
 
-// How often an open order is checked. The rail settles within seconds of the
-// bank credit, and the arrival it produces is only noticed on the activity
-// poll a minute later, so this is comfortably ahead of the thing it informs.
-const POLL_MS = 15_000;
-
 // Aged-out entries are dropped on this beat, so an abandoned deposit stops
 // holding arrivals back. Only runs while there is something stored.
 const PRUNE_MS = 60_000;
@@ -60,7 +55,6 @@ export function useOnrampSettlement(): void {
 
   const query = useRampOrder("onramp", target?.orderId ?? null, {
     enabled: Boolean(target),
-    pollMs: POLL_MS,
   });
 
   // Orders already reported as failed. The poll stops on a terminal status and

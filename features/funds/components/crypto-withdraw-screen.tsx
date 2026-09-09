@@ -13,6 +13,7 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { CoinBadge } from "@/components/ui/coin-badge";
 import { QrScanIcon } from "@/components/ui/icons";
 import {
+  createWithdrawQuote,
   useDepositChains,
   useDepositStatus,
   useTerminalToast,
@@ -28,6 +29,7 @@ import {
   txExplorerUrl,
   type AddressKind,
   type DepositToken,
+  type QuoteResult,
   type WithdrawDestination,
 } from "@/lib/deposit";
 import {
@@ -364,11 +366,19 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         toast.dismiss(toastId);
         return;
       }
-      // Refetch so we send to a deposit address with a full, unexpired window,
-      // bound to the exact amount we're about to send.
-      const fresh = await quote.refetch();
-      if (fresh.isError || !fresh.data) {
-        setError(quoteErrorMessage(fresh.error, t));
+      // The preview was a dry quote; this is the one real quote of the
+      // withdrawal, bound to the exact amount and recipient, with a full
+      // unexpired window on its deposit address.
+      if (!quoteInput) {
+        setError(t("walletNotReady"));
+        toast.dismiss(toastId);
+        return;
+      }
+      let fresh: QuoteResult;
+      try {
+        fresh = await createWithdrawQuote(quoteInput);
+      } catch (e) {
+        setError(quoteErrorMessage(e, t));
         toast.dismiss(toastId);
         return;
       }
@@ -376,11 +386,11 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         network: sourceNetwork,
         tokenAddress: source.usdc,
         decimals: source.decimals,
-        to: fresh.data.depositAddress,
+        to: fresh.depositAddress,
         amount: sendAmount,
       });
       setTxHash(hash);
-      setDepositRequestId(fresh.data.depositRequestId);
+      setDepositRequestId(fresh.depositRequestId);
       track("withdraw_completed", {
         method: "wallet",
         asset: selectedDestination.symbol,

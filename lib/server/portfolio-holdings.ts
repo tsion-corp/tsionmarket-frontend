@@ -1,4 +1,5 @@
 import "server-only";
+import { freshFor, type FreshScope } from "@/lib/portfolio/fresh-scope";
 import {
   decodeAbiParameters,
   decodeFunctionResult,
@@ -477,16 +478,23 @@ async function inSlots<T>(
  * prices by address. One failed network is logged and skipped; every network
  * failing propagates, so the portfolio cache's stale-serve still applies.
  */
+export interface EvmSweep {
+  tokens: AlchemyToken[];
+  // Networks that did not answer inside the deadline; their holdings are not
+  // in `tokens`. The caller decides how long such a snapshot may live.
+  missing: string[];
+}
+
 export async function readEvmPortfolioTokens(
   wallet: string,
   networks: readonly string[],
   contractsFor: (network: string) => string[],
-  fresh: boolean
-): Promise<AlchemyToken[]> {
+  fresh: FreshScope | null
+): Promise<EvmSweep> {
   const deadline = Date.now() + REFRESH_DEADLINE_MS;
   const settled = await inSlots(
     networks.map((network) => () => {
-      const read = readHoldings(wallet, network, contractsFor(network), fresh);
+      const read = readHoldings(wallet, network, contractsFor(network), freshFor(fresh, network));
       const remaining = deadline - Date.now();
       if (remaining <= 0) return Promise.reject(new Error(`${network}: refresh deadline passed`));
       let timer: ReturnType<typeof setTimeout> | undefined;
@@ -508,6 +516,7 @@ export async function readEvmPortfolioTokens(
       failed.map((r) => (r.reason instanceof Error ? r.reason.message : r.reason))
     );
   }
+  const missing = networks.filter((_, index) => settled[index].status === "rejected");
   const rows = settled
     .filter((r): r is PromiseFulfilledResult<HoldingRow[]> => r.status === "fulfilled")
     .flatMap((r) => r.value);
@@ -531,7 +540,7 @@ export async function readEvmPortfolioTokens(
   ]);
   const metaFor = new Map(metas);
 
-  return rows.map((row) => {
+  const tokens = rows.map((row) => {
     if (row.tokenAddress === null) {
       return {
         network: row.network,
@@ -557,6 +566,7 @@ export async function readEvmPortfolioTokens(
       tokenPrices: price !== undefined ? [{ currency: "usd", value: String(price) }] : [],
     };
   });
+  return { tokens, missing };
 }
 
 /** Test seam. */

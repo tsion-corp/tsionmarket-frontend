@@ -6,7 +6,12 @@ import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { BankIcon, CheckIcon, CopyIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { useCreateOnrampOrder, useRampingRates, useRampOrder } from "@/hooks/use-ramping";
+import {
+  markRampOrderPaid,
+  useCreateOnrampOrder,
+  useRampingRates,
+  useRampOrder,
+} from "@/hooks/use-ramping";
 import { copyText } from "@/lib/clipboard";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
@@ -118,7 +123,6 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
 
   const orderQuery = useRampOrder("onramp", activeOrderId, {
     enabled: Boolean(activeOrderId),
-    pollMs: 3000,
   });
   // While the poll of a reused order is still in flight, the cached account
   // renders immediately; everything else about the seed is unknown, which the
@@ -493,6 +497,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
               // Money is now claimed to be in flight: hold the dashboard's
               // withdraw button until settlement resolves.
               if (order?.id && !reused) savePendingBankDeposit(order.id, Date.now());
+              if (order?.id) markRampOrderPaid(order.id);
               setHandoff("confirming");
             }}
             className="text-ink mt-3 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"

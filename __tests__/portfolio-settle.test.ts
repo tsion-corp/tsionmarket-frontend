@@ -58,7 +58,7 @@ describe("refetchUntilChanged", () => {
     const { result } = renderHook(() => usePortfolio(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    await expect(result.current.refetchUntilChanged()).resolves.toBe(true);
+    await expect(result.current.refetchUntilChanged("all")).resolves.toBe(true);
     await waitFor(() => expect(result.current.tokens).toHaveLength(1));
   }, 20_000);
 
@@ -69,7 +69,7 @@ describe("refetchUntilChanged", () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(String(apiFetch.mock.calls[0][0])).not.toContain("fresh=1");
 
-    await result.current.refetchUntilChanged();
+    await result.current.refetchUntilChanged("all");
     const settling = apiFetch.mock.calls.slice(1);
     expect(settling.length).toBeGreaterThan(0);
     expect(settling.every((c) => String(c[0]).includes("fresh=1"))).toBe(true);
@@ -80,7 +80,7 @@ describe("refetchUntilChanged", () => {
 
     const { result } = renderHook(() => usePortfolio(), { wrapper });
     await waitFor(() => expect(result.current.loading).toBe(false));
-    await result.current.refetchUntilChanged();
+    await result.current.refetchUntilChanged("all");
 
     apiFetch.mockClear();
     await result.current.refetch();

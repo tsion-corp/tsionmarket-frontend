@@ -1,6 +1,7 @@
 "use client";
 
 import { SOLANA_CHAIN_ID, chainSlug, networkOf } from "@/lib/meme/chain";
+import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
@@ -90,6 +91,8 @@ export function MemeTradeSheet({
   // the portfolio files its balances under.
   const wallet = walletFor(token.chainId);
   const network = networkOf(token.chainId);
+  // The USD side is always Base; the coin side is the token's chain.
+  const tradedNetworks = scopeOf("base-mainnet", network);
   const portfolio = usePortfolio();
   const linkTriedRef = useRef(false);
   const { user } = usePrivy();
@@ -300,7 +303,7 @@ export function MemeTradeSheet({
       });
       toast.success(t("purchaseQueued", { symbol: displaySym }), { id: toastRef.current });
       toastRef.current = undefined;
-      void portfolio.refetchUntilChanged();
+      void portfolio.refetchUntilChanged(tradedNetworks);
       onClose();
     } catch (e) {
       toast.error(friendlyError(e, t("fundFailed")), { id: toastRef.current });
@@ -372,13 +375,13 @@ export function MemeTradeSheet({
         { id: toastRef.current }
       );
       toastRef.current = undefined;
-      void portfolio.refetchUntilChanged();
+      void portfolio.refetchUntilChanged(tradedNetworks);
     } catch (e) {
       if (saleHandoffId) clearPendingRwaSettlement(saleHandoffId);
       // A failure after signing may still have moved the balance. Read it
       // fresh so the form does not argue with an amount the wallet no longer
       // holds, or refuse one it now does.
-      void portfolio.refetchFresh();
+      void portfolio.refetchFresh(tradedNetworks);
       track("trade_failed", {
         vertical: "memecoin",
         asset: token.symbol ?? token.address,

@@ -8,6 +8,7 @@ import { DepositStatus } from "@/components/ui/deposit-status";
 import { useMoney } from "@/components/ui/currency-select";
 import { useSendToken } from "@/hooks/use-withdraw";
 import {
+  createWithdrawQuote,
   useDepositStatus,
   useTerminalToast,
   useWithdrawQuote,
@@ -16,7 +17,7 @@ import {
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePrices } from "@/hooks/use-prices";
 import { getWalletAddress } from "@/lib/user";
-import { quoteFee, SETTLE_CHAINS } from "@/lib/deposit";
+import { quoteFee, SETTLE_CHAINS, type QuoteResult } from "@/lib/deposit";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -116,9 +117,14 @@ export function FundSheet({ onClose }: FundSheetProps) {
     // (useTerminalToast) confirms separately once it settles.
     const toastId = toast.loading(t("toastAdding", { amount: money.formatExact(value) }));
     try {
-      const fresh = await quote.refetch();
-      if (fresh.isError || !fresh.data) {
-        setError(friendlyError(fresh.error, t("errorQuote")));
+      if (!quoteInput) return;
+      // The preview was a dry quote; this is the one real quote, with a
+      // deposit address bound to the exact amount.
+      let fresh: QuoteResult;
+      try {
+        fresh = await createWithdrawQuote(quoteInput, "trade");
+      } catch (e) {
+        setError(friendlyError(e, t("errorQuote")));
         toast.dismiss(toastId);
         return;
       }
@@ -126,10 +132,10 @@ export function FundSheet({ onClose }: FundSheetProps) {
         network: "base-mainnet",
         tokenAddress: SOURCE.usdc,
         decimals: SOURCE.decimals,
-        to: fresh.data.depositAddress,
+        to: fresh.depositAddress,
         amount: toBaseUnits(amount, SOURCE.decimals),
       });
-      setDepositRequestId(fresh.data.depositRequestId);
+      setDepositRequestId(fresh.depositRequestId);
       setSent(true);
       track("game_wallet_funded", { game: "last_man", amount_usd: value });
       toast.success(t("toastAdded", { amount: money.formatExact(value) }), {

@@ -187,12 +187,35 @@ export function useCreateOfframpOrder() {
 // live from the rail, so a paid transfer usually flips within one poll. An
 // expired onramp stops the poll too: its account still pays at the live rate,
 // but the order itself stays expired, so there is nothing left to learn.
+//
+// The hook owns the cadence. Several screens watch the same order at once
+// (the transfer sheet, the balance card's hold, the settlement watcher), and
+// when each named its own interval React Query ran the shortest for all of
+// them, from the dashboard, for as long as the order lived. Now every
+// observer shares one clock: quick while the user is expected to be paying,
+// slow after, and never in a background tab.
+const ATTENTIVE_MS = 60_000;
+const ATTENTIVE_POLL_MS = 3_000;
+const PATIENT_POLL_MS = 15_000;
+const attentiveUntil = new Map<string, number>();
+
+function attentive(orderId: string): boolean {
+  return (attentiveUntil.get(orderId) ?? 0) > Date.now();
+}
+
+// Called when the user says the money is on its way: the next minute is when
+// a paid transfer is most likely to flip, so it is worth watching closely.
+export function markRampOrderPaid(orderId: string): void {
+  attentiveUntil.set(orderId, Date.now() + ATTENTIVE_MS);
+}
+
 export function useRampOrder(
   kind: "onramp" | "offramp",
   orderId: string | null,
-  options: { enabled: boolean; pollMs?: number } = { enabled: true }
+  options: { enabled: boolean } = { enabled: true }
 ) {
-  const pollMs = options.pollMs ?? 3000;
+  // A freshly seen order starts attentive: it was just created or reopened.
+  if (orderId && !attentiveUntil.has(orderId)) markRampOrderPaid(orderId);
   return useQuery<OnrampOrder | OfframpOrder>({
     queryKey: ["ramping-order", kind, orderId],
     enabled: options.enabled && Boolean(orderId),
@@ -205,8 +228,9 @@ export function useRampOrder(
     refetchInterval: (query) => {
       const current = query.state.data?.status;
       if (current && isTerminalProgress(current)) return false;
-      return pollMs;
+      return orderId && attentive(orderId) ? ATTENTIVE_POLL_MS : PATIENT_POLL_MS;
     },
+    refetchIntervalInBackground: false,
     queryFn: async () => {
       const path = kind === "onramp" ? "onramps" : "offramps";
       const res = await apiFetch(
@@ -246,7 +270,6 @@ export function usePendingBankDeposit(): { pending: boolean } {
 
   const statusQuery = useRampOrder("onramp", stored?.orderId ?? null, {
     enabled: stored != null,
-    pollMs: 20000,
   });
   const status = statusQuery.data?.status ?? null;
   const terminal = status != null && isTerminalProgress(status);

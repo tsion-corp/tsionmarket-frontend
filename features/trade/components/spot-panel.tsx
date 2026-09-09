@@ -1,6 +1,8 @@
 "use client";
 
 import { BASE_CHAIN_ID } from "@/lib/meme/chain";
+import { scopeOf } from "@/lib/portfolio/fresh-scope";
+import { networkForChainId } from "@/lib/trade-share";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBuy } from "@/features/trade/hooks/use-buy";
@@ -112,6 +114,15 @@ export function SpotPanel({
   const isSwapMarket = swapRoute != null;
   const canBuy = buyRoute != null || swapRoute != null;
   const heldBalance = heldToken?.balance ?? 0;
+  // Where a settled order moves money: the USDC leg is always on Base, the
+  // asset leg is on the route's destination (buy) or the holding's chain
+  // (sell). A swap-market trade is entirely on Base.
+  const settledNetworks = isSwapMarket
+    ? scopeOf(networkForChainId(BASE_CHAIN_ID))
+    : scopeOf(
+        networkForChainId(BASE_CHAIN_ID),
+        buying ? networkForChainId(buyRoute?.destinationChainId ?? -1) : heldToken?.network
+      );
 
   // Sell-side gates, mirroring the sell sheet. A swap market always sells
   // (the swap engine handles its own gas sponsorship via useEvmSend, the
@@ -235,7 +246,7 @@ export function SpotPanel({
         toast.success(
           buying ? t("toastBought", { symbol: base }) : t("toastSold", { symbol: base })
         );
-        void portfolio.refetchUntilChanged();
+        void portfolio.refetchUntilChanged(settledNetworks);
       } else if (memeTrade.phase === "failed") {
         resolvedRef.current = true;
         toast.error(memeTrade.error ?? t("orderFailedNote"));
@@ -246,7 +257,7 @@ export function SpotPanel({
     if (stage === "settled") {
       resolvedRef.current = true;
       toast.success(buying ? t("toastBought", { symbol: base }) : t("toastSold", { symbol: base }));
-      void portfolio.refetchUntilChanged();
+      void portfolio.refetchUntilChanged(settledNetworks);
     } else if (stage === "failed" || stage === "refunded") {
       resolvedRef.current = true;
       toast.error(t("orderFailedNote"));
@@ -260,6 +271,7 @@ export function SpotPanel({
     buying,
     base,
     portfolio,
+    settledNetworks,
     t,
   ]);
 
@@ -306,7 +318,7 @@ export function SpotPanel({
         setConfirmOpen(false);
         setAmount("");
         setMaxRequested(false);
-        void portfolio.refetchUntilChanged();
+        void portfolio.refetchUntilChanged(settledNetworks);
       } catch (e) {
         // useMemeTrade already records phase "failed" and its own error
         // message; only the sheet needs closing for a sell, matching the
@@ -350,7 +362,7 @@ export function SpotPanel({
         setAmount("");
         setMaxRequested(false);
         toast.success(t("workingNote"));
-        void portfolio.refetchUntilChanged();
+        void portfolio.refetchUntilChanged(settledNetworks);
       }
     } catch (e) {
       if (e instanceof SolanaBalanceChangedError && heldToken) {

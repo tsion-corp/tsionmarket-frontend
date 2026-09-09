@@ -67,7 +67,10 @@ function reclaim(): void {
 export async function cached<T>(
   cacheKey: string,
   load: () => Promise<T>,
-  ttlMs: number,
+  // How long the loaded value may be served, fixed or decided by the value:
+  // a loader that knows it answered with less than everything can ask for a
+  // shorter life.
+  ttl: number | ((value: T) => number),
   // Set when the caller has just changed the underlying state and needs to
   // observe its own effect. Reading a cached snapshot there shows the previous
   // state and then holds it until the next poll.
@@ -92,6 +95,7 @@ export async function cached<T>(
       const value = await load();
       const current = responseCache.get(cacheKey);
       if (!current || current.writtenAt <= startedAt) {
+        const ttlMs = typeof ttl === "function" ? ttl(value) : ttl;
         responseCache.set(cacheKey, { expires: Date.now() + ttlMs, writtenAt: Date.now(), value });
         reclaim();
       }

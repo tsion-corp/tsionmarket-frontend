@@ -8,6 +8,7 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { RwaIssuerCard } from "@/features/rwa/components/rwa-issuer-card";
 import { useDepositStatus } from "@/hooks/use-deposit";
+import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useReroutedWithdraw } from "@/hooks/use-withdraw";
 import { useRwaQuote, useRwaBuild } from "@/features/rwa/hooks/use-rwa-trade";
@@ -152,7 +153,16 @@ export function RwaTradePanel({
   const tBuySell = useTranslations("buySell");
   const { user } = usePrivy();
   const portfolio = usePortfolio();
-  const { refetchFresh: refreshPortfolio } = portfolio;
+  const { refetchFresh } = portfolio;
+  // USD lives on Base; the asset settles on its own chain.
+  const tradedNetworks = scopeOf(
+    "base-mainnet",
+    asset.chain === "solana" ? "solana-mainnet" : "base-mainnet"
+  );
+  const refreshPortfolio = useCallback(
+    () => refetchFresh(tradedNetworks),
+    [refetchFresh, tradedNetworks]
+  );
   const { mutateAsync: quoteAsync } = useRwaQuote();
   const { mutateAsync: buildAsync } = useRwaBuild();
   const execute = useExecuteRwa();
@@ -404,7 +414,7 @@ export function RwaTradePanel({
         // A terminal Dextopus status can arrive just before Alchemy indexes
         // the destination token account. Keep reconciling in the background so
         // the visible balance catches up without a page refresh.
-        void portfolio.refetchUntilChanged();
+        void portfolio.refetchUntilChanged(tradedNetworks);
         setSettlementRequest(null);
         setSignStep(null);
         setPhase("done");
@@ -430,7 +440,7 @@ export function RwaTradePanel({
         }
       })();
     }
-  }, [amount, portfolio, refreshPortfolio, settlementRequest, settlementStage, t]);
+  }, [amount, portfolio, refreshPortfolio, settlementRequest, settlementStage, t, tradedNetworks]);
 
   async function executeTrade() {
     const req = buildReq(amount);
@@ -538,14 +548,14 @@ export function RwaTradePanel({
       if (saleHandoffId) {
         setPhase("done");
         setNotice({ kind: "info", message: t("proceedsBaseWorking") });
-        void portfolio.refetchUntilChanged();
+        void portfolio.refetchUntilChanged(tradedNetworks);
         onContinueInBackground?.();
         return;
       }
 
       setPhase("done");
       // Not awaited: the trade is settled and the user should see that now.
-      void portfolio.refetchUntilChanged();
+      void portfolio.refetchUntilChanged(tradedNetworks);
     } catch (e) {
       if (saleHandoffId) clearPendingRwaSettlement(saleHandoffId);
       const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);

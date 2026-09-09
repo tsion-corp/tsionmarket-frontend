@@ -15,6 +15,9 @@ import {
   type PendingRwaSettlement,
 } from "@/lib/trade/pending-settlement";
 
+// A settlement moves USD off Base and buys on Solana: both sides changed.
+const CROSS_CHAIN = ["base-mainnet", "solana-mainnet"] as const;
+
 // Mounted at dashboard scope, not in the trade sheet. A Solana memecoin bought
 // from the user's Base USD is a two-leg order: the USDC moves first, then the
 // coin is bought with what arrived. This finishes the second leg once the
@@ -47,8 +50,8 @@ export function MemeSettlementTracker() {
           chainId: SOLANA_CHAIN_ID,
         });
         clearPendingRwaSettlement(settlement.requestId);
-        await refetchFresh();
-        void refetchUntilChanged();
+        await refetchFresh(CROSS_CHAIN);
+        void refetchUntilChanged(CROSS_CHAIN);
         track("trade_completed", {
           vertical: "memecoin",
           token: purchase.assetSymbol,
@@ -62,7 +65,7 @@ export function MemeSettlementTracker() {
         // is in the Solana wallet and a normal retry from the sheet spends it
         // without moving anything again.
         clearPendingRwaSettlement(settlement.requestId);
-        await refetchFresh();
+        await refetchFresh(CROSS_CHAIN);
         console.error("Background memecoin purchase failed", error);
         track("trade_failed", {
           vertical: "memecoin",

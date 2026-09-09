@@ -175,6 +175,107 @@ describe("fetchPortfolio upstreams", () => {
     expect(seen.filter((u) => u.includes("rpc.zerodev.app")).length).toBe(EVM_NETWORKS.length);
   });
 
+  // A trade on Base must not re-read the 27 other networks or re-page the
+  // Solana Portfolio API: a scoped fresh read skips the snapshot cache and
+  // re-reads only the networks in scope, everything else comes from cache.
+  it("re-reads only the scoped network on a fresh read", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    const SOLANA = "So1anaWa11etAddress111111111111111111111111";
+    await fetchPortfolio(WALLET, SOLANA);
+    const warm = seen.length;
+
+    await fetchPortfolio(WALLET, SOLANA, ["base-mainnet"]);
+
+    const since = seen.slice(warm);
+    const chainReads = since.filter((u) => u.includes("rpc.zerodev.app"));
+    expect(chainReads.length).toBe(1);
+    expect(chainReads[0]).toContain("/chain/8453");
+    expect(since.some((u) => u.includes("assets/tokens/by-address"))).toBe(false);
+  });
+
+  it("re-reads the Solana leg only when solana-mainnet is in scope", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    const SOLANA = "So1anaWa11etAddress111111111111111111111111";
+    await fetchPortfolio(WALLET, SOLANA);
+    const warm = seen.length;
+
+    await fetchPortfolio(WALLET, SOLANA, ["solana-mainnet"]);
+
+    const since = seen.slice(warm);
+    expect(since.filter((u) => u.includes("assets/tokens/by-address")).length).toBe(1);
+    expect(since.some((u) => u.includes("rpc.zerodev.app"))).toBe(false);
+  });
+
+  it("still sweeps everything for the legacy fresh=1", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    await fetchPortfolio(WALLET, undefined);
+    const warm = seen.length;
+
+    await fetchPortfolio(WALLET, undefined, "all");
+
+    expect(seen.slice(warm).filter((u) => u.includes("rpc.zerodev.app")).length).toBe(
+      EVM_NETWORKS.length
+    );
+  });
+
+  // Seen on 2026-09-09: ZeroDev timed out on Base during a cold dashboard
+  // render, Base missed the sweep's deadline, and the snapshot without the
+  // wallet's USD was served from the 75 s cache. The balance read $1.96 for
+  // a minute. A snapshot missing a network the wallet lives on says so and
+  // is kept only long enough to answer the requests already in flight.
+  it("marks a snapshot missing a hot network and re-reads it on the next request", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-09T10:08:00Z"));
+    const seen = stubFetch();
+    let baseHangs = true;
+    vi.mocked(fetch).mockImplementation(async (input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string" ? input : ((input as URL).href ?? (input as Request).url);
+      seen.push(url);
+      const ok = (body: unknown) =>
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      if (url.includes("rpc.zerodev.app")) {
+        // Base answers, but only after the sweep's deadline has passed.
+        const slow = baseHangs && url.endsWith("/chain/8453");
+        const empty = encodeAbiParameters(
+          [{ type: "tuple[]", components: [{ type: "bool" }, { type: "bytes" }] }],
+          [[]]
+        );
+        const answer = ok([
+          { jsonrpc: "2.0", id: 1, result: "0x0" },
+          { jsonrpc: "2.0", id: 2, result: empty },
+        ]);
+        if (!slow) return answer;
+        return new Promise<Response>((resolve) => setTimeout(() => resolve(answer), 15_000));
+      }
+      if (url.includes("/tokens/by-symbol")) return ok({ data: [] });
+      return ok({});
+    });
+    const { fetchPortfolio } = await import("./alchemy");
+
+    const pending = fetchPortfolio(WALLET, undefined);
+    await vi.advanceTimersByTimeAsync(10_100);
+    const partial = await pending;
+    expect(partial.missing).toEqual(["base-mainnet"]);
+
+    // Six seconds on: the floor has expired, the late Base answer has landed
+    // in its own network cache, and the next request gets a whole snapshot.
+    baseHangs = false;
+    await vi.advanceTimersByTimeAsync(6_000);
+    const pendingNext = fetchPortfolio(WALLET, undefined);
+    await vi.advanceTimersByTimeAsync(100);
+    const next = await pendingNext;
+    expect(next.missing).toBeUndefined();
+    expect(next).not.toBe(partial);
+    vi.useRealTimers();
+  });
+
   it("still calls the Portfolio API for a Solana wallet", async () => {
     const seen = stubFetch();
     const { fetchPortfolio } = await import("./alchemy");

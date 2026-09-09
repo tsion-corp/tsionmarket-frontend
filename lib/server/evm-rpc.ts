@@ -1,5 +1,5 @@
 import "server-only";
-import { zeroDevRpcUrl } from "@/lib/server/zerodev";
+import { readEvm } from "@/lib/server/evm-read";
 import type { SponsoredEvmChainConfig } from "@/lib/trade/sponsored-evm";
 
 type RpcId = string | number | null | undefined;
@@ -24,7 +24,6 @@ export interface EvmRpcResult {
   retryAfter?: string;
 }
 
-const ZERODEV_TIMEOUT_MS = 8_000;
 const DEFAULT_CACHE_MS = 1_000;
 const BLOCK_CACHE_MS = 4_000;
 const STATE_CACHE_MS = 2_000;
@@ -106,28 +105,6 @@ function rpcErrors(payload: unknown): RpcEnvelope[] {
     (value): value is RpcEnvelope =>
       Boolean(value) && typeof value === "object" && !Array.isArray(value) && "error" in value
   );
-}
-
-async function callRpc(url: string, body: unknown, timeoutMs: number): Promise<EvmRpcResult> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(timeoutMs),
-    cache: "no-store",
-  });
-  const text = await response.text();
-  let payload: unknown;
-  try {
-    payload = JSON.parse(text);
-  } catch {
-    payload = { error: { message: text || `RPC returned HTTP ${response.status}` } };
-  }
-  return {
-    status: response.status,
-    payload,
-    retryAfter: response.headers.get("retry-after") ?? undefined,
-  };
 }
 
 function responseForCall(payload: unknown, id: RpcId): RpcEnvelope | undefined {
@@ -248,13 +225,25 @@ async function withUpstreamSlot<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+// The read pool the server sweep uses: ZeroDev first, the Alchemy key pool
+// when ZeroDev cannot serve the chain or the method or is rate limited, each
+// refusal remembered for a cooldown and logged with the chain and reason.
+// ZeroDev documents its RPC for ERC-4337 methods; plain reads through it are
+// a behaviour four of our chains already refuse, so the proxy no longer
+// fails closed on it (ADR-2026-09-09-portfolio-refresh-scope).
 async function loadRpc(
   chain: SponsoredEvmChainConfig,
   body: RpcCall | RpcCall[]
 ): Promise<EvmRpcResult> {
-  const upstream = zeroDevRpcUrl(chain.chainId);
-  if (!upstream) throw new Error("ZeroDev RPC is not configured");
-  return callRpc(upstream, body, ZERODEV_TIMEOUT_MS);
+  const calls = Array.isArray(body) ? body : [body];
+  // The canonical form gives every call an id; the pool answers in call order.
+  const envelopes = await readEvm(
+    chain.network,
+    chain.chainId,
+    calls.map((call, index) => ({ ...call, id: call.id ?? index + 1 }))
+  );
+  const payload = envelopes.map((envelope) => ({ jsonrpc: "2.0", ...envelope }));
+  return { status: 200, payload: Array.isArray(body) ? payload : payload[0] };
 }
 
 export async function forwardEvmRpcRead(

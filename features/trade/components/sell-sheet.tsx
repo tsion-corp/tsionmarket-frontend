@@ -1,5 +1,8 @@
 "use client";
 
+import { BASE_CHAIN_ID } from "@/lib/meme/chain";
+import { scopeOf } from "@/lib/portfolio/fresh-scope";
+import { networkForChainId } from "@/lib/trade-share";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -138,7 +141,9 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       });
       toast.success(t("takesAMoment"), { id: toastRef.current });
       toastRef.current = undefined;
-      void portfolio.refetchUntilChanged();
+      void portfolio.refetchUntilChanged(
+        scopeOf(networkForChainId(BASE_CHAIN_ID), payload.network)
+      );
       onClose();
     } catch (error) {
       if (error instanceof SolanaBalanceChangedError) {

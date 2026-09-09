@@ -399,22 +399,37 @@ export interface WithdrawQuoteInput {
 // cross-chain settlement Dextopus performs under the hood.
 export async function createWithdrawQuote(
   input: WithdrawQuoteInput,
-  purpose: DextopusPurpose = "withdrawal"
+  purpose: DextopusPurpose = "withdrawal",
+  options: { dry?: boolean } = {}
 ): Promise<QuoteResult> {
   return dextopusPost<QuoteResult>(
     "deposit/quote",
-    { ...input, strict: true },
+    { ...input, strict: true, ...(options.dry ? { dry: true } : {}) },
     "Couldn't get a withdrawal quote",
     purpose
   );
 }
 
-// Reactive quote for the withdrawal screen: refetches whenever the inputs
-// change so the UI can preview the exact amount the recipient will receive,
-// and hands back the deposit address to send to. A fresh quote (new address)
-// is minted per fetch, so we never refetch on focus/reconnect — only on input
-// change or an explicit refetch at execution time. `retry: false` so an
-// unroutable destination surfaces immediately instead of retrying.
+// The fields that set a quote's price. The recipient and refund address do
+// not, so a preview keyed on them re-quoted for every character typed.
+function quotePriceKey(input: WithdrawQuoteInput | null) {
+  if (!input) return null;
+  return {
+    originChainId: input.originChainId,
+    originAsset: input.originAsset,
+    destinationChainId: input.destinationChainId,
+    destinationAsset: input.destinationAsset,
+    amount: input.amount,
+  };
+}
+
+// Reactive preview for the withdrawal screen: refetches whenever the price
+// inputs change so the UI can show the exact amount the recipient will
+// receive. It asks Dextopus for a dry quote, which prices without reserving a
+// deposit address (probed live 2026-09-09), so nothing is minted while the
+// user is still typing. The address to send to comes from one real, strict
+// quote at submit (`createWithdrawQuote`), bound to the exact amount and
+// recipient. `retry: false` so an unroutable destination surfaces at once.
 // `purpose` defaults to the withdrawal key; the casino fund sheet reuses this
 // quote shape to turn USDC into ETH, which is a trade, and says so.
 export function useWithdrawQuote(
@@ -422,7 +437,7 @@ export function useWithdrawQuote(
   purpose: DextopusPurpose = "withdrawal"
 ) {
   return useQuery<QuoteResult>({
-    queryKey: ["withdraw-quote", purpose, input],
+    queryKey: ["withdraw-quote", purpose, quotePriceKey(input)],
     enabled: input !== null,
     staleTime: 45_000,
     gcTime: 60_000,
@@ -430,7 +445,7 @@ export function useWithdrawQuote(
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchOnMount: false,
-    queryFn: () => createWithdrawQuote(input as WithdrawQuoteInput, purpose),
+    queryFn: () => createWithdrawQuote(input as WithdrawQuoteInput, purpose, { dry: true }),
   });
 }
 

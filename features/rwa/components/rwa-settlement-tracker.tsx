@@ -14,6 +14,9 @@ import {
   type PendingRwaSettlement,
 } from "@/lib/trade/pending-settlement";
 
+// A settlement moves USD off Base and buys on Solana: both sides changed.
+const CROSS_CHAIN = ["base-mainnet", "solana-mainnet"] as const;
+
 // Mounted at dashboard scope, not in the trade sheet. It owns both the
 // post-sale Dextopus handoff and provider reconciliation, so closing the sheet
 // or reloading cannot strand confirmed sale proceeds on Solana. The loop is
@@ -54,8 +57,8 @@ export function RwaSettlementTracker() {
         });
         await execute(action, "solana");
         clearPendingRwaSettlement(settlement.requestId);
-        await refetchFresh();
-        void refetchUntilChanged();
+        await refetchFresh(CROSS_CHAIN);
+        void refetchUntilChanged(CROSS_CHAIN);
         track("trade_completed", {
           vertical: "real_asset",
           asset: purchase.assetSymbol,
@@ -68,7 +71,7 @@ export function RwaSettlementTracker() {
         // A failed destination build leaves the delivered USDC available for
         // a normal retry, which cannot duplicate the cross-chain transfer.
         clearPendingRwaSettlement(settlement.requestId);
-        await refetchFresh();
+        await refetchFresh(CROSS_CHAIN);
         console.error("Background RWA purchase failed", error);
         toast.error(t("purchaseBackgroundFailed", { symbol: purchase.assetSymbol }));
       }

@@ -1,6 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
-import { fetchPortfolio, isRateLimitError } from "@/lib/server/alchemy";
+import {
+  EVM_NETWORKS,
+  fetchPortfolio,
+  isRateLimitError,
+  SOLANA_NETWORK,
+} from "@/lib/server/alchemy";
+import { parseFreshParam } from "@/lib/portfolio/fresh-scope";
+
+const KNOWN_NETWORKS = [...EVM_NETWORKS, SOLANA_NETWORK];
 
 // Balances are public on-chain data. The auth check only gates use of our
 // Alchemy key. The client passes its own embedded wallet addresses.
@@ -12,9 +20,10 @@ export async function GET(req: NextRequest) {
 
   const evm = req.nextUrl.searchParams.get("evm") ?? undefined;
   const solana = req.nextUrl.searchParams.get("solana") ?? undefined;
-  // A caller that just traded needs to observe its own effect; the short shared
-  // cache would otherwise hand back the pre-trade snapshot.
-  const fresh = req.nextUrl.searchParams.get("fresh") === "1";
+  // A caller that just traded needs to observe its own effect on the
+  // networks it named; the short shared cache would otherwise hand back the
+  // pre-trade snapshot. `fresh=1` still means every network.
+  const fresh = parseFreshParam(req.nextUrl.searchParams.get("fresh"), KNOWN_NETWORKS);
 
   try {
     const portfolio = await fetchPortfolio(evm, solana, fresh);

@@ -9,7 +9,8 @@ import {
 } from "@/lib/server/buyable-registry";
 import { displaySymbol } from "@/lib/buy";
 import { CONTRACTS, isPolymarketCollateral } from "@/lib/polymarket/config";
-import { readEvmPortfolioTokens } from "@/lib/server/portfolio-holdings";
+import { HOT_NETWORKS, readEvmPortfolioTokens } from "@/lib/server/portfolio-holdings";
+import { freshFor, type FreshScope } from "@/lib/portfolio/fresh-scope";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -87,6 +88,9 @@ export interface TokenBalance {
 export interface Portfolio {
   totalUsd: number;
   tokens: TokenBalance[];
+  // Networks that did not answer in time, when any did not. Their holdings
+  // are absent from `tokens`, so the total is a floor, not the balance.
+  missing?: string[];
 }
 
 export interface AlchemyToken {
@@ -435,6 +439,7 @@ const PRICES_CACHE_TTL_MS = 75_000;
 // did nothing. It also makes the snapshot activity borrows actually warm: that
 // read shares this key, and at 15s it missed on nearly every sweep.
 const PORTFOLIO_CACHE_TTL_MS = 75_000;
+const INCOMPLETE_CACHE_TTL_MS = 5_000;
 // How long past expiry a snapshot may still stand in when the upstream call
 // fails. Slightly stale balances beat an error flash — but a snapshot old
 // enough to be from a different world must not.
@@ -518,16 +523,20 @@ async function fetchTokensByAddress(
   return out;
 }
 
+// `fresh` names the networks a caller must see re-read from the chain
+// because it just changed them; every other network answers from its own
+// cache. "all" is the legacy sweep (ADR-2026-09-09-portfolio-refresh-scope).
 export async function fetchPortfolio(
   evm?: string,
   solana?: string,
-  skipCache = false
+  fresh: FreshScope | null = null
 ): Promise<Portfolio> {
   if (!evm && !solana) return { totalUsd: 0, tokens: [] };
   const cacheKey = `portfolio:${evm ?? ""}:${solana ?? ""}`;
+  const skipCache = fresh !== null;
   return cached(
     cacheKey,
-    async () => {
+    async (): Promise<Portfolio> => {
       // The registries name the contracts the on-chain read asks for, so they
       // come first; both are cached on their own.
       const [rwa, registries] = await Promise.all([fetchRwaRegistry(), fetchBuyableRegistry()]);
@@ -536,18 +545,31 @@ export async function fetchPortfolio(
       // lib/server/portfolio-holdings); Solana still uses the Portfolio API
       // until its own change.
       const requests: Promise<AlchemyToken[]>[] = [];
+      let missing: string[] = [];
       if (evm) {
         requests.push(
           readEvmPortfolioTokens(
             evm,
             EVM_NETWORKS,
             (network) => allowedContracts(network, rwa, registries.buyable),
-            skipCache
-          )
+            fresh
+          ).then((sweep) => {
+            missing = sweep.missing;
+            return sweep.tokens;
+          })
         );
       }
       if (solana) {
-        requests.push(fetchTokensByAddress([{ address: solana, networks: [SOLANA_NETWORK] }]));
+        // The Portfolio API pages through every spam token the wallet has
+        // ever received; a Base trade must not pay for that again.
+        requests.push(
+          cached(
+            `portfolio:solana:${solana}`,
+            () => fetchTokensByAddress([{ address: solana, networks: [SOLANA_NETWORK] }]),
+            PORTFOLIO_CACHE_TTL_MS,
+            freshFor(fresh, SOLANA_NETWORK)
+          )
+        );
       }
 
       const batchResults = await Promise.allSettled(requests);
@@ -573,9 +595,15 @@ export async function fetchPortfolio(
       const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
       const tokens = await withTrackedBaseline(held, networks);
       const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
-      return { totalUsd, tokens };
+      return missing.length > 0 ? { totalUsd, tokens, missing } : { totalUsd, tokens };
     },
-    PORTFOLIO_CACHE_TTL_MS,
+    // A snapshot missing a network the wallet lives on is a floor, not the
+    // balance: keep it only long enough to answer the requests already in
+    // flight, so the next poll reads the network again.
+    (portfolio) =>
+      portfolio.missing?.some((network) => HOT_NETWORKS.has(network))
+        ? INCOMPLETE_CACHE_TTL_MS
+        : PORTFOLIO_CACHE_TTL_MS,
     skipCache
   );
 }

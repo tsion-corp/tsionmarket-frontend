@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
 const chain = vi.hoisted(() => ({
   evmSend: vi.fn(),
   readBaseTokenBalance: vi.fn(),
+  applyReceipt: vi.fn(),
 }));
 
 vi.mock("@privy-io/react-auth", async (importOriginal) => ({
@@ -46,6 +47,9 @@ vi.mock("@/hooks/use-base-block", () => ({
   readBaseTokenBalance: chain.readBaseTokenBalance,
 }));
 vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
+vi.mock("@/hooks/use-portfolio", () => ({
+  usePortfolio: () => ({ applyReceipt: chain.applyReceipt }),
+}));
 vi.mock("@/lib/meme/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/meme/api")>();
   return { ...actual, ...api };
@@ -121,6 +125,12 @@ describe("useMemeTrade on Base when the service records a delivered trade as fai
     expect(result.current.error).toBeNull();
     // The proof is the receipt the send already holds; no balance is read.
     expect(chain.readBaseTokenBalance).not.toHaveBeenCalled();
+    // And the same receipt moves the cached portfolio before any re-read.
+    expect(chain.applyReceipt).toHaveBeenCalledWith(
+      "base-mainnet",
+      WALLET,
+      delivered(USDC, 1_960_000n).logs
+    );
   });
 });
 

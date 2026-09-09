@@ -8,6 +8,7 @@ import {
   useWallets as useSolanaWallets,
 } from "@privy-io/react-auth/solana";
 import { useEvmSendWithReceipt } from "@/hooks/use-evm-send";
+import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 import { formatReceived, receivedFromLogs, type ReceiptLog } from "@/lib/meme/delivery";
 import { getWalletAddress } from "@/lib/user";
@@ -28,7 +29,7 @@ import {
   type SwapRequest,
   type SwapStatus,
 } from "@/lib/meme/api";
-import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
+import { SOLANA_CHAIN_ID, networkOf } from "@/lib/meme/chain";
 import { signatureToBase58 } from "@/lib/meme/solana-signature";
 import { track } from "@/lib/analytics/mixpanel";
 
@@ -85,6 +86,7 @@ export function useMemeTrade() {
   const { signMessage: signSolanaMessage } = useSolanaSignMessage();
   const { wallets: solanaWallets } = useSolanaWallets();
   const evmSend = useEvmSendWithReceipt();
+  const { applyReceipt } = usePortfolio();
   const sendSponsoredSolana = useSponsoredSolanaSend();
   const wallet = getWalletAddress(user, "ethereum");
   const solanaWallet = getWalletAddress(user, "solana");
@@ -282,6 +284,8 @@ export function useMemeTrade() {
             chainId: quote.chainId,
           });
           receivedLogs = logs;
+          // The balance on screen moves with the receipt, before any re-read.
+          if (logs) applyReceipt(networkOf(quote.chainId) ?? "base-mainnet", wallet, logs);
           // The call has executed by the time it is registered (evmSend
           // resolved on its receipt). A 409 here means the service will not
           // record it, usually because it has already marked the swap FAILED
@@ -376,7 +380,7 @@ export function useMemeTrade() {
         activeRef.current = false;
       }
     },
-    [walletFor, user, ensureLinked, evmSend, tradeSolana]
+    [walletFor, user, ensureLinked, evmSend, applyReceipt, tradeSolana]
   );
 
   const reset = useCallback(() => {

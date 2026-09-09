@@ -234,7 +234,7 @@ describe("readEvmPortfolioTokens", () => {
     );
     const { readEvmPortfolioTokens } = await import("./portfolio-holdings");
 
-    const tokens = await readEvmPortfolioTokens(WALLET, ["base-mainnet"], () => [CBBTC], false);
+    const { tokens } = await readEvmPortfolioTokens(WALLET, ["base-mainnet"], () => [CBBTC], null);
 
     const held = tokens.find((t) => t.tokenAddress === CBBTC);
     expect(held?.tokenBalance).toBe("0x7b");
@@ -286,7 +286,7 @@ describe("readEvmPortfolioTokens", () => {
     );
     const { readEvmPortfolioTokens } = await import("./portfolio-holdings");
 
-    await readEvmPortfolioTokens(WALLET, ["base-mainnet"], () => [CBBTC, OTHER], false);
+    await readEvmPortfolioTokens(WALLET, ["base-mainnet"], () => [CBBTC, OTHER], null);
 
     const metaCalls = calls.filter(
       (c) => c.url.includes("rpc.zerodev.app") && c.methods[0] === "eth_call"
@@ -316,11 +316,13 @@ describe("readEvmPortfolioTokens", () => {
       WALLET,
       ["base-mainnet", "linea-mainnet"],
       () => [],
-      false
+      null
     );
     await vi.advanceTimersByTimeAsync(REFRESH_DEADLINE_MS + 10);
-    const tokens = await pending;
+    const { tokens, missing } = await pending;
     expect(tokens.map((t) => t.network)).toEqual(["base-mainnet"]);
+    // The caller is told which network is absent, not left to guess.
+    expect(missing).toEqual(["linea-mainnet"]);
   });
 });
 

@@ -1,6 +1,8 @@
 "use client";
 
 import { BASE_CHAIN_ID } from "@/lib/meme/chain";
+import { scopeOf } from "@/lib/portfolio/fresh-scope";
+import { networkForChainId } from "@/lib/trade-share";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
@@ -200,7 +202,12 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
       });
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
-      void portfolio.refetchUntilChanged();
+      void portfolio.refetchUntilChanged(
+        scopeOf(
+          networkForChainId(BASE_CHAIN_ID),
+          networkForChainId(route?.destinationChainId ?? -1)
+        )
+      );
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
       track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
@@ -222,6 +229,7 @@ export function BuySheet({ payload, onClose }: BuySheetProps) {
     payload.name,
     payload.symbol,
     route?.chainName,
+    route?.destinationChainId,
     value,
     portfolio,
     t,

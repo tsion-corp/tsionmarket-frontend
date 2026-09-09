@@ -213,7 +213,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
 
   const orderQuery = useRampOrder("offramp", creation?.id ?? null, {
     enabled: Boolean(creation?.id),
-    pollMs: 3000,
   });
   const order = (orderQuery.data as OfframpOrder | undefined) ?? creation;
   const done = order?.status === "completed";
