@@ -29,7 +29,12 @@ function PasskeyIcon() {
   );
 }
 
-export function PasskeyButton() {
+interface PasskeyButtonProps {
+  /** Held back until the terms are accepted; the page says why. */
+  disabled?: boolean;
+}
+
+export function PasskeyButton({ disabled = false }: PasskeyButtonProps) {
   const t = useTranslations("auth");
   // Shown wherever the browser can do WebAuthn; never gated on wipeable local
   // state (clearing site data once hid a passkey holder's own login method).
@@ -55,8 +60,10 @@ export function PasskeyButton() {
     <div className="mt-[11px] flex flex-col gap-2">
       <button
         onClick={() => loginWithPasskey()}
-        disabled={busy}
-        className="flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-full border border-white/14 bg-transparent px-4 py-3.5 font-sans text-sm font-medium text-white/90 transition-colors hover:border-white/28 hover:bg-white/6 disabled:cursor-wait disabled:opacity-60 md:rounded-[14px] md:p-[13px]"
+        disabled={busy || disabled}
+        className={`flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-full border border-white/14 bg-transparent px-4 py-3.5 font-sans text-sm font-medium text-white/90 transition-colors hover:border-white/28 hover:bg-white/6 disabled:opacity-60 md:rounded-[14px] md:p-[13px] ${
+          disabled ? "disabled:cursor-not-allowed" : "disabled:cursor-wait"
+        }`}
       >
         <span className="text-accent">
           <PasskeyIcon />

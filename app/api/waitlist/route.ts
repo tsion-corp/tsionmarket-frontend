@@ -17,6 +17,11 @@ import { wsapiService } from "@/lib/wsapi-base";
 const UPSTREAM = `${wsapiService("perp")}/waitlist`;
 const UPSTREAM_TIMEOUT_MS = 10_000;
 
+// Where a signup can come from. `source` tags each entry so the one list can
+// serve several surfaces without the entries becoming ambiguous; anything
+// not named here is recorded as the waitlist page rather than trusted.
+const SOURCES = new Set(["waitlist-page", "auth-optin"]);
+
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const raw = (body as { email?: unknown } | null)?.email;
@@ -24,14 +29,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
   }
   const email = normalizeEmail(raw);
+  const requested = (body as { source?: unknown } | null)?.source;
+  const source =
+    typeof requested === "string" && SOURCES.has(requested) ? requested : "waitlist-page";
 
   try {
     const res = await fetch(UPSTREAM, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      // `source` tags where a signup came from, so the same list can serve
-      // other surfaces later without the entries becoming ambiguous.
-      body: JSON.stringify({ email, source: "waitlist-page" }),
+      body: JSON.stringify({ email, source }),
       signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       cache: "no-store",
     });

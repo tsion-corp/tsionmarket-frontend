@@ -23,11 +23,11 @@ import { NextResponse, type NextRequest } from "next/server";
 // shut, so the routes that page calls have to survive the guard.
 const OPEN_PATHS = new Set(["/", "/api/waitlist"]);
 
-// Under maintenance the privacy policy is the one page that stays genuinely
-// open: it is a legal document, it does not depend on the app being up, and it
-// should keep answering 200 so it stays reachable and indexed. Everything else,
-// the landing page included, is closed.
-const MAINTENANCE_OPEN_PATHS = new Set(["/privacy"]);
+// Under maintenance the legal documents are the pages that stay genuinely
+// open: they do not depend on the app being up, and they should keep
+// answering 200 so they stay reachable and indexed. Everything else, the
+// landing page included, is closed.
+const MAINTENANCE_OPEN_PATHS = new Set(["/privacy", "/terms"]);
 
 // How long a crawler should wait before trying again, in seconds. Deliberately
 // short: it is a hint, and an hour is long enough to be polite without telling

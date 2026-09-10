@@ -40,9 +40,14 @@ function XLogo() {
 }
 
 const BUTTON =
-  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-full border border-white/14 bg-white/6 px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60";
+  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-full border border-white/14 bg-white/6 px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60";
 
-export function SocialButtons() {
+interface SocialButtonsProps {
+  /** Held back until the terms are accepted; the page says why. */
+  disabled?: boolean;
+}
+
+export function SocialButtons({ disabled = false }: SocialButtonsProps) {
   const t = useTranslations("auth");
   const { initOAuth, loading } = useLoginWithOAuth();
 
@@ -57,11 +62,11 @@ export function SocialButtons() {
 
   return (
     <div className="flex flex-col gap-[11px]">
-      <button className={BUTTON} disabled={loading} onClick={() => signIn("google")}>
+      <button className={BUTTON} disabled={loading || disabled} onClick={() => signIn("google")}>
         <GoogleLogo />
         {t("continueGoogle")}
       </button>
-      <button className={BUTTON} disabled={loading} onClick={() => signIn("twitter")}>
+      <button className={BUTTON} disabled={loading || disabled} onClick={() => signIn("twitter")}>
         <XLogo />
         {t("continueX")}
       </button>

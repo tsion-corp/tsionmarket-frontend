@@ -58,10 +58,12 @@ describe("proxy", () => {
       expect(res.headers.get("x-middleware-rewrite")).toContain("/");
     });
 
-    it("keeps the privacy policy open and indexable", () => {
-      const res = get("/privacy");
-      expect(res.status).toBe(200);
-      expect(res.headers.get("X-Robots-Tag")).toBeNull();
+    it("keeps the legal documents open and indexable", () => {
+      for (const path of ["/privacy", "/terms"]) {
+        const res = get(path);
+        expect(res.status, path).toBe(200);
+        expect(res.headers.get("X-Robots-Tag"), path).toBeNull();
+      }
     });
 
     it("closes the waitlist endpoint, which the maintenance page does not use", () => {

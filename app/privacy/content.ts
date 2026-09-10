@@ -1,4 +1,5 @@
 import { SUPPORT_EMAIL } from "@/lib/brand";
+import type { PolicySection } from "@/components/ui/legal-document";
 
 // The privacy policy text.
 //
@@ -13,15 +14,7 @@ export const LAST_UPDATED = "5 September 2026";
 // One inbox for the whole product; the privacy page must never name another.
 export { SUPPORT_EMAIL };
 
-interface Bullets {
-  items: string[];
-}
-
-export interface PolicySection {
-  id: string;
-  title: string;
-  body: (string | Bullets)[];
-}
+export type { PolicySection };
 
 export const SECTIONS: PolicySection[] = [
   {

@@ -11,7 +11,12 @@ const PRIMARY =
 const INPUT =
   "w-full rounded-full border border-white/14 bg-black/40 px-5 py-4 text-[15px] text-white outline-none focus:border-accent/50 md:rounded-[14px] md:px-4 md:py-3.5";
 
-export function EmailForm() {
+interface EmailFormProps {
+  /** Held back until the terms are accepted; the page says why. */
+  disabled?: boolean;
+}
+
+export function EmailForm({ disabled = false }: EmailFormProps) {
   const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -108,8 +113,13 @@ export function EmailForm() {
         onKeyDown={(e) => e.key === "Enter" && submitEmail()}
         placeholder="you@email.com"
         className={INPUT}
+        disabled={disabled}
       />
-      <button onClick={submitEmail} disabled={busy} className={PRIMARY}>
+      <button
+        onClick={submitEmail}
+        disabled={busy || disabled}
+        className={`${PRIMARY} ${disabled ? "disabled:cursor-not-allowed" : ""}`}
+      >
         {busy ? t("sendingCode") : t("continueEmail")}
         <ArrowRightIcon className="text-arrow" />
       </button>

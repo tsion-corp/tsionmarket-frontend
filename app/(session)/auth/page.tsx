@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
-import { BRAND } from "@/lib/brand";
 import { markKnownUser } from "@/lib/known-user";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
 import { PasskeyButton } from "@/components/auth/passkey-button";
+import { ConsentChecks, useConsent } from "@/components/auth/consent-checks";
+import { recordConsent } from "@/lib/consent";
 import { PasskeyEnroll } from "@/components/auth/passkey-enroll";
 import { VisualPanel } from "@/components/auth/visual-panel";
 import { useEnsureWallets } from "@/hooks/use-ensure-wallets";
@@ -74,6 +75,9 @@ export default function AuthPage() {
     if (!ready || !authenticated || !user || handled.current) return;
     handled.current = true;
     markKnownUser();
+    // What they agreed to on this device, recorded on the account they just
+    // signed in to. Best effort and off the critical path.
+    void recordConsent(user.id);
     const firstTime = !hasEmbeddedWallet(user, "ethereum");
     const after = firstTime ? "/interests" : "/dashboard";
     const hasPasskey = user.linkedAccounts.some((account) => account.type === "passkey");
@@ -88,6 +92,8 @@ export default function AuthPage() {
   }, [ready, authenticated, user, ensureWallets, router]);
 
   const busy = ready && authenticated && phase !== "passkey";
+  // Every sign in method waits on the terms being accepted.
+  const agreed = useConsent().terms;
   // Derived, not stored: while busy, a user without an embedded wallet is a
   // first-timer whose account is being set up; everyone else is signing in.
   const creating = busy && !!user && !hasEmbeddedWallet(user, "ethereum");
@@ -150,7 +156,7 @@ export default function AuthPage() {
                   </div>
 
                   <div className="md:mt-[34px]">
-                    <SocialButtons />
+                    <SocialButtons disabled={!agreed} />
                   </div>
 
                   <div className="my-[22px] hidden items-center gap-3.5 md:flex">
@@ -160,34 +166,21 @@ export default function AuthPage() {
                   </div>
 
                   <div className="mt-5 md:mt-0">
-                    <EmailForm />
+                    <EmailForm disabled={!agreed} />
                   </div>
 
-                  <PasskeyButton />
+                  <PasskeyButton disabled={!agreed} />
                 </>
               )}
             </>
           )}
         </div>
 
-        {phase === "passkey" ? null : (
-          <p className="mx-auto max-w-[420px] text-center text-xs leading-normal text-white/35">
-            {t.rich("agree", {
-              brand: BRAND,
-              terms: (chunks) => (
-                <a href="#" className="text-white/60 underline">
-                  {chunks}
-                </a>
-              ),
-              privacy: (chunks) => (
-                <a href="#" className="text-white/60 underline">
-                  {chunks}
-                </a>
-              ),
-            })}
-            .
-          </p>
-        )}
+        {/* The two questions every method above waits on: the terms, which
+            are required, and product email, which is not. Below the methods
+            where the old "by continuing you agree" line stood; the disabled
+            buttons and the line under the boxes say what is missing. */}
+        {phase === "passkey" || busy ? null : <ConsentChecks />}
       </div>
 
       <VisualPanel />
