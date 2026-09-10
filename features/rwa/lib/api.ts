@@ -1,5 +1,7 @@
 "use client";
 
+import { apiFetch } from "@/lib/api";
+
 export { USDC_BY_CHAIN } from "@/lib/trade/usdc";
 
 // The catalog's domain type and listing rules live in lib/rwa/catalog, below
@@ -65,13 +67,55 @@ export interface RwaApiError {
   details?: unknown;
 }
 
-export {
-  fetchRwaAssets,
-  fetchRwaCategories,
-  fetchYieldHistory,
-  fetchRwaQuote,
-  buildRwaAction,
-} from "@/lib/api/services/rwa";
+// Unwraps the { success, data | error } envelope and throws a typed error.
+async function unwrap<T>(res: Response): Promise<T> {
+  const body = await res.json().catch(() => null);
+  if (body && body.success === true) return body.data as T;
+  const err: RwaApiError = body?.error ?? {
+    code: "SERVICE_UNAVAILABLE",
+    message: "Request failed",
+  };
+  const thrown = new Error(err.message) as Error & { code: string; details?: unknown };
+  thrown.code = err.code;
+  thrown.details = err.details;
+  throw thrown;
+}
+
+export async function fetchRwaAssets(params: Record<string, string> = {}): Promise<RwaApiAsset[]> {
+  const query = new URLSearchParams(params).toString();
+  const res = await apiFetch(`/api/rwa/assets${query ? `?${query}` : ""}`);
+  return unwrap<RwaApiAsset[]>(res);
+}
+
+export async function fetchRwaCategories(): Promise<RwaCategory[]> {
+  return unwrap<RwaCategory[]>(await apiFetch("/api/rwa/categories"));
+}
+
+export async function fetchYieldHistory(id: string, limit = 90): Promise<YieldHistoryPoint[]> {
+  return unwrap<YieldHistoryPoint[]>(
+    await apiFetch(`/api/rwa/assets/${encodeURIComponent(id)}/yield-history?limit=${limit}`)
+  );
+}
+
+export async function fetchRwaQuote(req: RwaQuoteRequest): Promise<RwaQuoteResult> {
+  const res = await apiFetch("/api/rwa/quote", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  return unwrap<RwaQuoteResult>(res);
+}
+
+export async function buildRwaAction(
+  req: RwaQuoteRequest & { taker: string; provider?: string; simulate?: boolean }
+): Promise<RwaAction> {
+  const res = await apiFetch("/api/rwa/build", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  return unwrap<RwaAction>(res);
+}
 
 // The pairing currency for buy/sell. Note BSC USDC has 18 decimals, not 6.
 export function rwaLogoUrl(a: RwaApiAsset): string {

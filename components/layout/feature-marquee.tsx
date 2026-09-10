@@ -43,6 +43,7 @@ const FEATURES: FeatureItem[] = [
   { key: "kash", emoji: MARKER, action: { kind: "section", section: "portfolio" } },
   { key: "funds", emoji: MARKER, action: { kind: "funds" } },
   { key: "spot", emoji: MARKER, action: { kind: "section", section: "spot" } },
+  { key: "perps", emoji: MARKER, action: { kind: "section", section: "perps" } },
   { key: "meme", emoji: MARKER, action: { kind: "section", section: "meme" } },
   { key: "rwa", emoji: MARKER, action: { kind: "section", section: "rwa" } },
   { key: "prediction", emoji: MARKER, action: { kind: "section", section: "prediction" } },

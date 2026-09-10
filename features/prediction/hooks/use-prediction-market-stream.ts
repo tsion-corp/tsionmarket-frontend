@@ -22,7 +22,7 @@ import { PRICE_SCALE, type Market, type Trade } from "@/features/prediction/lib/
 const WS_URL =
   process.env.NEXT_PUBLIC_WS_GATEWAY_URL ??
   process.env.NEXT_PUBLIC_PERP_WS_URL ??
-  "wss://ws.tsionark.com";
+  "wss://ws.worldstreetwebservices.com";
 
 const FLUSH_MS = 1_000;
 // Cap the live trade buffer so a long-lived detail page can't grow it unbounded.

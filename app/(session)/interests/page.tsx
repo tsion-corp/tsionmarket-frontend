@@ -31,7 +31,7 @@ function InterestPicker() {
   const handleContinue = () => {
     if (!selected) return;
     saveInterest(selected);
-    router.push("/portfolio");
+    router.push("/dashboard");
   };
 
   return (

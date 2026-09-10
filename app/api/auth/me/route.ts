@@ -22,8 +22,6 @@ export async function GET(req: NextRequest) {
             .map((a) => ({
               address: "address" in a ? a.address : null,
               chainType: "chain_type" in a ? a.chain_type : null,
-              delegated: "delegated" in a ? Boolean(a.delegated) : false,
-              id: "id" in a && typeof a.id === "string" ? a.id : null,
             })),
         }
       : null,

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { wsapiService } from "@/lib/wsapi-base";
-import { isSafeProxyPath } from "@/lib/server/proxy-path";
 
 // Server-side proxy for the world-street-vault game API. The gateway now sends
 // CORS headers, so a browser could call it directly; the proxy stays because
@@ -31,12 +30,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   }
 
   const joined = path.join("/");
-  if (!isSafeProxyPath(joined)) {
-    return NextResponse.json(
-      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path" } },
-      { status: 400 }
-    );
-  }
   // Only the public read endpoints are proxied. `games` and `games/:id` are the
   // v4 multi-game reads (the lobby and one game); `game/...` carries the feeds
   // that stayed singular, winners and activities.

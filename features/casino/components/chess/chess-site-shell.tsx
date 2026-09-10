@@ -96,7 +96,6 @@ function ChessNavLink({
     <Link
       ref={linkRef}
       href={item.href}
-      prefetch={false}
       onClick={(event) => {
         if (guard.blocked()) event.preventDefault();
       }}

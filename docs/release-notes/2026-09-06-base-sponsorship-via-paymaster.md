@@ -25,10 +25,6 @@ and its plain-English companion. Plan:
   the network's own variable, `ALCHEMY_GAS_POLICY_ID` for Base and
   `ALCHEMY_POLYGON_GAS_POLICY_ID` for Polygon; a missing policy fails closed
   with a 424 that names the network.
-- Polygon bundler/paymaster traffic uses its dedicated
-  `ALCHEMY_POLYGON_RPC_URL` app (a complete URL or API key), keeping the key and
-  `ALCHEMY_POLYGON_GAS_POLICY_ID` on the same Alchemy account. It fails closed
-  instead of silently trying Base's app.
 - The browser's sending code is unchanged; its paymaster branch is the code
   Polygon runs in production.
 

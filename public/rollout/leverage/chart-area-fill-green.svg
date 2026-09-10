@@ -1,9 +1,0 @@
-<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="419" height="182.581" viewBox="0 0 419 182.581" fill="none" xmlns="http://www.w3.org/2000/svg">
-<path id="Chart" opacity="0.24" d="M0 168.147L18.299 182.581L36.3634 145.451L54.4278 173.658L72.7268 168.588L90.5566 177.166L108.856 153.684L127.155 165.77L144.984 167.054L163.283 147.924L181.348 127.605L199.647 128.765L217.711 113.517L235.775 138.407L254.074 112.673L272.139 101.498H290.203L308.502 67.4352L326.567 61.3358L344.631 78.3613L362.695 101.498L380.76 49.5892L399.059 29.2705L419 0V182.581H18.299H0V168.147Z" fill="url(#paint0_linear_0_23)"/>
-<defs>
-<linearGradient id="paint0_linear_0_23" x1="209.5" y1="0" x2="209.5" y2="182.581" gradientUnits="userSpaceOnUse">
-<stop stop-color="#22C55E"/>
-<stop offset="1" stop-color="#22C55E" stop-opacity="0"/>
-</linearGradient>
-</defs>
-</svg>

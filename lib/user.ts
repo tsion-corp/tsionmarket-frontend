@@ -32,21 +32,9 @@ export function hasEmbeddedWallet(user: User, chainType: "ethereum" | "solana"):
   );
 }
 
-export function isWalletDelegated(user: User, chainType: "ethereum" | "solana"): boolean {
-  return user.linkedAccounts.some(
-    (account) =>
-      account.type === "wallet" &&
-      account.walletClientType === "privy" &&
-      account.chainType === chainType &&
-      Boolean("delegated" in account && account.delegated)
-  );
-}
-
 export interface EmbeddedWallet {
   address: string;
   chainType: "ethereum" | "solana";
-  delegated: boolean;
-  id?: string | null;
 }
 
 export function getEmbeddedWallets(user: User | null): EmbeddedWallet[] {
@@ -57,12 +45,7 @@ export function getEmbeddedWallets(user: User | null): EmbeddedWallet[] {
         a.type === "wallet" && a.walletClientType === "privy"
     )
     .filter((a) => a.chainType === "ethereum" || a.chainType === "solana")
-    .map((a) => ({
-      address: a.address,
-      chainType: a.chainType as "ethereum" | "solana",
-      delegated: Boolean("delegated" in a && a.delegated),
-      id: "id" in a && typeof a.id === "string" ? a.id : null,
-    }));
+    .map((a) => ({ address: a.address, chainType: a.chainType as "ethereum" | "solana" }));
 }
 
 export function getWalletAddress(

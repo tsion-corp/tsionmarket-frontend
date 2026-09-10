@@ -1,10 +1,26 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
-import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
+// Dynamic: DetailModal pulls lightweight-charts (~168KB) through AssetChart,
+// and it only renders once a detail view is actually opened. Imported
+// statically it shipped in the initial payload of every route that mounts this
+// host, none of which draws a chart on load.
+const DetailModal = dynamic(
+  () => import("@/components/layout/modals/detail-modal").then((m) => m.DetailModal),
+  { ssr: false }
+);
+import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
+import { AccountModal } from "@/components/layout/modals/account-modal";
+import { FundsModal, WithdrawModal } from "@/features/funds";
+import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
+// Deep import, not the barrel. `@/features/rwa` also exports RwaSection, which
+// reaches lightweight-charts through the detail sheet's price chart, so the
+// barrel put the chart library back into every route's initial payload and
+// undid the dynamic DetailModal above.
+import { RwaTradeModal } from "@/features/rwa/components/rwa-trade-modal";
+import type { DepositPrefill } from "@/lib/voice/intent";
 import type { MemeToken } from "@/lib/meme/api";
 import type {
   BuyPayload,
@@ -14,45 +30,7 @@ import type {
   RwaTradePayload,
   SellPayload,
 } from "@/lib/modal-types";
-import type { DepositPrefill } from "@/lib/voice/intent";
-
-// Dynamic: DetailModal pulls lightweight-charts (~168KB) through AssetChart,
-// and it only renders once a detail view is actually opened. Imported
-// statically it shipped in the initial payload of every route that mounts this
-// host, none of which draws a chart on load.
-const DetailModal = dynamic(
-  () => import("@/components/layout/modals/detail-modal").then((m) => m.DetailModal),
-  { ssr: false }
-);
-
-const AccountModal = dynamic(
-  () => import("@/components/layout/modals/account-modal").then((m) => m.AccountModal),
-  { ssr: false }
-);
-const FundsModal = dynamic(
-  () => import("@/features/funds/components/funds-modal").then((m) => m.FundsModal),
-  { ssr: false }
-);
-const WithdrawModal = dynamic(
-  () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
-  { ssr: false }
-);
-const BuySheet = dynamic(
-  () => import("@/features/trade/components/buy-sheet").then((m) => m.BuySheet),
-  { ssr: false }
-);
-const SellSheet = dynamic(
-  () => import("@/features/trade/components/sell-sheet").then((m) => m.SellSheet),
-  { ssr: false }
-);
-const MemeTradeSheet = dynamic(
-  () => import("@/features/trade/components/meme-trade-sheet").then((m) => m.MemeTradeSheet),
-  { ssr: false }
-);
-const RwaTradeModal = dynamic(
-  () => import("@/features/rwa/components/rwa-trade-modal").then((m) => m.RwaTradeModal),
-  { ssr: false }
-);
+import dynamic from "next/dynamic";
 
 export interface AppModals {
   modal: DashboardModal;

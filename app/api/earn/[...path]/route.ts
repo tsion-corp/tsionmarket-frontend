@@ -1,7 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { verifyRequest } from "@/lib/server/auth";
 import { wsapiService } from "@/lib/wsapi-base";
-import { isSafeProxyPath } from "@/lib/server/proxy-path";
 
 // Server-side proxy for the earn service (bounty listings, companies,
 // submissions). The gateway sends no CORS headers, so routing through our own
@@ -73,12 +72,6 @@ async function forward(
   token: string | null,
   body?: string
 ) {
-  if (!isSafeProxyPath(joined)) {
-    return NextResponse.json(
-      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path." } },
-      { status: 400 }
-    );
-  }
   const url = `${BASE}/${joined}${req.nextUrl.search}`;
   const headers: Record<string, string> = { accept: "application/json" };
   if (method === "POST") headers["content-type"] = "application/json";

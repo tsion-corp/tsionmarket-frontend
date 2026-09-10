@@ -20,7 +20,7 @@ export function JourneyRail({ onNavigate }: JourneyRailProps) {
       // The page has two nav landmarks (top bar + this rail); the label keeps
       // them distinguishable for assistive tech.
       aria-label={t("railLabel")}
-      className="fixed top-1/2 right-[calc(var(--ws-frame-inset)+22px)] z-[280] hidden -translate-y-1/2 flex-col items-end gap-3 min-[900px]:flex"
+      className="fixed top-1/2 right-[22px] z-[280] hidden -translate-y-1/2 flex-col items-end gap-3 min-[900px]:flex"
     >
       {Array.from({ length: WAYPOINTS }, (_, i) => {
         const label = t(`rail${i}`);

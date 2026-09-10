@@ -9,16 +9,16 @@ import { SECTION_ROUTES } from "@/lib/sections";
 
 // The one place that knows how to move between app sections: a section listed
 // in SECTION_ROUTES is a real route, so it always navigates there; every other
-// section is a scroll-spy anchor that only exists on /portfolio, so it scrolls
-// in-page when already there and otherwise navigates to /portfolio#id first.
+// section is a scroll-spy anchor that only exists on /dashboard, so it scrolls
+// in-page when already there and otherwise navigates to /dashboard#id first.
 //
 // Every service now has a page of its own, so the anchor path carries just the
-// portfolio. The portfolio still renders an anchored brief per service, which
-// is what a /portfolio#spot link from outside the app lands on.
+// portfolio. The dashboard still renders an anchored brief per service, which
+// is what a /dashboard#spot link from outside the app lands on.
 //
 // A voice buy/sell passes an optional `prefill`, encoded as URL query params so
 // the target section opens its trade form staged (the user then confirms). When
-// a prefill is present we always push the URL (even if already on /portfolio) so
+// a prefill is present we always push the URL (even if already on /dashboard) so
 // the section can read the params; without one we keep the lighter in-page
 // scroll.
 //
@@ -36,21 +36,13 @@ export function useAppNavigate(): (id: string, prefill?: TradePrefill) => void {
       const query = prefill ? prefillToQuery(prefill) : "";
       const route = SECTION_ROUTES[id];
       if (route) {
-        if (
-          route === "/portfolio" &&
-          (pathname === "/portfolio" || pathname === "/dashboard") &&
-          !query
-        ) {
-          scrollToSection("portfolio");
-          return;
-        }
         router.push(query ? `${route}?${query}` : route);
         return;
       }
-      if ((pathname === "/portfolio" || pathname === "/dashboard") && !query) {
+      if (pathname === "/dashboard" && !query) {
         scrollToSection(id);
       } else {
-        router.push(query ? `/portfolio?${query}#${id}` : `/portfolio#${id}`);
+        router.push(query ? `/dashboard?${query}#${id}` : `/dashboard#${id}`);
       }
     },
     [router, pathname]

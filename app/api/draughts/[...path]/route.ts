@@ -7,11 +7,6 @@ import {
   withChessIdentity,
 } from "@/lib/server/chess-identity";
 import { wsapiService } from "@/lib/wsapi-base";
-import {
-  fetchUpstreamRead,
-  fetchUpstreamWrite,
-  upstreamCandidates,
-} from "@/lib/server/upstream-failover";
 
 // Server-side proxy for draughts. The game is a module of the chess service
 // rather than a service of its own, so it shares that base URL and everything
@@ -26,12 +21,11 @@ import {
 // exceptions are a player's private note and the player-only chat room, which
 // need the session.
 const LOCAL_DEV_CHESS_API = "http://127.0.0.1:8082";
-const UPSTREAMS = upstreamCandidates(
-  process.env.CHESS_API_URL,
-  process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined,
-  process.env.NEXT_PUBLIC_CHESS_API_URL,
-  wsapiService("chess")
-);
+const BASE =
+  process.env.CHESS_API_URL ??
+  (process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined) ??
+  process.env.NEXT_PUBLIC_CHESS_API_URL ??
+  wsapiService("chess");
 const UPSTREAM_PREFIX = "draughts";
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
@@ -101,32 +95,24 @@ async function forward(
 ) {
   const search = searchParams ? searchParams.toString() : req.nextUrl.searchParams.toString();
   const query = search ? `?${search}` : "";
-  const cacheKey = `${upstreamPath(joined)}${query}`;
+  const url = `${BASE}/${upstreamPath(joined)}${query}`;
   const headers: Record<string, string> = { accept: "application/json" };
   if (method !== "GET") headers["content-type"] = "application/json";
   if (wallet) headers["x-wallet-address"] = wallet;
   const ttl = cacheTtlMs(joined);
 
   try {
-    const init: RequestInit = {
+    const res = await fetch(url, {
       method,
       headers,
       body,
       cache: "no-store",
-    };
-    const res =
-      method === "GET"
-        ? await fetchUpstreamRead(UPSTREAMS, cacheKey, init, 15_000)
-        : await fetchUpstreamWrite(UPSTREAMS, cacheKey, init, 15_000);
+      signal: AbortSignal.timeout(15_000),
+    });
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
     if (method === "GET" && res.ok && ttl > 0) {
-      cache.set(cacheKey, {
-        expires: Date.now() + ttl,
-        body: text,
-        status: res.status,
-        contentType,
-      });
+      cache.set(url, { expires: Date.now() + ttl, body: text, status: res.status, contentType });
     }
     return new NextResponse(text, {
       status: res.status,
@@ -143,7 +129,7 @@ async function forward(
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
-  if (UPSTREAMS.length === 0) return notConfigured();
+  if (!BASE) return notConfigured();
   const joined = path.join("/");
   const ttl = cacheTtlMs(joined);
   const needsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
@@ -159,9 +145,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     : req.nextUrl.searchParams;
 
   const forwardedQuery = forwardedSearch.toString();
-  const cacheKey = `${upstreamPath(joined)}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
+  const url = `${BASE}/${upstreamPath(joined)}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
   if (ttl > 0) {
-    const hit = cache.get(cacheKey);
+    const hit = cache.get(url);
     if (hit && hit.expires > Date.now()) {
       return new NextResponse(hit.body, {
         status: hit.status,
@@ -179,7 +165,7 @@ async function authedWrite(
   method: "POST" | "PUT" | "DELETE"
 ) {
   const { path } = await ctx.params;
-  if (UPSTREAMS.length === 0) return notConfigured();
+  if (!BASE) return notConfigured();
 
   const claims = await verifyRequest(req);
   if (!claims) return unauthorized();

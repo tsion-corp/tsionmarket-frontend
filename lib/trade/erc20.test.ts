@@ -3,39 +3,12 @@ import {
   NATIVE_TOKEN_ADDRESS,
   encodeAllowanceCall,
   encodeApprove,
-  encodeTransfer,
   isNativeToken,
   parseAllowance,
 } from "@/lib/trade/erc20";
 
 const SPENDER = "0x1111111111111111111111111111111111111111";
 const OWNER = "0x2222222222222222222222222222222222222222";
-
-describe("encodeTransfer", () => {
-  it("builds transfer(to, amount) calldata with 32-byte words", () => {
-    // selector a9059cbb, recipient padded to 32 bytes, amount 1 padded to 32 bytes.
-    expect(encodeTransfer(SPENDER, 1n)).toBe(
-      "0xa9059cbb" +
-        "0000000000000000000000001111111111111111111111111111111111111111" +
-        "0000000000000000000000000000000000000000000000000000000000000001"
-    );
-  });
-
-  it("encodes large amounts without losing precision", () => {
-    const amount = 123456789012345678901234567890n;
-    const data = encodeTransfer(SPENDER, amount);
-    const encoded = BigInt(`0x${data.slice(10 + 64)}`);
-    expect(encoded).toBe(amount);
-  });
-
-  it("rejects a negative amount", () => {
-    expect(() => encodeTransfer(SPENDER, -1n)).toThrow();
-  });
-
-  it("rejects a malformed recipient", () => {
-    expect(() => encodeTransfer("0x123", 1n)).toThrow();
-  });
-});
 
 describe("encodeApprove", () => {
   it("builds approve(spender, amount) calldata with 32-byte words", () => {

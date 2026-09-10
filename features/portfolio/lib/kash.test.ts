@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// `post` goes through apiFetch, which demands a Privy token and never reaches
+// the network in a unit test. Mocking the transport keeps the assertion on what
+// this module is responsible for: what it puts on the wire.
+const apiFetchMock = vi.fn();
+vi.mock("@/lib/api", () => ({ apiFetch: (...args: unknown[]) => apiFetchMock(...args) }));
 import {
   formatUsdMicro,
   spendableUsdcMicro,
@@ -7,7 +13,9 @@ import {
   formatKashAmount,
   gateProgress,
   isValidKashAmount,
+  newConversionKey,
   pointsToKash,
+  postKashConversion,
   settlesIn,
   revenueShareTiers,
 } from "./kash";
@@ -70,6 +78,54 @@ describe("settlesIn", () => {
 
   it("is null for a malformed timestamp", () => {
     expect(settlesIn(now, "not-a-date")).toBeNull();
+  });
+});
+
+describe("newConversionKey", () => {
+  it("is unique per call", () => {
+    const keys = new Set(Array.from({ length: 50 }, () => newConversionKey()));
+    expect(keys.size).toBe(50);
+  });
+
+  it("meets the engine's minimum key length", () => {
+    // The engine rejects anything under 8 characters, and a rejected key means
+    // the conversion runs with no retry protection at all.
+    expect(newConversionKey().length).toBeGreaterThanOrEqual(8);
+  });
+});
+
+describe("postKashConversion", () => {
+  function bodyOf(call: number): Record<string, unknown> {
+    const init = apiFetchMock.mock.calls[call]?.[1] as RequestInit | undefined;
+    return JSON.parse(String(init?.body));
+  }
+
+  beforeEach(() => {
+    apiFetchMock.mockClear();
+    // A fresh Response per call: a body can only be read once, so a shared
+    // instance makes the second call fail on an already-consumed stream.
+    apiFetchMock.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ success: true, data: { id: "1" } }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
+      )
+    );
+  });
+
+  it("puts the idempotency key on the wire", async () => {
+    // Without this the engine cannot recognise a retry, and a conversion that
+    // timed out after burning would burn a second time.
+    await postKashConversion("0xabc", "500", undefined, "convert-fixed-key");
+    expect(bodyOf(0).idempotencyKey).toBe("convert-fixed-key");
+  });
+
+  it("sends the SAME key when the caller retries the same attempt", async () => {
+    const key = newConversionKey();
+    await postKashConversion("0xabc", "500", undefined, key);
+    await postKashConversion("0xabc", "500", undefined, key);
+    expect(bodyOf(0).idempotencyKey).toBe(bodyOf(1).idempotencyKey);
   });
 });
 

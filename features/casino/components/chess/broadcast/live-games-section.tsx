@@ -23,11 +23,8 @@ function BroadcastIcon() {
 
 export function LiveGamesSection() {
   const wallet = useCasinoWallet();
-  // Watch only renders active games. Avoid polling the waiting-seat list that
-  // belongs to the home lobby.
   const { myActiveGames, liveMatches, isLoading, error, refetch } = useChessLobby(
-    wallet.address ?? null,
-    { challenges: false }
+    wallet.address ?? null
   );
   const matches = useMemo(() => [...myActiveGames, ...liveMatches], [liveMatches, myActiveGames]);
   const ownedMatchIds = useMemo(

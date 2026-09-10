@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
   createColumnHelper,
@@ -18,6 +17,12 @@ import { ListPagination } from "@/components/ui/list-pagination";
 import { useSpotMarkets, type SpotMarket } from "@/features/trade/hooks/use-spot-markets";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatUsd } from "@/lib/trade/math";
+import type { BuyPayload, DetailPayload } from "@/lib/modal-types";
+
+interface SpotSimpleViewProps {
+  onOpenDetail: (detail: DetailPayload) => void;
+  onOpenBuy: (buy: BuyPayload) => void;
+}
 
 // Rows per page. Six keeps the whole list above the fold on a phone, and the
 // rest are one tap away on the pager rather than behind a "show all" that then
@@ -47,9 +52,8 @@ const columns = [
 // stables), so anything bought here can be traded there. Tapping a row opens
 // the asset detail sheet with a Buy call-to-action — the guided flow — so
 // someone new to trading never sees an order ticket.
-export function SpotSimpleView() {
+export function SpotSimpleView({ onOpenDetail, onOpenBuy }: SpotSimpleViewProps) {
   const t = useTranslations("markets");
-  const router = useRouter();
   const [search, setSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([{ id: "mcap", desc: true }]);
   // Collapsed by default so the list doesn't dominate the page; searching
@@ -74,9 +78,33 @@ export function SpotSimpleView() {
   const { pageIndex } = table.getState().pagination;
   const pageCount = table.getPageCount();
 
-  // A tap opens the token's own page (/spot/[id]) rather than a detail popup;
-  // the page carries the chart, the stats and the Buy action.
-  const openToken = (token: SpotMarket) => router.push(`/spot/${encodeURIComponent(token.symbol)}`);
+  const openToken = (token: SpotMarket) =>
+    onOpenDetail({
+      sym: token.symbol,
+      name: token.name,
+      sub: token.symbol,
+      price: token.priceUsd > 0 ? formatUsd(token.priceUsd) : "—",
+      chg: changeLabel(token.change24h),
+      bg: tokenBg(token.symbol),
+      coingeckoId: token.coingeckoId ?? undefined,
+      up: token.change24h >= 0,
+      logo: token.logo,
+      // Simple spot trading shows candles only, no area chart.
+      candlesOnly: true,
+      stats: [
+        { k: t("price"), v: token.priceUsd > 0 ? formatUsd(token.priceUsd) : "—" },
+        { k: t("change24hFull"), v: changeLabel(token.change24h) },
+        { k: t("marketCap"), v: compactUsd(token.marketCap) },
+      ],
+      cta: t("buyToken", { name: token.name }),
+      onCta: () =>
+        onOpenBuy({
+          symbol: token.symbol,
+          name: token.name,
+          priceUsd: token.priceUsd,
+          logo: token.logo,
+        }),
+    });
 
   const sortHeader = (id: string, label: string, className: string) => {
     const col = table.getColumn(id);

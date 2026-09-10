@@ -211,167 +211,42 @@ describe("cross-chain moves are not withdrawals", () => {
   });
 });
 
-// The sweep itself. Every upstream is stubbed, so these cases are about one
-// thing: what the reader reports when an upstream does not answer. The bug
-// they lock down is a total Alchemy outage reading as "you have no history".
-vi.mock("@/lib/server/alchemy-keys", () => ({
-  alchemyFetch: (buildUrl: (key: string) => string, init?: RequestInit) =>
-    alchemyStub(buildUrl, init),
-}));
-vi.mock("@/lib/server/rwa-registry", () => ({ fetchRwaRegistry: () => rwaStub() }));
-vi.mock("@/lib/server/buyable-registry", () => ({ fetchBuyableRegistry: () => buyableStub() }));
-vi.mock("@/lib/server/action-registry", () => ({
-  fetchActionRegistry: () => actionStub(),
-  actionFor: () => undefined,
-}));
-
-const alchemyStub =
-  vi.fn<(buildUrl: (key: string) => string, init?: RequestInit) => Promise<Response>>();
-const rwaStub = vi.fn(async () => ({}));
-const buyableStub = vi.fn(async () => ({ buyable: {}, meme: {} }));
-const actionStub = vi.fn(async () => ({}));
-
-const WALLET = "0x7bd20000000000000000000000000000000043ba";
-
-// The network a stubbed call is for, read off the URL the caller built.
-function networkOf(buildUrl: (key: string) => string): string {
-  return new URL(buildUrl("test-key")).host.split(".")[0];
-}
-
-function jsonResponse(payload: unknown): Response {
-  return new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
-}
-
-// One inbound native ETH transfer, the shape Alchemy returns it in.
-function transfersFor(network: string) {
-  return jsonResponse({
-    jsonrpc: "2.0",
-    id: 1,
-    result: {
-      transfers: [
-        {
-          uniqueId: `0x${network}:external:0`,
-          hash: `0x${network}`,
-          from: "0x1111111111111111111111111111111111111111",
-          to: WALLET,
-          value: 1.5,
-          asset: "ETH",
-          category: "external",
-          metadata: { blockTimestamp: "2026-09-01T00:00:00.000Z" },
-        },
-      ],
-    },
-  });
-}
-
-describe("fetchActivity", () => {
-  beforeEach(async () => {
-    const { resetResponseCache } = await import("@/lib/server/response-cache");
-    resetResponseCache();
-    vi.clearAllMocks();
-    rwaStub.mockResolvedValue({});
-    buyableStub.mockResolvedValue({ buyable: {}, meme: {} });
-    actionStub.mockResolvedValue({});
-  });
-
-  it("refuses to report an empty history when every network read failed", async () => {
-    // The local symptom: both Alchemy keys answer 429, every per-network catch
-    // turns that into [], and the view says "Nothing here yet" about a wallet
-    // that has plenty. Nothing could be read, so nothing may be claimed.
-    alchemyStub.mockRejectedValue(new Error("Alchemy request failed: 429"));
-
-    const { fetchActivity } = await import("@/lib/server/activity");
-    await expect(fetchActivity(WALLET)).rejects.toThrow(/could not be read/i);
-  });
-
-  it("names the exhausted key pool so the route can answer 429, not 502", async () => {
-    alchemyStub.mockRejectedValue(new Error("Alchemy request failed: 429"));
-
-    const { fetchActivity, isActivityRateLimited } = await import("@/lib/server/activity");
-    const error = await fetchActivity(WALLET).catch((e: unknown) => e);
-    expect(isActivityRateLimited(error)).toBe(true);
-  });
-
-  it("reports a genuinely empty history as empty, with nothing unavailable", async () => {
-    alchemyStub.mockImplementation(async () =>
-      jsonResponse({ jsonrpc: "2.0", id: 1, result: { transfers: [] } })
-    );
-
-    const { fetchActivity } = await import("@/lib/server/activity");
-    const read = await fetchActivity(WALLET);
-    expect(read.items).toEqual([]);
-    expect(read.unavailable).toEqual([]);
-  });
-
-  it("keeps the networks that answered when only some fail, and names the rest", async () => {
-    // Proportionality: one chain being down must not blank a page that has
-    // good rows from four others.
-    alchemyStub.mockImplementation(async (buildUrl) => {
-      const network = networkOf(buildUrl);
-      if (network === "eth-mainnet") throw new Error("Alchemy request failed: 500");
-      return transfersFor(network);
-    });
-
-    const { fetchActivity } = await import("@/lib/server/activity");
-    const read = await fetchActivity(WALLET);
-    expect(read.items.length).toBeGreaterThan(0);
-    expect(read.items.some((i) => i.network === "eth-mainnet")).toBe(false);
-    expect(read.unavailable).toContain("eth-mainnet");
-  });
-
-  it("flags the read as partial when a registry could not be loaded", async () => {
-    // An empty RWA registry silently drops every RWA row from the feed, so a
-    // list built without it is incomplete, not complete.
-    alchemyStub.mockImplementation(async () =>
-      jsonResponse({ jsonrpc: "2.0", id: 1, result: { transfers: [] } })
-    );
-    rwaStub.mockRejectedValue(new Error("registry down"));
-
-    const { fetchActivity } = await import("@/lib/server/activity");
-    const read = await fetchActivity(WALLET);
-    expect(read.unavailable).toContain("rwa-registry");
-  });
-
-  it("treats a JSON-RPC error body as a failure, not as an empty result", async () => {
-    // Alchemy can answer HTTP 200 with an error object. Reading `result` off
-    // that gives undefined, which used to read as "no transfers".
-    alchemyStub.mockImplementation(async () =>
-      jsonResponse({ jsonrpc: "2.0", id: 1, error: { code: -32000, message: "capacity" } })
-    );
-
-    const { fetchActivity } = await import("@/lib/server/activity");
-    await expect(fetchActivity(WALLET)).rejects.toThrow(/could not be read/i);
-  });
-
-  it("asks nothing and reports nothing unavailable when no wallet is given", async () => {
-    const { fetchActivity } = await import("@/lib/server/activity");
-    const read = await fetchActivity(undefined, undefined);
-    expect(read).toEqual({ items: [], unavailable: [] });
-    expect(alchemyStub).not.toHaveBeenCalled();
-  });
-});
-
 // One sweep is the most expensive read in the app and history changes only
 // when a transaction lands. The bell asks every 10 min; a snapshot served
 // for 5 min means at most one sweep per poll, never one per tab.
 describe("fetchActivity snapshot window", () => {
-  beforeEach(async () => {
-    const { resetResponseCache } = await import("@/lib/server/response-cache");
-    resetResponseCache();
-    vi.clearAllMocks();
+  beforeEach(() => {
+    vi.resetModules();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-09T12:00:00Z"));
-    rwaStub.mockResolvedValue({});
-    buyableStub.mockResolvedValue({ buyable: {}, meme: {} });
-    actionStub.mockResolvedValue({});
-    alchemyStub.mockImplementation(async () =>
-      jsonResponse({ jsonrpc: "2.0", id: 1, result: { transfers: [] } })
+    vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.doMock("@/lib/server/rwa-registry", () => ({ fetchRwaRegistry: async () => ({}) }));
+    vi.doMock("@/lib/server/buyable-registry", () => ({
+      fetchBuyableRegistry: async () => ({ buyable: {}, meme: {} }),
+    }));
+    vi.doMock("@/lib/server/action-registry", () => ({
+      fetchActionRegistry: async () => ({}),
+      actionFor: () => null,
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { transfers: [] } }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+      )
     );
   });
-  afterEach(() => {
+  afterEach(async () => {
+    const { resetResponseCache } = await import("@/lib/server/response-cache");
+    resetResponseCache();
+    vi.doUnmock("@/lib/server/rwa-registry");
+    vi.doUnmock("@/lib/server/buyable-registry");
+    vi.doUnmock("@/lib/server/action-registry");
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
     vi.useRealTimers();
   });
 
@@ -379,15 +254,15 @@ describe("fetchActivity snapshot window", () => {
     const { fetchActivity } = await import("@/lib/server/activity");
     const wallet = "0x1111111111111111111111111111111111111111";
     await fetchActivity(wallet, undefined);
-    const sweep = alchemyStub.mock.calls.length;
+    const sweep = vi.mocked(fetch).mock.calls.length;
     expect(sweep).toBeGreaterThan(0);
 
     vi.advanceTimersByTime(4 * 60_000);
     await fetchActivity(wallet, undefined);
-    expect(alchemyStub).toHaveBeenCalledTimes(sweep);
+    expect(fetch).toHaveBeenCalledTimes(sweep);
 
     vi.advanceTimersByTime(2 * 60_000);
     await fetchActivity(wallet, undefined);
-    expect(alchemyStub).toHaveBeenCalledTimes(sweep * 2);
+    expect(fetch).toHaveBeenCalledTimes(sweep * 2);
   });
 });

@@ -8,6 +8,7 @@ const upstream = vi.hoisted(() => ({
   forwardEvmRpcRead: vi.fn(),
   fetchMarketTokens: vi.fn(),
   fetchRwaMarket: vi.fn(),
+  wsapiPerpRequest: vi.fn(),
   wsapiRwaRequest: vi.fn(),
   readActiveGamesWith: vi.fn(),
   fetch: vi.fn(),
@@ -19,6 +20,7 @@ vi.mock("@/lib/server/evm-rpc", () => ({ forwardEvmRpcRead: upstream.forwardEvmR
 vi.mock("@/lib/server/market-tokens", () => ({ fetchMarketTokens: upstream.fetchMarketTokens }));
 vi.mock("@/lib/server/rwa-prices", () => ({ fetchRwaMarket: upstream.fetchRwaMarket }));
 vi.mock("@/lib/server/wsapi", () => ({
+  wsapiPerpRequest: upstream.wsapiPerpRequest,
   wsapiRwaRequest: upstream.wsapiRwaRequest,
 }));
 vi.mock("@/lib/vault/read", () => ({ readActiveGamesWith: upstream.readActiveGamesWith }));
@@ -70,6 +72,11 @@ function healthyUpstreams() {
       marketCap: 9,
     },
   ]);
+  upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
+    path === "pairs"
+      ? ok([{ from: "BTC", to: "USD", maxLeverage: 100 }])
+      : ok([{ pairIndex: 0, pair: "BTC/USD", price: "65000", publishTime: null }])
+  );
   upstream.wsapiRwaRequest.mockResolvedValue(
     ok([
       {
@@ -240,6 +247,12 @@ describe("buildDashboardFeed", () => {
       priceUsd: 3000,
       change24h: 1.5,
     });
+    expect(feed.perps?.[0]).toMatchObject({
+      symbol: "BTC/USD",
+      base: "BTC",
+      priceUsd: 65000,
+      maxLeverage: 100,
+    });
     expect(feed.memes).toEqual([
       {
         address: "0xMeme",
@@ -252,9 +265,6 @@ describe("buildDashboardFeed", () => {
     ]);
     expect(feed.rwa?.[0]).toMatchObject({
       id: "usdy-base",
-      issuer: "Ondo",
-      category: "treasury",
-      apyBps: null,
       priceUsd: 1.14,
       change24h: -0.01,
       logo: "/api/token-logo/base/0xUsdy",
@@ -272,42 +282,16 @@ describe("buildDashboardFeed", () => {
   it("marks a section unavailable when its upstream is down, and keeps the rest", async () => {
     healthyUpstreams();
     upstream.wsapiRwaRequest.mockResolvedValue(down());
+    upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
+      path === "pairs" ? down() : ok([])
+    );
 
     const feed = await buildDashboardFeed();
 
     expect(feed.rwa).toBeNull();
+    expect(feed.perps).toBeNull();
     expect(feed.spot).not.toBeNull();
     expect(feed.memes).not.toBeNull();
-  });
-
-  // The "Own the Real World" shelf picks one asset per category out of the
-  // rwa section, so the section carries every listed asset and its yield,
-  // not the eight the brief shows.
-  it("carries every listed real asset with its category and yield", async () => {
-    healthyUpstreams();
-    upstream.wsapiRwaRequest.mockResolvedValue(
-      ok(
-        Array.from({ length: 12 }, (_, i) => ({
-          id: `asset-${i}`,
-          chain: "base",
-          address: `0xAsset${i}`,
-          symbol: `A${i}`,
-          name: `Asset ${i}`,
-          issuer: "Issuer",
-          category: i % 2 ? "equity" : "treasury",
-          yieldApyBps: i % 2 ? undefined : 360,
-          priceUsd: "1",
-          freelyTradable: true,
-        }))
-      )
-    );
-    upstream.fetchRwaMarket.mockResolvedValue({});
-
-    const feed = await buildDashboardFeed();
-
-    expect(feed.rwa).toHaveLength(12);
-    expect(feed.rwa?.[0]).toMatchObject({ category: "treasury", apyBps: 360 });
-    expect(feed.rwa?.[1]).toMatchObject({ category: "equity", apyBps: null });
   });
 
   // Trending is mostly Solana, and discovery is Base-only for now, so after
@@ -357,6 +341,19 @@ describe("buildDashboardFeed", () => {
     });
     const feed = await buildDashboardFeed();
     expect(feed.memes?.map((m) => m.symbol)).toEqual(["BASECAT"]);
+  });
+
+  it("prices the perps brief from the fallback when only the marks are down", async () => {
+    healthyUpstreams();
+    upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
+      path === "pairs" ? ok([{ from: "BTC", to: "USD", maxLeverage: 100 }]) : down()
+    );
+    upstream.fetchPrices.mockImplementation(async (symbols: string[]) =>
+      symbols.map((symbol) => ({ symbol, priceUsd: symbol === "BTC" ? 64000 : 1 }))
+    );
+
+    const feed = await buildDashboardFeed();
+    expect(feed.perps?.[0]).toMatchObject({ symbol: "BTC/USD", priceUsd: 64000 });
   });
 
   it("keeps the live chips from the sources that answered", async () => {

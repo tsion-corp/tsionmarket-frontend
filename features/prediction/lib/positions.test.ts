@@ -175,12 +175,6 @@ describe("sellFloorPrice", () => {
     expect(sellFloorPrice(0.01)).toBe(0.01);
     expect(sellFloorPrice(1.5)).toBe(0.99);
   });
-
-  it("honors sub-cent market ticks", () => {
-    expect(sellFloorPrice(0.003, 0.001)).toBe(0.002);
-    expect(sellFloorPrice(0.001, 0.001)).toBe(0.001);
-    expect(sellFloorPrice(0.0004, 0.0001)).toBe(0.0003);
-  });
 });
 
 describe("betSlip tokenId passthrough", () => {

@@ -181,15 +181,8 @@ export function pendingRwaSettlementsSnapshot(): readonly PendingRwaSettlement[]
   return cached;
 }
 
-// One shared array, not a fresh literal per call. useSyncExternalStore compares
-// snapshots by identity and re-reads during render, so returning `[]` handed it
-// a new value every time and React warned about an infinite loop
-// ("The result of getServerSnapshot should be cached"). There is never a
-// pending settlement on the server: storage is per browser.
-const NO_SETTLEMENTS: readonly PendingRwaSettlement[] = Object.freeze([]);
-
 export function serverPendingRwaSettlementsSnapshot(): readonly PendingRwaSettlement[] {
-  return NO_SETTLEMENTS;
+  return [];
 }
 
 function write(next: readonly PendingRwaSettlement[]): void {

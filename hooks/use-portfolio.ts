@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiFetch } from "@/lib/api";
-import { queryKeys } from "@/lib/query-keys";
 import { useSessionWallet } from "@/components/providers/server-session";
 import type { Portfolio } from "@/lib/server/alchemy";
 import type { TokenBalance } from "@/lib/server/alchemy";
@@ -80,7 +79,7 @@ export function usePortfolio() {
   const evm = useSessionWallet("ethereum");
   const solana = useSessionWallet("solana");
   const enabled = ready && authenticated && Boolean(evm || solana);
-  const queryKey = queryKeys.portfolio.byWallet(evm, solana);
+  const queryKey = ["portfolio", evm, solana] as const;
   const pollMs = watchesBalance(usePathname()) ? POLL_MS : GLANCED_POLL_MS;
 
   // Set while waiting for a just-made trade to show up, naming the networks

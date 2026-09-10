@@ -117,12 +117,6 @@ describe("chess proxy route", () => {
         })
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ success: false }), {
-          status: 404,
-          headers: { "content-type": "application/json" },
-        })
-      )
-      .mockResolvedValueOnce(
         new Response(JSON.stringify({ success: true }), {
           status: 200,
           headers: { "content-type": "application/json" },
@@ -134,7 +128,7 @@ describe("chess proxy route", () => {
 
     expect((await GET(request(), context)).status).toBe(404);
     expect((await GET(request(), context)).status).toBe(200);
-    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   });
 
   it("never caches player coach state", async () => {
@@ -274,9 +268,8 @@ describe("chess proxy route", () => {
     );
 
     expect(res.status).toBe(200);
-    const [, init] = (
-      global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }
-    ).mock.calls.find(([url]) => url.endsWith("/betting/bets"))!;
+    const [, init] = (global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }).mock
+      .calls[0];
     expect((init.headers as Record<string, string>)["x-wallet-address"]).toBe("0xabc");
     expect(init.body).toBe(
       JSON.stringify({

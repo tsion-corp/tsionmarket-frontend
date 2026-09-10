@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   clearPendingRwaSettlement,
   pendingRwaSettlementsSnapshot,
-  serverPendingRwaSettlementsSnapshot,
   savePendingRwaSettlement,
   settlementsForProduct,
 } from "@/lib/trade/pending-settlement";
@@ -64,18 +63,5 @@ describe("pending settlements by product", () => {
     });
     const raw = JSON.parse(window.localStorage.getItem("wsws.rwa.pending-settlements.v1") ?? "[]");
     expect(raw[0].product).toBe("meme");
-  });
-});
-
-describe("serverPendingRwaSettlementsSnapshot", () => {
-  it("returns the same array every call", () => {
-    // useSyncExternalStore compares snapshots by identity and re-reads during
-    // render, so a fresh `[]` per call is an infinite render loop. React says
-    // so out loud: "The result of getServerSnapshot should be cached".
-    expect(serverPendingRwaSettlementsSnapshot()).toBe(serverPendingRwaSettlementsSnapshot());
-  });
-
-  it("is empty, because storage is per browser and the server has none", () => {
-    expect(serverPendingRwaSettlementsSnapshot()).toEqual([]);
   });
 });

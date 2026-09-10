@@ -22,7 +22,7 @@ const PAGE_SIZE = 12;
 // casino feature and merges in, since those never touch the chain.
 export function ActivityView({ gameEntries = NO_GAMES }: { gameEntries?: ActivityEntry[] } = {}) {
   const t = useTranslations("activity");
-  const { items: chainItems, loading, error, partial, refetch } = useActivity();
+  const { items: chainItems, loading, error, refetch } = useActivity();
   const portfolio = usePortfolio();
   const [page, setPage] = useState(0);
   const topRef = useRef<HTMLDivElement>(null);
@@ -64,13 +64,6 @@ export function ActivityView({ gameEntries = NO_GAMES }: { gameEntries?: Activit
     topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  // An incomplete read with nothing to show is not an empty history. Saying
-  // "Nothing here yet" there tells the user their account has no record when
-  // the truth is that no record could be read, so it shows the error state and
-  // its retry instead. An incomplete read that still has rows keeps them: one
-  // chain being down must not blank a page the other four filled.
-  const unreadable = error || (partial && items.length === 0);
-
   const groups = useMemo(() => {
     const out: { heading: string; items: ActivityEntry[] }[] = [];
     for (const item of pageItems) {
@@ -93,7 +86,7 @@ export function ActivityView({ gameEntries = NO_GAMES }: { gameEntries?: Activit
         <div className="ws-card mt-[18px] px-6 py-12 text-center text-[13.5px] font-normal text-white/45">
           {t("loading")}
         </div>
-      ) : unreadable ? (
+      ) : error ? (
         <div className="ws-card mt-[18px] flex flex-col items-center gap-3 px-6 py-12 text-center">
           <div className="text-[13.5px] font-normal text-white/55">{t("errorBody")}</div>
           <button
@@ -113,17 +106,6 @@ export function ActivityView({ gameEntries = NO_GAMES }: { gameEntries?: Activit
         </div>
       ) : (
         <>
-          {partial ? (
-            <div className="ws-card mt-[18px] flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-              <p className="text-[13px] font-normal text-white/60">{t("partialBody")}</p>
-              <button
-                onClick={() => void refetch()}
-                className="cursor-pointer rounded-xl border border-white/10 bg-white/5 px-4 py-2 font-sans text-[12.5px] font-semibold text-white/80 hover:bg-white/10"
-              >
-                {t("tryAgain")}
-              </button>
-            </div>
-          ) : null}
           {/* What the trades actually made, above the transactions that made
               it. Realised only — see PnlCards. */}
           <PnlCards entries={items} />

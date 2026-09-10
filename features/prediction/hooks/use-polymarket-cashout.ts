@@ -5,12 +5,11 @@ import { OrderSide, OrderType } from "@polymarket/client";
 import { approveErc1155ForAll, fetchNegRisk } from "@polymarket/client/actions";
 import { friendlyError } from "@/lib/errors";
 import { usePolymarketSession } from "@/features/prediction/hooks/use-polymarket-session";
-import { refreshCollateralUsd } from "@/features/prediction/lib/polymarket/collateral";
 import { sellFloorPrice } from "@/features/prediction/lib/positions";
 import { BUILDER_CODE, CONTRACTS } from "@/lib/polymarket/config";
 import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
 
-export type CashoutPhase = "idle" | "quoting" | "selling" | "approving" | "settling";
+export type CashoutPhase = "idle" | "selling" | "approving";
 
 // A user-facing error whose message is already friendly. Every failure leaves
 // this hook as one of these, so a caller can read the reason off the error it
@@ -59,21 +58,11 @@ export interface CashOutInput {
   tokenId: string;
   // Shares to sell — the whole position for a full cash-out.
   shares: number;
-  // The executable average price the user approved in the confirmation UI.
-  // If the live bid moves materially below it, reject instead of silently
-  // locking in a worse loss.
-  confirmedPrice?: number;
-}
-
-export interface CashOutQuote {
-  averagePrice: number;
-  proceedsUsd: number;
 }
 
 export interface CashOutResult {
-  // Actual pUSD received from the matched sell.
+  // Estimated proceeds in USD at the estimated fill price.
   proceedsUsd: number;
-  settlementPending: boolean;
 }
 
 // Sells a held position back into the market before resolution — the standard
@@ -86,75 +75,28 @@ export function usePolymarketCashout() {
   const [phase, setPhase] = useState<CashoutPhase>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const readQuote = useCallback(async (client: SecureClient, input: CashOutInput) => {
+  const placeSell = useCallback(async (client: SecureClient, input: CashOutInput) => {
     const shares = String(input.shares);
-    const [book, estimate] = await Promise.all([
-      client.fetchOrderBook({ tokenId: input.tokenId }),
-      client.estimateMarketPrice({
-        tokenId: input.tokenId,
-        side: OrderSide.SELL,
-        shares,
-        orderType: OrderType.FOK,
-      }),
-    ]);
+    const estimate = await client.estimateMarketPrice({
+      tokenId: input.tokenId,
+      side: OrderSide.SELL,
+      shares,
+      orderType: OrderType.FAK,
+    });
     // No bid depth to sell into: the book is empty on the buy side.
-    if (book.bids.length === 0 || !(estimate > 0)) {
-      throw new CashoutError(NO_LIQUIDITY_MESSAGE);
-    }
+    if (!(estimate > 0)) throw new CashoutError(NO_LIQUIDITY_MESSAGE);
 
-    return {
-      averagePrice: estimate,
-      proceedsUsd: estimate * input.shares,
-      tickSize: book.tickSize,
-    };
+    const res = await client.placeMarketOrder({
+      tokenId: input.tokenId,
+      side: OrderSide.SELL,
+      shares,
+      minPrice: sellFloorPrice(estimate),
+      orderType: OrderType.FAK,
+      ...(BUILDER_CODE ? { builderCode: BUILDER_CODE as `0x${string}` } : {}),
+    });
+    if (!res.ok) throw new Error(res.message || "The sell was not accepted.");
+    return { proceedsUsd: input.shares * estimate };
   }, []);
-
-  const placeSell = useCallback(
-    async (client: SecureClient, input: CashOutInput) => {
-      const shares = String(input.shares);
-      const quote = await readQuote(client, input);
-      const liveFloor = sellFloorPrice(quote.averagePrice, quote.tickSize);
-      const confirmedFloor = input.confirmedPrice
-        ? sellFloorPrice(input.confirmedPrice, quote.tickSize)
-        : 0;
-
-      const res = await client.placeMarketOrder({
-        tokenId: input.tokenId,
-        side: OrderSide.SELL,
-        shares,
-        minPrice: Math.max(liveFloor, confirmedFloor),
-        orderType: OrderType.FOK,
-        ...(BUILDER_CODE ? { builderCode: BUILDER_CODE as `0x${string}` } : {}),
-      });
-      if (!res.ok) throw new Error(res.message || "The sell was not accepted.");
-      return res;
-    },
-    [readQuote]
-  );
-
-  const quoteCashOut = useCallback(
-    async (input: CashOutInput): Promise<CashOutQuote> => {
-      setError(null);
-      setPhase("quoting");
-      try {
-        const client = await ensureReady();
-        const quote = await readQuote(client, input);
-        return { averagePrice: quote.averagePrice, proceedsUsd: quote.proceedsUsd };
-      } catch (e) {
-        const message =
-          e instanceof CashoutError
-            ? e.message
-            : isNoLiquidity(e)
-              ? NO_LIQUIDITY_MESSAGE
-              : friendlyError(e, "Couldn't quote this cashout. Try again.");
-        setError(message);
-        throw e instanceof CashoutError ? e : new CashoutError(message, { cause: e });
-      } finally {
-        setPhase("idle");
-      }
-    },
-    [ensureReady, readQuote]
-  );
 
   const cashOut = useCallback(
     async (input: CashOutInput): Promise<CashOutResult> => {
@@ -162,9 +104,8 @@ export function usePolymarketCashout() {
       setPhase("selling");
       try {
         const client = await ensureReady();
-        let response;
         try {
-          response = await placeSell(client, input);
+          return await placeSell(client, input);
         } catch (e) {
           if (!isApprovalError(e)) throw e;
           // Selling conditional tokens needs an ERC-1155 operator approval;
@@ -172,28 +113,8 @@ export function usePolymarketCashout() {
           setPhase("approving");
           await grantSellApprovals(client, input.tokenId);
           setPhase("selling");
-          response = await placeSell(client, input);
+          return await placeSell(client, input);
         }
-
-        setPhase("settling");
-        let settlementPending = false;
-        try {
-          await client.waitForOrderFillSettlement(response, { timeoutMs: 60_000 });
-          await refreshCollateralUsd(client);
-        } catch (settlementError) {
-          // The FOK order was already accepted and matched. A local settlement
-          // timeout must not invite a duplicate sell; the next refresh retries
-          // the balance-cache update safely.
-          settlementPending = true;
-          console.warn("Polymarket cash-out settlement is still pending", {
-            orderId: response.orderId,
-            error: settlementError,
-          });
-        }
-        return {
-          proceedsUsd: Number(response.takingAmount),
-          settlementPending,
-        };
       } catch (e) {
         // The message the user sees is deliberately plain, so log what actually
         // failed. Without this the CLOB's own reason for a rejection is only
@@ -220,5 +141,5 @@ export function usePolymarketCashout() {
     [ensureReady, placeSell]
   );
 
-  return { quoteCashOut, cashOut, phase, error };
+  return { cashOut, phase, error };
 }

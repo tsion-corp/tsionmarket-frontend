@@ -1,19 +1,17 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
+import {
+  PortfolioDonut,
+  PortfolioDonutSkeleton,
+} from "@/features/portfolio/components/portfolio-donut";
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
-import { EyeOffIcon } from "@/components/ui/icons";
-import { useHoldingsLauncher } from "@/features/portfolio/components/holdings-launcher";
-import { PortfolioDonut } from "@/features/portfolio/components/portfolio-donut";
+import { SkeletonLine } from "@/components/ui/skeleton-line";
+import { EyeIcon, EyeOffIcon } from "@/components/ui/icons";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 
-// The balance card as the Market design draws it: a near-black panel carrying
-// the designer's cloud and star artwork, with everything stacked down the
-// middle — the currency, the total, the two actions, and the allocation
-// disclosure. Every glyph is an SVG exported from the design file; the artwork
-// is decorative only, so it sits behind the content and is hidden from
-// assistive tech.
+// The balance card as the desktop app has always shown it: the total and the
+// two buttons on one line, the breakdown ring only once something is held.
 export function BalanceCardDesktop({
   totalUsd,
   readyToSpend,
@@ -30,218 +28,103 @@ export function BalanceCardDesktop({
   onOpenWithdraw,
 }: BalanceCardViewProps) {
   const t = useTranslations("balance");
-  const tPortfolio = useTranslations("portfolio");
   const money = useMoney();
-  // The breakdown is a disclosure here rather than always-on: the design keeps
-  // the card to one screenful and puts the ring behind a tap.
-  const [showBreakdown, setShowBreakdown] = useState(false);
-  const canBreakdown = !loading && !errored && tokens.length > 0;
-
-  // The holdings list, and the buy/sell stack it hands assets to, shared with
-  // the phone card.
-  const holdings = useHoldingsLauncher();
 
   return (
-    // The design draws this card 551x370. We run it taller: it carries two rows
-    // the artboard does not (ready to spend, and the allocation disclosure), and
-    // the board asked for more height again on top of that. The extra room goes
-    // into the vertical padding, split in the design's own 61:28 proportion, so
-    // the stack itself keeps the spacing the design gave it.
-    <div
-      data-tour="balance"
-      className="relative isolate flex h-full flex-col overflow-hidden rounded-[18px] bg-[#0f0f0f] px-7 pt-[80px] pb-[37px]"
-    >
-      {/* Decorative only. The star field is exported at the card's own 551x370
-          frame and stretches with it, which keeps every star the design drew
-          and costs nothing: the dots are about a pixel across, so the stretch
-          does not read. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[url('/market/balance-stars.svg')] bg-[length:100%_100%] bg-no-repeat"
-      />
-      {/* The clouds bank along the foot of the card at any width. The export is
-          the band on its own and reaches past both sides of the design's 551px
-          artboard, so covering it scales the clouds by about a twentieth at the
-          width this actually ships at, rather than stretching them by half. */}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-[84px] bg-[url('/market/balance-clouds.svg')] bg-cover bg-bottom bg-no-repeat"
-      />
-
-      {/* Grows into whatever height the row settles on. The two cards are grid
-          siblings and stretch to the taller one, so at a narrow desktop width,
-          where a long translation wraps the Kash card's action row, the spare
-          height lands around this stack rather than as a bare strip under it. */}
-      <div className="flex grow flex-col items-center justify-center">
-        <div className="flex items-center gap-[7.65px]">
-          <CurrencySelect value={money.currency} onSelect={money.setCurrency} size="lg" />
-          {/* What the wallet holds, one tap from the total it adds up to. The
-              stacked-coins glyph belongs beside the money, not in the chrome;
-              the walkthrough's help mark took its place in the topbar. */}
-          <button
-            type="button"
-            onClick={holdings.openHoldings}
-            aria-label={tPortfolio("yourHoldings")}
-            title={tPortfolio("yourHoldings")}
-            aria-haspopup="dialog"
-            aria-expanded={holdings.open}
-            className="ws-pressable grid size-[45.87px] shrink-0 cursor-pointer place-items-center rounded-full border-[1.21px] border-white/14 bg-white/5 transition-colors hover:bg-white/10"
-          >
-            {/* A fixed-colour export, so it sits in an explicitly sized box
-                rather than inheriting the button's text colour. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/market/balance-icon-coins.svg"
-              alt=""
-              width={21}
-              height={21}
-              className="size-[20.65px] shrink-0"
-            />
-          </button>
-        </div>
-
-        {/* The label and its toggle keep a gap and side room of their own, so
-            the longest translation of "Total balance" never runs up against
-            the eye or the card's edge. leading-[1.3] rather than the design's
-            1.1 for the same reason: a label that has to take a second line
-            needs the room before it wraps, not after. */}
-        <div className="mt-[13.8px] flex max-w-full items-center justify-center gap-[6px] px-2">
-          <span className="min-w-0 font-serif text-[20px] leading-[1.3] font-medium tracking-[-0.2px] text-white/60">
-            {t("totalBalance")}
-          </span>
+    <div className="ws-card p-5 sm:p-[26px]">
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-1.5 text-[13px] font-normal text-white/60">
+          {t("totalBalance")}
           <button
             onClick={onToggleHidden}
             aria-label={hidden ? t("showBalance") : t("hideBalance")}
-            className="ws-pressable grid size-[36.69px] shrink-0 cursor-pointer place-items-center rounded-full"
+            className="grid h-6 w-6 cursor-pointer place-items-center rounded-full text-white/45 transition-colors hover:bg-white/8 hover:text-white/80"
           >
-            {hidden ? (
-              // The design has no struck-through eye, only the open one, so the
-              // hidden state falls back to the app's own icon at the same size
-              // and ink as the export beside it.
-              <EyeOffIcon size={22.93} className="text-white/45" />
-            ) : (
-              <span className="block size-[22.93px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/market/balance-icon-eye.svg" alt="" className="size-full" />
-              </span>
-            )}
+            {hidden ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
           </button>
           {refreshing ? (
-            <span className="bg-accent size-1.5 animate-pulse rounded-full" title="Refreshing…" />
+            <span
+              className="bg-accent h-1.5 w-1.5 animate-pulse rounded-full"
+              title="Refreshing…"
+            />
           ) : null}
         </div>
+        <CurrencySelect value={money.currency} onSelect={money.setCurrency} />
+      </div>
 
-        {loading ? (
-          <div className="mt-1 h-[64px] w-56 animate-pulse rounded-xl bg-white/8" />
-        ) : errored ? (
-          // A failed fetch and a genuinely empty wallet both leave totalUsd at
-          // 0 — showing "$0.00" here would read as "your funds are gone". Say
-          // it isn't known instead of asserting a wrong number.
-          <div className="ws-display mt-1 max-w-full px-3 text-center text-[clamp(22px,2.2vw,32px)] leading-[1.25] tracking-[-0.02em] text-balance text-white/45">
-            {t("couldntLoad")}
-          </div>
-        ) : (
-          <>
-            {/* The figure takes the stack's full width and centres itself, so
-                a long currency (naira at a six-figure total) has the card's
-                own side padding as clearance instead of ending flush. The
-                clamp floor drops to 34px for the same reason: at the narrow
-                desktop column 40px was wider than the card. */}
-            <div
-              className="ws-poster ws-balance-ink tnum w-full px-2 text-center text-[clamp(34px,4.6vw,64px)] leading-[1.08] tracking-[-0.02em] break-words"
-              data-sensitive="balance"
-            >
-              {formatMasked(totalUsd)}
+      <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          {loading ? (
+            // The same two lines at the same sizes as the loaded total, so
+            // the number lands in a box that already had its height. The old
+            // 52px bar was 39px short of the total plus its spendable line.
+            <div aria-hidden="true">
+              <div className="ws-display text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]">
+                <SkeletonLine width="w-44" className="rounded-xl" />
+              </div>
+              <div className="mt-2.5 text-[15.5px] font-normal">
+                <SkeletonLine width="w-52" />
+              </div>
             </div>
-            {/* What a purchase can actually draw on. Shown even at zero, in the
-                selected currency, so an empty spendable balance is stated
-                rather than silently missing. The side padding and the looser
-                leading are for the long locales: "disponible para gastar" runs
-                to a second line on a narrow column and needs room around it. */}
-            <div className="tnum mt-2 max-w-full px-3 text-center text-[13px] leading-[1.45] font-normal text-white/45">
-              {t("readyToSpend", { amount: formatMasked(readyToSpend) })}
+          ) : errored ? (
+            // A failed fetch and a genuinely empty wallet both leave totalUsd
+            // at 0 — showing "$0.00" here would read as "your funds are
+            // gone." Say so isn't known instead of asserting a wrong number.
+            <div className="ws-display text-[28px] leading-none tracking-[-0.02em] text-white/45">
+              {t("couldntLoad")}
             </div>
-          </>
-        )}
-
-        {/* The design draws this row 381px wide with the labels centred and no
-            padding of their own, which only works because "Add funds" is
-            short. The pills carry 24px of their own side padding now, and the
-            row is allowed the extra width the longest locale needs, so a
-            French or Portuguese label sits inside the pill rather than filling
-            it edge to edge. Past that the row wraps and each pill takes a line,
-            which is still better than two crushed ones. */}
-        <div className="mt-[16px] flex w-full max-w-[452px] flex-wrap items-stretch justify-center gap-[12.23px]">
+          ) : (
+            <div>
+              <div
+                className="ws-display tnum text-[clamp(40px,5vw,58px)] leading-none tracking-[-0.02em]"
+                data-sensitive="balance"
+              >
+                {formatMasked(totalUsd)}
+              </div>
+              {/* Shown even at zero, in the selected currency, so an empty
+                  spendable balance is stated rather than silently missing. */}
+              <div className="tnum mt-2.5 text-[15.5px] font-normal text-white/60">
+                {t("readyToSpend", { amount: formatMasked(readyToSpend) })}
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="flex w-full gap-2 min-[560px]:w-auto">
           <button
-            data-tour="add-funds"
             onClick={onOpenFunds}
-            className="ws-pressable ws-chrome-pill text-ink flex grow basis-[191px] cursor-pointer items-center justify-center gap-[12.23px] px-[24px] py-[19.88px] font-serif text-[21px] leading-[1.1] font-semibold tracking-[-0.21px] whitespace-nowrap"
+            className="text-ink flex-1 cursor-pointer rounded-xl bg-white px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap hover:opacity-90 min-[560px]:flex-none"
           >
-            <span className="block size-[26.49px] shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/market/balance-icon-add-funds.svg" alt="" className="size-full" />
-            </span>
             {t("addFunds")}
           </button>
           <button
             onClick={onOpenWithdraw}
             disabled={withdrawHeld}
-            className="ws-pressable flex grow basis-[177px] cursor-pointer items-center justify-center gap-[8px] rounded-full border-[1.53px] border-white bg-white/6 px-[24px] py-[19.88px] font-serif text-[21px] leading-[1.1] font-semibold tracking-[-0.21px] whitespace-nowrap text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="flex-1 cursor-pointer rounded-xl border border-white/14 bg-white/6 px-4 py-2.5 font-sans text-[13px] font-medium whitespace-nowrap text-white hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white/6 min-[560px]:flex-none"
           >
-            <span className="block size-[26.49px] shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/market/balance-icon-withdraw.svg" alt="" className="size-full" />
-            </span>
             {t("withdraw")}
           </button>
         </div>
-
-        {depositPending ? (
-          <div className="mt-3 flex max-w-[420px] items-start gap-2 px-2 text-[12.5px] leading-[1.5] font-normal text-white/55">
-            <span className="bg-accent mt-1.5 size-1.5 shrink-0 animate-pulse rounded-full" />
-            {t("depositPending")}
-          </div>
-        ) : null}
-
-        {/* The allocation ring, folded away. With nothing held there is nothing
-            to disclose, so the row is not drawn at all rather than opening on
-            an empty chart. */}
-        {canBreakdown ? (
-          <>
-            <button
-              onClick={() => setShowBreakdown((open) => !open)}
-              aria-expanded={showBreakdown}
-              className="ws-pressable mt-[12px] flex max-w-full cursor-pointer items-center justify-center gap-[8px] rounded-full px-[16px] py-[7px] text-center font-serif text-[15px] leading-[1.35] font-medium tracking-[-0.075px] text-[#7a7a7a]"
-            >
-              <span className="block size-[4.59px] shrink-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/market/balance-icon-dot.svg" alt="" className="size-full" />
-              </span>
-              {t("portfolioAllocation")}
-              <span
-                className={`grid size-[21.4px] shrink-0 place-items-center transition-transform duration-150 ${
-                  showBreakdown ? "rotate-180" : ""
-                }`}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/market/balance-icon-chevron-down.svg"
-                  alt=""
-                  aria-hidden
-                  className="h-[6.5px] w-[12.04px]"
-                />
-              </span>
-            </button>
-            {showBreakdown ? (
-              <div className="mt-4 w-full">
-                <PortfolioDonut tokens={tokens} />
-              </div>
-            ) : null}
-          </>
-        ) : null}
       </div>
 
-      {holdings.host}
+      {depositPending ? (
+        <div className="mt-3 flex items-center gap-2 text-[12.5px] font-normal text-white/55">
+          <span className="bg-accent h-1.5 w-1.5 shrink-0 animate-pulse rounded-full" />
+          {t("depositPending")}
+        </div>
+      ) : null}
+
+      {/* The ring's space is held while loading. A wallet that turns out to be
+          empty gives it back, which is the one case that still moves, and it
+          moves once; a funded wallet, the common case, lands without a jump. */}
+      {loading || (!errored && tokens.length > 0) ? (
+        <div className="mt-[22px]">
+          <div className="mb-3.5 flex items-center gap-2 text-[12px] font-normal text-white/45">
+            <span className="bg-accent h-1 w-1 rounded-full" />
+            {t("breakdownTitle")}
+          </div>
+          {loading ? <PortfolioDonutSkeleton /> : <PortfolioDonut tokens={tokens} />}
+        </div>
+      ) : null}
     </div>
   );
 }

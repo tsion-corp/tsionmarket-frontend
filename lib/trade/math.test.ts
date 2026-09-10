@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  closeFee,
-  estimatedWithdrawalFee,
-  formatCompactUsd,
-  formatUsd,
   fromBaseUnits,
   liquidationPrice,
   openFee,
@@ -93,102 +89,12 @@ describe("receiveFromPrices", () => {
 
 describe("openFee", () => {
   it("is a flat rate on the notional size", () => {
-    expect(openFee(10_000)).toBeCloseTo(8);
-    expect(openFee(2500)).toBeCloseTo(2);
+    expect(openFee(10_000)).toBeCloseTo(6);
+    expect(openFee(2500)).toBeCloseTo(1.5);
   });
 
   it("is zero for a non-positive size", () => {
     expect(openFee(0)).toBe(0);
     expect(openFee(-100)).toBe(0);
-  });
-});
-
-describe("closeFee", () => {
-  it("charges the same flat rate as openFee — both legs of a round trip", () => {
-    expect(closeFee(10_000)).toBeCloseTo(8);
-    expect(closeFee(2500)).toBeCloseTo(2);
-  });
-
-  it("is zero for a non-positive size", () => {
-    expect(closeFee(0)).toBe(0);
-    expect(closeFee(-100)).toBe(0);
-  });
-});
-
-describe("estimatedWithdrawalFee", () => {
-  it("is the $1 flat fee plus 0.2% of what's left after it", () => {
-    // $101 -> $1 flat + 0.2% of the remaining $100 = $1.20
-    expect(estimatedWithdrawalFee(101)).toBeCloseTo(1.2);
-    // $10 -> $1 flat + 0.2% of the remaining $9 = $1.018
-    expect(estimatedWithdrawalFee(10)).toBeCloseTo(1.018);
-  });
-
-  it("never charges more than the flat fee when the amount is below it", () => {
-    expect(estimatedWithdrawalFee(0.5)).toBeCloseTo(0.5);
-  });
-
-  it("is zero for a non-positive amount", () => {
-    expect(estimatedWithdrawalFee(0)).toBe(0);
-    expect(estimatedWithdrawalFee(-5)).toBe(0);
-  });
-});
-
-describe("formatUsd", () => {
-  it("puts the sign before the currency symbol, not inside the number", () => {
-    // toLocaleString on a negative value alone would read "$-1.00" — the
-    // sign has to move outside the "$" for a loss to read naturally.
-    expect(formatUsd(-1)).toBe("-$1.00");
-    expect(formatUsd(-0.00819)).toBe("-$0.00819");
-  });
-
-  it("shows a positive value with no sign", () => {
-    expect(formatUsd(1)).toBe("$1.00");
-    expect(formatUsd(0.0091)).toBe("$0.0091");
-  });
-
-  it("shows more decimals for smaller magnitudes so a small value never rounds to zero", () => {
-    expect(formatUsd(0.5)).toBe("$0.50");
-    expect(formatUsd(0.001234)).toBe("$0.001234");
-  });
-
-  it("falls back to $0.00 for a non-finite value", () => {
-    expect(formatUsd(NaN)).toBe("$0.00");
-    expect(formatUsd(Infinity)).toBe("$0.00");
-  });
-});
-
-// The design draws a plain "$" and an uppercase single-letter magnitude:
-// "$1.3T", "$301.9B". These assertions are what pins that down, because the
-// shape used to follow the runtime's locale, and an en-GB browser rendered the
-// same market cap "US$1.58tn".
-describe("formatCompactUsd", () => {
-  it("shortens trillions", () => {
-    expect(formatCompactUsd(1_580_000_000_000)).toBe("$1.6T");
-  });
-
-  it("shortens billions", () => {
-    expect(formatCompactUsd(303_470_000_000)).toBe("$303.5B");
-    expect(formatCompactUsd(99_840_000_000)).toBe("$99.8B");
-  });
-
-  it("shortens millions", () => {
-    expect(formatCompactUsd(1_234_567)).toBe("$1.2M");
-  });
-
-  it("shortens thousands", () => {
-    expect(formatCompactUsd(2_500)).toBe("$2.5K");
-  });
-
-  it("shows zero as a plain figure, not a dash", () => {
-    expect(formatCompactUsd(0)).toBe("$0");
-  });
-
-  it("puts the sign of a negative value outside the symbol", () => {
-    expect(formatCompactUsd(-61_480.14)).toBe("-$61.5K");
-  });
-
-  it("falls back to a dash for a non-finite value", () => {
-    expect(formatCompactUsd(NaN)).toBe("—");
-    expect(formatCompactUsd(Infinity)).toBe("—");
   });
 });

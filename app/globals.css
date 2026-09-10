@@ -35,9 +35,6 @@
   --color-down-ink: #2a0e0e;
   /* Dark text on light (silver/white) buttons. Neutral near-black now. */
   --color-ink: #0a0a0a;
-  /* Kash yellow. Rings the round carousel controls on focus and edges the
-     Kash card's actions, as the Market design draws them. */
-  --color-kash: #ffd62f;
   /* Small directional glyphs. Neutral grey, was green. */
   --color-arrow: #8a8a8f;
   --color-panel: #0a0a0a;
@@ -65,66 +62,9 @@
   --color-input: #33333a;
   --color-ring: #d4d4d8;
   --color-destructive: #ef4444;
-
-  /* Roll Out 2.0 desktop. Buy and Sell are actions, not price movement, and the
-     design paints them far more saturated than the gain and loss text colours
-     above. They stay separate tokens so restyling a button never touches a
-     price delta. */
-  --color-buy: #0ecb81;
-  --color-sell: #d93025;
-
-  /* The surfaces every 2.0 panel is built from: the white wash that fills a
-     card, the step up it takes when a segment is selected, the border that
-     edges it, and the lighter hairline that only divides rows inside a table.
-     These values were already baked into the ws-card and ws-glass utilities,
-     which covers a whole card but not a component that needs just the fill or
-     just the border. */
-  --color-surface: rgba(255, 255, 255, 0.05);
-  --color-surface-strong: rgba(255, 255, 255, 0.1);
-  --color-hairline: rgba(255, 255, 255, 0.12);
-  --color-rule: rgba(255, 255, 255, 0.07);
-  /* The trade panel's position details card is edged in amber instead of white.
-     It is its own yellow, duller than --color-kash, so it cannot be derived
-     from the Kash token. */
-  --color-hairline-amber: rgba(234, 188, 60, 0.1);
-
-  /* Topbar. The bar is a flat band, not a gradient: the sunburst is a vector
-     starburst laid over it in white at 4%, fading out down the band.
-     --color-topbar is the band, --color-topbar-ray is the ray tint, and
-     --color-topbar-pill is the darker fill on the language and bell buttons,
-     which sit on the band rather than on the page's black. */
-  --color-topbar: #232323;
-  --color-topbar-ray: rgba(255, 255, 255, 0.04);
-  --color-topbar-pill: rgba(0, 0, 0, 0.19);
-
-  /* 20px is the corner the 2.0 desktop repeats on every card: the asset table,
-     the Arkade tiles, and both cards inside the trade panel. Tailwind's radius
-     scale jumps straight from 16px to 24px, so it had no name until now. */
-  --radius-card: 20px;
-
-  /* The frame. Everything the app draws sits inside a column no wider than
-     this, centred on a wider screen; the canvas outside it is the page's own
-     black. Chrome that is fixed to the viewport (the rail, the support
-     bubble, the connection banner) offsets itself by --ws-frame-inset, the
-     margin the column leaves on each side, so it stays inside the frame too.
-     Overlays that dim the whole screen stay at the viewport's edges. */
-  --ws-frame-max: 2000px;
-  --ws-frame-inset: max(0px, calc((100vw - var(--ws-frame-max)) / 2));
-}
-
-/* The root element is the frame: the whole document, body and all, sits in
-   this column and is centred on a wider screen. Position: fixed measures from
-   the viewport regardless, which is why fixed chrome offsets itself by
-   --ws-frame-inset. */
-html {
-  width: 100%;
-  max-width: var(--ws-frame-max);
-  margin-inline: auto;
-  background: #000;
 }
 
 body {
-  width: 100%;
   background: #000;
   color: #fff;
   font-family: var(--font-sans), sans-serif;
@@ -210,123 +150,6 @@ body {
   backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
-}
-
-/* The properties an interactive control animates, held in one token because two
-   rules need the identical list: the ws-pressable utility below, and the global
-   button rule further down that has to restate it.
-
-   transition-property is not additive. Whichever rule wins the cascade sets the
-   whole list and every property missing from it changes with no transition at
-   all. A control that lifts on hover and also changes colour therefore needs one
-   list naming both, or one half of the hover snaps. The list is the set
-   Tailwind's plain `transition` utility covers, less the discrete properties
-   (display, overlay, pointer-events) that do nothing without
-   transition-behavior. */
-:root {
-  --ws-transition-tint:
-    color, background-color, border-color, outline-color, text-decoration-color, fill, stroke,
-    opacity, box-shadow, filter, -webkit-backdrop-filter, backdrop-filter;
-  --ws-transition-props: var(--ws-transition-tint), transform, translate, scale, rotate;
-}
-
-/* Under reduced motion nothing may move, so the transform family drops out of
-   the list. Colour and opacity still cross-fade, which is not motion. */
-@media (prefers-reduced-motion: reduce) {
-  :root {
-    --ws-transition-props: var(--ws-transition-tint);
-  }
-}
-
-/* A pointer press for every pill, card and control: a small lift on hover, a
-   settle on active. Reduced motion keeps the press but drops the travel. */
-@utility ws-pressable {
-  /* Longhands, not the transition shorthand. The shorthand also resets
-     transition-duration and transition-timing-function, which threw away any
-     duration-* or ease-* class the element carried. Reading Tailwind's own
-     --tw-duration and --tw-ease keeps those classes working, and the fallbacks
-     are the press timing for everything else. */
-  transition-property: var(--ws-transition-props);
-  transition-timing-function: var(--tw-ease, cubic-bezier(0.2, 0.8, 0.3, 1));
-  transition-duration: var(--tw-duration, 180ms);
-
-  &:hover {
-    transform: translateY(-2px) scale(1.02);
-  }
-
-  &:active {
-    transform: translateY(0) scale(0.99);
-  }
-
-  &:disabled,
-  &[aria-disabled="true"] {
-    transform: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    &:hover,
-    &:active {
-      transform: none;
-    }
-
-    &:hover {
-      opacity: 0.85;
-    }
-  }
-}
-
-/* The balance figure and the headline on each illustrated card. The 2.0 design
-   drew these in Chewy; production keeps its own type, so they sit on the
-   display face, bold, like every other heading. */
-@utility ws-chewy {
-  font-family: var(--font-serif), sans-serif;
-  font-weight: 700;
-}
-
-@utility ws-poster {
-  font-family: var(--font-serif), sans-serif;
-  font-weight: 700;
-}
-
-/* The heading above a discovery shelf: the display face, bold. */
-@utility ws-discovery-title {
-  font-family: var(--font-serif), sans-serif;
-  font-weight: 700;
-}
-
-/* The balance figure's fill: white at the cap height falling to grey at the
-   baseline. Painted on the text itself, so it needs the clip. A text-shadow on
-   text using this lands on top of the letters; use filter: drop-shadow instead. */
-@utility ws-balance-ink {
-  background-image: linear-gradient(to bottom, #ffffff, #c4c4c4);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-/* The arena card's headline: white falling to the design's pale violet. */
-@utility ws-arena-ink {
-  background-image: linear-gradient(99.3123deg, #ffffff 1.5687%, #e3c0ff 96.946%);
-  background-clip: text;
-  -webkit-background-clip: text;
-  color: transparent;
-}
-
-/* The same brushed chrome as .ws-chrome, but at every width. The desktop Market
-   design puts this treatment on the balance card's primary action, so it cannot
-   be gated to phones the way .ws-chrome is. */
-@utility ws-chrome-pill {
-  background-image: linear-gradient(
-    178.96deg,
-    #ffffff 2.36%,
-    #ededf0 38.57%,
-    #cbcbd1 62.39%,
-    #f5f5f8 97.64%
-  );
-  box-shadow:
-    inset 0 1.24px 0 rgba(255, 255, 255, 0.95),
-    0 2.49px 4.97px rgba(0, 0, 0, 0.5);
-  border-radius: 9999px;
 }
 
 @utility ws-no-scrollbar {
@@ -615,8 +438,8 @@ body {
 }
 
 /* Product owner: a light-purple shine that ripples inside any button when it
-   is clicked (the ripple element is injected by ClickRipple). Applies to every
-   button; opt out with data-no-ripple. */
+   is clicked (the ripple element is injected by ClickRipple), plus a soft
+   purple glow on hover. Applies to every button; opt out with data-no-ripple. */
 @keyframes ws-ripple {
   0% {
     transform: scale(0);
@@ -646,45 +469,18 @@ body {
   will-change: transform, opacity;
 }
 
-/* Hover feedback for every button, with no shadow of any kind. The redesign has
-   one hover treatment, the ws-pressable lift, so the global default is that same
-   utility: a button that already carries ws-pressable gets the identical values
-   rather than a second effect stacked on top.
-
-   The lift itself is declared in the base layer and wrapped in :where, so it is
-   the weakest rule in the stylesheet and any component that wants a different
-   hover transform simply overrides it. Opt out with data-no-ripple, the
-   attribute the click ripple already honours. */
-@layer base {
-  @media (hover: hover) {
-    :where(button:not([data-no-ripple]), [role="button"]:not([data-no-ripple])) {
-      @apply ws-pressable;
-    }
-  }
-}
-
-/* The timing has to be stated a second time, and this copy is deliberately
-   unlayered so it outranks the utilities layer.
-
-   Roughly 435 buttons in the app carry transition-colors. That utility sets
-   transition-property to the colour list only, and the utilities layer beats the
-   base layer, so it replaced the list above wholesale: transform was not in the
-   winning list, the hover lift got no transition, and it jumped to its final
-   position in one frame. That is the hover that was reported as not smooth. The
-   mirror case is just as bad, a button with no transition class at all took
-   transform and opacity from ws-pressable and snapped its hover background.
-
-   Setting the three longhands here rather than the transition shorthand is what
-   makes this safe. --ws-transition-props names the colour properties as well as
-   the transform ones, so the colour change keeps easing instead of snapping, and
-   the duration and easing are read from Tailwind's own variables, so a
-   duration-* or ease-* class on the button still decides its own timing. */
 @media (hover: hover) {
-  button:not([data-no-ripple]),
-  [role="button"]:not([data-no-ripple]) {
-    transition-property: var(--ws-transition-props);
-    transition-timing-function: var(--tw-ease, cubic-bezier(0.2, 0.8, 0.3, 1));
-    transition-duration: var(--tw-duration, 180ms);
+  /* A soft light-purple lift on hover for every button. The brighter ringed
+     treatment is opt-in via .ws-btn-hover, so the global default does not
+     outline every icon and nav row. */
+  button:not(:disabled):not([data-no-ripple]):hover,
+  [role="button"]:not([data-no-ripple]):hover {
+    box-shadow: 0 4px 20px -8px rgba(167, 139, 250, 0.55);
+  }
+  .ws-btn-hover:not(:disabled):hover {
+    box-shadow:
+      0 0 0 1px rgba(167, 139, 250, 0.4),
+      0 6px 22px -6px rgba(167, 139, 250, 0.6);
   }
 }
 

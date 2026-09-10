@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
+import { useEffect } from "react";
 
 // Signing is headless on Base, so this dialog is the user's only checkpoint
 // before money moves.
@@ -22,8 +21,6 @@ interface ConfirmDialogProps {
   onContinue: () => void;
 }
 
-const subscribeToClient = () => () => {};
-
 export function ConfirmDialog({
   title,
   rows,
@@ -33,12 +30,6 @@ export function ConfirmDialog({
   onCancel,
   onContinue,
 }: ConfirmDialogProps) {
-  const mounted = useSyncExternalStore(
-    subscribeToClient,
-    () => true,
-    () => false
-  );
-
   // Escape cancels — the safe default for a money confirmation.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -48,14 +39,12 @@ export function ConfirmDialog({
     return () => window.removeEventListener("keydown", onKey);
   }, [onCancel]);
 
-  if (!mounted) return null;
-
-  return createPortal(
+  return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[400] flex items-center justify-center p-4"
     >
       <button
         aria-label={cancelLabel}
@@ -97,7 +86,6 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 }

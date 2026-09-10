@@ -35,8 +35,6 @@ describe("authenticated user route", () => {
           type: "wallet",
           address: "0x1111111111111111111111111111111111111111",
           chain_type: "ethereum",
-          delegated: true,
-          id: "server-wallet-1",
         },
       ],
     };
@@ -57,8 +55,6 @@ describe("authenticated user route", () => {
           {
             address: "0x1111111111111111111111111111111111111111",
             chainType: "ethereum",
-            delegated: true,
-            id: "server-wallet-1",
           },
         ],
       },

@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { wsapiService } from "@/lib/wsapi-base";
-import { isSafeProxyPath } from "@/lib/server/proxy-path";
 
 // Proxy for the prediction-market read + metadata service. The gateway sends no
 // CORS headers, so browser calls route through our origin like every other
@@ -37,19 +36,7 @@ function notConfigured() {
 async function forward(req: NextRequest, method: "GET" | "POST") {
   if (!BASE) return notConfigured();
   const { pathname, search } = req.nextUrl;
-  if (!pathname.startsWith("/api/prediction/")) {
-    return NextResponse.json(
-      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path" } },
-      { status: 400, headers: { "cache-control": NO_STORE } }
-    );
-  }
   const joined = pathname.replace(/^\/api\/prediction\//, "");
-  if (!isSafeProxyPath(joined)) {
-    return NextResponse.json(
-      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path" } },
-      { status: 400, headers: { "cache-control": NO_STORE } }
-    );
-  }
 
   const auth = req.headers.get("authorization");
   // The client sends the idempotency key twice (canonical + x-fallback) because
