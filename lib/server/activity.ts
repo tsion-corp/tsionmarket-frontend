@@ -122,13 +122,12 @@ async function rpc<T>(network: string, method: string, params: unknown): Promise
 // ETH moves internally and an external+erc20 query never sees it. Fetched as its
 // own call, so a network that does not index internal transfers can only lose
 // that extra list, never the main one.
-const INTERNAL_NETWORKS = new Set([
-  "base-mainnet",
-  "eth-mainnet",
-  "arb-mainnet",
-  "opt-mainnet",
-  "polygon-mainnet",
-]);
+// Alchemy's transfer index carries the "internal" category on these three
+// only. Asked for it on Arbitrum or Optimism it answers "The 'internal'
+// category is not supported for this network" (seen live on 2026-09-10), so
+// asking there is two wasted calls per direction and, on a sweep that reports
+// every failed source, a history marked incomplete on every load.
+const INTERNAL_NETWORKS = new Set(["base-mainnet", "eth-mainnet", "polygon-mainnet"]);
 
 // One direction of transfers on one network, newest first. Alchemy indexes sends
 // and receives separately, so each direction is its own query.

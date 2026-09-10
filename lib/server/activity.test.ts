@@ -250,6 +250,34 @@ describe("fetchActivity snapshot window", () => {
     vi.useRealTimers();
   });
 
+  // Alchemy's transfer index refuses the "internal" category on Arbitrum and
+  // Optimism ("The 'internal' category is not supported for this network",
+  // seen live on 2026-09-10). Here the refusal was swallowed and cost four
+  // wasted calls per sweep; on staging, which reports every failed source, it
+  // marked both networks unavailable on every load. The sweep must not ask.
+  it("asks only the networks that index internal transfers for them", async () => {
+    const { fetchActivity } = await import("@/lib/server/activity");
+    await fetchActivity("0x1111111111111111111111111111111111111111", undefined);
+    const internalHosts = vi
+      .mocked(fetch)
+      .mock.calls.filter((call) => {
+        const body = JSON.parse(String((call[1] as RequestInit).body)) as {
+          params: { category: string[] }[];
+        };
+        return body.params[0].category.includes("internal");
+      })
+      .map((call) => new URL(String(call[0])).host.split(".")[0])
+      .sort();
+    expect(internalHosts).toEqual([
+      "base-mainnet",
+      "base-mainnet",
+      "eth-mainnet",
+      "eth-mainnet",
+      "polygon-mainnet",
+      "polygon-mainnet",
+    ]);
+  });
+
   it("serves a wallet's history from one sweep for five minutes", async () => {
     const { fetchActivity } = await import("@/lib/server/activity");
     const wallet = "0x1111111111111111111111111111111111111111";
