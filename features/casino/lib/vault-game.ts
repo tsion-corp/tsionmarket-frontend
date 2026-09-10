@@ -1,11 +1,15 @@
-import type { TokenAmount, VaultGame } from "@/features/casino/lib/vault-api";
-import type { ChainGame } from "@/lib/vault/read";
+import type {
+  TokenAmount,
+  VaultActivity,
+  VaultGame,
+  VaultWinner,
+} from "@/features/casino/lib/vault-api";
 
 // The shape the lobby renders: the vault API's view of a game, with USD
-// figures. The vault's own domain Game carries potWei and minWagerWei
-// instead, and the socket feed has published that shape, so a row is checked
-// here before any component can read pot.usdValue from it. Two boundaries
-// use this: the REST list and the socket snapshot.
+// figures. The socket hub has published the contract's own shape instead
+// (potWei, minWagerWei), so a row is checked here before any component can
+// read pot.usdValue from it. Two boundaries use this: the REST list and the
+// socket snapshot.
 
 function isTokenAmount(value: unknown): value is TokenAmount {
   if (!value || typeof value !== "object") return false;
@@ -42,11 +46,66 @@ export function onlyVaultGames(value: unknown): VaultGame[] {
   return value.filter(isVaultGame);
 }
 
+// The service records a winner or a starter as null when a log did not carry
+// it. A row like that has nothing to name and nothing to link, and rendered
+// as-is it took the page down on `address.length`. Rows are checked here, at
+// the boundary, and a malformed one is dropped rather than drawn half-empty.
+function isVaultWinner(value: unknown): value is VaultWinner {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.gameId === "number" &&
+    typeof v.winner === "string" &&
+    typeof v.starter === "string" &&
+    isTokenAmount(v.pot) &&
+    isTokenAmount(v.toWinner) &&
+    (v.paidToWinner === undefined || isTokenAmount(v.paidToWinner)) &&
+    typeof v.settlementTx === "string" &&
+    typeof v.settledAt === "string"
+  );
+}
+
+export function onlyVaultWinners(value: unknown): VaultWinner[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isVaultWinner);
+}
+
+const ACTIONS = new Set(["started", "joined", "won"]);
+
+function isVaultActivity(value: unknown): value is VaultActivity {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.id === "string" &&
+    typeof v.gameId === "number" &&
+    typeof v.action === "string" &&
+    ACTIONS.has(v.action) &&
+    typeof v.address === "string" &&
+    typeof v.amountWei === "string" &&
+    typeof v.transactionHash === "string" &&
+    typeof v.createdAt === "string"
+  );
+}
+
+export function onlyVaultActivities(value: unknown): VaultActivity[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isVaultActivity);
+}
+
+// The contract's own view of a game, as the socket hub publishes it: amounts
+// in wei, as strings on the wire. Priced by the lobby with the ETH price it
+// holds, since the hub cannot know dollars.
+export interface ChainGame {
+  gameId: number;
+  starter: string;
+  king: string;
+  potWei: bigint;
+  minWagerWei: bigint;
+  endTime: number;
+}
+
 const WEI = /^\d+$/;
 
-// The contract's own view of a game, as the chain reader and the socket hub
-// both publish it: amounts in wei, as strings on the wire. Priced later by
-// mergeGames with the ETH price the lobby holds.
 export function toChainGame(value: unknown): ChainGame | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;

@@ -4,11 +4,19 @@
 //
 // v4 runs many games at once, each with its own `gameId`, pot, timer and king.
 // The reads here are the lobby (`/games`), one game (`/games/:id`) and the two
-// cross-game feeds that stayed singular (winners, activities).
+// cross-game feeds that stayed singular (winners, activities). The service
+// is the source of truth for reading (ADR-2026-09-10-last-man-backend-reads);
+// the contract is only read where the service cannot answer.
 
 import { createServiceClient } from "@/lib/api/service";
-import { isVaultGame, onlyVaultGames, toChainGame } from "@/features/casino/lib/vault-game";
-import type { ChainGame } from "@/lib/vault/read";
+import { errorStatus } from "@/lib/api/envelope";
+import {
+  isVaultGame,
+  onlyVaultActivities,
+  onlyVaultGames,
+  onlyVaultWinners,
+} from "@/features/casino/lib/vault-game";
+import { vaultLog } from "@/features/casino/lib/last-standing/log";
 
 export interface TokenAmount {
   amount: string;
@@ -32,12 +40,20 @@ export interface VaultGame {
   active: boolean;
 }
 
+// A settled game as the service records it. `toWinner` is the winner's share
+// alone; `paidToWinner` is what settle() actually sent that wallet, the
+// starter's share included when the same wallet opened the game. The three
+// optional splits arrived with the 2026-09-10 service; older rows carry only
+// `toWinner`.
 export interface VaultWinner {
   gameId: number;
   winner: string;
   starter: string;
   pot: TokenAmount;
   toWinner: TokenAmount;
+  toStarter?: TokenAmount;
+  toTreasury?: TokenAmount;
+  paidToWinner?: TokenAmount;
   settlementTx: string;
   settledAt: string;
 }
@@ -47,10 +63,8 @@ export type VaultActivityAction = "started" | "joined" | "won";
 
 export interface VaultActivity {
   id: string;
-  // Which game the action belongs to. The chain always knows; the indexed
-  // feed does not carry it yet, so a game's own feed can only show rows the
-  // chain attributed.
-  gameId?: number;
+  // Which game the action belongs to; every indexed row carries it.
+  gameId: number;
   action: VaultActivityAction;
   address: string;
   amountWei: string;
@@ -63,21 +77,15 @@ export interface VaultActivity {
 // polling the lobby cost the gateway one request per path per second rather
 // than a thousand. Every read here is public, so none need the caller's
 // session.
-const vault = createServiceClient("/api/vault", "The vault is unavailable right now.");
+// A read that has not answered in fifteen seconds is not going to: on a bad
+// connection the poll gives up, the screen shows its degraded state, and the
+// next poll tries again, instead of a request hanging for minutes with the
+// clock frozen and nothing said.
+const vault = createServiceClient("/api/vault", "The vault is unavailable right now.", {
+  timeoutMs: 15_000,
+});
 
-// The lobby: games currently accepting joins, newest first.
-// The live games as the contract holds them, read on the server once for
-// everyone (app/api/vault/chain-games). Same wire shape as the socket hub.
-export async function fetchChainGames(): Promise<ChainGame[]> {
-  const data = await vault.get<{ games: unknown }>("/chain-games");
-  const rows = Array.isArray(data.games) ? data.games : [];
-  const games = rows.map(toChainGame).filter((game): game is ChainGame => game !== null);
-  if (games.length !== rows.length) {
-    console.warn(`[vault] dropped ${rows.length - games.length} chain-games row(s) not in shape`);
-  }
-  return games;
-}
-
+/** The lobby: games currently accepting joins, newest first. */
 export async function fetchActiveGames(): Promise<VaultGame[]> {
   const data = await vault.get<{ games: unknown }>("/games");
   const rows = onlyVaultGames(data.games);
@@ -85,21 +93,95 @@ export async function fetchActiveGames(): Promise<VaultGame[]> {
   if (rows.length !== total) {
     console.warn(`[vault] dropped ${total - rows.length} /games row(s) not in the API shape`);
   }
+  vaultLog("REST /games", { games: rows.map((g) => g.gameId) });
   return rows;
 }
 
+/**
+ * One game. The service serves the indexed row and falls through to the
+ * contract for an id the index has not caught up with, so a 404 means the id
+ * was never used: see `isVaultNotFound`.
+ */
 export async function fetchGame(gameId: number): Promise<VaultGame> {
   const data = await vault.get<{ game: unknown }>(`/games/${gameId}`);
   if (!isVaultGame(data.game)) throw new Error("The vault returned a game in an unexpected shape.");
+  vaultLog(`REST /games/${gameId}`, {
+    active: data.game.active,
+    settled: data.game.settled,
+    king: data.game.king,
+    pot: data.game.pot.amount,
+  });
   return data.game;
 }
 
+/** True when the service answered that no such game exists. */
+export function isVaultNotFound(error: unknown): boolean {
+  return errorStatus(error) === 404;
+}
+
+// The owner-tunable contract parameters, read by the service from the chain
+// and cached there. Every one of them has changed since deployment, so the
+// screens read them rather than assume.
+export interface VaultConfig {
+  contract: string;
+  minStartStakeWei: string;
+  /** Round length in seconds; a wager resets the clock to this. */
+  timerSeconds: number;
+  winnerBps: number;
+  starterBps: number;
+  treasuryBps: number;
+  paused: boolean;
+}
+
+export async function fetchVaultConfig(): Promise<VaultConfig> {
+  const data = await vault.get<VaultConfig>("/config");
+  vaultLog("REST /config", {
+    minStartStakeWei: data.minStartStakeWei,
+    timerSeconds: data.timerSeconds,
+    split: [data.winnerBps, data.starterBps, data.treasuryBps],
+    paused: data.paused,
+  });
+  return data;
+}
+
+// One wallet's standing. `pendingWei` is what settle() could not push and
+// claim() collects; the service reads it from the contract on every call, so
+// it is authoritative without the browser making the read itself.
+export interface VaultPlayer {
+  address: string;
+  pendingWei: string;
+  pending: TokenAmount;
+  gamesStarted: number;
+  gamesWon: number;
+  paidWei: string;
+  paid: TokenAmount;
+  lastGameId: number | null;
+}
+
+export async function fetchVaultPlayer(address: string): Promise<VaultPlayer> {
+  const data = await vault.get<VaultPlayer>(`/players/${address}`);
+  vaultLog("REST /players", { address, pendingWei: data.pendingWei, gamesWon: data.gamesWon });
+  return data;
+}
+
 export async function fetchVaultWinners(): Promise<VaultWinner[]> {
-  const data = await vault.get<{ winners: VaultWinner[] }>("/game/winners");
-  return data.winners;
+  const data = await vault.get<{ winners: unknown }>("/game/winners");
+  const rows = onlyVaultWinners(data.winners);
+  const total = Array.isArray(data.winners) ? data.winners.length : 0;
+  if (rows.length !== total) {
+    console.warn(`[vault] dropped ${total - rows.length} /game/winners row(s) not in shape`);
+  }
+  vaultLog("REST /game/winners", { rows: rows.length });
+  return rows;
 }
 
 export async function fetchVaultActivities(): Promise<VaultActivity[]> {
-  const data = await vault.get<{ activities: VaultActivity[] }>("/game/activities");
-  return data.activities;
+  const data = await vault.get<{ activities: unknown }>("/game/activities");
+  const rows = onlyVaultActivities(data.activities);
+  const total = Array.isArray(data.activities) ? data.activities.length : 0;
+  if (rows.length !== total) {
+    console.warn(`[vault] dropped ${total - rows.length} /game/activities row(s) not in shape`);
+  }
+  vaultLog("REST /game/activities", { rows: rows.length });
+  return rows;
 }

@@ -57,3 +57,18 @@ export function applyTransfers(
   if (!changed) return portfolio;
   return { totalUsd: tokens.reduce((sum, t) => sum + t.valueUsd, 0), tokens };
 }
+
+// Native value sent or received by a transaction leaves no log; the caller
+// knows the amount (a stake is the value it sent, a payout is what the
+// winners row says) and moves that network's native row by it.
+export function applyNativeDelta(
+  portfolio: Portfolio,
+  network: string,
+  deltaWei: bigint
+): Portfolio {
+  if (deltaWei === 0n) return portfolio;
+  const index = portfolio.tokens.findIndex((row) => row.network === network && !row.address);
+  if (index === -1) return portfolio;
+  const tokens = portfolio.tokens.map((row, i) => (i === index ? moved(row, deltaWei) : row));
+  return { totalUsd: tokens.reduce((sum, t) => sum + t.valueUsd, 0), tokens };
+}

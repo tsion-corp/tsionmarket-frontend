@@ -338,3 +338,30 @@ Status as of 16 August 2026, 03:00 UTC, after the redeploy.
 - [ ] 6. `GameSettled` and `WagerPlaced` indexed (both exist; the upgrade ask is withdrawn)
 - [ ] 7. Socket frames captured on a real game and confirmed against the table
 - [ ] 8. Parameters, payout behaviour, `GameOver` vs `AlreadySettled`, and the `gameSettled` frame's field names in the API docs
+
+---
+
+## Re-check, 10 September 2026
+
+Everything above that blocked production is now working, verified against
+`api.tsionark.com` and `ws.tsionark.com` (the gateway moved hosts; the old
+`api.worldstreetwebservices.com` resolves but times out on every request).
+
+| #   | Item                         | Status on 2026-09-10                                                                                                                                                                                                                     |
+| --- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2   | Keeper settles               | **Done.** Games 419 to 421 settled 5 s after their 60 s clocks ran out, by the keeper                                                                                                                                                    |
+| 3   | Indexer and feeds            | **Done.** `/games`, `/game/winners` (25 rows, `paidToWinner`, `toStarter`, `toTreasury`), `/game/activities` (25 rows)                                                                                                                   |
+| 5   | `GET /games/:id`             | **Done.** Indexed row, falls through to the contract on a miss; 400 on a bad id, 404 only for an id never used                                                                                                                           |
+| 6   | `GameSettled`, `WagerPlaced` | **Done.** Every action indexed with its `gameId`; cursor paging on both feeds                                                                                                                                                            |
+| 7   | Socket frames                | **Partly.** `welcome`, `subscribed` with topic `versions`, `activeGames` every 10 s with `revision`, `pong`, `error`. Start, wager and settle frames still not captured live (no round ran during the probe)                             |
+| 8   | Parameters in the docs       | **Done in the service, missing from the docs.** `GET /config` serves them (floor, split, 60 s timer, paused); the frontend reads it. Not in the gateway's OpenAPI, nor are `/players/:address`, `/games/:id/activities`, `/transactions` |
+
+The frontend has been rewired to this (ADR-2026-09-10-last-man-backend-reads):
+the service is the read source, the contract is read only to act. Two asks
+remain for the backend: `GET /games?cursor=<anything>` returns 500 instead of
+400, and a `GET /config` carrying `minStartStake`, the split and the round
+length would retire the last periodic contract read.
+
+Reproduce: the commands at the top of each section, against
+`https://api.tsionark.com/v1/world-street-vault`, and a WebSocket client
+sending the subscribe frame to `wss://ws.tsionark.com/`.

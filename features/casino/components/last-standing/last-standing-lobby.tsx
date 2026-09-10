@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
-import { usePortfolio } from "@/hooks/use-portfolio";
 import type { SellPayload } from "@/lib/modal-types";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -17,6 +16,8 @@ import { StartGameSheet } from "@/features/casino/components/last-standing/start
 import { LAST_MAN_START_LIVE } from "@/features/casino/lib/last-standing/start-gate";
 import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
 import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
+import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
+import { usePayoutRefresh } from "@/features/casino/hooks/use-payout-refresh";
 import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 
@@ -35,8 +36,16 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
   const { user } = usePrivy();
   const address = getWalletAddress(user, "ethereum");
   const [historyOpen, setHistoryOpen] = useState(false);
-  const { games, gamesLoading, gamesError, refetchGames, resync, winners, winnersLoading } =
-    useVaultLobby({ history: historyOpen });
+  const {
+    games,
+    gamesLoading,
+    gamesError,
+    gamesStale,
+    refetchGames,
+    resync,
+    winners,
+    winnersLoading,
+  } = useVaultLobby({ history: historyOpen });
 
   const [startOpen, setStartOpen] = useState(false);
   const [fundOpen, setFundOpen] = useState(false);
@@ -48,12 +57,15 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
   // cannot open or join a game until some of it becomes ETH, and the lobby is
   // where they find that out, so the way to fund is here and not only on a
   // game page they cannot get into yet.
-  const { tokens } = usePortfolio();
-  const ethHolding = tokens.find(
-    (tk) => tk.network === "base-mainnet" && tk.symbol.toUpperCase() === "ETH"
-  );
-  const balanceEth = ethHolding?.balance ?? 0;
-  const balanceUsd = ethHolding?.valueUsd ?? 0;
+  const {
+    holding: ethHolding,
+    balanceEth,
+    balanceUsd,
+    refreshing: balanceRefreshing,
+  } = useGameBalance();
+  // A round this wallet wins while it watches from here pays out on the
+  // socket's settle frame; the card credits it and confirms with one read.
+  usePayoutRefresh(address);
 
   // One formatter for the whole list, so switching currency re-renders the
   // rows once rather than each row holding its own subscription.
@@ -145,6 +157,7 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
       <div className="mt-3">
         <GameBalanceCard
           balanceUsd={balanceUsd}
+          refreshing={balanceRefreshing}
           canWithdraw={balanceEth > 0}
           onWithdraw={() => setWithdrawOpen(true)}
           onAddMoney={() => setFundOpen(true)}
@@ -159,6 +172,12 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
           </span>
         ) : null}
       </div>
+
+      {gamesStale ? (
+        <p role="status" className="mt-3 text-[12.5px] leading-[1.5] font-normal text-white/50">
+          {t("lobbyStale")}
+        </p>
+      ) : null}
 
       <div className="mt-3 flex flex-col gap-2">
         {gamesLoading ? (

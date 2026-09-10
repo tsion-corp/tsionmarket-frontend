@@ -4,8 +4,13 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { VaultActivity, VaultGame } from "@/features/casino/lib/vault-api";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
+import {
+  noteSettlement,
+  settlementFromFrame,
+} from "@/features/casino/lib/last-standing/settlements";
 import { sortGameRows } from "@/features/casino/lib/vault-game";
-import type { ChainGame } from "@/lib/vault/read";
+import type { ChainGame } from "@/features/casino/lib/vault-game";
+import { vaultLog } from "@/features/casino/lib/last-standing/log";
 
 // One socket for the whole feature, however many components are listening.
 //
@@ -19,7 +24,18 @@ import type { ChainGame } from "@/lib/vault/read";
 // nothing refetches on a push and consumers just read useQuery-shaped state
 // without knowing whether REST or the socket last wrote it.
 
-const RECONNECT_MS = 2_000;
+// Reconnects back off: two seconds, then doubling to half a minute. On a bad
+// connection a fixed two-second retry is a request every two seconds that
+// cannot succeed, and it competes with the REST polls that can. The counter
+// resets the moment a connection opens.
+const RECONNECT_BASE_MS = 2_000;
+const RECONNECT_MAX_MS = 30_000;
+let reconnectAttempts = 0;
+
+/** How long to wait before reconnect attempt `attempt` (0 is the first). */
+export function reconnectDelay(attempt: number): number {
+  return Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** Math.max(0, attempt));
+}
 const PING_MS = 25_000;
 const MAX_ACTIVITIES = 30;
 
@@ -63,6 +79,9 @@ interface WagerPlacedFrame {
   amountWei: string;
   newPotWei: string;
   newEndTime: number;
+  transactionHash?: string;
+  /** Block time, unix seconds. */
+  timestamp?: number;
 }
 
 // The split amounts ride along on the frame too, as wei; the winners feed is
@@ -138,8 +157,8 @@ function applySettled(client: QueryClient, frame: GameSettledFrame): void {
     games?.filter((game) => game.gameId !== frame.gameId)
   );
   void client.invalidateQueries({ queryKey: VAULT_KEYS.winners });
-  void client.invalidateQueries({ queryKey: VAULT_KEYS.chainSettled });
   void client.invalidateQueries({ queryKey: VAULT_KEYS.activities });
+  noteSettlement(settlementFromFrame(frame));
 }
 
 function applyActivity(client: QueryClient, entry: VaultActivity): void {
@@ -150,18 +169,48 @@ function applyActivity(client: QueryClient, entry: VaultActivity): void {
   );
 }
 
+// The hub numbers every frame on a topic (`revision`) and tells a subscriber
+// the current number on `subscribed`. A frame that skips a number means one
+// was lost between hub and browser, and the caches are resynced from REST
+// once, which costs nothing on the chain. Module state, like the socket
+// itself: one connection, one counter.
+let lastRevision: number | null = null;
+
+// Exported for the tests, which run many connections through one module.
+export function resetRevisionTracking(): void {
+  lastRevision = null;
+}
+
+function trackRevision(client: QueryClient, revision: unknown): void {
+  if (typeof revision !== "number") return;
+  if (lastRevision !== null && revision > lastRevision + 1) {
+    vaultLog("socket: revision gap, resyncing from REST", { from: lastRevision, to: revision });
+    void client.invalidateQueries({ queryKey: VAULT_KEYS.all });
+  }
+  lastRevision = revision;
+}
+
 // A frame is an upstream payload and is validated here, at the boundary,
 // before it can reach the cache and the components reading it. Exported for
 // its tests; the socket wires it up below.
 export function handleVaultFrame(client: QueryClient, raw: string): void {
-  let frame: { type: string; data: unknown };
+  let frame: { type: string; data: unknown; revision?: unknown };
   try {
     frame = JSON.parse(raw);
   } catch {
     return;
   }
 
+  trackRevision(client, frame.revision);
+
   switch (frame.type) {
+    case "subscribed": {
+      const versions = (frame.data as { versions?: Record<string, unknown> } | null)?.versions;
+      const version = versions?.[VAULT_TOPIC];
+      if (typeof version === "number") lastRevision = version;
+      vaultLog("socket: subscribed", { version: lastRevision });
+      return;
+    }
     case "activeGames": {
       const games = (frame.data as { games?: unknown } | null | undefined)?.games;
       // The periodic lobby snapshot is authoritative, so it replaces rather
@@ -177,6 +226,11 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
         // row goes to the indexed list. Both lists are replaced, since the
         // snapshot is authoritative for both.
         const { api, chain, dropped } = sortGameRows(games);
+        vaultLog("socket: activeGames", {
+          api: api.map((g) => g.gameId),
+          chain: chain.map((g) => g.gameId),
+          dropped,
+        });
         if (dropped > 0) {
           console.warn(`[vault] dropped ${dropped} activeGames row(s) in no known shape`);
         }
@@ -189,6 +243,7 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
     }
     case "gameStarted": {
       const data = frame.data as GameStartedFrame;
+      vaultLog("socket: gameStarted", { gameId: data?.gameId, starter: data?.starter });
       // A brand-new game has no USD figures on the socket, and the indexer
       // trails the chain by a few blocks, so pull the enriched row rather than
       // synthesising one that would flicker when the real one arrives.
@@ -200,19 +255,27 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
     case "wagerPlaced": {
       const data = frame.data as WagerPlacedFrame;
       if (!data?.gameId) return;
+      vaultLog("socket: wagerPlaced", { gameId: data.gameId, player: data.player });
       applyWager(client, data);
+      // The hub stamps every frame with its transaction and block time, so
+      // the row it makes is the row the feed will index, and deduplicates
+      // against it. An older hub without the stamp gets a synthetic key.
       applyActivity(client, {
-        id: data.amountWei + data.player,
+        id: data.transactionHash ?? data.amountWei + data.player,
+        gameId: data.gameId,
         action: "joined",
         address: data.player,
         amountWei: data.amountWei,
-        transactionHash: data.amountWei + data.player,
-        createdAt: new Date().toISOString(),
+        transactionHash: data.transactionHash ?? data.amountWei + data.player,
+        createdAt: new Date(
+          typeof data.timestamp === "number" ? data.timestamp * 1000 : Date.now()
+        ).toISOString(),
       });
       return;
     }
     case "gameSettled": {
       const data = frame.data as GameSettledFrame;
+      vaultLog("socket: gameSettled", { gameId: data?.gameId, winner: data?.winner });
       if (data?.gameId) applySettled(client, data);
       return;
     }
@@ -222,15 +285,26 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
   }
 }
 
+// Every handler below acts on `ws`, the socket it was attached to, and does
+// nothing once that socket is no longer the shared one. A socket that was
+// replaced (closed by the last subscriber leaving, then a new one opened by
+// the next arriving in the same tick) still gets its close event later; it
+// must not null out the replacement's reference, schedule a reconnect the
+// replacement makes redundant, or send through the replacement while it is
+// still connecting.
 function open(client: QueryClient): void {
   const url = process.env.NEXT_PUBLIC_VAULT_WS_URL;
   if (!url || socket) return;
 
-  socket = new WebSocket(url);
+  const ws = new WebSocket(url);
+  socket = ws;
 
-  socket.onopen = () => {
+  ws.onopen = () => {
+    if (socket !== ws) return;
     setConnected(true);
-    socket?.send(JSON.stringify({ type: "subscribe", topics: [VAULT_TOPIC] }));
+    reconnectAttempts = 0;
+    vaultLog("socket: open", { resync: everConnected });
+    ws.send(JSON.stringify({ type: "subscribe", topics: [VAULT_TOPIC] }));
     // The hub does not replay state on subscribe, so every reconnect resyncs
     // from REST; the first connect already has it from the queries themselves.
     if (everConnected) {
@@ -238,22 +312,46 @@ function open(client: QueryClient): void {
     }
     everConnected = true;
     pingTimer = setInterval(() => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping" }));
+      if (socket === ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "ping" }));
+      }
     }, PING_MS);
   };
 
-  socket.onmessage = (event) => handleVaultFrame(client, event.data as string);
+  ws.onmessage = (event) => {
+    if (socket === ws) handleVaultFrame(client, event.data as string);
+  };
 
-  socket.onclose = () => {
+  ws.onclose = () => {
+    if (socket !== ws) return;
     setConnected(false);
+    vaultLog("socket: closed");
+    lastRevision = null;
     if (pingTimer) clearInterval(pingTimer);
     pingTimer = null;
     socket = null;
-    // Only chase a reconnect while something is still listening.
-    if (refCount > 0) reconnectTimer = setTimeout(() => open(client), RECONNECT_MS);
+    // Only chase a reconnect while something is still listening. Offline,
+    // there is no point trying until the browser says the network is back;
+    // the REST polls carry the page meanwhile.
+    if (refCount > 0) {
+      const delay = reconnectDelay(reconnectAttempts);
+      reconnectAttempts += 1;
+      vaultLog("socket: reconnect scheduled", { inMs: delay, attempt: reconnectAttempts });
+      reconnectTimer = setTimeout(() => {
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          const onOnline = () => {
+            window.removeEventListener("online", onOnline);
+            if (refCount > 0) open(client);
+          };
+          window.addEventListener("online", onOnline);
+          return;
+        }
+        open(client);
+      }, delay);
+    }
   };
 
-  socket.onerror = () => socket?.close();
+  ws.onerror = () => ws.close();
 }
 
 function close(): void {
@@ -263,7 +361,15 @@ function close(): void {
   pingTimer = null;
   const current = socket;
   socket = null;
-  current?.close();
+  if (!current) return;
+  // Its events are nobody's business any more: the close that follows must
+  // not run the reconnect logic against whatever socket comes next.
+  current.onopen = null;
+  current.onmessage = null;
+  current.onclose = null;
+  current.onerror = null;
+  current.close();
+  setConnected(false);
 }
 
 export const VAULT_TOPIC = "vault:king-of-night";

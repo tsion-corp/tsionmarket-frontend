@@ -1703,7 +1703,14 @@
       "startBlockedLiveBody": "One room at a time. Join the live game below. Starting opens again when it ends.",
       "toastStartBlockedLive": "Someone opened a game first. One room at a time, so join the live one.",
       "shareEarnTag": "You earn 10%",
-      "shareCopyLink": "Copy link"
+      "shareCopyLink": "Copy link",
+      "gameLoadFailedTitle": "We couldn't load this round",
+      "gameLoadFailedBody": "Check your connection and try again. Your money is safe either way: every stake sits in the contract, not on this page.",
+      "gameNotFoundTitle": "There's no round here",
+      "gameNotFoundBody": "This link doesn't point at a game. It may have been typed wrong, or the round never started.",
+      "backToLobby": "Back to the lobby",
+      "balanceUpdating": "Updating…",
+      "lobbyStale": "Can't reach the server right now. This is the last list we got; it refreshes on its own."
     },
     "fund": {
       "title": "Add money",

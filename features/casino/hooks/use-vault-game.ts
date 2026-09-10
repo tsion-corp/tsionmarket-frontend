@@ -2,14 +2,24 @@
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useInvalidateOnBlock } from "@/hooks/use-base-block";
 import { usePrices } from "@/hooks/use-prices";
 import { useVaultSocket } from "@/features/casino/hooks/use-vault-socket";
+import { seedGame } from "@/features/casino/lib/last-standing/seed-game";
 import { readGame } from "@/features/casino/hooks/use-vault-actions";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
-import { fetchGame, type VaultGame } from "@/features/casino/lib/vault-api";
+import { vaultLog } from "@/features/casino/lib/last-standing/log";
+import {
+  followedGameSnapshot,
+  unfollowGame,
+} from "@/features/casino/lib/last-standing/followed-game";
+import { fetchGame, isVaultNotFound, type VaultGame } from "@/features/casino/lib/vault-api";
 
 const FALLBACK_POLL_MS = 5_000;
+// The service falls through to the contract for a game its index has not
+// reached, but that read is a block or two behind the receipt the client
+// holds, so a fresh game is asked for a few times a second apart.
+const CONFIRM_ATTEMPTS = 3;
+const CONFIRM_RETRY_MS = 1_000;
 
 // The browser's own connectivity verdict, as an external store so a consumer
 // re-renders the moment it flips rather than on the next poll.
@@ -49,8 +59,6 @@ function fromChain(
     gameId,
     starter: chain.starter,
     king: chain.king,
-    // A price we already have beats a stale indexed figure, so the chain read
-    // wins here rather than deferring to `previous`.
     // Amounts only; `withUsd` in the hook prices them.
     pot: previous?.pot ?? money(String(Number(chain.potWei) / 1e18), 0),
     minWager: previous?.minWager ?? money(String(Number(chain.minWagerWei) / 1e18), 0),
@@ -63,15 +71,42 @@ function fromChain(
   };
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * A game the user just paid for, from the service, with the contract as the
+ * last resort. The service's 404 is final (the id was never used); any
+ * other failure means the service could not be reached, and then the
+ * contract is asked once so a game someone paid for is never shown missing.
+ */
+async function loadFreshGame(gameId: number): Promise<VaultGame | null> {
+  for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt += 1) {
+    try {
+      return await fetchGame(gameId);
+    } catch (error) {
+      if (isVaultNotFound(error)) {
+        vaultLog(`confirm ${gameId}: service has no row yet`, { attempt });
+        if (attempt < CONFIRM_ATTEMPTS) await wait(CONFIRM_RETRY_MS);
+        continue;
+      }
+      vaultLog(`confirm ${gameId}: service unreachable, reading the contract`, {
+        error: String(error),
+      });
+      break;
+    }
+  }
+  const chain = await readGame(gameId);
+  return chain?.exists ? fromChain(gameId, chain) : null;
+}
+
 /**
  * One game, live.
  *
- * Reads come from the indexed REST endpoint, which trails the chain by the
- * keeper's confirmation depth. That is fine for watching, and wrong for the
- * seconds right after the user's own transaction: a game they just started is
- * not indexed yet and would 404. `confirmFromChain` covers that gap by reading
- * the contract directly and seeding the cache, so their own action lands
- * immediately instead of looking like it failed.
+ * Reads come from the vault service, which serves the indexed row and falls
+ * through to the contract for an id its index has not reached. The socket
+ * writes frames into the same cache while it is up; the REST poll runs only
+ * while it is down. The contract is read directly only when the service
+ * cannot be reached at all.
  */
 export function useVaultGame(gameId: number | null) {
   const queryClient = useQueryClient();
@@ -79,10 +114,10 @@ export function useVaultGame(gameId: number | null) {
 
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
 
-  // The chain knows the wei, not the dollars, so a game read from it comes back
-  // with no USD. Filling that in here rather than in the fetch keeps the price
-  // out of the query key: it re-prices on the next render instead of refetching
-  // every time the price ticks.
+  // A game read from the contract comes back with no USD. Filling that in
+  // here rather than in the fetch keeps the price out of the query key: it
+  // re-prices on the next render instead of refetching every time the price
+  // ticks.
   const withUsd = useCallback(
     (game: VaultGame): VaultGame =>
       ethPrice > 0 && game.pot.usdValue === 0
@@ -95,41 +130,41 @@ export function useVaultGame(gameId: number | null) {
     [ethPrice]
   );
 
-  useInvalidateOnBlock(gameId === null ? [] : [VAULT_KEYS.game(gameId)]);
-
   const game = useQuery<VaultGame>({
     queryKey: gameId === null ? VAULT_KEYS.game(-1) : VAULT_KEYS.game(gameId),
-    // The index 404s for a game it has not caught up with, and drops games it
-    // considers finished. Either way the chain still has the record, and a
-    // game someone paid for should never show as missing.
     queryFn: async () => {
       const id = gameId as number;
       try {
         return await fetchGame(id);
       } catch (error) {
+        // Never used: nothing anywhere has this game. Any other failure is
+        // the service being unreachable, and the contract still has the row.
+        if (isVaultNotFound(error)) throw error;
         const chain = await readGame(id);
         if (!chain?.exists) throw error;
-        return fromChain(id, chain);
+        return fromChain(id, chain, queryClient.getQueryData<VaultGame>(VAULT_KEYS.game(id)));
       }
     },
     enabled: gameId !== null,
     staleTime: FALLBACK_POLL_MS,
     refetchInterval: connected ? false : FALLBACK_POLL_MS,
+    // A game that was never started stays that way; polling will not change it.
+    retry: (count, error) => !isVaultNotFound(error) && count < 3,
     select: withUsd,
   });
 
   /**
-   * Seeds this game's cache from the contract, for the window where the
-   * indexer has not caught up. Returns false if the read failed, so the caller
-   * can fall back to waiting rather than showing an empty game.
+   * Seeds this game's caches for the window between the receipt and the
+   * index. Returns false if neither the service nor the contract knows the
+   * game, so the caller can fall back to waiting rather than showing an
+   * empty game.
    */
-  const confirmFromChain = useCallback(
+  const confirmGame = useCallback(
     async (id: number): Promise<boolean> => {
-      const chain = await readGame(id);
-      if (!chain?.exists) return false;
-      queryClient.setQueryData<VaultGame>(VAULT_KEYS.game(id), (prev) =>
-        fromChain(id, chain, prev)
-      );
+      const fresh = await loadFreshGame(id);
+      if (!fresh) return false;
+      seedGame(queryClient, fresh);
+      vaultLog(`confirm ${id}: seeded`, { active: fresh.active, endTime: fresh.endTime });
       return true;
     },
     [queryClient]
@@ -157,6 +192,18 @@ export function useVaultGame(gameId: number | null) {
     };
   }, [resync]);
 
+  // The floating timer follows the last game the user put money into. Once
+  // that game is over, or never existed, following it only keeps a dead
+  // clock polling on every page.
+  const settled = game.data?.settled === true;
+  const missing = game.isError && isVaultNotFound(game.error);
+  useEffect(() => {
+    if (gameId === null || (!settled && !missing)) return;
+    if (followedGameSnapshot() !== gameId) return;
+    vaultLog(`unfollow ${gameId}`, { settled, missing });
+    unfollowGame();
+  }, [gameId, settled, missing]);
+
   const online = useSyncExternalStore(subscribeOnline, onlineNow, onlineOnServer);
   // Degraded: what the screen shows cannot be trusted as current. Either the
   // browser knows it is offline, or the socket is down AND the REST fallback
@@ -167,10 +214,15 @@ export function useVaultGame(gameId: number | null) {
   return {
     game: game.data ?? null,
     loading: game.isPending,
-    error: game.isError,
+    // Nothing to show at all. A failed refetch with a game already on screen
+    // is not an error state; it is the degraded state below, and the last
+    // good game stays up.
+    error: game.isError && game.data === undefined,
+    // The service is sure: no game has ever had this id.
+    notFound: missing,
     connected,
     degraded,
-    confirmFromChain,
+    confirmGame,
     resync,
   };
 }

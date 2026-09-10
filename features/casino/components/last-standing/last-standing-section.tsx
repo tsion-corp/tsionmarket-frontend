@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import type { SellPayload } from "@/lib/modal-types";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useQuery } from "@tanstack/react-query";
 import { parseEther } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 import { formatEther } from "viem";
@@ -19,11 +18,8 @@ import { useMoney } from "@/components/ui/currency-select";
 import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
 import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
 import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
-import {
-  DEFAULT_SPLIT_BPS,
-  estimateWinnerPayout,
-  isSameAddress,
-} from "@/features/casino/lib/last-standing/split";
+import { estimateWinnerPayout, isSameAddress } from "@/features/casino/lib/last-standing/split";
+import { vaultLog } from "@/features/casino/lib/last-standing/log";
 import {
   MiniTimerLauncher,
   formatCountdown,
@@ -53,10 +49,11 @@ interface VaultGameStatus {
   timerDuration: number;
   gameActive: boolean;
 }
-import { useVaultActions, readSplitBps } from "@/features/casino/hooks/use-vault-actions";
+import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
 import { useVaultPendingWinnings } from "@/features/casino/hooks/use-vault-winnings";
-import { useInvalidateOnBlock } from "@/hooks/use-base-block";
-import { usePortfolio } from "@/hooks/use-portfolio";
+import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
+import { usePayoutRefresh } from "@/features/casino/hooks/use-payout-refresh";
+import { useVaultParams } from "@/features/casino/hooks/use-vault-params";
 import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
 import { truncateAddress } from "@/lib/format";
@@ -91,10 +88,12 @@ const WIN_POLL_INTERVAL_MS = 2_500;
 // the result settles.
 const CALCULATING_MS = 1_200;
 
-// Claimable winnings are a direct contract read and can follow Base blocks.
-// Portfolio discovery is an indexed multi-chain API and refreshes explicitly
-// after transactions plus its bounded background poll instead.
-const BLOCK_WATCH_KEYS = [["vault-winnings"]] as const;
+// How long the winner waits for the backend keeper to settle a finished round
+// before settling it from their own wallet. The keeper lands about five
+// seconds after expiry (measured 2026-09-10); the grace leaves room for a slow
+// block and still keeps the payout in the winner's hands if the keeper is
+// down. One settlement transaction per round instead of two.
+const KEEPER_GRACE_MS = 15_000;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
 
@@ -193,10 +192,21 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   const tBuySellNotEnough = tBuySell("notEnoughBalance");
   const { user } = usePrivy();
   const money = useMoney();
-  const { tokens, refetch: refetchPortfolio } = usePortfolio();
+  // The stake and the payout are native value the portfolio's own receipt
+  // path cannot see, so this hook is told the amounts and confirms them with
+  // one read of Base.
+  const {
+    holding: ethHolding,
+    balanceEth,
+    balanceUsd,
+    refreshing: balanceRefreshing,
+    settle: settleBalance,
+  } = useGameBalance();
   const {
     game,
     loading: statusLoading,
+    error: gameError,
+    notFound: gameNotFound,
     connected,
     degraded,
     resync: resyncGame,
@@ -264,11 +274,10 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // user to the portfolio.
   useEffect(() => stopMusic, []);
 
-  // Unclaimed winnings straight from the contract (winners take the pot via
-  // claim(), it is not auto-credited). Refreshed on each new block so it clears
-  // right after a claim lands.
+  // A payout the contract could not push, straight from the contract. Read
+  // once here, and again on the events that can change it: a settlement that
+  // names this wallet, and this wallet's own settle or claim.
   const { pendingWei, refetch: refetchWinnings } = useVaultPendingWinnings(address);
-  useInvalidateOnBlock(BLOCK_WATCH_KEYS);
 
   // Derived reveal state: did this wallet win, and how to name the winner.
   const youWon = !!(
@@ -284,11 +293,6 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // The balance the player spends from is their own money on the platform. We
   // present everything as plain dollars — the underlying asset (ETH on Base)
   // is never shown, so it feels like moving cash between accounts.
-  const ethHolding = tokens.find(
-    (t) => t.network === "base-mainnet" && t.symbol.toUpperCase() === "ETH"
-  );
-  const balanceEth = ethHolding?.balance ?? 0;
-  const balanceUsd = ethHolding?.valueUsd ?? 0;
   const entryFeeEth = status ? Number(status.entryFee.amount) : 0;
   const entryFeeUsd = status?.entryFee.usdValue ?? 0;
   const canPlay = entryFeeEth > 0 && balanceEth >= entryFeeEth;
@@ -387,15 +391,14 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // works) reveals a fresh win without re-firing on load or on repeat polls.
   const seenWinnerIdRef = useRef<string | null>(null);
   const [pollUntil, setPollUntil] = useState(0);
+  // True once the keeper has had its grace after the round ended; only then
+  // does the winner's own wallet settle. Reset when a fresh round goes live.
+  const [keeperGraceOver, setKeeperGraceOver] = useState(false);
 
-  // The contract's split, read once: the owner can retune it, and the number a
-  // winner sees before settlement has to match what settle() will pay.
-  const splitBps = useQuery({
-    queryKey: ["vault", "split-bps"],
-    queryFn: readSplitBps,
-    staleTime: Infinity,
-  });
-  const split = splitBps.data ?? DEFAULT_SPLIT_BPS;
+  // The contract's split, from the shared params read: the owner can retune
+  // it, and the number a winner sees before settlement has to match what
+  // settle() will pay.
+  const { split } = useVaultParams();
   const splitWinnerBps = split.winner;
   const splitStarterBps = split.starter;
   // The starter is paid a share too, and is often the winner as well.
@@ -424,10 +427,14 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     stopMusic();
     playRoundEndSound();
     setPollUntil(clockNow() + WIN_POLL_WINDOW_MS);
+    // The keeper gets its grace before the winner's wallet settles.
+    setKeeperGraceOver(false);
+    setTimeout(() => setKeeperGraceOver(true), KEEPER_GRACE_MS);
+    vaultLog(`round ${gameId} ended`, { winner: winnerAddress, potUsd: potAtEndUsd });
     // Converge immediately: fresh status (pot/timer reset), winners table and
-    // feed, plus the balance — not whenever the next socket push arrives.
+    // feed, not whenever the next socket push arrives. The balance waits for
+    // the settlement row, which says exactly what was paid.
     resyncGame();
-    void refetchPortfolio();
   };
 
   useEffect(() => {
@@ -436,7 +443,8 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
 
     const wasActive = prevActiveRef.current;
     prevActiveRef.current = gameActive;
-    // A fresh round going live re-arms the round-end sequence.
+    // A fresh round going live re-arms the round-end sequence. The keeper
+    // grace is re-armed by beginRoundEnd itself, at the next round end.
     if (gameActive) roundEndedRef.current = false;
     // A live round just ended (active -> inactive). Only start once per round.
     if (wasActive && !gameActive && phase === null && !roundEndedRef.current) {
@@ -532,12 +540,14 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       setPhase("won");
       setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
     }, 0);
-    void refetchPortfolio();
     return () => clearTimeout(id);
-  }, [winners, address, phase, refetchPortfolio]);
+  }, [winners, address, phase]);
 
-  // Brief post-win balance re-check so the auto-credited winnings appear
-  // quickly; self-clearing once the window passes.
+  // The payout, credited the moment the settle frame or the winners row lands.
+  usePayoutRefresh(address, winners);
+
+  // Brief post-round re-check so the settlement row and the reset status
+  // appear quickly; self-clearing once the window passes.
   useEffect(() => {
     if (pollUntil <= Date.now()) return;
     const id = setInterval(() => {
@@ -546,10 +556,9 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
         return;
       }
       resyncGame();
-      void refetchPortfolio();
     }, WIN_POLL_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [pollUntil, refetchPortfolio, resyncGame]);
+  }, [pollUntil, resyncGame]);
 
   // Auto-dismiss the "you won" banner after the balance has had time to update.
   useEffect(() => {
@@ -564,12 +573,13 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   const onClaim = async () => {
     if (pendingWei <= 0n || claiming) return;
     const id = toast.loading(t("toastClaiming"));
+    const amount = pendingWei;
     try {
       await claim();
       toast.success(t("toastClaimed"), { id });
       playClaimSound();
       void refetchWinnings();
-      void refetchPortfolio();
+      void settleBalance(amount);
     } catch (e) {
       toast.error(friendlyError(e, t("toastClaimFailed")), { id });
     }
@@ -608,20 +618,21 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     }
   }, [pendingWei, claiming]);
 
-  // Settle the game I just won, so the payout lands. Every game on this
-  // contract sat unsettled for a day until this existed: the reveal fired,
-  // the "updating your balance" banner showed, and the balance never moved,
-  // because nobody had asked the contract to pay. The backend keeper is meant
-  // to settle within seconds of expiry, and when it gets there first this
-  // reverts AlreadySettled, which is the outcome we wanted, not a failure.
-  // Anyone may settle once the clock is out; the winner does it here, gasless
-  // like every other vault action, and once per game.
+  // Settle the game I just won, if the keeper has not. Every game on this
+  // contract sat unsettled for a day before the client could settle at all;
+  // now the backend keeper settles within seconds of expiry, so the winner's
+  // wallet only steps in after the keeper's grace, when the service still
+  // reports the game unsettled. When the keeper gets there first this reverts
+  // AlreadySettled, which is the outcome we wanted, not a failure. Anyone may
+  // settle once the clock is out; the winner does it here, gasless like every
+  // other vault action, and once per game.
   const settledGameRef = useRef<number | null>(null);
   useEffect(() => {
-    if (phase !== "won" || !youWon || settling) return;
+    if (phase !== "won" || !youWon || settling || !keeperGraceOver) return;
     if (settledGameRef.current === gameId) return;
     if (game?.settled) return;
     settledGameRef.current = gameId;
+    vaultLog(`round ${gameId}: keeper did not settle within the grace, settling from the wallet`);
     const id = toast.loading(t("toastSettling"));
     void settle(gameId)
       .then(() => {
@@ -645,7 +656,22 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       });
     // settle/refetchWinnings/resyncGame are stable callbacks; t is stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, youWon, gameId, settling, game?.settled]);
+  }, [phase, youWon, gameId, settling, game?.settled, keeperGraceOver]);
+
+  // The settlement landed, from the keeper or from anyone. A payout the
+  // contract could not push is now the only thing left to check, and only
+  // for a wallet the settlement paid: the winner and the starter.
+  const settledNow = game?.settled === true;
+  const paidByThisSettlement =
+    !!address &&
+    (isSameAddress(address, game?.king ?? null) || isSameAddress(address, game?.starter ?? null));
+  useEffect(() => {
+    if (!settledNow) return;
+    vaultLog(`round ${gameId} settled`, { paidHere: paidByThisSettlement });
+    if (paidByThisSettlement) void refetchWinnings();
+    // refetchWinnings is stable; the read is keyed on the settlement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledNow, gameId, paidByThisSettlement]);
 
   // Settle a finished game from its page. Anyone may; it pays the winner
   // whoever presses it. The reveal path settles a win as it happens; this is
@@ -718,7 +744,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       // (the socket push alone can be ~10s away, or absent when offline).
       resyncGame();
       setPollUntil(clockNow() + WIN_POLL_WINDOW_MS);
-      void refetchPortfolio();
+      void settleBalance(-amountWei);
       return true;
     } catch (e) {
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
@@ -757,6 +783,51 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     const ok = await placeWager(liquidityWei, liquidityAmountUsd, liquidityBtnRef.current);
     if (ok) setLiquidityUsd("");
   };
+
+  // Nothing to draw the arena from: the service could not be reached and the
+  // contract could not be read either, or the id was never a game. Said
+  // plainly, with the one action that helps, instead of a pot skeleton and a
+  // "Loading…" button that never resolve. A game already on screen never
+  // comes through here; a failed refetch keeps it up under the degraded
+  // overlay.
+  if (!game && !statusLoading && gameError) {
+    return (
+      <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+        <Eyebrow>{t("eyebrow")}</Eyebrow>
+        <h2 className="ws-display mt-2.5 text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em]">
+          {t("title")}
+        </h2>
+        <div role="alert" className="ws-inset mt-6 max-w-[560px] px-5 py-6">
+          <div className="flex items-center gap-2.5">
+            {gameNotFound ? null : <WifiOffIcon size={18} />}
+            <div className="text-[15px] font-bold text-white">
+              {gameNotFound ? t("gameNotFoundTitle") : t("gameLoadFailedTitle")}
+            </div>
+          </div>
+          <p className="mt-2 text-[13.5px] leading-[1.6] font-normal text-white/60">
+            {gameNotFound ? t("gameNotFoundBody") : t("gameLoadFailedBody")}
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2.5">
+            {gameNotFound ? null : (
+              <button
+                type="button"
+                onClick={resyncGame}
+                className="bg-accent cursor-pointer rounded-[12px] px-4 py-2 text-[13.5px] font-semibold text-black"
+              >
+                {t("retry")}
+              </button>
+            )}
+            <Link
+              href="/casino/last-standing"
+              className="cursor-pointer rounded-[12px] border border-white/15 px-4 py-2 text-[13.5px] font-semibold text-white transition-colors hover:border-white/35"
+            >
+              {t("backToLobby")}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
@@ -1262,6 +1333,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
             <div className="mt-3">
               <GameBalanceCard
                 balanceUsd={balanceUsd}
+                refreshing={balanceRefreshing}
                 canWithdraw={balanceEth > 0}
                 showAddMoney={canPlay}
                 onWithdraw={() => setWithdrawOpen(true)}

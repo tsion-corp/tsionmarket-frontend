@@ -7,50 +7,45 @@ import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { usePrices } from "@/hooks/use-prices";
 import { weiToTokenAmount } from "@/features/casino/lib/last-standing/stake";
-import { fetchActiveGames, fetchChainGames, type VaultGame } from "@/features/casino/lib/vault-api";
-import type { ChainGame } from "@/lib/vault/read";
+import { fetchActiveGames, type VaultGame } from "@/features/casino/lib/vault-api";
+import type { ChainGame } from "@/features/casino/lib/vault-game";
 
-// The socket carries the lobby while it is up; these poll only as a fallback
+// The socket carries the lobby while it is up; this polls only as a fallback
 // while it is down, so a healthy connection costs no REST traffic at all.
 const FALLBACK_POLL_MS = 5_000;
-// The chain is the source of truth for which games exist. While the socket
-// is up its activeGames frame every 10 s carries the contract's rows, so the
-// chain is only reconciled once a minute; while it is down the chain is
-// polled, through the server's shared read (ADR-2026-09-09-last-man-lobby-reads).
-const CHAIN_POLL_MS = 8_000;
-const CHAIN_RECONCILE_MS = 60_000;
 
 const EMPTY_GAMES: VaultGame[] = [];
 const EMPTY_CHAIN: ChainGame[] = [];
 
 /**
- * The indexed lobby, backed by what the chain actually holds.
+ * The lobby as the screen renders it.
  *
- * The index trails the chain, so a game someone just paid to start is missing
- * from `GET /games` for a while — the screen said "no games running" straight
- * after a successful start. The chain decides which games exist; the indexed
- * row is preferred where it has one, because it carries USD figures the
- * contract cannot know.
+ * The service's rows are the list. The socket's `activeGames` frame may
+ * describe a game in the contract's shape, wei and no dollars; a row the
+ * service does not list yet is priced here with the ETH price the lobby
+ * holds, and the service's row takes over the moment it has one, because it
+ * carries the figures priced at the time. A game in neither list has
+ * settled or gone away.
  */
-function mergeGames(indexed: VaultGame[], chain: ChainGame[], ethPrice: number): VaultGame[] {
-  const byId = new Map(indexed.map((game) => [game.gameId, game]));
-  const merged = chain.map(
-    (game) =>
-      byId.get(game.gameId) ?? {
-        gameId: game.gameId,
-        starter: game.starter,
-        king: game.king,
-        pot: weiToTokenAmount(game.potWei, ethPrice),
-        minWager: weiToTokenAmount(game.minWagerWei, ethPrice),
-        endTime: game.endTime,
-        timeRemaining: Math.max(0, game.endTime - Math.floor(Date.now() / 1000)),
-        settled: false,
-        active: true,
-      }
-  );
-  // A game the chain no longer reports as active has settled, whatever the
-  // index still says, so it is not carried over.
-  return merged.sort((a, b) => b.endTime - a.endTime);
+function priceChainRows(indexed: VaultGame[], chain: ChainGame[], ethPrice: number): VaultGame[] {
+  const seen = new Set(indexed.map((game) => game.gameId));
+  const now = Math.floor(Date.now() / 1000);
+  const extra = chain
+    .filter((game) => !seen.has(game.gameId) && game.endTime > now)
+    .map((game) => ({
+      gameId: game.gameId,
+      starter: game.starter,
+      king: game.king,
+      pot: weiToTokenAmount(game.potWei, ethPrice),
+      minWager: weiToTokenAmount(game.minWagerWei, ethPrice),
+      endTime: game.endTime,
+      timeRemaining: Math.max(0, game.endTime - now),
+      settled: false,
+      active: true,
+    }));
+  // Longest timer first: the games with room to join are the useful ones,
+  // and a game about to expire is the one you cannot realistically enter.
+  return [...indexed, ...extra].sort((a, b) => b.endTime - a.endTime);
 }
 
 /**
@@ -69,26 +64,21 @@ export function useVaultLobby(options: { history?: boolean } = {}) {
     queryFn: fetchActiveGames,
     staleTime: FALLBACK_POLL_MS,
     refetchInterval: connected ? false : FALLBACK_POLL_MS,
-    // Longest timer first: the games with room to join are the useful ones,
-    // and a game about to expire is the one you cannot realistically enter.
   });
 
-  // The contract's own list, so a brand-new game shows the moment it is
-  // mined instead of waiting on the indexer. The socket writes its rows into
-  // this same cache, which is why the poll can stand down while it is up.
-  const chainCadence = connected ? CHAIN_RECONCILE_MS : CHAIN_POLL_MS;
+  // Written by the socket alone; nothing fetches it. Read here so a hub row
+  // the service has not indexed yet still shows.
   const chain = useQuery<ChainGame[]>({
     queryKey: VAULT_KEYS.chainGames,
-    queryFn: fetchChainGames,
-    staleTime: chainCadence,
-    refetchInterval: chainCadence,
+    queryFn: () => EMPTY_CHAIN,
+    enabled: false,
   });
 
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
   const indexed = games.data ?? EMPTY_GAMES;
   const onChain = chain.data ?? EMPTY_CHAIN;
   const merged = useMemo(
-    () => mergeGames(indexed, onChain, ethPrice),
+    () => priceChainRows(indexed, onChain, ethPrice),
     [indexed, onChain, ethPrice]
   );
 
@@ -107,11 +97,12 @@ export function useVaultLobby(options: { history?: boolean } = {}) {
 
   return {
     games: merged,
-    // Only a cold start counts as loading: once either source has answered
-    // there is something real to show.
-    gamesLoading: games.isPending && chain.isPending,
-    // The chain answering is enough to call the lobby healthy.
-    gamesError: games.isError && chain.isError,
+    gamesLoading: games.isPending,
+    // Nothing to show at all. A failed refetch with a list already on screen
+    // keeps the list and says it is stale instead of replacing it with an
+    // error, which on a flaky connection would flicker on every poll.
+    gamesError: games.isError && games.data === undefined,
+    gamesStale: games.isError && games.data !== undefined,
     refetchGames: games.refetch,
     ...feeds,
     connected,

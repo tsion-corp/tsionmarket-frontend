@@ -11,6 +11,13 @@ import type { VaultWinner } from "@/features/casino/lib/vault-api";
 
 const EXPLORER_ADDRESS_URL = "https://basescan.org/address/";
 
+// What the winner was actually paid. The service reports it as
+// `paidToWinner` (the winner's share plus the starter's when one wallet did
+// both); a row from before that field exists carries `toWinner` alone.
+function paidUsd(w: VaultWinner): number {
+  return (w.paidToWinner ?? w.toWinner).usdValue;
+}
+
 interface WinnersListProps {
   winners: VaultWinner[];
   loading?: boolean;
@@ -50,9 +57,7 @@ export function WinnersList({
     () =>
       ranked
         ? [...winners].sort(
-            (a, b) =>
-              b.toWinner.usdValue - a.toWinner.usdValue ||
-              Date.parse(b.settledAt) - Date.parse(a.settledAt)
+            (a, b) => paidUsd(b) - paidUsd(a) || Date.parse(b.settledAt) - Date.parse(a.settledAt)
           )
         : winners,
     [winners, ranked]
@@ -134,7 +139,7 @@ export function WinnersList({
               </span>
               <span className="relative shrink-0 text-right">
                 <span className="tnum block text-[14px] font-bold text-[#d8d8dc]">
-                  {money.formatExact(w.toWinner.usdValue)}
+                  {money.formatExact(paidUsd(w))}
                 </span>
                 {isLatest ? (
                   <span className="block text-[9.5px] font-semibold tracking-[0.12em] text-[#d8d8dc]/70 uppercase">

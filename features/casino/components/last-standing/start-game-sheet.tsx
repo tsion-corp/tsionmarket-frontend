@@ -7,8 +7,9 @@ import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import { SheetNav } from "@/components/ui/sheet-nav";
-import { usePortfolio } from "@/hooks/use-portfolio";
 import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
+import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
+import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
 import {
@@ -49,6 +50,10 @@ export function StartGameSheet({
   const t = useTranslations("casino.lastStanding");
   const router = useRouter();
   const { startGame, starting } = useVaultActions();
+  // Seeds the new game's caches from the service (which reads the contract
+  // for a game its index has not reached), so the page they land on has the
+  // round the moment it opens rather than a 404 from a lagging index.
+  const { confirmGame } = useVaultGame(null);
 
   // Null until they type: the field shows the cheapest stake the contract will
   // actually accept, which is not always our preferred figure.
@@ -60,10 +65,7 @@ export function StartGameSheet({
 
   // What the wallet needs to hold. The stake is native ETH on Base, so a user
   // whose balance is all USDC cannot start a game however much it is worth.
-  const { tokens } = usePortfolio();
-  const ethBalance =
-    tokens.find((tk) => tk.network === "base-mainnet" && tk.symbol.toUpperCase() === "ETH")
-      ?.balance ?? 0;
+  const { balanceEth: ethBalance, settle: settleBalance } = useGameBalance();
 
   // The default is the greater of our preferred entry and the contract's floor,
   // so the field, the ETH figure and the button always agree. Lower the floor
@@ -93,10 +95,14 @@ export function StartGameSheet({
         return;
       }
       const { gameId } = await startGame(send);
+      // The stake has left the wallet: show it gone now, confirm from Base once.
+      void settleBalance(-send);
       // The pop-out timer follows whatever you last put money into.
       if (gameId !== null) followGame(gameId);
       track("game_staked", { game: "last_man", amount_usd: sendUsd });
       toast.success(t("toastGameStarted"));
+      // A second or two at most, and only when the index trails the receipt.
+      if (gameId !== null) await confirmGame(gameId);
       onStarted();
       // Straight into the game they just opened, so they can share it.
       if (gameId !== null) router.push(`/casino/last-standing/${gameId}`);

@@ -1703,7 +1703,14 @@
       "startBlockedLiveBody": "Ein Raum zur Zeit. Treten Sie dem laufenden Spiel unten bei. Neue Spiele öffnen, wenn es endet.",
       "toastStartBlockedLive": "Jemand war schneller. Ein Raum zur Zeit, treten Sie also dem laufenden Spiel bei.",
       "shareEarnTag": "Du bekommst 10%",
-      "shareCopyLink": "Link kopieren"
+      "shareCopyLink": "Link kopieren",
+      "gameLoadFailedTitle": "Diese Runde konnte nicht geladen werden",
+      "gameLoadFailedBody": "Prüfen Sie Ihre Verbindung und versuchen Sie es erneut. Ihr Geld ist so oder so sicher: Jeder Einsatz liegt im Vertrag, nicht auf dieser Seite.",
+      "gameNotFoundTitle": "Hier gibt es keine Runde",
+      "gameNotFoundBody": "Dieser Link führt zu keinem Spiel. Er wurde vielleicht falsch eingegeben, oder die Runde hat nie begonnen.",
+      "backToLobby": "Zurück zur Lobby",
+      "balanceUpdating": "Wird aktualisiert…",
+      "lobbyStale": "Der Server ist gerade nicht erreichbar. Das ist die letzte Liste, die wir bekommen haben; sie aktualisiert sich von selbst."
     },
     "fund": {
       "title": "Geld hinzufügen",

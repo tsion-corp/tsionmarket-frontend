@@ -1,6 +1,5 @@
 import "server-only";
 
-import { formatEther } from "viem";
 import { fetchPrices } from "@/lib/server/alchemy";
 import { dextopusRequest } from "@/lib/server/dextopus";
 import { fetchMarketTokens } from "@/lib/server/market-tokens";
@@ -25,8 +24,6 @@ import { composePerpBrief, perpBriefFallbackSymbols, type PerpBriefRow } from "@
 import type { PerpPair, PerpPrice } from "@/lib/perp/types";
 import { assetPriceUsd, listedRwaAssets, rwaLogoPath, type RwaApiAsset } from "@/lib/rwa/catalog";
 import { composeSpotMarkets } from "@/lib/spot-markets";
-import { readActiveGamesWith } from "@/lib/vault/read";
-import { baseReadClient } from "@/lib/server/vault-chain";
 
 // The dashboard's public data, composed once for every user.
 //
@@ -214,7 +211,10 @@ async function liveSection(): Promise<DashboardLive> {
   const now = Math.floor(Date.now() / 1000);
   // Each source contributes nothing when it fails, as the marquee always did;
   // a dead chess gateway must not empty the Last Man chips.
-  const [indexed, chain, ethUsd, chess, checkers] = await Promise.all([
+  // The vault service indexes every game and prices it; it falls through to
+  // the contract itself for a game its index has not reached, so the feed no
+  // longer reads the chain (ADR-2026-09-10-last-man-backend-reads).
+  const [indexed, chess, checkers] = await Promise.all([
     getJson(`${VAULT_BASE}/games`, 5)
       .then((res) => envelopeData<{ games: IndexedGame[] }>(res))
       .then((data) => data.games)
@@ -222,13 +222,6 @@ async function liveSection(): Promise<DashboardLive> {
         console.warn("[dashboard-feed] live: vault index unavailable:", error);
         return [];
       }),
-    readActiveGamesWith(baseReadClient(), now).catch((error) => {
-      console.warn("[dashboard-feed] live: chain read unavailable:", error);
-      return [];
-    }),
-    priceMap(["ETH"])
-      .then((p) => p.ETH ?? 0)
-      .catch(() => 0),
     getJson(`${CHESS_BASE}/matches?status=active&limit=50`, 5)
       .then((res) => envelopeData<{ items: ChessMatchWireLite[] }>(res))
       .then((data) => data.items)
@@ -245,33 +238,15 @@ async function liveSection(): Promise<DashboardLive> {
       }),
   ]);
 
-  const live = indexed.filter((g) => g.active && !g.settled && g.endTime > now);
-  const indexedIds = new Set(live.map((g) => g.gameId));
-  const rounds: LiveRound[] = [
-    ...live.map((g) => ({
+  const rounds: LiveRound[] = indexed
+    .filter((g) => g.active && !g.settled && g.endTime > now)
+    .map((g) => ({
       gameId: g.gameId,
       endTime: g.endTime,
       potUsd: g.pot.usdValue,
       pot: g.pot.formattedUsd || `${g.pot.amount} ${g.pot.tokenSymbol}`,
-    })),
-    // Chain rounds the index has not caught up with yet, priced here since the
-    // contract only knows wei.
-    ...chain
-      .filter((g) => !indexedIds.has(g.gameId) && g.endTime > now)
-      .map((g) => {
-        // Wei to ether as an exact decimal string; the label carries every
-        // digit. The USD figure is display only, a sort key and a rounded
-        // label, and is the one place a float is allowed to enter.
-        const eth = formatEther(g.potWei);
-        const usd = ethUsd > 0 ? Number(eth) * ethUsd : 0;
-        return {
-          gameId: g.gameId,
-          endTime: g.endTime,
-          potUsd: usd,
-          pot: usd > 0 ? `$${usd.toFixed(2)}` : `${eth} ETH`,
-        };
-      }),
-  ].sort((a, b) => b.potUsd - a.potUsd);
+    }))
+    .sort((a, b) => b.potUsd - a.potUsd);
 
   return {
     rounds,

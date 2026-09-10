@@ -42,8 +42,24 @@ export interface ServiceClient {
   postForm<T>(path: string, form: FormData): Promise<T>;
 }
 
-export function createServiceClient(basePath: string, fallbackMessage: string): ServiceClient {
+export interface ServiceClientOptions {
+  /**
+   * Give up on a READ after this long. Off by default: a hung request is
+   * rare on a good connection, and a write must never be abandoned by the
+   * client while the server may still be acting on it. A polling reader on a
+   * poor connection sets it so a stuck poll fails and the next one runs.
+   */
+  timeoutMs?: number;
+}
+
+export function createServiceClient(
+  basePath: string,
+  fallbackMessage: string,
+  options: ServiceClientOptions = {}
+): ServiceClient {
   const url = (path: string, params?: QueryParams) => `${basePath}${path}${buildQuery(params)}`;
+  const readInit = (): RequestInit =>
+    options.timeoutMs ? { signal: AbortSignal.timeout(options.timeoutMs) } : {};
 
   // requireAuth turns a cold Privy token into a retryable error instead of a 401.
   const authed = <T>(path: string, init: RequestInit): Promise<T> =>
@@ -57,10 +73,10 @@ export function createServiceClient(basePath: string, fallbackMessage: string): 
     // tab and cost an invocation, which is exactly what the breaker exists to
     // stop.
     get: <T>(path: string, params?: QueryParams) =>
-      apiFetch(url(path, params), {}, { anonymous: true }).then((res) =>
+      apiFetch(url(path, params), readInit(), { anonymous: true }).then((res) =>
         unwrap<T>(res, fallbackMessage)
       ),
-    authedGet: <T>(path: string, params?: QueryParams) => authed<T>(url(path, params), {}),
+    authedGet: <T>(path: string, params?: QueryParams) => authed<T>(url(path, params), readInit()),
     post: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("POST", body)),
     put: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("PUT", body)),
     del: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("DELETE", body)),

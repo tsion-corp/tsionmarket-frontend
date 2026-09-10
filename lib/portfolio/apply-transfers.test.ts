@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pad, toHex } from "viem";
 import type { Portfolio, TokenBalance } from "@/lib/server/alchemy";
-import { applyTransfers, walletDeltas } from "./apply-transfers";
+import { applyNativeDelta, applyTransfers, walletDeltas } from "./apply-transfers";
 
 const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef" as const;
 const WALLET = "0xabc0000000000000000000000000000000000001" as const;
@@ -121,5 +121,40 @@ describe("applyTransfers", () => {
     expect(applyTransfers(portfolio, { network: "base-mainnet", wallet: WALLET, logs: [] })).toBe(
       portfolio
     );
+  });
+});
+
+// A Last Man stake is native ETH sent as the transaction's value. No log
+// carries it, so the caller states the amount and the native row moves by it.
+describe("applyNativeDelta", () => {
+  const eth = row({
+    symbol: "ETH",
+    name: "Ether",
+    address: null,
+    decimals: 18,
+    kind: "coin",
+    balance: 0.0002,
+    rawBalance: "200000000000000",
+    priceUsd: 2750,
+    valueUsd: 0.55,
+  });
+  const holding: Portfolio = { totalUsd: 10.55, tokens: [row({}), eth] };
+
+  it("debits a stake from the native row and the total", () => {
+    const after = applyNativeDelta(holding, "base-mainnet", -180_000_000_000_000n);
+    expect(after.tokens[1].rawBalance).toBe("20000000000000");
+    expect(after.tokens[1].valueUsd).toBeCloseTo(0.055, 6);
+    expect(after.totalUsd).toBeCloseTo(10.055, 6);
+    expect(after.tokens[0]).toBe(holding.tokens[0]);
+  });
+
+  it("credits a payout", () => {
+    const after = applyNativeDelta(holding, "base-mainnet", 100_000_000_000_000n);
+    expect(after.tokens[1].rawBalance).toBe("300000000000000");
+  });
+
+  it("leaves a portfolio without that network's native row alone", () => {
+    expect(applyNativeDelta(holding, "arb-mainnet", -1n)).toBe(holding);
+    expect(applyNativeDelta(holding, "base-mainnet", 0n)).toBe(holding);
   });
 });

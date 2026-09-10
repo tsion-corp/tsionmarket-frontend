@@ -1703,7 +1703,14 @@
       "startBlockedLiveBody": "Uma sala por vez. Entre no jogo ao vivo abaixo. Criar um novo abre quando este terminar.",
       "toastStartBlockedLive": "Alguém abriu um jogo primeiro. Uma sala por vez, então entre no que está ao vivo.",
       "shareEarnTag": "Você ganha 10%",
-      "shareCopyLink": "Copiar link"
+      "shareCopyLink": "Copiar link",
+      "gameLoadFailedTitle": "Não conseguimos carregar esta ronda",
+      "gameLoadFailedBody": "Verifique a sua ligação e tente novamente. O seu dinheiro está seguro de qualquer forma: cada aposta está no contrato, não nesta página.",
+      "gameNotFoundTitle": "Não há nenhuma ronda aqui",
+      "gameNotFoundBody": "Este link não aponta para nenhum jogo. Pode estar mal escrito, ou a ronda nunca começou.",
+      "backToLobby": "Voltar ao lobby",
+      "balanceUpdating": "Atualizando…",
+      "lobbyStale": "Não conseguimos chegar ao servidor agora. Esta é a última lista que recebemos; atualiza-se sozinha."
     },
     "fund": {
       "title": "Adicionar dinheiro",

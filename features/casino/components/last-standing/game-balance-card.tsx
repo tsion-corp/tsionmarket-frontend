@@ -7,6 +7,8 @@ import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 interface GameBalanceCardProps {
   /** The game balance in dollars: the wallet's ETH on Base. */
   balanceUsd: number;
+  /** A read of the wallet is in flight after a stake or a payout. */
+  refreshing?: boolean;
   /** Withdraw is only offered when there is something to withdraw. */
   canWithdraw: boolean;
   /** Add money can be hidden where a bigger button beside it already says it. */
@@ -24,6 +26,7 @@ interface GameBalanceCardProps {
 // a game rather than finding out at the stake sheet that they cannot.
 export function GameBalanceCard({
   balanceUsd,
+  refreshing = false,
   canWithdraw,
   showAddMoney = true,
   onWithdraw,
@@ -44,6 +47,11 @@ export function GameBalanceCard({
         </div>
         <div className="tnum mt-0.5 text-[16px] font-bold text-white/90">
           {mask(money.format(balanceUsd))}
+          {refreshing ? (
+            <span className="ml-2 text-[11px] font-normal text-white/40" aria-live="polite">
+              {t("balanceUpdating")}
+            </span>
+          ) : null}
         </div>
       </div>
       {/* Beside the balance where there is room; a full row of their own on a

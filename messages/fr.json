@@ -1703,7 +1703,14 @@
       "startBlockedLiveBody": "Une salle à la fois. Rejoignez la partie en cours ci-dessous. On pourra en ouvrir une autre quand elle se terminera.",
       "toastStartBlockedLive": "Quelqu'un a ouvert une partie avant vous. Une salle à la fois, rejoignez donc celle en cours.",
       "shareEarnTag": "Vous gagnez 10%",
-      "shareCopyLink": "Copier le lien"
+      "shareCopyLink": "Copier le lien",
+      "gameLoadFailedTitle": "Impossible de charger cette manche",
+      "gameLoadFailedBody": "Vérifiez votre connexion et réessayez. Votre argent est en sécurité dans tous les cas : chaque mise est dans le contrat, pas sur cette page.",
+      "gameNotFoundTitle": "Aucune manche ici",
+      "gameNotFoundBody": "Ce lien ne mène à aucune partie. Il a peut-être été mal saisi, ou la manche n'a jamais commencé.",
+      "backToLobby": "Retour au lobby",
+      "balanceUpdating": "Mise à jour…",
+      "lobbyStale": "Le serveur est injoignable pour le moment. Voici la dernière liste reçue ; elle se met à jour toute seule."
     },
     "fund": {
       "title": "Ajouter de l'argent",

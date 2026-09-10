@@ -177,6 +177,43 @@ describe("usePortfolio.applyReceipt", () => {
     expect(result.current.totalUsd).toBe(7);
     expect(apiFetch.mock.calls.length).toBe(before);
   });
+
+  // Native value has no transfer log; the caller states it.
+  it("moves the native row by a stated amount without a request", async () => {
+    apiFetch.mockImplementation(async () =>
+      answer({
+        totalUsd: 10.55,
+        tokens: [
+          ...snapshot.tokens,
+          {
+            symbol: "ETH",
+            name: "Ether",
+            network: "base-mainnet",
+            address: null,
+            decimals: 18,
+            kind: "coin",
+            balance: 0.0002,
+            rawBalance: "200000000000000",
+            priceUsd: 2750,
+            valueUsd: 0.55,
+            logo: null,
+          },
+        ],
+      })
+    );
+    const { result } = renderHook(() => usePortfolio(), { wrapper });
+    await vi.waitFor(() => expect(result.current.tokens.length).toBe(2));
+    const before = apiFetch.mock.calls.length;
+
+    act(() => {
+      result.current.applyNativeDelta("base-mainnet", -180_000_000_000_000n);
+    });
+
+    await vi.waitFor(() => expect(result.current.tokens[1].rawBalance).toBe("20000000000000"));
+    expect(result.current.tokens[0].rawBalance).toBe("10000000");
+    expect(result.current.totalUsd).toBeCloseTo(10.055, 6);
+    expect(apiFetch.mock.calls.length).toBe(before);
+  });
 });
 
 // The balance is the page on /portfolio and /dashboard and a chip in the

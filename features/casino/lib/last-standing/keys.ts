@@ -7,10 +7,12 @@ export const VAULT_KEYS = {
   game: (gameId: number) => ["vault", "game", gameId] as const,
   winners: ["vault", "winners"] as const,
   activities: ["vault", "activities"] as const,
-  // The chain-side reads. Under the same prefix, so a reconnect resync
-  // refreshes them with everything else, but not under `games`, so an
-  // invalidation of the API list does not fan out to the contract read.
+  // The socket's contract-shaped lobby rows. Under the same prefix, so a
+  // reconnect resync refreshes them with everything else, but not under
+  // `games`, so an invalidation of the API list does not touch them.
   chainGames: ["vault", "chain", "games"] as const,
-  chainSettled: ["vault", "chain", "settled"] as const,
-  chainActivity: ["vault", "chain", "activity"] as const,
+  // The contract's tunables (stake floor, payout split), one multicall.
+  params: ["vault", "params"] as const,
+  // This wallet's payout the contract could not push, read on events only.
+  winnings: (address: string) => ["vault", "winnings", address.toLowerCase()] as const,
 };

@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { wsapiService } from "@/lib/wsapi-base";
+import { isProxiedVaultRead } from "@/lib/api/vault-proxy-paths";
 
 // Server-side proxy for the world-street-vault game API. The gateway now sends
 // CORS headers, so a browser could call it directly; the proxy stays because
@@ -18,6 +19,9 @@ const BASE = process.env.NEXT_PUBLIC_VAULT_API_URL ?? wsapiService("world-street
 // than the slower-moving feeds.
 const CACHE_TTL_MS = 4000;
 const STATUS_TTL_MS = 1000;
+// The contract's tunables change rarely and the service caches them for 30 s
+// itself; a minute here keeps a lobby full of browsers to one upstream read.
+const CONFIG_TTL_MS = 60_000;
 const cache = new Map<string, { expires: number; body: string; status: number }>();
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
@@ -30,10 +34,8 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   }
 
   const joined = path.join("/");
-  // Only the public read endpoints are proxied. `games` and `games/:id` are the
-  // v4 multi-game reads (the lobby and one game); `game/...` carries the feeds
-  // that stayed singular, winners and activities.
-  if (!joined.startsWith("game/") && joined !== "games" && !/^games\/\d+$/.test(joined)) {
+  // Only the public read endpoints are proxied; see lib/api/vault-proxy-paths.
+  if (!isProxiedVaultRead(joined)) {
     return NextResponse.json(
       { success: false, error: { code: "NOT_FOUND", message: "Not found" } },
       { status: 404 }
@@ -60,7 +62,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     // timer have to converge within a second or two of settlement. The feeds
     // move slowly enough to sit on the longer cache.
     const live = joined === "games" || /^games\/\d+$/.test(joined);
-    const ttl = live ? STATUS_TTL_MS : CACHE_TTL_MS;
+    const ttl = joined === "config" ? CONFIG_TTL_MS : live ? STATUS_TTL_MS : CACHE_TTL_MS;
     cache.set(url, { expires: Date.now() + ttl, body, status: res.status });
     return new NextResponse(body, {
       status: res.status,

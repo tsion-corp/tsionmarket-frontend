@@ -12,7 +12,10 @@
 export const WSAPI_BASE =
   process.env.NEXT_PUBLIC_WSAPI_BASE_URL ??
   process.env.WSAPI_BASE_URL ??
-  "https://api.worldstreetwebservices.com";
+  // The live gateway. The former default, api.worldstreetwebservices.com,
+  // resolves but answers nothing (every request timed out on 2026-09-10), so
+  // a deployment without WSAPI_BASE_URL set must not fall back to it.
+  "https://api.tsionark.com";
 
 export function wsapiService(service: string): string {
   return `${WSAPI_BASE}/v1/${service}`;

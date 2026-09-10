@@ -9,6 +9,7 @@ import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { parseEther } from "viem";
 import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
+import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { secondsUntil } from "@/features/casino/lib/last-standing/clock";
 import {
   followedGameServerSnapshot,
@@ -16,7 +17,6 @@ import {
   subscribeFollowedGame,
 } from "@/features/casino/lib/last-standing/followed-game";
 import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
-import { usePortfolio } from "@/hooks/use-portfolio";
 import { getWalletAddress } from "@/lib/user";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -469,7 +469,7 @@ function MiniTimerLive({
       }
     : null;
   const { wager, wagering } = useVaultActions();
-  const { tokens, refetch: refetchPortfolio } = usePortfolio();
+  const { holding: ethHolding, settle: settleBalance } = useGameBalance();
 
   const address = getWalletAddress(user, "ethereum");
   const gameActive = !!status?.gameActive;
@@ -501,9 +501,6 @@ function MiniTimerLive({
       : t("statusIdle");
 
   const pot = money.format(status?.vaultBalance.usdValue ?? 0);
-  const ethHolding = tokens.find(
-    (tok) => tok.network === "base-mainnet" && tok.symbol.toUpperCase() === "ETH"
-  );
   const balance = mask(money.format(ethHolding?.valueUsd ?? 0));
   const entryFeeEth = status ? Number(status.entryFee.amount) : 0;
   const canPlay = entryFeeEth > 0 && (ethHolding?.balance ?? 0) >= entryFeeEth;
@@ -526,10 +523,11 @@ function MiniTimerLive({
     const toastId = toast.loading(t("ctaPlacing"));
     try {
       if (followedGameId === null || !game) return;
-      await wager(followedGameId, parseEther(game.minWager.amount));
+      const stakeWei = parseEther(game.minWager.amount);
+      await wager(followedGameId, stakeWei);
       toast.success(t("toastYoureIn"), { id: toastId });
       resyncGame();
-      void refetchPortfolio();
+      void settleBalance(-stakeWei);
     } catch (e) {
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
     }
