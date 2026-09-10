@@ -163,6 +163,7 @@ import { LobbySection } from "@/features/casino/components/chess/lobby-section";
 import { PlaySection } from "@/features/casino/components/chess/play-section";
 import { SpectateSection } from "@/features/casino/components/chess/spectate-section";
 import { CreateSection } from "@/features/casino/components/chess/create-section";
+import { LiveGamesSection } from "@/features/casino/components/chess/broadcast/live-games-section";
 import messages from "@/messages/en.json";
 
 // The screens read their copy through next-intl, so the wrapper provides the
@@ -267,6 +268,8 @@ describe("chess lobby", () => {
     expect(screen.getByRole("link", { name: /Challenge a friend/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Set up a computer game" })).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByText("Open lobby games")).not.toBeInTheDocument());
+    expect(chessApi.fetchLobbyChallenges).toHaveBeenCalledTimes(1);
+    expect(chessApi.fetchLiveMatches).not.toHaveBeenCalled();
   });
 
   it("creates an unlimited computer game and opens its board", async () => {
@@ -505,6 +508,16 @@ describe("chess lobby", () => {
     await waitFor(() =>
       expect(push).toHaveBeenCalledWith("/casino/chess/matchmaking?ticket=lobby-1")
     );
+  });
+});
+
+describe("live chess", () => {
+  it("loads active games without polling the waiting lobby", async () => {
+    render(<LiveGamesSection />, { wrapper });
+
+    expect(await screen.findByText("No live boards right now")).toBeInTheDocument();
+    expect(chessApi.fetchLiveMatches).toHaveBeenCalledTimes(1);
+    expect(chessApi.fetchLobbyChallenges).not.toHaveBeenCalled();
   });
 });
 

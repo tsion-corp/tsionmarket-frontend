@@ -240,7 +240,6 @@ describe("page names", () => {
     expect(pageNameForSection("portfolio")).toBe("portfolio");
     // The app and the catalog use different words for these three, which is
     // the whole reason the mapping exists.
-    expect(pageNameForSection("perps")).toBe("perpetuals");
     expect(pageNameForSection("meme")).toBe("memecoins");
     expect(pageNameForSection("casino")).toBe("arkade");
     expect(pageNameForSection("activity")).toBe("arktivity");

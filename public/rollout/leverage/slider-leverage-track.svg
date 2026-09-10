@@ -1,0 +1,17 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="326" height="23" viewBox="0 0 326 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Group 48098445">
+<g id="_ProgressBarAtom">
+<rect width="326" height="6" rx="3" transform="matrix(1 0 0 -1 0 15)" fill="#3E3E3E"/>
+</g>
+<g id="_ProgressBarAtom_2">
+<rect width="205.807" height="6" rx="3" transform="matrix(1 0 0 -1 0 15)" fill="#FFD62F"/>
+</g>
+<circle id="Slider Thumb" cx="201.5" cy="11.5" r="10.4942" fill="#F8FAFC" stroke="url(#paint0_linear_0_13)" stroke-width="2.01159"/>
+</g>
+<defs>
+<linearGradient id="paint0_linear_0_13" x1="203.772" y1="-10.3265" x2="189.963" y2="26.8467" gradientUnits="userSpaceOnUse">
+<stop stop-color="#71B3F6" stop-opacity="0.03"/>
+<stop offset="1" stop-color="white"/>
+</linearGradient>
+</defs>
+</svg>

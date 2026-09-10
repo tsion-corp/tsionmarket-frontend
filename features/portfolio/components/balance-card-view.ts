@@ -19,4 +19,9 @@ export interface BalanceCardViewProps {
   formatMasked: (amount: number) => string;
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
+  /**
+   * Replays the walkthrough. Supplied by the route rather than reached for
+   * here: the tour is another feature, and features never import each other.
+   */
+  onTakeTour: () => void;
 }

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { RwaAssetList } from "@/features/rwa/components/rwa-asset-list";
+import { RwaPhoneList } from "@/features/rwa/components/rwa-phone-list";
 import { RwaTradePanel } from "@/features/rwa/components/rwa-trade-panel";
 import { RwaDetailSheet } from "@/features/rwa/components/rwa-detail-sheet";
 import { useListedRwaAssets } from "@/features/rwa/hooks/use-rwa-assets";
@@ -22,9 +23,16 @@ export interface RwaSectionProps {
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenConfirm: (confirm: ConfirmPayload) => void;
   onAddFunds?: () => void;
+  /**
+   * The phone Market page's Real assets tab: the list in place of the table,
+   * filtered by the page's own search box, with no chrome of its own. The
+   * sheets behind a row are the same either way.
+   */
+  phone?: boolean;
+  query?: string;
 }
 
-export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
+export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds, phone = false, query = "" }) => {
   const t = useTranslations("rwa");
   const { assets, loading, error } = useListedRwaAssets();
 
@@ -85,6 +93,43 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
     setTradeAsset(null);
   };
 
+  const sheets = (
+    <ModalShell
+      open={modalMode !== null}
+      onClose={closeModal}
+      contentKey={`${modalMode}-${modalAsset?.id ?? ""}`}
+    >
+      {modalMode === "trade" && tradeAsset ? (
+        <RwaTradePanel
+          key={tradeAsset.id}
+          asset={tradeAsset}
+          bare
+          initialMode={prefill?.mode ?? tradeMode}
+          initialAmount={prefill?.amount ?? ""}
+          onAddFunds={onAddFunds}
+          onContinueInBackground={closeModal}
+        />
+      ) : modalMode === "detail" && detailAsset ? (
+        <RwaDetailSheet asset={detailAsset} onTrade={openTrade} />
+      ) : null}
+    </ModalShell>
+  );
+
+  if (phone) {
+    return (
+      <>
+        <RwaPhoneList
+          assets={buyable}
+          loading={loading}
+          error={error}
+          query={query}
+          onOpen={setDetailAsset}
+        />
+        {sheets}
+      </>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
       <Eyebrow>{t("eyebrow")}</Eyebrow>
@@ -99,26 +144,7 @@ export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
           onTrade={openTrade}
         />
       </div>
-
-      <ModalShell
-        open={modalMode !== null}
-        onClose={closeModal}
-        contentKey={`${modalMode}-${modalAsset?.id ?? ""}`}
-      >
-        {modalMode === "trade" && tradeAsset ? (
-          <RwaTradePanel
-            key={tradeAsset.id}
-            asset={tradeAsset}
-            bare
-            initialMode={prefill?.mode ?? tradeMode}
-            initialAmount={prefill?.amount ?? ""}
-            onAddFunds={onAddFunds}
-            onContinueInBackground={closeModal}
-          />
-        ) : modalMode === "detail" && detailAsset ? (
-          <RwaDetailSheet asset={detailAsset} onTrade={openTrade} />
-        ) : null}
-      </ModalShell>
+      {sheets}
     </div>
   );
 };

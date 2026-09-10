@@ -50,7 +50,7 @@ export function ConnectionBanner() {
       // sentence before it mentions this.
       role="status"
       aria-live="polite"
-      className="pointer-events-auto fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] z-[95] mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-3 rounded-full border border-white/12 bg-[#141416]/92 px-4 py-2.5 shadow-[0_18px_50px_-16px_rgba(0,0,0,0.95)] backdrop-blur-[18px] md:bottom-6"
+      className="pointer-events-auto fixed inset-x-[var(--ws-frame-inset)] bottom-[calc(env(safe-area-inset-bottom,0px)+88px)] z-[95] mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-3 rounded-full border border-white/12 bg-[#141416]/92 px-4 py-2.5 shadow-[0_18px_50px_-16px_rgba(0,0,0,0.95)] backdrop-blur-[18px] md:bottom-6"
     >
       <span
         className={`h-2 w-2 shrink-0 rounded-full ${probing ? "bg-accent animate-pulse" : "bg-down"}`}

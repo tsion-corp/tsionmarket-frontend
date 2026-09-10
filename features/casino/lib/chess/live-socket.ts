@@ -16,9 +16,7 @@
 // topic-less and ignored here.
 
 const DEFAULT_WS_URL =
-  process.env.NODE_ENV === "development"
-    ? "ws://127.0.0.1:8100"
-    : "wss://ws.worldstreetwebservices.com";
+  process.env.NODE_ENV === "development" ? "ws://127.0.0.1:8100" : "wss://ws.tsionark.com";
 const WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL ?? DEFAULT_WS_URL;
 
 export interface GatewayFrame {

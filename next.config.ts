@@ -27,7 +27,13 @@ const nextConfig: NextConfig = {
   // Powerball became ArkBall. Shared links and bookmarks to the old slug still
   // land on the game.
   async redirects() {
-    return [{ source: "/casino/powerball", destination: "/casino/arkball", permanent: true }];
+    return [
+      { source: "/casino/powerball", destination: "/casino/arkball", permanent: true },
+      // Temporary for the first 2.0 release: a 308 is cached by browsers and
+      // would fight a rollback. Flip to permanent once 2.0 has held.
+      { source: "/dashboard", destination: "/portfolio", permanent: false },
+      { source: "/dashboard/:path*", destination: "/portfolio/:path*", permanent: false },
+    ];
   },
   // Pin the Turbopack root to this project. Otherwise Next walks up the tree,
   // finds the stray ~/package-lock.json, and treats the whole home directory as
@@ -35,6 +41,10 @@ const nextConfig: NextConfig = {
   // needs to (and prints a "multiple lockfiles" warning on every start).
   turbopack: {
     root: import.meta.dirname,
+    resolveAlias: {
+      "@stripe/crypto": "./lib/stubs/empty.ts",
+      "@farcaster/mini-app-solana": "./lib/stubs/empty.ts",
+    },
   },
   webpack(config) {
     // Privy's root bundle references optional Stripe/Farcaster integrations
@@ -48,6 +58,7 @@ const nextConfig: NextConfig = {
     return config;
   },
   experimental: {
+    turbopackFileSystemCacheForDev: true,
     // Import only the referenced members of these barrel packages instead of the
     // whole module graph. @privy-io/react-auth alone is a 332-module barrel and
     // loads on every route via the root Providers, so without this Turbopack
@@ -59,6 +70,11 @@ const nextConfig: NextConfig = {
       "@tanstack/react-query",
       "@tanstack/react-table",
       "@solana/kit",
+      "@solana-program/token",
+      "@polymarket/client",
+      "@livekit/components-react",
+      "@base-ui/react",
+      "chess.js",
       "motion",
       "sonner",
       "embla-carousel-react",

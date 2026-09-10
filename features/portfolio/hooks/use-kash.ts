@@ -1,22 +1,21 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useSignMessage } from "@privy-io/react-auth";
+import { queryKeys } from "@/lib/query-keys";
 import { getWalletAddress } from "@/lib/user";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { markKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
+  claimSettlementMessage,
   getKashAccount,
-  getKashConversionQuote,
   getKashLedger,
   getKashPurchaseQuote,
   getKashStatus,
   getKashSubscription,
   getKashSubscriptionTiers,
   isValidKashAmount,
-  newConversionKey,
   postKashClaim,
-  postKashConversion,
   postKashPurchase,
   postKashSubscribe,
 } from "@/features/portfolio/lib/kash";
@@ -42,7 +41,7 @@ const ACCOUNT_POLL_MS = 30 * 1000;
 
 export function useKashStatus() {
   return useQuery({
-    queryKey: ["kash", "status"],
+    queryKey: queryKeys.kash.status(),
     queryFn: getKashStatus,
     staleTime: STATUS_STALE_MS,
     // Pre-launch the engine is not part of the page: no request, no error noise.
@@ -57,7 +56,7 @@ export function useKashAccount() {
   const wallet = getWalletAddress(user, "ethereum");
 
   const query = useQuery({
-    queryKey: ["kash", "account", wallet],
+    queryKey: queryKeys.kash.account(wallet),
     queryFn: () => getKashAccount(wallet as string),
     enabled: ready && authenticated && Boolean(wallet),
     refetchInterval: ACCOUNT_POLL_MS,
@@ -108,7 +107,10 @@ export function useKashSubscription() {
 
 // The caller's recent Kash ledger, fetched only while the history view is
 // open. Mutations invalidate the whole ["kash"] tree, so a fresh purchase or
-// conversion appears without extra wiring.
+// conversion appears without extra wiring — which is what makes it safe to
+// hold this stale for a while: closing and reopening the modal within the
+// window reuses the cached list instead of re-fetching on every open, and
+// the user's own actions still bust the cache the moment they happen.
 export function useKashLedger(enabled: boolean) {
   const { user, ready, authenticated } = usePrivy();
   const wallet = getWalletAddress(user, "ethereum");
@@ -117,6 +119,7 @@ export function useKashLedger(enabled: boolean) {
     queryKey: ["kash", "ledger", wallet],
     queryFn: () => getKashLedger(wallet as string),
     enabled: enabled && ready && authenticated && Boolean(wallet),
+    staleTime: STATUS_STALE_MS,
   });
 }
 
@@ -129,15 +132,6 @@ export function useKashPurchaseQuote(usdcAmount: string, enabled = true) {
   return useQuery({
     queryKey: ["kash", "purchase-quote", debounced],
     queryFn: () => getKashPurchaseQuote(debounced),
-    enabled: enabled && isValidKashAmount(debounced),
-  });
-}
-
-export function useKashConversionQuote(kashAmount: string, enabled = true) {
-  const debounced = useDebouncedValue(kashAmount.trim(), 300);
-  return useQuery({
-    queryKey: ["kash", "conversion-quote", debounced],
-    queryFn: () => getKashConversionQuote(debounced),
     enabled: enabled && isValidKashAmount(debounced),
   });
 }
@@ -203,34 +197,26 @@ export function useKashSubscribe() {
   });
 }
 
-/** Settle the wallet's points into KSH now; refreshes the card on success. */
+/**
+ * Settle the wallet's points into KSH now; refreshes the card on success.
+ *
+ * The route requires a signature proving control of the wallet (see
+ * claimSettlementMessage) since no on-chain event backs a claim the way a
+ * purchase or a conversion's permit does — so this signs before posting,
+ * same shape as any other wallet-gated write in the app.
+ */
 export function useKashClaim() {
   const invalidate = useInvalidateKash();
+  const { signMessage } = useSignMessage();
   return useMutation({
-    mutationFn: ({ wallet }: { wallet: string }) => postKashClaim(wallet),
-    onSuccess: invalidate,
-  });
-}
-
-export function useKashConversion() {
-  const invalidate = useInvalidateKash();
-  return useMutation({
-    mutationFn: ({
-      wallet,
-      kashAmount,
-      permit,
-      idempotencyKey,
-    }: {
-      wallet: string;
-      kashAmount: string;
-      permit?: { deadline: number; v: number; r: string; s: string };
-      /**
-       * Supplied by the caller so it survives a retry. Defaulted here only as a
-       * backstop — a key created inside the mutation would be new on every
-       * attempt and protect nothing.
-       */
-      idempotencyKey?: string;
-    }) => postKashConversion(wallet, kashAmount, permit, idempotencyKey ?? newConversionKey()),
+    mutationFn: async ({ wallet }: { wallet: string }) => {
+      const timestamp = Date.now();
+      const { signature } = await signMessage(
+        { message: claimSettlementMessage(wallet, timestamp) },
+        { address: wallet }
+      );
+      return postKashClaim(wallet, signature, timestamp);
+    },
     onSuccess: invalidate,
   });
 }

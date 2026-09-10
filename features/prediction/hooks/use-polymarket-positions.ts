@@ -5,15 +5,19 @@ import { usePrivy } from "@privy-io/react-auth";
 import { friendlyError } from "@/lib/errors";
 import { usePolymarketSession } from "@/features/prediction/hooks/use-polymarket-session";
 import {
-  readCollateralUsd,
   readUnsettledUsdcUsd,
   readWalletPusdUsd,
+  refreshCollateralUsd,
 } from "@/features/prediction/lib/polymarket/collateral";
 import { getWalletAddress } from "@/lib/user";
 import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
 
 type PositionsPage = Awaited<ReturnType<ReturnType<SecureClient["listPositions"]>["firstPage"]>>;
+type ClosedPositionsPage = Awaited<
+  ReturnType<ReturnType<SecureClient["listClosedPositions"]>["firstPage"]>
+>;
 export type PolymarketPosition = PositionsPage["items"][number];
+export type PolymarketClosedPosition = ClosedPositionsPage["items"][number];
 
 // Loads the user's open Polymarket positions on demand. Deliberately not
 // auto-fetched: reading requires the trading session, and we don't want to
@@ -24,6 +28,7 @@ export function usePolymarketPositions() {
   const { ensureReady } = usePolymarketSession();
   const { user } = usePrivy();
   const [positions, setPositions] = useState<PolymarketPosition[]>([]);
+  const [closedPositions, setClosedPositions] = useState<PolymarketClosedPosition[]>([]);
   const [available, setAvailable] = useState<number | null>(null);
   const [cashable, setCashable] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -36,13 +41,21 @@ export function usePolymarketPositions() {
     try {
       const client = await ensureReady();
       const eoa = getWalletAddress(user, "ethereum");
-      const [page, collateral, walletPusd, unsettled] = await Promise.all([
-        client.listPositions().firstPage(),
-        readCollateralUsd(client).catch(() => 0),
+      const [page, closedPage, collateral, walletPusd, unsettled] = await Promise.all([
+        client.listPositions({ pageSize: 50, sizeThreshold: 0 }).firstPage(),
+        client
+          .listClosedPositions({
+            pageSize: 20,
+            sortBy: "TIMESTAMP",
+            sortDirection: "DESC",
+          })
+          .firstPage(),
+        refreshCollateralUsd(client).catch(() => 0),
         eoa ? readWalletPusdUsd(eoa) : Promise.resolve(0),
         eoa ? readUnsettledUsdcUsd(eoa) : Promise.resolve(0),
       ]);
       setPositions(page.items);
+      setClosedPositions(closedPage.items);
       setAvailable(collateral);
       // Include both recovery states from an incomplete cash-out: pUSD already
       // transferred to the EOA and USDC.e already unwrapped there.
@@ -55,5 +68,5 @@ export function usePolymarketPositions() {
     }
   }, [ensureReady, user]);
 
-  return { positions, available, cashable, loading, loaded, error, refresh };
+  return { positions, closedPositions, available, cashable, loading, loaded, error, refresh };
 }

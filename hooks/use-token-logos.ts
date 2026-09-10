@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { apiFetch } from "@/lib/api";
 
 interface TokenRef {
   chain: string;
@@ -28,13 +29,17 @@ export function useTokenLogos(tokens: TokenRef[]): Record<string, string> {
     staleTime: ONE_HOUR,
     gcTime: ONE_HOUR,
     queryFn: async () => {
-      const res = await fetch("/api/token-logos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tokens: tokens.map((t) => ({ chain: t.chain, address: t.address })),
-        }),
-      });
+      const res = await apiFetch(
+        "/api/token-logos",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tokens: tokens.map((t) => ({ chain: t.chain, address: t.address })),
+          }),
+        },
+        { anonymous: true }
+      );
       if (!res.ok) throw new Error("Logo request failed");
       const body = await res.json();
       return body.logos ?? {};

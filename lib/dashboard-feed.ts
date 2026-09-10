@@ -1,5 +1,3 @@
-import type { PerpBriefRow } from "@/lib/perp/brief";
-
 // What the dashboard shows that is the same for every user, composed once on
 // the server and delivered as one value: the four briefs and the marquee's
 // live events. Client-safe, so the browser's hook and the server's composer
@@ -8,8 +6,6 @@ import type { PerpBriefRow } from "@/lib/perp/brief";
 // A section is null when its upstream could not answer. The brief then shows
 // its unavailable state, and no browser ever asks that upstream itself, which
 // is the point: a dead game gateway used to be polled by every open tab.
-
-export type { PerpBriefRow } from "@/lib/perp/brief";
 
 export interface SpotBriefRow {
   symbol: string;
@@ -33,6 +29,11 @@ export interface RwaBriefRow {
   id: string;
   symbol: string;
   name: string;
+  issuer: string;
+  /** The registry's category: treasury, equity, commodity, real-estate, credit, fund, carbon. */
+  category: string | null;
+  /** Published yield in basis points, for the assets that pay one. */
+  apyBps: number | null;
   /** Route-relative logo URL, resolved by the token-logo handler. */
   logo: string;
   priceUsd: number | null;
@@ -63,7 +64,6 @@ export interface DashboardFeed {
   /** Epoch ms when the server composed this. */
   asOf: number;
   spot: SpotBriefRow[] | null;
-  perps: PerpBriefRow[] | null;
   memes: MemeBriefRow[] | null;
   rwa: RwaBriefRow[] | null;
   live: DashboardLive | null;

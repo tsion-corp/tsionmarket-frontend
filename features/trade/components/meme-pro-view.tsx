@@ -1,0 +1,506 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
+import { SearchIcon } from "@/components/ui/icons";
+import { AssetChart } from "@/components/ui/asset-chart";
+import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/components/meme-bits";
+import { MobileTradeSheet } from "@/features/trade/components/mobile-trade-sheet";
+import { ListPagination } from "@/components/ui/list-pagination";
+import { useIsMobile } from "@/hooks/use-is-mobile";
+import { MemeTradeSheet } from "@/features/trade/components/meme-trade-sheet";
+import {
+  useMemeCatalog,
+  useMemeSearch,
+  useMemeToken,
+} from "@/features/trade/hooks/use-meme-tokens";
+import { useCoingeckoId } from "@/hooks/use-coingecko-id";
+import { visibleWarnings, compactUsd, type MemeToken } from "@/lib/meme/api";
+
+// The desk interface: provider-backed search (name, symbol or contract
+// address), the server-paginated catalog table with liquidity/volume/mcap,
+// and a detail rail with candles and the trade action.
+// Coins per page, matching the other market lists.
+const PER_PAGE = 6;
+// The selector inside the phone's trade screen fills the whole screen, so it
+// asks for far more of the catalog before the pager appears.
+const PICKER_PER_PAGE = 14;
+
+// The coin list shown inside the trade screen's selector. Its own component so
+// its catalog page is only requested once the selector is actually opened —
+// the sheet calls the picker's render function only while it is showing.
+function CoinPicker({
+  renderRow,
+  onPick,
+}: {
+  renderRow: (row: MemeToken, onPicked: () => void) => React.ReactNode;
+  onPick: (row: MemeToken) => void;
+}) {
+  const t = useTranslations("meme");
+  const [page, setPage] = useState(1);
+  const { tokens, pageCount, isLoading } = useMemeCatalog(page, PICKER_PER_PAGE);
+
+  return (
+    <div className="ws-card overflow-hidden" data-sensitive="position">
+      {isLoading && tokens.length === 0 ? (
+        <div className="px-4 py-10 text-center text-[13px] font-normal text-white/45">
+          {t("loading")}
+        </div>
+      ) : (
+        tokens.map((row) => renderRow(row, () => onPick(row)))
+      )}
+      <ListPagination page={page} pages={pageCount} onPage={setPage} />
+    </div>
+  );
+}
+
+export function MemeProView() {
+  const t = useTranslations("meme");
+  const [page, setPage] = useState(1);
+  const { tokens, pageCount, isLoading } = useMemeCatalog(page, PER_PAGE);
+  const [search, setSearch] = useState("");
+  const searchState = useMemeSearch(search);
+  const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
+  // On a phone the coin's detail card and chart open as a screen of their own,
+  // chosen from the list. Desktop keeps them in the column beside the table.
+  const isMobile = useIsMobile();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [trading, setTrading] = useState(false);
+
+  const rows = searchState.active ? searchState.results : tokens;
+  const fallbackSelected = rows[0]?.address ?? null;
+  const address = selectedAddress ?? fallbackSelected;
+  const listedRow = useMemo(() => rows.find((r) => r.address === address) ?? null, [rows, address]);
+  // useMemeToken keys on address + chainId now (memecoins are multi-chain), so
+  // it takes the listed row rather than a bare address.
+  const { token } = useMemeToken(listedRow);
+  const shown = token ?? listedRow;
+
+  // Long-tail Base tokens chart through the CoinGecko contract resolver.
+  const resolved = useCoingeckoId(shown ? "base" : null, shown?.address ?? null);
+
+  const openCoin = (addr: string) => {
+    setSelectedAddress(addr);
+    setSheetOpen(true);
+  };
+
+  // One row, drawn the same whether it opens a coin from the section or
+  // switches to one from inside the trade screen.
+  const coinRow = (row: MemeToken, onPick: () => void) => (
+    <button
+      key={row.address}
+      onClick={onPick}
+      className="flex w-full cursor-pointer items-center gap-3 border-b border-white/6 px-4 py-3.5 text-left transition-colors last:border-b-0 active:bg-white/4"
+    >
+      <MemeCoin token={row} size={34} />
+      <span className="min-w-0 flex-1">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate font-sans text-[14.5px] font-medium">{row.symbol ?? "?"}</span>
+          <RiskBadge level={row.riskLevel} />
+        </span>
+        <span className="block truncate text-[11.5px] font-normal text-white/45">
+          {row.name ?? "—"}
+        </span>
+      </span>
+      <span className="shrink-0 text-right">
+        <span className="tnum block font-sans text-[14px] font-medium">
+          {priceLabel(row.priceUsd)}
+        </span>
+        <span className="block text-[12px]">
+          <PctChange value={row.priceChange24hPercent} />
+        </span>
+      </span>
+    </button>
+  );
+
+  const searchBox = (
+    <>
+      <div className="mb-3 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2.5">
+        <SearchIcon />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("searchPlaceholder")}
+          className="min-w-0 flex-1 bg-transparent text-[13.5px] font-normal text-white outline-none"
+        />
+      </div>
+    </>
+  );
+
+  const table = (
+    <>
+      <div className="ws-card overflow-x-auto">
+        <div className="min-w-[640px]">
+          <div className="grid grid-cols-[2fr_1fr_1fr_1fr_1fr_90px] gap-3 px-4 py-3 text-[11px] font-normal tracking-[0.05em] text-white/40 uppercase">
+            <span>{t("colToken")}</span>
+            <span className="text-right">{t("colPrice")}</span>
+            <span className="text-right">{t("col24h")}</span>
+            <span className="text-right">{t("colLiquidity")}</span>
+            <span className="text-right">{t("colVolume")}</span>
+            <span />
+          </div>
+          {isLoading && rows.length === 0 ? (
+            <div className="border-t border-white/6 px-4 py-10 text-center text-[13px] font-normal text-white/45">
+              {t("loading")}
+            </div>
+          ) : searchState.searching ? (
+            <div className="border-t border-white/6 px-4 py-10 text-center text-[13px] font-normal text-white/45">
+              {t("searching")}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="border-t border-white/6 px-4 py-10 text-center text-[13px] font-normal text-white/45">
+              {searchState.active ? t("noResults") : t("empty")}
+            </div>
+          ) : (
+            rows.map((row) => {
+              const active = row.address === address;
+              return (
+                <div
+                  key={row.address}
+                  onClick={() => setSelectedAddress(row.address)}
+                  className={`grid cursor-pointer grid-cols-[2fr_1fr_1fr_1fr_1fr_90px] items-center gap-3 border-t border-white/6 px-4 py-3 text-[13px] transition-colors ${
+                    active ? "bg-white/6" : "hover:bg-white/4"
+                  }`}
+                >
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <MemeCoin token={row} size={26} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 truncate font-sans text-[13.5px] font-medium">
+                        {row.symbol ?? "?"}
+                        <RiskBadge level={row.riskLevel} />
+                      </div>
+                      <div className="truncate text-[11px] font-normal text-white/45">
+                        {row.name ?? "—"}
+                      </div>
+                    </div>
+                  </div>
+                  <span className="tnum text-right font-normal">{priceLabel(row.priceUsd)}</span>
+                  <span className="text-right text-[12.5px]">
+                    <PctChange value={row.priceChange24hPercent} />
+                  </span>
+                  <span className="tnum text-right text-[12.5px] font-normal text-white/60">
+                    {compactUsd(row.liquidityUsd)}
+                  </span>
+                  <span className="tnum text-right text-[12.5px] font-normal text-white/60">
+                    {compactUsd(row.volume24hUsd)}
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedAddress(row.address);
+                      setTrading(true);
+                    }}
+                    className="bg-up text-up-ink cursor-pointer rounded-full py-1.5 text-center font-sans text-[12px] font-bold"
+                  >
+                    {t("tradeAction")}
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {!searchState.active ? (
+          <ListPagination page={page} pages={pageCount} onPage={setPage} />
+        ) : null}
+      </div>
+    </>
+  );
+
+  // The desktop detail rail: coin header, 3-column stats, warnings, trade CTA,
+  // and the candle chart. Unchanged from the existing design.
+  const detailPanel = (
+    <>
+      <div className="flex flex-col gap-4">
+        {shown ? (
+          <>
+            <div className="ws-card p-4">
+              <div className="flex items-center gap-3">
+                <MemeCoin token={shown} size={34} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="ws-display truncate text-[17px]">{shown.symbol ?? "?"}</span>
+                    <RiskBadge level={shown.riskLevel} />
+                  </div>
+                  <div className="truncate text-xs font-normal text-white/50">
+                    {shown.name ?? "—"}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="tnum text-[16px]">{priceLabel(shown.priceUsd)}</div>
+                  <div className="text-xs">
+                    <PctChange value={shown.priceChange24hPercent} />
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                {(
+                  [
+                    [t("colLiquidity"), compactUsd(shown.liquidityUsd)],
+                    [t("colVolume"), compactUsd(shown.volume24hUsd)],
+                    [t("colMcap"), compactUsd(shown.marketCapUsd)],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div key={label} className="ws-inset px-2 py-2">
+                    <div className="text-[10px] font-normal tracking-[0.05em] text-white/40 uppercase">
+                      {label}
+                    </div>
+                    <div className="tnum text-[13px] font-medium">{value}</div>
+                  </div>
+                ))}
+              </div>
+              {visibleWarnings(shown.warnings).length > 0 ? (
+                <div className="mt-3 flex flex-col gap-1">
+                  {visibleWarnings(shown.warnings)
+                    .slice(0, 3)
+                    .map((w, i) => (
+                      <div
+                        key={`${w.code}-${i}`}
+                        className="text-down/90 text-[11.5px] font-normal"
+                      >
+                        {w.message}
+                      </div>
+                    ))}
+                </div>
+              ) : null}
+              <button
+                onClick={() => setTrading(true)}
+                className="bg-up text-up-ink mt-3 w-full cursor-pointer rounded-[12px] p-3 font-sans text-[14px] font-semibold hover:opacity-90"
+              >
+                {t("tradeCta", { symbol: shown.symbol ?? "" })}
+              </button>
+            </div>
+
+            <div className="ws-card p-4">
+              {resolved.id ? (
+                <AssetChart
+                  coingeckoId={resolved.id}
+                  allowCandles
+                  defaultType="candles"
+                  height={260}
+                  up={Number(shown.priceChange24hPercent ?? 0) >= 0}
+                />
+              ) : (
+                <div className="grid h-[260px] place-items-center text-center text-[13px] font-normal text-white/45">
+                  {resolved.loading ? t("loading") : t("noChart")}
+                </div>
+              )}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </>
+  );
+
+  // The mobile detail panel, matching the Figma comp at node 1:15935: a large
+  // price at the top, a toggle chart, a live chart card, 2x2 market metrics
+  // grid, active traders bar, and side-by-side buy/sell buttons.
+  const [chartOpen, setChartOpen] = useState(true);
+  const mobileDetailPanel = (
+    <>
+      <div className="flex flex-col gap-[22px]">
+        {shown ? (
+          <>
+            {/* Price section */}
+            <div className="flex flex-col gap-[3.5px]">
+              <span className="tnum text-[31px] font-extrabold text-white">
+                {priceLabel(shown.priceUsd)}
+              </span>
+              <div className="flex items-center gap-[5px]">
+                <span className="text-[12px] font-bold">
+                  <PctChange value={shown.priceChange24hPercent} />
+                </span>
+                <span className="text-[10px] font-normal text-white/30">{t("col24h")} change</span>
+              </div>
+            </div>
+
+            {/* Chart toggle */}
+            <button
+              type="button"
+              onClick={() => setChartOpen((v) => !v)}
+              className="flex cursor-pointer items-center gap-1 self-start"
+            >
+              <span className="inline-block h-[3px] w-[3px] rounded-full bg-[#0f6]" />
+              <svg viewBox="0 0 10 10" className="h-[10px] w-[10px] text-white/70" fill="none">
+                <path
+                  d="M1 8L3.5 5L5.5 6.5L9 2"
+                  stroke="currentColor"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span className="text-[10px] font-medium tracking-[-0.05px] text-white">
+                {chartOpen ? t("mobileCloseChart") : t("mobileViewChart")}
+              </span>
+              <svg
+                viewBox="0 0 12 8"
+                className={`h-[10px] w-[10px] text-white/50 transition-transform ${chartOpen ? "rotate-180" : ""}`}
+                fill="none"
+              >
+                <path
+                  d="M1 1.5L6 6.5L11 1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+
+            {/* Chart card */}
+            {chartOpen ? (
+              <div className="overflow-hidden rounded-[21px] border border-white/12 bg-white/4">
+                <div className="flex items-center justify-between px-5 pt-4 pb-1">
+                  <span className="text-[10px] font-semibold tracking-wide text-white uppercase">
+                    {t("mobileLiveChart")}
+                  </span>
+                  <div className="flex items-center gap-[5px]">
+                    <span className="inline-block h-[5px] w-[5px] rounded-full bg-[#0f6]" />
+                    <span className="text-[10px] font-semibold text-white/50">LIVE</span>
+                  </div>
+                </div>
+                <div className="px-2">
+                  {resolved.id ? (
+                    <AssetChart
+                      coingeckoId={resolved.id}
+                      allowCandles={false}
+                      defaultType="area"
+                      height={110}
+                      up={Number(shown.priceChange24hPercent ?? 0) >= 0}
+                    />
+                  ) : (
+                    <div className="grid h-[110px] place-items-center text-center text-[13px] font-normal text-white/45">
+                      {resolved.loading ? t("loading") : t("noChart")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {/* Market Metrics */}
+            <div className="flex flex-col gap-[10px]">
+              <span className="text-[11px] font-bold tracking-wide text-white/50 uppercase">
+                {t("mobileMetrics")}
+              </span>
+              <div className="grid grid-cols-2 gap-[10px]">
+                {(
+                  [
+                    [t("colMcap"), compactUsd(shown.marketCapUsd)],
+                    [t("colVolume"), compactUsd(shown.volume24hUsd)],
+                    [t("colLiquidity"), compactUsd(shown.liquidityUsd)],
+                    [t("mobileFdv"), compactUsd(shown.fdvUsd)],
+                  ] as const
+                ).map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="flex flex-col gap-[3.5px] rounded-[10px] border border-white/6 bg-[#1b1b1b] p-[10px]"
+                  >
+                    <span className="text-[10px] font-medium text-white/30">{label}</span>
+                    <span className="tnum text-[12px] font-bold text-white">{value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Warnings */}
+            {visibleWarnings(shown.warnings).length > 0 ? (
+              <div className="flex flex-col gap-1">
+                {visibleWarnings(shown.warnings)
+                  .slice(0, 3)
+                  .map((w, i) => (
+                    <div key={`${w.code}-${i}`} className="text-down/90 text-[11.5px] font-normal">
+                      {w.message}
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+
+            {/* Buy / Sell buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setTrading(true);
+                }}
+                className="flex-1 cursor-pointer rounded-[14px] bg-[#0ECB81] py-3.5 text-center font-sans text-[14px] font-bold text-white"
+              >
+                {t("mobileBuy")} ↗
+              </button>
+              <button
+                onClick={() => {
+                  setTrading(true);
+                }}
+                className="flex-1 cursor-pointer rounded-[14px] bg-[#D93025] py-3.5 text-center font-sans text-[14px] font-bold text-white"
+              >
+                {t("mobileSell")} ↘
+              </button>
+            </div>
+          </>
+        ) : null}
+      </div>
+    </>
+  );
+
+  const tradeSheet = (
+    <>
+      {trading && shown ? <MemeTradeSheet token={shown} onClose={() => setTrading(false)} /> : null}
+    </>
+  );
+
+  // The phone view: a compact coin list. The wide table scrolls sideways at
+  // this width and the detail card and chart double the section's height, so
+  // the list stays here and everything else opens on tap.
+  if (isMobile) {
+    return (
+      <>
+        {searchBox}
+
+        <div className="ws-card overflow-hidden">
+          {rows.length === 0 ? (
+            <div className="px-4 py-10 text-center text-[13px] font-normal text-white/45">
+              {isLoading ? t("loading") : t("noResults")}
+            </div>
+          ) : (
+            rows.map((row) => coinRow(row, () => openCoin(row.address)))
+          )}
+          {!searchState.active ? (
+            <ListPagination page={page} pages={pageCount} onPage={setPage} />
+          ) : null}
+        </div>
+
+        <MobileTradeSheet
+          open={sheetOpen && shown != null}
+          onClose={() => setSheetOpen(false)}
+          title={shown?.symbol ?? "—"}
+          subtitle={shown?.name ?? undefined}
+          marketPicker={(close) => (
+            <CoinPicker
+              renderRow={coinRow}
+              onPick={(row) => {
+                setSelectedAddress(row.address);
+                close();
+              }}
+            />
+          )}
+        >
+          {mobileDetailPanel}
+        </MobileTradeSheet>
+
+        {tradeSheet}
+      </>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 items-start gap-4 min-[1080px]:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="min-w-0">
+        {searchBox}
+        {table}
+      </div>
+
+      {detailPanel}
+
+      {tradeSheet}
+    </div>
+  );
+}

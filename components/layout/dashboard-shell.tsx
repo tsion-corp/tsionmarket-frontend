@@ -5,11 +5,10 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
 import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
-import { FeatureMarquee } from "@/components/layout/feature-marquee";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { FundsModal } from "@/features/funds";
 import { InviteFriendsModal, useClaimReferralFromLink } from "@/features/referrals";
@@ -68,7 +67,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         items={nav}
         activeSection={activeSection}
         onNavigate={(id) => navigate(id)}
-        onOpenAccount={() => setAccountOpen(true)}
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
       />
@@ -81,12 +79,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       <main className="min-h-screen pb-[calc(92px+var(--ws-live-bar,0px))] md:ml-[248px] md:pb-[var(--ws-live-bar,0px)]">
         <div className="sticky top-0 z-[60]">
           <Topbar onOpenAccount={() => setAccountOpen(true)} />
-          <FeatureMarquee
-            navIds={nav.map((n) => n.id)}
-            onNavigate={navigate}
-            onAddFunds={() => setFundsOpen(true)}
-            onInvite={() => setInviteOpen(true)}
-          />
         </div>
 
         {children}
@@ -96,13 +88,7 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
           the note in the component for why it is not one per panel. */}
       <ConnectionBanner />
 
-      <MobileTabBar
-        items={nav}
-        activeSection={activeSection}
-        onNavigate={navigate}
-        onOpenMore={() => setMenuOpen(true)}
-        onAddFunds={() => setFundsOpen(true)}
-      />
+      <CurvedTabBar items={nav} activeSection={activeSection} onNavigate={navigate} />
 
       {/* The live indicator and the minimised self-view. Docked, never
           floating over content: the dock reserves its own height so the page

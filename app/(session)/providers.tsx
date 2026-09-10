@@ -10,9 +10,10 @@ import { SessionCacheGuard } from "@/components/providers/session-cache-guard";
 import { IdentityTokenBridge } from "@/components/providers/identity-token-bridge";
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
+import { PredictionCashoutTracker } from "@/features/prediction/components/prediction-cashout-tracker";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 // Deep import, not the barrel. `@/features/casino` re-exports 27 components,
-// including the chess and arkjet screens, and this provider is mounted on
+// including the chess screens, and this provider is mounted on
 // every signed-in route — so the barrel pulled the whole casino into the
 // initial payload for one timer. optimizePackageImports only rewrites npm
 // barrels, not ours. This file sits under app/ rather than components/ for
@@ -120,6 +121,9 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
                 inside PrivyProvider to read it. Renders nothing. */}
             <AnalyticsIdentity />
             <AnalyticsSegments />
+            {/* Watches open Polymarket cashouts for the market workspace.
+                Needs Privy and the query client. Renders nothing. */}
+            <PredictionCashoutTracker />
             {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
                 pages, so the floating window survives navigating anywhere in
                 the app. The gate loads the host only on Arkade routes or while

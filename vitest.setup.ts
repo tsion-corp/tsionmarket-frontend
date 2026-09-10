@@ -61,6 +61,21 @@ if (typeof window !== "undefined" && !hasUsableLocalStorage) {
   Object.defineProperty(window, "localStorage", { value: memoryStorage, configurable: true });
 }
 
+// jsdom ships no ResizeObserver, so any component that measures an element's box
+// (the Market lists size their page to the device height through useFitRows)
+// throws "ResizeObserver is not defined" on mount and takes its whole suite with
+// it. jsdom also runs no layout, so an observer would never fire a real
+// callback anyway. An inert stub keeps those components mountable; the hooks
+// fall back to their pre-measurement default, which is what a zero-height box
+// yields regardless.
+class InertResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+globalThis.ResizeObserver = InertResizeObserver as unknown as typeof ResizeObserver;
+
 afterEach(() => {
   cleanup();
 });

@@ -2,7 +2,6 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { formatCompact } from "@/lib/square/format-count";
 import type { TrendingDiscussion } from "@/lib/api/market-square";
 
 /**

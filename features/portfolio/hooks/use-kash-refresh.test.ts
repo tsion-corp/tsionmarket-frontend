@@ -18,7 +18,7 @@ const SEND = readFileSync(
 );
 
 describe("balance-changing actions refresh on success", () => {
-  it.each(["useKashPurchase", "useKashConversion", "useKashSubscribe", "useKashClaim"])(
+  it.each(["useKashPurchase", "useKashSubscribe", "useKashClaim"])(
     "%s invalidates when it resolves",
     (hook) => {
       const body = HOOKS.slice(HOOKS.indexOf(`export function ${hook}(`));

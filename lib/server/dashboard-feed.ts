@@ -7,7 +7,7 @@ import { fetchMarketTokens } from "@/lib/server/market-tokens";
 import { cached } from "@/lib/server/response-cache";
 import { fetchRwaMarket } from "@/lib/server/rwa-prices";
 import { CHESS_BASE, TRADE_BASE, VAULT_BASE } from "@/lib/server/upstreams";
-import { wsapiPerpRequest, wsapiRwaRequest } from "@/lib/server/wsapi";
+import { wsapiRwaRequest } from "@/lib/server/wsapi";
 import { BUY_ORIGIN, toBuyRoutes } from "@/lib/buy";
 import { isPlausiblyActiveMatch, type LiveMatchClock } from "@/lib/chess/live-match";
 import {
@@ -21,8 +21,6 @@ import {
 } from "@/lib/dashboard-feed";
 import { tradableHere, type Paged } from "@/lib/meme/catalog";
 import type { MemeToken } from "@/lib/meme/types";
-import { composePerpBrief, perpBriefFallbackSymbols, type PerpBriefRow } from "@/lib/perp/brief";
-import type { PerpPair, PerpPrice } from "@/lib/perp/types";
 import { assetPriceUsd, listedRwaAssets, rwaLogoPath, type RwaApiAsset } from "@/lib/rwa/catalog";
 import { composeSpotMarkets } from "@/lib/spot-markets";
 import { readActiveGamesWith } from "@/lib/vault/read";
@@ -113,23 +111,6 @@ async function spotSection(): Promise<SpotBriefRow[]> {
     }));
 }
 
-async function perpsSection(): Promise<PerpBriefRow[]> {
-  const pairs = (
-    await envelopeData<PerpPair[]>(
-      await wsapiPerpRequest("pairs", { method: "GET", revalidate: 300 })
-    )
-  ).filter((p) => p.from !== "" && p.to !== "");
-  // The marks are a bonus over the CoinGecko fallback, not a requirement: a
-  // gateway that serves pairs but not prices still gets a priced brief.
-  const [marks, fallback] = await Promise.all([
-    wsapiPerpRequest("prices", { method: "GET", revalidate: 3 })
-      .then((res) => envelopeData<PerpPrice[]>(res))
-      .catch((): PerpPrice[] => []),
-    priceMap(perpBriefFallbackSymbols(DASHBOARD_FEED_ROWS)),
-  ]);
-  return composePerpBrief(pairs, marks, fallback, DASHBOARD_FEED_ROWS);
-}
-
 async function memesSection(): Promise<MemeBriefRow[]> {
   const trending = async () =>
     envelopeData<Paged<MemeToken>>(
@@ -169,7 +150,10 @@ async function rwaSection(): Promise<RwaBriefRow[]> {
   const assets = await envelopeData<RwaApiAsset[]>(
     await wsapiRwaRequest("assets", { method: "GET", revalidate: 60 })
   );
-  const listed = listedRwaAssets(assets).slice(0, DASHBOARD_FEED_ROWS);
+  // Every listed asset, not the brief's eight: the "Own the Real World" shelf
+  // picks one per category out of this, and composing it here once for
+  // everyone is what keeps the dashboard from mounting the desk's own poll.
+  const listed = listedRwaAssets(assets);
   // Market stats are an enrichment; the registry's own price still stands
   // when the market read fails.
   const market = await fetchRwaMarket(
@@ -182,6 +166,9 @@ async function rwaSection(): Promise<RwaBriefRow[]> {
       id: a.id,
       symbol: a.symbol,
       name: a.name,
+      issuer: a.issuer,
+      category: a.category ?? null,
+      apyBps: typeof a.yieldApyBps === "number" ? a.yieldApyBps : null,
       logo: rwaLogoPath(a.chain, a.address),
       priceUsd: assetPriceUsd(a) ?? stats?.priceUsd ?? null,
       change24h: stats?.change24h ?? null,
@@ -295,14 +282,13 @@ async function section<T>(name: keyof DashboardFeed, load: () => Promise<T>): Pr
 }
 
 async function compose(): Promise<DashboardFeed> {
-  const [spot, perps, memes, rwa, live] = await Promise.all([
+  const [spot, memes, rwa, live] = await Promise.all([
     section("spot", spotSection),
-    section("perps", perpsSection),
     section("memes", memesSection),
     section("rwa", rwaSection),
     section("live", liveSection),
   ]);
-  return { asOf: Date.now(), spot, perps, memes, rwa, live };
+  return { asOf: Date.now(), spot, memes, rwa, live };
 }
 
 /** The feed, composed at most once per window for every caller. */

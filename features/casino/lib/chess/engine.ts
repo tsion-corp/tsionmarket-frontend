@@ -39,6 +39,10 @@ export interface FenPosition {
   fen: string;
 }
 
+export interface AppliedFenPosition extends FenPosition {
+  san: string;
+}
+
 const PROMOTION_TYPES = ["q", "r", "b", "n"] as const;
 
 function inBounds(r: number, c: number): boolean {
@@ -339,17 +343,22 @@ export function parseFen(fen: string): FenPosition {
   return { board: boardFromChess(chess), turn: chess.turn() as PieceColor, fen: chess.fen() };
 }
 
-export function applyUciToFen(fen: string, uci: string): FenPosition | null {
+export function applyUciToFen(fen: string, uci: string): AppliedFenPosition | null {
   const from = uci.slice(0, 2);
   const to = uci.slice(2, 4);
   if (from.length !== 2 || to.length !== 2) return null;
   const chess = new Chess(fen);
   try {
-    chess.move({ from, to, promotion: toPromotionType(uci.slice(4, 5)) });
+    const applied = chess.move({ from, to, promotion: toPromotionType(uci.slice(4, 5)) });
+    return {
+      board: boardFromChess(chess),
+      turn: chess.turn() as PieceColor,
+      fen: chess.fen(),
+      san: applied.san,
+    };
   } catch {
     return null;
   }
-  return { board: boardFromChess(chess), turn: chess.turn() as PieceColor, fen: chess.fen() };
 }
 
 export function applyMove(

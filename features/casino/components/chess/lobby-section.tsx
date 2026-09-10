@@ -108,7 +108,12 @@ export function LobbySection() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const wallet = useCasinoWallet();
-  const { challenges, isLoading, error, refetch } = useChessLobby(wallet.address ?? null);
+  // The home screen only renders open seats. Live games have their own Watch
+  // page, so polling that second list here doubled the lobby traffic for data
+  // this component never read.
+  const { challenges, isLoading, error, refetch } = useChessLobby(wallet.address ?? null, {
+    liveMatches: false,
+  });
   const accept = useAcceptChallenge();
   const quickMatch = useQuickMatch();
   const [computerOpen, setComputerOpen] = useState(() => searchParams.get("computer") === "1");
@@ -289,7 +294,7 @@ export function LobbySection() {
         </div>
       </div>
 
-      <ChessComputerDialog open={computerOpen} onClose={() => setComputerOpen(false)} />
+      {computerOpen ? <ChessComputerDialog open onClose={() => setComputerOpen(false)} /> : null}
     </>
   );
 }

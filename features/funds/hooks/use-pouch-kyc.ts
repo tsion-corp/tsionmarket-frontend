@@ -8,31 +8,17 @@ import {
   type KycState,
 } from "@/features/funds/lib/kyc";
 
+import { pouchPostWithAuth, pouchGetWithAuth } from "@/lib/api/services/funds";
+
 // Client hooks over the Shared KYC proxy routes. Each returns normalized domain
 // objects; raw provider shapes stay behind the /api/pouch boundary. The user's
 // JWT is passed as an argument and forwarded as an Authorization header.
 
-async function readError(res: Response, fallback: string): Promise<never> {
-  let message = fallback;
-  try {
-    const body = await res.json();
-    if (body && typeof body.error === "string") message = body.error;
-  } catch {
-    // Non-JSON error body; keep the fallback.
-  }
-  throw new Error(message);
-}
-
 export function useKycInitiate() {
   return useMutation<KycInitiation, Error, { email: string; countryCode: string }>({
     mutationFn: async ({ email, countryCode }) => {
-      const res = await fetch("/api/pouch/kyc/initiate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, countryCode }),
-      });
-      if (!res.ok) await readError(res, "Could not start verification");
-      return normalizeInitiation(await res.json());
+      const data = await pouchPostWithAuth<unknown>("/kyc/initiate", { email, countryCode });
+      return normalizeInitiation(data);
     },
   });
 }
@@ -45,13 +31,10 @@ export interface KycVerifyResult {
 export function useKycVerify() {
   return useMutation<KycVerifyResult, Error, { email: string; otp: string }>({
     mutationFn: async ({ email, otp }) => {
-      const res = await fetch("/api/pouch/kyc/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
-      });
-      if (!res.ok) await readError(res, "That code did not match");
-      const data = await res.json();
+      const data = await pouchPostWithAuth<{ token?: unknown; expiresAt?: unknown }>(
+        "/kyc/verify",
+        { email, otp }
+      );
       if (typeof data?.token !== "string") throw new Error("Verification did not return a token");
       return {
         token: data.token,
@@ -73,13 +56,11 @@ export function useKycSubmit() {
     { token: string; countryCode: string; documents: Record<string, string> }
   >({
     mutationFn: async ({ token, countryCode, documents }) => {
-      const res = await fetch("/api/pouch/kyc/submit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ countryCode, documents }),
-      });
-      if (!res.ok) await readError(res, "Could not submit your details");
-      const data = await res.json();
+      const data = await pouchPostWithAuth<{ status?: string | null; message?: string }>(
+        "/kyc/submit",
+        { countryCode, documents },
+        token
+      );
       return {
         state: normalizeKycState(data?.status),
         message: typeof data?.message === "string" ? data.message : "",
@@ -103,14 +84,10 @@ export function useKycStatus(
     enabled: options.enabled && Boolean(token) && Boolean(countryCode),
     refetchInterval: options.pollMs > 0 ? options.pollMs : false,
     queryFn: async () => {
-      const res = await fetch(
-        `/api/pouch/kyc/status?countryCode=${encodeURIComponent(countryCode)}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      if (!res.ok) await readError(res, "Could not check your status");
-      const data = await res.json();
+      const data = await pouchGetWithAuth<{
+        status?: string | null;
+        failureReason?: string | null;
+      }>("/kyc/status", { countryCode }, token ?? undefined);
       return {
         state: normalizeKycState(data?.status),
         failureReason: typeof data?.failureReason === "string" ? data.failureReason : null,

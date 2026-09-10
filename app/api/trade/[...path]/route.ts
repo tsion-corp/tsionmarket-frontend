@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { checkUpstream } from "@/lib/server/validate-upstream";
 import { tradeSchemaFor } from "@/lib/api/schemas/trade";
 import { wsapiService } from "@/lib/wsapi-base";
+import { isSafeProxyPath } from "@/lib/server/proxy-path";
 
 // Proxy for the Base token-trading service (memecoins). The gateway sends no
 // CORS headers, so browser calls route through our origin like every other
@@ -43,7 +44,19 @@ function notConfigured() {
 async function forward(req: NextRequest, method: "GET" | "POST") {
   if (!BASE) return notConfigured();
   const { pathname, search } = req.nextUrl;
+  if (!pathname.startsWith("/api/trade/")) {
+    return NextResponse.json(
+      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path" } },
+      { status: 400, headers: { "cache-control": NO_STORE } }
+    );
+  }
   const joined = pathname.replace(/^\/api\/trade\//, "");
+  if (!isSafeProxyPath(joined)) {
+    return NextResponse.json(
+      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path" } },
+      { status: 400, headers: { "cache-control": NO_STORE } }
+    );
+  }
   // The admin surface is out of contract for this frontend.
   if (joined.startsWith("admin")) {
     return NextResponse.json(

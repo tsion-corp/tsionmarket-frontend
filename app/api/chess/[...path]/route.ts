@@ -13,6 +13,11 @@ import { detectRequestCountry } from "@/lib/server/ipinfo";
 import { lotterySchemaFor } from "@/lib/api/schemas/lottery";
 import { checkUpstream } from "@/lib/server/validate-upstream";
 import { wsapiService } from "@/lib/wsapi-base";
+import {
+  fetchUpstreamRead,
+  fetchUpstreamWrite,
+  upstreamCandidates,
+} from "@/lib/server/upstream-failover";
 
 // Server-side proxy for the chess service on the platform gateway. Same
 // arrangement as the other service proxies in this app: routing through our
@@ -23,14 +28,15 @@ import { wsapiService } from "@/lib/wsapi-base";
 // spectator-visible, except per-caller reads such as cashier balance and the
 // caller's own bets. Writes act on a game or a cashier balance, so they need a
 // verified session and the wallet that session owns.
-// Server-only local override first, then the legacy public env so existing
-// deployments keep working unchanged.
+// Each configured override can contain a comma-separated priority list. The
+// legacy public env remains in the pool so existing deployments keep working.
 const LOCAL_DEV_CHESS_API = "http://127.0.0.1:8082";
-const BASE =
-  process.env.CHESS_API_URL ??
-  (process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined) ??
-  process.env.NEXT_PUBLIC_CHESS_API_URL ??
-  wsapiService("chess");
+const UPSTREAMS = upstreamCandidates(
+  process.env.CHESS_API_URL,
+  process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined,
+  process.env.NEXT_PUBLIC_CHESS_API_URL,
+  wsapiService("chess")
+);
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 const COUNTRY_WRITE = /^(?:matches|matches\/[^/]+\/join|arenas\/[^/]+\/join)$/u;
 const PLAYER_PROFILE_WRITE = /^(?:matches|matches\/[^/]+\/join|computer\/matches)$/u;
@@ -126,7 +132,7 @@ async function forward(
 ) {
   const search = searchParams ? searchParams.toString() : req.nextUrl.searchParams.toString();
   const query = search ? `?${search}` : "";
-  const url = `${BASE}/${joined}${query}`;
+  const cacheKey = `${joined}${query}`;
   const headers: Record<string, string> = { accept: "application/json" };
   if (method !== "GET") headers["content-type"] = "application/json";
   if (wallet) {
@@ -140,13 +146,16 @@ async function forward(
   const ttl = cacheTtlMs(joined);
 
   try {
-    const res = await fetch(url, {
+    const init: RequestInit = {
       method,
       headers,
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    });
+    };
+    const res =
+      method === "GET"
+        ? await fetchUpstreamRead(UPSTREAMS, cacheKey, init, 15_000)
+        : await fetchUpstreamWrite(UPSTREAMS, cacheKey, init, 15_000);
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
     const lotterySchema = lotterySchemaFor(joined);
@@ -180,7 +189,7 @@ async function forward(
       }
     }
     if (method === "GET" && res.ok && ttl > 0) {
-      cache.set(url, {
+      cache.set(cacheKey, {
         expires: Date.now() + ttl,
         body: text,
         status: res.status,
@@ -202,7 +211,7 @@ async function forward(
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
-  if (!BASE) return notConfigured();
+  if (UPSTREAMS.length === 0) return notConfigured();
   const joined = path.join("/");
   const ttl = cacheTtlMs(joined);
   const needsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
@@ -217,9 +226,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     : req.nextUrl.searchParams;
 
   const forwardedQuery = forwardedSearch.toString();
-  const url = `${BASE}/${joined}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
+  const cacheKey = `${joined}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
   if (ttl > 0) {
-    const hit = cache.get(url);
+    const hit = cache.get(cacheKey);
     if (hit && hit.expires > Date.now()) {
       return new NextResponse(hit.body, {
         status: hit.status,
@@ -237,7 +246,7 @@ async function authedWrite(
   method: "POST" | "PUT" | "DELETE"
 ) {
   const { path } = await ctx.params;
-  if (!BASE) return notConfigured();
+  if (UPSTREAMS.length === 0) return notConfigured();
 
   const claims = await verifyRequest(req);
   if (!claims) return unauthorized();

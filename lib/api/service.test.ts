@@ -95,6 +95,18 @@ describe("createServiceClient", () => {
     );
   });
 
+  it("preserves a pre-serialized signed JSON body and its headers", async () => {
+    const body = '{"signer_address":"0x123"}';
+    await client.postRawJson("/signed", body, {
+      "x-polymarket-account-signature": "signature",
+    });
+
+    const [, init] = vi.mocked(apiFetch).mock.calls.at(-1) ?? [];
+    expect(init).toMatchObject({ method: "POST", body });
+    expect(new Headers(init?.headers).get("content-type")).toBe("application/json");
+    expect(new Headers(init?.headers).get("x-polymarket-account-signature")).toBe("signature");
+  });
+
   it("carries the method through for put and delete", async () => {
     await client.put("/note", { text: "hi" });
     expect(apiFetch).toHaveBeenLastCalledWith(

@@ -8,7 +8,6 @@ import type { SectionId } from "@/lib/sections";
 const PAGE_BY_SECTION: Record<SectionId, PageName> = {
   portfolio: "portfolio",
   spot: "spot",
-  perps: "perpetuals",
   meme: "memecoins",
   rwa: "real_assets",
   prediction: "prediction",
@@ -30,6 +29,7 @@ const PAGE_BY_PATH_PREFIX: [string, PageName][] = [
   ["/earn", "earn"],
   ["/activity", "arktivity"],
   ["/rwa", "real_assets"],
+  ["/portfolio", "portfolio"],
   ["/dashboard", "portfolio"],
 ];
 

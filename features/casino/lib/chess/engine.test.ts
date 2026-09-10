@@ -182,6 +182,7 @@ describe("server interop", () => {
     );
 
     const next = applyUciToFen(position.fen, "e5d6");
+    expect(next?.san).toBe("exd6");
     expect(next?.board[2][3]).toEqual({ type: "p", color: "w" });
     expect(next?.board[3][3]).toBeNull();
   });

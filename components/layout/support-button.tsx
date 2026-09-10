@@ -18,7 +18,7 @@ export function SupportButton() {
       href={SUPPORT_FORM_URL}
       target="_blank"
       rel="noopener noreferrer"
-      className="group fixed right-4 bottom-[calc(92px+env(safe-area-inset-bottom))] z-[80] flex flex-col items-center gap-1 md:right-6 md:bottom-6"
+      className="group fixed right-[calc(var(--ws-frame-inset)+16px)] bottom-[calc(92px+env(safe-area-inset-bottom))] z-[80] flex flex-col items-center gap-1 md:right-6 md:bottom-6"
     >
       <span className="ws-glass grid size-[52px] place-items-center rounded-full shadow-[0_14px_40px_-12px_rgba(0,0,0,0.85)] transition-transform group-hover:scale-105">
         {/* eslint-disable-next-line @next/next/no-img-element */}

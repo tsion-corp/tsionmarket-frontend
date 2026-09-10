@@ -703,6 +703,7 @@ export function PlaySection({
   const { feePct } = cashier;
   const {
     match,
+    confirmedPly,
     clocks,
     you,
     isLoading,
@@ -799,14 +800,14 @@ export function PlaySection({
     matchId,
     preferredChatRoom,
     canUsePlayerChat,
-    currentPly,
+    confirmedPly,
     seatName,
     !!match && match.computer == null
   );
   const movesQuery = useQuery({
-    queryKey: ["casino", "chess", "play-moves", matchId ?? "none", currentPly ?? 0],
+    queryKey: ["casino", "chess", "play-moves", matchId ?? "none", confirmedPly ?? 0],
     queryFn: () => fetchMatchMoves(matchId as string),
-    enabled: !!matchId && (currentPly ?? 0) > 0,
+    enabled: !!matchId && (confirmedPly ?? 0) > 0,
   });
 
   // Unlock the audio context on the first gesture so the opponent's very first

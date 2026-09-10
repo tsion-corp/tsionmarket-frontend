@@ -44,7 +44,7 @@ export function BroadcastDock() {
       <SelfView />
       {/* Above the phone tab bar, and along the bottom of the content column on
           desktop. Same component, so the two can never say different things. */}
-      <div className="pointer-events-auto fixed inset-x-0 bottom-[calc(76px+env(safe-area-inset-bottom))] z-[95] md:bottom-0 md:left-[248px]">
+      <div className="pointer-events-auto fixed inset-x-[var(--ws-frame-inset)] bottom-[calc(76px+env(safe-area-inset-bottom))] z-[95] md:bottom-0 md:left-[248px]">
         <LiveBar onOpenConsole={() => setConsoleOpen(true)} />
       </div>
       {consoleOpen ? <BroadcastConsole onClose={() => setConsoleOpen(false)} /> : null}

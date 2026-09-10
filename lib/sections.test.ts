@@ -20,6 +20,7 @@ describe("sectionForPathname", () => {
   });
 
   it("falls back to the account home", () => {
+    expect(sectionForPathname("/portfolio")).toBe("portfolio");
     expect(sectionForPathname("/dashboard")).toBe("portfolio");
     expect(sectionForPathname("/")).toBe("portfolio");
     expect(sectionForPathname(null)).toBe("portfolio");
@@ -33,28 +34,15 @@ describe("orderedSections", () => {
     expect(order[1]).toBe("meme");
     expect(new Set(order).size).toBe(order.length);
   });
-
-  it("leaves perpetuals out of the navigation, like earn", () => {
-    // The desk stays reachable at /perps; it is only not offered from the
-    // rail, the tab bar, the marquee or the dashboard briefs for now.
-    expect(orderedSections(null)).not.toContain("perps");
-    expect(orderedSections("perps")).not.toContain("perps");
-  });
-
-  it("falls back to the default order for the perps interest", () => {
-    expect(orderedSections("perps")).toEqual(orderedSections(null));
-  });
 });
 
-// TEMPORARY: real assets are hidden from the nav for now. The rail, the tab
-// bar, the marquee and the dashboard briefs all follow this order, so they
-// drop it together; /rwa itself is unchanged.
-describe("real assets hidden from the navigation", () => {
-  it("is absent from the default order and every interest that pointed at it", () => {
-    expect(orderedSections(null)).not.toContain("rwa");
+// Production hides real assets for now; staging shows them, and the
+// interests that point at them lead with them.
+describe("real assets in the navigation on staging", () => {
+  it("is offered, and led with for the interests that point at it", () => {
+    expect(orderedSections(null)).toContain("rwa");
     for (const interest of ["stocks", "gold", "yield", "realestate", "treasuries"]) {
-      expect(orderedSections(interest)).not.toContain("rwa");
-      expect(orderedSections(interest)).toEqual(orderedSections(null));
+      expect(orderedSections(interest)[1]).toBe("rwa");
     }
   });
 });
