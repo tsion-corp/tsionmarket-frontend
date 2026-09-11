@@ -59,20 +59,45 @@ const WALLET_POST_PATHS = new Set([
   "desk/sell/tx",
 ]);
 
-// Short cache so concurrent polls for the same public path collapse into one
+// Short cache so concurrent polls for the same path collapse into one
 // upstream call. Bounded and swept on write so unauthenticated quote spam
 // cannot grow it without limit.
+//
+// Wallet-scoped reads are cached too, for two seconds, keyed by the exact
+// URL and only after the session has been checked against the wallet in it:
+// a second tab, a double mount or two cards on one page then cost the engine
+// one call. Two seconds is under the first settle re-check after an action,
+// so that re-check reaches the engine, and a write for the wallet drops its
+// entries so the refresh right after it does too.
 const CACHE_TTL_MS = 3000;
+const WALLET_CACHE_TTL_MS = 2000;
 const CACHE_MAX_ENTRIES = 200;
 const cache = new Map<string, { expires: number; body: string; status: number }>();
+const inflight = new Map<string, Promise<{ body: string; status: number }>>();
 
-function cachePut(url: string, body: string, status: number) {
+function cachePut(url: string, body: string, status: number, ttl: number) {
   const now = Date.now();
   for (const [key, entry] of cache) {
     if (entry.expires <= now) cache.delete(key);
   }
   if (cache.size >= CACHE_MAX_ENTRIES) return;
-  cache.set(url, { expires: now + CACHE_TTL_MS, body, status });
+  cache.set(url, { expires: now + ttl, body, status });
+}
+
+function cacheDropWallet(wallet: string) {
+  const needle = wallet.toLowerCase();
+  for (const key of cache.keys()) {
+    if (key.toLowerCase().includes(needle)) cache.delete(key);
+  }
+}
+
+function fromCache(url: string): NextResponse | null {
+  const hit = cache.get(url);
+  if (!hit || hit.expires <= Date.now()) return null;
+  return new NextResponse(hit.body, {
+    status: hit.status,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 // The wallet a GET path or query names, or null for a path that is not
@@ -159,17 +184,34 @@ async function forward(
   if (idToken && isIdentityPath(joined)) headers["privy-id-token"] = idToken;
 
   try {
-    const res = await fetch(url, {
-      method,
-      headers,
-      body,
-      cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    });
-    const text = await res.text();
-    if (method === "GET" && isPublicGet(joined.split("/"))) cachePut(url, text, res.status);
-    return new NextResponse(text, {
-      status: res.status,
+    const call = async () => {
+      const res = await fetch(url, {
+        method,
+        headers,
+        body,
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      });
+      return { body: await res.text(), status: res.status };
+    };
+    let answer: { body: string; status: number };
+    if (method === "GET") {
+      // One upstream call per URL at a time; a read that arrives while it is
+      // in flight waits for the same answer.
+      let pending = inflight.get(url);
+      if (!pending) {
+        pending = call().finally(() => inflight.delete(url));
+        inflight.set(url, pending);
+      }
+      answer = await pending;
+      const path = joined.split("/");
+      if (isPublicGet(path)) cachePut(url, answer.body, answer.status, CACHE_TTL_MS);
+      else if (answer.status < 500) cachePut(url, answer.body, answer.status, WALLET_CACHE_TTL_MS);
+    } else {
+      answer = await call();
+    }
+    return new NextResponse(answer.body, {
+      status: answer.status,
       headers: { "content-type": "application/json" },
     });
   } catch (error) {
@@ -185,16 +227,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   const { path } = await ctx.params;
   const joined = path.join("/");
 
+  const url = `${BASE}/${joined}${req.nextUrl.search}`;
   if (isPublicGet(path)) {
-    const url = `${BASE}/${joined}${req.nextUrl.search}`;
-    const hit = cache.get(url);
-    if (hit && hit.expires > Date.now()) {
-      return new NextResponse(hit.body, {
-        status: hit.status,
-        headers: { "content-type": "application/json" },
-      });
-    }
-    return forward(req, joined, "GET");
+    return fromCache(url) ?? forward(req, joined, "GET");
   }
 
   if (IDENTITY_GET_PATHS.has(joined)) {
@@ -209,7 +244,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   if (!claimed) return notFound();
   const denied = await walletGate(req, claimed);
   if (denied) return denied;
-  return forward(req, joined, "GET");
+  // Only after the gate: the cache holds one wallet's figures and is read
+  // only by the session that owns them.
+  return fromCache(url) ?? forward(req, joined, "GET");
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
@@ -236,6 +273,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ path: stri
   const denied = await walletGate(req, claimed);
   if (denied) return denied;
 
+  // The write changes what the wallet's reads say; the refresh that follows
+  // it must reach the engine.
+  if (claimed) cacheDropWallet(claimed);
   return forward(req, joined, "POST", body || undefined);
 }
 

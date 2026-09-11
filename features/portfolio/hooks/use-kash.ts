@@ -27,18 +27,18 @@ import {
 const STATUS_STALE_MS = 60 * 1000;
 
 // The account payload changes when the user acts AND when something arrives
-// from outside the app entirely — points credited from a swap the user made on
-// another surface, or KSH sent to them by someone else. The user's own actions
-// invalidate explicitly; this interval exists purely for those OUTSIDE changes,
-// which is exactly the case a person is staring at the screen waiting for.
+// from outside the app entirely: points credited from a swap made on another
+// surface, or KSH sent by someone else. The user's own actions refresh the
+// card themselves; this interval exists only for those outside credits.
 //
-// A minute of lag there reads as "the points never arrived". Ten seconds costs
-// one small authed GET per wallet and makes the number appear on its own.
-// Thirty seconds, down from ten. At ten this one read was a fifth of every
-// request an idle dashboard made, for a points balance that changes when the
-// user acts, and refetchOnWindowFocus already covers the case of coming back
-// from a wallet or an explorer expecting a new number.
-const ACCOUNT_POLL_MS = 30 * 1000;
+// Five minutes, down from thirty seconds (2026-09-11). The home page is this
+// card, so the engine saw every signed-in person twice a minute, uncached,
+// for a figure that almost never moves on its own. An outside credit still
+// shows within five minutes, or at once on the next return to the tab.
+const ACCOUNT_POLL_MS = 5 * 60 * 1000;
+// A figure read seconds ago is still the figure: a hop to another page and
+// back, or a second card on the same page, must not re-read it.
+const ACCOUNT_STALE_MS = 30 * 1000;
 
 export function useKashStatus() {
   return useQuery({
@@ -60,6 +60,7 @@ export function useKashAccount() {
     queryKey: ["kash", "account", wallet],
     queryFn: () => getKashAccount(wallet as string),
     enabled: ready && authenticated && Boolean(wallet),
+    staleTime: ACCOUNT_STALE_MS,
     refetchInterval: ACCOUNT_POLL_MS,
     // Only while the tab is in front. Backgrounded, this was the single most
     // expensive call in the app: a ten second poll that never slept, so one
@@ -145,17 +146,25 @@ export function useKashConversionQuote(kashAmount: string, enabled = true) {
 // Both mutations settle the account balance server-side, so success refreshes
 // every kash read at once rather than patching caches by hand.
 /**
- * Refresh every Kash read.
+ * Refresh the reads an action can have changed.
+ *
+ * The account balance and the ledger, and the subscription when the action
+ * was an upgrade. Not the engine status or the tier catalogue: those move on
+ * deploys, and refetching them three times per action was most of what a
+ * buy cost the engine.
  *
  * Exported because not every balance-changing action is a mutation here: a KSH
  * send is a raw on-chain transfer, so nothing invalidates on its behalf and the
  * card would otherwise show the pre-send balance until the next poll.
  */
-export function useInvalidateKash() {
+export function useInvalidateKash(options: { subscription?: boolean } = {}) {
   const queryClient = useQueryClient();
+  const { subscription = false } = options;
   return () => {
-    const refresh = () => queryClient.invalidateQueries({ queryKey: ["kash"] });
+    const refresh = () => queryClient.invalidateQueries({ queryKey: ["kash", "account"] });
     refresh();
+    void queryClient.invalidateQueries({ queryKey: ["kash", "ledger"] });
+    if (subscription) void queryClient.invalidateQueries({ queryKey: ["kash", "subscription"] });
     // Hold the "syncing" state open across the whole settle window, so the card
     // shows the numbers are catching up rather than presenting a stale figure
     // as final.
@@ -188,7 +197,7 @@ export function useKashPurchase() {
 }
 
 export function useKashSubscribe() {
-  const invalidate = useInvalidateKash();
+  const invalidate = useInvalidateKash({ subscription: true });
   return useMutation({
     mutationFn: ({
       wallet,

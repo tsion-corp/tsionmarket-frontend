@@ -63,16 +63,46 @@ afterEach(() => {
 });
 
 describe("kash account poll", () => {
-  it("polls while the tab is in front", async () => {
+  // Five minutes, down from thirty seconds (2026-09-11). The engine saw every
+  // person on the home page twice a minute for a balance that changes when
+  // they act, and every action refreshes the card itself. The poll is only
+  // for credits from outside the app, and those can wait a few minutes or
+  // the next return to the tab.
+  it("reads once on mount and not again for the next four minutes", async () => {
     const { useKashAccount } = await import("@/features/portfolio/hooks/use-kash");
     vi.useFakeTimers();
     renderHook(() => useKashAccount(), { wrapper: wrapper(client) });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(35_000);
+      await vi.advanceTimersByTimeAsync(4 * 60_000);
     });
-    // 10s interval: the first read plus roughly three ticks.
-    expect(getKashAccount.mock.calls.length).toBeGreaterThan(1);
+    expect(getKashAccount).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90_000);
+    });
+    expect(getKashAccount).toHaveBeenCalledTimes(2);
+  });
+
+  // A hop to another page and back used to re-read the account on every
+  // mount. A figure read seconds ago is still the figure.
+  it("does not re-read on a remount within half a minute", async () => {
+    const { useKashAccount } = await import("@/features/portfolio/hooks/use-kash");
+    vi.useFakeTimers();
+    const first = renderHook(() => useKashAccount(), { wrapper: wrapper(client) });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    first.unmount();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    const second = renderHook(() => useKashAccount(), { wrapper: wrapper(client) });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+    expect(getKashAccount).toHaveBeenCalledTimes(1);
+    second.unmount();
   });
 
   it("stops polling once the tab is hidden", async () => {
