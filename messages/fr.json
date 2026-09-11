@@ -362,6 +362,7 @@
     "agreeCheckbox": "J'accepte les <terms>Conditions d'utilisation</terms> et la <privacy>Politique de confidentialité</privacy> de {brand}",
     "marketingOptIn": "Envoyez-moi les nouveautés et offres de {brand} par e-mail. Désabonnement possible à tout moment.",
     "agreeToContinue": "Acceptez les conditions pour continuer.",
+    "agreeRequired": "Vous devez accepter les Conditions d'utilisation et la Politique de confidentialité pour continuer.",
     "continueGoogle": "Continuer avec Google",
     "continueX": "Continuer avec X",
     "oauthError": "La connexion n'a pas abouti. Réessayez.",

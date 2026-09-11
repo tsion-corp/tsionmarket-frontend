@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import { BRAND } from "@/lib/brand";
+import { toast } from "@/lib/toast";
 import {
   consentServerSnapshot,
   consentSnapshot,
@@ -12,9 +13,11 @@ import {
 
 // The two questions every sign in method waits on: accepting the terms and
 // the privacy policy, which is required, and product email, which is not.
-// Both documents open beside the sign in so a reader does not lose their
-// place. The answers live in lib/consent, so they survive an OAuth round
-// trip and a returning person on this device is not asked again.
+// Both boxes start ticked. Unticking the terms darkens every sign in method,
+// and a toast says why at once so nobody is left wondering. Both documents
+// open beside the sign in so a reader does not lose their place. The answers
+// live in lib/consent, so they survive an OAuth round trip and a returning
+// person on this device sees what they chose.
 
 const BOX =
   "mt-[3px] size-[18px] shrink-0 cursor-pointer appearance-none rounded-[5px] border border-white/25 bg-white/5 transition-colors checked:border-accent checked:bg-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
@@ -48,7 +51,10 @@ export function ConsentChecks() {
           name="terms"
           className={BOX}
           checked={consent.terms}
-          onChange={(e) => setConsent({ terms: e.target.checked, marketing: consent.marketing })}
+          onChange={(e) => {
+            setConsent({ terms: e.target.checked, marketing: consent.marketing });
+            if (!e.target.checked) toast.error(t("agreeRequired"));
+          }}
         />
         <span>
           {t.rich("agreeCheckbox", {

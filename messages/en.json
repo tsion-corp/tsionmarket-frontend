@@ -362,6 +362,7 @@
     "agreeCheckbox": "I agree to {brand}'s <terms>Terms of Service</terms> and <privacy>Privacy Policy</privacy>",
     "marketingOptIn": "Email me product news and offers from {brand}. You can unsubscribe at any time.",
     "agreeToContinue": "Accept the terms to continue.",
+    "agreeRequired": "You need to agree to the Terms of Service and Privacy Policy to continue.",
     "continueGoogle": "Continue with Google",
     "continueX": "Continue with X",
     "oauthError": "Sign-in didn't go through. Give it another try.",

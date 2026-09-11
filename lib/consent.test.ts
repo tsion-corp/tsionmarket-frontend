@@ -8,6 +8,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 import {
+  DEFAULT_CONSENT,
   EMPTY_CONSENT,
   TERMS_VERSION,
   consentSnapshot,
@@ -27,8 +28,11 @@ describe("consent storage", () => {
     resetConsentStore();
   });
 
-  it("is empty until something is stored", () => {
-    expect(readConsent()).toEqual(EMPTY_CONSENT);
+  // Both boxes start ticked (asked for on 2026-09-11). Nothing is stamped as
+  // accepted until the person actually proceeds with the box ticked.
+  it("offers both choices ticked until something is stored", () => {
+    expect(readConsent()).toEqual(DEFAULT_CONSENT);
+    expect(DEFAULT_CONSENT).toMatchObject({ terms: true, marketing: true, acceptedAt: null });
   });
 
   it("round trips the two choices and stamps the acceptance once", () => {
@@ -52,8 +56,10 @@ describe("consent storage", () => {
       JSON.stringify({ terms: true, termsVersion: "2026-01-01", acceptedAt: "x", marketing: true })
     );
     const read = readConsent();
-    expect(read.terms).toBe(false);
+    // Offered ticked again, as on a first visit, with no acceptance stamped.
+    expect(read.terms).toBe(true);
     expect(read.acceptedAt).toBeNull();
+    expect(read.termsVersion).toBeNull();
     // The marketing choice is theirs regardless of the terms version.
     expect(read.marketing).toBe(true);
   });
@@ -67,7 +73,7 @@ describe("consent storage", () => {
 
   it("survives a store that cannot be read", () => {
     window.localStorage.setItem("wsws.consent.v1", "not json");
-    expect(readConsent()).toEqual(EMPTY_CONSENT);
+    expect(readConsent()).toEqual(DEFAULT_CONSENT);
   });
 });
 
@@ -101,9 +107,32 @@ describe("recordConsent", () => {
     fetchMock.mockReset();
   });
 
-  it("sends nothing when the terms were not accepted on this device", async () => {
+  it("sends nothing when the terms were unticked on this device", async () => {
+    setConsent({ terms: false, marketing: true });
     expect(await recordConsent("did:privy:abc")).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // The boxes were left ticked and the person signed in: that is the
+  // acceptance, and the sign in is when it happened.
+  it("stamps the acceptance at sign in when the boxes were left as offered", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-11T10:00:00Z"));
+    try {
+      fetchMock.mockResolvedValue(new Response("{}", { status: 200 }));
+      expect(await recordConsent("did:privy:abc")).toBe(true);
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(String(init.body))).toEqual({
+        terms: true,
+        termsVersion: TERMS_VERSION,
+        acceptedAt: "2026-09-11T10:00:00.000Z",
+        marketing: true,
+      });
+      expect(consentSnapshot().acceptedAt).toBe("2026-09-11T10:00:00.000Z");
+      expect(readConsent().recordedFor).toBe("did:privy:abc");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("records the answers once per account", async () => {

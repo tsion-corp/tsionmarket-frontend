@@ -362,6 +362,7 @@
     "agreeCheckbox": "Acepto los <terms>Términos del servicio</terms> y la <privacy>Política de privacidad</privacy> de {brand}",
     "marketingOptIn": "Enviadme novedades y ofertas de {brand} por correo. Puedes darte de baja cuando quieras.",
     "agreeToContinue": "Acepta los términos para continuar.",
+    "agreeRequired": "Debes aceptar los Términos de servicio y la Política de privacidad para continuar.",
     "continueGoogle": "Continuar con Google",
     "continueX": "Continuar con X",
     "oauthError": "El inicio de sesión no funcionó. Inténtalo de nuevo.",
