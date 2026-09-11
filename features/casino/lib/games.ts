@@ -41,11 +41,28 @@ export interface CasinoGame {
 }
 
 export const CASINO_GAMES: CasinoGame[] = [
+  // The order the team set on 2026-09-11: Last Man, Chess, ArkBall, Checkers.
+  // Last Man takes the hero slot, four of the six columns.
+  {
+    id: "last-standing",
+    name: "The Last Man",
+    category: "New",
+    size: "hero",
+    glyph: "⌛",
+    image:
+      "https://images.unsplash.com/photo-1518281420975-50db6e5d0a97?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "251 191 36",
+    href: "/casino/last-standing",
+    note: "Outlast everyone, winner takes the pot",
+    comingSoon: false,
+  },
+  // Beside Last Man in the first row: "tall" is the two-column slot that
+  // pairs with the hero.
   {
     id: "chess",
     name: "Chess",
     category: "Skill",
-    size: "hero",
+    size: "tall",
     glyph: "♞",
     image:
       "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=1600&q=80&auto=format&fit=crop",
@@ -55,33 +72,18 @@ export const CASINO_GAMES: CasinoGame[] = [
     note: "Staked head-to-head, invite or quick match",
     comingSoon: false,
   },
-  // Sits beside Chess in the first row: the hero spans four of the six
-  // columns, and "tall" is the two-column slot that pairs with it.
   {
-    id: "last-standing",
-    name: "The Last Man",
-    category: "New",
-    size: "tall",
-    glyph: "⌛",
-    image:
-      "https://images.unsplash.com/photo-1518281420975-50db6e5d0a97?w=900&q=80&auto=format&fit=crop",
-    tintRgb: "251 191 36",
-    href: "/casino/last-standing",
-    note: "Outlast everyone, winner takes the pot",
-    comingSoon: false,
-  },
-  {
-    id: "draw",
-    name: "Draw",
+    id: "arkball",
+    name: "ArkBall",
     category: "Draws",
-    size: "tall",
-    glyph: "✦",
-    image:
-      "https://images.unsplash.com/photo-1518688248740-7c31f1a945c4?w=900&q=80&auto=format&fit=crop",
-    tintRgb: "167 139 250",
-    href: null,
-    note: "Pick 5 numbers and a bonus",
-    comingSoon: true,
+    size: "medium",
+    glyph: "●",
+    image: "/casino/arkball/hero.png",
+    tintRgb: "225 29 53",
+    isNew: true,
+    href: "/casino/arkball",
+    note: "Pick 5 white balls and 1 ArkBall",
+    comingSoon: false,
   },
   {
     id: "checkers",
@@ -97,17 +99,17 @@ export const CASINO_GAMES: CasinoGame[] = [
     comingSoon: false,
   },
   {
-    id: "arkball",
-    name: "ArkBall",
+    id: "draw",
+    name: "Draw",
     category: "Draws",
-    size: "medium",
-    glyph: "●",
-    image: "/casino/arkball/hero.png",
-    tintRgb: "225 29 53",
-    isNew: true,
-    href: "/casino/arkball",
-    note: "Pick 5 white balls and 1 ArkBall",
-    comingSoon: false,
+    size: "tall",
+    glyph: "✦",
+    image:
+      "https://images.unsplash.com/photo-1518688248740-7c31f1a945c4?w=900&q=80&auto=format&fit=crop",
+    tintRgb: "167 139 250",
+    href: null,
+    note: "Pick 5 numbers and a bonus",
+    comingSoon: true,
   },
   {
     id: "ayo",

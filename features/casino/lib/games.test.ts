@@ -5,35 +5,34 @@ import { CASINO_GAMES, filterGames, type TileSize } from "@/features/casino/lib/
 const SPAN: Record<TileSize, number> = { hero: 4, tall: 2, medium: 2, wide: 3 };
 
 describe("casino game catalogue", () => {
-  it("puts Last Man Standing beside Chess in the first row", () => {
+  // The order the team set on 2026-09-11: Last Man, Chess, ArkBall, Checkers.
+  // Last Man takes the hero slot and Chess the two-column slot beside it, so
+  // the first row still fills the six columns; ArkBall and Checkers follow.
+  it("leads with Last Man, then Chess, ArkBall and Checkers", () => {
+    expect(CASINO_GAMES.slice(0, 4).map((g) => g.id)).toEqual([
+      "last-standing",
+      "chess",
+      "arkball",
+      "checkers",
+    ]);
     const [first, second] = CASINO_GAMES;
-    expect(first.id).toBe("chess");
-    expect(second.id).toBe("last-standing");
-    // The two together fill the six-column row exactly, so nothing else can
-    // slot in between them.
+    expect(first.size).toBe("hero");
     expect(SPAN[first.size] + SPAN[second.size]).toBe(6);
   });
 
-  it("keeps that pairing under the All games filter", () => {
+  it("keeps that order under the All games filter", () => {
     const shown = filterGames(CASINO_GAMES, "All games", "");
-    expect(shown.slice(0, 2).map((g) => g.id)).toEqual(["chess", "last-standing"]);
+    expect(shown.slice(0, 4).map((g) => g.id)).toEqual([
+      "last-standing",
+      "chess",
+      "arkball",
+      "checkers",
+    ]);
   });
 
-  it("keeps Draw intact and adds ArkBall immediately after Checkers", () => {
+  it("keeps Draw as a coming-soon draw game", () => {
     const draw = CASINO_GAMES.find((game) => game.id === "draw");
-    expect(draw).toMatchObject({
-      name: "Draw",
-      href: null,
-      comingSoon: true,
-      note: "Pick 5 numbers and a bonus",
-    });
-
-    const checkersIndex = CASINO_GAMES.findIndex((game) => game.id === "checkers");
-    expect(CASINO_GAMES[checkersIndex + 1]).toMatchObject({
-      id: "arkball",
-      href: "/casino/arkball",
-      comingSoon: false,
-    });
+    expect(draw).toMatchObject({ category: "Draws", href: null, comingSoon: true });
   });
 
   it("only links games that are actually playable", () => {
@@ -44,7 +43,7 @@ describe("casino game catalogue", () => {
   });
 
   it("filters by category and by name search", () => {
-    expect(filterGames(CASINO_GAMES, "Draws", "").map((g) => g.id)).toEqual(["draw", "arkball"]);
+    expect(filterGames(CASINO_GAMES, "Draws", "").map((g) => g.id)).toEqual(["arkball", "draw"]);
     expect(filterGames(CASINO_GAMES, "All games", "last").map((g) => g.id)).toEqual([
       "last-standing",
     ]);
