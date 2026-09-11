@@ -21,8 +21,12 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+const idle = vi.hoisted(() => ({ calls: [] as [number, boolean][] }));
+
 vi.mock("@/hooks/use-idle-logout", () => ({
-  useIdleLogout: () => {},
+  useIdleLogout: (timeoutMs: number, enabled: boolean) => {
+    idle.calls.push([timeoutMs, enabled]);
+  },
 }));
 
 vi.mock("@/components/ui/market-logo", () => ({
@@ -42,6 +46,7 @@ function mount(serverVerified?: boolean) {
 describe("AuthGuard", () => {
   beforeEach(() => {
     router.replace.mockReset();
+    idle.calls.length = 0;
     privy.state = { ready: false, authenticated: false };
   });
 
@@ -77,5 +82,13 @@ describe("AuthGuard", () => {
     privy.state = { ready: true, authenticated: true };
     mount();
     expect(screen.getByTestId("page")).toBeInTheDocument();
+  });
+
+  // A funded session on a phone should survive a working day untouched; two
+  // hours signed people out mid-afternoon. Now twelve hours of inactivity.
+  it("signs an idle session out after 12 hours", () => {
+    privy.state = { ready: true, authenticated: true };
+    mount();
+    expect(idle.calls.at(-1)).toEqual([12 * 60 * 60 * 1000, true]);
   });
 });

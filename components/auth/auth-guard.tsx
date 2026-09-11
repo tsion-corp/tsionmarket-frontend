@@ -9,8 +9,9 @@ import { MarketLogo } from "@/components/ui/market-logo";
 import { toast } from "@/lib/toast";
 
 // Sign the user out after this long with no interaction, so a funded session
-// left open on an unattended device doesn't stay open.
-const IDLE_TIMEOUT_HOURS = 2;
+// left open on an unattended device doesn't stay open. Twelve hours: two
+// signed people out in the middle of ordinary use.
+const IDLE_TIMEOUT_HOURS = 12;
 const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_HOURS * 60 * 60 * 1000;
 
 interface AuthGuardProps {
