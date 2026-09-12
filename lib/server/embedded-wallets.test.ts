@@ -31,14 +31,18 @@ const externalEvm = {
 describe("embeddedWalletAddress", () => {
   it("returns the embedded wallet on each chain", () => {
     const user = userWith([embeddedEvm, embeddedSolana]);
-    expect(embeddedWalletAddress(user, "ethereum")).toBe("0xEmbedded");
+    expect(embeddedWalletAddress(user, "ethereum")).toBe("0xembedded");
+    // A Solana address is base58, where case is part of the address: lowercase
+    // it and it is a different account, or none at all. Only the EVM address
+    // is folded, and only because its casing is a checksum the two SDKs
+    // disagree on.
     expect(embeddedWalletAddress(user, "solana")).toBe("SoLEmbedded");
   });
 
   it("skips an external wallet even when it is listed first", () => {
     // The browser picks the embedded one too; the query key must agree.
     const user = userWith([externalEvm, embeddedEvm]);
-    expect(embeddedWalletAddress(user, "ethereum")).toBe("0xEmbedded");
+    expect(embeddedWalletAddress(user, "ethereum")).toBe("0xembedded");
   });
 
   it("returns null when there is no embedded wallet on that chain", () => {

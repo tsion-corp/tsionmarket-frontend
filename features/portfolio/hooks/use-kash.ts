@@ -71,7 +71,6 @@ export function useKashAccount() {
     // coming back expecting a new number, is what refetchOnWindowFocus is for.
     // Returning to the tab still refetches immediately, so the number appears
     // on its own exactly as before.
-    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
   });
 

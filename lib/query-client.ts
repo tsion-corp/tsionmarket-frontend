@@ -9,6 +9,13 @@ export function createQueryClient(): QueryClient {
         gcTime: 5 * 60 * 1000,
         refetchOnWindowFocus: true,
         refetchOnReconnect: true,
+        // A backgrounded tab is a tab nobody is looking at. Every poll that
+        // fires there is a wasted request — and across 60+ polling hooks in
+        // the app, forgotten tabs were the single largest source of provider
+        // cost. The four game-board hooks that genuinely need background
+        // updates (chess match, draughts match, chess chat/comments) override
+        // this with `refetchIntervalInBackground: true` explicitly.
+        refetchIntervalInBackground: false,
         // Never retry a rate-limited request — retrying an already-throttled
         // endpoint only deepens the 429. Retry other transient failures twice.
         retry: (failureCount, error) => {

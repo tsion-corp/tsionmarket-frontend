@@ -19,7 +19,13 @@ export function embeddedWalletAddress(user: User | null, chain: EmbeddedChain): 
     if (account.type !== "wallet") continue;
     if (!("wallet_client_type" in account) || account.wallet_client_type !== "privy") continue;
     if (!("chain_type" in account) || account.chain_type !== chain) continue;
-    if ("address" in account && typeof account.address === "string") return account.address;
+    if ("address" in account && typeof account.address === "string") {
+      // The EVM address is folded to keep the query key stable across the
+      // server→Privy handover, which disagree on EIP-55 checksum casing. A
+      // Solana address is base58, where case is part of the address, so it is
+      // returned as it came.
+      return chain === "ethereum" ? account.address.toLowerCase() : account.address;
+    }
   }
   return null;
 }

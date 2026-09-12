@@ -33,7 +33,6 @@ export function useBaseBlockNumber(enabled = true) {
     refetchInterval: enabled ? 10_000 : false,
     staleTime: 8_000,
     refetchOnWindowFocus: false,
-    refetchIntervalInBackground: false,
   });
 }
 

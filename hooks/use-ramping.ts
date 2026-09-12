@@ -230,7 +230,6 @@ export function useRampOrder(
       if (current && isTerminalProgress(current)) return false;
       return orderId && attentive(orderId) ? ATTENTIVE_POLL_MS : PATIENT_POLL_MS;
     },
-    refetchIntervalInBackground: false,
     queryFn: async () => {
       const path = kind === "onramp" ? "onramps" : "offramps";
       const res = await apiFetch(

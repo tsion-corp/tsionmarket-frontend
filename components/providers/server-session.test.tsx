@@ -40,7 +40,8 @@ describe("useSessionWallet", () => {
         <Wallet chain="solana" />
       </ServerSessionProvider>
     );
-    expect(screen.getByTestId("ethereum")).toHaveTextContent("0xServer");
+    expect(screen.getByTestId("ethereum")).toHaveTextContent("0xserver");
+    // Base58, so the case is the address. Only the EVM one is folded.
     expect(screen.getByTestId("solana")).toHaveTextContent("SoLServer");
   });
 
@@ -52,7 +53,7 @@ describe("useSessionWallet", () => {
         <Wallet chain="solana" />
       </ServerSessionProvider>
     );
-    expect(screen.getByTestId("ethereum")).toHaveTextContent("0xPrivy");
+    expect(screen.getByTestId("ethereum")).toHaveTextContent("0xprivy");
     // Privy lists no Solana wallet for this user. The server's snapshot must
     // not stand in: it could belong to whoever the cookie named when the page
     // rendered, and Privy has since become the authority.
@@ -80,9 +81,29 @@ describe("useSessionWallet", () => {
     expect(screen.getByTestId("ethereum")).toHaveTextContent("none");
   });
 
+  it("keeps a Solana address exactly as Privy gives it", () => {
+    privy.state = {
+      user: {
+        id: "user_1",
+        linkedAccounts: [
+          {
+            type: "wallet",
+            walletClientType: "privy",
+            chainType: "solana",
+            address: "SoLPrivyWallet",
+          },
+        ],
+      },
+      ready: true,
+      authenticated: true,
+    };
+    render(<Wallet chain="solana" />);
+    expect(screen.getByTestId("solana")).toHaveTextContent("SoLPrivyWallet");
+  });
+
   it("works outside the provider, from Privy alone", () => {
     privy.state = { user: privyUser, ready: true, authenticated: true };
     render(<Wallet chain="ethereum" />);
-    expect(screen.getByTestId("ethereum")).toHaveTextContent("0xPrivy");
+    expect(screen.getByTestId("ethereum")).toHaveTextContent("0xprivy");
   });
 });

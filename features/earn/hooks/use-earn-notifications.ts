@@ -19,7 +19,6 @@ export function useNotifications() {
     refetchInterval: POLL_MS,
     // A tab left open in the background does not need to keep polling; it
     // refetches when the reader comes back to it.
-    refetchIntervalInBackground: false,
   });
 
   return {

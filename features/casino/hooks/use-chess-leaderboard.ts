@@ -16,7 +16,7 @@ import type { ChessLeaderboardPerfKey, ChessPlayerPerf } from "@/features/casino
 
 const PAGE_SIZE = 25;
 const CACHE_VERSION = "stable-100-v2";
-const LIVE_REFRESH_MS = 5_000;
+const LIVE_REFRESH_MS = 30_000;
 
 function preferredLeaderboardPerf(
   items: ChessPlayerPerf[] | undefined
