@@ -5,13 +5,6 @@ import { useTranslations } from "next-intl";
 
 const BANNERS = [
   {
-    id: "prediction",
-    href: "/prediction",
-    image:
-      "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=1200&q=80&auto=format&fit=crop",
-    tintRgb: "96 165 250",
-  },
-  {
     id: "casino",
     href: "/casino",
     image:
@@ -29,9 +22,10 @@ interface ExploreBannersProps {
   only?: BannerId;
 }
 
-// Doorways to the destinations that have no brief on the dashboard. Earn is not
-// among them: it is commented out of the nav in lib/sections.ts, and a doorway
-// into a section the app otherwise hides is a dead end dressed as a feature.
+// Doorways to the destinations that have no brief on the dashboard. Earn and
+// prediction are not among them: both are commented out of the nav in
+// lib/sections.ts, and a doorway into a section the app otherwise hides is a
+// dead end dressed as a feature.
 export function ExploreBanners({ only }: ExploreBannersProps = {}) {
   const t = useTranslations("explore");
   const shown = only ? BANNERS.filter((b) => b.id === only) : BANNERS;

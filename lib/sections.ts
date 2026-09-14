@@ -29,7 +29,10 @@ const REORDERABLE: SectionId[] = [
   // earn. The section stays at /rwa; dropping it here also drops its
   // dashboard brief, its marquee item and its tab, all of which follow the nav.
   // "rwa",
-  "prediction",
+  // Prediction is hidden from the nav for now, like perps, real assets and
+  // earn. The section stays at /prediction; dropping it here also drops its
+  // dashboard brief and its marquee item, both of which follow the nav.
+  // "prediction",
   // Earn is hidden from the nav for now.
   // "earn",
   "casino",
@@ -71,7 +74,9 @@ const INTEREST_TO_SECTION: Record<string, SectionId> = {
   // Perpetuals are hidden from the nav for now; the interest falls back to the default order.
   // perps: "perps",
   meme: "meme",
-  prediction: "prediction",
+  // Prediction is hidden from the nav for now; the interest falls back to the
+  // default order.
+  // prediction: "prediction",
   casino: "casino",
   // Earn is hidden from the nav for now; the interest falls back to the default order.
   // earn: "earn",

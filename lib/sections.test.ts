@@ -58,3 +58,26 @@ describe("real assets hidden from the navigation", () => {
     }
   });
 });
+
+/**
+ * Prediction is hidden on production alongside perps, real assets and earn.
+ * The section keeps its route, so a link someone already holds still resolves
+ * and the shell still lights the right entry; it just has no way in from the
+ * navigation, and neither the dashboard brief nor the marquee item, both of
+ * which follow the nav.
+ */
+describe("prediction hidden from the navigation", () => {
+  it("is absent from the default order and from its own interest", () => {
+    expect(orderedSections(null)).not.toContain("prediction");
+    expect(orderedSections("prediction")).not.toContain("prediction");
+  });
+
+  it("falls back to the default order for the prediction interest", () => {
+    expect(orderedSections("prediction")).toEqual(orderedSections(null));
+  });
+
+  it("keeps its route, so an existing link still resolves", () => {
+    expect(SECTION_ROUTES.prediction).toBe("/prediction");
+    expect(sectionForPathname("/prediction/event/abc-123")).toBe("prediction");
+  });
+});

@@ -63,13 +63,9 @@ const BRIEF_HREF: Record<BriefedSectionId, string> = {
 };
 
 // Which doorway follows which brief, indexed by the brief's position. Spread
-// rather than stacked, so Prediction and Arkade are met while reading. An index
-// with no entry gets no banner, so a reordered or shorter list still works.
-const INTERLEAVED_BANNERS: readonly ("prediction" | "casino" | undefined)[] = [
-  "prediction",
-  undefined,
-  "casino",
-];
+// rather than stacked, so Arkade is met while reading. An index with no entry
+// gets no banner, so a reordered or shorter list still works.
+const INTERLEAVED_BANNERS: readonly ("casino" | undefined)[] = [undefined, "casino"];
 
 /**
  * Market Square blocks, by the same index — a SECOND track rather than entries
@@ -276,8 +272,8 @@ export function DashboardPage() {
                 <Body rows={PREVIEW_ROWS} />
               </SectionOverview>
             </SectionVisibility>
-            {/* One doorway between the briefs, so Prediction and Arkade are
-                  met while reading rather than only at the very bottom. */}
+            {/* One doorway between the briefs, so Arkade is met while reading
+                  rather than only at the very bottom. */}
             {INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
