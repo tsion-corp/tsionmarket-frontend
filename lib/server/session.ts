@@ -31,6 +31,18 @@ export const getSessionClaims = cache(async (): Promise<AccessClaims | null> => 
   return verifyAccessToken(token);
 });
 
+// The session's raw access token, for the one case that needs to speak to
+// another service AS the user: the portfolio read asks the trade service which
+// memecoins this person holds. Verified first, so a forged or expired cookie
+// is never forwarded anywhere. It is the same token the browser sends as a
+// bearer on its own calls.
+export const getSessionBearer = cache(async (): Promise<string | null> => {
+  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  if (!token) return null;
+  const claims = await verifyAccessToken(token);
+  return claims ? `Bearer ${token}` : null;
+});
+
 // The full Privy user behind the session, or null when there is none. Shares
 // the per-session cache with the request path, so a page render and the API
 // calls it triggers resolve the user once between them.

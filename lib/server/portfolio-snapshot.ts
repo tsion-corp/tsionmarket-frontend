@@ -3,7 +3,7 @@ import "server-only";
 import { QueryClient, dehydrate, type DehydratedState } from "@tanstack/react-query";
 import { fetchPortfolio } from "@/lib/server/alchemy";
 import { embeddedWalletAddress } from "@/lib/server/embedded-wallets";
-import { getSessionUser } from "@/lib/server/session";
+import { getSessionBearer, getSessionUser } from "@/lib/server/session";
 
 // The dashboard's balance, fetched on the server for the session that asked
 // and handed to the browser as a dehydrated query cache. usePortfolio then
@@ -49,9 +49,14 @@ export async function prefetchPortfolio(client: QueryClient): Promise<boolean> {
 
   // prefetchQuery resolves on failure rather than rejecting, and dehydrate
   // only carries successful queries, so a failed fetch yields an empty state.
+  // The bearer matters here as much as on the browser's own call: this
+  // snapshot populates the shared portfolio cache, and one built without it
+  // would hand the next authenticated read a memecoin-less answer for the
+  // length of the cache window.
+  const bearer = await getSessionBearer();
   await client.prefetchQuery({
     queryKey: ["portfolio", evm, solana],
-    queryFn: () => fetchPortfolio(evm ?? undefined, solana ?? undefined),
+    queryFn: () => fetchPortfolio(evm ?? undefined, solana ?? undefined, null, bearer),
   });
   return true;
 }

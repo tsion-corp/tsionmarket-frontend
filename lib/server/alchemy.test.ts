@@ -166,6 +166,25 @@ describe("fetchPortfolio upstreams", () => {
     return seen;
   }
 
+  // The link that makes a bought memecoin visible: without this call the
+  // allowlist only knows the public catalogue's first page, which on
+  // 2026-09-15 was 67 Base coins out of a 121,383-token catalogue.
+  it("asks the trade service which coins this caller holds", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    await fetchPortfolio(WALLET, undefined, null, "Bearer privy-token");
+    expect(seen.some((u) => u.includes("/portfolio?page=1"))).toBe(true);
+  });
+
+  // Signed out, or on a poll that carries no bearer, the trade service is not
+  // called at all rather than called as nobody.
+  it("asks nothing of the trade service without a bearer", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    await fetchPortfolio(WALLET, undefined);
+    expect(seen.some((u) => u.includes("/portfolio?page=1"))).toBe(false);
+  });
+
   it("never calls the Portfolio API for an EVM wallet", async () => {
     const seen = stubFetch();
     const { fetchPortfolio } = await import("./alchemy");

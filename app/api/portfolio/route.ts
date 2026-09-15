@@ -26,7 +26,10 @@ export async function GET(req: NextRequest) {
   const fresh = parseFreshParam(req.nextUrl.searchParams.get("fresh"), KNOWN_NETWORKS);
 
   try {
-    const portfolio = await fetchPortfolio(evm, solana, fresh);
+    // The caller's bearer goes on to the trade service so the memecoins they
+    // bought are recognised as holdings. Without it the allowlist only knows
+    // the public catalogue's first page.
+    const portfolio = await fetchPortfolio(evm, solana, fresh, req.headers.get("authorization"));
     return NextResponse.json(portfolio, {
       headers: {
         // `private`, never `s-maxage`: this is one wallet's data, and a
