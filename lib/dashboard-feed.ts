@@ -91,14 +91,10 @@ export interface LiveEvent {
 export function liveEventsFrom(live: DashboardLive | null, nowSeconds: number): LiveEvent[] {
   if (!live) return [];
   return [
-    ...live.rounds
-      .filter((round) => round.endTime > nowSeconds)
-      .map<LiveEvent>((round) => ({
-        key: `lastman-${round.gameId}`,
-        kind: "lastman",
-        href: `/casino/last-standing/${round.gameId}`,
-        pot: round.pot,
-      })),
+    // Last Man rounds are deliberately not chipped: the game is hidden on
+    // production and its routes redirect to the hub, so a chip would advertise
+    // a game the app will not open. The feed still carries the rounds, so
+    // restoring the game is restoring this block.
     ...live.chess.map<LiveEvent>((m) => ({
       key: `chess-${m.id}`,
       kind: "chess",

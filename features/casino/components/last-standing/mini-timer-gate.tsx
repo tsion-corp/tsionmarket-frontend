@@ -2,7 +2,6 @@
 
 import { useSyncExternalStore } from "react";
 import dynamic from "next/dynamic";
-import { usePathname } from "next/navigation";
 import {
   followedGameServerSnapshot,
   followedGameSnapshot,
@@ -22,20 +21,25 @@ const MiniTimerHost = dynamic(
 /**
  * Mounts the Last Man Standing pop-out host only where it can matter.
  *
- * Two cases need it. On an Arkade route the launcher's click handler reaches
- * the host's offscreen video surfaces synchronously, inside the user gesture,
- * so the host has to be there before the click. Anywhere else it is only
- * useful while a game is being followed, which is what keeps the floating
- * clock alive across navigation. With neither there is nothing for it to do.
+ * It is useful while a game is being followed, which is what keeps the floating
+ * clock alive across navigation. Otherwise there is nothing for it to do.
+ *
+ * There used to be a second case: on an Arkade route the launcher's click
+ * handler reaches the host's offscreen video surfaces synchronously, inside the
+ * user gesture, so the host had to be there before the click. That launcher is
+ * The Last Man's tile, which is hidden on production, so mounting the wager
+ * stack on every Arkade route buys nothing. Restore both together.
  */
 export function MiniTimerGate() {
-  const pathname = usePathname();
   const followed = useSyncExternalStore(
     subscribeFollowedGame,
     followedGameSnapshot,
     followedGameServerSnapshot
   );
-  const onArkade = pathname?.startsWith("/casino") ?? false;
-  if (!onArkade && followed === null) return null;
+  // The Arkade case is gone while The Last Man is hidden on production: the
+  // launcher whose click handler needed the host already mounted is the game's
+  // own tile, and that tile is commented out of the catalogue. Following a game
+  // is still honoured, so a clock already running survives navigation.
+  if (followed === null) return null;
   return <MiniTimerHost />;
 }

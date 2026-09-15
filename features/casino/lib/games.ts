@@ -41,23 +41,33 @@ export interface CasinoGame {
 }
 
 export const CASINO_GAMES: CasinoGame[] = [
-  // The order the team set on 2026-09-11: Last Man, Chess, ArkBall, Checkers.
-  // Last Man takes the hero slot, four of the six columns.
-  {
-    id: "last-standing",
-    name: "The Last Man",
-    category: "New",
-    size: "hero",
-    glyph: "⌛",
-    image:
-      "https://images.unsplash.com/photo-1518281420975-50db6e5d0a97?w=900&q=80&auto=format&fit=crop",
-    tintRgb: "251 191 36",
-    href: "/casino/last-standing",
-    note: "Outlast everyone, winner takes the pot",
-    comingSoon: false,
-  },
-  // Beside Last Man in the first row: "tall" is the two-column slot that
-  // pairs with the hero.
+  // The order the team set on 2026-09-11 was Last Man, Chess, ArkBall, Checkers,
+  // with Last Man in the hero slot.
+  //
+  // The Last Man is HIDDEN on production (2026-09-15). The vault service now
+  // settles against the v5 contract while this app still opens games on v4, so
+  // the keeper calls settle() on a contract the game does not exist on, reverts
+  // GameNotFound and strands the pot until someone settles it by hand. Games
+  // 432 and 433 both had to be cleared manually. Nothing here is deleted:
+  // restoring the game is uncommenting this entry and the two route redirects
+  // in app/(session)/casino/last-standing. See vault-v5-cutover-report.md.
+  //
+  // {
+  //   id: "last-standing",
+  //   name: "The Last Man",
+  //   category: "New",
+  //   size: "hero",
+  //   glyph: "⌛",
+  //   image:
+  //     "https://images.unsplash.com/photo-1518281420975-50db6e5d0a97?w=900&q=80&auto=format&fit=crop",
+  //   tintRgb: "251 191 36",
+  //   href: "/casino/last-standing",
+  //   note: "Outlast everyone, winner takes the pot",
+  //   comingSoon: false,
+  // },
+  //
+  // Chess leads the first row while Last Man is away. "tall" is two of the six
+  // columns, so Chess, ArkBall and Checkers fill it exactly.
   {
     id: "chess",
     name: "Chess",
