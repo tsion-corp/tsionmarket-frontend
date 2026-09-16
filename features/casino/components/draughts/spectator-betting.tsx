@@ -6,7 +6,7 @@ import {
   usePlaceDraughtsBet,
 } from "@/features/casino/hooks/use-draughts-betting";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
-import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
+import { ChessCashierLauncher } from "@/features/casino/components/chess-app/chess-cashier-launcher";
 import { impliedProbability, pariMutuelBreakdown } from "@/features/casino/lib/betting-math";
 import {
   exceedsUsdcBalance,

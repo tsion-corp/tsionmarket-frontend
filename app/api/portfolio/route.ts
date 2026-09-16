@@ -9,6 +9,7 @@ import {
 import { parseFreshParam } from "@/lib/portfolio/fresh-scope";
 
 const KNOWN_NETWORKS = [...EVM_NETWORKS, SOLANA_NETWORK];
+const BASE_NETWORKS = ["base-mainnet"];
 
 // Balances are public on-chain data. The auth check only gates use of our
 // Alchemy key. The client passes its own embedded wallet addresses.
@@ -20,16 +21,28 @@ export async function GET(req: NextRequest) {
 
   const evm = req.nextUrl.searchParams.get("evm") ?? undefined;
   const solana = req.nextUrl.searchParams.get("solana") ?? undefined;
+  const requestedScope = req.nextUrl.searchParams.get("scope");
+  if (requestedScope && requestedScope !== "base") {
+    return NextResponse.json({ error: "Invalid portfolio scope" }, { status: 400 });
+  }
+  const baseOnly = requestedScope === "base";
   // A caller that just traded needs to observe its own effect on the
   // networks it named; the short shared cache would otherwise hand back the
   // pre-trade snapshot. `fresh=1` still means every network.
-  const fresh = parseFreshParam(req.nextUrl.searchParams.get("fresh"), KNOWN_NETWORKS);
+  const fresh = parseFreshParam(
+    req.nextUrl.searchParams.get("fresh"),
+    baseOnly ? BASE_NETWORKS : KNOWN_NETWORKS
+  );
 
   try {
     // The caller's bearer goes on to the trade service so the memecoins they
     // bought are recognised as holdings. Without it the allowlist only knows
-    // the public catalogue's first page.
-    const portfolio = await fetchPortfolio(evm, solana, fresh, req.headers.get("authorization"));
+    // the public catalogue's first page. The base-only funding read does not
+    // ask for it: it wants gas and the fixed funding assets, nothing the
+    // caller bought.
+    const portfolio = baseOnly
+      ? await fetchPortfolio(evm, undefined, fresh, null, "base")
+      : await fetchPortfolio(evm, solana, fresh, req.headers.get("authorization"));
     return NextResponse.json(portfolio, {
       headers: {
         // `private`, never `s-maxage`: this is one wallet's data, and a

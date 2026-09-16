@@ -36,6 +36,7 @@ import {
   requestComputerHint,
   requestMatchAnalysis,
   saveMatchNote,
+  submitMove,
   undoComputerCoachReview,
   updateCoachProfile,
   upsertMatchComment,
@@ -80,6 +81,7 @@ function activeMatch(id: string, over: Partial<ChessMatchWire> = {}): ChessMatch
 }
 
 function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}): ChessMatch {
+  const fen = over.fen ?? "8/8/8/8/8/8/8/8 w - - 0 1";
   return {
     id,
     state: "in_progress",
@@ -87,7 +89,7 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
     white: { id: "0xhost", username: "0xhost", rating: 0, walletAddress: "0xhost" },
     black: { id: "0xguest", username: "0xguest", rating: 0, walletAddress: "0xguest" },
     timeControl: "5+3",
-    fen: "8/8/8/8/8/8/8/8 w - - 0 1",
+    fen,
     moves,
     clocks: { w: 295, b: 294 },
     clockUpdatedAt: "2026-08-01T18:02:00.000Z",
@@ -103,6 +105,9 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
     ...over,
     clockMode: over.clockMode ?? "real_time",
     computer: over.computer ?? null,
+    variant: over.variant ?? "standard",
+    initialFen: over.initialFen ?? "8/8/8/8/8/8/8/8 w - - 0 1",
+    chess960Position: over.chess960Position ?? null,
     timeExtensions: over.timeExtensions ?? {
       allowed: false,
       used: 0,
@@ -110,11 +115,73 @@ function cachedMatch(id: string, moves: string[], over: Partial<ChessMatch> = {}
       maxUses: 3,
       maxTotalSeconds: 1_800,
     },
+    round:
+      over.round !== undefined
+        ? over.round
+        : {
+            steps: Array.from({ length: moves.length + 1 }, (_, ply) => ({
+              ply,
+              uci: null,
+              san: ply === 0 ? null : (moves[ply - 1] ?? null),
+              fen,
+              check: false,
+              byPlayer: null,
+              clockMsRemaining: null,
+              createdAt: null,
+            })),
+            legalMoves: [],
+            check: false,
+            serverTime: "2026-08-01T18:02:00.000Z",
+          },
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("round commands", () => {
+  it("submits moves as idempotent, expected-ply commands", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+    const wire = activeMatch(id, {
+      fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+      turn: "black",
+      ply: 1,
+    });
+    chessClient.chessPost.mockResolvedValue({
+      commandId: "command-1",
+      matchId: id,
+      commandType: "move",
+      status: "applied",
+      data: {
+        match: wire,
+        move: {
+          ply: 1,
+          uci: "e2e4",
+          san: "e4",
+          fenAfter: wire.fen,
+          byPlayer: "0xhost",
+          clockMsRemaining: 294_000,
+          createdAt: "2026-08-01T18:02:00.000Z",
+        },
+      },
+    });
+
+    const match = await submitMove(id, "e2e4", "0xhost", []);
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(
+      "/round/commands",
+      expect.objectContaining({
+        commandId: expect.stringMatching(/^[0-9a-f-]{36}$/u),
+        matchId: id,
+        player: "0xhost",
+        expectedPly: 0,
+        clientSentAtMs: expect.any(Number),
+        command: { type: "move", uci: "e2e4" },
+      })
+    );
+    expect(match.moves).toEqual(["e4"]);
+  });
 });
 
 describe("human challenge creation", () => {
@@ -135,6 +202,34 @@ describe("human challenge creation", () => {
         allow_time_extensions: true,
       })
     );
+  });
+
+  it("sends the selected funded friend terms to the authoritative match endpoint", async () => {
+    chessClient.chessPost.mockResolvedValue(
+      waitingMatch("funded-friend", "2026-08-01T18:00:00.000Z")
+    );
+
+    await createChallenge({
+      creator: "0x1111111111111111111111111111111111111111",
+      timeControl: "5+3",
+      mode: "invite",
+      rated: false,
+      color: "black",
+      allowTimeExtensions: false,
+      videoEnabled: true,
+      stakeUsdc: "5",
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith("/matches", {
+      creator: "0x1111111111111111111111111111111111111111",
+      color: "black",
+      initial_seconds: 300,
+      increment_seconds: 3,
+      rated: false,
+      allow_time_extensions: false,
+      videoEnabled: true,
+      stake_usdc: "5",
+    });
   });
 
   it("always enables match video even when the caller omits the legacy flag", async () => {
@@ -251,7 +346,7 @@ describe("chess live-match filters", () => {
     expect(live.map((match) => match.id)).toEqual(["fresh"]);
   });
 
-  it("keeps private computer games out of the public live list", async () => {
+  it("keeps private computer games out while showing disclosed lobby bots", async () => {
     chessClient.chessGet.mockResolvedValue({
       items: [
         activeMatch("human", { startedAt: new Date().toISOString() }),
@@ -264,12 +359,29 @@ describe("chess live-match filters", () => {
             level: 2,
           },
         }),
+        activeMatch("lobby-bot", {
+          startedAt: new Date().toISOString(),
+          computer: {
+            player: "0x00000000000000000000000000000000000000b8",
+            name: "Daan van Dijk",
+            bot: true,
+            countryCode: "NL",
+            rating: 540,
+            side: "black",
+            level: 8,
+          },
+        }),
       ],
     });
 
     const live = await fetchLiveMatches();
 
-    expect(live.map((match) => match.id)).toEqual(["human"]);
+    expect(live.map((match) => match.id)).toEqual(["human", "lobby-bot"]);
+    expect(live[1]?.black).toMatchObject({
+      username: "Daan van Dijk",
+      countryCode: "NL",
+      rating: 540,
+    });
   });
 });
 
@@ -298,6 +410,7 @@ describe("computer matches", () => {
       player: "0xhost",
       level: 4,
       color: "white",
+      variant: "standard",
       time_mode: "unlimited",
     });
     expect(match.timeControl).toBe("Unlimited");
@@ -324,12 +437,37 @@ describe("computer matches", () => {
       player: "0xhost",
       level: 8,
       color: "black",
+      variant: "standard",
       time_mode: "real_time",
       initial_seconds: 300,
       increment_seconds: 3,
       stake_usdc: "2.5",
       idempotency_key: "computer-create-1",
     });
+  });
+
+  it("marks a funded lobby bot game for the public Watch feed", async () => {
+    chessClient.chessPost.mockResolvedValue(activeMatch("lobby-bot"));
+
+    await createComputerMatch({
+      player: "0xhost",
+      level: 8,
+      color: "random",
+      timeMode: "real_time",
+      initialSeconds: 300,
+      incrementSeconds: 3,
+      stakeUsdc: "1",
+      idempotencyKey: "deposit:0x1234",
+      lobbyBot: true,
+    });
+
+    expect(chessClient.chessPost).toHaveBeenCalledWith(
+      "/computer/matches?lobbyBot=true",
+      expect.objectContaining({
+        stake_usdc: "1",
+        idempotency_key: "deposit:0x1234",
+      })
+    );
   });
 
   it("persists coach mode on a free computer game", async () => {
@@ -347,6 +485,7 @@ describe("computer matches", () => {
       player: "0xhost",
       level: 2,
       color: "white",
+      variant: "standard",
       time_mode: "unlimited",
       coach_enabled: true,
     });
@@ -532,6 +671,75 @@ describe("premium analysis", () => {
 });
 
 describe("match fetch reconciliation", () => {
+  it("bootstraps a new round with replay steps and legal moves in one request", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3399";
+    const fen = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
+    chessClient.chessGet.mockResolvedValue({
+      match: activeMatch(id, { ply: 1, fen, turn: "black" }),
+      steps: [
+        {
+          ply: 0,
+          uci: null,
+          san: null,
+          fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          check: false,
+          byPlayer: null,
+          clockMsRemaining: null,
+          createdAt: null,
+        },
+        {
+          ply: 1,
+          uci: "e2e4",
+          san: "e4",
+          fen,
+          check: false,
+          byPlayer: "0xhost",
+          clockMsRemaining: 299_000,
+          createdAt: "2026-08-01T18:01:30.000Z",
+        },
+      ],
+      legalMoves: ["e7e5"],
+      check: false,
+      serverTime: "2026-08-01T18:01:31.000Z",
+    });
+
+    const match = await fetchMatch(id);
+
+    expect(chessClient.chessGet).toHaveBeenCalledOnce();
+    expect(chessClient.chessGet).toHaveBeenCalledWith(`/round/${id}/data`);
+    expect(match.moves).toEqual(["e4"]);
+    expect(match.round?.steps).toHaveLength(2);
+    expect(match.round?.legalMoves).toEqual(["e7e5"]);
+  });
+
+  it("replaces a mutation-seeded compact match with a complete round snapshot", async () => {
+    const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3398";
+    chessClient.chessGet.mockResolvedValue({
+      match: activeMatch(id, { ply: 0, turn: "white" }),
+      steps: [
+        {
+          ply: 0,
+          uci: null,
+          san: null,
+          fen: "8/8/8/8/8/8/8/8 w - - 0 1",
+          check: false,
+          byPlayer: null,
+          clockMsRemaining: null,
+          createdAt: null,
+        },
+      ],
+      legalMoves: ["e2e4", "d2d4"],
+      check: false,
+      serverTime: "2026-08-01T18:01:01.000Z",
+    });
+
+    const match = await fetchMatch(id, cachedMatch(id, [], { round: null }));
+
+    expect(chessClient.chessGet).toHaveBeenCalledOnce();
+    expect(chessClient.chessGet).toHaveBeenCalledWith(`/round/${id}/data`);
+    expect(match.round?.legalMoves).toEqual(["e2e4", "d2d4"]);
+  });
+
   it("resets the creator clock to the server start when an opponent joins", async () => {
     const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3300";
     chessClient.chessGet.mockResolvedValue(
@@ -611,7 +819,7 @@ describe("match fetch reconciliation", () => {
     expect(match.timeExtensions.allowed).toBe(true);
   });
 
-  it("reloads /moves only when the cached history is short", async () => {
+  it("reloads the round snapshot only when the cached history is short", async () => {
     const id = "3f2504e0-4f89-11d3-9a0c-0305e82c3302";
     chessClient.chessGet.mockImplementation(async (path: string) => {
       if (path === `/matches/${id}`) {
@@ -621,14 +829,30 @@ describe("match fetch reconciliation", () => {
           turn: "white",
         });
       }
-      if (path === `/matches/${id}/moves`) {
+      if (path === `/round/${id}/data`) {
         return {
-          moves: [
+          match: activeMatch(id, {
+            ply: 2,
+            fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+            turn: "white",
+          }),
+          steps: [
+            {
+              ply: 0,
+              uci: null,
+              san: null,
+              fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+              check: false,
+              byPlayer: null,
+              clockMsRemaining: null,
+              createdAt: null,
+            },
             {
               ply: 1,
               uci: "e2e4",
               san: "e4",
-              fenAfter: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+              fen: "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1",
+              check: false,
               byPlayer: "0xhost",
               clockMsRemaining: 299_000,
               createdAt: "2026-08-01T18:01:30.000Z",
@@ -637,12 +861,16 @@ describe("match fetch reconciliation", () => {
               ply: 2,
               uci: "e7e5",
               san: "e5",
-              fenAfter: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+              fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+              check: false,
               byPlayer: "0xguest",
               clockMsRemaining: 298_000,
               createdAt: "2026-08-01T18:02:05.000Z",
             },
           ],
+          legalMoves: ["g1f3"],
+          check: false,
+          serverTime: "2026-08-01T18:02:06.000Z",
         };
       }
       throw new Error(`unexpected path ${path}`);

@@ -96,6 +96,15 @@ describe("AnalyticsSegments", () => {
     expect(analytics.setSuper).not.toHaveBeenCalled();
   });
 
+  it("does not report the Base-only chess balance as the full portfolio", () => {
+    const client = new QueryClient();
+    mount(client);
+
+    client.setQueryData(["portfolio", "base", "0xabc"], { totalUsd: 12, tokens: [] });
+
+    expect(analytics.setSuper).not.toHaveBeenCalled();
+  });
+
   it("stays quiet while signed out", () => {
     privy.state = { ready: true, authenticated: false };
     const client = new QueryClient();

@@ -2,12 +2,7 @@
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import {
-  CasinoPage,
-  ChessRoundPageShell,
-  LiveGamesSection,
-  SpectateSection,
-} from "@/features/casino";
+import { CasinoPage, ChessRoundPageShell, LichessRound, LiveGamesSection } from "@/features/casino";
 
 function WatchFromParams() {
   const matchId = useSearchParams()?.get("match") ?? null;
@@ -20,7 +15,7 @@ function WatchFromParams() {
   }
   return (
     <ChessRoundPageShell>
-      <SpectateSection matchId={matchId} />
+      <LichessRound matchId={matchId} seatName={null} forceSpectator />
     </ChessRoundPageShell>
   );
 }

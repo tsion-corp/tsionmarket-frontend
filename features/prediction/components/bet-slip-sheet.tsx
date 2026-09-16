@@ -133,20 +133,19 @@ export function BetSlipSheet({ position, onClaim, claiming, onSell, selling }: B
         </p>
       )}
 
-      {confirming ? (
-        <ConfirmDialog
-          title={t("confirmSellTitle")}
-          rows={confirmRows}
-          warning={t("confirmSellWarning")}
-          cancelLabel={t("confirmCancel")}
-          continueLabel={t("confirmContinue")}
-          onCancel={() => setConfirming(false)}
-          onContinue={() => {
-            setConfirming(false);
-            onSell(position);
-          }}
-        />
-      ) : null}
+      <ConfirmDialog
+        open={confirming}
+        title={t("confirmSellTitle")}
+        rows={confirmRows}
+        warning={t("confirmSellWarning")}
+        cancelLabel={t("confirmCancel")}
+        continueLabel={t("confirmContinue")}
+        onCancel={() => setConfirming(false)}
+        onContinue={() => {
+          setConfirming(false);
+          onSell(position);
+        }}
+      />
     </div>
   );
 }

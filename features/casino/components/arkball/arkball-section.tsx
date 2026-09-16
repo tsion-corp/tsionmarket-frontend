@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
+import { ChessCashierLauncher } from "@/features/casino/components/chess-app/chess-cashier-launcher";
 import { GameGoLive } from "@/features/casino/components/broadcast";
 import { DrawOverview } from "@/features/casino/components/arkball/draw-overview";
 import { TicketBuilder } from "@/features/casino/components/arkball/ticket-builder";

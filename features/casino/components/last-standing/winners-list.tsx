@@ -8,14 +8,20 @@ import { useMoney } from "@/components/ui/currency-select";
 import { usePaged } from "@/hooks/use-paged";
 import { timeAgo, truncateAddress } from "@/lib/format";
 import type { VaultWinner } from "@/features/casino/lib/vault-api";
+import { usdOf } from "@/features/casino/lib/last-standing/pricing";
+import { usePrices } from "@/hooks/use-prices";
 
 const EXPLORER_ADDRESS_URL = "https://basescan.org/address/";
 
 // What the winner was actually paid. The service reports it as
 // `paidToWinner` (the winner's share plus the starter's when one wallet did
 // both); a row from before that field exists carries `toWinner` alone.
-function paidUsd(w: VaultWinner): number {
-  return (w.paidToWinner ?? w.toWinner).usdValue;
+//
+// Priced here rather than read off `usdValue`: that field is native-only by the
+// service's own contract and is zero for every token game, which is why the
+// Hall of Winners showed $0.00 beside a real USDC payout on 2026-09-15.
+function paidUsd(w: VaultWinner, ethPriceUsd: number): number {
+  return usdOf(w.paidToWinner ?? w.toWinner, ethPriceUsd) ?? 0;
 }
 
 interface WinnersListProps {
@@ -51,16 +57,20 @@ export function WinnersList({
   const t = useTranslations("casino.lastStanding");
   const money = useMoney();
   const reduce = useReducedMotion();
+  // Only an ETH row needs this; a USDC payout is already a dollar figure.
+  const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
   // The leaderboard orders by what each win paid, ties broken by recency, and
   // never mutates the caller's array.
   const items = useMemo(
     () =>
       ranked
         ? [...winners].sort(
-            (a, b) => paidUsd(b) - paidUsd(a) || Date.parse(b.settledAt) - Date.parse(a.settledAt)
+            (a, b) =>
+              paidUsd(b, ethPrice) - paidUsd(a, ethPrice) ||
+              Date.parse(b.settledAt) - Date.parse(a.settledAt)
           )
         : winners,
-    [winners, ranked]
+    [winners, ranked, ethPrice]
   );
   const paged = usePaged(items, pageSize);
   const grid = columns === 2 ? "mt-4 grid gap-2 sm:grid-cols-2 sm:gap-x-5" : "mt-4 grid gap-2";
@@ -139,7 +149,7 @@ export function WinnersList({
               </span>
               <span className="relative shrink-0 text-right">
                 <span className="tnum block text-[14px] font-bold text-[#d8d8dc]">
-                  {money.formatExact(paidUsd(w))}
+                  {money.formatExact(paidUsd(w, ethPrice))}
                 </span>
                 {isLatest ? (
                   <span className="block text-[9.5px] font-semibold tracking-[0.12em] text-[#d8d8dc]/70 uppercase">

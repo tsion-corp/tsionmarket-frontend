@@ -1,22 +1,36 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
-import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
 import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
-import { FeatureMarquee } from "@/components/layout/feature-marquee";
 import { ModalShell } from "@/components/ui/modal-shell";
-import { FundsModal } from "@/features/funds";
+import { PortfolioFab } from "@/features/portfolio/components/portfolio-fab";
 import { InviteFriendsModal, useClaimReferralFromLink } from "@/features/referrals";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import type { NavItem } from "@/components/layout/nav-items";
 import type { SectionId } from "@/lib/sections";
+
+// Dynamic, for the same reason AppModalHost loads them that way: both sheets
+// carry the whole deposit and withdraw surface, and the shell mounts them on
+// every page in the app. Imported statically they cost around 60 kB gzipped
+// of first load on every route, for two sheets that render only after the
+// quick-action dial is opened.
+const FundsModal = dynamic(
+  () => import("@/features/funds/components/funds-modal").then((m) => m.FundsModal),
+  { ssr: false }
+);
+const WithdrawModal = dynamic(
+  () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
+  { ssr: false }
+);
 
 interface DashboardShellProps {
   nav: NavItem[];
@@ -40,6 +54,7 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   // the action works on every page, not just the dashboard, which keeps its own
   // copy for the balance card and the empty states.
   const [fundsOpen, setFundsOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
   // The marquee's invite item opens the same Invite Friends modal the account
   // menu reaches; the shell owns an instance so the item works on every page.
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -68,7 +83,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         items={nav}
         activeSection={activeSection}
         onNavigate={(id) => navigate(id)}
-        onOpenAccount={() => setAccountOpen(true)}
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
       />
@@ -81,12 +95,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       <main className="min-h-screen pb-[calc(92px+var(--ws-live-bar,0px))] md:ml-[248px] md:pb-[var(--ws-live-bar,0px)]">
         <div className="sticky top-0 z-[60]">
           <Topbar onOpenAccount={() => setAccountOpen(true)} />
-          <FeatureMarquee
-            navIds={nav.map((n) => n.id)}
-            onNavigate={navigate}
-            onAddFunds={() => setFundsOpen(true)}
-            onInvite={() => setInviteOpen(true)}
-          />
         </div>
 
         {children}
@@ -96,13 +104,7 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
           the note in the component for why it is not one per panel. */}
       <ConnectionBanner />
 
-      <MobileTabBar
-        items={nav}
-        activeSection={activeSection}
-        onNavigate={navigate}
-        onOpenMore={() => setMenuOpen(true)}
-        onAddFunds={() => setFundsOpen(true)}
-      />
+      <CurvedTabBar items={nav} activeSection={activeSection} onNavigate={navigate} />
 
       {/* The live indicator and the minimised self-view. Docked, never
           floating over content: the dock reserves its own height so the page
@@ -110,6 +112,11 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       <BroadcastDock />
 
       <SupportButton />
+
+      <PortfolioFab
+        onOpenFunds={() => setFundsOpen(true)}
+        onOpenWithdraw={() => setWithdrawOpen(true)}
+      />
 
       <InviteFriendsModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
 
@@ -119,6 +126,10 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
 
       <ModalShell open={fundsOpen} onClose={() => setFundsOpen(false)} size="lg">
         <FundsModal onClose={() => setFundsOpen(false)} />
+      </ModalShell>
+
+      <ModalShell open={withdrawOpen} onClose={() => setWithdrawOpen(false)} size="lg">
+        <WithdrawModal onClose={() => setWithdrawOpen(false)} />
       </ModalShell>
     </div>
   );

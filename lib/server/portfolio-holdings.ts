@@ -1,4 +1,5 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { freshFor, type FreshScope } from "@/lib/portfolio/fresh-scope";
 import {
   decodeAbiParameters,
@@ -8,7 +9,7 @@ import {
   multicall3Abi,
   type Hex,
 } from "viem";
-import { readEvm, type RpcCall } from "@/lib/server/evm-read";
+import { readEvm, type RpcCall, type RpcEnvelope } from "@/lib/server/evm-read";
 import { alchemyFetch, hasAlchemyKey } from "@/lib/server/alchemy-keys";
 import type { AlchemyToken } from "@/lib/server/alchemy";
 
@@ -96,6 +97,24 @@ const LOGO_TIMEOUT_MS = 3_000;
 const PRICE_TTL_MS = 75_000;
 const PRICES_PER_REQUEST = 25;
 const MAX_CONCURRENT_NETWORKS = 8;
+/**
+ * Contracts per Multicall3 request.
+ *
+ * The whole allowed set used to go in one call. That was fine while Base
+ * listed about a hundred tokens; once the memecoin catalogue paged, Base
+ * carried thousands, the encoded body ran past a megabyte, and BOTH read
+ * providers answered 413 — so the network dropped out of the sweep entirely
+ * and every Base balance vanished, cash included.
+ *
+ * Kept well inside what a provider accepts rather than at the edge: the cost
+ * of another request is one round trip, and the cost of being one token over
+ * is the whole network.
+ */
+export const CONTRACTS_PER_MULTICALL = 400;
+// Chunk requests in flight at once for ONE network. Thousands of contracts is
+// a couple of dozen requests, and firing them together is how a read that no
+// longer 413s starts being rate limited instead.
+const MAX_CONCURRENT_CHUNKS = 4;
 
 export interface HoldingRow {
   network: string;
@@ -138,6 +157,11 @@ function markWarm(key: string): void {
   const now = Date.now();
   for (const [k, until] of warmUntil) if (until <= now) warmUntil.delete(k);
   warmUntil.set(key, now + WARM_FOR_MS);
+}
+
+function contractsFingerprint(contracts: string[]): string {
+  const normalized = [...new Set(contracts.map((address) => address.toLowerCase()))].sort();
+  return createHash("sha256").update(normalized.join(",")).digest("hex");
 }
 
 // The chain answers a quantity as a 0x-prefixed hex string; an empty "0x"
@@ -215,8 +239,12 @@ export async function readHoldings(
 ): Promise<HoldingRow[]> {
   const chainId = NETWORK_CHAIN_ID[network];
   if (!chainId) throw new Error(`No chain id for ${network}`);
-  const key = `${network}:${wallet.toLowerCase()}`;
-  const hot = HOT_NETWORKS.has(network) || (warmUntil.get(key) ?? 0) > Date.now();
+  const walletKey = `${network}:${wallet.toLowerCase()}`;
+  // The chess path intentionally reads a smaller fixed Base allowlist than
+  // the complete portfolio. Keep those snapshots separate so one path can
+  // never serve the other path rows for a different set of contracts.
+  const key = `${walletKey}:${contractsFingerprint(contracts)}`;
+  const hot = HOT_NETWORKS.has(network) || (warmUntil.get(walletKey) ?? 0) > Date.now();
 
   const hit = holdingsCache.get(key);
   if (!fresh && hit && hit.expires > Date.now()) return hit.rows;
@@ -227,14 +255,49 @@ export async function readHoldings(
   const startedAt = Date.now();
   const run = (async () => {
     try {
-      const calls: RpcCall[] = [{ id: 1, method: "eth_getBalance", params: [wallet, "latest"] }];
-      const targets = contracts.map((address) => ({
-        target: address as Hex,
-        callData: balanceOfCall(wallet as Hex),
-      }));
-      if (targets.length > 0) calls.push({ id: 2, ...multicall(chainId, network, targets).call });
+      // One chunk per request, so a long allowed set costs more round trips
+      // rather than one rejected body. The first request also carries the
+      // native balance, which keeps the common small-list case at one call.
+      const chunks: string[][] = [];
+      for (let i = 0; i < contracts.length; i += CONTRACTS_PER_MULTICALL) {
+        chunks.push(contracts.slice(i, i + CONTRACTS_PER_MULTICALL));
+      }
 
-      const [native, tokens] = await readEvm(network, chainId, calls);
+      const chunkCall = (chunk: string[], id: number): RpcCall => ({
+        id,
+        ...multicall(
+          chainId,
+          network,
+          chunk.map((address) => ({
+            target: address as Hex,
+            callData: balanceOfCall(wallet as Hex),
+          }))
+        ).call,
+      });
+
+      const first: RpcCall[] = [{ id: 1, method: "eth_getBalance", params: [wallet, "latest"] }];
+      if (chunks.length > 0) first.push(chunkCall(chunks[0], 2));
+
+      const settled = await inSlots(
+        [
+          () => readEvm(network, chainId, first),
+          ...chunks.slice(1).map((chunk) => () => readEvm(network, chainId, [chunkCall(chunk, 1)])),
+        ],
+        MAX_CONCURRENT_CHUNKS
+      );
+      // One chunk failing means some of this wallet's contracts were never
+      // asked about. Throwing hands the caller its stale snapshot; keeping the
+      // chunks that answered would report a balance that is missing money and
+      // look like a real reading of it.
+      const rejected = settled.find(
+        (result): result is PromiseRejectedResult => result.status === "rejected"
+      );
+      if (rejected) throw rejected.reason;
+      const [head, ...rest] = settled.map(
+        (result) => (result as PromiseFulfilledResult<RpcEnvelope[]>).value
+      );
+
+      const [native, firstTokens] = head;
       if (native.error) throw new Error(`${network} eth_getBalance: ${native.error.message}`);
       const rows: HoldingRow[] = [
         {
@@ -243,30 +306,39 @@ export async function readHoldings(
           tokenBalance: hexQuantity(native.result, `${network} eth_getBalance`),
         },
       ];
-      if (tokens) {
+      // Each chunk decodes against its OWN slice, and the row is attributed by
+      // the offset of that slice: an index inside chunk 3 is not an index into
+      // the whole list, and reading it as one would label a balance with some
+      // other token's address.
+      const answers = [firstTokens, ...rest.map((envelopes) => envelopes[0])];
+      answers.forEach((tokens, chunkIndex) => {
+        if (!tokens) return;
         if (tokens.error) throw new Error(`${network} multicall: ${tokens.error.message}`);
+        const chunk = chunks[chunkIndex];
+        const offset = chunkIndex * CONTRACTS_PER_MULTICALL;
         decodeAggregate3(hexQuantity(tokens.result, `${network} multicall`) as Hex).forEach(
           (entry, index) => {
             if (!entry.success) return;
             const balance = decodeUint(entry.returnData);
             if (balance === null || balance <= 0n) return;
+            if (index >= chunk.length) return;
             rows.push({
               network,
-              tokenAddress: contracts[index],
+              tokenAddress: contracts[offset + index],
               tokenBalance: `0x${balance.toString(16)}`,
             });
           }
         );
-      }
+      });
       const holding = rows.some((row) => BigInt(row.tokenBalance) > 0n);
       if (holding) {
-        markWarm(key);
-        emptyStreak.delete(key);
+        markWarm(walletKey);
+        emptyStreak.delete(walletKey);
       }
       let ttl = HOT_TTL_MS;
       if (!holding && !hot) {
-        const streak = (emptyStreak.get(key) ?? 0) + 1;
-        emptyStreak.set(key, streak);
+        const streak = (emptyStreak.get(walletKey) ?? 0) + 1;
+        emptyStreak.set(walletKey, streak);
         ttl = EMPTY_BACKOFF_MS[Math.min(streak - 1, EMPTY_BACKOFF_MS.length - 1)];
       } else if (!holding) {
         ttl = HOT_NETWORKS.has(network) ? HOT_TTL_MS : COLD_TTL_MS;

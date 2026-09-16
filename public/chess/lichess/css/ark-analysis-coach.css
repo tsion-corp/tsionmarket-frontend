@@ -1,0 +1,193 @@
+.ark-analysis-coach {
+  --ark-coach-accent: #81b64c;
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 14px;
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 12px;
+  color: #f4f4f4;
+  background:
+    radial-gradient(circle at 0 0, color-mix(in srgb, var(--ark-coach-accent) 20%, transparent), transparent 46%),
+    linear-gradient(145deg, #252522, #191917);
+  border: 1px solid color-mix(in srgb, var(--ark-coach-accent) 48%, #3b3b36);
+  border-width: 0 0 1px;
+  border-radius: 0;
+  box-shadow: 0 6px 18px rgb(0 0 0 / 20%);
+  overflow: hidden;
+}
+
+.ark-analysis-coach[data-classification="best"] { --ark-coach-accent: #81b64c; }
+.ark-analysis-coach[data-classification="good"] { --ark-coach-accent: #96bc4b; }
+.ark-analysis-coach[data-classification="inaccuracy"] { --ark-coach-accent: #f0c15c; }
+.ark-analysis-coach[data-classification="mistake"] { --ark-coach-accent: #e58f3c; }
+.ark-analysis-coach[data-classification="blunder"] { --ark-coach-accent: #d64f45; }
+
+.ark-analysis-coach__avatar {
+  position: relative;
+  align-self: start;
+}
+
+.ark-analysis-coach__avatar img {
+  display: block;
+  width: 68px;
+  height: 68px;
+  filter: drop-shadow(0 7px 10px rgb(0 0 0 / 30%));
+}
+
+.ark-analysis-coach__badge {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #fff;
+  background: var(--ark-coach-accent);
+  border: 3px solid #20201d;
+  border-radius: 50%;
+  font: 800 13px/1 "Noto Sans", sans-serif;
+}
+
+.ark-analysis-coach__bubble {
+  position: relative;
+  min-width: 0;
+  padding: 2px 2px 0;
+}
+
+.ark-analysis-coach__bubble::before {
+  position: absolute;
+  top: 22px;
+  left: -22px;
+  width: 0;
+  height: 0;
+  border-top: 8px solid transparent;
+  border-right: 10px solid color-mix(in srgb, var(--ark-coach-accent) 48%, #3b3b36);
+  border-bottom: 8px solid transparent;
+  content: "";
+}
+
+.ark-analysis-coach__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+  color: var(--ark-coach-accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.ark-analysis-coach__title {
+  margin: 0 0 4px;
+  color: #fff;
+  font-size: 1.18rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.ark-analysis-coach__comment {
+  margin: 0;
+  color: #d8d8d4;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.ark-analysis-coach__correction {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 9px;
+  padding: 6px 9px;
+  color: #f3ead2;
+  background: rgb(255 255 255 / 6%);
+  border-radius: 7px;
+  font-size: 0.82rem;
+}
+
+.ark-analysis-coach__correction[hidden] {
+  display: none;
+}
+
+.ark-analysis-coach__correction strong {
+  color: var(--ark-coach-accent);
+}
+
+.ark-analysis-coach__tools {
+  grid-column: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -2px;
+}
+
+.ark-analysis-coach__tools .button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 0.78rem;
+}
+
+.analyse__tools > .ark-analysis-coach {
+  order: 1;
+}
+
+.analyse__tools > .ceval,
+.analyse__tools > .pv_box,
+.analyse__tools > .analyse__fork,
+.analyse__tools > .gamebook-edit {
+  order: 0;
+}
+
+.analyse__tools > .analyse__moves {
+  order: 2;
+}
+
+.ark-analysis-coach.is-updating .ark-analysis-coach__bubble {
+  animation: ark-coach-comment-in 180ms ease-out;
+}
+
+@keyframes ark-coach-comment-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 600px) {
+  .ark-analysis-coach {
+    grid-template-columns: 50px minmax(0, 1fr);
+    gap: 10px;
+    padding: 9px 11px;
+  }
+
+  .ark-analysis-coach__avatar img {
+    width: 50px;
+    height: 50px;
+  }
+
+  .ark-analysis-coach__badge {
+    width: 23px;
+    height: 23px;
+    font-size: 10px;
+  }
+
+  .ark-analysis-coach__bubble::before {
+    top: 16px;
+    left: -17px;
+    border-top-width: 6px;
+    border-right-width: 8px;
+    border-bottom-width: 6px;
+  }
+
+  .ark-analysis-coach__title {
+    font-size: 1rem;
+  }
+
+  .ark-analysis-coach__comment {
+    font-size: 0.86rem;
+  }
+
+  .ark-analysis-coach__tools {
+    grid-column: 1 / -1;
+    justify-content: flex-end;
+  }
+}

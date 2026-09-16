@@ -1,124 +1,46 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type FC } from "react";
-import { useTranslations } from "next-intl";
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { ModalShell } from "@/components/ui/modal-shell";
-import { RwaAssetList } from "@/features/rwa/components/rwa-asset-list";
-import { RwaTradePanel } from "@/features/rwa/components/rwa-trade-panel";
-import { RwaDetailSheet } from "@/features/rwa/components/rwa-detail-sheet";
+import { useMemo, type FC } from "react";
+import { RwaPhoneList } from "@/features/rwa/components/rwa-phone-list";
 import { useListedRwaAssets } from "@/features/rwa/hooks/use-rwa-assets";
-import { useTradePrefill } from "@/hooks/use-trade-prefill";
-import { dedupeByChain } from "@/features/rwa/lib/presenter";
 import { useRwaEnrichedAssets } from "@/features/rwa/hooks/use-rwa-prices";
-import type { RwaApiAsset } from "@/features/rwa/lib/api";
-import type { TradePrefill } from "@/lib/voice/intent";
-import type { ConfirmPayload, DetailPayload } from "@/lib/modal-types";
+import { dedupeByChain } from "@/features/rwa/lib/presenter";
+import { useTradePrefill } from "@/hooks/use-trade-prefill";
 
-// The dashboard page passes detail and confirm openers, but the RWA section owns
-// its own detail sheet and trade flow, so it does not use them. The prop shape
-// stays as the page expects so the dashboard keeps compiling.
 export interface RwaSectionProps {
-  onOpenDetail: (detail: DetailPayload) => void;
-  onOpenConfirm: (confirm: ConfirmPayload) => void;
+  // Raised to the route's modal host, which owns Add funds. The ticket has no
+  // access to it, so it travels through the list.
   onAddFunds?: () => void;
 }
 
+// The Real assets tab of the phone Market page: the asset list, which swaps
+// itself for the order ticket when a row is tapped. No modal, the way the Spot
+// tab has none.
+//
+// This is the tab's data layer and nothing else. It decides which assets are
+// listable, enriches them with live prices, reads a spoken order off the URL,
+// and hands all three to the list. The desk at /rwa composes RwaDeskView
+// directly and does not come through here.
 export const RwaSection: FC<RwaSectionProps> = ({ onAddFunds }) => {
-  const t = useTranslations("rwa");
   const { assets, loading, error } = useListedRwaAssets();
 
-  // The table owns the full view; a row opens the detail modal, and "Trade"
-  // opens the trade modal — the same modal-driven flow the Markets tab uses,
-  // rather than a static side panel.
-  const [detailAsset, setDetailAsset] = useState<RwaApiAsset | null>(null);
-  const [tradeAsset, setTradeAsset] = useState<RwaApiAsset | null>(null);
-  // Which side the trade panel opens on: the detail sheet offers Sell for an
-  // asset already held.
-  const [tradeMode, setTradeMode] = useState<"buy" | "sell">("buy");
-
   // What is listable is decided by the data layer, not here, so no screen can
-  // widen it by accident. All that is left is collapsing an asset the catalog
-  // lists more than once. Prices the backend omits come from the CoinGecko
-  // fallback below.
+  // widen it by accident. All that is left is collapsing an asset the catalogue
+  // lists more than once. Prices the registry omits are filled in below.
   const tradable = useMemo(() => dedupeByChain(assets), [assets]);
   const buyable = useRwaEnrichedAssets(tradable);
 
-  const openTrade = (asset: RwaApiAsset, mode: "buy" | "sell" = "buy") => {
-    setDetailAsset(null);
-    setTradeMode(mode);
-    setTradeAsset(asset);
-  };
-
-  // A voice buy/sell lands as URL params. Resolve the spoken symbol against the
-  // loaded registry (pure derivation — no state), so the effect below only has
-  // to open the modal once. `prefill` (mode/amount) is read straight at render.
-  const voicePrefill = useTradePrefill();
-  const prefillAsset = useMemo(() => {
-    if (!voicePrefill || buyable.length === 0) return null;
-    return (
-      buyable.find((a) => a.symbol.toUpperCase() === voicePrefill.symbol.toUpperCase()) ?? null
-    );
-  }, [voicePrefill, buyable]);
-
-  // Open the staged trade when its asset resolves. We guard on the prefill's
-  // identity (a NEW object per spoken command) rather than a one-shot boolean, so
-  // a SECOND voice buy/sell while the page is still mounted re-opens the panel —
-  // a boolean latch blocked every trade after the first (needed a refresh).
-  const openedPrefillRef = useRef<TradePrefill | null>(null);
-  useEffect(() => {
-    if (!prefillAsset || !voicePrefill || openedPrefillRef.current === voicePrefill) return;
-    openedPrefillRef.current = voicePrefill;
-    openTrade(prefillAsset);
-  }, [prefillAsset, voicePrefill]);
-
-  // The staged mode/amount only applies while the prefilled asset is the one open.
-  const prefill: TradePrefill | null =
-    voicePrefill && tradeAsset && prefillAsset?.id === tradeAsset.id ? voicePrefill : null;
-
-  // One shell, two views: opening a trade from the detail sheet swaps the
-  // content (contentKey change) so it slides across instead of stacking.
-  const modalAsset = tradeAsset ?? detailAsset;
-  const modalMode = tradeAsset ? "trade" : detailAsset ? "detail" : null;
-  const closeModal = () => {
-    setDetailAsset(null);
-    setTradeAsset(null);
-  };
+  // A spoken "buy $10 of Ondo" arrives as URL params. It is handed down rather
+  // than acted on here: the list owns the ticket, so it owns what opens it.
+  const prefill = useTradePrefill();
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <Eyebrow>{t("eyebrow")}</Eyebrow>
-
-      <div className="mt-5">
-        <RwaAssetList
-          assets={buyable}
-          selectedId={modalAsset?.id ?? ""}
-          loading={loading}
-          error={error}
-          onOpen={setDetailAsset}
-          onTrade={openTrade}
-        />
-      </div>
-
-      <ModalShell
-        open={modalMode !== null}
-        onClose={closeModal}
-        contentKey={`${modalMode}-${modalAsset?.id ?? ""}`}
-      >
-        {modalMode === "trade" && tradeAsset ? (
-          <RwaTradePanel
-            key={tradeAsset.id}
-            asset={tradeAsset}
-            bare
-            initialMode={prefill?.mode ?? tradeMode}
-            initialAmount={prefill?.amount ?? ""}
-            onAddFunds={onAddFunds}
-            onContinueInBackground={closeModal}
-          />
-        ) : modalMode === "detail" && detailAsset ? (
-          <RwaDetailSheet asset={detailAsset} onTrade={openTrade} />
-        ) : null}
-      </ModalShell>
-    </div>
+    <RwaPhoneList
+      assets={buyable}
+      loading={loading}
+      error={error}
+      onAddFunds={onAddFunds}
+      prefill={prefill}
+    />
   );
 };

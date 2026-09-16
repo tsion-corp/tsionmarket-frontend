@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Noto_Sans, Roboto } from "next/font/google";
+import { Geist, Manrope, Noto_Sans, Roboto } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -35,6 +35,22 @@ const chessClock = Roboto({
   variable: "--font-chess-clock",
 });
 
+// The Square's own type, for the Market Square page, which is the Square's
+// Home drawn as the Square draws it: Manrope for its section headings and
+// "View more" pills, Roboto for the name and handle on its people cards.
+// Loaded as their own variables so only that page reads them.
+const squareHeading = Manrope({
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-heading",
+});
+
+const squareRoboto = Roboto({
+  subsets: ["latin"],
+  weight: ["400", "600"],
+  variable: "--font-roboto",
+});
+
 // No `icons` here: app/icon.svg is picked up by file convention and emits the
 // link tag itself. Declaring both would point the tab at the wide wordmark,
 // which is what made the old icon unreadable.
@@ -63,7 +79,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased`}
+      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased ${squareHeading.variable} ${squareRoboto.variable}`}
     >
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>

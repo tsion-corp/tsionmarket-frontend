@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ENTRY_USD,
+  GAME_ASSET,
   defaultEntryUsd,
   formatEth,
+  formatGameAmount,
   stakeToSend,
+  unitsToUsd,
+  usdToUnits,
   usdToWei,
   weiToUsd,
 } from "./stake";
@@ -98,5 +102,63 @@ describe("defaultEntryUsd", () => {
   it("quotes nothing until both the floor and the price are known", () => {
     expect(defaultEntryUsd(null, 2450)).toBeNull();
     expect(defaultEntryUsd(floor, 0)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// USDC, the asset the game is played in from v5 on
+// ---------------------------------------------------------------------------
+
+// A stake is a dollar figure already, so there is no price to convert through.
+// That is the point: the ETH helpers above took a price and could quote a
+// stake that had moved by the time the player signed it.
+describe("USDC stakes", () => {
+  it("converts dollars to base units at the asset's own six decimals", () => {
+    expect(usdToUnits(0.1)).toBe(100_000n);
+    expect(usdToUnits(1)).toBe(1_000_000n);
+    expect(usdToUnits(20)).toBe(20_000_000n);
+  });
+
+  // A fractional cent is representable in USDC and must not be silently
+  // dropped: 0.123456 is six decimals exactly.
+  it("keeps every decimal the asset can hold", () => {
+    expect(usdToUnits(0.123456)).toBe(123_456n);
+  });
+
+  // Floating point cannot hold 0.07 exactly. Rounding at the base unit is the
+  // only place that is allowed to happen, and it lands on the nearest unit
+  // rather than truncating toward zero.
+  it("rounds to the nearest base unit rather than truncating", () => {
+    expect(usdToUnits(0.07)).toBe(70_000n);
+    expect(usdToUnits(0.0000005)).toBe(1n);
+  });
+
+  it("treats a nonsense amount as nothing to send", () => {
+    expect(usdToUnits(0)).toBe(0n);
+    expect(usdToUnits(-1)).toBe(0n);
+    expect(usdToUnits(Number.NaN)).toBe(0n);
+    expect(usdToUnits(Number.POSITIVE_INFINITY)).toBe(0n);
+  });
+
+  it("reads base units back as dollars", () => {
+    expect(unitsToUsd(100_000n)).toBeCloseTo(0.1, 10);
+    expect(unitsToUsd(20_000_000n)).toBeCloseTo(20, 10);
+  });
+
+  it("names the asset the game is played in", () => {
+    expect(GAME_ASSET).toMatchObject({
+      symbol: "USDC",
+      decimals: 6,
+      address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    });
+  });
+
+  // Display never invents precision the amount does not have, and never drops
+  // a digit it does.
+  it("formats an amount for reading", () => {
+    expect(formatGameAmount(20_000_000n)).toBe("20");
+    expect(formatGameAmount(100_000n)).toBe("0.1");
+    expect(formatGameAmount(123_456n)).toBe("0.123456");
+    expect(formatGameAmount(0n)).toBe("0");
   });
 });

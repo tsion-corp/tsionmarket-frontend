@@ -55,6 +55,13 @@ export interface OpenPosition {
   // Live analytics computed by the gateway. Optional: older deployments omit
   // them, and the UI falls back to its own mark-price estimate when absent.
   markPrice?: string | null;
+  // Avantis's own figure for an ALREADY OPEN position. Nothing in this app
+  // constructs an OpenPosition today, so it is never populated, and it says
+  // nothing about the Hyperliquid perps surface, which is a different venue
+  // with its own types in features/trade/lib/hyperliquid-types.ts. The
+  // Hyperliquid order ticket must not read this field: see
+  // features/trade/lib/liquidation.ts for where a pre-trade estimate on that
+  // venue actually comes from.
   liquidationPrice?: string;
   // Net of funding; may carry a leading minus sign, unlike wire inputs.
   unrealizedPnlUsdc?: string;

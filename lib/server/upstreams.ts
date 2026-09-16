@@ -1,5 +1,6 @@
 import "server-only";
 
+import { chessUpstreamBase } from "@/lib/server/chess-upstream";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Base URLs of the gateway services the dashboard feed reads directly. Each
@@ -16,9 +17,4 @@ export const VAULT_BASE =
 
 // See app/api/chess/[...path]/route.ts. Draughts is the same service under a
 // /draughts prefix (app/api/draughts/[...path]/route.ts).
-const LOCAL_DEV_CHESS_API = "http://127.0.0.1:8082";
-export const CHESS_BASE =
-  process.env.CHESS_API_URL ??
-  (process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined) ??
-  process.env.NEXT_PUBLIC_CHESS_API_URL ??
-  wsapiService("chess");
+export const CHESS_BASE = chessUpstreamBase();

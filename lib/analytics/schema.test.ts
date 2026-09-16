@@ -15,6 +15,14 @@ const BANK_DEPOSIT = {
   provider: "Rubies MFB",
 };
 
+// A copy of an event with one property left out, for the "missing property"
+// cases below.
+function without<T extends object, K extends keyof T>(event: T, key: K): Omit<T, K> {
+  const copy: Partial<T> = { ...event };
+  delete copy[key];
+  return copy as Omit<T, K>;
+}
+
 describe("the catalog as data", () => {
   it("declares at least one shape for every event", () => {
     // The Record<AnalyticsEventName, ...> type is what stops an event being
@@ -63,7 +71,7 @@ describe("rejecting what the spec forbids", () => {
   });
 
   it("rejects a missing required property", () => {
-    const { fx_rate: _dropped, ...withoutRate } = BANK_DEPOSIT;
+    const withoutRate = without(BANK_DEPOSIT, "fx_rate");
     const violations = validateEvent("deposit_completed", withoutRate);
     expect(violations[0].message).toContain('missing required property "fx_rate"');
   });
@@ -113,7 +121,7 @@ describe("events with more than one shape", () => {
   it("complains about the closest shape, not about every variant", () => {
     // A bank deposit missing its rate should read as one missing property, not
     // as everything that also makes it not a crypto deposit.
-    const { fx_rate: _dropped, ...withoutRate } = BANK_DEPOSIT;
+    const withoutRate = without(BANK_DEPOSIT, "fx_rate");
     expect(validateEvent("deposit_completed", withoutRate)).toHaveLength(1);
   });
 });

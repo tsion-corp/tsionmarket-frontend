@@ -25,11 +25,26 @@ import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-t
 import { MemeSettlementTracker } from "@/features/trade/components/meme-settlement-tracker";
 import { SquareComposeFab, SquareSection } from "@/features/square";
 import { SquareLivePromo, SquarePeoplePromo, SquarePostsPromo } from "@/features/square";
+// The desktop discovery shelves. Each falls back to a static editorial card
+// when the route has nothing live to feed it.
+import { ConversationRow } from "@/features/discovery/components/conversation-row";
+import { ArkadeRow } from "@/features/discovery/components/arkade-row";
+import { TokenMovesRow } from "@/features/discovery/components/token-moves-row";
+import { Next100xRow } from "@/features/discovery/components/next-100x-row";
+import { RealAssetsRow, realAssetsLead } from "@/features/discovery/components/real-assets-row";
+import { useMemeSpots } from "@/app/(session)/(app)/dashboard/discovery/memecoins";
+import { useTokenSpots } from "@/app/(session)/(app)/dashboard/discovery/tokens";
+import { useRwaSpots } from "@/app/(session)/(app)/dashboard/discovery/real-assets";
+import { useDiscoveryTrade } from "@/app/(session)/(app)/dashboard/discovery/trade-intents";
+import { useInterest } from "@/hooks/use-interest";
 import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
-import { useDashboardTour } from "@/features/tour";
-import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
+import { startDashboardTour, useDashboardTour } from "@/features/tour";
+// This page reads the square's SECTIONS switch, not the rail's. The rail links
+// out to the square's own deployment and follows MARKET_SQUARE_HIDDEN; what
+// renders here is the square's content, which is off on its own switch.
+import { SQUARE_SECTIONS_HIDDEN } from "@/lib/market-square";
 import type { SectionId } from "@/lib/sections";
 import type { DashboardModal } from "@/lib/modal-types";
 import type { DepositPrefill } from "@/lib/voice/intent";
@@ -51,6 +66,11 @@ const PREVIEW_ROWS = 4;
 const BRIEFED_SECTIONS = ["spot", "perps", "meme", "rwa"] as const;
 type BriefedSectionId = (typeof BRIEFED_SECTIONS)[number];
 
+// Briefs hidden from the dashboard at request. All four stay full routes of
+// their own; they just do not get a brief here, so the dashboard shows no
+// service brief at all. Remove an id to bring its brief back.
+const HIDDEN_BRIEFS: readonly SectionId[] = ["spot", "rwa", "meme", "perps"];
+
 function isBriefed(id: SectionId): id is BriefedSectionId {
   return (BRIEFED_SECTIONS as readonly SectionId[]).includes(id);
 }
@@ -63,9 +83,15 @@ const BRIEF_HREF: Record<BriefedSectionId, string> = {
 };
 
 // Which doorway follows which brief, indexed by the brief's position. Spread
-// rather than stacked, so Arkade is met while reading. An index with no entry
-// gets no banner, so a reordered or shorter list still works.
-const INTERLEAVED_BANNERS: readonly ("casino" | undefined)[] = [undefined, "casino"];
+// rather than stacked, so Prediction and Arkade are met while reading. An index
+// with no entry gets no banner, so a reordered or shorter list still works.
+// Prediction is not offered on production (HIDDEN_NAV_SECTIONS in
+// lib/sections.ts), so its doorway is `undefined` here rather than removed:
+// the track is indexed by brief position, and dropping the entry would move
+// Arkade up into Prediction's slot. ExploreBanners has no prediction banner
+// on this branch either, for the reason its own comment gives. Restoring the
+// section means putting the banner back there and "prediction" back here.
+const INTERLEAVED_BANNERS: readonly ("casino" | undefined)[] = [undefined, undefined, "casino"];
 
 /**
  * Market Square blocks, by the same index — a SECOND track rather than entries
@@ -123,16 +149,49 @@ export function DashboardPage() {
   const activeSection = useScrollSpy(SCROLL_SECTIONS);
   useReportActiveSection(activeSection);
   // The services briefed on this page, in the nav's own order.
-  const briefs = useMemo(() => nav.map((n) => n.id).filter(isBriefed), [nav]);
+  const briefs = useMemo(
+    // Every service brief is hidden at request (see HIDDEN_BRIEFS), so this
+    // resolves to an empty list and no brief renders on the dashboard.
+    () =>
+      nav
+        .map((n) => n.id)
+        .filter(isBriefed)
+        .filter((id) => !HIDDEN_BRIEFS.includes(id)),
+    [nav]
+  );
   const buyParam = useSearchParams().get("buy");
   // The tradeable universe, so a $TICKER in a square post can open the real
-  // buy sheet. Only gathered while something can use it: the square, when it
-  // is shown, or a ?buy= deep link. The brief above reads the dashboard feed
-  // now, so without one of those this would have been a price poll under a
-  // page that already had its numbers.
+  // buy sheet. Only gathered while something can use it: the square's sections,
+  // when they are shown, or a ?buy= deep link. The brief above reads the
+  // dashboard feed now, so without one of those this would have been a price
+  // poll under a page that already had its numbers.
+  //
+  // The gate follows SQUARE_SECTIONS_HIDDEN, not MARKET_SQUARE_HIDDEN. The two
+  // readers of `spotMarkets` are the square section and the compose button
+  // below, both of which that switch governs, plus the ?buy= handler. Pointing
+  // it at the rail's switch instead would start this poll for everyone who can
+  // see the rail entry, which is everyone, to feed sections that do not render.
   const { markets: spotMarkets } = useSpotMarkets({
-    enabled: !MARKET_SQUARE_HIDDEN || buyParam !== null,
+    enabled: !SQUARE_SECTIONS_HIDDEN || buyParam !== null,
   });
+  // The live trending memecoins the "Find the next 100X" row cycles through.
+  // Sourced at the route so discovery stays clear of the trade slice; the row
+  // falls back to its editorial cards when this is empty.
+  const memeSpots = useMemeSpots();
+  // The five biggest movers the "Stay Ahead of Token Moves" card cycles
+  // through. Sourced here for the same reason as the memecoins above:
+  // discovery does not import trade. Until this was wired the card had no
+  // tokens prop at all and fell back to a hardcoded BTC comp.
+  const { tokens: tokenSpots, loading: tokenSpotsLoading } = useTokenSpots();
+  // The markets the "prediction starts" card cycles through. Sourced here for
+  // the same reason as the two rows above: discovery does not import the
+  // feature slices. Until this was wired the card had no markets prop and
+  // showed the design's sample market on every dashboard.
+  // "Own the Real World" shows for everyone; the saved onboarding interest
+  // only decides whether it leads the discovery area or closes it. Its assets
+  // come from the feed already loaded above.
+  const rwaSpots = useRwaSpots();
+  const rwaLeads = realAssetsLead(useInterest());
   // The square's feed tab lives here because two siblings drive it: the
   // section's own strip, and the plus sheet's discussions.
   const [squareTab, setSquareTab] = useState<string | undefined>(undefined);
@@ -148,7 +207,19 @@ export function DashboardPage() {
   }, []);
   useDashboardTour();
 
+  // The balance card carries the walkthrough's replay button in the phone
+  // design. The steps live on this page, so starting it here is a direct call;
+  // the portfolio slice never imports the tour itself.
+  const tTour = useTranslations("tour");
+  const takeTour = useCallback(() => startDashboardTour(tTour), [tTour]);
+
   const modals = useAppModals();
+  // A discovery card's Buy pill opens the asset in place instead of sending the
+  // reader to a desk. The conversions the sheets need (registry chain to
+  // Alchemy network, display spot to meme token) live in the intents, since
+  // discovery may not import trade or rwa to do them itself.
+  const discoveryTrade = useDiscoveryTrade(modals);
+  const realAssets = <RealAssetsRow spots={rwaSpots} onBuy={discoveryTrade.onBuyRwa} />;
 
   // A spoken deposit ("deposit USDC on Solana") lands here as URL params: open
   // the funds modal on the crypto screen with the chain/token pre-selected. The
@@ -237,6 +308,7 @@ export function DashboardPage() {
         <Portfolio
           onOpenFunds={modals.openFunds}
           onOpenWithdraw={modals.openWithdraw}
+          onTakeTour={takeTour}
           crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
           onOpenDetail={modals.openDetail}
           onOpenBuy={modals.openBuy}
@@ -245,6 +317,67 @@ export function DashboardPage() {
           onOpenRwaTrade={modals.openRwaTrade}
         />
       </SectionVisibility>
+
+      {/* Phone home, under the balance cards. The phone uses purpose-built
+          mobile sections where the desktop shelf is a fixed composition, and
+          the desktop shelf itself where it reflows: "Join the Conversation"
+          and "Find the next 100X" are the same rows as on desktop, one card
+          to a frame on a phone. The conversation row handles a hidden square
+          itself: its card goes and its heading falls back to chess. */}
+      <div className="flex flex-col gap-6 md:hidden">
+        {rwaLeads ? <div className="px-4">{realAssets}</div> : null}
+        <div className="px-4">
+          <ConversationRow />
+        </div>
+        {/* The Arkade's own shelf, one card per game. It used to share the
+            band above with Square's rooms. */}
+        <div className="px-4">
+          <ArkadeRow />
+        </div>
+        {/* "Stay Ahead of Token Moves" — the desktop token-moves discovery
+            card, now on the phone too, in the phone's gutter. */}
+        <div className="px-4">
+          <TokenMovesRow
+            tokens={tokenSpots}
+            loading={tokenSpotsLoading}
+            onBuy={discoveryTrade.onBuyToken}
+          />
+        </div>
+        {/* "Find the next 100X" — the same discovery carousel the desktop shows
+            (the Pepe card, a rotating live memecoin, then Pepe again), now on
+            the phone. The row brings its own header and carousel; it just needs
+            the phone's horizontal gutter, which the desktop shelf gives it too. */}
+        <div className="px-4">
+          <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
+        </div>
+        {rwaLeads ? null : <div className="px-4">{realAssets}</div>}
+      </div>
+
+      {/* Not composed here on production: OwnMarketRow (the perps desk's
+          shelf) and PredictionStartsRow, with its usePredictionSpots hook.
+          Perps and Prediction are both in HIDDEN_NAV_SECTIONS; dropping the
+          hook also stops the dashboard asking the gateway's `prediction`
+          service, which answers 502 in production. Restore all three imports
+          with the sections. */}
+
+      {/* Desktop: the discovery shelves, as the phone design's desktop sibling
+          draws them under the balance cards — Token Moves, Join the
+          Conversation, the Arkade, Find the next 100X, then Prediction
+          starts. */}
+      <div className="mx-auto hidden w-full max-w-[1520px] flex-col gap-11 px-4 pb-2 sm:px-6 md:flex lg:px-8">
+        {rwaLeads ? realAssets : null}
+        <TokenMovesRow
+          tokens={tokenSpots}
+          loading={tokenSpotsLoading}
+          onBuy={discoveryTrade.onBuyToken}
+        />
+        <ConversationRow />
+        {/* The Arkade's own shelf, one card per game. It shared the band above
+            with Square's rooms until the two were split. */}
+        <ArkadeRow />
+        <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
+        {rwaLeads ? null : realAssets}
+      </div>
 
       {briefs.map((id, index) => {
         const Body = BRIEF_BODY[id];
@@ -277,9 +410,10 @@ export function DashboardPage() {
             {INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
-            {/* Closed by the launch switch, the gaps close up and the doorway
-                  track above is unaffected. */}
-            {MARKET_SQUARE_HIDDEN ? null : (
+            {/* Square content between the briefs, so closed by the sections
+                  switch. The gaps close up and the doorway track above is
+                  unaffected. */}
+            {SQUARE_SECTIONS_HIDDEN ? null : (
               <>
                 {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
                 {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
@@ -294,8 +428,9 @@ export function DashboardPage() {
             purpose: someone opening Ark came for their money, and the square
             is what they scroll into once they are done reading it — met by
             browsing rather than by deciding to leave for another deployment.
-            MARKET_SQUARE_HIDDEN in lib/market-square.ts is the off switch. */}
-      {MARKET_SQUARE_HIDDEN ? null : (
+            Off for now: SQUARE_SECTIONS_HIDDEN in lib/market-square.ts is the
+            switch, and the rail's link out to the square is unaffected by it. */}
+      {SQUARE_SECTIONS_HIDDEN ? null : (
         <SquareSection
           onOpenBuy={modals.openBuy}
           markets={spotMarkets}
@@ -304,8 +439,9 @@ export function DashboardPage() {
         />
       )}
       {/* Fixed to the viewport, so it sits the same wherever it renders. It
-          reveals itself once the square is in reach. */}
-      {MARKET_SQUARE_HIDDEN ? null : (
+          reveals itself once the square is in reach, so it goes with the
+          section above rather than with the rail's link out. */}
+      {SQUARE_SECTIONS_HIDDEN ? null : (
         <SquareComposeFab
           markets={spotMarkets}
           onPickTopic={openTopic}
@@ -313,7 +449,12 @@ export function DashboardPage() {
         />
       )}
 
-      <AppModalHost active={active} onClose={close} onConfirmed={modals.showDone} />
+      <AppModalHost
+        active={active}
+        onClose={close}
+        onConfirmed={modals.showDone}
+        onOpenFunds={modals.openFunds}
+      />
     </>
   );
 }

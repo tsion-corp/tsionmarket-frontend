@@ -12,9 +12,9 @@ import {
   CasinoNavGuardProvider,
   useCasinoNavGuard,
 } from "@/features/casino/components/casino-nav-guard";
-import { loadInterest } from "@/lib/preferences";
+import { useInterest } from "@/hooks/use-interest";
 import { DraughtsSiteHeader } from "@/features/casino/components/draughts/draughts-site-header";
-import { ChessSiteShell } from "@/features/casino/components/chess/chess-site-shell";
+import { ChessSiteShell } from "@/features/casino/components/chess-app/chess-site-shell";
 
 // Names for the routes that are somewhere to go back to. Anything else falls
 // back to its own last path segment.
@@ -23,6 +23,8 @@ const SECTION_LABEL: Record<string, string> = {
   "/casino/chess": "Chess",
   "/casino/last-standing": "The Last Man",
   "/casino/arkball": "ArkBall",
+  "/casino/arkjet": "Arkjet",
+  "/casino/chicken": "Pilot Chicken",
 };
 
 function titleCase(segment: string): string {
@@ -61,6 +63,23 @@ function BackLink({ pathname }: { pathname: string }) {
   );
 }
 
+// The product chrome used by Arkade pages that remain part of the main app.
+// Exporting the wrapper lets route layouts such as Chess reuse the exact same
+// desktop sidebar and mobile navigation as Last Man without duplicating them.
+export function CasinoDashboardShell({ children }: { children: React.ReactNode }) {
+  const tSections = useTranslations("sections");
+  const interest = useInterest();
+  const nav = useMemo(() => buildNav(interest, tSections), [interest, tSections]);
+
+  return (
+    <AuthGuard>
+      <DashboardShell nav={nav} activeSection="casino">
+        {children}
+      </DashboardShell>
+    </AuthGuard>
+  );
+}
+
 // Chrome wrapper shared by every casino route: auth guard plus the app shell
 // with the Casino tab active. Any screen below the hub also gets a back link,
 // since the sidebar only points at the hub itself.
@@ -78,8 +97,6 @@ export function CasinoPage({
   // other Arkade route keeps the normal product shell.
   immersive?: boolean;
 }) {
-  const tSections = useTranslations("sections");
-  const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
   const pathname = usePathname();
   const isHub = pathname === "/casino";
   const isDraughts = pathname?.startsWith("/casino/checkers") ?? false;
@@ -109,13 +126,11 @@ export function CasinoPage({
   }
 
   return (
-    <AuthGuard>
-      <DashboardShell nav={nav} activeSection="casino">
-        <CasinoNavGuardProvider>
-          {isHub || hideBackLink || !pathname ? null : <BackLink pathname={pathname} />}
-          {children}
-        </CasinoNavGuardProvider>
-      </DashboardShell>
-    </AuthGuard>
+    <CasinoDashboardShell>
+      <CasinoNavGuardProvider>
+        {isHub || hideBackLink || !pathname ? null : <BackLink pathname={pathname} />}
+        {children}
+      </CasinoNavGuardProvider>
+    </CasinoDashboardShell>
   );
 }

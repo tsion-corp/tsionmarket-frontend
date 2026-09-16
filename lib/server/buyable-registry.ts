@@ -1,4 +1,5 @@
 import "server-only";
+import { CATALOG_PAGE_LIMIT, nextCatalogPage, type Paged } from "@/lib/meme/catalog";
 import { dextopusRequest } from "@/lib/server/dextopus";
 import { wsapiService } from "@/lib/wsapi-base";
 
@@ -12,9 +13,11 @@ export type BuyableRegistry = Record<string, Set<string>>;
 
 // Display metadata for trade-catalog memecoins, keyed like the registry.
 // Alchemy has no logo and often no price for these, but the catalog does.
+// `priceUsd` is null when the catalogue has no price for the coin: per the
+// trade contract, null means "not currently available", never zero.
 export interface MemeTokenInfo {
   logo: string | null;
-  priceUsd: number;
+  priceUsd: number | null;
 }
 export type MemeRegistry = Record<string, Map<string, MemeTokenInfo>>;
 
@@ -68,36 +71,88 @@ const TRADE_BASE = process.env.NEXT_PUBLIC_TRADE_API_URL ?? wsapiService("trade"
 // Memecoins from the trade service's catalog: a bought token is a legitimate
 // holding the Dextopus catalog doesn't know about. Catalog entries persist
 // from searches and trades, so anything a user traded is here.
+//
+// Walked a Base page of 500 at a time until the server's total, per the
+// contract. It read page 1 of 100 before, so a coin bought from row 101 onward
+// was never a holding. Bounded at 20 pages (10,000 rows): Base listed 14,343
+// on 2026-09-14, so the tail past that is still missed, and each page is
+// revalidated every ten minutes. A stopgap: slice 5 of
+// ADR-2026-09-14-memecoins-trade-contract makes the service's /portfolio the
+// source of truth for held memecoins, and this path the fallback for coins
+// that arrived outside it.
+const REGISTRY_MAX_PAGES = 20;
+const REGISTRY_REVALIDATE_S = 600;
+
+interface RawCatalogRow {
+  chainId?: number;
+  address?: string;
+  logoUrl?: string | null;
+  priceUsd?: string | null;
+}
+
+// The catalogue's decimal-string price as a number for the Alchemy path's
+// valuation, or null when there is none or it cannot be read. Never 0 for a
+// missing price: that is what valued an unpriced holding at $0.00.
+function catalogPrice(value: string | null | undefined): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const price = Number(value);
+  return Number.isFinite(price) ? price : null;
+}
+
+function readMeta(value: unknown): Paged<unknown>["meta"] | null {
+  if (!value || typeof value !== "object") return null;
+  const { page, limit, total } = value as Record<string, unknown>;
+  if (typeof page !== "number" || typeof limit !== "number" || typeof total !== "number") {
+    return null;
+  }
+  return { page, limit, total };
+}
+
 async function addTradeCatalog(out: BuyableRegistry, meta: MemeRegistry): Promise<void> {
   if (!TRADE_BASE) return;
-  try {
-    const res = await fetch(`${TRADE_BASE}/tokens?page=1&limit=100`, {
-      next: { revalidate: 600 },
-      // Bounded: an upstream that has not answered in 8s is not going to, and
-      // an unbounded read holds the function open for as long as the upstream
-      // feels like — which is how an outage becomes a bill.
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    const items: Array<{
-      chainId?: number;
-      address?: string;
-      logoUrl?: string | null;
-      priceUsd?: string | null;
-    }> = Array.isArray(data?.data?.items) ? data.data.items : [];
+  for (let page = 1; page <= REGISTRY_MAX_PAGES; page += 1) {
+    const url = `${TRADE_BASE}/tokens?page=${page}&limit=${CATALOG_PAGE_LIMIT}&chain=base`;
+    let body: { data?: { items?: unknown; meta?: unknown } } | null;
+    try {
+      const res = await fetch(url, {
+        next: { revalidate: REGISTRY_REVALIDATE_S },
+        // Bounded: an upstream that has not answered in 8s is not going to, and
+        // an unbounded read holds the function open for as long as the upstream
+        // feels like — which is how an outage becomes a bill.
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!res.ok) {
+        console.warn(
+          `[buyable-registry] trade catalogue page ${page} answered ${res.status}; the meme allowlist stops at ${page - 1} page(s)`
+        );
+        return;
+      }
+      body = await res.json();
+    } catch (error) {
+      // A registry failure must never break the portfolio, so the pages
+      // already read are kept; it is logged, not swallowed.
+      console.warn(
+        `[buyable-registry] trade catalogue page ${page} failed; the meme allowlist stops at ${page - 1} page(s):`,
+        error
+      );
+      return;
+    }
+    const items: RawCatalogRow[] = Array.isArray(body?.data?.items) ? body.data.items : [];
     for (const t of items) {
       if (t.chainId !== 8453 || typeof t.address !== "string") continue;
       const address = t.address.toLowerCase();
       (out["base-mainnet"] ??= new Set()).add(address);
-      const priceUsd = t.priceUsd ? Number(t.priceUsd) : 0;
       (meta["base-mainnet"] ??= new Map()).set(address, {
         logo: t.logoUrl ?? null,
-        priceUsd: Number.isFinite(priceUsd) ? priceUsd : 0,
+        priceUsd: catalogPrice(t.priceUsd),
       });
     }
-  } catch {
-    // A registry failure must never break the portfolio.
+    const pageMeta = readMeta(body?.data?.meta);
+    if (!pageMeta) {
+      console.warn(`[buyable-registry] trade catalogue page ${page} carried no meta; stopping`);
+      return;
+    }
+    if (nextCatalogPage(pageMeta) === undefined) return;
   }
 }
 

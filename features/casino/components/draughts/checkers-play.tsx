@@ -13,7 +13,7 @@ import {
 import { MatchChat } from "@/features/casino/components/draughts/match-chat";
 import { MatchComments } from "@/features/casino/components/draughts/match-comments";
 import { SpectatorBetting } from "@/features/casino/components/draughts/spectator-betting";
-import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
+import { ChessCashierLauncher } from "@/features/casino/components/chess-app/chess-cashier-launcher";
 import { GameGoLive } from "@/features/casino/components/broadcast";
 import { armAudioUnlock, playGameEndSound, playMoveSound } from "@/features/casino/lib/chess/sound";
 import {

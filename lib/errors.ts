@@ -31,10 +31,78 @@ export function isConflictError(e: unknown): boolean {
   return gateway.status === 409 || gateway.code === "CONFLICT";
 }
 
+/**
+ * The trade service's failure codes (its frontend contract, "Important
+ * errors", plus the relay's own codes and the swap lifecycle's terminal
+ * states), each mapped to a key in the `tradeErrors` message namespace so the
+ * copy is ours and in the reader's language. The service's `message` is for
+ * its logs and is never shown: an unmapped code gets `unknown`.
+ */
+export const TRADE_ERROR_KEYS = {
+  TOKEN_BLOCKED: "tokenBlocked",
+  TOKEN_RISK_BLOCKED: "tokenRiskBlocked",
+  TOKEN_BUY_DISABLED: "tokenBuyDisabled",
+  TOKEN_SELL_DISABLED: "tokenSellDisabled",
+  INSUFFICIENT_BALANCE: "insufficientBalance",
+  NO_SWAP_ROUTE: "noSwapRoute",
+  HIGH_PRICE_IMPACT: "highPriceImpact",
+  INVALID_SLIPPAGE: "invalidSlippage",
+  QUOTE_EXPIRED: "quoteExpired",
+  SWAP_ALREADY_SUBMITTED: "swapAlreadySubmitted",
+  WALLET_OWNERSHIP_MISMATCH: "walletOwnershipMismatch",
+  QUOTE_PROVIDER_ERROR: "quoteProviderError",
+  PROVIDER_ERROR: "providerError",
+  TOKEN_NOT_FOUND: "tokenNotFound",
+  UNAUTHORIZED: "unauthorized",
+  // The relay's own failures (app/api/trade/[...path]/route.ts).
+  SERVICE_UNAVAILABLE: "serviceUnavailable",
+  BAD_RESPONSE: "badResponse",
+  NOT_CONFIGURED: "notConfigured",
+  // Terminal swap statuses other than CONFIRMED, thrown by use-meme-trade.
+  FAILED: "failed",
+  REVERTED: "reverted",
+  EXPIRED: "expired",
+  CANCELLED: "cancelled",
+} as const;
+
+export type TradeErrorKey = (typeof TRADE_ERROR_KEYS)[keyof typeof TRADE_ERROR_KEYS] | "unknown";
+
+/** next-intl's `t` for the `tradeErrors` namespace, or any stand-in for it. */
+export type TradeErrorTranslator = (key: TradeErrorKey) => string;
+
+// A failure thrown by lib/meme/api's TradeApiError. Recognised by name rather
+// than by class so this pure module never imports the browser client.
+function isTradeError(e: unknown): e is Error & { code: string; requestId?: unknown } {
+  return (
+    e instanceof Error && e.name === "TradeApiError" && typeof gatewayMeta(e).code === "string"
+  );
+}
+
+/** The message key for a trade service failure, or null for any other error. */
+export function tradeErrorKey(e: unknown): TradeErrorKey | null {
+  if (!isTradeError(e)) return null;
+  const known = (TRADE_ERROR_KEYS as Record<string, TradeErrorKey>)[e.code];
+  return known ?? "unknown";
+}
+
+/** The service's request id, which support asks for; null when there is none. */
+export function requestIdOf(e: unknown): string | null {
+  if (!e || typeof e !== "object") return null;
+  const id = (e as { requestId?: unknown }).requestId;
+  return typeof id === "string" && id.length > 0 ? id : null;
+}
+
+// The support reference, as it is shown beside a message and in fine print.
+// "Ref:" is left untranslated on purpose: it is a token support searches for.
+function withRef(copy: string, e: unknown): string {
+  const id = requestIdOf(e);
+  return id ? `${copy} Ref: ${id}` : copy;
+}
+
 function looksSafeServerMessage(message: string): boolean {
   const trimmed = message.trim();
   if (!trimmed || trimmed.length > 160) return false;
-  return !/(\bwallet_[a-z]+|alchemy|json-rpc|rpc\b|stack trace|traceback|panic\b|sqlstate|select\s|insert\s|update\s|delete\s|<!doctype|<html)/i.test(
+  return !/(\bwallet_[a-z]+|alchemy|json-rpc|rpc\b|stack trace|traceback|panic\b|sqlstate|select\s|insert\s|update\s|delete\s|<!doctype|<html|hyperliquid|hypercore|clearinghouse|hyperliquidchain)/i.test(
     trimmed
   );
 }
@@ -107,10 +175,34 @@ function customErrorMessage(raw: string): string | null {
 // Map an error to a friendly message. Pass a `fallback` tailored to the action
 // (e.g. "We couldn't complete your purchase.") — it is used only when the error
 // isn't one of the known cases.
+// The phrasings that mean the account cannot pay the network fee, as opposed
+// to being short of the asset it is moving. Kept in one place because the
+// message and the predicate below must agree about what a fee failure is.
+const GAS_SHORTFALL =
+  /gas required exceeds allowance|insufficient funds for gas|out of gas|intrinsic gas|insufficient lamports/;
+
+/**
+ * Whether this failure is the wallet being unable to pay the network fee.
+ *
+ * A screen that knows which chain it is on can then name the coin to top up,
+ * which the generic message cannot: it is shared by every chain.
+ */
+export function isGasFeeError(e: unknown): boolean {
+  return GAS_SHORTFALL.test(text(e).toLowerCase());
+}
+
 export function friendlyError(
   e: unknown,
-  fallback = "Something went wrong. Please try again."
+  fallback = "Something went wrong. Please try again.",
+  // The `tradeErrors` translator, from the screen that has one. Without it a
+  // trade failure shows the caller's fallback: never the service's wording.
+  translate?: TradeErrorTranslator
 ): string {
+  // Trade service failures are decided by code, before any text rule below
+  // could keep a "safe-looking" upstream sentence.
+  const tradeKey = tradeErrorKey(e);
+  if (tradeKey) return withRef(translate ? translate(tradeKey) : fallback, e);
+
   const raw = text(e).trim();
   const m = raw.toLowerCase();
   if (!m) return fallback;
@@ -153,6 +245,17 @@ export function friendlyError(
   if (/zerodev sponsorship is not configured|zerodev bundler/.test(m)) {
     return "This gas-sponsored transaction is temporarily unavailable. Your funds are safe.";
   }
+  if (/unsupported policy type|gas sponsorship policy .* missing/.test(m)) {
+    return "This gas-sponsored transaction is temporarily unavailable. Your funds are safe.";
+  }
+  // Read the fee first. "gas required exceeds allowance" is the node saying the
+  // account cannot pay for the gas, not that a token balance or an ERC-20
+  // allowance is short, and the balance rule below would otherwise claim it
+  // through "exceeds allowance" and send the reader off to try a smaller
+  // amount, which can never work.
+  if (GAS_SHORTFALL.test(m)) {
+    return "You need a little more of the network's coin to cover the fee.";
+  }
   // Not enough of the specific asset being moved (e.g. an ERC-20 balance revert).
   if (/insufficient[- ]?balance|amount exceeds balance|exceeds allowance/.test(m)) {
     return "You don't have enough of this asset for that. Try a smaller amount.";
@@ -165,7 +268,11 @@ export function friendlyError(
   // saying "try again in a moment" would be a lie until the account is
   // topped up. Checked before the rate-limit rule, which it would otherwise
   // match through the 429 the upstream sends.
-  if (/out of monthly capacity|monthly capacity limit exceeded/.test(m)) {
+  if (
+    /out of monthly capacity|monthly capacity limit exceeded|over your gas sponsorship limit/.test(
+      m
+    )
+  ) {
     return "Gas-sponsored transactions are paused until sponsorship capacity is restored. Your funds are safe.";
   }
   // Provider is busy or rate limiting us.
@@ -230,6 +337,10 @@ export function friendlyError(
  * Never a substitute for friendlyError; always rendered beside it.
  */
 export function supportDetail(e: unknown, max = 160): string {
+  // A trade failure's reference is the detail support can act on; the
+  // service's own sentence is not shown here either.
+  const requestId = tradeErrorKey(e) ? requestIdOf(e) : null;
+  if (requestId) return `Ref: ${requestId}`;
   const raw = text(e).replace(/\s+/g, " ").trim();
   if (raw.length <= max) return raw;
   return `${raw.slice(0, max - 1).trimEnd()}\u2026`;

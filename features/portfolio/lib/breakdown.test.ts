@@ -74,3 +74,59 @@ describe("heldAssetCount", () => {
     expect(heldAssetCount([token("stablecoin", 10), token("token", 0), token("coin", 1)])).toBe(2);
   });
 });
+
+/**
+ * Dust in the allocation drawer.
+ *
+ * A slice worth less than a cent can only be drawn as "<$0.01" at 0%, which
+ * describes nothing and, after a full exit, reads as though the sale never
+ * happened. The holdings list already drops these positions, so the drawer that
+ * sits beside it must not still be counting them.
+ */
+describe("dust in the allocation", () => {
+  it("leaves a sub-cent position out of the slices", () => {
+    const tokens = [
+      token("stablecoin", 3.87),
+      token("coin", 0.06),
+      // The reported case: remainders left behind after selling the position.
+      token("token", 0.004),
+      token("rwa", 0.0042),
+    ];
+    const slices = portfolioBreakdown(tokens);
+    expect(slices.map((slice) => slice.key)).toEqual(["cash", "coins"]);
+  });
+
+  it("leaves the surviving shares adding up", () => {
+    const tokens = [token("stablecoin", 3.87), token("coin", 0.06), token("token", 0.004)];
+    const total = portfolioBreakdown(tokens).reduce((sum, slice) => sum + slice.share, 0);
+    expect(total).toBeCloseTo(1, 6);
+  });
+
+  it("does not count dust as an asset in the centre of the ring", () => {
+    const tokens = [
+      token("stablecoin", 3.87),
+      token("coin", 0.06),
+      token("token", 0.004),
+      token("rwa", 0.0042),
+    ];
+    expect(heldAssetCount(tokens)).toBe(2);
+  });
+
+  /**
+   * The same carve-out the holdings list makes. valueUsd is balance x price, so
+   * a real balance we could not price is $0 through no fault of the owner. It
+   * has never been in the allocation, because a slice needs a value to have a
+   * share, and this only pins that the dust rule did not change that.
+   */
+  it("still leaves an unpriced holding out, having no share to draw", () => {
+    const unpriced: TokenBalance = { ...token("token", 0), balance: 4, priceUsd: 0 };
+    expect(portfolioBreakdown([token("stablecoin", 10), unpriced]).map((s) => s.key)).toEqual([
+      "cash",
+    ]);
+  });
+
+  it("keeps a position worth exactly a cent", () => {
+    const slices = portfolioBreakdown([token("stablecoin", 10), token("token", 0.01)]);
+    expect(slices.map((slice) => slice.key)).toEqual(["cash", "tokens"]);
+  });
+});

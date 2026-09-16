@@ -21,7 +21,6 @@ const PUBLIC_GET_PATHS = new Set([
   "status",
   "purchases/quote",
   "activities/quote",
-  "conversions/quote",
   "subscriptions/tiers",
   // On-chain desk reads: contract addresses, price, pause state, reserve, and
   // the two quotes. All wallet-free.
@@ -50,7 +49,6 @@ function isPublicGet(path: string[]): boolean {
 // wallet keeps one user from building payloads against another's nonces.
 const WALLET_POST_PATHS = new Set([
   "purchases",
-  "conversions",
   "subscriptions",
   "settlements/claim",
   "desk/buy/prepare",

@@ -12,7 +12,7 @@ import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 // Deep import, not the barrel. `@/features/casino` re-exports 27 components,
-// including the chess and arkjet screens, and this provider is mounted on
+// including the chess screens, and this provider is mounted on
 // every signed-in route — so the barrel pulled the whole casino into the
 // initial payload for one timer. optimizePackageImports only rewrites npm
 // barrels, not ours. This file sits under app/ rather than components/ for
@@ -46,6 +46,10 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
   // solana:mainnet". Reads and sends go through our proxy; the subscription
   // endpoint is only consulted when waiting for confirmation, which we skip
   // (optimisticBroadcast) and do ourselves against the same proxy.
+  // usePredictionQueryBroadcast fanned Polymarket query invalidations across
+  // tabs. Prediction is not offered on production, so nothing here opens a
+  // market workspace to invalidate. It returns with the section.
+
   const [solanaRpcs] = useState<SolanaRpcs>(() => ({
     "solana:mainnet": {
       // Privy declares this against the test-cluster RPC API, which includes
@@ -120,6 +124,10 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
                 inside PrivyProvider to read it. Renders nothing. */}
             <AnalyticsIdentity />
             <AnalyticsSegments />
+            {/* PredictionCashoutTracker watched open Polymarket cashouts here.
+                It polled on every signed-in route, and prediction is not
+                offered on production, so there is no cashout to reconcile. It
+                returns with the section. */}
             {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
                 pages, so the floating window survives navigating anywhere in
                 the app. The gate loads the host only on Arkade routes or while

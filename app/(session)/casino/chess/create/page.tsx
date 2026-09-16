@@ -1,11 +1,5 @@
-"use client";
-
-import { CasinoPage, CreateSection } from "@/features/casino";
+import { redirect } from "next/navigation";
 
 export default function ChessCreatePage() {
-  return (
-    <CasinoPage hideBackLink>
-      <CreateSection />
-    </CasinoPage>
-  );
+  redirect("/casino/chess?setup=friend#game-setup");
 }

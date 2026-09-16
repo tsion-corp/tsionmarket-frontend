@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title description">
+  <title id="title">ArkChess coach</title>
+  <desc id="description">A friendly chess coach represented by a crowned knight.</desc>
+  <defs>
+    <linearGradient id="bg" x1="24" y1="16" x2="140" y2="148" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2c14e"/>
+      <stop offset="1" stop-color="#c47d1b"/>
+    </linearGradient>
+    <linearGradient id="piece" x1="50" y1="48" x2="112" y2="132" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff9e8"/>
+      <stop offset="1" stop-color="#e9d8ad"/>
+    </linearGradient>
+  </defs>
+  <circle cx="80" cy="80" r="76" fill="#15130f"/>
+  <circle cx="80" cy="80" r="70" fill="url(#bg)"/>
+  <path d="M42 49 57 31l16 15 9-23 13 23 17-15 8 21-12 8H51Z" fill="#15130f" stroke="#fff1bd" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M110 126H49c1-11 7-20 17-27-8-5-13-13-13-24 0-18 13-31 34-31 15 0 27 7 35 20l-18 9 13 16-18 7c8 8 11 18 11 30Z" fill="url(#piece)" stroke="#15130f" stroke-width="6" stroke-linejoin="round"/>
+  <path d="m73 57 23 4-17 9 15 10-26 8c-7-7-8-19-3-26 2-3 5-4 8-5Z" fill="#15130f"/>
+  <circle cx="83" cy="59" r="3.5" fill="#f2c14e"/>
+  <path d="M45 126h71" stroke="#15130f" stroke-width="8" stroke-linecap="round"/>
+</svg>

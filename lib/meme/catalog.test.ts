@@ -1,8 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CATALOG_PAGE_LIMIT,
+  DEFAULT_DISCOVERY_VIEW,
+  DISCOVERY_POLICY,
   MIN_DISCOVERY_LIQUIDITY_USD,
   MIN_DISCOVERY_VOLUME_24H_USD,
   impersonatesMajor,
+  isMemecoinHere,
+  mergeCatalogPages,
+  nextCatalogPage,
   isTokenizedEquity,
   isWrappedMajor,
   tradableHere,
@@ -59,7 +65,11 @@ describe("tradableHere", () => {
     expect(page.items.map((t) => t.address)).toEqual([
       "0x1234000000000000000000000000000000000000",
     ]);
-    expect(page.meta.total).toBe(1);
+    // The server's total is the catalogue's size, not this page's filtered
+    // size: a count and a "Load more" read it, so it is never overwritten.
+    // What the filter kept is its own number.
+    expect(page.meta.total).toBe(3);
+    expect(page.shownCount).toBe(1);
   });
 });
 
@@ -103,32 +113,60 @@ describe("impersonatesMajor", () => {
   });
 });
 
-// TEMPORARY: the Solana gas sponsor is unfunded, so a Solana coin cannot be
-// bought or sold. Discovery is Base-only until it is topped up; nothing on
-// screen says so, the rows are simply absent.
-describe("discovery chains while the Solana sponsor is unfunded", () => {
-  it("drops Solana rows at the boundary", () => {
-    const page = tradableHere({
-      items: [
-        {
-          chainId: SOLANA_CHAIN_ID,
-          address: "BonkMint",
-          symbol: "BONK",
-          name: "Bonk",
-          riskLevel: "LOW",
-        } as MemeToken,
-        {
-          chainId: BASE_CHAIN_ID,
-          address: "0x1234000000000000000000000000000000000000",
-          symbol: "AAA",
-          name: "A",
-          riskLevel: "LOW",
-        } as MemeToken,
-      ],
-      meta: { page: 1, limit: 2, total: 2 },
-    });
-    expect(page.items.map((t) => t.chainId)).toEqual([BASE_CHAIN_ID]);
-    expect(page.meta.total).toBe(1);
+// Solana discovery waits on ops confirming a funding SLA for the gas sponsor
+// wallet, so it sits behind NEXT_PUBLIC_MEME_SOLANA_DISCOVERY=1, off by
+// default, in both views. Trading code for Solana is untouched either way.
+describe("Solana discovery behind NEXT_PUBLIC_MEME_SOLANA_DISCOVERY", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  const rows = () => ({
+    items: [
+      {
+        chainId: SOLANA_CHAIN_ID,
+        address: "BonkMint",
+        symbol: "BONK",
+        name: "Bonk",
+        riskLevel: "LOW",
+      } as MemeToken,
+      {
+        chainId: BASE_CHAIN_ID,
+        address: "0x1234000000000000000000000000000000000000",
+        symbol: "AAA",
+        name: "A",
+        riskLevel: "LOW",
+      } as MemeToken,
+    ],
+    meta: { page: 1, limit: 2, total: 2 },
+  });
+
+  it("drops Solana rows from both views while the flag is off", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEME_SOLANA_DISCOVERY", "");
+    for (const view of ["curated", "all"] as const) {
+      const page = tradableHere(rows(), view);
+      expect(
+        page.items.map((t) => t.chainId),
+        view
+      ).toEqual([BASE_CHAIN_ID]);
+      expect(page.meta.total).toBe(2);
+      expect(page.shownCount).toBe(1);
+    }
+  });
+
+  it("admits Solana rows to both views once the flag is 1", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEME_SOLANA_DISCOVERY", "1");
+    for (const view of ["curated", "all"] as const) {
+      const page = tradableHere(rows(), view);
+      expect(
+        page.items.map((t) => t.chainId),
+        view
+      ).toEqual([SOLANA_CHAIN_ID, BASE_CHAIN_ID]);
+    }
+  });
+
+  it("keeps a Solana mint exactly as written", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEME_SOLANA_DISCOVERY", "1");
+    const page = tradableHere(rows(), "all");
+    expect(page.items[0].address).toBe("BonkMint");
   });
 });
 
@@ -161,7 +199,8 @@ describe("discovery keeps only rated, non-high-risk coins", () => {
       meta: { page: 1, limit: 6, total: 6 },
     });
     expect(page.items.map((t) => t.symbol)).toEqual(["AAA", "BBB"]);
-    expect(page.meta.total).toBe(2);
+    expect(page.meta.total).toBe(6);
+    expect(page.shownCount).toBe(2);
   });
 });
 
@@ -313,5 +352,159 @@ describe("discovery keeps only coins that can actually be bought", () => {
       meta: { page: 1, limit: 3, total: 3 },
     });
     expect(page.items.map((t) => t.symbol)).toEqual(["OK", "UNKNOWNLIQ"]);
+  });
+});
+
+// The discovery policy as two named views (ADR-2026-09-14, slice 4). All is
+// the trade contract's view and what a desk opens on: every ACTIVE row on a
+// supported chain, with low liquidity a consent flow rather than a hide.
+// Curated is the maintainers' 2026-09-07 instructions, now a filter the
+// reader turns on rather than a default that narrows the market unasked; the
+// screener's own liquidity and volume bounds do that job in the open. Both
+// still keep out what is not a memecoin at all.
+describe("DISCOVERY_POLICY", () => {
+  it("opens on All, so a desk lists the market before anything narrows it", () => {
+    expect(DEFAULT_DISCOVERY_VIEW).toBe("all");
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  const LOW_LIQUIDITY = { code: "LOW_LIQUIDITY", message: "Liquidity is below $50,000." };
+  const row = (symbol: string, extra: Partial<MemeToken> = {}): MemeToken =>
+    ({
+      chainId: BASE_CHAIN_ID,
+      address: `0x${symbol.toLowerCase().padEnd(40, "3")}`,
+      symbol,
+      name: symbol,
+      riskLevel: "LOW",
+      status: "ACTIVE",
+      buyEnabled: true,
+      sellEnabled: true,
+      warnings: [],
+      liquidityUsd: "150000",
+      volume24hUsd: "25000",
+      ...extra,
+    }) as MemeToken;
+
+  const fixtures = (): MemeToken[] => [
+    row("GOOD"),
+    // Null is "not currently available": it never excludes a row.
+    row("NULLS", { liquidityUsd: null, volume24hUsd: null }),
+    row("THIN", {
+      riskLevel: "MEDIUM",
+      liquidityUsd: "4000",
+      warnings: [LOW_LIQUIDITY],
+    }),
+    row("QUIET", { volume24hUsd: "3" }),
+    row("RISKY", { riskLevel: "HIGH", warnings: [LOW_LIQUIDITY], liquidityUsd: "20000" }),
+    row("UNRATED", { riskLevel: "UNKNOWN" }),
+    row("NOBUY", { buyEnabled: false }),
+    row("BLOCK", { status: "BLOCKED" }),
+    row("PENDING", { status: "DISCOVERED" }),
+    { ...row("SOLMEME"), chainId: SOLANA_CHAIN_ID, address: "SoLMeMeMint1111111111111111111111" },
+    row("WETH", { address: "0x4200000000000000000000000000000000000006" }),
+    row("FAKE", { symbol: "ETH", name: "Ethereum" }),
+    row("GOOGLc", { name: "Alphabet Inc." }),
+    row("USDC", { address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913", symbol: "USDC2" }),
+  ];
+  const shown = (view: "curated" | "all") =>
+    fixtures()
+      .filter((t) => isMemecoinHere(t, view))
+      .map((t) => t.symbol);
+
+  it("is an explicit object with the two named views", () => {
+    expect(Object.keys(DISCOVERY_POLICY).sort()).toEqual(["all", "curated"]);
+    expect(DISCOVERY_POLICY.curated.minLiquidityUsd).toBe(MIN_DISCOVERY_LIQUIDITY_USD);
+    expect(DISCOVERY_POLICY.curated.minVolume24hUsd).toBe(MIN_DISCOVERY_VOLUME_24H_USD);
+    expect(DISCOVERY_POLICY.all.minLiquidityUsd).toBeNull();
+    expect(DISCOVERY_POLICY.all.riskLevels).toBeNull();
+  });
+
+  it("curated keeps rated, buyable, live coins and a row whose figures are null", () => {
+    expect(shown("curated")).toEqual(["GOOD", "NULLS"]);
+  });
+
+  it("all keeps every ACTIVE row, LOW_LIQUIDITY included, and still drops non-memecoins", () => {
+    expect(shown("all")).toEqual(["GOOD", "NULLS", "THIN", "QUIET", "RISKY", "UNRATED", "NOBUY"]);
+  });
+
+  it("all keeps a LOW_LIQUIDITY ACTIVE row that curated drops", () => {
+    const thin = fixtures().find((t) => t.symbol === "THIN")!;
+    expect(isMemecoinHere(thin, "curated")).toBe(false);
+    expect(isMemecoinHere(thin, "all")).toBe(true);
+  });
+
+  it("defaults to curated", () => {
+    const risky = fixtures().find((t) => t.symbol === "RISKY")!;
+    expect(isMemecoinHere(risky)).toBe(false);
+    expect(tradableHere({ items: [risky], meta: { page: 1, limit: 1, total: 1 } }).items).toEqual(
+      []
+    );
+  });
+
+  it("admits the Solana row to both views only behind the flag", () => {
+    vi.stubEnv("NEXT_PUBLIC_MEME_SOLANA_DISCOVERY", "1");
+    expect(shown("curated")).toContain("SOLMEME");
+    expect(shown("all")).toContain("SOLMEME");
+  });
+});
+
+// The contract: "Continue requesting pages until page * limit >= total",
+// limit at most 500. The next page exists only while the pages so far fall
+// short of the total.
+describe("nextCatalogPage", () => {
+  it("offers the next page while page * limit is below the total", () => {
+    expect(nextCatalogPage({ page: 1, limit: 500, total: 501 })).toBe(2);
+    expect(nextCatalogPage({ page: 2, limit: 500, total: 11_502 })).toBe(3);
+  });
+
+  it("stops exactly at the boundary, and past it", () => {
+    expect(nextCatalogPage({ page: 2, limit: 500, total: 1_000 })).toBeUndefined();
+    expect(nextCatalogPage({ page: 3, limit: 500, total: 1_000 })).toBeUndefined();
+    expect(nextCatalogPage({ page: 1, limit: 500, total: 0 })).toBeUndefined();
+  });
+
+  it("never pages at more than the contract's 500", () => {
+    expect(CATALOG_PAGE_LIMIT).toBe(500);
+  });
+});
+
+// Pages are appended as they arrive. A row the service moves between pages
+// while someone loads more must not show twice; identity is chainId + address.
+describe("mergeCatalogPages", () => {
+  const t = (chainId: number, address: string) => token(chainId, address);
+
+  it("appends pages in order and keeps the last page's meta", () => {
+    const merged = mergeCatalogPages([
+      { items: [t(BASE_CHAIN_ID, "0xa1")], meta: { page: 1, limit: 500, total: 3 } },
+      { items: [t(BASE_CHAIN_ID, "0xb2")], meta: { page: 2, limit: 500, total: 3 } },
+    ]);
+    expect(merged.items.map((x) => x.address)).toEqual(["0xa1", "0xb2"]);
+    expect(merged.meta).toEqual({ page: 2, limit: 500, total: 3 });
+  });
+
+  it("drops a repeat of the same chainId:address, whatever the EVM casing", () => {
+    const merged = mergeCatalogPages([
+      { items: [t(BASE_CHAIN_ID, "0xAbC")], meta: { page: 1, limit: 500, total: 2 } },
+      {
+        items: [t(BASE_CHAIN_ID, "0xabc"), t(BASE_CHAIN_ID, "0xdef")],
+        meta: { page: 2, limit: 500, total: 2 },
+      },
+    ]);
+    expect(merged.items.map((x) => x.address)).toEqual(["0xAbC", "0xdef"]);
+  });
+
+  it("keeps the same address on two chains, and Solana mints differing only in case", () => {
+    const merged = mergeCatalogPages([
+      {
+        items: [t(BASE_CHAIN_ID, "0xabc"), t(SOLANA_CHAIN_ID, "MintA")],
+        meta: { page: 1, limit: 500, total: 4 },
+      },
+      {
+        items: [t(1, "0xabc"), t(SOLANA_CHAIN_ID, "minta")],
+        meta: { page: 2, limit: 500, total: 4 },
+      },
+    ]);
+    expect(merged.items).toHaveLength(4);
   });
 });

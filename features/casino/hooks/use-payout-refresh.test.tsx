@@ -39,8 +39,11 @@ const ROW_425 = {
   settledAt: new Date().toISOString(),
 };
 
+// The stakeable balance is USDC from v5 on, so that is the row the hook reads.
+// The ETH row stays in the fixture on purpose: a hook reading it instead would
+// report a different figure entirely rather than failing outright.
 const wallet: Portfolio = {
-  totalUsd: 0.055,
+  totalUsd: 9.055,
   tokens: [
     {
       symbol: "ETH",
@@ -49,9 +52,22 @@ const wallet: Portfolio = {
       address: null,
       decimals: 18,
       kind: "coin",
-      balance: 0.00002,
-      rawBalance: "20000000000000",
-      priceUsd: 2750,
+      balance: 0.002,
+      rawBalance: "2000000000000000",
+      priceUsd: 4500,
+      valueUsd: 9,
+      logo: null,
+    },
+    {
+      symbol: "USDC",
+      name: "USD Coin",
+      network: "base-mainnet",
+      address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      decimals: 6,
+      kind: "stablecoin",
+      balance: 0.055,
+      rawBalance: "55000",
+      priceUsd: 1,
       valueUsd: 0.055,
       logo: null,
     },
@@ -108,10 +124,15 @@ describe("usePayoutRefresh", () => {
         })
       );
     });
-    expect(client.getQueryData<Portfolio>(["portfolio", ME, null])?.tokens[0].rawBalance).toBe(
-      "140738723865610"
-    );
+    // One fresh read of Base, and no optimistic credit: the payout is USDC now,
+    // and the only optimistic helper we had moves the NATIVE row, so applying
+    // it here would credit the player's ETH for a dollar payout and show money
+    // that is not there.
     await vi.waitFor(() => expect(freshReads()).toBe(1));
+    const eth = client
+      .getQueryData<Portfolio>(["portfolio", "base", ME])
+      ?.tokens.find((token) => token.address === null);
+    expect(eth?.rawBalance).toBe("2000000000000000");
 
     // The winners row for the same settlement arrives on the game page: not again.
     const page = renderHook(() => usePayoutRefresh(ME, [ROW_425]), { wrapper });
@@ -122,16 +143,15 @@ describe("usePayoutRefresh", () => {
     page.unmount();
   });
 
-  it("credits from a winners row when the socket said nothing", async () => {
+  it("reads Base once from a winners row when the socket said nothing", async () => {
     const { result } = renderHook(() => useGameBalance(), { wrapper });
     await vi.waitFor(() => expect(result.current.balanceUsd).toBeCloseTo(0.055, 6));
 
     renderHook(() => usePayoutRefresh(ME, [ROW_425]), { wrapper });
-    expect(client.getQueryData<Portfolio>(["portfolio", ME, null])?.tokens[0].rawBalance).toBe(
-      "140738723865610"
-    );
+
     await vi.waitFor(() => expect(freshReads()).toBe(1));
-    await vi.waitFor(() => expect(result.current.holding?.rawBalance).toBe("20000000000000"));
+    // The balance is whatever that read says, not a figure computed here.
+    await vi.waitFor(() => expect(result.current.holding?.rawBalance).toBe("55000"));
   });
 
   it("ignores another wallet's win and a settlement older than two minutes", async () => {

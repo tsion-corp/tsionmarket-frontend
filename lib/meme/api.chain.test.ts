@@ -8,6 +8,7 @@ import {
   createSolanaWalletChallenge,
   fetchToken,
   fetchTokenCatalog,
+  fetchTokenCatalogPage,
   fetchTradability,
   fetchTrendingTokens,
   previewSwap,
@@ -17,6 +18,7 @@ import {
   verifySolanaWallet,
 } from "@/lib/meme/api";
 import { BASE_CHAIN_ID, SOLANA_CHAIN_ID } from "@/lib/meme/chain";
+import { LIVE_TRADABILITY, SWAP_PREVIEW } from "@/lib/api/schemas/trade.fixtures";
 
 function token(chainId: number, address: string): MemeToken {
   return {
@@ -127,7 +129,7 @@ describe("meme discovery across the supported chains", () => {
     await fetchToken(sol(1).address, SOLANA_CHAIN_ID);
     expect(lastUrl()).toMatch(/\/tokens\/So1[1]+\?chain=solana$/);
 
-    apiFetch.mockResolvedValueOnce(ok({ buyEnabled: true, sellEnabled: true }));
+    apiFetch.mockResolvedValueOnce(ok(LIVE_TRADABILITY));
     await fetchTradability(base(1).address, BASE_CHAIN_ID);
     expect(lastUrl()).toMatch(/\/tradability\?chain=base$/);
   });
@@ -136,6 +138,82 @@ describe("meme discovery across the supported chains", () => {
     apiFetch.mockResolvedValueOnce(ok(sol(1)));
     await fetchToken("SoMeMiXeDCaSe1111111111111111111111111111111", SOLANA_CHAIN_ID);
     expect(lastUrl()).toContain("SoMeMiXeDCaSe");
+  });
+});
+
+// Slice 4: the catalogue is walked a page of 500 at a time, and each page
+// comes back as the service sent it, meta and all. The discovery view is
+// applied over the merged pages, so switching views never refetches.
+describe("the paged catalogue", () => {
+  beforeEach(() => apiFetch.mockReset());
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("asks for one page at the contract's maximum of 500", async () => {
+    apiFetch.mockResolvedValueOnce(
+      ok({ items: [base(1)], meta: { page: 2, limit: 500, total: 11_502 } })
+    );
+    const page = await fetchTokenCatalogPage(2);
+    expect(lastUrl()).toMatch(/\/tokens\?page=2&limit=500$/);
+    expect(page.meta).toEqual({ page: 2, limit: 500, total: 11_502 });
+  });
+
+  it("scopes a page to one chain when asked", async () => {
+    apiFetch.mockResolvedValueOnce(ok({ items: [], meta: { page: 1, limit: 500, total: 0 } }));
+    await fetchTokenCatalogPage(1, "base");
+    expect(lastUrl()).toContain("/tokens?page=1&limit=500&chain=base");
+  });
+
+  it("hands back every row of the page for the view to judge, not a pre-filtered one", async () => {
+    const risky = { ...base(7), riskLevel: "HIGH" } as MemeToken;
+    apiFetch.mockResolvedValueOnce(
+      ok({ items: [base(1), risky], meta: { page: 1, limit: 500, total: 2 } })
+    );
+    const page = await fetchTokenCatalogPage(1);
+    expect(page.items).toHaveLength(2);
+  });
+
+  it("never asks the old per-surface catalogue for more than 500", async () => {
+    apiFetch.mockResolvedValueOnce(ok({ items: [], meta: { page: 1, limit: 500, total: 0 } }));
+    await fetchTokenCatalog(1, 2_000);
+    expect(lastUrl()).toContain("limit=500");
+  });
+
+  it("searches in the view it is asked for", async () => {
+    const risky = { ...base(7), riskLevel: "HIGH" } as MemeToken;
+    apiFetch.mockResolvedValueOnce(ok([base(1), risky]));
+    expect((await searchTokens("x")).map((t) => t.address)).toEqual([base(1).address]);
+    apiFetch.mockResolvedValueOnce(ok([base(1), risky]));
+    expect((await searchTokens("x", "all")).map((t) => t.address)).toEqual([
+      base(1).address,
+      risky.address,
+    ]);
+  });
+
+  it("admits Solana rows to search once NEXT_PUBLIC_MEME_SOLANA_DISCOVERY is 1", async () => {
+    vi.stubEnv("NEXT_PUBLIC_MEME_SOLANA_DISCOVERY", "1");
+    apiFetch.mockResolvedValueOnce(ok([sol(1), base(1), eth(1)]));
+    const rows = await searchTokens("bonk");
+    expect(rows.map((t) => t.chainId)).toEqual([SOLANA_CHAIN_ID, BASE_CHAIN_ID]);
+  });
+
+  // The "Find the next 100X" card and the phone's trending shelf read this.
+  // They stay curated whatever view a list has been switched to.
+  it("keeps trending curated", async () => {
+    const thin = {
+      ...base(99),
+      riskLevel: "HIGH",
+      liquidityUsd: "4000",
+      warnings: [{ code: "LOW_LIQUIDITY", message: "Liquidity is below $50,000." }],
+    } as MemeToken;
+    apiFetch.mockResolvedValueOnce(
+      ok({
+        items: [thin, ...Array.from({ length: 8 }, (_, i) => base(20 + i))],
+        meta: { page: 1, limit: 500, total: 9 },
+      })
+    );
+    const page = await fetchTrendingTokens();
+    expect(page.items.map((t) => t.address)).not.toContain(thin.address);
+    expect(page.items).toHaveLength(8);
   });
 });
 
@@ -156,11 +234,11 @@ describe("Solana trade calls", () => {
 
   it("routes preview and quote by chain", async () => {
     const body = { side: "BUY" as const, tokenAddress: "So1", amount: "10", walletAddress: "w" };
-    apiFetch.mockResolvedValueOnce(ok({}));
+    apiFetch.mockResolvedValueOnce(ok(SWAP_PREVIEW));
     await previewSwap(body, SOLANA_CHAIN_ID);
     expect(lastUrl()).toMatch(/\/solana\/swaps\/preview$/);
 
-    apiFetch.mockResolvedValueOnce(ok({}));
+    apiFetch.mockResolvedValueOnce(ok(SWAP_PREVIEW));
     await previewSwap(body, BASE_CHAIN_ID);
     expect(lastUrl()).toMatch(/\/swaps\/preview$/);
     expect(lastUrl()).not.toContain("solana");

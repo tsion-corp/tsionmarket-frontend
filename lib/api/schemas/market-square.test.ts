@@ -76,3 +76,39 @@ describe("marketSquareSchemaFor", () => {
     ).toBe(true);
   });
 });
+
+// The house directory the Square page reads. Judged at the relay like every
+// other payload: a title can be null (the Square renders "House" for one), a
+// member count can be absent, and a member list is a list of people.
+describe("discover houses schema", () => {
+  const schema = marketSquareSchemaFor("conversations/discover", "GET");
+
+  it("models the directory read", () => {
+    expect(schema).not.toBeNull();
+    expect(
+      schema?.safeParse({
+        items: [
+          {
+            id: "h-1",
+            kind: "group",
+            title: "Entitle Men",
+            description: "let get started",
+            imageUrl: null,
+            visibility: "public",
+            members: [
+              { id: "u-1", username: "ogazboiz", displayName: "ogazboiz", avatarUrl: null },
+            ],
+            memberCount: 1,
+            lastActiveAt: null,
+          },
+          { id: "h-2", kind: "group", title: null, members: [] },
+        ],
+        nextCursor: null,
+      }).success
+    ).toBe(true);
+  });
+
+  it("refuses a house without an id, which nothing could link to", () => {
+    expect(schema?.safeParse({ items: [{ title: "Nameless" }] }).success).toBe(false);
+  });
+});

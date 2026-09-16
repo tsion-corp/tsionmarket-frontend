@@ -5,11 +5,24 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { AssetChart } from "@/components/ui/asset-chart";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { DETAIL_LINE, Sparkline } from "@/components/ui/sparkline";
+import { useCoingeckoId } from "@/hooks/use-coingecko-id";
+import { coingeckoPlatform } from "@/lib/coingecko";
 import { isUp } from "@/lib/format";
 import type { DetailPayload } from "@/lib/modal-types";
 
 export function DetailModal({ detail }: { detail: DetailPayload }) {
   const t = useTranslations("portfolio");
+
+  // A known id charts directly. Otherwise, if the payload carries a chain and
+  // contract, resolve the id from those, same as markets-view does for
+  // long-tail spot markets. useCoingeckoId disables itself when either
+  // argument is null, so a plain payload (neither field) never queries.
+  const platform = detail.chartChain ? coingeckoPlatform(detail.chartChain) : null;
+  const address = detail.chartAddress ?? null;
+  const needsResolve = !detail.coingeckoId && Boolean(platform && address);
+  const resolved = useCoingeckoId(needsResolve ? platform : null, needsResolve ? address : null);
+  const chartId = detail.coingeckoId ?? resolved.id;
+
   return (
     <div>
       <Eyebrow>{t("assetDetails")}</Eyebrow>
@@ -26,15 +39,26 @@ export function DetailModal({ detail }: { detail: DetailPayload }) {
           </div>
         </div>
       </div>
-      {detail.coingeckoId ? (
+      {chartId ? (
         <div className="mt-4">
           <AssetChart
-            coingeckoId={detail.coingeckoId}
+            coingeckoId={chartId}
             up={detail.up ?? isUp(detail.chg)}
             {...(detail.candlesOnly
               ? { allowCandles: false, defaultType: "candles" as const }
               : {})}
           />
+        </div>
+      ) : needsResolve && resolved.loading ? (
+        // Resolving the id from the contract. A blank pulse, not the
+        // decorative sparkline, so we never flash a fake line before the real
+        // chart lands.
+        <div className="mt-4 h-[120px] animate-pulse rounded-[14px] bg-white/6" />
+      ) : needsResolve ? (
+        // Resolution finished and found nothing. Say so plainly rather than
+        // drawing an invented line for data we don't have.
+        <div className="mt-4 grid h-[120px] place-items-center rounded-[14px] bg-white/5 text-center text-[13px] font-normal text-white/45">
+          {t("noChart")}
         </div>
       ) : (
         <div className="bg-[linear-gradient(180deg,rgba(255, 255, 255, 0.12),rgba(255, 255, 255, 0))] mt-4 rounded-[14px]">

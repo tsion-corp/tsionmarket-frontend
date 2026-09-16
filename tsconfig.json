@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@/features/casino/components/chess/*": ["./features/casino/components/chess-app/*"],
       "@/*": ["./*"]
     }
   },
@@ -30,5 +31,12 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules", "casino-service", "apps", "reference"]
+  "exclude": [
+    "node_modules",
+    "casino-service",
+    "apps",
+    "reference",
+    "features/casino/components/chess",
+    "ui"
+  ]
 }

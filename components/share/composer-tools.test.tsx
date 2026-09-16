@@ -24,6 +24,17 @@ function renderTools(over: Partial<React.ComponentProps<typeof ComposerTools>> =
   return props;
 }
 
+/** The animated wrapper a tool unfolds. It is in the DOM open or shut. */
+function panel(key: "emoji" | "symbol" | "topic"): HTMLElement {
+  const node = document.getElementById(`composer-panel-${key}`);
+  if (!node) throw new Error(`No panel for ${key}`);
+  return node;
+}
+
+function expanded(key: "emoji" | "symbol" | "topic"): boolean {
+  return panel(key).className.includes("[grid-template-rows:1fr]");
+}
+
 /**
  * These panels open inside a modal that caps at 92vh and scrolls, so a panel
  * that renders but lands past the fold is indistinguishable from one that
@@ -45,9 +56,44 @@ describe("ComposerTools", () => {
     renderTools();
     const tool = screen.getByRole("button", { name: "toolEmoji" });
     fireEvent.click(tool);
-    expect(screen.getByRole("button", { name: "🚀" })).toBeInTheDocument();
+    expect(expanded("emoji")).toBe(true);
     fireEvent.click(tool);
-    expect(screen.queryByRole("button", { name: "🚀" })).toBeNull();
+    expect(expanded("emoji")).toBe(false);
+  });
+
+  /**
+   * The reported defect: the tool button lit up and the panel appeared out of
+   * nowhere, because the panel was `{panel === "emoji" ? <div/> : null}`. An
+   * unmount cannot be animated, so the fold has to happen on a panel that is
+   * still in the tree.
+   */
+  it("keeps a closed panel mounted and collapsed so it can animate", () => {
+    renderTools();
+    // Closed: still there, but folded to nothing and out of reach.
+    const closed = panel("emoji");
+    expect(screen.getByRole("button", { name: "🚀" })).toBeInTheDocument();
+    expect(closed.className).toContain("[grid-template-rows:0fr]");
+    expect(closed.hasAttribute("inert")).toBe(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "toolEmoji" }));
+    expect(panel("emoji").className).toContain("[grid-template-rows:1fr]");
+    expect(panel("emoji").hasAttribute("inert")).toBe(false);
+  });
+
+  it("points each tool at the panel it unfolds", () => {
+    renderTools();
+    for (const [tool, key] of [
+      ["toolEmoji", "emoji"],
+      ["toolSymbol", "symbol"],
+      ["toolTopic", "topic"],
+    ] as const) {
+      const button = screen.getByRole("button", { name: tool });
+      expect(button.getAttribute("aria-controls")).toBe(`composer-panel-${key}`);
+      expect(button.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(button);
+      expect(button.getAttribute("aria-expanded")).toBe("true");
+      fireEvent.click(button);
+    }
   });
 
   // One panel at a time — two open at once would push the composer's own
@@ -56,8 +102,8 @@ describe("ComposerTools", () => {
     renderTools();
     fireEvent.click(screen.getByRole("button", { name: "toolEmoji" }));
     fireEvent.click(screen.getByRole("button", { name: "toolTopic" }));
-    expect(screen.queryByRole("button", { name: "🚀" })).toBeNull();
-    expect(screen.getByRole("button", { name: "Crypto" })).toBeInTheDocument();
+    expect(expanded("emoji")).toBe(false);
+    expect(expanded("topic")).toBe(true);
   });
 
   it("offers only symbols this app can trade", () => {

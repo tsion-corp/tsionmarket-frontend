@@ -175,6 +175,32 @@ describe("server interop", () => {
     );
   });
 
+  it("parses and plays a randomized Chess960 starting position", () => {
+    const fen = "bbqnnrkr/pppppppp/8/8/8/8/PPPPPPPP/BBQNNRKR w HFhf - 0 1";
+    const position = parseFen(fen, "chess960");
+    const knightMoves = legalMovesForSquare(position, 7, 4);
+
+    expect(position.variant).toBe("chess960");
+    expect(position.board[7].map((piece) => piece?.type ?? null)).toEqual([
+      "b",
+      "b",
+      "q",
+      "n",
+      "n",
+      "r",
+      "k",
+      "r",
+    ]);
+    expect(knightMoves.length).toBeGreaterThan(0);
+    expect(
+      applyUciToFen(
+        position.fen,
+        toUci(position, knightMoves[0].from, knightMoves[0].to),
+        "chess960"
+      )?.turn
+    ).toBe("b");
+  });
+
   it("preserves en passant from FEN in legal moves and optimistic application", () => {
     const position = parseFen("4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1");
     expect(legalMovesForSquare(position, 3, 4)).toEqual(
@@ -182,6 +208,7 @@ describe("server interop", () => {
     );
 
     const next = applyUciToFen(position.fen, "e5d6");
+    expect(next?.san).toBe("exd6");
     expect(next?.board[2][3]).toEqual({ type: "p", color: "w" });
     expect(next?.board[3][3]).toBeNull();
   });

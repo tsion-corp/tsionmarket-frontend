@@ -102,6 +102,14 @@ export interface ChainGame {
   potWei: bigint;
   minWagerWei: bigint;
   endTime: number;
+  /**
+   * The asset the game is played in. v5 lets its starter choose, so the scale
+   * of the two amounts above is per game and NOT assumed to be 18: reading a
+   * 6-decimal USDC pot at 18 decimals prices it to nothing, which is how a
+   * live game showed a pot of $0.00 in the lobby on 2026-09-15. Absent on an
+   * older frame, which was native-only.
+   */
+  token?: string;
 }
 
 const WEI = /^\d+$/;
@@ -128,6 +136,7 @@ export function toChainGame(value: unknown): ChainGame | null {
     potWei: BigInt(v.potWei),
     minWagerWei: BigInt(v.minWagerWei),
     endTime: v.endTime,
+    ...(typeof v.token === "string" ? { token: v.token } : {}),
   };
 }
 

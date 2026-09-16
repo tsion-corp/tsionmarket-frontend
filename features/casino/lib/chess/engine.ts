@@ -1,9 +1,13 @@
-import {
-  Chess,
-  validateFen,
-  type Move as ChessJsMove,
-  type Square as ChessJsSquare,
-} from "chess.js";
+import { Chess } from "chess.js";
+import { chessgroundDests, lichessRules } from "chessops/compat";
+import { makeFen, parseFen as parseChessopsFen } from "chessops/fen";
+import { makeSanAndPlay } from "chessops/san";
+import type { Position as ChessopsPosition } from "chessops/chess";
+import type { Role as ChessopsRole, Square as ChessopsSquare } from "chessops/types";
+import { makeSquare, parseSquare, parseUci, roleToChar } from "chessops/util";
+import { setupPosition } from "chessops/variant";
+
+import type { ChessVariant } from "@/features/casino/lib/api/types";
 
 // Frontend chess helpers. The board UI still works in simple row/column
 // coordinates, but legal move generation, FEN parsing and optimistic next-state
@@ -37,6 +41,11 @@ export interface FenPosition {
   board: Board;
   turn: PieceColor;
   fen: string;
+  variant: ChessVariant;
+}
+
+export interface AppliedFenPosition extends FenPosition {
+  san: string;
 }
 
 const PROMOTION_TYPES = ["q", "r", "b", "n"] as const;
@@ -122,31 +131,86 @@ function squareFromName(name: string): Square | null {
   return { r, c };
 }
 
-function toChessSquare(square: Square): ChessJsSquare {
-  return squareName(square.r, square.c) as ChessJsSquare;
-}
-
 function toPromotionType(value: string | undefined): PieceType | undefined {
   return PROMOTION_TYPES.includes(value as (typeof PROMOTION_TYPES)[number])
     ? (value as PieceType)
     : undefined;
 }
 
-function moveFromChess(move: ChessJsMove): Move {
-  const from = squareFromName(move.from);
-  const to = squareFromName(move.to);
-  if (!from || !to) {
-    throw new Error(`Unexpected move squares: ${move.from} -> ${move.to}`);
-  }
-  return { from, to, promotion: toPromotionType(move.promotion) };
-}
-
 function isFenPosition(value: Board | FenPosition | string): value is FenPosition {
   return typeof value === "object" && !Array.isArray(value) && value !== null && "fen" in value;
 }
 
-function chessFromPosition(position: FenPosition | string): Chess {
-  return new Chess(typeof position === "string" ? position : position.fen);
+function chessopsPosition(fen: string, variant: ChessVariant): ChessopsPosition {
+  return setupPosition(lichessRules(variant), parseChessopsFen(fen).unwrap()).unwrap();
+}
+
+function boardFromChessops(position: ChessopsPosition): Board {
+  const board: Board = Array.from({ length: 8 }, () => Array<Piece | null>(8).fill(null));
+  for (const [square, piece] of position.board) {
+    const r = 7 - Math.floor(square / 8);
+    const c = square % 8;
+    board[r][c] = {
+      type: roleToChar(piece.role) as PieceType,
+      color: piece.color === "white" ? "w" : "b",
+    };
+  }
+  return board;
+}
+
+function positionVariant(position: FenPosition | string): ChessVariant {
+  return typeof position === "string" ? "standard" : position.variant;
+}
+
+function chessopsSquare(r: number, c: number): ChessopsSquare | undefined {
+  return parseSquare(squareName(r, c));
+}
+
+function moveFromChessops(
+  from: ChessopsSquare,
+  to: ChessopsSquare,
+  promotion?: ChessopsRole
+): Move {
+  const fromSquare = squareFromName(makeSquare(from));
+  const toSquare = squareFromName(makeSquare(to));
+  if (!fromSquare || !toSquare) throw new Error("Unexpected chessops square");
+  return {
+    from: fromSquare,
+    to: toSquare,
+    promotion: promotion ? (roleToChar(promotion) as PieceType) : undefined,
+  };
+}
+
+function normalMovesAt(
+  position: ChessopsPosition,
+  from: ChessopsSquare,
+  variant: ChessVariant
+): Move[] {
+  const piece = position.board.get(from);
+  const moves: Move[] = [];
+  const destinations =
+    variant === "chess960"
+      ? Array.from(position.dests(from))
+      : (chessgroundDests(position, { chess960: false })
+          .get(makeSquare(from))
+          ?.map((square) => parseSquare(square)) ?? []);
+  const seen = new Set<number>();
+  for (const to of destinations) {
+    if (to === undefined || seen.has(to)) continue;
+    seen.add(to);
+    const target = position.board.get(to);
+    if (variant !== "chess960" && target?.color === piece?.color) continue;
+    const promotionRank =
+      piece?.role === "pawn" && (Math.floor(to / 8) === 0 || Math.floor(to / 8) === 7);
+    if (promotionRank) {
+      for (const promotion of ["queen", "rook", "bishop", "knight"] as const) {
+        moves.push(moveFromChessops(from, to, promotion));
+      }
+    } else {
+      moves.push(moveFromChessops(from, to));
+    }
+  }
+  return moves;
 }
 
 function uniqueTargets(moves: Move[]): Square[] {
@@ -332,24 +396,36 @@ export function fromUci(uci: string): Move | null {
 
 // Parses a full FEN string. Throws on malformed input rather than rendering a
 // half-built board.
-export function parseFen(fen: string): FenPosition {
-  const valid = validateFen(fen);
-  if (!valid.ok) throw new Error(`Malformed FEN: ${valid.error ?? "invalid position"}`);
-  const chess = new Chess(fen);
-  return { board: boardFromChess(chess), turn: chess.turn() as PieceColor, fen: chess.fen() };
+export function parseFen(fen: string, variant: ChessVariant = "standard"): FenPosition {
+  try {
+    const position = chessopsPosition(fen, variant);
+    return {
+      board: boardFromChessops(position),
+      turn: position.turn === "white" ? "w" : "b",
+      fen: makeFen(position.toSetup()),
+      variant,
+    };
+  } catch (error) {
+    throw new Error(
+      `Malformed FEN: ${error instanceof Error ? error.message : "invalid position"}`
+    );
+  }
 }
 
-export function applyUciToFen(fen: string, uci: string): FenPosition | null {
-  const from = uci.slice(0, 2);
-  const to = uci.slice(2, 4);
-  if (from.length !== 2 || to.length !== 2) return null;
-  const chess = new Chess(fen);
+export function applyUciToFen(
+  fen: string,
+  uci: string,
+  variant: ChessVariant = "standard"
+): AppliedFenPosition | null {
   try {
-    chess.move({ from, to, promotion: toPromotionType(uci.slice(4, 5)) });
+    const position = chessopsPosition(fen, variant);
+    const move = parseUci(uci);
+    if (!move || !position.isLegal(move)) return null;
+    const san = makeSanAndPlay(position, move);
+    return { ...parseFen(makeFen(position.toSetup()), variant), san };
   } catch {
     return null;
   }
-  return { board: boardFromChess(chess), turn: chess.turn() as PieceColor, fen: chess.fen() };
 }
 
 export function applyMove(
@@ -361,11 +437,13 @@ export function applyMove(
   if (typeof position === "string" || isFenPosition(position)) {
     const next = applyUciToFen(
       typeof position === "string" ? position : position.fen,
-      toUci(position, from, to, promotion)
+      toUci(position, from, to, promotion),
+      positionVariant(position)
     );
     return next
       ? next.board
-      : boardFromChess(chessFromPosition(typeof position === "string" ? position : position.fen));
+      : parseFen(typeof position === "string" ? position : position.fen, positionVariant(position))
+          .board;
   }
   return manualApplyMove(position, from, to, promotion);
 }
@@ -376,9 +454,12 @@ export function legalMovesForSquare(
   c: number
 ): Move[] {
   if (typeof position === "string" || isFenPosition(position)) {
-    const chess = chessFromPosition(position);
     try {
-      return chess.moves({ verbose: true, square: toChessSquare({ r, c }) }).map(moveFromChess);
+      const from = chessopsSquare(r, c);
+      if (from === undefined) return [];
+      const fen = typeof position === "string" ? position : position.fen;
+      const variant = positionVariant(position);
+      return normalMovesAt(chessopsPosition(fen, variant), from, variant);
     } catch {
       return [];
     }
@@ -396,7 +477,12 @@ export function legalMovesForPiece(
 
 export function allLegalMoves(position: Board | FenPosition | string, turn?: PieceColor): Move[] {
   if (typeof position === "string" || isFenPosition(position)) {
-    return chessFromPosition(position).moves({ verbose: true }).map(moveFromChess);
+    const fen = typeof position === "string" ? position : position.fen;
+    const parsed = chessopsPosition(fen, positionVariant(position));
+    const moves: Move[] = [];
+    const variant = positionVariant(position);
+    for (const from of parsed.board.occupied) moves.push(...normalMovesAt(parsed, from, variant));
+    return moves;
   }
   const out: Move[] = [];
   for (let r = 0; r < 8; r++) {
@@ -412,10 +498,11 @@ export function allLegalMoves(position: Board | FenPosition | string, turn?: Pie
 
 export function gameStatus(position: Board | FenPosition | string, turn?: PieceColor): GameStatus {
   if (typeof position === "string" || isFenPosition(position)) {
-    const chess = chessFromPosition(position);
-    if (chess.isCheckmate()) return "checkmate";
-    if (chess.isStalemate()) return "stalemate";
-    return chess.isCheck() ? "check" : "ongoing";
+    const fen = typeof position === "string" ? position : position.fen;
+    const parsed = chessopsPosition(fen, positionVariant(position));
+    if (parsed.isCheckmate() || parsed.isVariantEnd()) return "checkmate";
+    if (parsed.isStalemate()) return "stalemate";
+    return parsed.isCheck() ? "check" : "ongoing";
   }
   const moves = allLegalMoves(position, turn);
   if (moves.length === 0) return isInCheck(position, turn ?? "w") ? "checkmate" : "stalemate";

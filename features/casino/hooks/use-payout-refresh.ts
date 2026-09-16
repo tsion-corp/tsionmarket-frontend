@@ -44,7 +44,7 @@ export function usePayoutRefresh(address: string | null | undefined, winners?: V
     if (credit === 0n) return;
     credited.add(latest.settlementTx);
     vaultLog(`round ${latest.gameId} paid`, { credit: credit.toString() });
-    void settleRef.current(credit);
+    void settleRef.current();
   }, [latest, address]);
 }
 

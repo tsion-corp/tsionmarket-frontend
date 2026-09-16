@@ -244,6 +244,12 @@ describe("page names", () => {
     expect(pageNameForSection("meme")).toBe("memecoins");
     expect(pageNameForSection("casino")).toBe("arkade");
     expect(pageNameForSection("activity")).toBe("arktivity");
+    // The Square page is a nav section of its own now, and reports as such.
+    expect(pageNameForSection("square")).toBe("market_square");
+  });
+
+  it("resolves the square page to its section", () => {
+    expect(pageNameForPath("/square")).toBe("market_square");
   });
 
   it("resolves a nested route to its section", () => {

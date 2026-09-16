@@ -194,6 +194,19 @@ describe("fetchPortfolio upstreams", () => {
     expect(seen.filter((u) => u.includes("rpc.zerodev.app")).length).toBe(EVM_NETWORKS.length);
   });
 
+  it("reads only Base and skips Solana for the Base-only portfolio", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    const SOLANA = "So1anaWa11etAddress111111111111111111111111";
+
+    await fetchPortfolio(WALLET, SOLANA, null, null, "base");
+
+    const chainReads = seen.filter((u) => u.includes("rpc.zerodev.app"));
+    expect(chainReads).toHaveLength(1);
+    expect(chainReads[0]).toContain("/chain/8453");
+    expect(seen.some((u) => u.includes("assets/tokens/by-address"))).toBe(false);
+  });
+
   // A trade on Base must not re-read the 27 other networks or re-page the
   // Solana Portfolio API: a scoped fresh read skips the snapshot cache and
   // re-reads only the networks in scope, everything else comes from cache.
@@ -301,5 +314,75 @@ describe("fetchPortfolio upstreams", () => {
     await fetchPortfolio(undefined, "So1anaWa11etAddress111111111111111111111111");
     expect(seen.filter((u) => u.includes("assets/tokens/by-address")).length).toBe(1);
     expect(seen.some((u) => u.includes("rpc.zerodev.app"))).toBe(false);
+  });
+});
+
+// A held catalogue memecoin the market cannot price. The registry now says so
+// with a null (null is not zero, per the trade contract), and that null must
+// not leak into a TokenBalance, whose price is a number every consumer adds
+// and sorts by. The holding stays a recognised meme with an unknown price,
+// which the holdings list renders "Valuation unavailable", never "$0.00".
+describe("fetchPortfolio, a held meme with no catalogue price", () => {
+  const SOLANA = "So1anaWa11etAddress111111111111111111111111";
+  const MINT = "Mem3M1ntCaseSensitive11111111111111111111111";
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.doMock("@/lib/server/rwa-registry", () => ({ fetchRwaRegistry: async () => ({}) }));
+    vi.doMock("@/lib/server/buyable-registry", () => ({
+      fetchBuyableRegistry: async () => ({
+        buyable: { "solana-mainnet": new Set([MINT.toLowerCase()]) },
+        meme: { "solana-mainnet": new Map([[MINT.toLowerCase(), { logo: null, priceUsd: null }]]) },
+      }),
+    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string" ? input : ((input as URL).href ?? (input as Request).url);
+        const ok = (body: unknown) =>
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        if (url.includes("assets/tokens/by-address")) {
+          return ok({
+            data: {
+              tokens: [
+                {
+                  network: "solana-mainnet",
+                  tokenAddress: MINT,
+                  tokenBalance: "5000000",
+                  tokenMetadata: { decimals: 6, symbol: "MEME", name: "Meme" },
+                  tokenPrices: [],
+                },
+              ],
+            },
+          });
+        }
+        if (url.includes("/tokens/by-symbol")) return ok({ data: [] });
+        return ok({});
+      })
+    );
+  });
+  afterEach(async () => {
+    const { resetResponseCache } = await import("./response-cache");
+    resetResponseCache();
+    vi.doUnmock("@/lib/server/rwa-registry");
+    vi.doUnmock("@/lib/server/buyable-registry");
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps the holding, marked a meme, with an unknown price rather than a null one", async () => {
+    const { fetchPortfolio } = await import("./alchemy");
+    const { tokens } = await fetchPortfolio(undefined, SOLANA);
+    const meme = tokens.find((t) => t.address === MINT);
+    expect(meme).toBeDefined();
+    expect(meme?.meme).toBe(true);
+    expect(meme?.balance).toBe(5);
+    expect(meme?.priceUsd).toBe(0);
+    expect(meme?.valueUsd).toBe(0);
   });
 });

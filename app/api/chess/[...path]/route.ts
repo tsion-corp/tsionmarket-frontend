@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Buffer } from "node:buffer";
-import { getRequestUser, verifyRequest } from "@/lib/server/auth";
+import { ACCESS_TOKEN_COOKIE, getRequestUser, verifyRequest } from "@/lib/server/auth";
 import {
   chessDisplayNameOfUser,
   chessReadNeedsSession,
@@ -12,7 +12,8 @@ import {
 import { detectRequestCountry } from "@/lib/server/ipinfo";
 import { lotterySchemaFor } from "@/lib/api/schemas/lottery";
 import { checkUpstream } from "@/lib/server/validate-upstream";
-import { wsapiService } from "@/lib/wsapi-base";
+import { chessUpstreamCandidates } from "@/lib/server/chess-upstream";
+import { fetchUpstreamRead, fetchUpstreamWrite } from "@/lib/server/upstream-failover";
 
 // Server-side proxy for the chess service on the platform gateway. Same
 // arrangement as the other service proxies in this app: routing through our
@@ -23,17 +24,11 @@ import { wsapiService } from "@/lib/wsapi-base";
 // spectator-visible, except per-caller reads such as cashier balance and the
 // caller's own bets. Writes act on a game or a cashier balance, so they need a
 // verified session and the wallet that session owns.
-// Server-only local override first, then the legacy public env so existing
-// deployments keep working unchanged.
-const LOCAL_DEV_CHESS_API = "http://127.0.0.1:8082";
-const BASE =
-  process.env.CHESS_API_URL ??
-  (process.env.NODE_ENV === "development" ? LOCAL_DEV_CHESS_API : undefined) ??
-  process.env.NEXT_PUBLIC_CHESS_API_URL ??
-  wsapiService("chess");
+const UPSTREAMS = chessUpstreamCandidates();
 const NO_STORE = "no-store, max-age=0, must-revalidate";
-const COUNTRY_WRITE = /^(?:matches|matches\/[^/]+\/join|arenas\/[^/]+\/join)$/u;
-const PLAYER_PROFILE_WRITE = /^(?:matches|matches\/[^/]+\/join|computer\/matches)$/u;
+const COUNTRY_WRITE = /^(?:matches|matches\/[^/]+\/join|arenas\/[^/]+\/join|play\/computer)$/u;
+const PLAYER_PROFILE_WRITE = /^(?:matches|matches\/[^/]+\/join|computer\/matches|play\/computer)$/u;
+const SERVER_RENDERED_PAGE = /^(?:play|challenge|competition)(?:\/|$)/u;
 
 // Just long enough to collapse the concurrent polls of two players watching the
 // same board, and short enough that neither sees a stale position. The match
@@ -45,7 +40,18 @@ const cache = new Map<
   { expires: number; body: string; status: number; contentType: string }
 >();
 
+function forwardedLocation(joined: string, location: string): string {
+  if (!location.startsWith("/") || location.startsWith("//")) return location;
+  // Server-rendered forms submit inside the chess iframe. Keep redirects in
+  // that document so its load bridge can promote one canonical parent route;
+  // redirecting directly to /casino/chess here would mount Next inside Next.
+  return SERVER_RENDERED_PAGE.test(joined) ? `/api/chess${location}` : location;
+}
+
 function cacheTtlMs(joined: string): number {
+  // Server-rendered lobby and challenge pages contain viewer-specific state.
+  if (SERVER_RENDERED_PAGE.test(joined)) return 0;
+  if (/^challenges(?:\/|$)/u.test(joined)) return 0;
   // The exact match snapshot carries lifecycle transitions. It is the repair
   // path when a creator misses the opponent-joined socket frame, so even a tiny
   // cache can replay `waiting` after the game is active. Move history and PGN
@@ -105,7 +111,7 @@ function noWallet() {
 
 function forwardAuthHeaders(req: NextRequest, headers: Record<string, string>): void {
   const authorization = req.headers.get("authorization");
-  const accessToken = req.cookies.get("privy-token")?.value;
+  const accessToken = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   const identityToken =
     req.headers.get("privy-id-token") ?? req.cookies.get("privy-id-token")?.value;
 
@@ -122,13 +128,19 @@ async function forward(
   wallet?: string,
   searchParams?: URLSearchParams,
   countryCode?: string | null,
-  displayName?: string | null
+  displayName?: string | null,
+  requestContentType?: string | null
 ) {
   const search = searchParams ? searchParams.toString() : req.nextUrl.searchParams.toString();
   const query = search ? `?${search}` : "";
-  const url = `${BASE}/${joined}${query}`;
-  const headers: Record<string, string> = { accept: "application/json" };
-  if (method !== "GET") headers["content-type"] = "application/json";
+  const cacheKey = `${joined}${query}`;
+  const headers: Record<string, string> = {
+    accept: req.headers.get("accept") ?? "application/json",
+  };
+  if (method !== "GET") {
+    headers["content-type"] = requestContentType ?? "application/json";
+  }
+  if (SERVER_RENDERED_PAGE.test(joined)) headers["x-forwarded-prefix"] = "/api/chess";
   if (wallet) {
     headers["x-wallet-address"] = wallet;
     forwardAuthHeaders(req, headers);
@@ -140,13 +152,17 @@ async function forward(
   const ttl = cacheTtlMs(joined);
 
   try {
-    const res = await fetch(url, {
+    const init: RequestInit = {
       method,
       headers,
       body,
       cache: "no-store",
-      signal: AbortSignal.timeout(15_000),
-    });
+      redirect: SERVER_RENDERED_PAGE.test(joined) ? "manual" : "follow",
+    };
+    const res =
+      method === "GET"
+        ? await fetchUpstreamRead(UPSTREAMS, cacheKey, init, 15_000)
+        : await fetchUpstreamWrite(UPSTREAMS, cacheKey, init, 15_000);
     const text = await res.text();
     const contentType = res.headers.get("content-type") ?? "text/plain; charset=utf-8";
     const lotterySchema = lotterySchemaFor(joined);
@@ -180,16 +196,24 @@ async function forward(
       }
     }
     if (method === "GET" && res.ok && ttl > 0) {
-      cache.set(url, {
+      cache.set(cacheKey, {
         expires: Date.now() + ttl,
         body: text,
         status: res.status,
         contentType,
       });
     }
+    const responseHeaders: Record<string, string> = {
+      "content-type": contentType,
+      "cache-control": NO_STORE,
+    };
+    const location = res.headers.get("location");
+    if (location) {
+      responseHeaders.location = forwardedLocation(joined, location);
+    }
     return new NextResponse(text, {
       status: res.status,
-      headers: { "content-type": contentType, "cache-control": NO_STORE },
+      headers: responseHeaders,
     });
   } catch (error) {
     console.error("Chess proxy failed:", joined, error);
@@ -202,7 +226,7 @@ async function forward(
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
-  if (!BASE) return notConfigured();
+  if (UPSTREAMS.length === 0) return notConfigured();
   const joined = path.join("/");
   const ttl = cacheTtlMs(joined);
   const needsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
@@ -210,6 +234,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   if (needsSession && !claims) return unauthorized();
   const user = needsSession ? await getRequestUser(req, claims) : null;
   const wallet = needsSession ? walletOfUser(user) : null;
+  const displayName = needsSession ? chessDisplayNameOfUser(user) : null;
   if (needsSession && !user) return walletUnavailable();
   if (needsSession && !wallet) return noWallet();
   const forwardedSearch = wallet
@@ -217,9 +242,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     : req.nextUrl.searchParams;
 
   const forwardedQuery = forwardedSearch.toString();
-  const url = `${BASE}/${joined}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
+  const cacheKey = `${joined}${forwardedQuery ? `?${forwardedQuery}` : ""}`;
   if (ttl > 0) {
-    const hit = cache.get(url);
+    const hit = cache.get(cacheKey);
     if (hit && hit.expires > Date.now()) {
       return new NextResponse(hit.body, {
         status: hit.status,
@@ -228,7 +253,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     }
   }
 
-  return forward(req, joined, "GET", undefined, wallet ?? undefined, forwardedSearch);
+  return forward(
+    req,
+    joined,
+    "GET",
+    undefined,
+    wallet ?? undefined,
+    forwardedSearch,
+    undefined,
+    displayName
+  );
 }
 
 async function authedWrite(
@@ -237,7 +271,7 @@ async function authedWrite(
   method: "POST" | "PUT" | "DELETE"
 ) {
   const { path } = await ctx.params;
-  if (!BASE) return notConfigured();
+  if (UPSTREAMS.length === 0) return notConfigured();
 
   const claims = await verifyRequest(req);
   if (!claims) return unauthorized();
@@ -249,7 +283,9 @@ async function authedWrite(
 
   const raw = await req.text();
   const joined = path.join("/");
-  const identified = withChessIdentity(joined, raw, wallet);
+  const requestContentType = req.headers.get("content-type");
+  const isForm = requestContentType?.startsWith("application/x-www-form-urlencoded") ?? false;
+  const identified = isForm ? raw : withChessIdentity(joined, raw, wallet);
   const country = COUNTRY_WRITE.test(joined) ? await detectRequestCountry(req.headers) : null;
   const displayName = PLAYER_PROFILE_WRITE.test(joined) ? chessDisplayNameOfUser(user) : null;
   return forward(
@@ -260,7 +296,8 @@ async function authedWrite(
     wallet,
     undefined,
     country,
-    displayName
+    displayName,
+    requestContentType
   );
 }
 

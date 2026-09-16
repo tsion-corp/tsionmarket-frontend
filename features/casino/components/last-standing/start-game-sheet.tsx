@@ -13,10 +13,11 @@ import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
 import {
-  formatEth,
+  GAME_ASSET,
+  formatGameAmount,
   stakeToSend,
-  usdToWei,
-  weiToUsd,
+  unitsToUsd,
+  usdToUnits,
 } from "@/features/casino/lib/last-standing/stake";
 
 interface StartGameSheetProps {
@@ -59,32 +60,33 @@ export function StartGameSheet({
   // actually accept, which is not always our preferred figure.
   const [edited, setEdited] = useState<string | null>(null);
 
-  // The contract's floor and the live price, from the same hook the lobby
+  // The contract's floor for the asset we play in, from the same hook the lobby
   // button reads, so the sheet can only ever quote what the button promised.
-  const { usd: defaultEntry, floorWei, floorFailed, ethPrice } = useDefaultEntry();
+  const { usd: defaultEntry, floorUnits, floorFailed } = useDefaultEntry();
 
-  // What the wallet needs to hold. The stake is native ETH on Base, so a user
-  // whose balance is all USDC cannot start a game however much it is worth.
-  const { balanceEth: ethBalance, settle: settleBalance } = useGameBalance();
+  // What the wallet needs to hold. The stake is USDC, which is the spendable
+  // balance itself, so there is nothing to convert and nothing to top up.
+  const { balanceUsd, settle: settleBalance } = useGameBalance();
 
   // The default is the greater of our preferred entry and the contract's floor,
-  // so the field, the ETH figure and the button always agree. Lower the floor
-  // on-chain and this drops back to the preferred entry on its own.
+  // so the field and the button always agree. Lower the floor on-chain and this
+  // drops back to the preferred entry on its own.
   const usd = edited ?? (defaultEntry !== null ? defaultEntry.toFixed(2) : "");
 
-  const wanted = useMemo(() => usdToWei(Number(usd), ethPrice), [usd, ethPrice]);
+  // A dollar figure IS the amount: no price, so nothing can move between the
+  // number on screen and the number that is sent.
+  const wanted = useMemo(() => usdToUnits(Number(usd)), [usd]);
   const send = useMemo(
-    () => (floorWei === null ? 0n : stakeToSend(wanted, floorWei)),
-    [wanted, floorWei]
+    () => (floorUnits === null ? 0n : stakeToSend(wanted, floorUnits)),
+    [wanted, floorUnits]
   );
   // They typed something under the floor, so the sheet says the number moved
   // rather than quietly charging more than the button promised.
-  const liftedToFloor = floorWei !== null && wanted > 0n && send > wanted;
-  const sendUsd = weiToUsd(send, ethPrice);
-  const sendEth = Number(formatEth(send, 18));
-  const shortOnEth = send > 0n && ethBalance < sendEth;
+  const liftedToFloor = floorUnits !== null && wanted > 0n && send > wanted;
+  const sendUsd = unitsToUsd(send);
+  const shortOnBalance = send > 0n && balanceUsd < sendUsd;
 
-  const ready = send > 0n && ethPrice > 0 && !starting && !floorFailed && !shortOnEth;
+  const ready = send > 0n && !starting && !floorFailed && !shortOnBalance;
 
   const confirm = async () => {
     if (!ready) return;
@@ -96,7 +98,7 @@ export function StartGameSheet({
       }
       const { gameId } = await startGame(send);
       // The stake has left the wallet: show it gone now, confirm from Base once.
-      void settleBalance(-send);
+      void settleBalance();
       // The pop-out timer follows whatever you last put money into.
       if (gameId !== null) followGame(gameId);
       track("game_staked", { game: "last_man", amount_usd: sendUsd });
@@ -133,7 +135,7 @@ export function StartGameSheet({
             className="tnum w-full bg-transparent py-3 font-sans text-[15px] text-white outline-none placeholder:text-white/30"
           />
           <span className="tnum shrink-0 text-[12.5px] font-normal text-white/40">
-            {send > 0n ? `${formatEth(send)} ETH` : "—"}
+            {send > 0n ? `${formatGameAmount(send)} ${GAME_ASSET.symbol}` : "—"}
           </span>
         </span>
       </label>
@@ -152,9 +154,9 @@ export function StartGameSheet({
         <p className="mt-2 text-[12px] leading-relaxed font-normal text-[#e3a49a]">
           {t("startFloorUnavailable")}
         </p>
-      ) : shortOnEth ? (
+      ) : shortOnBalance ? (
         <p className="mt-2 text-[12px] leading-relaxed font-normal text-[#e3a49a]">
-          {t("startNeedsEth", { amount: formatUsd(sendUsd) })}
+          {t("startNeedsBalance", { amount: formatUsd(sendUsd) })}
         </p>
       ) : null}
 
@@ -168,7 +170,7 @@ export function StartGameSheet({
       </div>
 
       {/* Short on ETH with a way to fund: the button becomes the way. */}
-      {shortOnEth && !floorFailed && !starting && onFund ? (
+      {shortOnBalance && !floorFailed && !starting && onFund ? (
         <button
           type="button"
           onClick={onFund}
@@ -187,8 +189,8 @@ export function StartGameSheet({
             ? t("startPending")
             : floorFailed
               ? t("startUnavailable")
-              : shortOnEth
-                ? t("startNeedsEthCta")
+              : shortOnBalance
+                ? t("startNeedsBalanceCta")
                 : send > 0n
                   ? t("startCta", { amount: formatUsd(sendUsd) })
                   : t("loading")}

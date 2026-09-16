@@ -162,6 +162,38 @@ export interface CreateArenaInput {
   durationMinutes: number;
   maxPlayers: number;
   startDelaySeconds: number;
+  variant: ArenaVariant;
+  initialFen?: string;
+  rated: boolean;
+  password?: string;
+  conditions: ArenaConditions;
+  noBerserk: boolean;
+  noStreak: boolean;
+  description?: string;
+  payouts?: string;
+  hasChat: boolean;
+}
+
+export type ArenaVariant =
+  | "standard"
+  | "chess960"
+  | "kingOfTheHill"
+  | "threeCheck"
+  | "antichess"
+  | "atomic"
+  | "horde"
+  | "racingKings"
+  | "crazyhouse";
+
+export interface ArenaConditions {
+  minimumRatedGames?: number;
+  maximumRating?: number;
+  minimumRating?: number;
+  titledOnly: boolean;
+  teamMember?: string;
+  minimumAccountAgeDays?: number;
+  allowList?: string[];
+  botsAllowed?: boolean;
 }
 
 export async function createArena(input: CreateArenaInput): Promise<ArenaSummary> {

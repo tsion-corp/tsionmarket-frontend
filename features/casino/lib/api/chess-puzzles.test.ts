@@ -7,7 +7,9 @@ vi.mock("@/features/casino/lib/api/chess-client", () => chessClient);
 import {
   attemptPuzzle,
   fetchNextPuzzle,
+  fetchPuzzle,
   fetchPuzzleCatalog,
+  fetchPuzzleSolution,
 } from "@/features/casino/lib/api/chess-puzzles";
 
 beforeEach(() => vi.clearAllMocks());
@@ -18,6 +20,8 @@ describe("chess puzzle api", () => {
 
     await fetchPuzzleCatalog();
     await fetchNextPuzzle("player/name", 1600, "fork");
+    await fetchPuzzle("puzzle/id");
+    await fetchPuzzleSolution("puzzle/id");
 
     expect(chessClient.chessGet).toHaveBeenNthCalledWith(1, "/puzzles/catalog");
     expect(chessClient.chessGet).toHaveBeenNthCalledWith(2, "/puzzles/next", {
@@ -25,6 +29,8 @@ describe("chess puzzle api", () => {
       rating: 1600,
       theme: "fork",
     });
+    expect(chessClient.chessGet).toHaveBeenNthCalledWith(3, "/puzzles/puzzle%2Fid");
+    expect(chessClient.chessGet).toHaveBeenNthCalledWith(4, "/puzzles/puzzle%2Fid/solution");
   });
 
   it("submits the server-owned solution ply and idempotency key", async () => {

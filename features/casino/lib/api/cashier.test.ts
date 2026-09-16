@@ -9,6 +9,7 @@ import {
   hasPositiveUsdc,
   isCashierAccessDenied,
   isCashierUnavailable,
+  isChessDepositPending,
   normalizeUsdcAmount,
   parseUsdcAmount,
   wagerBreakdown,
@@ -74,7 +75,7 @@ describe("computerWagerBreakdown", () => {
         houseExposure: exposure,
         fee,
         potentialPayout: payout,
-        drawPayout: "5",
+        drawPayout: "0",
         balanceAfter: "10",
         sufficient: true,
       });
@@ -87,12 +88,8 @@ describe("computerWagerBreakdown", () => {
     }
   });
 
-  it("quotes chess levels five to eight at twice the stake", () => {
-    for (const level of [1, 2, 3, 4]) {
-      expect(chessComputerWagerBreakdown("10", "20", level)).toBeNull();
-    }
-
-    for (const level of [5, 6, 7, 8]) {
+  it("quotes every selected chess level at the forced level-eight payout", () => {
+    for (const level of [1, 2, 3, 4, 5, 6, 7, 8]) {
       expect(chessComputerWagerBreakdown("10", "20", level)).toMatchObject({
         houseExposure: "10",
         fee: "0",
@@ -101,6 +98,8 @@ describe("computerWagerBreakdown", () => {
         rewardPercent: 100,
       });
     }
+    expect(chessComputerWagerBreakdown("10", "20", 0)).toBeNull();
+    expect(chessComputerWagerBreakdown("10", "20", 9)).toBeNull();
     expect(chessComputerWagerBreakdown("0.000001", "20", 8)).toMatchObject({
       youLock: "0.000001",
       houseExposure: "0.000001",
@@ -146,6 +145,38 @@ describe("isCashierAccessDenied", () => {
     expect(isCashierAccessDenied(apiError("CONFLICT", "not configured", 409))).toBe(false);
     expect(isCashierAccessDenied(apiError("SERVICE_UNAVAILABLE", "gateway down", 502))).toBe(false);
     expect(isCashierAccessDenied(new Error("network"))).toBe(false);
+  });
+});
+
+describe("isChessDepositPending", () => {
+  it("accepts only receipt and confirmation races", () => {
+    expect(
+      isChessDepositPending(apiError("CONFLICT", "deposit transaction receipt not found yet", 409))
+    ).toBe(true);
+    expect(
+      isChessDepositPending(apiError("CONFLICT", "deposit has 1 confirmation(s); need 2", 409))
+    ).toBe(true);
+    // Keep compatibility with a backend instance from before pending receipts
+    // were corrected from 400 to 409.
+    expect(
+      isChessDepositPending(
+        apiError("BAD_REQUEST", "deposit transaction receipt not found yet", 400)
+      )
+    ).toBe(true);
+  });
+
+  it("rejects terminal deposit validation failures", () => {
+    expect(
+      isChessDepositPending(
+        apiError(
+          "BAD_REQUEST",
+          "transaction did not transfer USDC from this player to the backend wallet",
+          400
+        )
+      )
+    ).toBe(false);
+    expect(isChessDepositPending(apiError("BAD_REQUEST", "invalid txHash", 400))).toBe(false);
+    expect(isChessDepositPending(new Error("network failed"))).toBe(false);
   });
 });
 

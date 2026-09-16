@@ -133,9 +133,11 @@ function sponsorPairsFor(
 // A bundler-sponsorship policy answers the paymaster path "Unsupported Policy
 // Type"; that pair can never serve this path, the same as a missing policy.
 const PAIR_REJECTED =
-  /policy not found|policy id\(s\) not found|unsupported policy type|must be authenticated|not authorized|unauthorized|invalid api key/i;
+  /policy not found|policy id\(s\) not found|unsupported policy type|does not support bundler sponsorship|must be authenticated|not authorized|unauthorized|invalid api key/i;
 
 function pairCannotServe(status: number, text: string): "capacity" | "rejected" | null {
+  // BSO returns the spending-limit failure inside a 200, while the paymaster
+  // path can return the same condition as an HTTP 429.
   if ((status === 429 || status === 200) && MONTHLY_CAPACITY_EXHAUSTED.test(text)) {
     return "capacity";
   }
@@ -226,24 +228,40 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
 
   try {
     let last: { response: Response; text: string } | null = null;
+    let lastNetworkError: unknown = null;
     // A pair that is misconfigured (no policy, wrong type) could never have
     // served; if any pair that could serve is out of capacity, capacity is
     // the true reason nothing sponsored.
     let anyExhausted = false;
     for (const pair of pairs) {
-      const response = await fetch(`https://${target.alchemyHost}/v2/${pair.key}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(target.sponsorshipMode === "bso" && needsPolicy
-            ? { "x-alchemy-policy-id": pair.policyId }
-            : {}),
-        },
-        body: JSON.stringify(bodyFor(pair.policyId)),
-        signal: AbortSignal.timeout(30_000),
-        cache: "no-store",
-      });
-      const text = await response.text();
+      let response: Response;
+      let text: string;
+      try {
+        response = await fetch(`https://${target.alchemyHost}/v2/${pair.key}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(target.sponsorshipMode === "bso" && needsPolicy
+              ? { "x-alchemy-policy-id": pair.policyId }
+              : {}),
+          },
+          body: JSON.stringify(bodyFor(pair.policyId)),
+          signal: AbortSignal.timeout(30_000),
+          cache: "no-store",
+        });
+        text = await response.text();
+      } catch (error) {
+        // A network failure is not evidence that the account or policy is
+        // unusable. Continue through the independent key pool before making
+        // the user retry the operation.
+        lastNetworkError = error;
+        markAlchemyKeyBlocked(pair.key, RATE_LIMIT_COOLDOWN_MS);
+        console.warn(
+          `Alchemy sponsorship for ${network}: pair ${pair.index} could not be reached, trying the next`,
+          error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 200) : "Unknown error"
+        );
+        continue;
+      }
       const verdict = pairCannotServe(response.status, text);
       if (verdict === null) {
         logRpcErrors(network, calls, text);
@@ -272,6 +290,10 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
       last = { response, text };
     }
 
+    // A failed fetch leaves that pair's capacity unknown. If no later pair
+    // succeeded, report a retryable provider outage instead of incorrectly
+    // claiming that every sponsorship account is exhausted.
+    if (lastNetworkError) throw lastNetworkError;
     if (!last) throw new Error("No Alchemy pair could be tried");
     if (anyExhausted) {
       // The one condition here that is an operations alarm, not weather: no
@@ -296,7 +318,8 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
     });
   } catch (error) {
     console.error(`Alchemy bundler proxy failed for ${network}:`, error);
-    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    const timedOut =
+      error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError");
     return NextResponse.json(
       {
         error: timedOut ? "Alchemy bundler timed out" : "Alchemy bundler is unavailable",

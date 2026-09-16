@@ -110,3 +110,10 @@ export function hasGasPolicyForNetwork(network: string): boolean {
 export function hasGasPolicyForChainId(chainId: number): boolean {
   return BY_CHAIN_ID.get(chainId)?.gasPolicy ?? false;
 }
+
+// Whether a send on this network costs the wallet nothing. Solana sits outside
+// the EVM registry but is sponsored all the same, and every caller deciding
+// "does this wallet need its own gas" wants both halves of that answer.
+export function isFeeSponsoredNetwork(network: string): boolean {
+  return network === "solana-mainnet" || hasGasPolicyForNetwork(network);
+}

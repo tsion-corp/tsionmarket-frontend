@@ -20,6 +20,7 @@ describe("sectionForPathname", () => {
   });
 
   it("falls back to the account home", () => {
+    expect(sectionForPathname("/portfolio")).toBe("portfolio");
     expect(sectionForPathname("/dashboard")).toBe("portfolio");
     expect(sectionForPathname("/")).toBe("portfolio");
     expect(sectionForPathname(null)).toBe("portfolio");
@@ -34,50 +35,36 @@ describe("orderedSections", () => {
     expect(new Set(order).size).toBe(order.length);
   });
 
-  it("leaves perpetuals out of the navigation, like earn", () => {
-    // The desk stays reachable at /perps; it is only not offered from the
-    // rail, the tab bar, the marquee or the dashboard briefs for now.
-    expect(orderedSections(null)).not.toContain("perps");
-    expect(orderedSections("perps")).not.toContain("perps");
-  });
-
-  it("falls back to the default order for the perps interest", () => {
-    expect(orderedSections("perps")).toEqual(orderedSections(null));
+  // Production hides perpetuals (#382). Staging is where the desk is
+  // exercised, so here it is in the nav and the perps interest leads with it.
+  it("offers perpetuals in the navigation on staging", () => {
+    expect(orderedSections(null)).toContain("perps");
+    expect(orderedSections("perps")[1]).toBe("perps");
+    expect(sectionForPathname("/perps")).toBe("perps");
   });
 });
 
-// TEMPORARY: real assets are hidden from the nav for now. The rail, the tab
-// bar, the marquee and the dashboard briefs all follow this order, so they
-// drop it together; /rwa itself is unchanged.
-describe("real assets hidden from the navigation", () => {
-  it("is absent from the default order and every interest that pointed at it", () => {
-    expect(orderedSections(null)).not.toContain("rwa");
+// Production hides real assets for now; staging shows them, and the
+// interests that point at them lead with them.
+describe("real assets in the navigation on staging", () => {
+  it("is offered, and led with for the interests that point at it", () => {
+    expect(orderedSections(null)).toContain("rwa");
     for (const interest of ["stocks", "gold", "yield", "realestate", "treasuries"]) {
-      expect(orderedSections(interest)).not.toContain("rwa");
-      expect(orderedSections(interest)).toEqual(orderedSections(null));
+      expect(orderedSections(interest)[1]).toBe("rwa");
     }
   });
 });
 
-/**
- * Prediction is hidden on production alongside perps, real assets and earn.
- * The section keeps its route, so a link someone already holds still resolves
- * and the shell still lights the right entry; it just has no way in from the
- * navigation, and neither the dashboard brief nor the marquee item, both of
- * which follow the nav.
- */
-describe("prediction hidden from the navigation", () => {
-  it("is absent from the default order and from its own interest", () => {
-    expect(orderedSections(null)).not.toContain("prediction");
-    expect(orderedSections("prediction")).not.toContain("prediction");
+// The Market Square page. Its rail entry keeps its own seat between Prediction
+// and Arkade rather than joining the reorderable list, so the section is a
+// route fact for the highlight and nothing more.
+describe("the square section", () => {
+  it("is a section whose route is /square", () => {
+    expect(SECTION_ROUTES.square).toBe("/square");
+    expect(sectionForPathname("/square")).toBe("square");
   });
 
-  it("falls back to the default order for the prediction interest", () => {
-    expect(orderedSections("prediction")).toEqual(orderedSections(null));
-  });
-
-  it("keeps its route, so an existing link still resolves", () => {
-    expect(SECTION_ROUTES.prediction).toBe("/prediction");
-    expect(sectionForPathname("/prediction/event/abc-123")).toBe("prediction");
+  it("stays out of the reorderable list, which the rail seats by hand", () => {
+    expect(orderedSections(null)).not.toContain("square");
   });
 });

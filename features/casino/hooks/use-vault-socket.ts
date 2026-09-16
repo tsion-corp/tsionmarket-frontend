@@ -4,6 +4,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { VaultActivity, VaultGame } from "@/features/casino/lib/vault-api";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
+import { formatAtScale } from "@/features/casino/lib/last-standing/pricing";
 import {
   noteSettlement,
   settlementFromFrame,
@@ -97,30 +98,33 @@ interface GameSettledFrame {
   transactionHash?: string;
 }
 
-// The pot and wager arrive as wei on the socket but as USD-enriched Money over
+// Amounts arrive as raw base units on the socket but as USD-enriched Money over
 // REST. Rather than invent a USD figure the socket cannot know, the amount is
-// converted and the USD fields are carried over from the value already on
-// screen, scaled by how much the pot grew. The next REST read corrects it.
-function weiToEth(wei: string): string {
+// converted AT THE GAME'S OWN SCALE and the USD is scaled by how much the pot
+// grew. The next REST read corrects it.
+//
+// The scale comes from the row already on screen, which carries the asset. It
+// used to be a hard-coded 18: a 0.38 USDC pot read that way is
+// 0.00000000000038, which prices to $0.00 and reads as an empty game.
+function rawToAmount(raw: string, decimals: number): string {
   try {
-    const value = BigInt(wei);
-    const whole = value / 10n ** 18n;
-    const fraction = (value % 10n ** 18n).toString().padStart(18, "0").replace(/0+$/, "");
-    return fraction ? `${whole}.${fraction}` : `${whole}`;
+    return formatAtScale(BigInt(raw), decimals);
   } catch {
     return "0";
   }
 }
 
-function scaledUsd(previous: VaultGame["pot"], nextAmount: string): VaultGame["pot"] {
+function scaledUsd(previous: VaultGame["pot"], nextRaw: string): VaultGame["pot"] {
+  const nextAmount = rawToAmount(nextRaw, previous.decimals ?? 18);
   const before = Number(previous.amount);
   const after = Number(nextAmount);
   const usd = before > 0 && Number.isFinite(after) ? (previous.usdValue / before) * after : 0;
   return {
+    ...previous,
     amount: nextAmount,
-    tokenSymbol: previous.tokenSymbol,
+    raw: nextRaw,
     usdValue: usd,
-    formattedUsd: `$${usd.toFixed(2)}`,
+    formattedUsd: usd > 0 ? `$${usd.toFixed(2)}` : "—",
   };
 }
 
@@ -130,7 +134,7 @@ function applyWager(client: QueryClient, frame: WagerPlacedFrame): void {
     king: frame.player,
     endTime: frame.newEndTime,
     timeRemaining: Math.max(0, frame.newEndTime - Math.floor(Date.now() / 1000)),
-    pot: scaledUsd(game.pot, weiToEth(frame.newPotWei)),
+    pot: scaledUsd(game.pot, frame.newPotWei),
   });
 
   client.setQueryData<VaultGame>(VAULT_KEYS.game(frame.gameId), (game) =>

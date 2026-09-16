@@ -23,6 +23,19 @@ export interface TokenAmount {
   tokenSymbol: string;
   usdValue: number;
   formattedUsd: string;
+  /**
+   * The asset and its own scale, added by v5 because decimals are PER GAME now:
+   * one lobby holds 18-decimal native games beside 6-decimal USDC ones.
+   *
+   * `raw` is the amount in the asset's smallest unit and the ONLY field safe for
+   * arithmetic. `amount` is already formatted at the game's own scale — prefer
+   * it for display, and never re-format it against a constant 18.
+   *
+   * Optional because an older service omits them; absent means native at 18.
+   */
+  raw?: string;
+  token?: string;
+  decimals?: number;
 }
 
 // One running or settled game. `endTime` is unix seconds, which is what makes a
@@ -85,15 +98,24 @@ const vault = createServiceClient("/api/vault", "The vault is unavailable right 
   timeoutMs: 15_000,
 });
 
-/** The lobby: games currently accepting joins, newest first. */
+/**
+ * The lobby: games currently accepting joins, newest first.
+ *
+ * Reads /api/vault/lobby, which asks the SERVICE first and only reads the chain
+ * when the service's index answers with nothing at all. The service is the
+ * source of truth: it prices amounts, knows settled history and carries the
+ * contract each row belongs to. The chain is the safety net for the window
+ * where the index trails the head, and it is skipped entirely whenever the
+ * service has rows. `source` says which answered.
+ */
 export async function fetchActiveGames(): Promise<VaultGame[]> {
-  const data = await vault.get<{ games: unknown }>("/games");
+  const data = await vault.get<{ games: unknown; source?: string }>("/lobby");
   const rows = onlyVaultGames(data.games);
   const total = Array.isArray(data.games) ? data.games.length : 0;
   if (rows.length !== total) {
-    console.warn(`[vault] dropped ${total - rows.length} /games row(s) not in the API shape`);
+    console.warn(`[vault] dropped ${total - rows.length} lobby row(s) not in the API shape`);
   }
-  vaultLog("REST /games", { games: rows.map((g) => g.gameId) });
+  vaultLog("REST /lobby", { source: data.source, games: rows.map((g) => g.gameId) });
   return rows;
 }
 
@@ -122,9 +144,26 @@ export function isVaultNotFound(error: unknown): boolean {
 // The owner-tunable contract parameters, read by the service from the chain
 // and cached there. Every one of them has changed since deployment, so the
 // screens read them rather than assume.
+export interface VaultAsset {
+  token: string;
+  symbol: string;
+  decimals: number;
+  /** The floor to START a game in this asset, in its own smallest unit. */
+  minStartStakeWei: string;
+  /** False means no NEW games in it; games already running still settle. */
+  enabled: boolean;
+}
+
 export interface VaultConfig {
   contract: string;
+  /**
+   * The native floor. v5 has a floor PER ASSET, in `assets`, and this field is
+   * the native one kept for older clients — reading it for a USDC game quotes
+   * a 0.0002 ETH stake against a 6-decimal token.
+   */
   minStartStakeWei: string;
+  /** The asset allowlist. Absent on an older service, which was native-only. */
+  assets?: VaultAsset[];
   /** Round length in seconds; a wager resets the clock to this. */
   timerSeconds: number;
   winnerBps: number;
@@ -137,6 +176,7 @@ export async function fetchVaultConfig(): Promise<VaultConfig> {
   const data = await vault.get<VaultConfig>("/config");
   vaultLog("REST /config", {
     minStartStakeWei: data.minStartStakeWei,
+    assets: data.assets?.map((asset) => [asset.symbol, asset.minStartStakeWei, asset.enabled]),
     timerSeconds: data.timerSeconds,
     split: [data.winnerBps, data.starterBps, data.treasuryBps],
     paused: data.paused,
@@ -144,13 +184,22 @@ export async function fetchVaultConfig(): Promise<VaultConfig> {
   return data;
 }
 
-// One wallet's standing. `pendingWei` is what settle() could not push and
-// claim() collects; the service reads it from the contract on every call, so
-// it is authoritative without the browser making the read itself.
+// One wallet's standing.
+//
+// What settle() could not push is money the player still has to collect, and
+// from v5 on it is a LIST: a wallet can be owed in more than one asset at once,
+// and claim() takes the asset. `pendingWei`/`pending` are the native entry,
+// kept by the service for older clients — enough for a v4 client, not enough
+// for a correct v5 one, because a USDC payout never appears in them.
+//
+// The service reads all of it from the contract on every call, so it is
+// authoritative without the browser making the read itself.
 export interface VaultPlayer {
   address: string;
   pendingWei: string;
   pending: TokenAmount;
+  /** Absent on an older service; treat that as "only the native entry is known". */
+  pendingByAsset?: TokenAmount[];
   gamesStarted: number;
   gamesWon: number;
   paidWei: string;
@@ -162,6 +211,28 @@ export async function fetchVaultPlayer(address: string): Promise<VaultPlayer> {
   const data = await vault.get<VaultPlayer>(`/players/${address}`);
   vaultLog("REST /players", { address, pendingWei: data.pendingWei, gamesWon: data.gamesWon });
   return data;
+}
+
+/**
+ * Hands the service a hash the wallet just sent, so it can index the
+ * transaction without waiting for its own poll to reach that block.
+ *
+ * This is what the contract offers in place of polling a receipt and decoding
+ * GameStarted to learn our own gameId. We still read the receipt, because we
+ * need to know the transaction confirmed at all, but telling the service
+ * closes the window where a game someone has just paid for is not yet in
+ * /games — which is the window the chain fallback exists for.
+ *
+ * Fire and forget: the game is on chain either way, and a service that cannot
+ * take the hash must not fail the player's start.
+ */
+export async function registerVaultTransaction(hash: string): Promise<void> {
+  try {
+    await vault.publicPost("/transactions", { hash });
+    vaultLog("REST POST /transactions", { hash });
+  } catch (error) {
+    vaultLog("REST POST /transactions failed", { hash, error: String(error) });
+  }
 }
 
 export async function fetchVaultWinners(): Promise<VaultWinner[]> {

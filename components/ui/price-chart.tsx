@@ -16,7 +16,8 @@ interface PriceChartProps {
   points: (AreaPoint | CandlePoint)[];
   type?: "area" | "candles";
   height?: number;
-  up?: boolean;
+  /** true draws green, false red; null is a direction nobody published, drawn neutral. */
+  up?: boolean | null;
 }
 
 // The chart library throws on a repeated or out-of-order timestamp rather than
@@ -31,6 +32,9 @@ function ordered(points: (AreaPoint | CandlePoint)[]): (AreaPoint | CandlePoint)
   return [...byTime.values()].sort((a, b) => a.time - b.time);
 }
 
+// An unknown direction is neither a gain nor a loss.
+const NEUTRAL = "#E6E6E6";
+
 export function PriceChart({ points, type = "area", height = 260, up = true }: PriceChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +43,7 @@ export function PriceChart({ points, type = "area", height = 260, up = true }: P
     const data = ordered(points);
     if (!container || data.length === 0) return;
 
-    const accent = up ? "#7CE7B0" : "#F6A5A5";
+    const accent = up === null ? NEUTRAL : up ? "#7CE7B0" : "#F6A5A5";
     const chart: IChartApi = createChart(container, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
@@ -69,7 +73,12 @@ export function PriceChart({ points, type = "area", height = 260, up = true }: P
     } else {
       const series = chart.addSeries(AreaSeries, {
         lineColor: accent,
-        topColor: up ? "rgba(124,231,176,0.25)" : "rgba(246,165,165,0.25)",
+        topColor:
+          up === null
+            ? "rgba(230,230,230,0.14)"
+            : up
+              ? "rgba(124,231,176,0.25)"
+              : "rgba(246,165,165,0.25)",
         bottomColor: "rgba(0,0,0,0)",
         lineWidth: 2,
       });

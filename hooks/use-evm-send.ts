@@ -32,7 +32,7 @@ export interface EvmSendInput {
 // through the 7702 + bundler flow; unsupported chains keep the normal EOA send
 // path. The sponsored path already waits for the userOp receipt, so callers can
 // treat its returned transaction hash as confirmed.
-const EIP7702_REFUSED = /EIP-7702 is not supported|Invalid fields set on User Operation/i;
+const EIP7702_REFUSED = /EIP-7702 is not supported/i;
 
 function refusesEip7702(error: unknown): boolean {
   return EIP7702_REFUSED.test(error instanceof Error ? error.message : String(error));

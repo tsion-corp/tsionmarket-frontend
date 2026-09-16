@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { wsapiService } from "@/lib/wsapi-base";
-import { isProxiedVaultRead } from "@/lib/api/vault-proxy-paths";
+import { isSafeProxyPath } from "@/lib/server/proxy-path";
+import { isProxiedVaultRead, isProxiedVaultWrite } from "@/lib/api/vault-proxy-paths";
 
 // Server-side proxy for the world-street-vault game API. The gateway now sends
 // CORS headers, so a browser could call it directly; the proxy stays because
@@ -34,6 +35,12 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   }
 
   const joined = path.join("/");
+  if (!isSafeProxyPath(joined)) {
+    return NextResponse.json(
+      { success: false, error: { code: "BAD_REQUEST", message: "Invalid path" } },
+      { status: 400 }
+    );
+  }
   // Only the public read endpoints are proxied; see lib/api/vault-proxy-paths.
   if (!isProxiedVaultRead(joined)) {
     return NextResponse.json(
@@ -70,6 +77,53 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
     });
   } catch (error) {
     console.error("Vault proxy failed:", error);
+    return NextResponse.json(
+      { success: false, error: { code: "UPSTREAM_ERROR", message: "Vault request failed" } },
+      { status: 502 }
+    );
+  }
+}
+
+/**
+ * The one write the proxy forwards: handing the service a hash the wallet just
+ * sent, so it can report back what that transaction turned out to be.
+ *
+ * This is what replaces polling a receipt and decoding GameStarted to learn our
+ * own gameId. Nothing is cached — a hash is handed over once — and no identity
+ * is injected: the service treats it as a public claim about a public
+ * transaction, and verifies it against the chain itself.
+ */
+export async function POST(req: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
+  const { path } = await ctx.params;
+  if (!BASE) {
+    return NextResponse.json(
+      { success: false, error: { code: "NOT_CONFIGURED", message: "Vault isn't configured" } },
+      { status: 503 }
+    );
+  }
+
+  const joined = path.join("/");
+  if (!isSafeProxyPath(joined) || !isProxiedVaultWrite(joined)) {
+    return NextResponse.json(
+      { success: false, error: { code: "NOT_FOUND", message: "Not found" } },
+      { status: 404 }
+    );
+  }
+
+  try {
+    const res = await fetch(`${BASE}/${joined}`, {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/json" },
+      body: await req.text(),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    });
+    return new NextResponse(await res.text(), {
+      status: res.status,
+      headers: { "content-type": "application/json" },
+    });
+  } catch (error) {
+    console.error("Vault proxy write failed:", error);
     return NextResponse.json(
       { success: false, error: { code: "UPSTREAM_ERROR", message: "Vault request failed" } },
       { status: 502 }

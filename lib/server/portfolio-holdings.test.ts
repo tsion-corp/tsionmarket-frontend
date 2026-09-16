@@ -60,6 +60,52 @@ describe("readHoldings", () => {
     vi.useRealTimers();
   });
 
+  /**
+   * Base's allowed set grew from about a hundred contracts to several
+   * thousand when the memecoin catalogue started paging, and the whole set
+   * went into ONE Multicall3 request. Both read providers answered 413, the
+   * network was dropped from the sweep, and the portfolio lost every Base
+   * balance — the cash row included, so a wallet holding 5.92 USDC read as
+   * $0.02. Observed on staging on 2026-09-15.
+   */
+  it("splits a large contract list across requests rather than sending one oversized batch", async () => {
+    const { CONTRACTS_PER_MULTICALL } = await import("./portfolio-holdings");
+    const many = Array.from(
+      { length: CONTRACTS_PER_MULTICALL + 2 },
+      (_, i) => `0x${(i + 1).toString(16).padStart(40, "0")}`
+    );
+    // The last contract is the only one with a balance, so a reader that
+    // silently dropped the overflow would return no token rows at all.
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(answerBatch(0n, Array(CONTRACTS_PER_MULTICALL).fill(0n)))
+      .mockResolvedValueOnce(
+        json(200, [{ jsonrpc: "2.0", id: 1, result: aggregate3Result([0n, 9n]) }])
+      );
+    const { readHoldings } = await import("./portfolio-holdings");
+
+    const rows = await readHoldings(WALLET, "base-mainnet", many);
+
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+    // Every request stays within the cap that the providers accept.
+    for (const call of vi.mocked(fetch).mock.calls) {
+      for (const entry of bodyOf(call)) {
+        if (entry.method !== "eth_call") continue;
+        const { args } = decodeFunctionData({
+          abi: multicall3Abi,
+          data: (entry.params[0] as { data: `0x${string}` }).data,
+        });
+        expect((args?.[0] as unknown[]).length).toBeLessThanOrEqual(CONTRACTS_PER_MULTICALL);
+      }
+    }
+    // The balance in the overflow chunk is found, and attributed to the right
+    // contract rather than to whichever index it held inside its own chunk.
+    expect(rows).toContainEqual({
+      network: "base-mainnet",
+      tokenAddress: many[many.length - 1],
+      tokenBalance: "0x9",
+    });
+  });
+
   it("asks one batch per network: native balance plus a Multicall3 balanceOf for every allowed contract", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(answerBatch(10n ** 18n, [5_000_000n, 0n]));
     const { readHoldings, MULTICALL3 } = await import("./portfolio-holdings");
@@ -149,6 +195,17 @@ describe("readHoldings", () => {
     const { readHoldings } = await import("./portfolio-holdings");
     await readHoldings(WALLET, "base-mainnet", [USDC]);
     await readHoldings(WALLET, "base-mainnet", [USDC], true);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps snapshots separate when the allowed contract set changes", async () => {
+    vi.mocked(fetch).mockImplementation(async () => answerBatch(0n, [0n, 0n]));
+    const { readHoldings } = await import("./portfolio-holdings");
+
+    await readHoldings(WALLET, "base-mainnet", [USDC]);
+    await readHoldings(WALLET, "base-mainnet", [USDC, CBBTC]);
+    await readHoldings(WALLET, "base-mainnet", [USDC]);
+
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 });

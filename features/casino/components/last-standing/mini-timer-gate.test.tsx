@@ -38,14 +38,9 @@ describe("MiniTimerGate", () => {
     expect(await screen.findByTestId("host")).toBeInTheDocument();
   });
 
-  // It used to mount on every Arkade route so the launcher's click handler
-  // could reach the host inside the user gesture. That launcher is The Last
-  // Man's tile, hidden on production, so an Arkade route with nothing followed
-  // no longer pays for the wager stack.
-  it("mounts nothing on an arcade route with no game followed", async () => {
-    navigation.pathname = "/casino";
+  it("mounts the host on arcade routes so the launcher can reach it", async () => {
+    navigation.pathname = "/casino/last-standing";
     render(<MiniTimerGate />);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(screen.queryByTestId("host")).toBeNull();
+    expect(await screen.findByTestId("host")).toBeInTheDocument();
   });
 });

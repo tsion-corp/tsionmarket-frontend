@@ -15,7 +15,7 @@ import {
   serverPendingOnrampSnapshot,
   subscribePendingOnramp,
 } from "@/lib/pouch/pending";
-import { apiFetch } from "@/lib/api";
+import { fetchPouchRate, pouchPostWithAuth, pouchGetWithAuth } from "@/lib/api/services/funds";
 
 // Client hooks over the onramp proxy routes. The routes already return normalized
 // domain objects, so these hooks only type the response and surface errors.
@@ -26,25 +26,10 @@ import { apiFetch } from "@/lib/api";
 export function usePouchOnrampRate() {
   return useQuery<{ rate: number }>({
     queryKey: ["pouch-onramp-rate"],
-    queryFn: async () => {
-      const res = await apiFetch("/api/pouch/rate");
-      if (!res.ok) await readError(res, "Could not load the rate");
-      return res.json();
-    },
+    queryFn: () => fetchPouchRate(),
     staleTime: 5 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   });
-}
-
-async function readError(res: Response, fallback: string): Promise<never> {
-  let message = fallback;
-  try {
-    const body = await res.json();
-    if (body && typeof body.error === "string") message = body.error;
-  } catch {
-    // Non-JSON error body; keep the fallback.
-  }
-  throw new Error(message);
 }
 
 export interface CreateOnrampInput {
@@ -56,15 +41,8 @@ export interface CreateOnrampInput {
 
 export function useCreateOnramp() {
   return useMutation<OnrampCreation, Error, CreateOnrampInput>({
-    mutationFn: async ({ token, amountUsd, walletAddress }) => {
-      const res = await fetch("/api/pouch/onramp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ amountUsd, walletAddress }),
-      });
-      if (!res.ok) await readError(res, "We couldn't set up the transfer");
-      return res.json();
-    },
+    mutationFn: ({ token, amountUsd, walletAddress }) =>
+      pouchPostWithAuth<OnrampCreation>("/onramp", { amountUsd, walletAddress }, token),
   });
 }
 
@@ -122,12 +100,9 @@ export function useOnrampStatus(
       if (current && isTerminalOnrampStatus(current)) return false;
       return options.pollMs > 0 ? options.pollMs : false;
     },
-    queryFn: async () => {
-      const res = await fetch(
-        `/api/pouch/onramp/status?sessionId=${encodeURIComponent(sessionId!)}`
-      );
-      if (!res.ok) await readError(res, "Could not check the transfer");
-      return res.json();
-    },
+    queryFn: () =>
+      pouchGetWithAuth<OnrampStatusResult>("/onramp/status", {
+        sessionId: sessionId!,
+      }),
   });
 }

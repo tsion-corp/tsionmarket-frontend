@@ -9,7 +9,6 @@ import { LanguageSelect } from "@/components/ui/language-select";
 import { InviteFriendsModal } from "@/features/referrals";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
-import { WalletAddresses } from "@/components/layout/modals/wallet-addresses";
 import { toast } from "@/lib/toast";
 
 interface AccountModalProps {
@@ -91,10 +90,6 @@ export function AccountModal({ onClose }: AccountModalProps) {
           <div className="truncate text-[12.5px] font-normal text-white/50">{profile.email}</div>
         </div>
       </div>
-      {/* The addresses come FIRST of the sections: this sheet is opened from
-          the wallet line in the header, so the address is what the reader came
-          for — settings are what they scroll past on the way. */}
-      <WalletAddresses user={user ?? null} />
 
       {/* Language lives here on a phone, where the header has no room for it.
           The desktop header still carries its own picker. */}

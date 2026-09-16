@@ -25,14 +25,27 @@ export function SquareAvatar({
   seed,
   name,
   size = 40,
+  shape = "circle",
 }: {
   src: string | null;
   seed: string;
   name?: string | null;
   size?: number;
+  /**
+   * The Square draws its avatars as squircles (a 25% radius) and, on a card
+   * with a photo box of its own, fills that box edge to edge. The circle is
+   * this app's dashboard reading of the same person.
+   */
+  shape?: "circle" | "squircle" | "fill";
 }) {
   const [failed, setFailed] = useState(false);
-  const style = { width: size, height: size };
+  const style = shape === "fill" ? undefined : { width: size, height: size };
+  const frame =
+    shape === "fill"
+      ? "block h-full w-full shrink-0 object-cover"
+      : shape === "squircle"
+        ? "shrink-0 rounded-[25%] object-cover"
+        : "ring-grey-800 shrink-0 rounded-full object-cover ring-1";
 
   if (src && !failed) {
     return (
@@ -44,7 +57,7 @@ export function SquareAvatar({
         loading="lazy"
         decoding="async"
         onError={() => setFailed(true)}
-        className="ring-grey-800 shrink-0 rounded-full object-cover ring-1"
+        className={frame}
       />
     );
   }
@@ -53,14 +66,7 @@ export function SquareAvatar({
   if (artwork) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a local static asset, sized by the caller
-      <img
-        src={artwork}
-        alt=""
-        style={style}
-        loading="lazy"
-        decoding="async"
-        className="ring-grey-800 shrink-0 rounded-full object-cover ring-1"
-      />
+      <img src={artwork} alt="" style={style} loading="lazy" decoding="async" className={frame} />
     );
   }
 
@@ -70,7 +76,9 @@ export function SquareAvatar({
     <span
       style={style}
       aria-hidden
-      className="bg-grey-800 text-grey-500 ring-grey-700 grid shrink-0 place-items-center rounded-full ring-1"
+      className={`bg-grey-800 text-grey-500 ring-grey-700 grid shrink-0 place-items-center ring-1 ${
+        shape === "fill" ? "h-full w-full" : shape === "squircle" ? "rounded-[25%]" : "rounded-full"
+      }`}
     >
       <svg viewBox="0 0 24 24" className="h-1/2 w-1/2">
         <path

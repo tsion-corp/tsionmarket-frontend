@@ -13,13 +13,13 @@ import { useSell } from "@/features/trade/hooks/use-sell";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
-import { nativeSendCost } from "@/lib/trade/native-gas";
+import { canPayNativeFee, nativeSendCost } from "@/lib/trade/native-gas";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
-import { friendlyError, supportDetail, isStaleBalanceRevert } from "@/lib/errors";
+import { friendlyError, isGasFeeError, supportDetail, isStaleBalanceRevert } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
 // 1% price tolerance, hidden from the UI.
@@ -31,12 +31,21 @@ const DECIMAL = /^\d*\.?\d*$/;
 interface SellSheetProps {
   payload: SellPayload;
   onClose: () => void;
+  /**
+   * Opening amount, in the asset being sold.
+   *
+   * The spot ticket's field is already denominated in the coin on the sell leg,
+   * so whatever was typed there is a valid sell amount and the sheet starts on
+   * it. Omitted everywhere else, where the sheet is the first place an amount
+   * is asked for.
+   */
+  initialAmount?: string;
 }
 
-export function SellSheet({ payload, onClose }: SellSheetProps) {
+export function SellSheet({ payload, onClose, initialAmount = "" }: SellSheetProps) {
   const t = useTranslations("buySell");
   const portfolio = usePortfolio();
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initialAmount);
   const [maxRequested, setMaxRequested] = useState(false);
   const sell = useSell();
 
@@ -50,14 +59,12 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   // A chain whose native token we cannot name is treated as having gas: we
   // cannot prove the wallet is short of a token we cannot identify, and refusing
   // the sale on that guess blocks someone who is holding plenty.
-  const hasGas = useMemo(
+  const nativeBalance = useMemo(
     () =>
-      sponsored ||
-      nativeSym === null ||
-      portfolio.tokens.some(
-        (t) => t.network === payload.network && t.symbol === nativeSym && t.balance > 0
-      ),
-    [sponsored, portfolio.tokens, payload.network, nativeSym]
+      portfolio.tokens.find(
+        (t) => t.network === payload.network && t.symbol === nativeSym && t.address === null
+      )?.balance ?? 0,
+    [portfolio.tokens, payload.network, nativeSym]
   );
 
   // Selling a chain's own gas token pays the fee out of the same balance, so the
@@ -67,13 +74,22 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
   // and holding back several dollars of an eighty-dollar token. A chain with no
   // read node, or a node that will not answer, falls back to the sized reserve.
   const sellsNativeToken = payload.address === null && !sponsored;
+  // Measured wherever the sender pays, not only when selling the gas token
+  // itself: the same figure answers "what must this wallet hold to send at
+  // all", which is what the hint below is for.
   const measuredGas = useQuery({
     queryKey: ["nativeSendCost", payload.network],
     queryFn: () => nativeSendCost(payload.network),
-    enabled: sellsNativeToken,
+    enabled: !sponsored && nativeSym !== null,
     staleTime: 30_000,
     retry: 1,
   });
+
+  // A chain whose native token we cannot name is treated as having gas: we
+  // cannot prove the wallet is short of a token we cannot identify, and
+  // refusing the sale on that guess blocks someone who is holding plenty.
+  const hasGas =
+    sponsored || nativeSym === null || canPayNativeFee(nativeBalance, measuredGas.data);
 
   const maxSell =
     sellsNativeToken && measuredGas.data !== undefined
@@ -237,7 +253,15 @@ export function SellSheet({ payload, onClose }: SellSheetProps) {
       ) : null}
       {sell.error ? (
         <p className="text-down mt-3 text-[13px] font-normal">
-          {friendlyError(sell.error, t("saleFailedFallback"))}
+          {/* A fee failure names the coin and the chain to top up. The generic
+              message is shared by every chain and can only say "the network's
+              coin", which leaves the reader to work out which one. The sheet
+              knows, so it says it: reported from staging on 2026-09-12, where
+              a USD₮0 sale on HyperEVM, a chain with no sponsorship, failed for
+              gas. */}
+          {isGasFeeError(sell.error) && nativeSym
+            ? t("needGasFee", { symbol: nativeSym, network: chainLabel })
+            : friendlyError(sell.error, t("saleFailedFallback"))}
           {/* The raw reason as sized fine print: support can act on it, and a
               masked failure is undebuggable from a screenshot — but a Solana
               simulation dump is pages long, so it is collapsed and capped. */}

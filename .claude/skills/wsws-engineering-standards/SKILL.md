@@ -62,8 +62,9 @@ These are the rules for building the Worldstreet SuperApp frontend. They apply t
 
 - `CONTRIBUTING.md` is the practical workflow: setup, where code goes, and how a change reaches `main`. Point new contributors there first.
 - One issue, one branch, one pull request. Keep the scope of a PR equal to the scope of its issue.
-- Branch off `main`. Never push to `main` directly. Feature branches use a clear prefix: `feat/`, `fix/`, `chore/`.
-- Open PRs against `main`. The `quality` CI check (format, lint, test, build) must pass before a PR can merge. `main` is the single long-lived branch and is protected: no direct pushes (admins included), and only squash merges are allowed.
+- Branch off `dev`, or off the long-lived branch the change is destined for. Never push to `dev`, `staging` or `main` directly. Feature branches use a clear prefix: `feat/`, `fix/`, `chore/`.
+- Open PRs against the branch you cut from. The `quality` CI check (format, lint, test, build) must pass before a PR can merge. All three long-lived branches are protected: no direct pushes (admins included), and only squash merges are allowed.
+- The three carry different sets. `dev` has everything the product has, feature and service alike, whether or not production serves it. `staging` is what the staging deployment runs. `main` is production, and carries only what the production gateway can serve, so a feature whose backend is not live there stays out of it.
 - All merges are squash merges. The branch is deleted on merge.
 - Every pull request gets a Vercel preview deployment. Open it. Reading a diff is not reviewing a UI change, and for anything touching money the flow gets exercised in the preview before approval.
 - A cross-feature import, a second transport, or a new per-service environment variable is a blocking review comment, not a nit.

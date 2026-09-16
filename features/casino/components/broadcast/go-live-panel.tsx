@@ -462,26 +462,25 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
         </>
       )}
 
-      {confirming ? (
-        <ConfirmDialog
-          title="Before you share your screen"
-          rows={[
-            { label: "What goes out", value: "The surface you pick" },
-            { label: "Where", value: "Market Square, public" },
-            { label: "Camera", value: "Off until you turn it on" },
-          ]}
-          warning={`A screen share broadcasts everything visible on the surface you choose, including notifications and other tabs. Pick the single tab holding ${copy.subject}, not your whole screen. Your browser asks you next, and you can stop at any time.`}
-          cancelLabel="Cancel"
-          continueLabel="Pick a surface"
-          onCancel={() => setConfirming(false)}
-          onContinue={() => {
-            setConfirming(false);
-            // Called straight out of this click so the screen picker still has
-            // the transient activation it requires.
-            void broadcast.start();
-          }}
-        />
-      ) : null}
+      <ConfirmDialog
+        open={confirming}
+        title="Before you share your screen"
+        rows={[
+          { label: "What goes out", value: "The surface you pick" },
+          { label: "Where", value: "Market Square, public" },
+          { label: "Camera", value: "Off until you turn it on" },
+        ]}
+        warning={`A screen share broadcasts everything visible on the surface you choose, including notifications and other tabs. Pick the single tab holding ${copy.subject}, not your whole screen. Your browser asks you next, and you can stop at any time.`}
+        cancelLabel="Cancel"
+        continueLabel="Pick a surface"
+        onCancel={() => setConfirming(false)}
+        onContinue={() => {
+          setConfirming(false);
+          // Called straight out of this click so the screen picker still has
+          // the transient activation it requires.
+          void broadcast.start();
+        }}
+      />
     </div>
   );
 }

@@ -108,6 +108,20 @@ describe("useEvmSend routing", () => {
     expect(sendTransaction).not.toHaveBeenCalled();
   });
 
+  it("does not turn a sponsorship limit into a user-paid transaction", async () => {
+    sendSponsoredEvmCallsWithReceipt.mockRejectedValueOnce(
+      new Error(
+        "Invalid fields set on User Operation. Details: This transaction's USD cost will put your team over your gas sponsorship Limit."
+      )
+    );
+    const { result } = renderHook(() => useEvmSend());
+
+    await expect(result.current({ to: "0xdead", data: "0xbeef", chainId: BASE })).rejects.toThrow(
+      /gas sponsorship Limit/i
+    );
+    expect(sendTransaction).not.toHaveBeenCalled();
+  });
+
   // A registry chain the key cannot reach has no policy in effect: the user
   // pays their own gas, which is a send that actually completes.
   it("routes registry chains with no policy through the normal EOA send", async () => {

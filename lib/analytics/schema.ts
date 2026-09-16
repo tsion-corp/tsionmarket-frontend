@@ -126,7 +126,14 @@ export const EVENT_SCHEMA: Record<AnalyticsEventName, EventSchema> = {
   ],
   trade_failed: [shape({ vertical: "string", asset: "string", reason: "string" })],
   trade_recording_mismatch: [
-    shape({ vertical: "string", asset: "string", swap_id: "string", recorded: "string" }),
+    shape({
+      vertical: "string",
+      asset: "string",
+      swap_id: "string",
+      recorded: "string",
+      "request_id?": "string",
+      "hash?": "string",
+    }),
   ],
 
   // Perpetuals

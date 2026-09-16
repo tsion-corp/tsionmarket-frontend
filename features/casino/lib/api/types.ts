@@ -44,6 +44,9 @@ export interface ChessComputerWager {
 export interface ChessComputerOpponent {
   player: string;
   name: string;
+  bot: boolean;
+  countryCode: string | null;
+  rating: number | null;
   side: "white" | "black";
   level: number;
   coachEnabled: boolean;
@@ -60,9 +63,8 @@ export type ChessColor = "w" | "b";
 export interface ChessPlayer {
   id: string;
   username: string;
-  // The backend now snapshots seat ratings onto rated matches. Null means the
-  // seat was not rated for this game (for example a casual board or a not-yet-
-  // seeded profile).
+  // The backend snapshots display ratings onto new matches. Null means the
+  // snapshot is unavailable, as with an engine seat or an older match.
   rating: number | null;
   provisional?: boolean | null;
   // Optional during rolling deploys from service versions that predate player profiles.
@@ -92,12 +94,32 @@ export interface ChessTimeExtensionState {
 }
 
 export type ChessMatchState = "awaiting_opponent" | "in_progress" | "settled" | "cancelled";
+export type ChessVariant =
+  | "standard"
+  | "chess960"
+  | "fromPosition"
+  | "kingOfTheHill"
+  | "threeCheck"
+  | "antichess"
+  | "atomic"
+  | "horde"
+  | "racingKings"
+  | "crazyhouse";
 
 export type ChessResult =
   | { kind: "checkmate"; winner: ChessColor }
   | { kind: "resignation"; winner: ChessColor }
   | { kind: "timeout"; winner: ChessColor }
-  | { kind: "draw"; reason: "stalemate" | "agreement" | "repetition" | "insufficient" };
+  | {
+      kind: "draw";
+      reason:
+        | "stalemate"
+        | "agreement"
+        | "repetition"
+        | "insufficient"
+        | "fifty_move_rule"
+        | "timeout_insufficient";
+    };
 
 export interface ChessTakebackState {
   white: boolean;
@@ -140,6 +162,24 @@ export interface ChessMatchComment {
   updatedAt: string;
 }
 
+export interface ChessRoundStep {
+  ply: number;
+  uci: string | null;
+  san: string | null;
+  fen: string;
+  check: boolean;
+  byPlayer: string | null;
+  clockMsRemaining: number | null;
+  createdAt: string | null;
+}
+
+export interface ChessRoundState {
+  steps: ChessRoundStep[];
+  legalMoves: string[];
+  check: boolean;
+  serverTime: string;
+}
+
 // A match is free unless it carries a stake: staked games settle server-side
 // through the chess cashier, so the client renders amounts but never moves
 // money itself.
@@ -154,11 +194,17 @@ export interface ChessMatch {
   // Present only when the other seat is controlled by the backend Stockfish
   // worker. The server owns the bot identity, side and strength.
   computer: ChessComputerOpponent | null;
+  variant: ChessVariant;
+  initialFen: string;
+  chess960Position: number | null;
   // Server-authoritative position. The client renders this; it never decides
   // legality itself.
   fen: string;
   // Full move history in SAN, oldest first.
   moves: string[];
+  // Lila-style board bootstrap used for exact replay and server-supplied legal
+  // destinations. Optional only while an older chess service is rolling out.
+  round?: ChessRoundState | null;
   // Seconds left on each clock at `clockUpdatedAt`, ticked locally between
   // server frames.
   clocks: Record<ChessColor, number>;
@@ -166,6 +212,10 @@ export interface ChessMatch {
   turn: ChessColor;
   // Set once the game ends.
   result: ChessResult | null;
+  // Preserve the service's authoritative terminal metadata so the UI can
+  // explain every ending instead of collapsing unknown draws to agreement.
+  resultReason?: string | null;
+  finishedAt?: string | null;
   // The colour with an outstanding draw offer, if any.
   drawOffered: ChessColor | null;
   // Pending takeback offer state, if the match type allows takebacks at all.
@@ -183,6 +233,8 @@ export interface ChessMatch {
   // The wager lifecycle as the service reports it (e.g. active, settled,
   // refunded); null for free games.
   wagerStatus: string | null;
+  // Snapshotted by the backend when the wager is created.
+  wagerFeeBps?: number | null;
   // WS-gateway topic carrying this match's live frames.
   liveTopic: string;
   createdAt: string;
@@ -199,16 +251,18 @@ export interface ChessChallenge {
   inviteCode: string | null;
   // Per-player USDC stake, null for a free game.
   stakeUsdc: string | null;
+  feeBps?: number | null;
 }
 
 export interface CreateChessChallengeInput {
   timeControl: ChessTimeControl;
   // "invite" produces a shareable link; "auto" pairs with whoever is waiting.
   mode: "invite" | "auto";
-  // Human PvP is always rated. Computer and coaching flows use separate APIs.
-  rated?: true;
+  rated?: boolean;
+  color?: "white" | "black" | "random";
   allowTimeExtensions?: boolean;
   videoEnabled?: boolean;
+  stakeUsdc?: string | null;
 }
 
 export type ChessVideoRole = "player" | "spectator";
@@ -225,11 +279,16 @@ export interface ChessVideoAccess {
 export interface CreateComputerMatchInput {
   level: number;
   color: "white" | "black" | "random";
+  variant?: ChessVariant;
+  initialFen?: string;
   timeMode: ChessClockMode;
   initialSeconds?: number;
   incrementSeconds?: number;
   stakeUsdc?: string | null;
   coachEnabled?: boolean;
+  idempotencyKey?: string;
+  /** Public, disclosed BOT game created from the lobby setup flow. */
+  lobbyBot?: boolean;
 }
 
 export interface ChessCoachChapter {
@@ -297,6 +356,52 @@ export interface ChessCoachHome {
   lessons: ChessCoachLessonState[];
 }
 
+export interface ChessStudySummary {
+  id: string;
+  name: string;
+  owner: string;
+  visibility: string;
+  description: string;
+  topics: string[];
+  likes: number;
+  currentChapterId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChessStudyChapter {
+  id: string;
+  name: string;
+  initialFen: string;
+  orientation: "white" | "black";
+  order: number;
+  tree: unknown;
+  pgn: string;
+  version: number;
+  practice: boolean;
+  gamebook: boolean;
+  createdBy: string;
+  updatedAt: string;
+}
+
+export interface ChessStudyMember {
+  player: string;
+  role: string;
+  joinedAt: string;
+}
+
+export interface ChessStudy extends ChessStudySummary {
+  members: ChessStudyMember[];
+  chapters: ChessStudyChapter[];
+  myRole: string | null;
+}
+
+export interface ChessStudyList {
+  items: ChessStudySummary[];
+  offset: number;
+  limit: number;
+}
+
 export interface ChessPuzzleSpeechReference {
   key: string;
   audioUrl: string;
@@ -314,10 +419,40 @@ export interface ChessPuzzleNarration {
   success: ChessPuzzleNarratedLine;
 }
 
+export interface ChessPuzzleSourceGame {
+  id: string;
+  perf: {
+    key: string;
+    name: string;
+  };
+  rated: boolean;
+  players: [
+    {
+      name: string;
+      rating: number | null;
+      title: string | null;
+      flair: string | null;
+      color: "white";
+    },
+    {
+      name: string;
+      rating: number | null;
+      title: string | null;
+      flair: string | null;
+      color: "black";
+    },
+  ];
+  pgn: string;
+  clock: string | null;
+}
+
 export interface ChessPuzzle {
   id: string;
+  sourceFen: string;
   fen: string;
   lastMove: string;
+  lastMoveSan: string;
+  initialPly: number;
   sideToMove: "white" | "black";
   rating: number;
   ratingDeviation: number;
@@ -326,6 +461,7 @@ export interface ChessPuzzle {
   themes: string[];
   openingTags: string[];
   sourceUrl: string;
+  sourceGame: ChessPuzzleSourceGame | null;
   playerMoveCount: number;
   narration: ChessPuzzleNarration;
 }
@@ -341,14 +477,28 @@ export interface ChessPuzzleCatalog {
 export interface ChessPuzzleAttempt {
   puzzleId: string;
   attemptedUci: string;
+  attemptedSan: string | null;
+  attemptedFen: string | null;
   legal: boolean;
   correct: boolean;
   completed: boolean;
   nextFen: string;
   opponentMove: string | null;
+  opponentSan: string | null;
   nextSolutionPly: number;
   message: string;
   speech: ChessPuzzleSpeechReference | null;
+}
+
+export interface ChessPuzzleSolutionMove {
+  uci: string;
+  san: string;
+  fen: string;
+}
+
+export interface ChessPuzzleSolution {
+  puzzleId: string;
+  moves: ChessPuzzleSolutionMove[];
 }
 
 export interface ChessCoachTrainingItem {

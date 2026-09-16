@@ -1,3 +1,5 @@
+import type { Game } from "@/lib/analytics/events";
+
 // The casino's game catalogue: which games exist, where they live, and how
 // their tile is laid out. This is static product structure, not game data.
 // Everything that changes (jackpots, who is playing, queue depth) comes from
@@ -31,7 +33,13 @@ export interface CasinoGame {
   // Cover artwork (remote URL) and its accent as an rgb triplet ("52 211 153"),
   // composed into tint gradients at varying alphas by the tile.
   image?: string;
+  // Wide backdrop for the featured banner, distinct from the card cover (the
+  // comp gives Last Man a golden hero here, not its hourglass tile). Falls back
+  // to `image` when unset.
+  featuredImage?: string;
   tintRgb?: string;
+  // Keeps branded artwork vivid even when the game is still coming soon.
+  preserveImageColor?: boolean;
   // Shows the "New" badge regardless of category.
   isNew?: boolean;
   href: string | null;
@@ -41,41 +49,30 @@ export interface CasinoGame {
 }
 
 export const CASINO_GAMES: CasinoGame[] = [
-  // The order the team set on 2026-09-11 was Last Man, Chess, ArkBall, Checkers,
-  // with Last Man in the hero slot.
-  //
-  // The Last Man is HIDDEN on production (2026-09-15). The vault service now
-  // settles against the v5 contract while this app still opens games on v4, so
-  // the keeper calls settle() on a contract the game does not exist on, reverts
-  // GameNotFound and strands the pot until someone settles it by hand. Games
-  // 432 and 433 both had to be cleared manually. Nothing here is deleted:
-  // restoring the game is uncommenting this entry and the two route redirects
-  // in app/(session)/casino/last-standing. See vault-v5-cutover-report.md.
-  //
-  // {
-  //   id: "last-standing",
-  //   name: "The Last Man",
-  //   category: "New",
-  //   size: "hero",
-  //   glyph: "⌛",
-  //   image:
-  //     "https://images.unsplash.com/photo-1518281420975-50db6e5d0a97?w=900&q=80&auto=format&fit=crop",
-  //   tintRgb: "251 191 36",
-  //   href: "/casino/last-standing",
-  //   note: "Outlast everyone, winner takes the pot",
-  //   comingSoon: false,
-  // },
-  //
-  // Chess leads the first row while Last Man is away. "tall" is two of the six
-  // columns, so Chess, ArkBall and Checkers fill it exactly.
+  // The order the team set on 2026-09-11: Last Man, Chess, ArkBall, Checkers.
+  // Last Man takes the hero slot, four of the six columns.
+  {
+    id: "last-standing",
+    name: "The Last Man",
+    category: "New",
+    size: "hero",
+    glyph: "⌛",
+    image: "/casino/arkade/last-standing.png",
+    featuredImage: "/casino/arkade/featured-bg.png",
+    tintRgb: "251 191 36",
+    href: "/casino/last-standing",
+    note: "Outlast everyone, winner takes the pot",
+    comingSoon: false,
+  },
+  // Beside Last Man in the first row: "tall" is the two-column slot that
+  // pairs with the hero.
   {
     id: "chess",
     name: "Chess",
     category: "Skill",
     size: "tall",
     glyph: "♞",
-    image:
-      "https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=1600&q=80&auto=format&fit=crop",
+    image: "/casino/arkade/chess.png",
     tintRgb: "52 211 153",
     isNew: true,
     href: "/casino/chess",
@@ -86,46 +83,72 @@ export const CASINO_GAMES: CasinoGame[] = [
     id: "arkball",
     name: "ArkBall",
     category: "Draws",
-    size: "medium",
+    size: "tall",
     glyph: "●",
-    image: "/casino/arkball/hero.png",
+    image: "/casino/arkade/arkball.png",
     tintRgb: "225 29 53",
     isNew: true,
     href: "/casino/arkball",
     note: "Pick 5 white balls and 1 ArkBall",
     comingSoon: false,
   },
-  {
-    id: "checkers",
-    name: "Checkers",
-    category: "Skill",
-    size: "medium",
-    glyph: "⛃",
-    image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
-    tintRgb: "148 163 184",
-    href: "/casino/checkers",
-    isNew: true,
-    note: "Fast staked matches",
-    comingSoon: false,
-  },
-  {
-    id: "draw",
-    name: "Draw",
-    category: "Draws",
-    size: "tall",
-    glyph: "✦",
-    image:
-      "https://images.unsplash.com/photo-1518688248740-7c31f1a945c4?w=900&q=80&auto=format&fit=crop",
-    tintRgb: "167 139 250",
-    href: null,
-    note: "Pick 5 numbers and a bonus",
-    comingSoon: true,
-  },
+
+  // Checkers is NOT offered on production (2026-09-16). A product decision,
+  // not a backend one: the gateway's chess service serves every
+  // /v1/chess/draughts/* endpoint on api.tsionark.com. Nothing is deleted, so
+  // restoring it is uncommenting this entry and its card in
+  // features/discovery/components/arkade-row.tsx.
+  // {
+  //   id: "checkers",
+  //   name: "Checkers",
+  //   category: "Skill",
+  //   size: "tall",
+  //   glyph: "⛃",
+  //   image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
+  //   tintRgb: "148 163 184",
+  //   href: "/casino/checkers",
+  //   isNew: true,
+  //   note: "Fast staked matches",
+  //   comingSoon: false,
+  // },
+
+  // Arkjet and Pilot Chicken are NOT offered on production (2026-09-16).
+  // Their gateway service, `arkjet`, answers 502 on api.tsionark.com, so the
+  // routes behind them have nothing to call. Restoring them is uncommenting
+  // these entries, their two cards in
+  // features/discovery/components/arkade-row.tsx, and confirming the service
+  // is live.
+  // {
+  //   id: "arkjet",
+  //   name: "Arkjet",
+  //   category: "New",
+  //   size: "tall",
+  //   glyph: "✈",
+  //   image: "/casino/arkjet/hero.webp",
+  //   preserveImageColor: true,
+  //   isNew: true,
+  //   href: "/casino/arkjet",
+  //   note: "Cash out before the multiplier crashes",
+  //   comingSoon: false,
+  // },
+  // {
+  //   id: "chicken",
+  //   name: "Pilot Chicken",
+  //   category: "New",
+  //   size: "tall",
+  //   glyph: "C",
+  //   image: "/casino/chicken/ark-chicken.png",
+  //   preserveImageColor: true,
+  //   isNew: true,
+  //   href: "/casino/chicken",
+  //   note: "Cross each lane and cash out before the crash",
+  //   comingSoon: false,
+  // },
   {
     id: "ayo",
     name: "Ayo",
     category: "New",
-    size: "medium",
+    size: "tall",
     glyph: "◉",
     image:
       "https://images.unsplash.com/photo-1585504198199-20277593b94f?w=900&q=80&auto=format&fit=crop",
@@ -138,7 +161,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     id: "poker",
     name: "Poker",
     category: "Cards",
-    size: "wide",
+    size: "tall",
     glyph: "♠",
     image:
       "https://images.unsplash.com/photo-1541278107931-e006523892df?w=900&q=80&auto=format&fit=crop",
@@ -150,7 +173,7 @@ export const CASINO_GAMES: CasinoGame[] = [
     id: "racing",
     name: "Racing outrights",
     category: "Racing",
-    size: "wide",
+    size: "tall",
     glyph: "⚑",
     image:
       "https://images.unsplash.com/photo-1541348263662-e068662d82af?w=900&q=80&auto=format&fit=crop",
@@ -178,3 +201,17 @@ export function filterGames(
     return inCategory && (!q || nameOf(g).toLowerCase().includes(q));
   });
 }
+
+// The three games the catalogue names to the analytics layer. Anything else has
+// no agreed id, so opening it reports nothing rather than inventing one.
+//
+// This lives here, beside the ids it maps, because three call sites need it:
+// the phone tiles, the desktop hub's tiles, and the casino route, which fires
+// the event itself now that ArkadeDesktop is presentational. It was duplicated
+// in two of those before, and the desktop copy silently stopped firing when the
+// hub it lived in was replaced.
+export const TRACKED_GAMES: Record<string, Game | undefined> = {
+  chess: "chess",
+  checkers: "checkers",
+  "last-standing": "last_man",
+};

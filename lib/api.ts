@@ -2,6 +2,7 @@
 
 import { resolveAuthTokens } from "@/lib/privy-token";
 import { circuitAllows, recordCircuitFailure, recordCircuitSuccess } from "@/lib/api/circuit-store";
+import { reportUpstreamFailure } from "@/lib/analytics/watchtower";
 
 // Fetch wrapper for our API routes. Attaches the Privy access token so the
 // server can verify the caller, plus the identity token when available so
@@ -64,9 +65,25 @@ export async function apiFetch(
   } catch (error) {
     // No status at all: DNS, TCP, CORS, offline. The clearest signal there is.
     recordCircuitFailure(path, undefined);
+    reportUpstreamFailure(path, undefined, error);
     throw error;
   }
   if (response.ok) recordCircuitSuccess(path);
-  else recordCircuitFailure(path, response.status);
+  else {
+    recordCircuitFailure(path, response.status);
+    // The reason error reporting sits HERE and not in each caller.
+    //
+    // Every failure in this app is handled: a hook catches it and the screen
+    // shows "Couldn't load" rather than crashing. That is correct behaviour and
+    // it is also why nothing was ever reported. Sentry's global handlers only
+    // see what nobody caught, so an upstream returning 502 to every user in
+    // production raised no alert at all.
+    //
+    // One transport means one place to notice. reportUpstreamFailure decides
+    // what is worth sending (5xx and network failures, not a 401 on a cold
+    // token) and throttles per endpoint, so a hard-polled broken route cannot
+    // flood the project.
+    reportUpstreamFailure(path, response.status, undefined, response.headers.get("x-request-id"));
+  }
   return response;
 }

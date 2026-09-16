@@ -1,4 +1,5 @@
 import "server-only";
+import { isSafeProxyPath } from "@/lib/server/proxy-path";
 
 // Dextopus cross-chain deposit/withdrawal. Keys are server-only despite the
 // pk_ prefix. Base path is confirmed against the live API when wiring the
@@ -10,6 +11,7 @@ const DEXTOPUS_TIMEOUT_MS = 20_000;
 const ALLOWED_PREFIXES = ["deposit/"];
 
 export function isAllowedPath(path: string): boolean {
+  if (!isSafeProxyPath(path)) return false;
   return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 

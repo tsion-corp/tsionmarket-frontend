@@ -61,8 +61,8 @@ export default function AuthPage() {
   }, []);
 
   // Where step 2 hands off to: a first-timer continues onboarding at the
-  // interest page, a returning user goes back to the dashboard.
-  const [destination, setDestination] = useState("/dashboard");
+  // interest page, a returning user goes back to the portfolio.
+  const [destination, setDestination] = useState("/portfolio");
 
   // Runs after any login completes (OAuth redirect return, email code,
   // passkey) and for already-signed-in visitors. One gate decides step 2:
@@ -79,7 +79,7 @@ export default function AuthPage() {
     // signed in to. Best effort and off the critical path.
     void recordConsent(user.id);
     const firstTime = !hasEmbeddedWallet(user, "ethereum");
-    const after = firstTime ? "/interests" : "/dashboard";
+    const after = firstTime ? "/interests" : "/portfolio";
     const hasPasskey = user.linkedAccounts.some((account) => account.type === "passkey");
     void ensureWallets(user).then(() => {
       if (hasPasskey) {

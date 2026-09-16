@@ -1,6 +1,10 @@
 import type { User } from "@privy-io/node";
 
 const PRIVATE_READ_PATTERNS = [
+  /^play(?:\/|$)/u,
+  /^challenge(?:\/|$)/u,
+  /^challenges(?:\/|$)/u,
+  /^competition(?:\/|$)/u,
   /^cashier\/players\/[^/]+\/balance$/u,
   /^betting\/markets\/[^/]+\/bets$/u,
   /^betting\/swiss\/[^/]+\/bets$/u,
@@ -67,7 +71,7 @@ export function chessDisplayNameOfUser(user: User | null): string | null {
 // the proven wallet as before, which is what an ordinary wallet-seated game
 // sends.
 const MATCH_SEAT_IDENTITY =
-  /^matches\/[^/]+\/(moves|resign|draw-offer|draw-response|claim-draw|claim-timeout|abort|rematch|rematch-decline|takeback|takeback-decline|comments(?:\/[^/]+)?|note|chat|video\/token)$/u;
+  /^(?:round\/commands|matches\/[^/]+\/(moves|resign|draw-offer|draw-response|claim-draw|claim-timeout|abort|rematch|rematch-decline|takeback|takeback-decline|comments(?:\/[^/]+)?|note|chat|video\/token))$/u;
 const ARENA_JOIN = /^arenas\/[^/]+\/join$/u;
 
 function isWalletLike(value: unknown): boolean {

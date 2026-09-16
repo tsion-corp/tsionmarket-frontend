@@ -6,3 +6,6 @@ export const BRAND = "Ark";
 /** Where support reads email. Shown on the landing footer and, while the app
  *  is down for maintenance, on the maintenance page. */
 export const SUPPORT_EMAIL = "support@tsionark.com";
+
+/** Where the Ark app is downloaded. The promo deck's first ticket opens it. */
+export const ARKSTORE_URL = "https://www.arkstore.xyz/apps/ark";

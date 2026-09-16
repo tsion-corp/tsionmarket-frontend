@@ -8,10 +8,10 @@ describe("liveEventsFrom", () => {
     expect(liveEventsFrom(null, NOW)).toEqual([]);
   });
 
-  // Last Man rounds used to lead this list, newest first, with expired clocks
-  // dropped. The game is hidden on production, so the feed's rounds produce no
-  // chips at all now; the chess and checkers ordering is unchanged.
-  it("chips the matches the app can still open", () => {
+  // Last Man rounds lead the list, in feed order, with expired clocks dropped
+  // here rather than by the server: that is what lets the browser re-run this
+  // on a timer without asking again. Chess follows.
+  it("chips the rounds and matches the app can open", () => {
     const events = liveEventsFrom(
       {
         rounds: [
@@ -24,27 +24,28 @@ describe("liveEventsFrom", () => {
       },
       NOW
     );
-    expect(events.map((e) => e.key)).toEqual(["chess-c1", "checkers-d 1"]);
-    expect(events[0].href).toBe("/casino/chess/watch?match=c1");
-    // Ids are URL-encoded into the watch link.
-    expect(events[1].href).toBe("/casino/checkers/play?match=d%201");
+    expect(events.map((e) => e.key)).toEqual(["lastman-7", "lastman-5", "chess-c1"]);
+    expect(events[0].href).toBe("/casino/last-standing/7");
+    expect(events[0].pot).toBe("$300.00");
+    expect(events[2].href).toBe("/casino/chess/watch?match=c1");
   });
 });
 
-// The marquee must not advertise a game the app no longer opens: a Last Man
-// chip links to /casino/last-standing/:id, which now redirects to the hub.
-describe("live events with The Last Man hidden", () => {
-  it("carries no Last Man chip even when the service reports live rounds", () => {
+// The marquee must not advertise a game the hub does not list: Checkers is
+// not offered on production, so a chip linking to /casino/checkers/play would
+// be a way into a game with no tile.
+describe("live events with Checkers not offered", () => {
+  it("carries no Checkers chip even when the service reports live matches", () => {
     const events = liveEventsFrom(
       {
-        rounds: [{ gameId: 7, endTime: 9_999_999_999, pot: "$12.00" }],
+        rounds: [],
         chess: [{ id: "m1" }],
-        checkers: [],
+        checkers: [{ id: "d1" }, { id: "d2" }],
       } as unknown as Parameters<typeof liveEventsFrom>[0],
       1
     );
 
-    expect(events.some((event) => event.kind === "lastman")).toBe(false);
+    expect(events.some((event) => event.kind === "checkers")).toBe(false);
     expect(events.map((event) => event.kind)).toEqual(["chess"]);
   });
 });

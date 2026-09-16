@@ -1,0 +1,38 @@
+dialog.ark-analysis-dialog {
+  position: fixed !important;
+  inset: auto !important;
+  left: 50% !important;
+  top: 50% !important;
+  margin: 0 !important;
+  max-width: calc(100vw - 32px) !important;
+  max-height: calc(100vh - 32px) !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+dialog.ark-analysis-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.78);
+}
+
+dialog.ark-analysis-dialog .embed-game {
+  width: min(800px, calc(100vw - 72px));
+}
+
+dialog.ark-analysis-dialog .embed-game pre {
+  margin: 1.5em 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+dialog.ark-analysis-dialog .embed-game iframe {
+  display: block;
+  width: min(600px, 100%);
+  height: min(397px, 62vh);
+  margin: 0 auto;
+  border: 0;
+}
+
+dialog.ark-analysis-dialog .gif-progress {
+  min-height: 1.4em;
+  color: var(--c-font-dim);
+  text-align: center;
+}

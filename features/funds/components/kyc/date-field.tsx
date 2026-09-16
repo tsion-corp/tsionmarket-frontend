@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { CalendarIcon, ChevronLeftIcon } from "@/components/ui/icons";
 
 interface DateFieldProps {
@@ -59,6 +60,7 @@ export function DateField({ label, required, value, error, onChange, disabled }:
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
   const selected = parseIso(value);
   const today = useMemo(() => new Date(), []);
   const currentYear = today.getFullYear();
@@ -134,99 +136,105 @@ export function DateField({ label, required, value, error, onChange, disabled }:
           <CalendarIcon size={17} className={open ? "text-accent" : "text-white/45"} />
         </button>
 
-        {open ? (
-          <div
-            ref={panelRef}
-            className="mt-2 w-full max-w-[340px] rounded-[16px] border border-white/10 bg-black/20 p-3"
-            style={{ colorScheme: "dark" }}
-          >
-            {/* Month + year navigation. The dropdowns make jumping decades quick. */}
-            <div className="mb-2.5 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => shiftMonth(-1)}
-                aria-label={t("prevMonth")}
-                className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 hover:bg-white/8 hover:text-white"
-              >
-                <ChevronLeftIcon size={16} />
-              </button>
+        <AnimatePresence>
+          {open ? (
+            <motion.div
+              ref={panelRef}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+              animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+              transition={{ duration: 0.15, ease: "easeOut" }}
+              className="mt-2 w-full max-w-[340px] rounded-[16px] border border-white/10 bg-black/20 p-3"
+              style={{ colorScheme: "dark" }}
+            >
+              {/* Month + year navigation. The dropdowns make jumping decades quick. */}
+              <div className="mb-2.5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(-1)}
+                  aria-label={t("prevMonth")}
+                  className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 hover:bg-white/8 hover:text-white"
+                >
+                  <ChevronLeftIcon size={16} />
+                </button>
 
-              <select
-                value={viewMonth}
-                onChange={(e) => setView(new Date(viewYear, Number(e.target.value), 1))}
-                className="focus:border-accent/45 flex-1 cursor-pointer rounded-[10px] border border-white/10 bg-black/40 px-2 py-1.5 font-sans text-[13px] text-white outline-none"
-              >
-                {MONTH_NAMES.map((name, i) => (
-                  <option
-                    key={name}
-                    value={i}
-                    disabled={viewYear === currentYear && i > today.getMonth()}
-                  >
-                    {name}
-                  </option>
+                <select
+                  value={viewMonth}
+                  onChange={(e) => setView(new Date(viewYear, Number(e.target.value), 1))}
+                  className="focus:border-accent/45 flex-1 cursor-pointer rounded-[10px] border border-white/10 bg-black/40 px-2 py-1.5 font-sans text-[13px] text-white outline-none"
+                >
+                  {MONTH_NAMES.map((name, i) => (
+                    <option
+                      key={name}
+                      value={i}
+                      disabled={viewYear === currentYear && i > today.getMonth()}
+                    >
+                      {name}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={viewYear}
+                  onChange={(e) => setView(new Date(Number(e.target.value), viewMonth, 1))}
+                  className="focus:border-accent/45 cursor-pointer rounded-[10px] border border-white/10 bg-black/40 px-2 py-1.5 font-sans text-[13px] text-white outline-none"
+                >
+                  {years.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => shiftMonth(1)}
+                  disabled={atLatestMonth}
+                  aria-label={t("nextMonth")}
+                  className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+                >
+                  <ChevronLeftIcon size={16} className="rotate-180" />
+                </button>
+              </div>
+
+              <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-white/35">
+                {WEEKDAYS.map((d) => (
+                  <span key={d}>{d}</span>
                 ))}
-              </select>
+              </div>
 
-              <select
-                value={viewYear}
-                onChange={(e) => setView(new Date(Number(e.target.value), viewMonth, 1))}
-                className="focus:border-accent/45 cursor-pointer rounded-[10px] border border-white/10 bg-black/40 px-2 py-1.5 font-sans text-[13px] text-white outline-none"
-              >
-                {years.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
-              </select>
-
-              <button
-                type="button"
-                onClick={() => shiftMonth(1)}
-                disabled={atLatestMonth}
-                aria-label={t("nextMonth")}
-                className="grid h-8 w-8 shrink-0 cursor-pointer place-items-center rounded-full text-white/60 hover:bg-white/8 hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-              >
-                <ChevronLeftIcon size={16} className="rotate-180" />
-              </button>
-            </div>
-
-            <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-medium text-white/35">
-              {WEEKDAYS.map((d) => (
-                <span key={d}>{d}</span>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {cells.map((day, i) => {
-                if (day == null) return <span key={`b${i}`} />;
-                const date = new Date(viewYear, viewMonth, day);
-                const isFuture = date > today;
-                const isSelected = selected != null && sameDay(date, selected);
-                const isToday = sameDay(date, today);
-                return (
-                  <button
-                    key={day}
-                    type="button"
-                    disabled={isFuture}
-                    onClick={() => {
-                      onChange(toIso(date));
-                      setOpen(false);
-                    }}
-                    className={`tnum grid h-9 place-items-center rounded-[10px] text-[13px] transition-colors ${
-                      isSelected
-                        ? "bg-white font-semibold text-black"
-                        : isFuture
-                          ? "cursor-not-allowed text-white/20"
-                          : "cursor-pointer text-white/80 hover:bg-white/10"
-                    } ${isToday && !isSelected ? "text-accent" : ""}`}
-                  >
-                    {day}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((day, i) => {
+                  if (day == null) return <span key={`b${i}`} />;
+                  const date = new Date(viewYear, viewMonth, day);
+                  const isFuture = date > today;
+                  const isSelected = selected != null && sameDay(date, selected);
+                  const isToday = sameDay(date, today);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      disabled={isFuture}
+                      onClick={() => {
+                        onChange(toIso(date));
+                        setOpen(false);
+                      }}
+                      className={`tnum grid h-9 place-items-center rounded-[10px] text-[13px] transition-colors ${
+                        isSelected
+                          ? "bg-white font-semibold text-black"
+                          : isFuture
+                            ? "cursor-not-allowed text-white/20"
+                            : "cursor-pointer text-white/80 hover:bg-white/10"
+                      } ${isToday && !isSelected ? "text-accent" : ""}`}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          ) : null}
+        </AnimatePresence>
       </div>
 
       {error ? <span className="text-down mt-1.5 block text-[12px]">{error}</span> : null}

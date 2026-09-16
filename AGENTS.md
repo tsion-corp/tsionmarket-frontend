@@ -13,9 +13,11 @@ All AI coding agents (Antigravity, Claude Code, Qwen Code, Codex, and custom LLM
 
 ## Core Mandatory AI Governance Directives
 
-### Directive 1: Read-Only Main Branch & Mandatory Worktree Isolation
+### Directive 1: Read-Only Long-Lived Branches & Mandatory Worktree Isolation
 
-Direct commits or pushes to the `main` branch are strictly forbidden for all AI agents. All feature development, refactoring, and bug fixing MUST be conducted in isolated Git worktrees created off `origin/main` using `git worktree add`. AI agents must never assume local `main` is current without explicitly syncing ground truth.
+Direct commits or pushes to `dev`, `staging` or `main` are strictly forbidden for all AI agents. All feature development, refactoring, and bug fixing MUST be conducted in isolated Git worktrees created off the branch the work is destined for, normally `origin/dev`, using `git worktree add`. AI agents must never assume a local long-lived branch is current without explicitly syncing ground truth.
+
+The three carry different sets, so which one a change is cut from is a decision, not a habit: `dev` carries every feature and service the product has, `staging` is what the staging deployment runs, and `main` carries only what the production gateway can serve. A feature whose backend is not live in production stays out of `main`.
 
 ### Directive 2: Human Approval Gate (Phase 1 DECIDE)
 
@@ -64,7 +66,7 @@ All engineering tasks undertaken by AI agents must strictly proceed through the 
 
 ### Phase 0: SYNC (Ground Truth Synchronization)
 
-Execute `git fetch origin main` to pull latest upstream changes. Never rely on potentially stale local branch refs.
+Execute `git fetch origin dev staging main` to pull latest upstream changes. Never rely on potentially stale local branch refs.
 
 ### Phase 1: DECIDE (Architectural Decision Record & Human Approval)
 
@@ -81,7 +83,7 @@ Draft a detailed implementation plan under `docs/plans/<date>-<feature>-plan.md`
 
 ### Phase 3: ISOLATE (Worktree Branch Creation)
 
-Create a clean, isolated Git worktree off `origin/main` using `git worktree add .worktrees/<branch-name> -b <branch-name>`.
+Create a clean, isolated Git worktree off the base branch, normally `origin/dev`, using `git worktree add .worktrees/<branch-name> -b <branch-name>`.
 
 ### Phase 5: BUILD (Test-Driven Implementation)
 
@@ -97,7 +99,7 @@ Create a dedicated release note file under `docs/release-notes/<date>-<feature>.
 
 ### Phase 8: DELIVER (Pull Request & Review Submission)
 
-Submit the Pull Request against `main` using `.github/pull_request_template.md`. Ensure all CI automated status checks pass.
+Submit the Pull Request against the branch the work was cut from, normally `dev`, using `.github/pull_request_template.md`. Ensure all CI automated status checks pass.
 
 ---
 

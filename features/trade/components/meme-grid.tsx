@@ -7,26 +7,24 @@ import { MemeCoin, PctChange, RiskBadge, priceLabel } from "@/features/trade/com
 import { MemeSearchInput } from "@/features/trade/components/meme-search-input";
 import { MemeFilterButton } from "@/features/trade/components/meme-filter-button";
 import { MemeUnavailable } from "@/features/trade/components/meme-unavailable";
+import { MemeCatalogMore, MemeViewSwitch } from "@/features/trade/components/meme-catalog-controls";
 import { RISK_FILTERS, filterByRisk } from "@/features/trade/components/meme-risk-filter";
 import { usePaged } from "@/hooks/use-paged";
 import { useMemeCatalog, useMemeSearch } from "@/features/trade/hooks/use-meme-tokens";
 import { compactUsd, type MemeToken, type TokenRiskLevel } from "@/lib/meme/api";
+import { DEFAULT_DISCOVERY_VIEW, type DiscoveryView } from "@/lib/meme/catalog";
 
 // Twenty-one: seven rows of three on a wide screen, and it divides evenly by
 // the two- and one-column layouts too, so no page ends in a ragged row.
 const PER_PAGE = 21;
 
-// The catalogue is fetched in one request and paged here rather than on the
-// server. Paging on the server put the boundary filter after the page was
-// cut, so a page holding a dropped row came back short and the last row was
-// ragged; filtering first and cutting after is the only way a page is
-// reliably full. It also makes the risk bands mean what
-// they look like they mean: they narrow the whole catalogue, not the rows
-// that happened to be loaded.
-//
-// 500 is the most the trade service returns per page. The catalogue is a
-// little over 400 rows across both chains today, so this is all of it.
-const CATALOG_LIMIT = 500;
+// The catalogue arrives a server page of 500 at a time (useMemeCatalog) and is
+// cut into cards here rather than on the server. Paging on the server put the
+// boundary filter after the page was cut, so a page holding a dropped row came
+// back short and the last row was ragged; filtering first and cutting after is
+// the only way a page is reliably full. The risk bands narrow every row loaded
+// so far. One page of 500 is not all of it: Base alone listed 14,343 on
+// 2026-09-14, so "Load more" asks for the next page until the server's total.
 
 // The whole catalogue as cards.
 //
@@ -37,9 +35,11 @@ const CATALOG_LIMIT = 500;
 // put one.
 export function MemeGrid({ onOpen }: { onOpen: (token: MemeToken) => void }) {
   const t = useTranslations("meme");
-  const { tokens, isLoading, error, refetch } = useMemeCatalog(1, CATALOG_LIMIT);
+  const [view, setView] = useState<DiscoveryView>(DEFAULT_DISCOVERY_VIEW);
+  const catalog = useMemeCatalog({ view });
+  const { tokens, isLoading, error, refetch } = catalog;
   const [query, setQuery] = useState("");
-  const search = useMemeSearch(query);
+  const search = useMemeSearch(query, view);
   const [bands, setBands] = useState<Set<TokenRiskLevel>>(new Set());
 
   const source = search.active ? search.results : tokens;
@@ -77,6 +77,7 @@ export function MemeGrid({ onOpen }: { onOpen: (token: MemeToken) => void }) {
             onClear={() => setBands(new Set())}
             counts={counts}
           />
+          <MemeViewSwitch value={view} onChange={setView} />
         </div>
       </div>
 
@@ -148,6 +149,21 @@ export function MemeGrid({ onOpen }: { onOpen: (token: MemeToken) => void }) {
           page={paged.page + 1}
           pages={paged.pageCount}
           onPage={(p) => (p > paged.page + 1 ? paged.goNext() : paged.goPrev())}
+        />
+      ) : null}
+
+      {/* The count and "Load more" describe the catalogue, so a search, which
+          replaces it, takes them away. */}
+      {!search.active && !failed ? (
+        <MemeCatalogMore
+          className="mt-4"
+          loaded={catalog.loaded}
+          total={catalog.total}
+          shownCount={catalog.shownCount}
+          hasMore={catalog.hasMore}
+          loadingMore={catalog.isLoadingMore}
+          failed={catalog.loadMoreFailed}
+          onLoadMore={catalog.loadMore}
         />
       ) : null}
     </section>

@@ -61,3 +61,23 @@ export async function nativeSendCost(network: string): Promise<number> {
   const wei = (gas * fee * HEADROOM_NUMERATOR) / HEADROOM_DENOMINATOR;
   return Number(formatUnits(wei, NATIVE_DECIMALS));
 }
+
+/**
+ * Whether a wallet holding `nativeBalance` can pay a fee on this chain.
+ *
+ * `measuredCost` is what `nativeSendCost` answered for a plain native
+ * transfer, which is the cheapest send there is: a token transfer costs more
+ * gas than that, so this is a floor rather than a promise. It exists because
+ * "holds any native at all" was the test before, and dust passed it: a wallet
+ * with a fraction of a cent of HYPE reached the node and came back with "gas
+ * required exceeds allowance", which reads to the holder as a failed sale of
+ * an asset they own (staging report, 2026-09-12).
+ *
+ * With no measurement yet, the old test stands: a wallet with nothing cannot
+ * pay, and one with something is given the benefit of the doubt rather than
+ * being blocked on a read that has not answered.
+ */
+export function canPayNativeFee(nativeBalance: number, measuredCost: number | undefined): boolean {
+  if (measuredCost === undefined) return nativeBalance > 0;
+  return nativeBalance >= measuredCost;
+}

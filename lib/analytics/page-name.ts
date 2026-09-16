@@ -15,6 +15,7 @@ const PAGE_BY_SECTION: Record<SectionId, PageName> = {
   earn: "earn",
   casino: "arkade",
   activity: "arktivity",
+  square: "market_square",
 };
 
 export function pageNameForSection(section: SectionId): PageName {
@@ -26,10 +27,12 @@ export function pageNameForSection(section: SectionId): PageName {
 // no page_view rather than inventing a name for it.
 const PAGE_BY_PATH_PREFIX: [string, PageName][] = [
   ["/casino", "arkade"],
+  ["/square", "market_square"],
   ["/prediction", "prediction"],
   ["/earn", "earn"],
   ["/activity", "arktivity"],
   ["/rwa", "real_assets"],
+  ["/portfolio", "portfolio"],
   ["/dashboard", "portfolio"],
 ];
 

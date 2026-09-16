@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { Disclosure } from "@/components/ui/disclosure";
 import type { MarketSquareTopic } from "@/lib/api/market-square";
 import type { TradableSymbol } from "@/lib/square/tradable";
 
@@ -44,14 +45,28 @@ const EMOJI = [
   "✅",
 ] as const;
 
+/**
+ * Each tool's `aria-controls` and its panel's `id`, so the two cannot drift.
+ * The panels are always in the DOM now, folded shut rather than unmounted, so
+ * these targets resolve whether the panel is open or closed.
+ */
+const PANEL_IDS = {
+  emoji: "composer-panel-emoji",
+  symbol: "composer-panel-symbol",
+  topic: "composer-panel-topic",
+} as const;
+
 function ToolButton({
   label,
   active,
+  controls,
   onClick,
   children,
 }: {
   label: string;
   active: boolean;
+  /** Id of the panel this tool unfolds. Omitted by the tools that open no panel. */
+  controls?: string;
   onClick: () => void;
   children: React.ReactNode;
 }) {
@@ -61,6 +76,7 @@ function ToolButton({
       onClick={onClick}
       aria-label={label}
       aria-expanded={active}
+      aria-controls={controls}
       className={
         "grid size-8 place-items-center rounded-lg text-[15px] font-semibold transition-colors " +
         "focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none " +
@@ -111,6 +127,9 @@ export function ComposerTools({
    */
   useEffect(() => {
     if (!panel) return;
+    // The ref rides the panel that is currently open: all three stay mounted
+    // so they can animate, and a ref on all three would leave it pointing at
+    // whichever rendered last rather than at the one just opened.
     const node = panelRef.current;
     // A nicety, never a requirement — see the tab strip for the same guard.
     node?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
@@ -134,6 +153,7 @@ export function ComposerTools({
         <ToolButton
           label={t("toolEmoji")}
           active={panel === "emoji"}
+          controls={PANEL_IDS.emoji}
           onClick={() => !disabled && setPanel(panel === "emoji" ? null : "emoji")}
         >
           <span aria-hidden>☺</span>
@@ -156,6 +176,7 @@ export function ComposerTools({
         <ToolButton
           label={t("toolSymbol")}
           active={panel === "symbol"}
+          controls={PANEL_IDS.symbol}
           onClick={() => !disabled && setPanel(panel === "symbol" ? null : "symbol")}
         >
           $
@@ -163,6 +184,7 @@ export function ComposerTools({
         <ToolButton
           label={t("toolTopic")}
           active={panel === "topic"}
+          controls={PANEL_IDS.topic}
           onClick={() => !disabled && setPanel(panel === "topic" ? null : "topic")}
         >
           #
@@ -175,12 +197,12 @@ export function ComposerTools({
         ) : null}
       </div>
 
-      {panel === "emoji" ? (
-        // A fixed set, not a full picker. A composer for market takes lives on
-        // a dozen reactions; pulling in an emoji library for the rest would
-        // cost more bundle than the long tail is worth here.
+      {/* A fixed set, not a full picker. A composer for market takes lives on
+          a dozen reactions; pulling in an emoji library for the rest would
+          cost more bundle than the long tail is worth here. */}
+      <Disclosure open={panel === "emoji"} id={PANEL_IDS.emoji}>
         <div
-          ref={panelRef}
+          ref={panel === "emoji" ? panelRef : null}
           className="border-grey-800 mt-2 flex flex-wrap gap-1 rounded-xl border bg-black/40 p-2.5"
         >
           {EMOJI.map((emoji) => (
@@ -195,10 +217,13 @@ export function ComposerTools({
             </button>
           ))}
         </div>
-      ) : null}
+      </Disclosure>
 
-      {panel === "symbol" ? (
-        <div ref={panelRef} className="border-grey-800 mt-2 rounded-xl border bg-black/40 p-2">
+      <Disclosure open={panel === "symbol"} id={PANEL_IDS.symbol}>
+        <div
+          ref={panel === "symbol" ? panelRef : null}
+          className="border-grey-800 mt-2 rounded-xl border bg-black/40 p-2"
+        >
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -229,11 +254,11 @@ export function ComposerTools({
             </ul>
           )}
         </div>
-      ) : null}
+      </Disclosure>
 
-      {panel === "topic" ? (
+      <Disclosure open={panel === "topic"} id={PANEL_IDS.topic}>
         <div
-          ref={panelRef}
+          ref={panel === "topic" ? panelRef : null}
           className="border-grey-800 mt-2 flex flex-wrap gap-1.5 rounded-xl border bg-black/40 p-2.5"
         >
           {topics.length === 0 ? (
@@ -260,7 +285,7 @@ export function ComposerTools({
             })
           )}
         </div>
-      ) : null}
+      </Disclosure>
     </div>
   );
 }

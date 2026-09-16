@@ -59,7 +59,6 @@ describe("ExpandableText", () => {
     pinHeights({ scroll: 200, client: 80 });
     const onClick = vi.fn();
     render(
-      // eslint-disable-next-line jsx-a11y/anchor-is-valid -- stands in for the card link
       <a href="#" onClick={onClick}>
         <ExpandableText>a very long caption</ExpandableText>
       </a>

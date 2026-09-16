@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "assetVersion": "v1",
+  "manifestKey": "chess-assets/v1/manifest.json",
+  "manifestSha256": "413ce9697b7cce9367203581fca1434c19d2c418392da746b500a1d151e24052",
+  "files": 6254,
+  "bytes": 121028825,
+  "publicPathPrefix": "chess-assets/v1",
+  "requiredObjects": [
+    "chess-assets/v1/npm/stockfish-web/sf_18.wasm",
+    "chess-assets/v1/npm/vosk/vosk.worker.js",
+    "chess-assets/v1/npm/vosk/vosk.wasm",
+    "chess-assets/v1/chess/lichess/lifat/vosk/model-en-us-0.15.tar.gz",
+    "chess-assets/v1/chess/lichess/sound/standard/Move.mp3",
+    "chess-assets/v1/chess/lichess/piece/cburnett/wK.svg"
+  ],
+  "roots": [
+    {
+      "publicDirectory": "public/npm",
+      "keyPrefix": "chess-assets/v1/npm",
+      "files": 38,
+      "bytes": 25573335,
+      "sha256": "24d2919774c5c2b25e765ebdaf4e8692ed4a6a4efca13f0ff9923ca1c11289d0"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/cursors",
+      "keyPrefix": "chess-assets/v1/chess/lichess/cursors",
+      "files": 13,
+      "bytes": 30118,
+      "sha256": "2f1415e35f3de1b644b71ac7067d09ad57cd6c305f0d76d5b72ac4a7b00260ef"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/data",
+      "keyPrefix": "chess-assets/v1/chess/lichess/data",
+      "files": 1,
+      "bytes": 41,
+      "sha256": "828e747515d84832720c4a72f3473922a83201b6c4f029ac973a6722a92a6efa"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/fide",
+      "keyPrefix": "chess-assets/v1/chess/lichess/fide",
+      "files": 426,
+      "bytes": 2673459,
+      "sha256": "8f99a435d32fdfc27859b6600a884f9c38d793b293e264d5a94f561a29c328f3"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/flags",
+      "keyPrefix": "chess-assets/v1/chess/lichess/flags",
+      "files": 277,
+      "bytes": 166513,
+      "sha256": "40a11772387e426c40cd75c64288e96caec156fccd0b1c86ccd50b6ebc36844a"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/flair",
+      "keyPrefix": "chess-assets/v1/chess/lichess/flair",
+      "files": 3627,
+      "bytes": 5583511,
+      "sha256": "720e76ac06cc981187a588043223528c264c83f89b197ed3053ddd5d9ebdfd3c"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/font",
+      "keyPrefix": "chess-assets/v1/chess/lichess/font",
+      "files": 24,
+      "bytes": 1067734,
+      "sha256": "1b6514669f5654b9c9de614082c73fb1c0f2ae3caff415ac7eea7e2aa955b2cb"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/images",
+      "keyPrefix": "chess-assets/v1/chess/lichess/images",
+      "files": 555,
+      "bytes": 23864923,
+      "sha256": "6c4e659782d3383b1be95025f3e6b0e0e16f207dedd01005a1688ffcc81971f7"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/javascripts",
+      "keyPrefix": "chess-assets/v1/chess/lichess/javascripts",
+      "files": 2,
+      "bytes": 49010,
+      "sha256": "9a5027ba8631c67306a1387d6b73d59dd3d82abe9bc6bec297fed23f0b29856b"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/lifat",
+      "keyPrefix": "chess-assets/v1/chess/lichess/lifat",
+      "files": 81,
+      "bytes": 41276635,
+      "sha256": "55570b980498147316df250ff89bca43153e9fc9324e0df36f3c219ca99375fa"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/logo",
+      "keyPrefix": "chess-assets/v1/chess/lichess/logo",
+      "files": 33,
+      "bytes": 813366,
+      "sha256": "12dce8f855df2252c514fed8a4c1776e1e4ad1df7f9b7d65c7a880d2d825f575"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/oops",
+      "keyPrefix": "chess-assets/v1/chess/lichess/oops",
+      "files": 11,
+      "bytes": 26673,
+      "sha256": "58ae2ae98a5824b4bf1fb71918ddbbd00d9fdab7f95ab76a42e83a2aeb38b26d"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/piece",
+      "keyPrefix": "chess-assets/v1/chess/lichess/piece",
+      "files": 500,
+      "bytes": 1469129,
+      "sha256": "cfab48d2da956a1628e90c07756fbfc8c22e198686ccc1ec72785486f169aa18"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/sound",
+      "keyPrefix": "chess-assets/v1/chess/lichess/sound",
+      "files": 654,
+      "bytes": 17879185,
+      "sha256": "2aafe6e96e0e02ed43ff63057013de6723dc3f64f371a76ef8431c3215a9ffa5"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/vendor",
+      "keyPrefix": "chess-assets/v1/chess/lichess/vendor",
+      "files": 2,
+      "bytes": 26991,
+      "sha256": "83df5794e28c280ccd2e31c69b28e86d6309e593990b3c541ff8f6f3fbce2576"
+    },
+    {
+      "publicDirectory": "public/chess/lichess/video",
+      "keyPrefix": "chess-assets/v1/chess/lichess/video",
+      "files": 10,
+      "bytes": 528202,
+      "sha256": "f838223e960bbc07d71e1ec9c127bf4f1e5507028229b7064b3b5e018a4b9de5"
+    }
+  ]
+}

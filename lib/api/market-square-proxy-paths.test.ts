@@ -109,6 +109,40 @@ describe("market square proxy allowlist", () => {
     }
   });
 
+  // The Square page's "Popular houses" reads the same directory the Square's
+  // own Home reads. Public upstream, like profiles and the feed; nothing that
+  // joins, winks or reminds is relayed, because those stay in the Square.
+  it("relays the house directory as a public read, and nothing that writes to it", () => {
+    expect(marketSquareProxyPaths.allows("GET", "conversations/discover")).toBe(true);
+    expect(marketSquareProxyPaths.isPublicGet("conversations/discover")).toBe(true);
+    expect(marketSquareProxyPaths.allows("POST", "conversations/discover")).toBe(false);
+    expect(marketSquareProxyPaths.allows("GET", "conversations/discover/extra")).toBe(false);
+    expect(marketSquareProxyPaths.allows("GET", "conversations/abc")).toBe(false);
+    expect(marketSquareProxyPaths.allows("POST", "conversations/abc/join")).toBe(false);
+  });
+
+  // The Square's comments sheet on the Square page: a thread's replies are a
+  // public read like the comments themselves, and liking a comment is the
+  // one write, idempotent both ways. Deleting a comment stays in the Square.
+  it("relays a thread's replies and a like on a comment, and nothing else under comments", () => {
+    expect(marketSquareProxyPaths.allows("GET", "comments/c1/replies")).toBe(true);
+    expect(marketSquareProxyPaths.isPublicGet("comments/c1/replies")).toBe(true);
+    expect(marketSquareProxyPaths.allows("POST", "comments/c1/like")).toBe(true);
+    expect(marketSquareProxyPaths.allows("DELETE", "comments/c1/like")).toBe(true);
+    expect(marketSquareProxyPaths.allows("DELETE", "comments/c1")).toBe(false);
+    expect(marketSquareProxyPaths.allows("GET", "comments/c1")).toBe(false);
+    expect(marketSquareProxyPaths.allows("POST", "comments/c1/replies")).toBe(false);
+  });
+
+  // Home's search answers in place from the Square's one search route, which
+  // serves anybody. Only the GET; there is nothing to write to it.
+  it("relays the search as a public read", () => {
+    expect(marketSquareProxyPaths.allows("GET", "search")).toBe(true);
+    expect(marketSquareProxyPaths.isPublicGet("search")).toBe(true);
+    expect(marketSquareProxyPaths.allows("POST", "search")).toBe(false);
+    expect(marketSquareProxyPaths.allows("GET", "search/extra")).toBe(false);
+  });
+
   it("matches whole paths, so a lookalike prefix is not relayed", () => {
     expect(marketSquareProxyPaths.allows("POST", "posts/abc")).toBe(false);
     expect(marketSquareProxyPaths.allows("POST", "streams/abc/go-live/extra")).toBe(false);

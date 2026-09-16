@@ -9,7 +9,8 @@ const RANGES: ChartRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
 
 interface AssetChartProps {
   coingeckoId: string | null;
-  up?: boolean;
+  /** null when the direction is unknown: the chart draws neutral. */
+  up?: boolean | null;
   height?: number;
   allowCandles?: boolean;
   defaultType?: "area" | "candles";

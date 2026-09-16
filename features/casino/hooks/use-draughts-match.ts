@@ -153,11 +153,12 @@ export function useDraughtsMatch(matchId: string | null): UseDraughtsMatchResult
 
     return subscribeChessTopic(liveTopic, (frame) => {
       const { type, data } = frame;
-      if (type === "__open") {
-        // The gateway does not replay state on subscribe, so every open or
-        // reconnect takes one fresh snapshot. The relay is not marked live yet:
-        // if this topic never flows, the fast poll is the only thing keeping the
-        // opponent's move from appearing seconds late.
+      if (type === "__ready") {
+        setLiveMatchId(matchId);
+        return;
+      }
+      if (type === "__resync") {
+        setLiveMatchId(null);
         void queryClient.invalidateQueries({ queryKey: key });
         return;
       }
@@ -310,6 +311,16 @@ export function useDraughtsMatchSocial(
     if (!liveTopic || !matchId) return;
     return subscribeChessTopic(liveTopic, (frame) => {
       const { type, data } = frame;
+      if (type === "__resync") {
+        void queryClient.invalidateQueries({ queryKey: DRAUGHTS_KEYS.chat(matchId, "player") });
+        void queryClient.invalidateQueries({
+          queryKey: DRAUGHTS_KEYS.chat(matchId, "spectator"),
+        });
+        if (commentsEnabled) {
+          void queryClient.invalidateQueries({ queryKey: DRAUGHTS_KEYS.comments(matchId) });
+        }
+        return;
+      }
       if (!data || typeof data !== "object") return;
 
       if (type === "chatLine") {

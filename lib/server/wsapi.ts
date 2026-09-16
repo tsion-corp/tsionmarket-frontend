@@ -5,9 +5,15 @@ import { WSAPI_BASE } from "@/lib/wsapi-base";
 // envelope. RWA endpoints live under /v1/rwa/*, perp endpoints under /v1/perp/*.
 const BASE = WSAPI_BASE;
 
-// The perp service can be pointed elsewhere while it is being stood up; it
-// falls back to the shared gateway once deployed there.
-const PERP_BASE = process.env.PERP_API_BASE_URL ?? BASE;
+// The perp service can be pointed at its own deployment while the rest of the
+// app rides the shared gateway. Staging needs exactly that: perps, chess and
+// arkjet run against the staging gateway while every other service reads
+// production, so without this the base URL drags perps along with them.
+// Trimmed and checked for emptiness, not just for undefined: an env var set to
+// the empty string is a real deployment state, and `??` would keep it and build
+// an unparseable URL.
+const PERP_OVERRIDE = process.env.PERP_API_BASE_URL?.trim();
+const PERP_BASE = PERP_OVERRIDE ? PERP_OVERRIDE : BASE;
 
 const ALLOWED = /^(health|categories|assets|assets\/[^/]+|quote|build)$/;
 
@@ -25,23 +31,29 @@ export function rwaRevalidate(path: string): number | undefined {
   return undefined;
 }
 
-// The perp surface: reads plus the quote and the non-custodial build calls that
-// return unsigned transaction steps. Nothing else is forwarded.
+// The perp surface: Ark's own reads and prepare/submit write pairs (see
+// apps/perp's own README for the signing model: every write is signed
+// client-side, this backend never forwards a private key), and the CCTP
+// deposit rail (Base -> HyperCore, llms.txt §6a). The Dextopus funding paths
+// it replaced are deliberately absent: the backend keeps them only as its own
+// fallback, and nothing in this app calls them.
 const PERP_ALLOWED =
-  /^(health|pairs|market|prices|snapshot|trades|orders|quote|build\/(approve-usdc|open-trade|close-trade|update-margin|update-tp-sl|cancel-order))$/;
+  /^(health|ark\/wallet\/[^/]+|ark\/assets|ark\/prices|ark\/market-contexts|ark\/funding-history\/[^/]+|ark\/candles\/[^/]+|ark\/account-state\/[^/]+|ark\/arbitrum-balance\/[^/]+|ark\/wallets\/[^/]+\/(positions|positions\/closed|orders|builder-fee|abstraction-mode|withdrawals\/pending)|ark\/orders\/(prepare|submit|cancel\/(prepare|submit)|trigger\/(prepare|submit))|ark\/leverage\/(prepare|submit)|ark\/bridge\/(prepare|confirm)|ark\/dex-transfer\/(prepare|submit)|ark\/withdrawals\/(prepare|submit)|ark\/deposit\/cctp\/(config|record|status\/[^/]+)|ark\/positions\/close\/(prepare|submit)|ark\/builder-fee\/(prepare|submit)|ark\/abstraction-mode\/(prepare|submit))$/;
 
 export function isAllowedPerpPath(path: string): boolean {
+  // Same traversal guard as the RWA allowlist: a raw ".." or encoded segment
+  // would otherwise slip through the pattern once the gateway normalizes the URL.
+  if (path.includes("..") || path.includes("%") || path.includes("\\")) return false;
   return PERP_ALLOWED.test(path);
 }
 
-// Pair config barely changes; live prices and per-market metrics turn over in
-// seconds, so a short shared cache collapses concurrent users into one upstream
-// call without serving stale marks. Trades and pending orders are polled after
-// keeper-executed fills and cancels, so they must always be fresh.
+// Ark's asset registry barely changes; live prices and per-market metrics turn
+// over in seconds, so a short shared cache collapses concurrent users into one
+// upstream call without serving stale marks. Everything else in the surface
+// (margin, positions, orders) must never be stale.
 export function perpRevalidate(path: string): number | undefined {
-  if (path === "pairs") return 300;
-  if (path === "prices" || path === "market") return 3;
-  if (path === "snapshot") return 60;
+  if (path === "ark/assets") return 300;
+  if (path === "ark/prices") return 3;
   return undefined;
 }
 

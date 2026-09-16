@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { buildNav, type NavItem } from "@/components/layout/nav-items";
-import { loadInterest } from "@/lib/preferences";
+import { useInterest } from "@/hooks/use-interest";
 import { sectionForPathname, type SectionId } from "@/lib/sections";
 
 interface AppChrome {
@@ -31,7 +31,8 @@ const AppChromeContext = createContext<AppChrome | null>(null);
  */
 export function AppChromeProvider({ children }: { children: React.ReactNode }) {
   const tSections = useTranslations("sections");
-  const nav = useMemo(() => buildNav(loadInterest(), tSections), [tSections]);
+  const interest = useInterest();
+  const nav = useMemo(() => buildNav(interest, tSections), [interest, tSections]);
   const pathname = usePathname();
   const [override, setOverride] = useState<SectionId | null>(null);
   const activeSection = override ?? sectionForPathname(pathname);

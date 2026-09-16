@@ -1,0 +1,29 @@
+<svg width="274" height="165" viewBox="0 0 274 165" fill="none" xmlns="http://www.w3.org/2000/svg">
+<defs><clipPath id="clip2_0_1">
+<rect width="83.4051" height="83.4051" fill="white" transform="translate(109.788 -25) rotate(17.7651)"/>
+</clipPath><clipPath id="clip1_0_1">
+<path d="M101.04 2.30336C105.872 -12.7759 122.012 -21.0835 137.092 -16.2522L161.913 -8.2996C176.992 -3.46831 185.3 12.6724 180.468 27.7516L172.516 52.5728C167.685 67.652 151.544 75.9596 136.465 71.1283L111.643 63.1758C96.5642 58.3445 88.2566 42.2038 93.0879 27.1246L101.04 2.30336Z" fill="white"/>
+</clipPath><filter id="filter1_f_0_1" x="9.15527e-05" y="-109.34" width="273.556" height="273.556" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur stdDeviation="42.17" result="effect1_foregroundBlur_0_1"/>
+</filter></defs>
+<g id="Text" filter="url(#filter1_f_0_1)">
+<g clip-path="url(#clip1_0_1)">
+<g id="Icon" clip-path="url(#clip2_0_1)">
+<g id="Clip path group">
+<mask id="mask0_0_1" style="mask-type:luminance" maskUnits="userSpaceOnUse" x="84" y="-25" width="106" height="106">
+<g id="SOL__a">
+<path id="Vector" d="M109.642 -24.5472L189.07 0.900994L163.622 80.3289L84.1941 54.8807L109.642 -24.5472Z" fill="white"/>
+</g>
+</mask>
+<g mask="url(#mask0_0_1)">
+<g id="Group">
+<path id="Vector_2" d="M189.07 0.900994L109.642 -24.5472L84.1941 54.8807L163.622 80.3289L189.07 0.900994Z" fill="#1EBCE9"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</svg>

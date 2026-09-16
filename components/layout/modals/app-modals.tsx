@@ -1,26 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useCallback, useState } from "react";
+import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
-// Dynamic: DetailModal pulls lightweight-charts (~168KB) through AssetChart,
-// and it only renders once a detail view is actually opened. Imported
-// statically it shipped in the initial payload of every route that mounts this
-// host, none of which draws a chart on load.
-const DetailModal = dynamic(
-  () => import("@/components/layout/modals/detail-modal").then((m) => m.DetailModal),
-  { ssr: false }
-);
-import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
-import { AccountModal } from "@/components/layout/modals/account-modal";
-import { FundsModal, WithdrawModal } from "@/features/funds";
-import { BuySheet, SellSheet, MemeTradeSheet } from "@/features/trade";
-// Deep import, not the barrel. `@/features/rwa` also exports RwaSection, which
-// reaches lightweight-charts through the detail sheet's price chart, so the
-// barrel put the chart library back into every route's initial payload and
-// undid the dynamic DetailModal above.
-import { RwaTradeModal } from "@/features/rwa/components/rwa-trade-modal";
-import type { DepositPrefill } from "@/lib/voice/intent";
 import type { MemeToken } from "@/lib/meme/api";
 import type {
   BuyPayload,
@@ -30,7 +14,45 @@ import type {
   RwaTradePayload,
   SellPayload,
 } from "@/lib/modal-types";
-import dynamic from "next/dynamic";
+import type { DepositPrefill } from "@/lib/voice/intent";
+
+// Dynamic: DetailModal pulls lightweight-charts (~168KB) through AssetChart,
+// and it only renders once a detail view is actually opened. Imported
+// statically it shipped in the initial payload of every route that mounts this
+// host, none of which draws a chart on load.
+const DetailModal = dynamic(
+  () => import("@/components/layout/modals/detail-modal").then((m) => m.DetailModal),
+  { ssr: false }
+);
+
+const AccountModal = dynamic(
+  () => import("@/components/layout/modals/account-modal").then((m) => m.AccountModal),
+  { ssr: false }
+);
+const FundsModal = dynamic(
+  () => import("@/features/funds/components/funds-modal").then((m) => m.FundsModal),
+  { ssr: false }
+);
+const WithdrawModal = dynamic(
+  () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
+  { ssr: false }
+);
+const BuySheet = dynamic(
+  () => import("@/features/trade/components/buy-sheet").then((m) => m.BuySheet),
+  { ssr: false }
+);
+const SellSheet = dynamic(
+  () => import("@/features/trade/components/sell-sheet").then((m) => m.SellSheet),
+  { ssr: false }
+);
+const MemeTradeSheet = dynamic(
+  () => import("@/features/trade/components/meme-trade-sheet").then((m) => m.MemeTradeSheet),
+  { ssr: false }
+);
+const RwaTradeModal = dynamic(
+  () => import("@/features/rwa/components/rwa-trade-modal").then((m) => m.RwaTradeModal),
+  { ssr: false }
+);
 
 export interface AppModals {
   modal: DashboardModal;
@@ -40,6 +62,7 @@ export interface AppModals {
   openBuy: (buy: BuyPayload) => void;
   openSell: (sell: SellPayload) => void;
   openMemeSell: (token: MemeToken) => void;
+  openMemeBuy: (token: MemeToken) => void;
   openRwaTrade: (trade: RwaTradePayload) => void;
   /**
    * Takes no argument, deliberately.
@@ -80,6 +103,7 @@ export function useAppModals(): AppModals {
       (memeSell: MemeToken) => setModal({ type: "memeSell", memeSell }),
       []
     ),
+    openMemeBuy: useCallback((memeBuy: MemeToken) => setModal({ type: "memeBuy", memeBuy }), []),
     openRwaTrade: useCallback(
       (rwaTrade: RwaTradePayload) => setModal({ type: "rwaTrade", rwaTrade }),
       []
@@ -101,17 +125,21 @@ interface AppModalHostProps {
   onClose: () => void;
   /** Where a confirm lands once accepted. */
   onConfirmed: (title: string, msg: string) => void;
+  /** Opens the Add Funds sheet — threaded through so the buy sheet's "Top Up"
+   *  button can reach the parent's modal state. */
+  onOpenFunds?: () => void;
 }
 
 // Renders whichever sheet is active. Openness is derived from `active`, not
 // from the hook's own state, so a URL-staged sheet actually appears.
-export function AppModalHost({ active, onClose, onConfirmed }: AppModalHostProps) {
+export function AppModalHost({ active, onClose, onConfirmed, onOpenFunds }: AppModalHostProps) {
   return (
     <ModalShell
       open={active !== null}
       onClose={onClose}
       contentKey={active?.type ?? "none"}
       size={active?.type === "funds" || active?.type === "withdraw" ? "lg" : "md"}
+      panelClassName={undefined}
     >
       {active?.type === "detail" ? <DetailModal detail={active.detail} /> : null}
       {active?.type === "confirm" ? (
@@ -120,18 +148,39 @@ export function AppModalHost({ active, onClose, onConfirmed }: AppModalHostProps
           onConfirm={() => onConfirmed(active.confirm.successTitle, active.confirm.successMsg)}
         />
       ) : null}
-      {active?.type === "buy" ? <BuySheet payload={active.buy} onClose={onClose} /> : null}
-      {active?.type === "sell" ? <SellSheet payload={active.sell} onClose={onClose} /> : null}
+      {active?.type === "buy" ? (
+        <BuySheet payload={active.buy} onClose={onClose} onTopUp={onOpenFunds} />
+      ) : null}
+      {active?.type === "sell" ? (
+        <SellSheet payload={active.sell} initialAmount={active.sell.amount} onClose={onClose} />
+      ) : null}
       {active?.type === "memeSell" ? (
         <MemeTradeSheet
           token={active.memeSell}
           defaultSide="SELL"
           onClose={onClose}
+          onTopUp={onOpenFunds}
           showRisk={false}
         />
       ) : null}
+      {active?.type === "memeBuy" ? (
+        <MemeTradeSheet
+          token={active.memeBuy}
+          defaultSide="BUY"
+          onClose={onClose}
+          onTopUp={onOpenFunds}
+          showRisk={true}
+        />
+      ) : null}
       {active?.type === "rwaTrade" ? (
-        <RwaTradeModal payload={active.rwaTrade} onContinueInBackground={onClose} />
+        <RwaTradeModal
+          payload={active.rwaTrade}
+          onContinueInBackground={onClose}
+          onTopUp={() => {
+            onClose();
+            onOpenFunds?.();
+          }}
+        />
       ) : null}
       {active?.type === "funds" ? <FundsModal onClose={onClose} deposit={active.deposit} /> : null}
       {active?.type === "withdraw" ? <WithdrawModal onClose={onClose} /> : null}

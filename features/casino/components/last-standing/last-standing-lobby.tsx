@@ -1,10 +1,9 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
-import type { SellPayload } from "@/lib/modal-types";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { useCurrency } from "@/components/ui/currency-select";
@@ -14,24 +13,16 @@ import { useVaultLobby } from "@/features/casino/hooks/use-vault-lobby";
 import { GameCard } from "@/features/casino/components/last-standing/game-card";
 import { StartGameSheet } from "@/features/casino/components/last-standing/start-game-sheet";
 import { LAST_MAN_START_LIVE } from "@/features/casino/lib/last-standing/start-gate";
-import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
-import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
-import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { usePayoutRefresh } from "@/features/casino/hooks/use-payout-refresh";
 import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 
 // The lobby: every game currently taking joins, and the way to open one.
 //
-// v4 runs many games at once, so this is the screen the nav lands on; a game
+// The vault runs many games at once, so this is the screen the nav lands on; a game
 // itself lives at /casino/last-standing/[gameId], which is also the link a
 // player shares.
-interface LastStandingLobbyProps {
-  /** The portfolio's sell flow, for cashing the game balance back out. */
-  renderWithdrawSheet: (payload: SellPayload, onClose: () => void) => ReactNode;
-}
-
-export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProps) {
+export function LastStandingLobby() {
   const t = useTranslations("casino.lastStanding");
   const { user } = usePrivy();
   const address = getWalletAddress(user, "ethereum");
@@ -48,23 +39,14 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
   } = useVaultLobby({ history: historyOpen });
 
   const [startOpen, setStartOpen] = useState(false);
-  const [fundOpen, setFundOpen] = useState(false);
   // Every settled game, for the history. The same feed the game pages scope
   // down to one game.
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
 
-  // The game runs on the wallet's ETH on Base. A player who holds only USDC
-  // cannot open or join a game until some of it becomes ETH, and the lobby is
-  // where they find that out, so the way to fund is here and not only on a
-  // game page they cannot get into yet.
-  const {
-    holding: ethHolding,
-    balanceEth,
-    balanceUsd,
-    refreshing: balanceRefreshing,
-  } = useGameBalance();
-  // A round this wallet wins while it watches from here pays out on the
-  // socket's settle frame; the card credits it and confirms with one read.
+  // No balance card here any more: the game is played in USDC, which is the
+  // spendable balance the shell already shows, so a second figure for the same
+  // money was only ever a thing to keep in sync. A round this wallet wins while
+  // it watches from here still pays out on the socket's settle frame, and this
+  // confirms it with one read.
   usePayoutRefresh(address);
 
   // One formatter for the whole list, so switching currency re-renders the
@@ -154,16 +136,6 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
           </div>
         ))}
 
-      <div className="mt-3">
-        <GameBalanceCard
-          balanceUsd={balanceUsd}
-          refreshing={balanceRefreshing}
-          canWithdraw={balanceEth > 0}
-          onWithdraw={() => setWithdrawOpen(true)}
-          onAddMoney={() => setFundOpen(true)}
-        />
-      </div>
-
       <div className="mt-7 flex items-center justify-between">
         <Eyebrow>{t("liveGames")}</Eyebrow>
         {games.length > 0 ? (
@@ -219,12 +191,9 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
           onClose={() => setStartOpen(false)}
           onStarted={resync}
           formatUsd={formatUsd}
-          // Short on ETH at the stake sheet: hand over to funding rather than
-          // leave a dead button. Back in the lobby with money, they start.
-          onFund={() => {
-            setStartOpen(false);
-            setFundOpen(true);
-          }}
+          // Nothing to hand over to when the balance is short: the stake comes
+          // off the USDC balance, so the sheet says the amount is more than
+          // they hold rather than offering a conversion that no longer exists.
         />
       </ModalShell>
 
@@ -254,32 +223,10 @@ export function LastStandingLobby({ renderWithdrawSheet }: LastStandingLobbyProp
         </div>
       </ModalShell>
 
-      <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
-        <FundSheet onClose={() => setFundOpen(false)} />
-      </ModalShell>
-
-      <ModalShell
-        open={withdrawOpen && !!ethHolding}
-        onClose={() => setWithdrawOpen(false)}
-        contentKey="vault-withdraw"
-      >
-        {ethHolding
-          ? renderWithdrawSheet(
-              {
-                symbol: ethHolding.symbol,
-                name: ethHolding.name,
-                network: ethHolding.network,
-                address: ethHolding.address,
-                decimals: ethHolding.decimals,
-                balance: ethHolding.balance,
-                rawBalance: ethHolding.rawBalance,
-                priceUsd: ethHolding.priceUsd,
-                logo: ethHolding.logo,
-              },
-              () => setWithdrawOpen(false)
-            )
-          : null}
-      </ModalShell>
+      {/* No "add money" and no "withdraw". Both existed to convert the
+          player's USDC into the ETH a v4 game needed and back again; a v5 game
+          is played in USDC, which IS the spendable balance. See
+          ADR-2026-09-15-last-man-v5-usdc, decision 5. */}
     </div>
   );
 }

@@ -16,7 +16,7 @@ export function useCasinoWallet() {
   const { user } = usePrivy();
   const profile = deriveProfile(user);
   const money = useMoney();
-  const { tokens, loading, refetch } = usePortfolio();
+  const { tokens, loading, refetch } = usePortfolio({ scope: "base" });
 
   const address = getWalletAddress(user, "ethereum");
 

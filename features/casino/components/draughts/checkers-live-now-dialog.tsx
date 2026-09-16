@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChessDialogFrame } from "@/features/casino/components/chess/chess-dialog-frame";
+import { ChessDialogFrame } from "@/features/casino/components/chess-app/chess-dialog-frame";
 import { MENU_CARD_BG, MENU_SHADOW } from "@/features/casino/components/game-menu";
 import { FlameIcon } from "@/components/ui/icons";
 import type { DraughtsMatch } from "@/features/casino/lib/draughts/types";

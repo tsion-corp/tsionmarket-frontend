@@ -5,16 +5,31 @@ import { resolve } from "node:path";
 const shared = {
   globals: true,
   setupFiles: ["./vitest.setup.ts"],
-  exclude: ["node_modules", ".next", "out", "build", "casino-service", "reference"],
+  exclude: [
+    "node_modules",
+    ".next",
+    "out",
+    "build",
+    ".worktrees/**",
+    "casino-service",
+    "reference",
+    "ui/**",
+    "features/casino/components/chess/**",
+    "features/casino/components/chess-app/**",
+  ],
   passWithNoTests: true,
 };
 
-const aliases = {
-  "@": resolve(__dirname, "."),
+const aliases = [
+  {
+    find: /^@\/features\/casino\/components\/chess\/(.*)$/u,
+    replacement: `${resolve(__dirname, "features/casino/components/chess-app")}/$1`,
+  },
+  { find: "@", replacement: resolve(__dirname, ".") },
   // The Next.js boundary guard throws on import outside a server
   // component; tests exercise server modules directly, so it is stubbed.
-  "server-only": resolve(__dirname, "vitest.server-only-stub.ts"),
-};
+  { find: "server-only", replacement: resolve(__dirname, "vitest.server-only-stub.ts") },
+];
 
 // Two projects, one per environment. Booting jsdom cost more than running the
 // tests did (180 s of environment time against 22 s of tests), and most .ts

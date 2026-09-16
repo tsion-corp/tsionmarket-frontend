@@ -2,6 +2,23 @@
 // card. Pure: no framework, no network, so the maths is unit tested.
 
 import type { TokenBalance } from "@/lib/server/alchemy";
+import { isDustHolding } from "@/features/portfolio/lib/holdings";
+
+/**
+ * Whether a holding is worth a place in the allocation.
+ *
+ * It needs a value, or it has no share to draw. And it must not be dust: a
+ * sub-cent position can only be printed as "<$0.01" at 0%, which describes
+ * nothing, and straight after a full exit it reads as though the sale never
+ * happened. The holdings list drops exactly these, so the drawer beside it
+ * counts exactly the same set.
+ *
+ * Dust is excluded from the TOTAL as well as from the slices, so the shares
+ * that remain still add up to the whole of what is drawn.
+ */
+function countsTowardAllocation(token: TokenBalance): boolean {
+  return token.valueUsd > 0 && !isDustHolding(token);
+}
 
 // The order segments are drawn and listed in. Cash first because it is the
 // number people look for, then the rest by how tradable they are.
@@ -36,7 +53,7 @@ export function portfolioBreakdown(tokens: TokenBalance[]): BreakdownSlice[] {
   const totals = new Map<BreakdownKey, { valueUsd: number; count: number }>();
   let total = 0;
   for (const token of tokens) {
-    if (!(token.valueUsd > 0)) continue;
+    if (!countsTowardAllocation(token)) continue;
     const key = KIND_TO_KEY[token.kind] ?? "tokens";
     const at = totals.get(key) ?? { valueUsd: 0, count: 0 };
     at.valueUsd += token.valueUsd;
@@ -56,5 +73,7 @@ export function portfolioBreakdown(tokens: TokenBalance[]): BreakdownSlice[] {
 
 // How many holdings the donut is describing, which is what its centre reads.
 export function heldAssetCount(tokens: TokenBalance[]): number {
-  return tokens.reduce((n, t) => (t.valueUsd > 0 ? n + 1 : n), 0);
+  // The same set the slices are built from, or the ring's centre would promise
+  // more assets than the legend beside it lists.
+  return tokens.reduce((n, token) => (countsTowardAllocation(token) ? n + 1 : n), 0);
 }

@@ -5,9 +5,9 @@ export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 30 * 1000,
+        staleTime: 60 * 1000,
         gcTime: 5 * 60 * 1000,
-        refetchOnWindowFocus: true,
+        refetchOnWindowFocus: false,
         refetchOnReconnect: true,
         // A backgrounded tab is a tab nobody is looking at. Every poll that
         // fires there is a wasted request — and across 60+ polling hooks in

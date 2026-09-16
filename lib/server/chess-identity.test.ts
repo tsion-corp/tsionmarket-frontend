@@ -82,6 +82,8 @@ describe("chess identity helper", () => {
   });
 
   it("marks per-caller chess reads as session-bound", () => {
+    expect(chessReadNeedsSession("play")).toBe(true);
+    expect(chessReadNeedsSession("play/pool")).toBe(true);
     expect(chessReadNeedsSession("cashier/players/0xabc/balance")).toBe(true);
     expect(chessReadNeedsSession("cashier/config")).toBe(false);
     expect(chessReadNeedsSession("betting/markets/match-1/bets")).toBe(true);
@@ -215,6 +217,27 @@ describe("chess identity helper", () => {
         proven
       )
     ).toBe(JSON.stringify({ player: "0xDD0737-6C2E", uci: "e2e4" }));
+    expect(
+      withChessIdentity(
+        "round/commands",
+        JSON.stringify({
+          commandId: "command-1",
+          matchId: "123",
+          player: "0xDD0737-6C2E",
+          expectedPly: 0,
+          command: { type: "move", uci: "e2e4" },
+        }),
+        proven
+      )
+    ).toBe(
+      JSON.stringify({
+        commandId: "command-1",
+        matchId: "123",
+        player: "0xDD0737-6C2E",
+        expectedPly: 0,
+        command: { type: "move", uci: "e2e4" },
+      })
+    );
     expect(
       withChessIdentity(
         "matches/123/video/token",

@@ -2,21 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import type { ReactNode } from "react";
-import type { SellPayload } from "@/lib/modal-types";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { parseEther } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
-import { formatEther } from "viem";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { ModalShell } from "@/components/ui/modal-shell";
 import { Pager } from "@/components/ui/pager";
 import { MoneyTicker } from "@/features/casino/components/last-standing/money-ticker";
 import { useMoney } from "@/components/ui/currency-select";
-import { FundSheet } from "@/features/casino/components/last-standing/fund-sheet";
-import { GameBalanceCard } from "@/features/casino/components/last-standing/game-balance-card";
 import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
 import { estimateWinnerPayout, isSameAddress } from "@/features/casino/lib/last-standing/split";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
@@ -32,7 +25,7 @@ import {
 import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { rememberRoundLength, secondsUntil } from "@/features/casino/lib/last-standing/clock";
-import { usdToWei } from "@/features/casino/lib/last-standing/stake";
+import { GAME_ASSET, unitsToUsd, usdToUnits } from "@/features/casino/lib/last-standing/stake";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
 import { ShareGame, ShareGameButton } from "@/features/casino/components/last-standing/share-game";
 import { GameGoLive } from "@/features/casino/components/broadcast";
@@ -54,6 +47,9 @@ import { useVaultPendingWinnings } from "@/features/casino/hooks/use-vault-winni
 import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { usePayoutRefresh } from "@/features/casino/hooks/use-payout-refresh";
 import { useVaultParams } from "@/features/casino/hooks/use-vault-params";
+import { usdOf } from "@/features/casino/lib/last-standing/pricing";
+import { activityAmount } from "@/features/casino/lib/last-standing/activity-payout";
+import { usePrices } from "@/hooks/use-prices";
 import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
 import { truncateAddress } from "@/lib/format";
@@ -181,27 +177,22 @@ function WifiOffIcon({ size = 22 }: { size?: number }) {
 }
 
 interface LastStandingSectionProps {
-  /** Which game this screen is showing. v4 runs many at once. */
+  /** Which game this screen is showing. The vault runs many at once. */
   gameId: number;
-  renderWithdrawSheet: (payload: SellPayload, onClose: () => void) => ReactNode;
 }
 
-export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandingSectionProps) {
+export function LastStandingSection({ gameId }: LastStandingSectionProps) {
   const t = useTranslations("casino.lastStanding");
   const tBuySell = useTranslations("buySell");
   const tBuySellNotEnough = tBuySell("notEnoughBalance");
   const { user } = usePrivy();
   const money = useMoney();
-  // The stake and the payout are native value the portfolio's own receipt
-  // path cannot see, so this hook is told the amounts and confirms them with
-  // one read of Base.
-  const {
-    holding: ethHolding,
-    balanceEth,
-    balanceUsd,
-    refreshing: balanceRefreshing,
-    settle: settleBalance,
-  } = useGameBalance();
+  // The stake and the payout move the USDC balance, and the portfolio's own
+  // receipt path cannot see them, so this hook is told the amounts and confirms
+  // them with one read of Base. There is no balance card on this screen any
+  // more — the balance is the one the shell already shows — but `balanceUsd`
+  // still decides whether the entry is affordable.
+  const { balanceUsd, settle: settleBalance } = useGameBalance();
   const {
     game,
     loading: statusLoading,
@@ -237,8 +228,6 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       gameActive: game.active,
     };
   }, [game]);
-  const [fundOpen, setFundOpen] = useState(false);
-  const [withdrawOpen, setWithdrawOpen] = useState(false);
   // One coin flight per wager click: viewport coordinates captured from the
   // button and the pot at the moment of the click. Null when nothing flies.
   const [flight, setFlight] = useState<{
@@ -277,7 +266,9 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // A payout the contract could not push, straight from the contract. Read
   // once here, and again on the events that can change it: a settlement that
   // names this wallet, and this wallet's own settle or claim.
-  const { pendingWei, refetch: refetchWinnings } = useVaultPendingWinnings(address);
+  // A list, not a number: a wallet can be owed in more than one asset, and a
+  // USDC payout never shows in the service's legacy native `pendingWei`.
+  const { pending, hasPending, refetch: refetchWinnings } = useVaultPendingWinnings(address);
 
   // Derived reveal state: did this wallet win, and how to name the winner.
   const youWon = !!(
@@ -293,32 +284,75 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // The balance the player spends from is their own money on the platform. We
   // present everything as plain dollars — the underlying asset (ETH on Base)
   // is never shown, so it feels like moving cash between accounts.
-  const entryFeeEth = status ? Number(status.entryFee.amount) : 0;
-  const entryFeeUsd = status?.entryFee.usdValue ?? 0;
-  const canPlay = entryFeeEth > 0 && balanceEth >= entryFeeEth;
+  // What the entry costs, in dollars.
+  //
+  // `usdValue` is native-only by the service's own contract and comes back as 0
+  // for a token game, so reading it alone would price every USDC entry at
+  // nothing and leave canPlay false for a funded player. A USDC amount IS a
+  // dollar amount, so for the game asset the amount is the answer.
+  // Only an ETH game needs this; a USDC amount is already a dollar figure.
+  const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
+  const entryFee = status?.entryFee ?? null;
+  const entryFeeUsd = entryFee
+    ? entryFee.tokenSymbol === GAME_ASSET.symbol
+      ? Number(entryFee.amount)
+      : entryFee.usdValue
+    : 0;
+  const entryFeeEth =
+    entryFee && entryFee.tokenSymbol !== GAME_ASSET.symbol ? Number(entryFee.amount) : 0;
+  // Affordable in DOLLARS, against the USDC balance. It used to compare the
+  // entry against the wallet's ETH, which for a USDC game is a comparison
+  // between two different currencies: a funded player reads as broke.
+  const canPlay = entryFeeUsd > 0 && balanceUsd >= entryFeeUsd;
   // The primary CTA is in its "Add money to play" state — short on funds but
   // otherwise pressable. This gets the blinking, coin-tagged nudge.
   const luring = !!status && !!address && !wagering && !canPlay;
 
-  // Dollar value of an on-chain (wei) amount, derived from the entry fee's
-  // token/USD pair the backend already gives us — so the activity feed and
-  // winners read in money, not crypto.
+  // An on-chain amount as money.
+  //
+  // The game is played in USDC now, which IS dollars, so the common path is a
+  // straight divide by the asset's own scale with no price in it. ETH games can
+  // still exist on v5 (we never start one, but we render one), and those go on
+  // reading through the entry fee's own token/USD pair.
+  //
+  // What must never happen is the old shape: formatEther on every amount. A 20
+  // USDC pot read at 18 decimals is 0.00000000002, which looks like an empty
+  // game rather than a wrong one.
   const unitUsd = status && entryFeeEth > 0 ? entryFeeUsd / entryFeeEth : 0;
-  const weiToMoney = (wei: string): string => {
+  const rawToMoney = (raw: string, decimals: number = GAME_ASSET.decimals): string => {
     try {
-      return money.format(Number(formatEther(BigInt(wei))) * unitUsd);
+      const units = BigInt(raw);
+      if (decimals === GAME_ASSET.decimals) return money.format(unitsToUsd(units));
+      return money.format((Number(units) / 10 ** decimals) * unitUsd);
     } catch {
       return "—";
     }
   };
 
-  // The reveal amount, preferring the backend's exact winnerPrizeWei over the
-  // client-captured pot snapshot — that snapshot goes stale when the final wager
-  // lands right at round-end (the "$0.38 instead of $1.15" bug).
+  // What the winner was actually paid, from the settlement row, falling back to
+  // the client's own estimate only until that row lands.
+  //
+  // Two things here are easy to get wrong and were both wrong:
+  //
+  //   - `paidToWinner`, never `toWinner`. When the winner also started the
+  //     game the contract pays both shares to the same wallet, so `toWinner`
+  //     alone under-states it by the starter's tenth. Self-started wins are the
+  //     common case here.
+  //   - priced by asset, never `usdValue`. That field is native-only by the
+  //     service's contract and is 0 for a USDC game, so reading it silently
+  //     dropped through to the estimate below — and that estimate is built from
+  //     a pot snapshot that goes stale when a wager lands at the buzzer. On
+  //     game 3 it showed $0.23 for a $0.46 payout.
   const latestWinner = winners[0];
+  const settledPrizeUsd = latestWinner
+    ? usdOf(latestWinner.paidToWinner ?? latestWinner.toWinner, ethPrice)
+    : null;
   const revealPrizeUsd =
-    latestWinner && revealWinner && latestWinner.winner.toLowerCase() === revealWinner.toLowerCase()
-      ? latestWinner.toWinner.usdValue
+    latestWinner &&
+    settledPrizeUsd !== null &&
+    revealWinner &&
+    latestWinner.winner.toLowerCase() === revealWinner.toLowerCase()
+      ? settledPrizeUsd
       : (roundPrizeUsd ?? 0);
 
   // Only trust timeRemaining while a round is live. Once it is over the clock
@@ -532,7 +566,9 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     // polled-data effect, matching the timed primary-reveal path above and
     // keeping the state updates out of the effect body.
     // The winners row carries what was actually paid, so it is the amount.
-    const paidUsd = latest.toWinner.usdValue;
+    // paidToWinner, not toWinner: a self-started win pays both shares to the
+    // one wallet. Priced by asset, because usdValue is 0 for a token game.
+    const paidUsd = usdOf(latest.paidToWinner ?? latest.toWinner, ethPrice) ?? 0;
     const id = setTimeout(() => {
       setRevealWinner(winnerAddress);
       setRoundPrizeUsd(paidUsd);
@@ -541,7 +577,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       setPollUntil(Date.now() + WIN_POLL_WINDOW_MS);
     }, 0);
     return () => clearTimeout(id);
-  }, [winners, address, phase]);
+  }, [winners, address, phase, ethPrice]);
 
   // The payout, credited the moment the settle frame or the winners row lands.
   usePayoutRefresh(address, winners);
@@ -567,19 +603,21 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     return () => clearTimeout(id);
   }, [recentWinUsd]);
 
-  // Sweep a payout the contract could not push, with a gasless claim(). Rare:
-  // settle() pays wallets directly and only a failed transfer is held in
-  // pendingWithdrawals. Guarded so it never fires an empty claim.
+  // Sweep a payout the contract could not push. Rare: settle() pays wallets
+  // directly and only a failed transfer is held in pendingWithdrawals.
+  //
+  // One claim per asset owed, because claim() takes the asset from v5 on.
+  // Guarded so it never fires an empty claim.
   const onClaim = async () => {
-    if (pendingWei <= 0n || claiming) return;
+    if (!hasPending || claiming) return;
     const id = toast.loading(t("toastClaiming"));
-    const amount = pendingWei;
+    const owed = pending;
     try {
-      await claim();
+      for (const payout of owed) await claim(payout.token);
       toast.success(t("toastClaimed"), { id });
       playClaimSound();
       void refetchWinnings();
-      void settleBalance(amount);
+      void settleBalance();
     } catch (e) {
       toast.error(friendlyError(e, t("toastClaimFailed")), { id });
     }
@@ -612,11 +650,11 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     }
   }, [phase, youWon, potUsd, revealPrizeUsd, winnerIsStarter]);
   useEffect(() => {
-    if (wonPendingRef.current && pendingWei > 0n && !claiming) {
+    if (wonPendingRef.current && hasPending && !claiming) {
       wonPendingRef.current = false;
       claimRef.current();
     }
-  }, [pendingWei, claiming]);
+  }, [hasPending, claiming]);
 
   // Settle the game I just won, if the keeper has not. Every game on this
   // contract sat unsettled for a day before the client could settle at all;
@@ -700,7 +738,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // at or above the game's minimum; either way the sender becomes last
   // standing and the clock resets, so the two share every step after the
   // amount.
-  const placeWager = async (amountWei: bigint, amountUsd: number, from: HTMLElement | null) => {
+  const placeWager = async (amountUnits: bigint, amountUsd: number, from: HTMLElement | null) => {
     // Entering the round starts the arena's audio, unconditionally — placing a
     // wager IS asking for the game, sound and all, and this click is the user
     // gesture autoplay policy wants. The mute button governs everything after;
@@ -729,7 +767,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
     // only feedback the player sees while the gasless wager settles.
     const toastId = toast.loading(t("ctaPlacing"));
     try {
-      await wager(gameId, amountWei);
+      await wager(gameId, amountUnits);
       followGame(gameId);
       // `game_staked` is the generic "money went into a game" event the
       // catalog uses across all of them, so it rides alongside the
@@ -744,7 +782,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       // (the socket push alone can be ~10s away, or absent when offline).
       resyncGame();
       setPollUntil(clockNow() + WIN_POLL_WINDOW_MS);
-      void settleBalance(-amountWei);
+      void settleBalance();
       return true;
     } catch (e) {
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
@@ -754,12 +792,21 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
 
   const onPlay = async () => {
     if (!canPlay) {
-      setFundOpen(true);
+      // Nothing to open: the stake comes off the USDC balance, so a balance too
+      // small for the entry is a fact to state, not a flow to start.
+      toast.error(t("toastBalanceShort"));
       return;
     }
     // That game's minimum, not a global fee: the starter set it when they
     // opened the game, and the contract rejects anything under it.
-    await placeWager(parseEther(status?.entryFee.amount ?? "0"), entryFeeUsd, playBtnRef.current);
+    // The entry fee arrives from the service already at the game's own scale,
+    // so it is parsed at that scale. parseEther here would send a 10-cent
+    // wager as 100000000000000000 base units of a 6-decimal token.
+    await placeWager(
+      usdToUnits(Number(status?.entryFee.amount ?? "0")),
+      entryFeeUsd,
+      playBtnRef.current
+    );
   };
 
   // Adding liquidity: a play of the player's own size. Typed in dollars,
@@ -767,20 +814,24 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
   // and never over what the wallet holds.
   const [liquidityUsd, setLiquidityUsd] = useState("");
   const liquidityAmountUsd = Number.parseFloat(liquidityUsd) || 0;
-  const liquidityWei = unitUsd > 0 ? usdToWei(liquidityAmountUsd, unitUsd) : 0n;
+  // Straight to the game asset's base units. This used to convert through the
+  // ETH price, which is derived from the entry fee and is 0 for a USDC game —
+  // so the amount came out 0n and the button was dead. Even with a price it
+  // produced 18-decimal wei for a 6-decimal token.
+  const liquidityUnits = usdToUnits(liquidityAmountUsd);
   const liquidityBelowMin = liquidityAmountUsd > 0 && liquidityAmountUsd < entryFeeUsd - 1e-9;
   const liquidityOverBalance = liquidityAmountUsd > 0 && liquidityAmountUsd > balanceUsd + 1e-9;
   const liquidityReady =
     liquidityAmountUsd > 0 &&
     !liquidityBelowMin &&
     !liquidityOverBalance &&
-    liquidityWei > 0n &&
+    liquidityUnits > 0n &&
     !wagering;
   const liquidityBtnRef = useRef<HTMLButtonElement | null>(null);
 
   const onAddLiquidity = async () => {
     if (!liquidityReady) return;
-    const ok = await placeWager(liquidityWei, liquidityAmountUsd, liquidityBtnRef.current);
+    const ok = await placeWager(liquidityUnits, liquidityAmountUsd, liquidityBtnRef.current);
     if (ok) setLiquidityUsd("");
   };
 
@@ -904,7 +955,7 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
       {/* Winners take the pot via a gasless claim(); the contract holds it in
           pendingWinnings until then. Auto-claim usually collects it on the win;
           this persistent banner sweeps up anything left unclaimed. */}
-      {pendingWei > 0n ? (
+      {hasPending ? (
         <motion.div
           initial={reduce ? false : { opacity: 0, y: -6 }}
           animate={{ opacity: 1, y: 0 }}
@@ -917,7 +968,11 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
             <div>
               <div className="text-[14px] font-bold text-white">{t("claimTitle")}</div>
               <div className="tnum text-[13px] font-normal text-[#d8d8dc]">
-                {t("claimWaiting", { amount: weiToMoney(pendingWei.toString()) })}
+                {t("claimWaiting", {
+                  amount: pending
+                    .map((payout) => rawToMoney(payout.raw.toString(), payout.amount.decimals))
+                    .join(" + "),
+                })}
               </div>
             </div>
           </div>
@@ -1330,16 +1385,6 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
 
             {/* Balance. Add money only shows when the play CTA isn't already
                 saying it. */}
-            <div className="mt-3">
-              <GameBalanceCard
-                balanceUsd={balanceUsd}
-                refreshing={balanceRefreshing}
-                canWithdraw={balanceEth > 0}
-                showAddMoney={canPlay}
-                onWithdraw={() => setWithdrawOpen(true)}
-                onAddMoney={() => setFundOpen(true)}
-              />
-            </div>
 
             {/* You won — auto-credited, no claim needed. */}
             {recentWinUsd !== null ? (
@@ -1412,7 +1457,13 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
                       </span>
                     </span>
                     <span className="tnum shrink-0 text-[12.5px] font-semibold text-white/65">
-                      {weiToMoney(a.amountWei)}
+                      {/* A win opened and won by the same wallet shows what
+                          that wallet received, not the winner's share alone —
+                          see lib/last-standing/activity-payout. */}
+                      {(() => {
+                        const shown = activityAmount(a, winners);
+                        return rawToMoney(shown.raw ?? a.amountWei, shown.decimals);
+                      })()}
                     </span>
                   </a>
                 ))}
@@ -1455,32 +1506,11 @@ export function LastStandingSection({ gameId, renderWithdrawSheet }: LastStandin
         <WinnersList winners={winners} loading={winnersLoading} emptyLabel={t("hallEmpty")} />
       </div>
 
-      <ModalShell open={fundOpen} onClose={() => setFundOpen(false)} contentKey="vault-fund">
-        <FundSheet onClose={() => setFundOpen(false)} />
-      </ModalShell>
-
-      <ModalShell
-        open={withdrawOpen && !!ethHolding}
-        onClose={() => setWithdrawOpen(false)}
-        contentKey="vault-withdraw"
-      >
-        {ethHolding
-          ? renderWithdrawSheet(
-              {
-                symbol: ethHolding.symbol,
-                name: ethHolding.name,
-                network: ethHolding.network,
-                address: ethHolding.address,
-                decimals: ethHolding.decimals,
-                balance: ethHolding.balance,
-                rawBalance: ethHolding.rawBalance,
-                priceUsd: ethHolding.priceUsd,
-                logo: ethHolding.logo,
-              },
-              () => setWithdrawOpen(false)
-            )
-          : null}
-      </ModalShell>
+      {/* There is no "add money" and no "withdraw" here any more. Both sheets
+          existed to convert the player's USDC into the ETH a v4 game needed and
+          back again. A v5 game is played in USDC, which IS the spendable
+          balance, so the stake comes off it directly and winnings land back on
+          it. See ADR-2026-09-15-last-man-v5-usdc, decision 5. */}
 
       <RoundOverlay
         phase={phase}

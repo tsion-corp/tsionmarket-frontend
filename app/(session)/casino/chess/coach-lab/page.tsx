@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CasinoPage } from "@/features/casino";
-import { PuzzleCoachLab } from "@/features/casino/components/chess/puzzle-coach-lab";
+import { PuzzleCoachLab } from "@/features/casino/components/chess-app/puzzle-coach-lab";
 
 export const dynamic = "force-dynamic";
 

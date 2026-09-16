@@ -6,7 +6,7 @@ import { useVaultSocket } from "@/features/casino/hooks/use-vault-socket";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { usePrices } from "@/hooks/use-prices";
-import { weiToTokenAmount } from "@/features/casino/lib/last-standing/stake";
+import { priced, rawToTokenAmount } from "@/features/casino/lib/last-standing/pricing";
 import { fetchActiveGames, type VaultGame } from "@/features/casino/lib/vault-api";
 import type { ChainGame } from "@/features/casino/lib/vault-game";
 
@@ -21,11 +21,13 @@ const EMPTY_CHAIN: ChainGame[] = [];
  * The lobby as the screen renders it.
  *
  * The service's rows are the list. The socket's `activeGames` frame may
- * describe a game in the contract's shape, wei and no dollars; a row the
- * service does not list yet is priced here with the ETH price the lobby
- * holds, and the service's row takes over the moment it has one, because it
- * carries the figures priced at the time. A game in neither list has
- * settled or gone away.
+ * describe a game in the contract's shape, raw units and no dollars; a row the
+ * service does not list yet is priced here, and the service's row takes over
+ * the moment it has one. A game in neither list has settled or gone away.
+ *
+ * Both are priced BY ASSET (lib/last-standing/pricing): a game carries its own
+ * token and scale, so nothing here multiplies by the ETH price on the
+ * assumption that every game is native.
  */
 function priceChainRows(indexed: VaultGame[], chain: ChainGame[], ethPrice: number): VaultGame[] {
   const seen = new Set(indexed.map((game) => game.gameId));
@@ -36,16 +38,24 @@ function priceChainRows(indexed: VaultGame[], chain: ChainGame[], ethPrice: numb
       gameId: game.gameId,
       starter: game.starter,
       king: game.king,
-      pot: weiToTokenAmount(game.potWei, ethPrice),
-      minWager: weiToTokenAmount(game.minWagerWei, ethPrice),
+      pot: rawToTokenAmount(game.potWei, game.token, ethPrice),
+      minWager: rawToTokenAmount(game.minWagerWei, game.token, ethPrice),
       endTime: game.endTime,
       timeRemaining: Math.max(0, game.endTime - now),
       settled: false,
       active: true,
     }));
+  // Indexed rows are priced too. The service sets usdValue only for native
+  // games — it is native-only by its own contract — so a USDC row arrives at
+  // zero and would render as an empty game.
+  const listed = indexed.map((game) => ({
+    ...game,
+    pot: priced(game.pot, ethPrice),
+    minWager: priced(game.minWager, ethPrice),
+  }));
   // Longest timer first: the games with room to join are the useful ones,
   // and a game about to expire is the one you cannot realistically enter.
-  return [...indexed, ...extra].sort((a, b) => b.endTime - a.endTime);
+  return [...listed, ...extra].sort((a, b) => b.endTime - a.endTime);
 }
 
 /**

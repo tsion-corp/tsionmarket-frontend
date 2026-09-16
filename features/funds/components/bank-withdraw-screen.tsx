@@ -159,7 +159,9 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
 
   const [query, setQuery] = useState("");
   const [bank, setBank] = useState<SelectedBank | null>(null);
+  const [showBankPicker, setShowBankPicker] = useState(false);
   const [account, setAccount] = useState("");
+  const [beneficiaryTab, setBeneficiaryTab] = useState<"recent" | "favorite" | "all">("recent");
   // Users type Naira by default (the amount they want in their bank) and can
   // switch the entry to USDC. The withdrawal itself is always USDC.
   const [entry, setEntry] = useState<"ngn" | "usdc">("ngn");
@@ -295,6 +297,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const pickBank = (b: SelectedBank) => {
     setBank(b);
     setQuery("");
+    setShowBankPicker(false);
     setAccount("");
     resolve.reset();
   };
@@ -344,9 +347,17 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           <ArrowUpRightIcon size={14} />
         </a>
         {!done && !payoutFailed ? (
-          <div className="mt-4 flex items-center justify-center gap-2 text-[12.5px] text-white/45">
-            <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-            {t("settling")}
+          <div className="relative mx-auto mt-6 mb-2 size-[56px]">
+            <div className="absolute inset-0 rounded-full border-[4px] border-white/20" />
+            <div
+              className="absolute inset-0 animate-spin rounded-full border-[4px] border-transparent"
+              style={{
+                borderTopColor: "#7ce7b0",
+                borderRightColor: "#7ce7b0",
+                animationDuration: "1.2s",
+                animationTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+            />
           </div>
         ) : null}
         <button
@@ -354,7 +365,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
             refetchPortfolio();
             onBack();
           }}
-          className="text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
+          className="mt-6 flex h-[64px] w-full cursor-pointer items-center justify-center rounded-full bg-white font-sans text-[18px] font-semibold text-[#181818] hover:opacity-90"
         >
           {t("finish")}
         </button>
@@ -404,141 +415,134 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const ready =
     Boolean(bank) && Boolean(verifiedName) && Boolean(walletAddress) && validAmount && !submitting;
 
-  return (
-    <div>
-      <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
+  // The initial screen shows the bank pill, account input, continue and
+  // beneficiaries. Once the account is verified and continue is tapped, it
+  // advances to the amount step. The bank picker (search + popular) opens as
+  // an overlay when the pill is tapped.
+  const showAmountStep = Boolean(verifiedName) && !showBankPicker;
 
-      {/* Step 1: bank */}
-      {bank ? (
-        <button
-          onClick={() => {
-            setBank(null);
-            setAccount("");
-            resolve.reset();
-          }}
-          className="flex w-full cursor-pointer items-center gap-3 rounded-[14px] border border-white/10 bg-white/4 px-3.5 py-3 text-left transition-colors hover:bg-white/6"
-        >
-          <BankAvatar initials={bank.initials} color={bank.color} />
-          <span className="min-w-0 flex-1 truncate font-sans text-[14.5px] font-medium text-white">
-            {bank.name}
-          </span>
-          <span className="text-accent shrink-0 text-[12.5px] font-medium">{t("change")}</span>
-        </button>
-      ) : (
-        <div>
-          <label className="focus-within:border-accent/45 flex items-center gap-2.5 rounded-[14px] border border-white/10 bg-black/35 px-3.5 py-3 transition-colors">
-            <SearchIcon size={16} />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("searchBank")}
-              className="w-full bg-transparent font-sans text-[14.5px] text-white outline-none placeholder:text-white/35"
-            />
-          </label>
+  // Continue from the initial screen: bank + account must be verified.
+  const canContinue = Boolean(bank) && Boolean(verifiedName);
 
-          {banks.isPending ? (
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {[0, 1, 2, 3].map((i) => (
-                <div key={i} className="h-[52px] animate-pulse rounded-[14px] bg-white/5" />
-              ))}
-            </div>
-          ) : banks.isError ? (
-            <div className="mt-3 rounded-[14px] border border-white/8 px-3.5 py-4 text-center">
-              <p className="text-[13px] text-white/55">{t("banksFailed")}</p>
+  const BENEFICIARY_TABS = [
+    { key: "recent" as const, label: "Recent" },
+    { key: "favorite" as const, label: "Favorite" },
+    { key: "all" as const, label: "View All" },
+  ];
+
+  // Bank picker overlay — search + popular banks, shown when the pill is tapped.
+  if (showBankPicker) {
+    return (
+      <div>
+        <SheetNav
+          title={t("title")}
+          subtitle={t("subtitle")}
+          onBack={() => setShowBankPicker(false)}
+        />
+
+        <label className="focus-within:border-accent/45 mt-6 flex items-center gap-2.5 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 py-4 transition-colors">
+          <SearchIcon size={16} />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("searchBank")}
+            autoFocus
+            className="w-full bg-transparent font-sans text-[14px] text-white outline-none placeholder:text-white/40"
+          />
+        </label>
+
+        {banks.isPending ? (
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="h-[52px] animate-pulse rounded-2xl bg-white/5" />
+            ))}
+          </div>
+        ) : banks.isError ? (
+          <div className="mt-4 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 py-5 text-center">
+            <p className="text-[13px] text-white/55">{t("banksFailed")}</p>
+            <button
+              onClick={() => banks.refetch()}
+              className="mt-3 cursor-pointer rounded-[12px] border border-white/15 bg-white/8 px-4 py-2 font-sans text-[13px] font-medium text-white hover:bg-white/12"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        ) : query.trim() ? (
+          <div className="mt-4 overflow-hidden rounded-2xl border border-white/15 bg-[#1b1b1b]">
+            {results.map((b) => (
               <button
-                onClick={() => banks.refetch()}
-                className="mt-3 cursor-pointer rounded-[12px] border border-white/15 bg-white/8 px-4 py-2 font-sans text-[13px] font-medium text-white hover:bg-white/12"
+                key={b.uuid}
+                onClick={() => pickBank(b)}
+                className="flex w-full cursor-pointer items-center gap-3 border-b border-white/8 px-5 py-3 text-left transition-colors last:border-0 hover:bg-white/6"
               >
-                {t("retry")}
+                <BankAvatar initials={b.initials} color={b.color} size={30} />
+                <span className="min-w-0 flex-1 truncate font-sans text-[13.5px] text-white/85">
+                  {b.name}
+                </span>
               </button>
-            </div>
-          ) : query.trim() ? (
-            // Search results across every bank.
-            <div className="mt-3 overflow-hidden rounded-[14px] border border-white/8">
-              {results.map((b) => (
+            ))}
+            {results.length === 0 ? (
+              <div className="px-3.5 py-4 text-center text-[13px] text-white/45">
+                {t("noBankMatch")}
+              </div>
+            ) : null}
+          </div>
+        ) : (
+          <>
+            <div className="mt-5 mb-2.5 text-[14px] font-medium text-white/50">{t("popular")}</div>
+            <div className="grid grid-cols-2 gap-3">
+              {popularBanks.map((b) => (
                 <button
                   key={b.uuid}
                   onClick={() => pickBank(b)}
-                  className="flex w-full cursor-pointer items-center gap-3 border-b border-white/5 px-3.5 py-2.5 text-left transition-colors last:border-0 hover:bg-white/6"
+                  className="flex cursor-pointer items-center gap-2.5 rounded-full border border-white/12 bg-white/5 px-3 py-3 text-left transition-colors hover:border-white/20 hover:bg-white/10"
                 >
                   <BankAvatar initials={b.initials} color={b.color} size={30} />
-                  <span className="min-w-0 flex-1 truncate font-sans text-[13.5px] text-white/85">
+                  <span className="min-w-0 flex-1 truncate font-sans text-[13px] font-medium text-white">
                     {b.name}
                   </span>
                 </button>
               ))}
-              {results.length === 0 ? (
-                <div className="px-3.5 py-4 text-center text-[13px] text-white/45">
-                  {t("noBankMatch")}
-                </div>
-              ) : null}
             </div>
-          ) : (
-            // Popular banks as quick-pick tiles.
-            <>
-              <div className="mt-3.5 mb-2 text-[11.5px] font-medium tracking-[0.04em] text-white/40 uppercase">
-                {t("popular")}
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {popularBanks.map((b) => (
-                  <button
-                    key={b.uuid}
-                    onClick={() => pickBank(b)}
-                    className="flex cursor-pointer items-center gap-2.5 rounded-[14px] border border-white/8 bg-white/4 px-3 py-2.5 text-left transition-colors hover:border-white/16 hover:bg-white/8"
-                  >
-                    <BankAvatar initials={b.initials} color={b.color} size={30} />
-                    <span className="min-w-0 flex-1 truncate font-sans text-[13px] font-medium text-white">
-                      {b.name}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <p className="mt-2.5 text-center text-[12px] font-normal text-white/40">
-                {t("searchHint")}
-              </p>
-            </>
-          )}
-        </div>
-      )}
-
-      {/* Step 2: account number (auto-verifies at 10 digits) */}
-      {bank ? (
-        <div className="mt-3">
-          <div className="mb-1.5 text-[12px] font-medium tracking-[0.02em] text-white/45 uppercase">
-            {t("accountLabel")}
-          </div>
-          <div className="focus-within:border-accent/45 flex items-center gap-2 rounded-[13px] border border-white/10 bg-black/35 px-3.5 transition-colors">
-            <input
-              {...MASK_ATTRIBUTE}
-              inputMode="numeric"
-              value={account}
-              maxLength={10}
-              onChange={(e) => onAccountChange(e.target.value)}
-              placeholder="0123456789"
-              className={`tnum w-full bg-transparent py-3 font-sans text-[14.5px] text-white outline-none placeholder:text-white/30 ${NO_AUTOCAPTURE_CLASS}`}
-            />
-            {resolve.isPending ? (
-              <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
-            ) : verifiedName ? (
-              <CheckIcon size={16} className="text-accent shrink-0" />
-            ) : null}
-          </div>
-          {verifiedName ? (
-            <div className="mt-1.5 font-sans text-[13px] font-medium text-white">
-              {verifiedName}
-            </div>
-          ) : resolve.isError ? (
-            <p className="text-down mt-1.5 text-[12.5px]">
-              {friendlyError(resolve.error, t("verifyFailed"))}
+            <p className="mt-3 text-center text-[14px] font-normal text-white/45">
+              {t("searchHint")}
             </p>
-          ) : null}
-        </div>
-      ) : null}
+          </>
+        )}
+      </div>
+    );
+  }
 
-      {/* Step 3: amount, typed in Naira or USDC with a pill toggle between. */}
-      {verifiedName ? (
-        <div className="ws-inset mt-3 p-[15px]">
-          <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
+  // Amount step — shown after account is verified and "continue" was tapped.
+  if (showAmountStep) {
+    return (
+      <div>
+        <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
+
+        {/* Selected bank pill */}
+        <button
+          onClick={() => {
+            setShowBankPicker(true);
+            setAccount("");
+            resolve.reset();
+          }}
+          className="mt-6 flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 py-4 text-left transition-colors hover:bg-white/6"
+        >
+          <BankAvatar initials={bank!.initials} color={bank!.color} />
+          <span className="min-w-0 flex-1 truncate font-sans text-[14px] font-medium text-white">
+            {bank!.name}
+          </span>
+          <span className="text-accent shrink-0 text-[12.5px] font-medium">{t("change")}</span>
+        </button>
+
+        {/* Verified account */}
+        <div className="mt-3 font-sans text-[13px] font-medium text-white/70">
+          {account} &middot; {verifiedName}
+        </div>
+
+        {/* Amount entry */}
+        <div className="mt-6 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 pt-5 pb-6">
+          <div className="mb-6 flex justify-between text-[14px] font-medium text-white/50">
             <span>{t("amountLabel")}</span>
             <button
               onClick={() => {
@@ -550,7 +554,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
               {t("maxBalance", { amount: formatAmount(balance) })}
             </button>
           </div>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-4">
             <input
               inputMode="decimal"
               value={formatAmountInput(amountInput)}
@@ -559,12 +563,12 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
                 if (DECIMAL.test(raw)) setAmountInput(raw);
               }}
               placeholder={entry === "ngn" ? "0" : "0.00"}
-              className="ws-display tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+              className="ws-display tnum w-full border-none bg-transparent text-[42px] text-white outline-none placeholder:text-white/40"
             />
             <button
               onClick={toggleEntry}
               aria-label={t("switchCurrency")}
-              className="group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/6 px-3.5 py-2 font-sans text-[13.5px] font-medium text-white/85 transition-all duration-200 hover:border-white/22 hover:bg-white/10 hover:text-white active:scale-[0.96]"
+              className="group flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 py-3 font-sans text-[14px] font-medium text-white/70 transition-all duration-200 hover:border-white/22 hover:bg-white/10 hover:text-white active:scale-[0.96]"
             >
               <SwapIcon
                 size={13}
@@ -573,7 +577,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
               {entry === "ngn" ? "NGN" : "USD"}
             </button>
           </div>
-          <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[14px] font-normal text-white/55">
             <span>
               {amount > balance
                 ? t("overBalance")
@@ -592,26 +596,116 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
             ) : null}
           </div>
         </div>
-      ) : null}
 
-      {sendError ? <p className="text-down mt-3 text-[13px]">{sendError}</p> : null}
+        {sendError ? <p className="text-down mt-3 text-[13px]">{sendError}</p> : null}
 
-      {verifiedName ? (
         <button
           onClick={submit}
           disabled={!ready}
-          className="text-ink mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-6 flex h-12 w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-white font-sans text-[15px] font-semibold text-[#181818] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {submitting ? (
             <>
-              <span className="border-ink/30 border-t-ink h-4 w-4 animate-spin rounded-full border-2" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#181818]/30 border-t-[#181818]" />
               {t("processing")}
             </>
           ) : (
             t("withdraw")
           )}
         </button>
-      ) : null}
+      </div>
+    );
+  }
+
+  // Initial screen: bank pill + account input + continue + beneficiaries.
+  return (
+    <div>
+      <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
+
+      {/* Bank selector pill */}
+      <button
+        onClick={() => setShowBankPicker(true)}
+        className="mt-[26px] flex h-[51px] w-full cursor-pointer items-center rounded-full border border-white/80 bg-[#1b1b1b] px-5 text-left transition-colors hover:bg-white/6"
+      >
+        {bank ? (
+          <>
+            <BankAvatar initials={bank.initials} color={bank.color} size={22} />
+            <span className="ml-2.5 min-w-0 flex-1 truncate font-sans text-[13px] font-semibold text-white">
+              {bank.name}
+            </span>
+          </>
+        ) : (
+          <span className="min-w-0 flex-1 font-sans text-[13px] font-semibold text-[#8d8d8d]">
+            Select bank
+          </span>
+        )}
+        <span className="shrink-0 font-sans text-[8px] font-medium text-white/70">
+          Change Bank &#9662;
+        </span>
+      </button>
+
+      {/* Account number input */}
+      <div className="mt-[26px]">
+        <div className="focus-within:border-accent/45 flex h-[61px] items-center gap-2 rounded-xl border border-white/15 bg-[#1b1b1b] px-5 transition-colors">
+          <input
+            {...MASK_ATTRIBUTE}
+            inputMode="numeric"
+            value={account}
+            maxLength={10}
+            onChange={(e) => onAccountChange(e.target.value)}
+            placeholder={t("accountLabel")}
+            className={`tnum w-full bg-transparent font-sans text-[13px] font-medium text-white outline-none placeholder:text-white/50 ${NO_AUTOCAPTURE_CLASS}`}
+          />
+          {resolve.isPending ? (
+            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
+          ) : verifiedName ? (
+            <CheckIcon size={16} className="text-accent shrink-0" />
+          ) : null}
+        </div>
+        {verifiedName ? (
+          <div className="mt-1.5 font-sans text-[13px] font-medium text-white">{verifiedName}</div>
+        ) : resolve.isError ? (
+          <p className="text-down mt-1.5 text-[12.5px]">
+            {friendlyError(resolve.error, t("verifyFailed"))}
+          </p>
+        ) : null}
+      </div>
+
+      {/* Continue button */}
+      <button
+        onClick={() => {
+          /* canContinue advances to amount step by virtue of showAmountStep */
+        }}
+        disabled={!canContinue}
+        className="mt-6 flex h-12 w-full cursor-pointer items-center justify-center rounded-full bg-white font-sans text-[15px] font-semibold text-[#181818] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        continue
+      </button>
+
+      {sendError ? <p className="text-down mt-3 text-[13px]">{sendError}</p> : null}
+
+      {/* Beneficiary tabs */}
+      <div className="mt-8 flex items-center justify-between px-2">
+        {BENEFICIARY_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setBeneficiaryTab(tab.key)}
+            className={`cursor-pointer font-sans text-[13px] font-semibold transition-colors ${
+              beneficiaryTab === tab.key
+                ? "text-white underline underline-offset-4"
+                : "text-white/50 hover:text-white/70"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Recent beneficiaries list (placeholder — no backend endpoint yet) */}
+      <div className="mt-5 space-y-[17px] pl-[30px]">
+        {/* Empty state: no saved beneficiaries yet */}
+        <p className="text-[13px] font-medium text-white/40">No recent beneficiaries</p>
+      </div>
     </div>
   );
 }

@@ -1,0 +1,38 @@
+.arkadeAction {
+  color: rgb(255 255 255 / 60%);
+  padding-inline: 0.75rem;
+  text-decoration: none;
+}
+
+.arkadeAction:hover,
+.arkadeAction:focus {
+  color: rgb(255 255 255);
+}
+
+.profileAction {
+  background: rgb(255 255 255 / 4.5%);
+  border: 1px solid rgb(255 255 255 / 10%);
+  padding-inline: 0.75rem;
+  text-align: right;
+  text-decoration: none;
+}
+
+.profileAction:hover,
+.profileAction:focus {
+  background: rgb(255 255 255 / 7.5%);
+  border-color: rgb(255 255 255 / 20%);
+}
+
+.legacyAction {
+  appearance: none;
+  background: rgb(252 211 77 / 7%);
+  border: 1px solid rgb(252 211 77 / 20%);
+  padding-inline: 0.75rem;
+  text-align: right;
+}
+
+.legacyAction:hover,
+.legacyAction:focus {
+  background: rgb(252 211 77 / 11%);
+  border-color: rgb(252 211 77 / 35%);
+}

@@ -1,0 +1,26 @@
+.markdown-textarea {
+  &:has(:focus) .write-tab.active {
+    outline: $outline;
+    outline-offset: -2px;
+
+    &::after {
+      left: 1px;
+      right: 1px;
+    }
+  }
+
+  .upload-image {
+    all: unset;
+    margin: 0 16px;
+    width: 24px;
+    height: 24px;
+    background-color: $c-font-dimmer;
+    cursor: pointer;
+    mask: url('../images/buttons/add-photo-outline-material.svg') 0 0 / contain no-repeat;
+  }
+
+  .upload-image.disabled {
+    background-color: $c-border;
+    cursor: default;
+  }
+}

@@ -1,5 +1,3 @@
-import type { PerpBriefRow } from "@/lib/perp/brief";
-
 // What the dashboard shows that is the same for every user, composed once on
 // the server and delivered as one value: the four briefs and the marquee's
 // live events. Client-safe, so the browser's hook and the server's composer
@@ -8,6 +6,9 @@ import type { PerpBriefRow } from "@/lib/perp/brief";
 // A section is null when its upstream could not answer. The brief then shows
 // its unavailable state, and no browser ever asks that upstream itself, which
 // is the point: a dead game gateway used to be polled by every open tab.
+
+import type { PerpBriefRow } from "@/lib/perp/brief";
+import type { RwaChain } from "@/lib/rwa/catalog";
 
 export type { PerpBriefRow } from "@/lib/perp/brief";
 
@@ -33,10 +34,23 @@ export interface RwaBriefRow {
   id: string;
   symbol: string;
   name: string;
+  issuer: string;
+  /** The registry's category: treasury, equity, commodity, real-estate, credit, fund, carbon. */
+  category: string | null;
+  /** Published yield in basis points, for the assets that pay one. */
+  apyBps: number | null;
   /** Route-relative logo URL, resolved by the token-logo handler. */
   logo: string;
   priceUsd: number | null;
   change24h: number | null;
+  /**
+   * The registry chain and contract address. The composer already reads both
+   * to build `logo` (see `rwaLogoPath`); they are carried here too so the
+   * "Own the Real World" card can open a trade sheet for the asset without
+   * the dashboard mounting the RWA registry itself.
+   */
+  chain: RwaChain;
+  address: string;
 }
 
 /** A Last Man Standing round that can still be joined. */
@@ -91,19 +105,30 @@ export interface LiveEvent {
 export function liveEventsFrom(live: DashboardLive | null, nowSeconds: number): LiveEvent[] {
   if (!live) return [];
   return [
-    // Last Man rounds are deliberately not chipped: the game is hidden on
-    // production and its routes redirect to the hub, so a chip would advertise
-    // a game the app will not open. The feed still carries the rounds, so
-    // restoring the game is restoring this block.
+    // Last Man is chipped again: the vault service settles v5 and this app
+    // now opens games on v5 in USDC, which is what the 2026-09-15 hide was
+    // waiting on.
+    ...live.rounds
+      .filter((round) => round.endTime > nowSeconds)
+      .map<LiveEvent>((round) => ({
+        key: `lastman-${round.gameId}`,
+        kind: "lastman",
+        href: `/casino/last-standing/${round.gameId}`,
+        pot: round.pot,
+      })),
     ...live.chess.map<LiveEvent>((m) => ({
       key: `chess-${m.id}`,
       kind: "chess",
       href: `/casino/chess/watch?match=${encodeURIComponent(m.id)}`,
     })),
-    ...live.checkers.map<LiveEvent>((m) => ({
-      key: `checkers-${m.id}`,
-      kind: "checkers",
-      href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
-    })),
+    // Checkers matches are deliberately not chipped: the game is not offered
+    // on production, so a chip would advertise a table the hub does not list.
+    // The feed still carries the matches, so restoring the game is restoring
+    // this block.
+    // ...live.checkers.map<LiveEvent>((m) => ({
+    //   key: `checkers-${m.id}`,
+    //   kind: "checkers",
+    //   href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
+    // })),
   ];
 }

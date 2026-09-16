@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import useEmblaCarousel from "embla-carousel-react";
 import { PredictionCard } from "@/features/prediction/components/prediction-card";
+import { predictionDetailHref } from "@/features/prediction/gamma-category";
 import type { Prediction } from "@/lib/types";
 
 interface PredictionSliderProps {
@@ -33,7 +34,11 @@ export function PredictionSlider({ predictions, onBuy }: PredictionSliderProps) 
         <div className="flex touch-pan-y">
           {predictions.map((p) => (
             <div key={p.q} className="min-w-0 shrink-0 grow-0 basis-[86%] pr-3 last:pr-0">
-              <PredictionCard prediction={p} onBuy={(yes) => onBuy(p, yes)} />
+              <PredictionCard
+                prediction={p}
+                onBuy={(yes) => onBuy(p, yes)}
+                href={predictionDetailHref(p)}
+              />
             </div>
           ))}
         </div>

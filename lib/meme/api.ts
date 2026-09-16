@@ -7,14 +7,51 @@ import { apiFetch } from "@/lib/api";
 // Solana. A token is identified by chainId + address, never by address shape. Amounts are decimal strings end to end; the backend verifies every
 // trade on-chain and only its CONFIRMED status means success.
 
-export type { MemeToken, TokenRiskLevel, TokenWarning } from "@/lib/meme/types";
-import type { MemeToken, TokenRiskLevel, TokenWarning } from "@/lib/meme/types";
-import { isMemecoinHere, tradableHere, withRiskDefaults, type Paged } from "@/lib/meme/catalog";
+export type {
+  MemeToken,
+  PreparedCall,
+  PreparedSolanaSwap,
+  PreparedSwap,
+  SubmissionReceipt,
+  SwapDetail,
+  SwapPreview,
+  SwapStatus,
+  SwapStatusUpdate,
+  SwapTokenRef,
+  TokenRisk,
+  TokenRiskLevel,
+  TokenStatus,
+  TokenTradability,
+  TokenWarning,
+  WalletChallenge,
+} from "@/lib/meme/types";
+import type {
+  MemeToken,
+  PreparedSolanaSwap,
+  PreparedSwap,
+  SubmissionReceipt,
+  SwapDetail,
+  SwapPreview,
+  SwapStatusUpdate,
+  TokenTradability,
+  TokenWarning,
+  WalletChallenge,
+} from "@/lib/meme/types";
+import {
+  CATALOG_PAGE_LIMIT,
+  isMemecoinHere,
+  tradableHere,
+  withRiskDefaults,
+  type DiscoveryView,
+  type Paged,
+} from "@/lib/meme/catalog";
 import { SOLANA_CHAIN_ID, chainSlug, type MemeChainSlug } from "@/lib/meme/chain";
+import { TradeShapeError } from "@/lib/meme/trade-shape-error";
 
 // The normalisation lives in lib/meme/catalog, shared with the server; the
-// feature keeps importing it from here.
+// formatting in lib/meme/format. The feature keeps importing both from here.
 export { withRiskDefaults };
+export { changeDirection, chartUp, compactUsd, type ChangeDirection } from "@/lib/meme/format";
 
 // Warnings worth showing a buyer. "The token contract is upgradeable" is
 // dropped by design: nearly every serious token (USDC included) sits behind an
@@ -25,95 +62,6 @@ export function visibleWarnings(warnings: TokenWarning[]): TokenWarning[] {
   return warnings.filter((w) => !/upgrad/i.test(w.code) && !/upgradeable/i.test(w.message));
 }
 
-export interface SwapPreview {
-  side: "BUY" | "SELL";
-  chainId: number;
-  walletAddress: string;
-  sellToken: MemeToken;
-  buyToken: MemeToken;
-  sellAmountAtomic: string;
-  sellAmountFormatted: string;
-  expectedBuyAmountAtomic: string;
-  expectedBuyAmountFormatted: string;
-  minimumBuyAmountAtomic: string;
-  minimumBuyAmountFormatted: string;
-  priceImpactBps: number | null;
-  slippageBps: number;
-  platformFeeAmountAtomic: string;
-  platformFeeAmountFormatted: string;
-  liquidityAvailable: boolean;
-  approvalRequired: boolean;
-  riskLevel: TokenRiskLevel;
-  warnings: TokenWarning[];
-  expiresAt: string;
-}
-
-export interface PreparedCall {
-  type: "APPROVAL" | "SWAP";
-  to: string;
-  data: string;
-  value: string;
-}
-
-export interface PreparedSwap {
-  swapId: string;
-  quoteId: string;
-  chainId: number;
-  side: "BUY" | "SELL";
-  walletAddress: string;
-  sellToken: MemeToken;
-  buyToken: MemeToken;
-  sellAmountAtomic: string;
-  expectedBuyAmountAtomic: string;
-  minimumBuyAmountAtomic: string;
-  slippageBps: number;
-  priceImpactBps: number | null;
-  executionMode: "SINGLE_CALL" | "BATCHED_CALLS";
-  calls: PreparedCall[];
-  warnings: TokenWarning[];
-  expiresAt: string;
-}
-
-// The Solana quote is one unsigned versioned transaction for the gas
-// sponsor, not a list of calls.
-export interface PreparedSolanaSwap {
-  swapId: string;
-  unsignedTransactionBase64: string;
-  platformFeeTokenAddress: string | null;
-  platformFeeAmountAtomic: string;
-  expiresAt: string;
-}
-
-export type SwapStatus =
-  | "QUOTED"
-  | "AWAITING_SUBMISSION"
-  | "SUBMITTED"
-  | "CONFIRMING"
-  | "CONFIRMED"
-  | "FAILED"
-  | "REVERTED"
-  | "EXPIRED"
-  | "CANCELLED";
-
-export interface SwapDetail {
-  id: string;
-  walletAddress: string;
-  chainId: number;
-  side: "BUY" | "SELL";
-  status: SwapStatus;
-  sellTokenAddress: string;
-  buyTokenAddress: string;
-  sellTokenDecimals: number;
-  buyTokenDecimals: number;
-  sellAmountAtomic: string;
-  quotedBuyAmountAtomic: string;
-  actualSellAmountAtomic: string | null;
-  actualBuyAmountAtomic: string | null;
-  failureCode: string | null;
-  failureReason: string | null;
-  createdAt: string;
-}
-
 export interface SwapRequest {
   side: "BUY" | "SELL";
   tokenAddress: string;
@@ -122,43 +70,94 @@ export interface SwapRequest {
   slippageBps?: number;
 }
 
-// The service error, keeping the machine code the UI branches on.
+// The service error, keeping the machine code the UI branches on and the
+// request id the contract says to preserve "in client logs and support
+// reports". The message is the service's own wording and is for logs only:
+// lib/errors.ts turns the code into our copy, never the message.
 export class TradeApiError extends Error {
   code: string;
   status: number;
-  constructor(code: string, message: string, status: number) {
+  requestId: string | null;
+  constructor(code: string, message: string, status: number, requestId: string | null = null) {
     super(message);
+    // A stable discriminant for lib/errors.ts, which must not import this
+    // client module to recognise a trade failure.
+    this.name = "TradeApiError";
     this.code = code;
     this.status = status;
+    this.requestId = requestId;
   }
 }
 
-interface Envelope<T> {
+interface Envelope {
   success: boolean;
-  data?: T;
-  error?: { code?: string; message?: string };
+  data?: unknown;
+  error?: { code?: string; message?: string; details?: unknown; requestId?: string };
 }
 
-async function request<T>(
+// The zod-backed mappers are loaded when a request runs, never on first paint:
+// this module is in the first-load payload of /meme and /spot, and a static
+// import put zod and every route schema there (1648 → 1714 kB against a 1650
+// budget). A call names its mapper; the module arrives with the first trade
+// request and is cached by the bundler after that.
+type ParserModule = typeof import("@/lib/meme/parse");
+type ParserName = {
+  [K in keyof ParserModule]: ParserModule[K] extends (data: unknown) => unknown ? K : never;
+}[keyof ParserModule];
+type Parsed<K extends ParserName> = ReturnType<ParserModule[K]>;
+
+async function loadParser<K extends ParserName>(name: K): Promise<(data: unknown) => Parsed<K>> {
+  const parsers = await import("@/lib/meme/parse");
+  return parsers[name] as (data: unknown) => Parsed<K>;
+}
+
+// Every call names the mapper its route's data goes through (lib/meme/parse.ts)
+// rather than casting the envelope to the type it hoped for. A body that does
+// not match is a BAD_RESPONSE, carrying the relay's request id when it sent
+// one, so drift surfaces as a typed failure rather than a half-shaped object.
+async function request<K extends ParserName>(
   path: string,
+  parser: K,
   init: RequestInit = {},
   opts: { auth?: boolean } = {}
-): Promise<T> {
+): Promise<Parsed<K>> {
   const res = await apiFetch(`/api/trade${path}`, init, { requireAuth: opts.auth });
-  const body = (await res.json().catch(() => null)) as Envelope<T> | null;
+  const body = (await res.json().catch(() => null)) as Envelope | null;
   if (!res.ok || !body?.success) {
     throw new TradeApiError(
       body?.error?.code ?? "SERVICE_UNAVAILABLE",
       body?.error?.message ?? "Trading is unavailable right now.",
-      res.status
+      res.status,
+      typeof body?.error?.requestId === "string" ? body.error.requestId : null
     );
   }
-  return body.data as T;
+  const parse = await loadParser(parser);
+  try {
+    return parse(body.data);
+  } catch (error) {
+    if (!(error instanceof TradeShapeError)) throw error;
+    throw new TradeApiError(
+      "BAD_RESPONSE",
+      error.message,
+      res.status,
+      res.headers.get("x-request-id")
+    );
+  }
 }
 
-function post<T>(path: string, payload: unknown, idempotencyKey?: string): Promise<T> {
-  return request<T>(
+// The portfolio client (lib/meme/portfolio.ts) goes through the same request,
+// so its mappers load on demand too and its failures carry the same codes.
+export { request as tradeRequest };
+
+function post<K extends ParserName>(
+  path: string,
+  payload: unknown,
+  parser: K,
+  idempotencyKey?: string
+): Promise<Parsed<K>> {
+  return request(
     path,
+    parser,
     {
       method: "POST",
       headers: idempotencyKey
@@ -189,10 +188,13 @@ const TRENDING_TIMEOUT_MS = 4_000;
 export async function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
   let trending: Paged<MemeToken> | null = null;
   try {
+    // Curated by name, not by default: these cards sit on the dashboard with
+    // no view switch beside them, so an unrated coin never arrives unasked.
     trending = tradableHere(
-      await request<Paged<MemeToken>>("/tokens/trending", {
+      await request("/tokens/trending", "parseTokenPage", {
         signal: AbortSignal.timeout(TRENDING_TIMEOUT_MS),
-      })
+      }),
+      "curated"
     );
   } catch {
     trending = null;
@@ -204,8 +206,49 @@ export async function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
   // chain=base matches the "Trending on Base" heading and keeps every address
   // in the EVM form the token detail routes expect.
   return tradableHere(
-    await request<Paged<MemeToken>>(`/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`)
+    await request(`/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`, "parseTokenPage"),
+    "curated"
   );
+}
+
+// One page of the catalogue at the contract's maximum of 500, parsed but not
+// judged: the discovery view is applied over the merged pages, so switching
+// between Curated and All never asks again, and the meta is the server's.
+// `chain` narrows it to one network; omitted, the catalogue is every chain.
+export function fetchTokenCatalogPage(
+  page: number,
+  chain?: MemeChainSlug
+): Promise<Paged<MemeToken>> {
+  const scope = chain ? `&chain=${chain}` : "";
+  return request(`/tokens?page=${page}&limit=${CATALOG_PAGE_LIMIT}${scope}`, "parseTokenPage");
+}
+
+// The screener's filtered catalogue, a page of 500 at a time: the backend's
+// cost for a filtered read does not depend on the page size, so one request
+// covers what fifty small pages would. `query` is screenerQuery's canonical
+// string. Parsed but not judged, like fetchTokenCatalogPage: the discovery view
+// is applied in the hook, so switching views never asks again.
+export const SCREENER_PAGE_LIMIT = CATALOG_PAGE_LIMIT;
+
+export function fetchScreenerPage(page: number, query: string): Promise<Paged<MemeToken>> {
+  const filters = query === "" ? "" : `&${query}`;
+  return request(`/tokens?page=${page}&limit=${SCREENER_PAGE_LIMIT}${filters}`, "parseTokenPage");
+}
+
+// The Trending strip's source: the service's trending ranking narrowed by
+// trendingQuery's bounds. Unlike fetchTrendingTokens it has no catalogue
+// fallback and no timeout of its own. A failure reaches the hook as an error,
+// and the strip shows its retry state rather than a list that is not trending.
+export const TRENDING_BOARD_LIMIT = 100;
+
+export function fetchTrendingBoard(
+  query: string,
+  limit = TRENDING_BOARD_LIMIT
+): Promise<Paged<MemeToken>> {
+  // Never above the contract's maximum, whatever a surface asks for.
+  const size = Math.min(limit, CATALOG_PAGE_LIMIT);
+  const filters = query === "" ? "" : `&${query}`;
+  return request(`/tokens/trending?limit=${size}${filters}`, "parseTokenPage");
 }
 
 // The catalog is the only discovery route that honours ?chain, and this
@@ -222,13 +265,21 @@ export async function fetchTokenCatalog(
   chain?: MemeChainSlug
 ): Promise<Paged<MemeToken>> {
   const scope = chain ? `&chain=${chain}` : "";
-  const page_ = await request<Paged<MemeToken>>(`/tokens?page=${page}&limit=${limit}${scope}`);
-  return { ...page_, items: page_.items.filter(isMemecoinHere).map(withRiskDefaults) };
+  // Never above the contract's maximum, whatever a surface asks for.
+  const size = Math.min(limit, CATALOG_PAGE_LIMIT);
+  const page_ = await request(`/tokens?page=${page}&limit=${size}${scope}`, "parseTokenPage");
+  return { ...page_, items: page_.items.filter((token) => isMemecoinHere(token, "curated")) };
 }
 
-export async function searchTokens(q: string): Promise<MemeToken[]> {
-  const rows = await request<MemeToken[]>(`/tokens/search?q=${encodeURIComponent(q.trim())}`);
-  return rows.filter(isMemecoinHere).map(withRiskDefaults);
+export async function searchTokens(
+  q: string,
+  view: DiscoveryView = "curated"
+): Promise<MemeToken[]> {
+  const rows = await request(
+    `/tokens/search?q=${encodeURIComponent(q.trim())}`,
+    "parseTokenSearch"
+  );
+  return rows.filter((token) => isMemecoinHere(token, view));
 }
 
 // The detail routes require the chain by name; without it a Solana mint is
@@ -241,24 +292,19 @@ function detailPath(address: string, chainId: number, suffix = ""): string {
 }
 
 export async function fetchToken(address: string, chainId: number): Promise<MemeToken> {
-  return withRiskDefaults(await request<MemeToken>(detailPath(address, chainId)));
+  return request(detailPath(address, chainId), "parseTokenView");
 }
 
-export function fetchTradability(
-  address: string,
-  chainId: number
-): Promise<{ buyEnabled: boolean; sellEnabled: boolean }> {
-  return request(detailPath(address, chainId, "/tradability"));
+export function fetchTradability(address: string, chainId: number): Promise<TokenTradability> {
+  return request(detailPath(address, chainId, "/tradability"), "parseTradability");
 }
 
-export function createWalletChallenge(
-  walletAddress: string
-): Promise<{ challengeId: string; message: string; expiresAt: string }> {
-  return post("/wallets/challenges", { walletAddress });
+export function createWalletChallenge(walletAddress: string): Promise<WalletChallenge> {
+  return post("/wallets/challenges", { walletAddress }, "parseWalletChallenge");
 }
 
-export function verifyWallet(challengeId: string, signature: string): Promise<unknown> {
-  return post("/wallets/verify", { challengeId, signature });
+export function verifyWallet(challengeId: string, signature: string): Promise<void> {
+  return post("/wallets/verify", { challengeId, signature }, "parseWalletVerification");
 }
 
 // Base and Solana share one request shape and one status lifecycle; only
@@ -268,25 +314,23 @@ function swapsPrefix(chainId: number): string {
 }
 
 export function previewSwap(input: SwapRequest, chainId: number): Promise<SwapPreview> {
-  return post(`${swapsPrefix(chainId)}/preview`, input);
+  return post(`${swapsPrefix(chainId)}/preview`, input, "parseSwapPreview");
 }
 
-export function createSolanaWalletChallenge(
-  walletAddress: string
-): Promise<{ challengeId: string; message: string; expiresAt: string }> {
-  return post("/solana/wallets/challenges", { walletAddress });
+export function createSolanaWalletChallenge(walletAddress: string): Promise<WalletChallenge> {
+  return post("/solana/wallets/challenges", { walletAddress }, "parseWalletChallenge");
 }
 
 /** `signature` is the base58 form of the 64-byte Ed25519 signature. */
-export function verifySolanaWallet(challengeId: string, signature: string): Promise<unknown> {
-  return post("/solana/wallets/verify", { challengeId, signature });
+export function verifySolanaWallet(challengeId: string, signature: string): Promise<void> {
+  return post("/solana/wallets/verify", { challengeId, signature }, "parseWalletVerification");
 }
 
 export function quoteSolanaSwap(
   input: SwapRequest,
   idempotencyKey: string
 ): Promise<PreparedSolanaSwap> {
-  return post("/solana/swaps/quote", input, idempotencyKey);
+  return post("/solana/swaps/quote", input, "parseSolanaSwapQuote", idempotencyKey);
 }
 
 // A Solana submission is the broadcast transaction's base58 signature; there
@@ -295,36 +339,45 @@ export function registerSolanaSubmission(
   swapId: string,
   walletAddress: string,
   signature: string
-): Promise<{ swapId: string; status: string }> {
-  return post(`/solana/swaps/${swapId}/submissions`, { walletAddress, signature });
+): Promise<SubmissionReceipt> {
+  return post(
+    `/solana/swaps/${swapId}/submissions`,
+    { walletAddress, signature },
+    "parseSubmission"
+  );
 }
 
 export function quoteSwap(input: SwapRequest, idempotencyKey: string): Promise<PreparedSwap> {
-  return post("/swaps/quote", input, idempotencyKey);
+  return post("/swaps/quote", input, "parseSwapQuote", idempotencyKey);
 }
+
+// What a Base call broadcast produced: the bundle's transaction hash when the
+// receipt arrived, or the user-operation hash when the bundler accepted the
+// operation but never handed back a receipt. The contract accepts exactly one
+// of the two per callIndex.
+export type SubmissionHash = { transactionHash: string } | { userOperationHash: string };
 
 export function registerSubmission(
   swapId: string,
   callIndex: number,
   walletAddress: string,
-  transactionHash: string,
+  submission: SubmissionHash,
   idempotencyKey: string
-): Promise<{ swapId: string; status: string; callIndex: number }> {
+): Promise<SubmissionReceipt> {
   return post(
     `/swaps/${swapId}/submissions`,
-    { walletAddress, callIndex, transactionHash },
+    { walletAddress, callIndex, ...submission },
+    "parseSubmission",
     idempotencyKey
   );
 }
 
-export function fetchSwapStatus(
-  swapId: string
-): Promise<{ swapId: string; status: SwapStatus; updatedAt: string }> {
-  return request(`/swaps/${swapId}/status`, {}, { auth: true });
+export function fetchSwapStatus(swapId: string): Promise<SwapStatusUpdate> {
+  return request(`/swaps/${swapId}/status`, "parseSwapStatus", {}, { auth: true });
 }
 
 export function fetchSwapHistory(page = 1, limit = 20): Promise<Paged<SwapDetail>> {
-  return request(`/swaps?page=${page}&limit=${limit}`, {}, { auth: true });
+  return request(`/swaps?page=${page}&limit=${limit}`, "parseSwapPage", {}, { auth: true });
 }
 
 // UUID v4 for Idempotency-Key headers. crypto.randomUUID only exists in
@@ -346,11 +399,4 @@ export function isValidTradeAmount(amount: string, maxDecimals: number): boolean
   const frac = amount.split(".")[1];
   if (frac && frac.length > maxDecimals) return false;
   return Number(amount) > 0;
-}
-
-// Compact USD for market stats ("$1.2M"); exact strings stay exact elsewhere.
-export function compactUsd(value: string | null): string {
-  const n = value === null ? NaN : Number(value);
-  if (!Number.isFinite(n) || n <= 0) return "—";
-  return `$${Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(n)}`;
 }

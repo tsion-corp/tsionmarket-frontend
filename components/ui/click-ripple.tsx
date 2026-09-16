@@ -19,6 +19,9 @@ function targetButton(node: EventTarget | null): HTMLElement | null {
   if (!(node instanceof Element)) return null;
   const el = node.closest<HTMLElement>('button, [role="button"], a');
   if (!el) return null;
+  // Copied Lichess modules own their descendants through Snabbdom. Injecting
+  // ripple spans into that subtree corrupts the next virtual-DOM patch.
+  if (el.closest('[data-no-ripple-scope="true"]')) return null;
   if (el.hasAttribute("data-no-ripple")) return null;
   if (el instanceof HTMLButtonElement && el.disabled) return null;
   if (el.getAttribute("aria-disabled") === "true") return null;

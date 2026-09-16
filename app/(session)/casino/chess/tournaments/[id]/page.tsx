@@ -1,25 +1,10 @@
-"use client";
+import { ChessLobbyFrame } from "@/features/casino/components/chess-app/chess-lobby-frame";
 
-import { use } from "react";
-import { CasinoPage, SwissDetailSection } from "@/features/casino";
-
-export default function ChessTournamentDetailPage({
+export default async function ChessTournamentDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ created?: string }>;
 }) {
-  const { id } = use(params);
-  const query = use(searchParams);
-  return (
-    <CasinoPage hideBackLink>
-      <SwissDetailSection
-        tournamentId={id}
-        showCreatedShare={query.created === "1"}
-        game="chess"
-        format="champions"
-      />
-    </CasinoPage>
-  );
+  const { id } = await params;
+  return <ChessLobbyFrame source={`/api/chess/competition/arenas/${encodeURIComponent(id)}`} />;
 }

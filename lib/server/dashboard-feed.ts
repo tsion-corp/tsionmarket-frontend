@@ -20,8 +20,14 @@ import {
 } from "@/lib/dashboard-feed";
 import { tradableHere, type Paged } from "@/lib/meme/catalog";
 import type { MemeToken } from "@/lib/meme/types";
-import { composePerpBrief, perpBriefFallbackSymbols, type PerpBriefRow } from "@/lib/perp/brief";
-import type { PerpPair, PerpPrice } from "@/lib/perp/types";
+import {
+  composePerpBrief,
+  parsePerpBriefAssets,
+  parsePerpBriefContexts,
+  perpBriefFallbackSymbols,
+  type PerpBriefContext,
+  type PerpBriefRow,
+} from "@/lib/perp/brief";
 import { assetPriceUsd, listedRwaAssets, rwaLogoPath, type RwaApiAsset } from "@/lib/rwa/catalog";
 import { composeSpotMarkets } from "@/lib/spot-markets";
 
@@ -110,21 +116,27 @@ async function spotSection(): Promise<SpotBriefRow[]> {
     }));
 }
 
+// The same two reads the perps desk makes: the listing, which decides which
+// majors are tradable and how far, and the live marks.
 async function perpsSection(): Promise<PerpBriefRow[]> {
-  const pairs = (
-    await envelopeData<PerpPair[]>(
-      await wsapiPerpRequest("pairs", { method: "GET", revalidate: 300 })
+  const assets = parsePerpBriefAssets(
+    await envelopeData<unknown>(
+      await wsapiPerpRequest("ark/assets", { method: "GET", revalidate: 300 })
     )
-  ).filter((p) => p.from !== "" && p.to !== "");
-  // The marks are a bonus over the CoinGecko fallback, not a requirement: a
-  // gateway that serves pairs but not prices still gets a priced brief.
-  const [marks, fallback] = await Promise.all([
-    wsapiPerpRequest("prices", { method: "GET", revalidate: 3 })
-      .then((res) => envelopeData<PerpPrice[]>(res))
-      .catch((): PerpPrice[] => []),
-    priceMap(perpBriefFallbackSymbols(DASHBOARD_FEED_ROWS)),
+  );
+  // The marks are a bonus over the app's own prices, not a requirement: a
+  // service that lists assets but cannot mark them still gives a priced brief.
+  const [contexts, fallback] = await Promise.all([
+    wsapiPerpRequest("ark/market-contexts", { method: "GET", revalidate: 5 })
+      .then((res) => envelopeData<unknown>(res))
+      .then(parsePerpBriefContexts)
+      .catch((error): PerpBriefContext[] => {
+        console.warn("[dashboard-feed] perps: marks unavailable:", error);
+        return [];
+      }),
+    priceMap(perpBriefFallbackSymbols()),
   ]);
-  return composePerpBrief(pairs, marks, fallback, DASHBOARD_FEED_ROWS);
+  return composePerpBrief(assets, contexts, fallback, DASHBOARD_FEED_ROWS);
 }
 
 async function memesSection(): Promise<MemeBriefRow[]> {
@@ -140,12 +152,14 @@ async function memesSection(): Promise<MemeBriefRow[]> {
   // can be thin or empty without ever erroring. The brief then fills from the
   // Base catalogue, as the page's own shortlist does; "nothing to show"
   // beside a page full of coins is the one thing it must not say.
-  let page = tradableHere(await trending().catch(catalog));
+  // The brief is curated whatever view a list on the meme desk is switched to
+  // (ADR-2026-09-14-memecoins-trade-contract, slice 4).
+  let page = tradableHere(await trending().catch(catalog), "curated");
   if (page.items.length < DASHBOARD_FEED_ROWS) {
     // The catalogue failing must not throw away a thin trending list; the
     // fuller of the two wins.
     const fallback = await catalog()
-      .then(tradableHere)
+      .then((fallbackPage) => tradableHere(fallbackPage, "curated"))
       .catch(() => null);
     if (fallback && fallback.items.length > page.items.length) page = fallback;
   }
@@ -166,7 +180,10 @@ async function rwaSection(): Promise<RwaBriefRow[]> {
   const assets = await envelopeData<RwaApiAsset[]>(
     await wsapiRwaRequest("assets", { method: "GET", revalidate: 60 })
   );
-  const listed = listedRwaAssets(assets).slice(0, DASHBOARD_FEED_ROWS);
+  // Every listed asset, not the brief's eight: the "Own the Real World" shelf
+  // picks one per category out of this, and composing it here once for
+  // everyone is what keeps the dashboard from mounting the desk's own poll.
+  const listed = listedRwaAssets(assets);
   // Market stats are an enrichment; the registry's own price still stands
   // when the market read fails.
   const market = await fetchRwaMarket(
@@ -179,9 +196,14 @@ async function rwaSection(): Promise<RwaBriefRow[]> {
       id: a.id,
       symbol: a.symbol,
       name: a.name,
+      issuer: a.issuer,
+      category: a.category ?? null,
+      apyBps: typeof a.yieldApyBps === "number" ? a.yieldApyBps : null,
       logo: rwaLogoPath(a.chain, a.address),
       priceUsd: assetPriceUsd(a) ?? stats?.priceUsd ?? null,
       change24h: stats?.change24h ?? null,
+      chain: a.chain,
+      address: a.address,
     };
   });
 }

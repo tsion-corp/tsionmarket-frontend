@@ -5,9 +5,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrices } from "@/hooks/use-prices";
 import { useVaultSocket } from "@/features/casino/hooks/use-vault-socket";
 import { seedGame } from "@/features/casino/lib/last-standing/seed-game";
-import { readGame } from "@/features/casino/hooks/use-vault-actions";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
+import { priced } from "@/features/casino/lib/last-standing/pricing";
 import {
   followedGameSnapshot,
   unfollowGame,
@@ -34,50 +34,18 @@ function subscribeOnline(listener: () => void): () => void {
 const onlineNow = () => navigator.onLine;
 const onlineOnServer = () => true;
 
-// The contract deals in wei; the screen shows money. Converting here is not
-// inventing a figure, it is the same conversion the indexed row does, at the
-// same price the rest of the app uses. Leaving usdValue at zero was worse: a
-// pot of 0.0002 ETH rendered as "$0.00", which reads as an empty game.
-function money(ethAmount: string, ethPriceUsd: number) {
-  const usd = Number(ethAmount) * ethPriceUsd;
-  return {
-    amount: ethAmount,
-    tokenSymbol: "ETH",
-    usdValue: Number.isFinite(usd) ? usd : 0,
-    formattedUsd: Number.isFinite(usd) ? `$${usd.toFixed(2)}` : "",
-  };
-}
-
-// The contract's record of a game, in the shape the screen reads.
-function fromChain(
-  gameId: number,
-  chain: NonNullable<Awaited<ReturnType<typeof readGame>>>,
-  previous?: VaultGame
-): VaultGame {
-  const now = Math.floor(Date.now() / 1000);
-  return {
-    gameId,
-    starter: chain.starter,
-    king: chain.king,
-    // Amounts only; `withUsd` in the hook prices them.
-    pot: previous?.pot ?? money(String(Number(chain.potWei) / 1e18), 0),
-    minWager: previous?.minWager ?? money(String(Number(chain.minWagerWei) / 1e18), 0),
-    endTime: chain.endTime,
-    timeRemaining: Math.max(0, chain.endTime - now),
-    settled: chain.settled,
-    // Joinable only while the clock has time on it and nothing settled it. A
-    // finished game keeps its page; it just cannot be joined.
-    active: !chain.settled && chain.endTime > now,
-  };
-}
-
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * A game the user just paid for, from the service, with the contract as the
- * last resort. The service's 404 is final (the id was never used); any
- * other failure means the service could not be reached, and then the
- * contract is asked once so a game someone paid for is never shown missing.
+ * A game the user just paid for, from the service.
+ *
+ * The service's 404 is final: the id was never used. Anything else is the
+ * service being unreachable, and there is deliberately no contract read of our
+ * own behind it. `GET /games/:id` already falls through to the chain
+ * service-side when its index lags — verified on 2026-09-15, when it answered
+ * for a game the index did not hold — so a second, browser-side decode would
+ * add a way to be wrong without adding an answer. See
+ * ADR-2026-09-15-last-man-v5-usdc, decision 7.
  */
 async function loadFreshGame(gameId: number): Promise<VaultGame | null> {
   for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt += 1) {
@@ -95,8 +63,7 @@ async function loadFreshGame(gameId: number): Promise<VaultGame | null> {
       break;
     }
   }
-  const chain = await readGame(gameId);
-  return chain?.exists ? fromChain(gameId, chain) : null;
+  return null;
 }
 
 /**
@@ -114,19 +81,22 @@ export function useVaultGame(gameId: number | null) {
 
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
 
-  // A game read from the contract comes back with no USD. Filling that in
-  // here rather than in the fetch keeps the price out of the query key: it
-  // re-prices on the next render instead of refetching every time the price
-  // ticks.
+  // Every amount is priced here rather than in the fetch, which keeps the price
+  // out of the query key: it re-prices on the next render instead of refetching
+  // whenever the price ticks.
+  //
+  // Priced by ASSET, not by one price. A USDC amount is already a dollar
+  // amount; only an ETH game needs the ETH price. This used to multiply every
+  // amount by the ETH price on the sole condition that usdValue was 0 — and
+  // usdValue is 0 for every token game by the service's own contract, so a 0.38
+  // USDC pot rendered as $925.68 and the winner was congratulated with $555.41
+  // for 23 cents (seen on 2026-09-15). See lib/last-standing/pricing.
   const withUsd = useCallback(
-    (game: VaultGame): VaultGame =>
-      ethPrice > 0 && game.pot.usdValue === 0
-        ? {
-            ...game,
-            pot: money(game.pot.amount, ethPrice),
-            minWager: money(game.minWager.amount, ethPrice),
-          }
-        : game,
+    (game: VaultGame): VaultGame => ({
+      ...game,
+      pot: priced(game.pot, ethPrice),
+      minWager: priced(game.minWager, ethPrice),
+    }),
     [ethPrice]
   );
 
@@ -137,12 +107,10 @@ export function useVaultGame(gameId: number | null) {
       try {
         return await fetchGame(id);
       } catch (error) {
-        // Never used: nothing anywhere has this game. Any other failure is
-        // the service being unreachable, and the contract still has the row.
-        if (isVaultNotFound(error)) throw error;
-        const chain = await readGame(id);
-        if (!chain?.exists) throw error;
-        return fromChain(id, chain, queryClient.getQueryData<VaultGame>(VAULT_KEYS.game(id)));
+        // A 404 is final; anything else is the service being unreachable, and
+        // the retry below handles that. The service reads the chain itself
+        // when its index lags, so there is nothing for us to add here.
+        throw error;
       }
     },
     enabled: gameId !== null,

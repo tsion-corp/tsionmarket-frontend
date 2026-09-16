@@ -1,0 +1,111 @@
+import { view as cevalView } from 'lib/ceval';
+import { licon } from 'lib/licon';
+import { bind, dataIcon, hl, type LooseVNode, type VNode } from 'lib/view';
+
+import type AnalyseCtrl from '@/ctrl';
+import explorerView from '@/explorer/explorerView';
+import { view as forkView } from '@/fork';
+import type { ConcealOf } from '@/interfaces';
+import practiceView from '@/practice/practiceView';
+import retroView from '@/retrospect/retroView';
+import { renderNextChapter } from '@/study/nextChapter';
+import type * as studyDeps from '@/study/studyDeps';
+import { addChapterId, renderResult, type ViewContext } from '@/view/components';
+
+import { view as actionMenu } from './actionMenu';
+
+export function renderTools({ ctrl, deps, concealOf, allowVideo }: ViewContext, embeddedVideo?: LooseVNode) {
+  const showCeval = ctrl.isCevalAllowed() && ctrl.showCeval();
+  return hl(addChapterId(ctrl.study, 'div.analyse__tools'), [
+    allowVideo && embeddedVideo,
+    showCeval && cevalView.renderCeval(ctrl),
+    showCeval &&
+      !ctrl.retro?.isSolving() &&
+      !ctrl.practice &&
+      !ctrl.study?.hideMoves() &&
+      cevalView.renderPvs(ctrl),
+    ctrl.data.analysis && renderArkCoach(),
+    renderMoveList(ctrl, deps, concealOf),
+    deps?.gbEdit.running(ctrl) ? deps?.gbEdit.render(ctrl) : undefined,
+    renderBackToLiveButton(ctrl),
+    forkView(ctrl, concealOf),
+    retroView(ctrl) || explorerView(ctrl) || practiceView(ctrl),
+    ctrl.actionMenu() && actionMenu(ctrl),
+  ]);
+}
+
+const renderArkCoach = (): VNode =>
+  hl(
+    'section.ark-analysis-coach',
+    {
+      attrs: {
+        'data-ark-coach-card': '',
+        'data-classification': 'good',
+        'aria-live': 'polite',
+      },
+    },
+    [
+      hl('div.ark-analysis-coach__avatar', [
+        hl('img', { attrs: { src: '/chess/ark-coach.svg', alt: 'ArkChess coach' } }),
+        hl('span.ark-analysis-coach__badge', { attrs: { 'data-ark-coach-badge': '' } }, '✓'),
+      ]),
+      hl('div.ark-analysis-coach__bubble', [
+        hl('div.ark-analysis-coach__eyebrow', 'ArkChess coach'),
+        hl('h3.ark-analysis-coach__title', { attrs: { 'data-ark-coach-title': '' } }, 'Reviewing your game'),
+        hl(
+          'p.ark-analysis-coach__comment',
+          { attrs: { 'data-ark-coach-comment': '' } },
+          "Select a move to see the coach's explanation.",
+        ),
+        hl(
+          'div.ark-analysis-coach__correction',
+          { attrs: { 'data-ark-coach-correction': '', hidden: '' } },
+          ['Best was ', hl('strong', { attrs: { 'data-ark-coach-best': '' } })],
+        ),
+      ]),
+      hl('div.ark-analysis-coach__tools', [
+        hl(
+          'button.button.button-metal.text',
+          {
+            attrs: {
+              type: 'button',
+              'data-ark-coach-voice': '',
+              'aria-pressed': 'false',
+            },
+          },
+          'Coach voice: Off',
+        ),
+      ]),
+    ],
+  );
+
+const renderMoveList = (ctrl: AnalyseCtrl, deps?: typeof studyDeps, concealOf?: ConcealOf): VNode =>
+  hl(
+    'div.analyse__moves.areplay',
+    { hook: ctrl.treeView.hook() },
+    ctrl.study?.hideMoves()
+      ? []
+      : [
+          hl('div', [ctrl.treeView.render(concealOf), renderResult(ctrl)]),
+          !ctrl.practice && !deps?.gbEdit.running(ctrl) && renderNextChapter(ctrl),
+        ],
+  );
+
+const renderBackToLiveButton = (ctrl: AnalyseCtrl) =>
+  ctrl.study?.isRelayAwayFromLive()
+    ? hl(
+        'button.fbt.relay-back-to-live.text',
+        {
+          attrs: dataIcon(licon.PlayTriangle),
+          hook: bind(
+            'click',
+            () => {
+              const p = ctrl.study?.data.chapter.relayPath;
+              if (p) ctrl.userJump(p);
+            },
+            ctrl.redraw,
+          ),
+        },
+        i18n.broadcast.backToLiveMove,
+      )
+    : undefined;

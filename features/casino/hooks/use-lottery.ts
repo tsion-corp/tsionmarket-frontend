@@ -13,7 +13,11 @@ import {
   type LotterySelection,
 } from "@/features/casino/lib/api/lottery";
 import { fetchChessBalance } from "@/features/casino/lib/api/cashier";
-import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
+import {
+  CASHIER_BALANCE_POLL_MS,
+  CASHIER_BALANCE_STALE_MS,
+  CASHIER_KEYS,
+} from "@/features/casino/hooks/use-chess-cashier";
 import { errorCode } from "@/lib/api/envelope";
 import { getWalletAddress } from "@/lib/user";
 
@@ -78,7 +82,10 @@ export function useLottery() {
     queryFn: () => fetchChessBalance(wallet as string),
     enabled: privateReadsEnabled,
     retry: retryPrivateRead,
-    refetchInterval: 15_000,
+    staleTime: CASHIER_BALANCE_STALE_MS,
+    refetchInterval: CASHIER_BALANCE_POLL_MS,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const quickPick = useMutation({

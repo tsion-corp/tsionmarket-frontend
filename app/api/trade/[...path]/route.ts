@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { checkUpstream } from "@/lib/server/validate-upstream";
 import { tradeSchemaFor } from "@/lib/api/schemas/trade";
 import { wsapiService } from "@/lib/wsapi-base";
+import { isSafeProxyPath } from "@/lib/server/proxy-path";
 
 // Proxy for the Base token-trading service (memecoins). The gateway sends no
 // CORS headers, so browser calls route through our origin like every other
@@ -30,26 +31,46 @@ function safeJson(text: string): unknown | null {
   }
 }
 
-function notConfigured() {
+// The service's failure envelope carries a requestId, and the contract says
+// to preserve it in client logs and support reports. The relay's OWN failures
+// (nothing upstream answered, or what answered was not understood) mint one
+// too, so a support screenshot always has a reference whichever side failed.
+// The id is also echoed as a header so the one transport (lib/api.ts) can tag
+// its Watchtower report without consuming the body.
+const REQUEST_ID_HEADER = "x-request-id";
+
+function relayError(code: string, message: string, status: number) {
+  const requestId = crypto.randomUUID();
   return NextResponse.json(
-    {
-      success: false,
-      error: { code: "NOT_CONFIGURED", message: "Trading isn't configured yet." },
-    },
-    { status: 503, headers: { "cache-control": NO_STORE } }
+    { success: false, error: { code, message, details: null, requestId } },
+    { status, headers: { "cache-control": NO_STORE, [REQUEST_ID_HEADER]: requestId } }
   );
+}
+
+// The requestId inside an upstream failure envelope, if it carried one.
+function upstreamRequestId(parsed: unknown): string | null {
+  if (!parsed || typeof parsed !== "object") return null;
+  const error = (parsed as { error?: { requestId?: unknown } }).error;
+  return typeof error?.requestId === "string" ? error.requestId : null;
+}
+
+function notConfigured() {
+  return relayError("NOT_CONFIGURED", "Trading isn't configured yet.", 503);
 }
 
 async function forward(req: NextRequest, method: "GET" | "POST") {
   if (!BASE) return notConfigured();
   const { pathname, search } = req.nextUrl;
+  if (!pathname.startsWith("/api/trade/")) {
+    return relayError("BAD_REQUEST", "Invalid path", 400);
+  }
   const joined = pathname.replace(/^\/api\/trade\//, "");
+  if (!isSafeProxyPath(joined)) {
+    return relayError("BAD_REQUEST", "Invalid path", 400);
+  }
   // The admin surface is out of contract for this frontend.
   if (joined.startsWith("admin")) {
-    return NextResponse.json(
-      { success: false, error: { code: "NOT_FOUND", message: "Not found" } },
-      { status: 404, headers: { "cache-control": NO_STORE } }
-    );
+    return relayError("NOT_FOUND", "Not found", 404);
   }
 
   const auth = req.headers.get("authorization");
@@ -88,36 +109,32 @@ async function forward(req: NextRequest, method: "GET" | "POST") {
     });
     const text = await res.text();
     const schema = tradeSchemaFor(joined);
-    const parsed = schema ? safeJson(text) : null;
+    // Parsed for validation on a schema'd route, and on any failure for the
+    // requestId the service put in its envelope.
+    const parsed = schema || !res.ok ? safeJson(text) : null;
     if (schema && parsed !== null) {
       const check = checkUpstream(schema, parsed, { service: "trade", path: joined });
       if (!check.ok) {
         console.error(check.problem);
-        return NextResponse.json(
-          {
-            success: false,
-            error: { code: "BAD_RESPONSE", message: "Trading response was not understood." },
-          },
-          { status: 502, headers: { "cache-control": NO_STORE } }
-        );
+        return relayError("BAD_RESPONSE", "Trading response was not understood.", 502);
       }
     }
-    if (method === "GET" && cacheable(joined, !!auth)) {
+    // Only a successful read is cached. A 502 PROVIDER_ERROR is temporary and
+    // the client retries it with backoff; caching it would hand that retry the
+    // same failure, and a 404 must not become a remembered "missing mint".
+    if (method === "GET" && res.ok && cacheable(joined, !!auth)) {
       cache.set(url, { expires: Date.now() + CACHE_TTL_MS, body: text, status: res.status });
     }
-    return new NextResponse(text, {
-      status: res.status,
-      headers: { "content-type": "application/json", "cache-control": NO_STORE },
-    });
+    const responseHeaders: Record<string, string> = {
+      "content-type": "application/json",
+      "cache-control": NO_STORE,
+    };
+    const requestId = res.ok ? null : upstreamRequestId(parsed);
+    if (requestId) responseHeaders[REQUEST_ID_HEADER] = requestId;
+    return new NextResponse(text, { status: res.status, headers: responseHeaders });
   } catch (error) {
     console.error("Trade proxy failed:", joined, error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: "SERVICE_UNAVAILABLE", message: "Trading is unreachable." },
-      },
-      { status: 502, headers: { "cache-control": NO_STORE } }
-    );
+    return relayError("SERVICE_UNAVAILABLE", "Trading is unreachable.", 502);
   }
 }
 

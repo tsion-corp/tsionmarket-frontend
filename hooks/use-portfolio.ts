@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
 import { apiFetch } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
 import { useSessionWallet } from "@/components/providers/server-session";
 import type { Portfolio } from "@/lib/server/alchemy";
 import type { TokenBalance } from "@/lib/server/alchemy";
@@ -24,7 +25,12 @@ const POLL_MS = 60 * 1000;
 // a trade gets its own scoped fresh read, so three minutes is plenty there
 // (ADR-2026-09-09-portfolio-polling-at-scale).
 const GLANCED_POLL_MS = 3 * 60 * 1000;
-const INCOMPLETE_POLL_MS = 5_000;
+// A partial response can mean one optional network among dozens timed out.
+// Retrying the entire portfolio every five seconds from every balance chip
+// caused chess pages to hammer Alchemy even when their Base balance was valid.
+// Dedicated balance pages recover sooner; all other pages stay on their normal
+// low-rate cadence. Explicit post-transaction refreshes are unaffected.
+const INCOMPLETE_BALANCE_PAGE_POLL_MS = 30_000;
 
 function watchesBalance(pathname: string | null): boolean {
   if (!pathname) return true;
@@ -69,7 +75,9 @@ function tokenRawBalance(
   return BigInt(token?.rawBalance ?? "0");
 }
 
-export function usePortfolio() {
+export type PortfolioScope = "all" | "base";
+
+export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {}) {
   const { ready, authenticated } = usePrivy();
   const queryClient = useQueryClient();
   // From the server's view of the session while Privy is still starting,
@@ -78,9 +86,16 @@ export function usePortfolio() {
   // balance the server had already put in the cache under the real key.
   const evm = useSessionWallet("ethereum");
   const solana = useSessionWallet("solana");
-  const enabled = ready && authenticated && Boolean(evm || solana);
-  const queryKey = ["portfolio", evm, solana] as const;
-  const pollMs = watchesBalance(usePathname()) ? POLL_MS : GLANCED_POLL_MS;
+  const enabled = ready && authenticated && Boolean(evm || (scope === "all" && solana));
+  const queryKey = useMemo(
+    () =>
+      scope === "base"
+        ? queryKeys.portfolio.baseByWallet(evm)
+        : queryKeys.portfolio.byWallet(evm, solana),
+    [scope, evm, solana]
+  );
+  const balancePage = watchesBalance(usePathname());
+  const pollMs = balancePage ? POLL_MS : GLANCED_POLL_MS;
 
   // Set while waiting for a just-made trade to show up, naming the networks
   // the trade touched so only those skip the server's caches. A ref because
@@ -93,7 +108,8 @@ export function usePortfolio() {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (evm) params.set("evm", evm);
-      if (solana) params.set("solana", solana);
+      if (scope === "all" && solana) params.set("solana", solana);
+      if (scope === "base") params.set("scope", "base");
       if (freshScopeRef.current) params.set("fresh", freshParam(freshScopeRef.current));
       // requireAuth: the query only runs when Privy is authenticated, so a
       // missing token means it isn't warm yet on a cold first load. apiFetch
@@ -118,9 +134,11 @@ export function usePortfolio() {
     },
     retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 4000),
     staleTime: pollMs,
-    // A snapshot that names a network which did not answer in time is a
-    // floor, not the balance: ask again in seconds rather than a minute.
-    refetchInterval: (query) => (query.state.data?.missing?.length ? INCOMPLETE_POLL_MS : pollMs),
+    // Only a page devoted to balances accelerates recovery of a partial
+    // snapshot. Elsewhere (including chess), one optional failed network must
+    // not turn a cached balance chip into a cross-chain RPC polling loop.
+    refetchInterval: (query) =>
+      query.state.data?.missing?.length && balancePage ? INCOMPLETE_BALANCE_PAGE_POLL_MS : pollMs,
     refetchOnWindowFocus: false,
   });
 
@@ -151,9 +169,7 @@ export function usePortfolio() {
   // make the callback change identity on every refetch and restart the poll.
   const refetchUntilChanged = useCallback(
     async (scope: FreshScope): Promise<boolean> => {
-      const before = balancesSignature(
-        queryClient.getQueryData<Portfolio>(["portfolio", evm, solana])
-      );
+      const before = balancesSignature(queryClient.getQueryData<Portfolio>(queryKey));
       const startedAt = Date.now();
       freshScopeRef.current = scope;
       try {
@@ -167,7 +183,7 @@ export function usePortfolio() {
         freshScopeRef.current = null;
       }
     },
-    [refetch, queryClient, evm, solana]
+    [refetch, queryClient, queryKey]
   );
 
   // Wait for a particular incoming token amount rather than any portfolio
@@ -196,22 +212,22 @@ export function usePortfolio() {
   // moment the receipt lands; the scoped read that follows confirms it.
   const applyReceipt = useCallback(
     (network: string, wallet: string, logs: readonly ReceiptLog[]) => {
-      queryClient.setQueryData<Portfolio>(["portfolio", evm, solana], (current) =>
+      queryClient.setQueryData<Portfolio>(queryKey, (current) =>
         current ? applyTransfers(current, { network, wallet, logs }) : current
       );
     },
-    [queryClient, evm, solana]
+    [queryClient, queryKey]
   );
 
   // Native value has no log to apply from: a stake is the value the
   // transaction sent and a payout is what the settlement row says.
   const applyNativeDelta = useCallback(
     (network: string, deltaWei: bigint) => {
-      queryClient.setQueryData<Portfolio>(["portfolio", evm, solana], (current) =>
+      queryClient.setQueryData<Portfolio>(queryKey, (current) =>
         current ? moveNative(current, network, deltaWei) : current
       );
     },
-    [queryClient, evm, solana]
+    [queryClient, queryKey]
   );
 
   return {

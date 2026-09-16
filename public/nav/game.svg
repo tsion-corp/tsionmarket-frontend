@@ -1,0 +1,29 @@
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="24" height="24" fill="#1E1E1E"/>
+<g id="Roll Out">
+<path d="M-744 -2180.6C-744 -2181.71 -743.105 -2182.6 -742 -2182.6H7739C7740.1 -2182.6 7741 -2181.71 7741 -2180.6V4031.4C7741 4032.5 7740.1 4033.4 7739 4033.4H-742C-743.104 4033.4 -744 4032.5 -744 4031.4V-2180.6Z" fill="#444444"/>
+<path d="M-742 -2182.6V-2181.6H7739V-2182.6V-2183.6H-742V-2182.6ZM7741 -2180.6H7740V4031.4H7741H7742V-2180.6H7741ZM7739 4033.4V4032.4H-742V4033.4V4034.4H7739V4033.4ZM-744 4031.4H-743V-2180.6H-744H-745V4031.4H-744ZM-742 4033.4V4032.4C-742.552 4032.4 -743 4031.95 -743 4031.4H-744H-745C-745 4033.06 -743.656 4034.4 -742 4034.4V4033.4ZM7741 4031.4H7740C7740 4031.95 7739.55 4032.4 7739 4032.4V4033.4V4034.4C7740.66 4034.4 7742 4033.06 7742 4031.4H7741ZM7739 -2182.6V-2181.6C7739.55 -2181.6 7740 -2181.15 7740 -2180.6H7741H7742C7742 -2182.26 7740.66 -2183.6 7739 -2183.6V-2182.6ZM-742 -2182.6V-2183.6C-743.657 -2183.6 -745 -2182.26 -745 -2180.6H-744H-743C-743 -2181.15 -742.552 -2181.6 -742 -2181.6V-2182.6Z" fill="white" fill-opacity="0.1"/>
+<g id="Home" clip-path="url(#clip0_0_1)">
+<rect width="402" height="1835" transform="translate(-276 -1774)" fill="black"/>
+<g id="Group 48098473">
+<g id="Group 48098468">
+<g id="Group 48098467">
+<g id="Game - Iconly Pro">
+<path id="Vector" d="M9.19238 11.9811V15.5322" stroke="white" stroke-opacity="0.5" stroke-width="1.48988" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_2" d="M11.0043 13.7562H7.3811" stroke="white" stroke-opacity="0.5" stroke-width="1.48988" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_3" d="M15.3732 12.0892H15.2717" stroke="white" stroke-opacity="0.5" stroke-width="1.48988" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_4" d="M17.092 15.4782H16.9905" stroke="white" stroke-opacity="0.5" stroke-width="1.48988" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_5" d="M8.4563 2.20135C8.46293 2.91063 9.0442 3.47956 9.75346 3.47292H10.7547C11.85 3.46438 12.746 4.34244 12.7612 5.43763V6.43799" stroke="white" stroke-opacity="0.5" stroke-width="1.48988" stroke-linecap="round" stroke-linejoin="round"/>
+<path id="Vector_6" fill-rule="evenodd" clip-rule="evenodd" d="M21.6647 13.8017C21.6647 8.2793 19.2942 6.43787 12.1816 6.43787C5.06806 6.43787 2.69751 8.2793 2.69751 13.8017C2.69751 19.3251 5.06806 21.1656 12.1816 21.1656C19.2942 21.1656 21.6647 19.3251 21.6647 13.8017Z" stroke="white" stroke-opacity="0.5" stroke-width="1.48988" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+<defs>
+<clipPath id="clip0_0_1">
+<rect width="402" height="1835" fill="white" transform="translate(-276 -1774)"/>
+</clipPath>
+</defs>
+</svg>

@@ -36,6 +36,23 @@ describe("GET /api/portfolio fresh scope", () => {
     expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, null, null);
   });
 
+  it("isolates the Base-only scope from Solana and other fresh networks", async () => {
+    const { GET } = await import("./route");
+    await GET(
+      makeReq(
+        `evm=${EVM}&solana=So11111111111111111111111111111111111111112&scope=base&fresh=base-mainnet,solana-mainnet`
+      )
+    );
+    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, ["base-mainnet"], null, "base");
+  });
+
+  it("rejects an unknown portfolio scope", async () => {
+    const { GET } = await import("./route");
+    const res = await GET(makeReq(`evm=${EVM}&scope=fast`));
+    expect(res.status).toBe(400);
+    expect(fetchPortfolio).not.toHaveBeenCalled();
+  });
+
   it("passes the named networks for a scoped fresh read", async () => {
     const { GET } = await import("./route");
     await GET(makeReq(`evm=${EVM}&fresh=base-mainnet,solana-mainnet`));

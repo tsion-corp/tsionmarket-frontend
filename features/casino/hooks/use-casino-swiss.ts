@@ -21,6 +21,7 @@ import {
 } from "@/features/casino/lib/api/swiss";
 import { parseTimeControl } from "@/features/casino/lib/api/chess-wire";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
+import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
 import type { ChessTimeControl } from "@/features/casino/lib/api/types";
 import { track } from "@/lib/analytics/mixpanel";
 
@@ -192,6 +193,12 @@ export function useSwissTournament(tournamentId: string | null) {
     void queryClient.invalidateQueries({ queryKey: SWISS_KEYS.list });
   };
 
+  const refreshBalance = () => {
+    if (wallet.address) {
+      void queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet.address) });
+    }
+  };
+
   const join = useMutation({
     mutationFn: ({ name, password }: { name: string; password?: string }) =>
       joinSwiss(tournamentId as string, {
@@ -203,6 +210,7 @@ export function useSwissTournament(tournamentId: string | null) {
       rememberJoinedName(tournamentId as string, wallet.address, name);
       setNameVersion((v) => v + 1);
       applyDetail(next);
+      refreshBalance();
       track("tournament_joined", {
         game: "chess",
         entry_usd: Number(next.entryFeeUsdc),
@@ -217,7 +225,10 @@ export function useSwissTournament(tournamentId: string | null) {
         walletAddress: requireWallet(wallet.address),
         forfeit,
       }),
-    onSuccess: applyDetail,
+    onSuccess: (next) => {
+      applyDetail(next);
+      refreshBalance();
+    },
   });
 
   const nextRound = useMutation({

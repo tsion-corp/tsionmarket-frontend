@@ -527,7 +527,7 @@ function MiniTimerLive({
       await wager(followedGameId, stakeWei);
       toast.success(t("toastYoureIn"), { id: toastId });
       resyncGame();
-      void settleBalance(-stakeWei);
+      void settleBalance();
     } catch (e) {
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
     }

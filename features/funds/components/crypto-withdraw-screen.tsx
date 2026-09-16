@@ -3,15 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
-import { SheetNav } from "@/components/ui/sheet-nav";
 import { DepositStatus } from "@/components/ui/deposit-status";
-import { NetworkTabs } from "@/features/funds/components/network-tabs";
-import { TokenList } from "@/features/funds/components/token-list";
 import { QrScanSheet } from "@/features/funds/components/qr-scan-sheet";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { AssetIcon } from "@/components/ui/asset-icon";
-import { CoinBadge } from "@/components/ui/coin-badge";
-import { QrScanIcon } from "@/components/ui/icons";
+import {
+  ChevronDownIcon,
+  ChevronLeftIcon,
+  QrScanIcon,
+  SearchIcon,
+  WalletIcon,
+} from "@/components/ui/icons";
+import { NetworkList } from "@/features/funds/components/network-list";
 import {
   createWithdrawQuote,
   useDepositChains,
@@ -108,30 +111,52 @@ function quoteErrorMessage(error: unknown, t: (key: string) => string): string {
 }
 
 // Collapsed row a picker shrinks to after a selection: its glyph + label with
-// a "Change" affordance that reopens the full list.
+// a chevron affordance that reopens the full list. Two variants: "pill" for the
+// compact network pill and "card" for the full-width asset selector.
 function SelectedRow({
   glyph,
   title,
+  subtitle,
   onChange,
   disabled,
+  variant = "card",
 }: {
   glyph: React.ReactNode;
   title: string;
+  subtitle?: string;
   onChange: () => void;
   disabled?: boolean;
+  variant?: "pill" | "card";
 }) {
-  const t = useTranslations("fundsFlow");
+  if (variant === "pill") {
+    return (
+      <button
+        onClick={onChange}
+        disabled={disabled}
+        className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/15 bg-[#1b1b1b] px-4 py-2 text-left transition-colors hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {glyph}
+        <span className="truncate font-sans text-[13px] font-medium text-white">{title}</span>
+        <ChevronDownIcon size={11} className="shrink-0 text-white/50" />
+      </button>
+    );
+  }
   return (
     <button
       onClick={onChange}
       disabled={disabled}
-      className="ws-inset flex w-full cursor-pointer items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white/4 disabled:cursor-not-allowed disabled:opacity-50"
+      className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/15 bg-[#1b1b1b] px-5 py-4 text-left transition-colors hover:bg-white/6 disabled:cursor-not-allowed disabled:opacity-50"
     >
       {glyph}
-      <span className="min-w-0 flex-1 truncate font-sans text-[14.5px] font-medium text-white">
-        {title}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-sans text-[15px] font-bold text-white">{title}</span>
+        {subtitle ? (
+          <span className="block truncate font-sans text-[13px] font-normal text-white/50">
+            {subtitle}
+          </span>
+        ) : null}
       </span>
-      <span className="text-accent shrink-0 text-[12.5px] font-medium">{t("change")}</span>
+      <ChevronDownIcon size={11} className="shrink-0 text-white/50" />
     </button>
   );
 }
@@ -154,10 +179,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
   const [destSymbol, setDestSymbol] = useState<string | null>(null);
   const [destChainId, setDestChainId] = useState<number | null>(null);
-  // Each picker collapses to its selected row once chosen, and reopens on
-  // "Change". They start open so the first choice is one tap away.
-  const [tokenOpen, setTokenOpen] = useState(true);
-  const [networkOpen, setNetworkOpen] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
   const [debouncedAmount, setDebouncedAmount] = useState("");
@@ -422,45 +444,52 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     }
   };
 
+  // Networks available for the selected token (must be before any return)
+  const networksForToken = useMemo(() => {
+    return (allChains.data ?? []).filter((c) => chainIdsForSymbol.has(c.chainId));
+  }, [allChains.data, chainIdsForSymbol]);
+
   if (txHash) {
     return (
-      <div>
-        <SheetNav
-          title={t("withdrawalSentTitle")}
-          subtitle={t("withdrawalSentSubtitle", { amount })}
-          onBack={onBack}
-        />
-        <div className="border-accent/20 bg-accent/8 mt-1 rounded-[14px] border px-4 py-4 text-[13px] leading-normal font-normal text-white/80">
-          {isDirectSend
-            ? t("directSendNote", { chain: destChainLabel })
-            : t("convertSendNote", {
-                symbol: selectedDestination?.symbol ?? "",
-                chain: destChainLabel,
-              })}
+      <div className="flex flex-col items-center px-6 pb-8">
+        {/* Success icon */}
+        <div className="flex justify-center py-6">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/market/withdrawal-success.svg" alt="" className="size-[101px]" />
         </div>
-        {originExplorerUrl ? (
+
+        {/* Title + amount */}
+        <div className="flex flex-col items-center gap-2 text-center text-white">
+          <p className="text-[22px] font-medium">Withdrawal Successful</p>
+          <p className="text-[29px] font-semibold tracking-[-1.16px]">
+            {formatAmount(Number(amount))}
+          </p>
+        </div>
+
+        {/* Status tracker for routed withdrawals */}
+        {depositRequestId && (
+          <div className="mt-4 w-full">
+            <DepositStatus
+              status={status.data?.status ?? "waiting"}
+              executionStatus={status.data?.executionStatus}
+              isError={status.isError}
+              onRetry={() => status.refetch()}
+            />
+          </div>
+        )}
+
+        {/* Explorer links */}
+        {originExplorerUrl && (
           <a
             href={originExplorerUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="tnum text-accent mt-3 block text-[12px] font-normal break-all underline"
+            className="tnum text-accent mt-3 text-[12px] font-normal break-all underline"
           >
-            {t("txLabel", { hash: txHash })}
+            View transaction
           </a>
-        ) : (
-          <p className="tnum mt-3 text-[12px] font-normal break-all text-white/45">
-            {t("txLabel", { hash: txHash })}
-          </p>
         )}
-        {depositRequestId ? (
-          <DepositStatus
-            status={status.data?.status ?? "waiting"}
-            executionStatus={status.data?.executionStatus}
-            isError={status.isError}
-            onRetry={() => status.refetch()}
-          />
-        ) : null}
-        {destExplorerUrls.length > 0 ? (
+        {destExplorerUrls.length > 0 && (
           <div className="mt-2 flex flex-col gap-1">
             {destExplorerUrls.map((url) => (
               <a
@@ -474,242 +503,346 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               </a>
             ))}
           </div>
-        ) : null}
-        <button
-          onClick={onBack}
-          className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
-        >
-          {t("done")}
-        </button>
+        )}
+
+        {/* Buttons */}
+        <div className="mt-9 flex w-full flex-col gap-3">
+          <button
+            onClick={onBack}
+            className="flex h-12 w-full cursor-pointer items-center justify-center rounded-[24px] bg-[#0ecb81] text-[15px] font-semibold tracking-[0.15px] text-white transition-opacity hover:opacity-90"
+          >
+            View Dashboard
+          </button>
+          <button
+            onClick={onBack}
+            className="flex h-12 w-full cursor-pointer items-center justify-center rounded-[24px] border border-white/10 text-[15px] font-semibold tracking-[0.15px] text-white/50 transition-colors hover:bg-white/6"
+          >
+            Share Receipt
+          </button>
+        </div>
       </div>
     );
   }
 
+  // Step: token → network → form. Same modal, content swaps.
+  const showingNetworks = destSymbol !== null && destChainId === null;
+  const showingForm = destSymbol !== null && destChainId !== null;
+
   return (
-    <div>
-      <SheetNav
-        title={t("withdrawCryptoTitle")}
-        subtitle={t("withdrawCryptoSubtitle")}
-        onBack={onBack}
-      />
-
-      <div className="ws-inset mt-1 flex items-center justify-between px-4 py-3.5">
-        <span className="text-[13px] font-normal text-white/55">{t("availableBalance")}</span>
-        <span className="ws-display tnum text-[20px] text-white">${formatAmount(balance)}</span>
-      </div>
-
-      <div className="mt-3">
-        <div className="mb-2 text-xs font-normal text-white/55">{t("withdrawAs")}</div>
-        {destSymbol && !tokenOpen ? (
-          <SelectedRow
-            glyph={
-              <AssetIcon
-                sym={destSymbol}
-                bg="#26262b"
-                size={28}
-                logo={selectedSymbolOption?.logoUrl}
-              />
-            }
-            title={destSymbol}
-            onChange={() => setTokenOpen(true)}
-            disabled={submitting}
-          />
-        ) : (
-          <TokenList
-            tokens={symbolOptions}
-            selected={selectedSymbolOption}
-            onSelect={(t) => {
-              // A picker can sit open while a submit runs; changing the
-              // destination mid-send would diverge from the quoted route.
-              if (submitting) return;
-              setDestSymbol(t.symbol);
-              setDestChainId(null);
-              setTokenOpen(false);
-              setNetworkOpen(true);
+    <div className="flex h-[75vh] flex-col">
+      {/* ── STICKY TOP ── */}
+      <div className="shrink-0 pb-2">
+        <div className="pt-2">
+          <button
+            onClick={() => {
+              if (showingForm) {
+                setDestChainId(null);
+              } else if (showingNetworks) {
+                setDestSymbol(null);
+                setDestChainId(null);
+              } else {
+                onBack();
+              }
             }}
-            loading={destinations.isPending}
-            error={destinations.isError}
-            onRetry={() => destinations.refetch()}
-          />
+            className="flex cursor-pointer items-center gap-[6px] text-[13px] font-normal text-white hover:text-white/80"
+          >
+            <ChevronLeftIcon size={14} />
+            Back
+          </button>
+        </div>
+
+        <div className="mt-3">
+          <h2 className="text-[20px] leading-[26px] font-bold text-white">
+            {showingForm
+              ? t("withdrawCryptoTitle")
+              : showingNetworks
+                ? "Select Network"
+                : "Token To Send"}
+          </h2>
+          {!showingNetworks && !showingForm && (
+            <p className="mt-1.5 text-[13px] leading-[18px] font-normal text-white/60">
+              {t("withdrawCryptoSubtitle")}
+            </p>
+          )}
+          {showingNetworks && destSymbol && (
+            <p className="mt-1.5 text-[13px] leading-[18px] font-normal text-white/60">
+              for {destSymbol}
+            </p>
+          )}
+          {showingForm && (
+            <p className="mt-1.5 text-[13px] leading-[18px] font-normal text-white/60">
+              {t("withdrawCryptoSubtitle")}
+            </p>
+          )}
+        </div>
+
+        {/* Search — only on token and network steps */}
+        {!showingForm && (
+          <div className="mt-3">
+            <div className="flex h-[44px] items-center gap-2.5 rounded-full border border-white/8 bg-white/[0.04] px-4">
+              <SearchIcon size={14} className="shrink-0 text-white/40" />
+              <input
+                type="text"
+                placeholder="Search"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="min-w-0 flex-1 bg-transparent text-[13px] font-medium tracking-[-0.39px] text-white placeholder:text-white/40 focus:outline-none"
+              />
+            </div>
+          </div>
         )}
       </div>
 
-      {destSymbol ? (
-        <div className="mt-3">
-          <div className="mb-2 text-xs font-normal text-white/55">{t("onNetwork")}</div>
-          {destChainId !== null && !networkOpen ? (
-            <SelectedRow
-              glyph={
-                destChain?.logoUrl ? (
-                  // Dextopus serves logos from varied hosts; next/image would reject them.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={destChain.logoUrl}
-                    alt={destChainLabel}
-                    width={26}
-                    height={26}
-                    loading="lazy"
-                    className="shrink-0 rounded-md bg-white/6 object-cover"
-                    style={{ width: 26, height: 26 }}
-                  />
-                ) : (
-                  <CoinBadge
-                    sym={destChainLabel.slice(0, 2).toUpperCase()}
-                    bg="#26262b"
-                    size={26}
-                  />
-                )
-              }
-              title={destChainLabel}
-              onChange={() => setNetworkOpen(true)}
-              disabled={submitting}
-            />
+      {/* ── SCROLLABLE BOTTOM ── */}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+        {/* Step 1: Token list */}
+        {!showingNetworks &&
+          !showingForm &&
+          (destinations.isPending ? (
+            <div className="py-8 text-center text-[13px] text-white/40">Loading tokens…</div>
+          ) : destinations.isError ? (
+            <div className="py-8 text-center text-[13px] text-white/40">
+              Couldn&apos;t load tokens.{" "}
+              <button
+                onClick={() => destinations.refetch()}
+                className="text-accent cursor-pointer underline"
+              >
+                Try again
+              </button>
+            </div>
+          ) : symbolOptions.length === 0 ? (
+            <div className="py-8 text-center text-[13px] text-white/40">No tokens available</div>
           ) : (
-            <NetworkTabs
-              chains={allChains.data ?? []}
-              eligibleChainIds={chainIdsForSymbol}
-              filterOrigin={false}
-              selectedId={destChainId}
-              onSelect={(c) => {
-                if (submitting) return;
-                setDestChainId(c.chainId);
-                setNetworkOpen(false);
-              }}
-              loading={allChains.isPending}
-              error={allChains.isError}
-              onRetry={() => allChains.refetch()}
-            />
-          )}
-        </div>
-      ) : null}
+            <div className="flex flex-col">
+              {symbolOptions.map((tk) => (
+                <button
+                  key={tk.symbol}
+                  onClick={() => {
+                    setDestSymbol(tk.symbol);
+                    setDestChainId(null);
+                  }}
+                  className="flex w-full cursor-pointer items-center gap-2.5 px-1 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+                >
+                  <AssetIcon sym={tk.symbol} bg="#26262b" size={32} logo={tk.logoUrl} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[13px] leading-[16px] font-semibold text-white">
+                      {tk.symbol}
+                    </span>
+                    <span className="block truncate text-[11px] leading-[14px] font-normal text-white/50">
+                      {tk.name}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ))}
 
-      {selectedDestination ? (
-        <div className="ws-inset mt-3 p-[15px]">
-          <div className="mb-2 flex items-center justify-between text-xs font-normal text-white/55">
-            <span>
-              {destChainLabel
-                ? t("destinationAddressWithChain", { chain: destChainLabel })
-                : t("destinationAddress")}
-            </span>
-            <button
-              onClick={() => setScanOpen(true)}
-              disabled={submitting}
-              className="text-accent flex shrink-0 cursor-pointer items-center gap-1 text-[12px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <QrScanIcon size={14} />
-              {t("scanQrCode")}
-            </button>
-          </div>
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder={t("pasteAddress")}
-            spellCheck={false}
-            disabled={submitting}
-            className="tnum w-full border-none bg-transparent text-[14px] break-all text-white outline-none disabled:opacity-50"
+        {/* Step 2: Network list for selected token */}
+        {showingNetworks && (
+          <NetworkList
+            chains={networksForToken}
+            selected={destChain}
+            onSelect={(c) => {
+              setDestChainId(c.chainId);
+            }}
+            loading={allChains.isPending}
           />
-          {to.trim().length > 0 ? (
-            <div className="mt-1.5 text-[11px] font-normal text-white/45">
-              {detectedKind
-                ? t("detectedAddress", { kind: ADDRESS_KIND_LABEL[detectedKind] })
-                : t("unrecognizedAddress")}
-            </div>
-          ) : null}
-          {to.trim().length > 0 && !addrOk ? (
-            <div className="text-down mt-1 text-[12px] font-normal">
-              {requiredKind
-                ? t("addressKindMismatch", {
-                    kind: ADDRESS_KIND_LABEL[requiredKind],
-                    chain: destChainLabel,
-                  })
-                : t("pickDestinationFirst")}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+        )}
 
-      {selectedDestination ? (
-        <div className="ws-inset mt-2 p-[15px]">
-          <div className="mb-[9px] flex justify-between text-xs font-normal text-white/55">
-            <span>{t("amount")}</span>
+        {/* Step 3: Address + amount form */}
+        {showingForm && selectedDestination && (
+          <>
+            {/* Select Network */}
+            <div className="mt-5">
+              <span className="mb-2 block text-[13px] font-normal text-white/50">
+                Select Network
+              </span>
+              <SelectedRow
+                variant="pill"
+                glyph={
+                  destChain?.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={destChain.logoUrl}
+                      alt=""
+                      className="size-[18px] shrink-0 rounded-full"
+                    />
+                  ) : (
+                    <span className="flex size-[18px] shrink-0 items-center justify-center rounded-full bg-white/10 text-[8px] font-bold text-white/60">
+                      {destChainLabel.charAt(0)}
+                    </span>
+                  )
+                }
+                title={destChainLabel}
+                onChange={() => setDestChainId(null)}
+                disabled={submitting}
+              />
+            </div>
+
+            {/* Select Asset */}
+            <div className="mt-4">
+              <span className="mb-2 block text-[13px] font-normal text-white/50">Select Asset</span>
+              <SelectedRow
+                variant="card"
+                glyph={
+                  <AssetIcon
+                    sym={selectedDestination.symbol}
+                    bg="#26262b"
+                    size={24}
+                    logo={selectedSymbolOption?.logoUrl ?? null}
+                  />
+                }
+                title={selectedDestination.symbol}
+                subtitle={`Available: ${formatAmount(balance)} USDC`}
+                onChange={() => {
+                  setDestSymbol(null);
+                  setDestChainId(null);
+                }}
+                disabled={submitting}
+              />
+            </div>
+
+            {/* Amount */}
+            <div className="mt-4">
+              <span className="mb-2 block text-[13px] font-normal text-white/50">
+                {t("amount")}
+              </span>
+              <div className="flex h-[54px] items-center rounded-xl border border-white/15 bg-[#1b1b1b] px-5">
+                <input
+                  inputMode="decimal"
+                  placeholder="$0.00"
+                  value={amount ? `$${amount}` : ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/^\$/, "");
+                    if (DECIMAL.test(raw)) setAmount(raw);
+                  }}
+                  disabled={submitting}
+                  className="tnum min-w-0 flex-1 bg-transparent font-sans text-[18px] font-bold text-white outline-none placeholder:text-white/40 disabled:opacity-50"
+                />
+                <button
+                  onClick={() =>
+                    setAmount(
+                      usdcHolding
+                        ? fromBaseUnits(BigInt(usdcHolding.rawBalance), usdcHolding.decimals)
+                        : "0"
+                    )
+                  }
+                  disabled={submitting}
+                  className="shrink-0 cursor-pointer rounded-full border border-white/20 px-3 py-1 font-sans text-[12px] font-semibold text-white/70 transition-colors hover:border-white/35 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  MAX
+                </button>
+              </div>
+              {overBalance && (
+                <div className="text-down mt-2 text-[13px] font-normal">{t("overBalanceUsdc")}</div>
+              )}
+            </div>
+
+            {/* Destination Address */}
+            <div className="mt-4">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[13px] font-normal text-white/50">
+                  {destChainLabel
+                    ? t("destinationAddressWithChain", { chain: destChainLabel })
+                    : t("destinationAddress")}
+                </span>
+                <button
+                  onClick={() => setScanOpen(true)}
+                  disabled={submitting}
+                  className="text-accent flex shrink-0 cursor-pointer items-center gap-1 text-[12px] font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <QrScanIcon size={14} />
+                  {t("scanQrCode")}
+                </button>
+              </div>
+              <div className="flex h-[54px] items-center gap-3 rounded-xl border border-white/15 bg-[#1b1b1b] px-5">
+                <WalletIcon size={20} className="shrink-0 text-white/50" />
+                <input
+                  value={to}
+                  onChange={(e) => setTo(e.target.value)}
+                  placeholder={t("pasteAddress")}
+                  spellCheck={false}
+                  disabled={submitting}
+                  className="tnum min-w-0 flex-1 bg-transparent font-sans text-[14px] text-white outline-none placeholder:text-white/40 disabled:opacity-50"
+                />
+              </div>
+              {to.trim().length > 0 && (
+                <div className="mt-1.5 text-[11px] font-normal text-white/45">
+                  {detectedKind
+                    ? t("detectedAddress", { kind: ADDRESS_KIND_LABEL[detectedKind] })
+                    : t("unrecognizedAddress")}
+                </div>
+              )}
+              {to.trim().length > 0 && !addrOk && (
+                <div className="text-down mt-1 text-[12px] font-normal">
+                  {requiredKind
+                    ? t("addressKindMismatch", {
+                        kind: ADDRESS_KIND_LABEL[requiredKind],
+                        chain: destChainLabel,
+                      })
+                    : t("pickDestinationFirst")}
+                </div>
+              )}
+            </div>
+
+            {/* Summary */}
+            {selectedDestination && value > 0 && addrOk && !overBalance && (
+              <div className="mt-4">
+                <span className="mb-2 block text-[13px] font-normal text-white/50">Summary</span>
+                <div className="rounded-xl border border-white/15 bg-[#1b1b1b] px-5">
+                  {feeUsd != null && feeUsd > 0 && (
+                    <div className="flex items-center justify-between border-b border-white/8 py-3 text-[14px]">
+                      <span className="text-white/50">{t("transactionFee")}</span>
+                      <span className="tnum text-white/70">~${formatAmount(feeUsd)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-b border-white/8 py-3 text-[14px]">
+                    <span className="text-white/50">Estimated Time</span>
+                    <span className="text-white/70">{isDirectSend ? "~1 min" : "~2 min"}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-3 text-[14px]">
+                    <span className="text-white/50">{t("recipientGets")}</span>
+                    {isDirectSend ? (
+                      <span className="tnum text-up font-medium">{previewOut}</span>
+                    ) : quote.isError ? (
+                      <span className="text-down">{t("unavailable")}</span>
+                    ) : quote.isFetching || !quote.data ? (
+                      <span className="text-white/45">{t("gettingRate")}</span>
+                    ) : (
+                      <span className="tnum text-up font-medium">{previewOut}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {quoteInput && quote.isError && (
+              <div className="border-down/25 bg-down/10 mt-4 rounded-xl border px-5 py-4 text-[14px] font-normal text-white/75">
+                {quoteErrorMessage(quote.error, t)}
+              </div>
+            )}
+
+            {error && <div className="text-down mt-3 text-[13px] font-normal">{error}</div>}
+
             <button
-              // Fill from the exact base-unit balance: `balance` is a lossy
-              // display float, and a max built from it can round above what
-              // the wallet actually holds.
-              onClick={() =>
-                setAmount(
-                  usdcHolding
-                    ? fromBaseUnits(BigInt(usdcHolding.rawBalance), usdcHolding.decimals)
-                    : "0"
-                )
-              }
-              disabled={submitting}
-              className="tnum cursor-pointer text-white/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void submit()}
+              disabled={!ready}
+              className="mt-6 flex h-[52px] w-full cursor-pointer items-center justify-center rounded-full bg-[#ed2b07] font-sans text-[15px] font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {t("maxBalance", { amount: formatAmount(balance) })}
+              {submitting ? (
+                <>
+                  <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  {t("sending")}
+                </>
+              ) : quoteInput && quote.isFetching ? (
+                t("gettingRate")
+              ) : (
+                t("withdrawCryptoTitle")
+              )}
             </button>
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="ws-display shrink-0 text-[28px] text-white/70">$</span>
-            <input
-              inputMode="decimal"
-              placeholder="0"
-              value={amount}
-              onChange={(e) => DECIMAL.test(e.target.value) && setAmount(e.target.value)}
-              disabled={submitting}
-              className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30 disabled:opacity-50"
-            />
-          </div>
-          {overBalance ? (
-            <div className="text-down mt-1.5 text-[12px] font-normal">{t("overBalanceUsdc")}</div>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Live conversion preview. */}
-      {selectedDestination && value > 0 && addrOk && !overBalance ? (
-        <div className="ws-inset mt-2 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
-          <span className="text-white/55">{t("recipientGets")}</span>
-          {isDirectSend ? (
-            <span className="tnum text-white/85">≈ {previewOut}</span>
-          ) : quote.isError ? (
-            <span className="text-down">{t("unavailable")}</span>
-          ) : quote.isFetching || !quote.data ? (
-            <span className="text-white/45">{t("gettingRate")}</span>
-          ) : (
-            <span className="tnum text-white/85">≈ {previewOut}</span>
-          )}
-        </div>
-      ) : null}
-
-      {feeUsd != null && feeUsd > 0 ? (
-        <div className="ws-inset mt-2 flex items-center justify-between px-4 py-3 text-[12.5px] font-normal">
-          <span className="text-white/55">{t("transactionFee")}</span>
-          <span className="tnum text-white/85">≈ ${formatAmount(feeUsd)}</span>
-        </div>
-      ) : null}
-
-      {quoteInput && quote.isError ? (
-        <div className="border-down/25 bg-down/10 mt-2 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/75">
-          {quoteErrorMessage(quote.error, t)}
-        </div>
-      ) : null}
-
-      {error ? <div className="text-down mt-3 text-[13px] font-normal">{error}</div> : null}
-
-      <button
-        onClick={() => void submit()}
-        disabled={!ready}
-        className="text-ink mt-[18px] w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {submitting
-          ? t("sending")
-          : quoteInput && quote.isFetching
-            ? t("gettingRate")
-            : destSymbol
-              ? t("withdrawAsset", { symbol: destSymbol })
-              : t("withdrawCryptoTitle")}
-      </button>
+          </>
+        )}
+      </div>
 
       <QrScanSheet
         open={scanOpen}

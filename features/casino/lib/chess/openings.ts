@@ -10,6 +10,10 @@ export interface Opening {
   name: string;
 }
 
+export interface OpeningAtPly extends Opening {
+  ply: number;
+}
+
 // Keyed by the space-joined SAN of the defining line. Ordered roughly shallow to
 // deep; the matcher prefers the longest match, so a deeper entry wins over the
 // broad family it sits inside.
@@ -88,11 +92,16 @@ function normalizeSan(san: string): string {
 
 // The longest named opening whose defining line is a prefix of these moves, or
 // null before any move is played and for lines no entry covers.
-export function identifyOpening(sanMoves: string[]): Opening | null {
+export function identifyOpeningAtPly(sanMoves: string[]): OpeningAtPly | null {
   const normalized = sanMoves.slice(0, MAX_PLIES).map(normalizeSan);
   for (let len = Math.min(normalized.length, MAX_PLIES); len >= 1; len--) {
     const opening = OPENINGS[normalized.slice(0, len).join(" ")];
-    if (opening) return opening;
+    if (opening) return { ...opening, ply: len };
   }
   return null;
+}
+
+export function identifyOpening(sanMoves: string[]): Opening | null {
+  const opening = identifyOpeningAtPly(sanMoves);
+  return opening ? { eco: opening.eco, name: opening.name } : null;
 }

@@ -188,13 +188,23 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   // reported once, from the arrival, with the rail named by the watch opened
   // below. See lib/ramping/onramp-watch.
 
-  // Hold the confirming state briefly, then move to the reassuring message. This
-  // is a UX beat, not a real settlement check, so a fixed pause reads honestly.
+  // Move to the "on its way" screen only when the backend actually reports the
+  // payment is processing or completed — not on a fixed timer. A 3-minute
+  // fallback covers the case where the poll never surfaces "processing" (e.g.
+  // the rail settles so fast it jumps straight to "completed", which the `done`
+  // guard above catches first).
   useEffect(() => {
     if (handoff !== "confirming") return;
-    const id = setTimeout(() => setHandoff("enroute"), 15000);
+    if (status === "processing") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setHandoff("enroute");
+      return;
+    }
+    // Fallback: if the backend hasn't moved to "processing" after 3 minutes,
+    // show the reassuring screen anyway — the user is staring at a spinner.
+    const id = setTimeout(() => setHandoff("enroute"), 3 * 60 * 1000);
     return () => clearTimeout(id);
-  }, [handoff]);
+  }, [handoff, status]);
 
   // Settlement can land while the handoff screens are up; done wins over them.
   // Amount entry.
@@ -203,19 +213,21 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
       <div>
         <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
 
-        <div className="ws-inset p-[15px]">
-          <div className="mb-[9px] text-xs font-normal text-white/55">{t("youSend")}</div>
-          <div className="flex items-center justify-between gap-3">
+        <div className="mt-8 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 pt-5 pb-6">
+          <div className="mb-6 text-[14px] font-medium text-white/50 capitalize">
+            {t("youSend")}
+          </div>
+          <div className="flex items-center justify-between gap-4">
             <input
               inputMode="numeric"
               value={formatNgnInput(amountNgn)}
               onChange={(e) => setAmountNgn(e.target.value.replace(/\D/g, ""))}
               placeholder="0"
-              className="ws-display tnum w-full border-none bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
+              className="ws-display tnum w-full border-none bg-transparent text-[42px] text-white outline-none placeholder:text-white/40"
             />
-            <span className="font-sans text-[15px] font-medium text-white/70">NGN</span>
+            <span className="font-sans text-[22px] font-medium text-white/70">NGN</span>
           </div>
-          <div className="mt-2 flex items-center justify-between gap-3 border-t border-white/8 pt-2 text-[13px] font-normal text-white/55">
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-white/8 pt-3 text-[14px] font-normal text-white/55">
             <span>
               {validAmount && estimateUsdc
                 ? t("usdEquivalent", { amount: `${displayUsdc(estimateUsdc)} USD` })
@@ -229,14 +241,14 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
           </div>
         </div>
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-6 flex gap-3">
           {AMOUNT_PRESETS.map((preset) => {
             const active = amountNgn === String(preset);
             return (
               <button
                 key={preset}
                 onClick={() => setAmountNgn(String(preset))}
-                className={`flex-1 cursor-pointer rounded-full border px-2 py-2 font-sans text-[13px] font-medium transition-colors ${
+                className={`flex-1 cursor-pointer rounded-full border px-3 py-3 font-sans text-[14px] font-medium transition-colors ${
                   active
                     ? "border-accent/50 bg-accent/16 text-white"
                     : "border-white/12 bg-white/5 text-white/70 hover:bg-white/10"
@@ -249,18 +261,18 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
         </div>
 
         {!walletAddress ? (
-          <div className="border-down/25 bg-down/10 mt-3 rounded-[14px] border px-4 py-3 text-[12.5px] font-normal text-white/70">
+          <div className="border-down/25 bg-down/10 mt-4 rounded-[14px] border px-4 py-3 text-[14px] font-normal text-white/70">
             {t("needWallet")}
           </div>
         ) : null}
 
         {create.isError ? (
-          <p className="text-down mt-3 text-[13px]">
+          <p className="text-down mt-4 text-[14px]">
             {friendlyError(create.error, t("createFailed"))}
           </p>
         ) : null}
 
-        <p className="mt-3 text-[12px] leading-[1.5] font-normal text-white/45">
+        <p className="mt-6 text-[15px] leading-[1.55] font-normal text-white/45">
           {t("amountNote")}
         </p>
 
@@ -336,11 +348,11 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             );
           }}
           disabled={!validAmount || !walletAddress || create.isPending}
-          className="text-ink mt-4 flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+          className="mt-6 flex h-[64px] w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-white font-sans text-[18px] font-semibold text-[#181818] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
           {create.isPending ? (
             <>
-              <span className="border-ink/30 border-t-ink h-4 w-4 animate-spin rounded-full border-2" />
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#181818]/30 border-t-[#181818]" />
               {t("generating")}
             </>
           ) : (
@@ -406,10 +418,27 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   // continues in the background and updates the balance when it lands.
   if (handoff === "confirming") {
     return (
-      <div className="px-1 py-10 text-center">
-        <span className="mx-auto block h-9 w-9 animate-spin rounded-full border-2 border-white/15 border-t-white/80" />
-        <div className="ws-display mt-5 text-[19px]">{t("confirmingTitle")}</div>
-        <p className="mx-auto mt-2 max-w-[30ch] text-[13px] leading-[1.55] font-normal text-white/55">
+      <div className="flex min-h-[400px] flex-col items-center justify-center px-6 text-center">
+        {/* Circular spinner — white ring with a green accent sweep, matching
+            the Figma's confirming state (node 2154:64473). The ring is a thick
+            circle border; the green accent is a conic-gradient mask that
+            rotates. */}
+        <div className="relative mb-8 size-[72px]">
+          {/* Static white ring */}
+          <div className="absolute inset-0 rounded-full border-[5px] border-white/20" />
+          {/* Rotating green accent */}
+          <div
+            className="absolute inset-0 animate-spin rounded-full border-[5px] border-transparent"
+            style={{
+              borderTopColor: "#7ce7b0",
+              borderRightColor: "#7ce7b0",
+              animationDuration: "1.2s",
+              animationTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+            }}
+          />
+        </div>
+        <div className="ws-display text-[22px]">{t("confirmingTitle")}</div>
+        <p className="mx-auto mt-3 max-w-[280px] text-[15px] leading-[1.5] font-normal text-white/50">
           {t("confirmingBody")}
         </p>
       </div>

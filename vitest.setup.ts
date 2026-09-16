@@ -61,6 +61,38 @@ if (typeof window !== "undefined" && !hasUsableLocalStorage) {
   Object.defineProperty(window, "localStorage", { value: memoryStorage, configurable: true });
 }
 
+// jsdom ships no ResizeObserver, so any component that measures an element's box
+// (the Market lists size their page to the device height through useFitRows)
+// throws "ResizeObserver is not defined" on mount and takes its whole suite with
+// it. jsdom also runs no layout, so an observer would never fire a real
+// callback anyway. An inert stub keeps those components mountable; the hooks
+// fall back to their pre-measurement default, which is what a zero-height box
+// yields regardless.
+class InertResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+globalThis.ResizeObserver = InertResizeObserver as unknown as typeof ResizeObserver;
+
+// jsdom ships no IntersectionObserver either, and Embla's carousels (the promo
+// deck, the balance and prediction sliders, and the shared ui/carousel) start
+// one on mount to track which slides are in view. Same shape, same reasoning:
+// an inert stub keeps them mountable, and jsdom runs no layout to observe
+// anyway.
+class InertIntersectionObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+
+globalThis.IntersectionObserver =
+  InertIntersectionObserver as unknown as typeof IntersectionObserver;
+
 afterEach(() => {
   cleanup();
 });

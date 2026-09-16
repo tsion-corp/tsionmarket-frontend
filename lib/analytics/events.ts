@@ -34,7 +34,8 @@ export type PageName =
   | "prediction"
   | "earn"
   | "arkade"
-  | "arktivity";
+  | "arktivity"
+  | "market_square";
 
 /**
  * Event name -> its properties. `void` means the event takes none.
@@ -86,6 +87,10 @@ export interface AnalyticsEvents {
     asset: string;
     swap_id: string;
     recorded: string;
+    // The trade service's request id and the on-chain hash, when known: what
+    // the trade team needs to find the swap it recorded wrongly.
+    request_id?: string;
+    hash?: string;
   };
 
   // Perpetuals

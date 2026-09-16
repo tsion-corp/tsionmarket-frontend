@@ -119,10 +119,23 @@ on a cross-feature import, so this is not a matter of taste.
 
 ## Branches and pull requests
 
-`main` is the only long-lived branch. It is protected: no direct pushes,
-including for admins, and only squash merges.
+Three long-lived branches, each protected the same way: no direct pushes,
+including for admins, only squash merges, and the `quality` check must pass.
 
-1. Branch off `main` with a clear prefix: `feat/`, `fix/`, `chore/`, `docs/`.
+- **`dev`** carries everything the product has: every feature and every service
+  the app talks to, whether or not production serves it yet. It is where a new
+  feature lands first, and the branch to cut a new one from.
+- **`staging`** is what the staging deployment runs, and where a change is
+  exercised against the staging gateway before anyone argues about production.
+- **`main`** is production. It carries only what the production gateway can
+  serve: a feature whose backend is not live there stays out of it, even when
+  `dev` and `staging` have had it for weeks.
+
+A change therefore moves `dev` to `staging` to `main`, and the step into `main`
+is a decision, not a formality: it is the point where someone confirms the
+backend is live in production.
+
+1. Branch off `dev` with a clear prefix: `feat/`, `fix/`, `chore/`, `docs/`.
 2. Keep the scope of the branch equal to the scope of the issue. One issue, one
    branch, one PR.
 3. Commit atomically. One logical change per commit, with a message that says
@@ -130,9 +143,10 @@ including for admins, and only squash merges.
 4. Before opening the PR, run all five gates locally: `pnpm format:check`,
    `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. CI runs the same
    five and will reject what you did not check.
-5. Open the PR against `main` and fill in the template.
-6. The `quality` check must pass. If the branch is behind `main`, update it and
-   let the check run again.
+5. Open the PR against the branch you cut from, usually `dev`, and fill in the
+   template.
+6. The `quality` check must pass. If the branch is behind its base, update it
+   and let the check run again.
 7. Merge is a squash merge. The branch is deleted on merge.
 
 ### Reviewing

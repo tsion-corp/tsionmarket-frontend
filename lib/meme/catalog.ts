@@ -1,4 +1,4 @@
-import type { MemeToken } from "@/lib/meme/types";
+import type { MemeToken, TokenRiskLevel } from "@/lib/meme/types";
 import {
   BASE_CHAIN_ID,
   SOLANA_CHAIN_ID,
@@ -12,6 +12,50 @@ import {
 export interface Paged<T> {
   items: T[];
   meta: { page: number; limit: number; total: number };
+}
+
+// A page after the discovery view has judged it. `meta` is still the
+// server's: `meta.total` is how big the catalogue is, which is what a count
+// and a "Load more" read. `shownCount` is how many rows the view kept.
+export interface ShownPage<T> extends Paged<T> {
+  shownCount: number;
+}
+
+// The contract's maximum page size on /tokens.
+export const CATALOG_PAGE_LIMIT = 500;
+
+// "Continue requesting pages until page * limit >= total." The next page, or
+// undefined once the pages so far cover the total.
+export function nextCatalogPage(meta: Paged<unknown>["meta"]): number | undefined {
+  if (meta.limit <= 0) return undefined;
+  return meta.page * meta.limit < meta.total ? meta.page + 1 : undefined;
+}
+
+// A token's identity is chainId + address. An EVM address compares without
+// case; a Solana mint is case-sensitive and compared exactly as written.
+export function catalogKey(token: Pick<MemeToken, "chainId" | "address">): string {
+  const address = token.chainId === SOLANA_CHAIN_ID ? token.address : token.address.toLowerCase();
+  return `${token.chainId}:${address}`;
+}
+
+// Pages appended in the order they were fetched. A row the service moved
+// between pages while more were being loaded appears once, where it was first
+// seen. The meta is the latest page's, so its total is the freshest.
+export function mergeCatalogPages(pages: readonly Paged<MemeToken>[]): Paged<MemeToken> {
+  const seen = new Set<string>();
+  const items: MemeToken[] = [];
+  for (const page of pages) {
+    for (const token of page.items) {
+      const key = catalogKey(token);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      items.push(token);
+    }
+  }
+  const last = pages.at(-1);
+  // No pages fetched is an empty catalogue of no known size, not a failure:
+  // callers only merge once the first page has landed.
+  return { items, meta: last ? last.meta : { page: 0, limit: CATALOG_PAGE_LIMIT, total: 0 } };
 }
 
 // Wrapped majors the catalog lists among the memecoins: each chain's gas
@@ -97,7 +141,14 @@ export function isWrappedMajor(chainId: number, address: string): boolean {
 // them as display hints and repeats every policy check when a quote is
 // created, so the server still refuses a token it will not trade. Defaulting
 // to false would instead make every trending coin look untradable.
-export function withRiskDefaults(token: MemeToken): MemeToken {
+// A token whose risk block may be missing, as the search route sends it.
+export type TokenWithOptionalRisk = Omit<
+  MemeToken,
+  "riskLevel" | "warnings" | "buyEnabled" | "sellEnabled"
+> &
+  Partial<Pick<MemeToken, "riskLevel" | "warnings" | "buyEnabled" | "sellEnabled">>;
+
+export function withRiskDefaults(token: TokenWithOptionalRisk): MemeToken {
   return {
     ...token,
     riskLevel: token.riskLevel ?? "UNKNOWN",
@@ -107,28 +158,21 @@ export function withRiskDefaults(token: MemeToken): MemeToken {
   };
 }
 
-// The trade service indexes more chains than this client executes on, and
-// its discovery routes return them mixed together; only the catalog honours
-// ?chain. A row from a chain the client cannot open or trade is a card that
-// can only dead-end when tapped, so it is dropped here, at the boundary. So
-// is each chain's quote currency, which sits on both sides of every swap and
-// which the service refuses as a meme-token selection, and so are the wrapped
-// majors, which are not memecoins at all.
-// TEMPORARY. The Solana gas sponsor wallet is unfunded, so a Solana coin
-// cannot be bought or sold: every sponsored send fails at the rent for a
-// token account. Until it is topped up, discovery shows Base rows only. The
-// rows are simply absent; nothing on screen names a chain. Trading code for
-// Solana is untouched, so removing this line restores it.
-const DISCOVERY_CHAINS: ReadonlySet<number> = new Set([BASE_CHAIN_ID]);
+// Solana discovery is admitted only behind NEXT_PUBLIC_MEME_SOLANA_DISCOVERY=1,
+// in both views, and is off by default. It is switched on when ops confirm a
+// funding SLA for the Solana gas sponsor wallet: an empty sponsor fails every
+// sponsored send at the rent for a token account, so a listed coin that cannot
+// be bought is worse than an absent one. Trading code for Solana is untouched
+// either way. Read at call time (Next inlines the literal in the browser) so a
+// test can stub it.
+export function solanaDiscoveryEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_MEME_SOLANA_DISCOVERY === "1";
+}
 
-// Discovery shows rated coins outside the high band only, on the
-// maintainers' instruction (2026-09-07: "remove those unrated and low rated
-// meme coins"). In the trade service's own terms an unrated coin is
-// riskLevel UNKNOWN (status DISCOVERED), the low band is HIGH, and CRITICAL
-// rows are BLOCKED and cannot trade anyway. Holdings are unaffected: the
-// allowlist reads the catalog directly and the sell sheet fetches a held
-// token by address, so a coin bought before this still shows and sells.
-const DISCOVERY_RISK: ReadonlySet<MemeToken["riskLevel"]> = new Set(["LOW", "MEDIUM"]);
+function isDiscoveryChain(chainId: number): boolean {
+  if (chainId === BASE_CHAIN_ID) return true;
+  return chainId === SOLANA_CHAIN_ID && solanaDiscoveryEnabled();
+}
 
 // Tokenized shares are not memecoins. The three the trade catalog carried on
 // 2026-09-07 (GOOGLc, TSLAc, $BSLN) are named by address, and any row whose
@@ -160,47 +204,115 @@ export function isTokenizedEquity(token: Pick<MemeToken, "chainId" | "address" |
   return CORPORATE_NAME.test((token.name ?? "").trim());
 }
 
-// A buy surface shows only what can be bought. The service says so per row:
-// buyEnabled false, or a status other than ACTIVE where one is given. Below a
-// liquidity floor a buy fails at the quote or moves the price by the whole
-// order, so those rows go too; a row with no liquidity figure (the trending
-// and search routes omit it) is kept, since absence is not thinness.
+// The discovery policy, as two named views (ADR-2026-09-14-memecoins-trade-
+// contract, slice 4). What belongs on a memecoin surface is a judgement the
+// trade service should make and return; until it does, the judgement is
+// written down here rather than scattered through the filters.
+//
+// `curated` is the default and what staging showed before the switch: the
+// maintainers' 2026-09-07 instructions ("remove those unrated and low rated
+// meme coins", "all these meme coins that can't be bought", DEGEN off, dead
+// pools off). In the service's terms an unrated coin is riskLevel UNKNOWN, the
+// low band is HIGH, and CRITICAL rows are BLOCKED. The floors: below $10k of
+// liquidity a buy fails at the quote or moves the price by the whole order;
+// under $100 of daily volume the pool is dead and its liquidity figure stale
+// (WKC on 2026-09-07: $369k of "liquidity" and two cents of volume).
+//
+// `all` is the trade contract's view: every ACTIVE row on a supported chain.
+// Low liquidity is a consent flow there, not a hide: the row shows its risk
+// badge and warnings, and the trade surfaces ask before any quote (slice 3).
+//
+// Both views keep out what is not a memecoin at all, exactly as before: each
+// chain's quote currency, the wrapped majors, coins impersonating a major, and
+// tokenized equities. Both drop a row whose status is not ACTIVE. Neither
+// hides a row because a market figure is null: "where known" means a null
+// liquidity or volume passes the floor, since absent is not thin. Holdings are
+// unaffected by either: the allowlist reads the catalogue directly and the sell
+// sheet fetches a held token by address.
+export type DiscoveryView = "curated" | "all";
+
+export const DISCOVERY_VIEWS: readonly DiscoveryView[] = ["curated", "all"];
+// A desk opens on All: the market as the service lists it. Curated is a filter
+// the reader turns on, not a default that narrows the market unasked, and the
+// screener's own liquidity, volume and risk-free bounds do that job in the
+// open. The function defaults below stay curated on purpose: they are what a
+// caller that names no view gets, and those callers (the dashboard's trending
+// cards, the coin picker) are surfaces where an unrated coin should not appear
+// on its own.
+export const DEFAULT_DISCOVERY_VIEW: DiscoveryView = "all";
+
+export interface DiscoveryRules {
+  /** The risk bands listed; null lists every band. */
+  riskLevels: ReadonlySet<TokenRiskLevel> | null;
+  /** Drop a row the service marks `buyEnabled: false`. */
+  requireBuyEnabled: boolean;
+  /** Drop a row whose known liquidity is under this; null sets no floor. */
+  minLiquidityUsd: number | null;
+  /** Drop a row whose known 24h volume is under this; null sets no floor. */
+  minVolume24hUsd: number | null;
+  /** Apply the maintainers' by-address hidden list (DEGEN). */
+  hideNamedCoins: boolean;
+}
+
 export const MIN_DISCOVERY_LIQUIDITY_USD = 10_000;
-// Liquidity alone lies: on 2026-09-07, 41 of the 104 rows the board showed had
-// six-figure "liquidity" and under a dollar of volume in 24 hours (WKC: $369k
-// and two cents). Those are dead pools whose liquidity figure is stale, and a
-// buy on them cannot fill. Daily volume is the signal that a pool is alive.
 export const MIN_DISCOVERY_VOLUME_24H_USD = 100;
 
-function belowFloor(value: string | null | undefined, floor: number): boolean {
+export const DISCOVERY_POLICY: Readonly<Record<DiscoveryView, Readonly<DiscoveryRules>>> =
+  Object.freeze({
+    curated: Object.freeze({
+      riskLevels: new Set<TokenRiskLevel>(["LOW", "MEDIUM"]),
+      requireBuyEnabled: true,
+      minLiquidityUsd: MIN_DISCOVERY_LIQUIDITY_USD,
+      minVolume24hUsd: MIN_DISCOVERY_VOLUME_24H_USD,
+      hideNamedCoins: true,
+    }),
+    all: Object.freeze({
+      riskLevels: null,
+      requireBuyEnabled: false,
+      minLiquidityUsd: null,
+      minVolume24hUsd: null,
+      hideNamedCoins: false,
+    }),
+  });
+
+function belowFloor(value: string | null | undefined, floor: number | null): boolean {
+  if (floor === null) return false;
   if (value === null || value === undefined) return false; // absent is not thin
   const n = Number(value);
   return Number.isFinite(n) && n < floor;
 }
 
-export function isBuyableHere(token: MemeToken): boolean {
-  if (token.buyEnabled === false) return false;
-  if (token.status !== undefined && token.status !== "ACTIVE") return false;
-  if (belowFloor(token.liquidityUsd, MIN_DISCOVERY_LIQUIDITY_USD)) return false;
-  if (belowFloor(token.volume24hUsd, MIN_DISCOVERY_VOLUME_24H_USD)) return false;
-  return true;
-}
-
-export function isMemecoinHere(token: MemeToken): boolean {
+// Not a memecoin, in either view.
+function isNotAMemecoin(token: MemeToken): boolean {
   return (
-    isSupportedChain(token.chainId) &&
-    DISCOVERY_CHAINS.has(token.chainId) &&
-    DISCOVERY_RISK.has(token.riskLevel ?? "UNKNOWN") &&
-    !isQuoteCurrency(token.chainId, token.address) &&
-    !isWrappedMajor(token.chainId, token.address) &&
-    !impersonatesMajor(token) &&
-    !isTokenizedEquity(token) &&
-    !isHiddenMemecoin(token) &&
-    isBuyableHere(token)
+    !isSupportedChain(token.chainId) ||
+    !isDiscoveryChain(token.chainId) ||
+    isQuoteCurrency(token.chainId, token.address) ||
+    isWrappedMajor(token.chainId, token.address) ||
+    impersonatesMajor(token) ||
+    isTokenizedEquity(token)
   );
 }
 
-export function tradableHere(page: Paged<MemeToken>): Paged<MemeToken> {
-  const items = page.items.filter(isMemecoinHere).map(withRiskDefaults);
-  return { items, meta: { ...page.meta, total: items.length } };
+export function isMemecoinHere(token: MemeToken, view: DiscoveryView = "curated"): boolean {
+  if (isNotAMemecoin(token)) return false;
+  // A status is given on the catalogue; the trending and search routes omit it.
+  if (token.status !== undefined && token.status !== "ACTIVE") return false;
+  const rules = DISCOVERY_POLICY[view];
+  if (rules.riskLevels && !rules.riskLevels.has(token.riskLevel ?? "UNKNOWN")) return false;
+  if (rules.requireBuyEnabled && token.buyEnabled === false) return false;
+  if (belowFloor(token.liquidityUsd, rules.minLiquidityUsd)) return false;
+  if (belowFloor(token.volume24hUsd, rules.minVolume24hUsd)) return false;
+  if (rules.hideNamedCoins && isHiddenMemecoin(token)) return false;
+  return true;
+}
+
+// The view applied to one page or to the merged pages. The server's meta is
+// passed through untouched; the filtered size is `shownCount`.
+export function tradableHere(
+  page: Paged<MemeToken>,
+  view: DiscoveryView = "curated"
+): ShownPage<MemeToken> {
+  const items = page.items.filter((token) => isMemecoinHere(token, view)).map(withRiskDefaults);
+  return { items, meta: page.meta, shownCount: items.length };
 }

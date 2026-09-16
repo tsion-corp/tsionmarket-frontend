@@ -8,8 +8,8 @@ const upstream = vi.hoisted(() => ({
   forwardEvmRpcRead: vi.fn(),
   fetchMarketTokens: vi.fn(),
   fetchRwaMarket: vi.fn(),
-  wsapiPerpRequest: vi.fn(),
   wsapiRwaRequest: vi.fn(),
+  wsapiPerpRequest: vi.fn(),
   fetch: vi.fn(),
 }));
 
@@ -19,8 +19,8 @@ vi.mock("@/lib/server/evm-rpc", () => ({ forwardEvmRpcRead: upstream.forwardEvmR
 vi.mock("@/lib/server/market-tokens", () => ({ fetchMarketTokens: upstream.fetchMarketTokens }));
 vi.mock("@/lib/server/rwa-prices", () => ({ fetchRwaMarket: upstream.fetchRwaMarket }));
 vi.mock("@/lib/server/wsapi", () => ({
-  wsapiPerpRequest: upstream.wsapiPerpRequest,
   wsapiRwaRequest: upstream.wsapiRwaRequest,
+  wsapiPerpRequest: upstream.wsapiPerpRequest,
 }));
 vi.mock("@/lib/server/upstreams", () => ({
   TRADE_BASE: "https://trade.test",
@@ -71,9 +71,30 @@ function healthyUpstreams() {
     },
   ]);
   upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
-    path === "pairs"
-      ? ok([{ from: "BTC", to: "USD", maxLeverage: 100 }])
-      : ok([{ pairIndex: 0, pair: "BTC/USD", price: "65000", publishTime: null }])
+    path === "ark/assets"
+      ? ok([
+          {
+            id: "btc",
+            assetIndex: 0,
+            dex: "",
+            symbol: "BTC",
+            category: "crypto",
+            szDecimals: 5,
+            maxLeverage: 40,
+            isActive: true,
+          },
+        ])
+      : ok([
+          {
+            symbol: "BTC",
+            markPrice: "65000",
+            oraclePrice: "65010",
+            prevDayPrice: "64000",
+            dayVolumeUsd: "1",
+            openInterest: "1",
+            fundingRate: "0.0000125",
+          },
+        ])
   );
   upstream.wsapiRwaRequest.mockResolvedValue(
     ok([
@@ -235,12 +256,13 @@ describe("buildDashboardFeed", () => {
       priceUsd: 3000,
       change24h: 1.5,
     });
-    expect(feed.perps?.[0]).toMatchObject({
-      symbol: "BTC/USD",
-      base: "BTC",
-      priceUsd: 65000,
-      maxLeverage: 100,
-    });
+    expect(feed.perps).toEqual([
+      { symbol: "BTC/USD", base: "BTC", priceUsd: 65000, maxLeverage: 40 },
+    ]);
+    expect(upstream.wsapiPerpRequest.mock.calls.map(([path]) => path).sort()).toEqual([
+      "ark/assets",
+      "ark/market-contexts",
+    ]);
     expect(feed.memes).toEqual([
       {
         address: "0xMeme",
@@ -253,9 +275,14 @@ describe("buildDashboardFeed", () => {
     ]);
     expect(feed.rwa?.[0]).toMatchObject({
       id: "usdy-base",
+      issuer: "Ondo",
+      category: "treasury",
+      apyBps: null,
       priceUsd: 1.14,
       change24h: -0.01,
       logo: "/api/token-logo/base/0xUsdy",
+      chain: "base",
+      address: "0xUsdy",
     });
     // Only the live indexed round; the settled one is left out.
     expect(feed.live?.rounds.map((r) => [r.gameId, r.potUsd, r.pot])).toEqual([[5, 42, "$42.00"]]);
@@ -268,7 +295,7 @@ describe("buildDashboardFeed", () => {
     healthyUpstreams();
     upstream.wsapiRwaRequest.mockResolvedValue(down());
     upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
-      path === "pairs" ? down() : ok([])
+      path === "ark/assets" ? down() : ok([])
     );
 
     const feed = await buildDashboardFeed();
@@ -277,6 +304,36 @@ describe("buildDashboardFeed", () => {
     expect(feed.perps).toBeNull();
     expect(feed.spot).not.toBeNull();
     expect(feed.memes).not.toBeNull();
+  });
+
+  // The "Own the Real World" shelf picks one asset per category out of the
+  // rwa section, so the section carries every listed asset and its yield,
+  // not the eight the brief shows.
+  it("carries every listed real asset with its category and yield", async () => {
+    healthyUpstreams();
+    upstream.wsapiRwaRequest.mockResolvedValue(
+      ok(
+        Array.from({ length: 12 }, (_, i) => ({
+          id: `asset-${i}`,
+          chain: "base",
+          address: `0xAsset${i}`,
+          symbol: `A${i}`,
+          name: `Asset ${i}`,
+          issuer: "Issuer",
+          category: i % 2 ? "equity" : "treasury",
+          yieldApyBps: i % 2 ? undefined : 360,
+          priceUsd: "1",
+          freelyTradable: true,
+        }))
+      )
+    );
+    upstream.fetchRwaMarket.mockResolvedValue({});
+
+    const feed = await buildDashboardFeed();
+
+    expect(feed.rwa).toHaveLength(12);
+    expect(feed.rwa?.[0]).toMatchObject({ category: "treasury", apyBps: 360 });
+    expect(feed.rwa?.[1]).toMatchObject({ category: "equity", apyBps: null });
   });
 
   // Trending is mostly Solana, and discovery is Base-only for now, so after
@@ -328,10 +385,55 @@ describe("buildDashboardFeed", () => {
     expect(feed.memes?.map((m) => m.symbol)).toEqual(["BASECAT"]);
   });
 
-  it("prices the perps brief from the fallback when only the marks are down", async () => {
+  // Slice 4 puts a Curated / All switch on the meme lists. The brief is not a
+  // list anyone switches: it stays curated, so a HIGH-risk LOW_LIQUIDITY row
+  // that All would show never reaches the dashboard.
+  it("keeps the memecoin brief curated", async () => {
     healthyUpstreams();
+    const base = upstream.fetch.getMockImplementation()!;
+    upstream.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://trade.test/tokens/trending")) {
+        return ok({
+          items: [
+            {
+              chainId: 8453,
+              address: "0xThinRisky",
+              symbol: "THIN",
+              name: "Thin Risky",
+              logoUrl: null,
+              priceUsd: "0.01",
+              priceChange24hPercent: "40",
+              liquidityUsd: "4000",
+              riskLevel: "HIGH",
+              status: "ACTIVE",
+              warnings: [{ code: "LOW_LIQUIDITY", message: "Liquidity is below $50,000." }],
+            },
+            {
+              chainId: 8453,
+              address: "0xMeme",
+              symbol: "MEME",
+              name: "Meme",
+              logoUrl: null,
+              priceUsd: "0.01",
+              priceChange24hPercent: "12.5",
+              riskLevel: "LOW",
+            },
+          ],
+          meta: { page: 1, limit: 8, total: 2 },
+        });
+      }
+      return base(url, init);
+    });
+    const feed = await buildDashboardFeed();
+    expect(feed.memes?.map((m) => m.symbol)).not.toContain("THIN");
+    expect(feed.memes?.map((m) => m.symbol)).toContain("MEME");
+  });
+
+  it("prices the perps brief from the app's own feed when only the marks are down", async () => {
+    healthyUpstreams();
+    const assets = upstream.wsapiPerpRequest.getMockImplementation()!;
     upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
-      path === "pairs" ? ok([{ from: "BTC", to: "USD", maxLeverage: 100 }]) : down()
+      path === "ark/assets" ? assets(path) : down()
     );
     upstream.fetchPrices.mockImplementation(async (symbols: string[]) =>
       symbols.map((symbol) => ({ symbol, priceUsd: symbol === "BTC" ? 64000 : 1 }))
@@ -339,6 +441,17 @@ describe("buildDashboardFeed", () => {
 
     const feed = await buildDashboardFeed();
     expect(feed.perps?.[0]).toMatchObject({ symbol: "BTC/USD", priceUsd: 64000 });
+  });
+
+  it("marks the perps brief unavailable when the asset list breaks its contract", async () => {
+    healthyUpstreams();
+    upstream.wsapiPerpRequest.mockImplementation(async (path: string) =>
+      path === "ark/assets" ? ok([{ symbol: "BTC" }]) : ok([])
+    );
+
+    const feed = await buildDashboardFeed();
+    expect(feed.perps).toBeNull();
+    expect(feed.spot).not.toBeNull();
   });
 
   it("keeps the live chips from the sources that answered", async () => {

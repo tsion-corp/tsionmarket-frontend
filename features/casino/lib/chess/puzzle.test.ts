@@ -10,8 +10,11 @@ function puzzle(themes: string[]): ChessPuzzle {
   const line = { text: "", speech: null };
   return {
     id: "abc",
+    sourceFen: "8/8/8/8/8/8/7p/K6k b - - 0 1",
     fen: "8/8/8/8/8/8/8/K6k w - - 0 1",
     lastMove: "h2h1",
+    lastMoveSan: "h1=Q",
+    initialPly: 2,
     sideToMove: "white",
     rating: 1200,
     ratingDeviation: 80,
@@ -20,6 +23,7 @@ function puzzle(themes: string[]): ChessPuzzle {
     themes,
     openingTags: [],
     sourceUrl: "https://lichess.org/example",
+    sourceGame: null,
     playerMoveCount: 1,
     narration: { introduction: line, hint: line, success: line },
   };
@@ -29,11 +33,11 @@ describe("puzzle presentation helpers", () => {
   it("uses the first meaningful theme and its copied Lila artwork", () => {
     const item = puzzle(["short", "discoveredAttack"]);
     expect(primaryPuzzleTheme(item)).toBe("discoveredAttack");
-    expect(puzzleThemeArtwork(item)).toBe("/chess/puzzle-themes/discoveredAttack.svg");
+    expect(puzzleThemeArtwork(item)).toBe("/images/puzzle-themes/discoveredAttack.svg");
     expect(puzzleThemeLabel("discoveredAttack")).toBe("Discovered attack");
   });
 
   it("shares the generic mate artwork across mate depths", () => {
-    expect(puzzleThemeArtwork(puzzle(["mateIn3"]))).toBe("/chess/puzzle-themes/mate.svg");
+    expect(puzzleThemeArtwork(puzzle(["mateIn3"]))).toBe("/images/puzzle-themes/mate.svg");
   });
 });

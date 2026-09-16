@@ -1,7 +1,7 @@
 "use client";
 
 import { CasinoPage } from "@/features/casino/components/casino-page";
-import { SwissListSection } from "@/features/casino/components/chess/swiss/list-section";
+import { SwissListSection } from "@/features/casino/components/chess-app/swiss/list-section";
 
 // Swiss tournaments are one service-level feature shared by both board games,
 // so the list is the same component filtered to the draughts ones.

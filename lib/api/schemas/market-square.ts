@@ -119,6 +119,33 @@ export const roleApplicationSchema = z
   })
   .nullable();
 
+// A house, as the directory lists it. Only what the Square page's card
+// reads is pinned; the rest of the payload passes through untouched. The
+// title is nullable because the Square itself renders "House" for one
+// without, and the member count is optional because an absent count means
+// "this payload does not count members", not "this house has none".
+const houseMemberSchema = z.object({
+  id: z.string(),
+  username: z.string().nullable().optional(),
+  displayName: z.string().nullable().optional(),
+  avatarUrl: z.string().nullable().optional(),
+});
+
+export const discoverHousesSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string(),
+      title: z.string().nullable().optional(),
+      description: z.string().nullable().optional(),
+      imageUrl: z.string().nullable().optional(),
+      memberCount: z.number().int().nullable().optional(),
+      members: z.array(houseMemberSchema).optional(),
+      lastActiveAt: z.string().nullable().optional(),
+    })
+  ),
+  nextCursor: z.string().nullable().optional(),
+});
+
 const likeResultSchema = z.object({
   liked: z.boolean(),
   likeCount: z.number(),
@@ -152,5 +179,6 @@ export function marketSquareSchemaFor(
   // Pinning it matters: the card renders `likeCount` straight from the
   // response, and an unmodelled shape would put NaN under a heart.
   if (/^posts\/[^/]+\/like$/u.test(joined)) return likeResultSchema;
+  if (joined === "conversations/discover") return discoverHousesSchema;
   return null;
 }

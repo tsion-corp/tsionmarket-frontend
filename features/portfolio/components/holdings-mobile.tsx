@@ -13,6 +13,7 @@ import { tokenBg } from "@/lib/trade/assets";
 import { formatQty } from "@/lib/format";
 import { displaySymbol } from "@/lib/buy";
 import type { TokenBalance } from "@/hooks/use-portfolio";
+import { isUnpricedHolding } from "@/features/portfolio/lib/holdings";
 
 interface HoldingsMobileProps {
   rows: TokenBalance[];
@@ -142,7 +143,9 @@ export function HoldingsMobile({
                 </span>
               </span>
               <span className="tnum shrink-0 text-right font-sans text-[14.5px] font-medium">
-                {money.format(token.valueUsd)}
+                {isUnpricedHolding(token)
+                  ? t("valuationUnavailable")
+                  : money.format(token.valueUsd)}
               </span>
             </button>
           ))}

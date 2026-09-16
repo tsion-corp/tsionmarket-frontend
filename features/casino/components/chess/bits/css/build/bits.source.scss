@@ -1,0 +1,12 @@
+@import '../../../lib/css/plugin';
+@import '../../../lib/css/component/slist';
+@import '../../../lib/css/component/markdown';
+@import '../page';
+
+#version {
+  td:first-child {
+    @extend %flex-column;
+
+    gap: 1ch;
+  }
+}

@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useBuy } from "@/features/trade/hooks/use-buy";
 import { useSell } from "@/features/trade/hooks/use-sell";
-import { useMemeTrade, type TradePhase } from "@/features/trade/hooks/use-meme-trade";
+import { tradeRef, useMemeTrade, type TradePhase } from "@/features/trade/hooks/use-meme-trade";
 import { useDepositStatus } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
@@ -64,7 +64,10 @@ interface SpotPanelProps {
 // rail is running.
 function swapOrderPhase(phase: TradePhase): SpotOrderPhase {
   if (phase === "idle") return "confirm";
-  if (phase === "confirmed") return "settled";
+  // Delivered (on-chain, not yet recorded) and pending (poll ran out) are
+  // over as far as this sheet's mechanics go: the bar completes and it can
+  // close. The toast carries the truth about which one it was.
+  if (phase === "confirmed" || phase === "delivered" || phase === "pending") return "settled";
   if (phase === "failed") return "failed";
   return "working";
 }
@@ -95,6 +98,8 @@ export function SpotPanel({
   swapRoute,
 }: SpotPanelProps) {
   const t = useTranslations("spot");
+  const tMeme = useTranslations("meme");
+  const tErr = useTranslations("tradeErrors");
   const [side, setSide] = useState<Side>("buy");
   const [amount, setAmount] = useState("");
   const [maxRequested, setMaxRequested] = useState(false);
@@ -199,11 +204,8 @@ export function SpotPanel({
   const dextopusProgress = status.data
     ? depositProgress(status.data.status, status.data.executionStatus)
     : depositProgress("", "");
-  // received is an on-chain-verified balanceOf delta that lands before the
-  // backend's own slower confirmation — treated as settled immediately, so
-  // this screen never sits on "working" for a trade that has already landed
-  // in the wallet.
-  const swapSettled = memeTrade.phase === "confirmed" || memeTrade.received != null;
+  // Only the service's CONFIRMED is settled; see TradeOutcome in the hook.
+  const swapSettled = memeTrade.phase === "confirmed";
   const swapStage: DepositStage = swapSettled
     ? "settled"
     : memeTrade.phase === "failed"
@@ -218,10 +220,12 @@ export function SpotPanel({
     signing: 50,
     confirming: 75,
     confirmed: 100,
+    delivered: 100,
+    pending: 90,
     failed: 0,
   };
   const progress = isSwapMarket
-    ? { stage: swapStage, pct: swapSettled ? 100 : swapPct[memeTrade.phase] }
+    ? { stage: swapStage, pct: swapPct[memeTrade.phase] }
     : dextopusProgress;
   const stage = progress.stage;
   const phase: SpotOrderPhase = isSwapMarket
@@ -247,9 +251,20 @@ export function SpotPanel({
           buying ? t("toastBought", { symbol: base }) : t("toastSold", { symbol: base })
         );
         void portfolio.refetchUntilChanged(settledNetworks);
+      } else if (memeTrade.phase === "delivered" || memeTrade.phase === "pending") {
+        // Not "bought"/"sold": the service has not confirmed it. Say what is
+        // known, with the reference support will ask for.
+        resolvedRef.current = true;
+        const ref = tradeRef(memeTrade.swapId, memeTrade.requestId);
+        toast.success(
+          memeTrade.phase === "delivered"
+            ? tMeme("toastDelivered", { symbol: base, ref })
+            : tMeme("toastPending", { symbol: base, ref })
+        );
+        void portfolio.refetchUntilChanged(settledNetworks);
       } else if (memeTrade.phase === "failed") {
         resolvedRef.current = true;
-        toast.error(memeTrade.error ?? t("orderFailedNote"));
+        toast.error(friendlyError(memeTrade.error, t("orderFailedNote"), tErr));
       }
       return;
     }
@@ -266,6 +281,8 @@ export function SpotPanel({
     isSwapMarket,
     memeTrade.phase,
     memeTrade.error,
+    memeTrade.swapId,
+    memeTrade.requestId,
     stage,
     requestId,
     buying,
@@ -273,6 +290,8 @@ export function SpotPanel({
     portfolio,
     settledNetworks,
     t,
+    tMeme,
+    tErr,
   ]);
 
   const handleAmount = (raw: string) => {
@@ -324,7 +343,7 @@ export function SpotPanel({
         // message; only the sheet needs closing for a sell, matching the
         // Dextopus sell branch below.
         if (!buying) setConfirmOpen(false);
-        toast.error(friendlyError(e, t("orderRejected")));
+        toast.error(friendlyError(e, t("orderRejected"), tErr));
       }
       return;
     }

@@ -106,12 +106,15 @@ export function isCashoutable(
 // The lowest fill price a market SELL accepts, from the estimated crossing
 // price: a small tolerance below the estimate so a normal book move between
 // estimate and placement still fills, but the shares are never dumped far
-// under it. Clamped to valid whole-cent ticks.
+// under it. The tick must come from the market: low-probability outcomes can
+// trade below one cent on 0.001 or 0.0001 ticks.
 const SELL_SLIPPAGE = 0.03;
 
-export function sellFloorPrice(estimate: number): number {
-  const floored = Math.floor(estimate * (1 - SELL_SLIPPAGE) * 100) / 100;
-  return Math.min(Math.max(floored, 0.01), 0.99);
+export function sellFloorPrice(estimate: number, marketTick = 0.01): number {
+  const tick = Number.isFinite(marketTick) && marketTick > 0 ? marketTick : 0.01;
+  const flooredTicks = Math.floor((estimate * (1 - SELL_SLIPPAGE)) / tick);
+  const floor = Math.max(tick, flooredTicks * tick);
+  return Number(Math.min(floor, 1 - tick).toFixed(6));
 }
 
 // Whether a position actually has winnings to claim. A market resolving marks

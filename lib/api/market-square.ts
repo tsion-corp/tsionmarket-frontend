@@ -471,6 +471,8 @@ export interface MarketSquareAuthor {
   role: MarketSquareRole;
   /** Viewer state, hydrated by the feed for a signed-in reader. */
   isFollowing?: boolean;
+  /** The organisation lockup beside the name: "market", "ark", or none. */
+  orgBadge?: string | null;
 }
 
 /**
@@ -495,9 +497,13 @@ export interface MarketSquareFeedPost {
   mediaUrl: string | null;
   mediaKind: string | null;
   thumbnailUrl: string | null;
+  /** Every picture on a post with more than one; absent on a single one. */
+  media?: { url: string; kind: string; thumbnailUrl?: string | null }[] | null;
   deepLink: MarketSquareDeepLink | null;
   preview: MarketSquarePreview | null;
   likeCount: number;
+  /** How many saved it, when the deployment counts. Never who. */
+  bookmarkCount?: number;
   commentCount: number;
   repostCount: number;
   /** Distinct people who have seen it. Never raised by a re-watch. */
@@ -617,9 +623,19 @@ export async function setPostRepost(postId: string, reposted: boolean): Promise<
 
 export interface MarketSquareComment {
   id: string;
+  /** Present even when the author is not hydrated. */
+  authorId?: string;
   text: string;
   createdAt: string;
   author: MarketSquareAuthor | null;
+  /** The comment this one answers, or null at the top of a thread. */
+  parentId?: string | null;
+  replyCount?: number;
+  likeCount?: number;
+  /** Viewer state; absent for a signed-out reader. */
+  likedByMe?: boolean;
+  /** Who a reply answered, when it answered a reply rather than the root. */
+  replyTo?: { username: string | null } | null;
 }
 
 export async function fetchPostComments(
@@ -638,8 +654,39 @@ export async function fetchPostComments(
   };
 }
 
-export async function addPostComment(postId: string, text: string): Promise<MarketSquareComment> {
-  return marketSquare.post<MarketSquareComment>(`/posts/${postId}/comments`, { text });
+/** A reply to the post, or to one of its comments when `parentId` is given. */
+export async function addPostComment(
+  postId: string,
+  text: string,
+  parentId?: string | null
+): Promise<MarketSquareComment> {
+  return marketSquare.post<MarketSquareComment>(`/posts/${postId}/comments`, {
+    text,
+    ...(parentId ? { parentId } : {}),
+  });
+}
+
+/** One comment's replies, oldest first as the service orders them. */
+export async function fetchCommentReplies(
+  commentId: string,
+  cursor?: string | null
+): Promise<{ items: MarketSquareComment[]; nextCursor: string | null }> {
+  const params = new URLSearchParams({ limit: "25" });
+  if (cursor) params.set("cursor", cursor);
+  const page = await marketSquare.get<{
+    items?: MarketSquareComment[];
+    nextCursor?: string | null;
+  }>(`/comments/${commentId}/replies?${params.toString()}`);
+  return {
+    items: Array.isArray(page?.items) ? page.items : [],
+    nextCursor: page?.nextCursor ?? null,
+  };
+}
+
+/** Like or unlike a comment. Idempotent upstream in both directions. */
+export async function setCommentLike(commentId: string, liked: boolean): Promise<LikeResult> {
+  const path = `/comments/${commentId}/like`;
+  return liked ? marketSquare.post<LikeResult>(path, {}) : marketSquare.del<LikeResult>(path);
 }
 
 /**
@@ -746,4 +793,218 @@ export async function fetchSuggestedProfiles(limit = 8): Promise<SuggestedProfil
     `/profiles?sort=followers&limit=${limit}`
   );
   return Array.isArray(page?.items) ? page.items : [];
+}
+
+// ── The Square page's reads ──────────────────────────────────────────────────
+//
+// The Square's own Home is a column of sections: live rooms, people, rooms
+// coming soon, popular houses, posts. The page at /square reads the same
+// routes Home reads and shows the same lists, so the two cannot drift on what
+// they show, only on how they draw it.
+
+/** Who hosts a room, as the stream list hydrates them. */
+export interface MarketSquareHost {
+  id: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+}
+
+/** A room as the Square page's card shows it: live now, or opening later. */
+export interface MarketSquareRoom {
+  id: string;
+  title: string;
+  description: string | null;
+  status: StreamStatus;
+  /** When a scheduled room opens. Null once it is live. */
+  scheduledAt: string | null;
+  startedAt: string | null;
+  peakViewers: number;
+  likeCount: number;
+  topics: string[];
+  owner: MarketSquareHost | null;
+}
+
+interface RoomWire extends StreamWire {
+  scheduledAt?: string | null;
+  peakViewers?: number;
+  likeCount?: number;
+  topics?: string[];
+  owner?: {
+    id: string;
+    username?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+}
+
+function toRoom(wire: RoomWire): MarketSquareRoom {
+  return {
+    id: wire.id,
+    title: wire.title,
+    description: wire.description ?? null,
+    status: wire.status,
+    scheduledAt: wire.scheduledAt ?? null,
+    startedAt: wire.startedAt ?? null,
+    peakViewers: wire.peakViewers ?? 0,
+    likeCount: wire.likeCount ?? 0,
+    topics: Array.isArray(wire.topics) ? wire.topics : [],
+    owner: wire.owner
+      ? {
+          id: wire.owner.id,
+          username: wire.owner.username ?? null,
+          displayName: wire.owner.displayName ?? null,
+          avatarUrl: wire.owner.avatarUrl ?? null,
+        }
+      : null,
+  };
+}
+
+// Read with the session: the relay demands one on `streams`, and the page
+// sits under the auth guard, so the token is always there to send. The status
+// is matched again on what came back, the way findLiveStreamsForRef does, so a
+// deployment that ignored the filter shows an ended room as nothing rather
+// than as live.
+async function fetchRooms(status: "live" | "scheduled", limit: number) {
+  const page = await marketSquare.authedGet<{ items?: RoomWire[] }>("/streams", {
+    status,
+    limit,
+  });
+  return (page.items ?? []).map(toRoom).filter((room) => room.status === status);
+}
+
+/** The rooms live right now, for "Live now". */
+export function fetchLiveStreams(limit = 8): Promise<MarketSquareRoom[]> {
+  return fetchRooms("live", limit);
+}
+
+/** The rooms that have not opened yet, for "Coming soon". */
+export function fetchScheduledStreams(limit = 8): Promise<MarketSquareRoom[]> {
+  return fetchRooms("scheduled", limit);
+}
+
+/** A house, as the directory lists it and the "Popular houses" card shows it. */
+export interface MarketSquareHouse {
+  id: string;
+  /** Null for a house without one; the card names it "House". */
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  /** Null when the payload does not count members, which is not zero. */
+  memberCount: number | null;
+  members: MarketSquareHost[];
+}
+
+interface HouseWire {
+  id: string;
+  title?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  memberCount?: number | null;
+  members?: {
+    id: string;
+    username?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+  }[];
+}
+
+function toHouse(wire: HouseWire): MarketSquareHouse {
+  return {
+    id: wire.id,
+    title: wire.title ?? null,
+    description: wire.description ?? null,
+    imageUrl: wire.imageUrl ?? null,
+    memberCount: typeof wire.memberCount === "number" ? wire.memberCount : null,
+    members: (wire.members ?? []).map((member) => ({
+      id: member.id,
+      username: member.username ?? null,
+      displayName: member.displayName ?? null,
+      avatarUrl: member.avatarUrl ?? null,
+    })),
+  };
+}
+
+/**
+ * The house directory, busiest first, for "Popular houses".
+ *
+ * Public, like the rest of discovery, and the same read the Square's own Home
+ * makes. Joining is not read or written here: "Join house" opens the house in
+ * the Square.
+ */
+export async function fetchDiscoverHouses(limit = 8): Promise<MarketSquareHouse[]> {
+  const page = await marketSquare.get<{ items?: HouseWire[] }>("/conversations/discover", {
+    limit,
+  });
+  return (page?.items ?? []).map(toHouse);
+}
+
+// ── Home's search ───────────────────────────────────────────────────────────
+
+/** A person the search found, as the Square's directory hydrates them. */
+export interface SquareSearchProfile {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl: string | null;
+  verification: string;
+  role: MarketSquareRole;
+  orgBadge?: string | null;
+  followerCount?: number;
+  isFollowing?: boolean;
+}
+
+/** One hit from the Square's search, shaped by its kind. */
+export type SquareSearchItem =
+  | { kind: "profile"; id: string; profile: SquareSearchProfile }
+  | {
+      kind: "stream";
+      id: string;
+      stream: {
+        id: string;
+        title: string;
+        thumbnailUrl?: string | null;
+        owner?: { username: string; displayName: string | null } | null;
+      };
+    }
+  | {
+      kind: "post";
+      id: string;
+      post: { id: string; text: string; author?: { username: string } | null };
+    }
+  | {
+      kind: "product";
+      id: string;
+      product: {
+        id: string;
+        slug: string;
+        name: string;
+        tagline?: string | null;
+        thumbnailUrl?: string | null;
+      };
+    };
+
+export interface SquareSearchPage {
+  items: SquareSearchItem[];
+  nextCursor: string | null;
+}
+
+/**
+ * Everything the Square finds for a query, as Home's own search asks for it:
+ * people, rooms, posts and products in one list, paged. Public upstream.
+ */
+export async function searchSquare(
+  query: string,
+  cursor?: string | null
+): Promise<SquareSearchPage> {
+  const page = await marketSquare.get<Partial<SquareSearchPage>>("/search", {
+    q: query.trim(),
+    type: "all",
+    limit: 30,
+    ...(cursor ? { cursor } : {}),
+  });
+  return {
+    items: Array.isArray(page?.items) ? page.items : [],
+    nextCursor: page?.nextCursor ?? null,
+  };
 }

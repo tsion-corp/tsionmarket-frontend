@@ -1,6 +1,8 @@
 "use client";
 
 import { chessDelete, chessGet, chessPost, chessPut } from "@/features/casino/lib/api/chess-client";
+import { newChessIdempotencyKey } from "@/features/casino/lib/api/chess-idempotency";
+import { sendChessRoundCommand } from "@/features/casino/lib/chess/live-socket";
 // Shared with the dashboard feed on the server; see lib/chess/live-match.
 import { isPlausiblyActiveMatch } from "@/lib/chess/live-match";
 import {
@@ -23,13 +25,14 @@ import {
   type ChessCommentDeletedFrame,
   type ChessMatchAnalysisWire,
   type ChessMatchWire,
+  type ChessRoundSnapshotWire,
   type ChessMatchCommentWire,
   type ChessMatchCommentsWire,
   type ChessMatchNoteWire,
   type ChessMoveWire,
   type ChessWeaknessProfileWire,
 } from "@/features/casino/lib/api/chess-wire";
-import { apiError, errorCode } from "@/lib/api/envelope";
+import { apiError, errorCode, errorStatus } from "@/lib/api/envelope";
 import type {
   ChessChatMessage,
   ChessChatRoom,
@@ -53,6 +56,8 @@ import type {
   ChessMatchNote,
   ChessVideoAccess,
   ChessWeaknessProfile,
+  ChessStudy,
+  ChessStudyList,
   CreateChessChallengeInput,
   MatchmakingTicket,
 } from "@/features/casino/lib/api/types";
@@ -77,6 +82,43 @@ interface MovesWire {
 interface MoveResultWire {
   match: ChessMatchWire;
   move: ChessMoveWire;
+}
+
+interface RoundCommandResponseWire<T = MoveResultWire> {
+  commandId: string;
+  matchId: string;
+  commandType: string;
+  status: "applied" | "replayed";
+  data: T;
+}
+
+const ROUND_COMMAND_RETRY_DELAYS_MS = [0, 1_200, 2_400] as const;
+
+function retryableRoundCommandError(error: unknown): boolean {
+  const status = errorStatus(error);
+  return status === null || status === 429 || status >= 500;
+}
+
+async function postRoundCommand<T = MoveResultWire>(
+  body: Record<string, unknown>
+): Promise<RoundCommandResponseWire<T>> {
+  let lastError: unknown;
+  try {
+    return await sendChessRoundCommand<RoundCommandResponseWire<T>>(body);
+  } catch (error) {
+    lastError = error;
+    if (!retryableRoundCommandError(error)) throw error;
+  }
+  for (const delayMs of ROUND_COMMAND_RETRY_DELAYS_MS) {
+    if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+    try {
+      return await chessPost<RoundCommandResponseWire<T>>("/round/commands", body);
+    } catch (error) {
+      lastError = error;
+      if (!retryableRoundCommandError(error)) throw error;
+    }
+  }
+  throw lastError;
 }
 
 type ChessCoachMoveReviewWire = Omit<ChessCoachMoveReview, "matchState"> & {
@@ -146,6 +188,46 @@ async function fetchMatchWire(matchId: string): Promise<ChessMatchWire> {
   return chessGet<ChessMatchWire>(`/matches/${requireMatchId(matchId)}`);
 }
 
+async function fetchRoundSnapshotWire(matchId: string): Promise<ChessRoundSnapshotWire> {
+  return chessGet<ChessRoundSnapshotWire>(`/round/${requireMatchId(matchId)}/data`);
+}
+
+function roundSnapshotMoves(snapshot: ChessRoundSnapshotWire): ChessMoveWire[] {
+  return snapshot.steps.flatMap((step) => {
+    if (!step.uci || !step.san || !step.byPlayer || !step.createdAt) return [];
+    return [
+      {
+        ply: step.ply,
+        uci: step.uci,
+        san: step.san,
+        fenAfter: step.fen,
+        byPlayer: step.byPlayer,
+        clockMsRemaining: step.clockMsRemaining,
+        createdAt: step.createdAt,
+      },
+    ];
+  });
+}
+
+function matchFromRoundSnapshot(
+  snapshot: ChessRoundSnapshotWire,
+  previous: ChessMatch | null
+): ChessMatch {
+  return preserveOptionalMatchState(
+    previous,
+    snapshot.match,
+    toChessMatch(snapshot.match, {
+      moves: roundSnapshotMoves(snapshot),
+      round: {
+        steps: snapshot.steps,
+        legalMoves: snapshot.legalMoves,
+        check: snapshot.check,
+        serverTime: snapshot.serverTime,
+      },
+    })
+  );
+}
+
 export async function fetchMatchMoves(matchId: string): Promise<ChessMoveWire[]> {
   const data = await chessGet<MovesWire>(`/matches/${requireMatchId(matchId)}/moves`);
   return data.moves;
@@ -154,8 +236,12 @@ export async function fetchMatchMoves(matchId: string): Promise<ChessMoveWire[]>
 function canReuseMoveHistory(
   previous: ChessMatch | null | undefined,
   wire: Pick<ChessMatchWire, "ply">
-): previous is ChessMatch {
-  return !!previous && previous.moves.length === wire.ply;
+): boolean {
+  return (
+    !!previous &&
+    previous.moves.length === wire.ply &&
+    (!previous.round || previous.round.steps.length === wire.ply + 1)
+  );
 }
 
 function preserveOptionalMatchState(
@@ -176,6 +262,12 @@ export async function fetchMatch(
   previous: ChessMatch | null = null
 ): Promise<ChessMatch> {
   requireMatchId(matchId);
+  // Create/join mutations seed a compact match so navigation can begin
+  // immediately, but that response has no replay steps or legal moves. Treat
+  // it as bootstrap data, not a reusable round snapshot.
+  if (!previous?.round) {
+    return matchFromRoundSnapshot(await fetchRoundSnapshotWire(matchId), previous);
+  }
   const wire = await fetchMatchWire(matchId);
   if (canReuseMoveHistory(previous, wire)) {
     const justStarted = previous.state === "awaiting_opponent" && wire.status === "active";
@@ -184,6 +276,7 @@ export async function fetchMatch(
       wire,
       toChessMatch(wire, {
         moveSan: previous.moves,
+        round: previous.round,
         // When no new move landed, the last move timestamp we already have is
         // still the honest clock reference. A no-move poll must not restart the
         // displayed countdown.
@@ -193,9 +286,14 @@ export async function fetchMatch(
       })
     );
   }
-  if (wire.ply === 0) return preserveOptionalMatchState(previous, wire, toChessMatch(wire));
-  const moves = await fetchMatchMoves(matchId);
-  return preserveOptionalMatchState(previous, wire, toChessMatch(wire, { moves }));
+  if (wire.ply === 0) {
+    return preserveOptionalMatchState(
+      previous,
+      wire,
+      toChessMatch(wire, { round: previous.round })
+    );
+  }
+  return matchFromRoundSnapshot(await fetchRoundSnapshotWire(matchId), previous);
 }
 
 // Public open seats. Old waiting games read as abandoned in the lobby, so the
@@ -208,7 +306,9 @@ export async function fetchOpenChallenges(): Promise<ChessChallenge[]> {
 export async function fetchLiveMatches(): Promise<ChessMatch[]> {
   const data = await chessGet<MatchListWire>("/matches", { status: "active", limit: "50" });
   return data.items
-    .filter((wire) => !wire.computer && isPlausiblyActiveMatch(wire))
+    .filter(
+      (wire) => (!wire.computer || wire.computer.bot === true) && isPlausiblyActiveMatch(wire)
+    )
     .map((wire) => toChessMatch(wire));
 }
 
@@ -272,15 +372,15 @@ export async function createChallenge(
   const { initialSeconds, incrementSeconds } = parseTimeControl(input.timeControl);
   const wire = await chessPost<ChessMatchWire>("/matches", {
     creator: input.creator,
-    color: "random",
+    color: input.color ?? "random",
     initial_seconds: initialSeconds,
     increment_seconds: incrementSeconds,
     // Rating is a property of human PvP, not of whether USDC is at stake.
-    rated: true,
+    rated: input.rated ?? true,
     allow_time_extensions: input.allowTimeExtensions ?? false,
     // Every human match gets an Ark Stream room. Individual players can still
     // leave camera and microphone from the board.
-    videoEnabled: true,
+    videoEnabled: input.videoEnabled ?? true,
     ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
   });
 
@@ -313,21 +413,28 @@ export async function issueMatchVideoToken(
 export async function createComputerMatch(
   input: CreateComputerMatchInput & { player: string; idempotencyKey?: string }
 ): Promise<ChessMatch> {
-  const wire = await chessPost<ChessMatchWire>("/computer/matches", {
-    player: input.player,
-    level: input.level,
-    color: input.color,
-    time_mode: input.timeMode,
-    ...(input.timeMode === "real_time"
-      ? {
-          initial_seconds: input.initialSeconds,
-          increment_seconds: input.incrementSeconds,
-        }
-      : {}),
-    ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
-    ...(input.coachEnabled ? { coach_enabled: true } : {}),
-    ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),
-  });
+  const wire = await chessPost<ChessMatchWire>(
+    input.lobbyBot ? "/computer/matches?lobbyBot=true" : "/computer/matches",
+    {
+      player: input.player,
+      level: input.level,
+      color: input.color,
+      variant: input.variant ?? "standard",
+      ...(input.variant === "fromPosition" && input.initialFen
+        ? { initial_fen: input.initialFen }
+        : {}),
+      time_mode: input.timeMode,
+      ...(input.timeMode === "real_time"
+        ? {
+            initial_seconds: input.initialSeconds,
+            increment_seconds: input.incrementSeconds,
+          }
+        : {}),
+      ...(input.stakeUsdc ? { stake_usdc: input.stakeUsdc } : {}),
+      ...(input.coachEnabled ? { coach_enabled: true } : {}),
+      ...(input.idempotencyKey ? { idempotency_key: input.idempotencyKey } : {}),
+    }
+  );
   return toChessMatch(wire);
 }
 
@@ -470,10 +577,16 @@ export async function submitMove(
   player: string,
   previousSan: string[] = []
 ): Promise<ChessMatch> {
-  const result = await chessPost<MoveResultWire>(`/matches/${requireMatchId(matchId)}/moves`, {
+  const validMatchId = requireMatchId(matchId);
+  const response = await postRoundCommand({
+    commandId: newChessIdempotencyKey(),
+    matchId: validMatchId,
     player,
-    uci: move,
+    expectedPly: previousSan.length,
+    clientSentAtMs: Date.now(),
+    command: { type: "move", uci: move },
   });
+  const result = response.data;
   const match = toChessMatch(result.match, { moves: [result.move] });
   return {
     ...match,
@@ -481,19 +594,27 @@ export async function submitMove(
   };
 }
 
-async function playerAction(matchId: string, action: string, player: string): Promise<ChessMatch> {
-  const wire = await chessPost<ChessMatchWire>(`/matches/${requireMatchId(matchId)}/${action}`, {
+async function playerAction(
+  matchId: string,
+  player: string,
+  command: Record<string, unknown>
+): Promise<ChessMatch> {
+  const response = await postRoundCommand<ChessMatchWire>({
+    commandId: newChessIdempotencyKey(),
+    matchId: requireMatchId(matchId),
     player,
+    clientSentAtMs: Date.now(),
+    command,
   });
-  return toChessMatch(wire);
+  return toChessMatch(response.data);
 }
 
 export async function resignMatch(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "resign", player);
+  return playerAction(matchId, player, { type: "resign" });
 }
 
 export async function offerDraw(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "draw-offer", player);
+  return playerAction(matchId, player, { type: "offerDraw" });
 }
 
 // Answers an outstanding offer. Declining leaves the game running.
@@ -502,48 +623,44 @@ export async function respondToDraw(
   player: string,
   accept: boolean
 ): Promise<ChessMatch> {
-  const wire = await chessPost<ChessMatchWire>(
-    `/matches/${requireMatchId(matchId)}/draw-response`,
-    { player, accept }
-  );
-  return toChessMatch(wire);
+  return playerAction(matchId, player, { type: "respondDraw", accept });
 }
 
 // Claims a draw the position already entitles the player to, by repetition or
 // the fifty-move rule.
 export async function claimDraw(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "claim-draw", player);
+  return playerAction(matchId, player, { type: "claimDraw" });
 }
 
 // Flags an opponent whose clock has run out. The service does not end a game on
 // time by itself, so without this call a game whose clock expired would sit
 // unfinished forever.
 export async function claimTimeout(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "claim-timeout", player);
+  return playerAction(matchId, player, { type: "claimTimeout" });
 }
 
 export async function abortMatch(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "abort", player);
+  return playerAction(matchId, player, { type: "abort" });
 }
 
 // Lila-style rematch "yes": the first click offers, the second accepts and the
 // response carries the original match plus `rematch.nextMatchId`.
 export async function requestRematch(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "rematch", player);
+  return playerAction(matchId, player, { type: "rematch" });
 }
 
 export async function declineRematch(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "rematch-decline", player);
+  return playerAction(matchId, player, { type: "declineRematch" });
 }
 
 // Lila-style takeback "yes": the first click offers, the second accepts and
 // rewinds the current game.
 export async function requestTakeback(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "takeback", player);
+  return playerAction(matchId, player, { type: "takeback" });
 }
 
 export async function declineTakeback(matchId: string, player: string): Promise<ChessMatch> {
-  return playerAction(matchId, "takeback-decline", player);
+  return playerAction(matchId, player, { type: "declineTakeback" });
 }
 
 export async function fetchPgn(matchId: string): Promise<string> {
@@ -604,6 +721,25 @@ export async function fetchCoachProgress(player: string): Promise<ChessCoachProg
 
 export async function fetchCoachCatalog(): Promise<ChessCoachCatalog> {
   return chessGet<ChessCoachCatalog>("/coach/catalog");
+}
+
+export async function fetchChessStudies(limit = 50, offset = 0): Promise<ChessStudyList> {
+  return chessGet<ChessStudyList>("/studies", { limit, offset });
+}
+
+export async function fetchChessStudy(studyId: string): Promise<ChessStudy> {
+  return chessGet<ChessStudy>(`/studies/${encodeURIComponent(studyId)}`);
+}
+
+export async function createChessStudy(name = "New study"): Promise<ChessStudy> {
+  return chessPost<ChessStudy>("/studies", {
+    name,
+    visibility: "unlisted",
+    description: "",
+    topics: [],
+    chapterName: "Chapter 1",
+    orientation: "white",
+  });
 }
 
 export async function fetchCoachHome(player: string): Promise<ChessCoachHome> {

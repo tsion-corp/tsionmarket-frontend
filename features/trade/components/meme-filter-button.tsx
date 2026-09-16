@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { RiskFilter } from "@/features/trade/components/meme-risk-filter";
 import type { TokenRiskLevel } from "@/lib/meme/api";
 
@@ -35,6 +36,7 @@ export function MemeFilterButton({ active, onToggle, onClear, counts }: MemeFilt
   const t = useTranslations("meme");
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
+  const reduce = useReducedMotion();
 
   // A panel that outlives the click that closed it is the usual bug here, so it
   // closes on any click outside and on Escape.
@@ -76,18 +78,24 @@ export function MemeFilterButton({ active, onToggle, onClear, counts }: MemeFilt
         ) : null}
       </button>
 
-      {open ? (
-        <div
-          role="dialog"
-          aria-label={t("filters")}
-          className="bg-panel absolute right-0 z-30 mt-2 w-[300px] rounded-[16px] border border-white/12 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
-        >
-          <div className="mb-3 text-[11.5px] font-normal tracking-[0.08em] text-white/40 uppercase">
-            {t("colRisk")}
-          </div>
-          <RiskFilter active={active} onToggle={onToggle} onClear={onClear} counts={counts} />
-        </div>
-      ) : null}
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+            animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
+            transition={{ duration: 0.15, ease: "easeOut" }}
+            role="dialog"
+            aria-label={t("filters")}
+            className="bg-panel absolute right-0 z-30 mt-2 w-[300px] rounded-[16px] border border-white/12 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.55)]"
+          >
+            <div className="mb-3 text-[11.5px] font-normal tracking-[0.08em] text-white/40 uppercase">
+              {t("colRisk")}
+            </div>
+            <RiskFilter active={active} onToggle={onToggle} onClear={onClear} counts={counts} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

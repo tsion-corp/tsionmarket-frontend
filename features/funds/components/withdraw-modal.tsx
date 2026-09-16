@@ -45,12 +45,6 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
           />
         )}
       </div>
-      <button
-        onClick={onClose}
-        className="mt-4 w-full cursor-pointer rounded-[14px] border border-white/12 bg-white/5 p-3 font-sans text-[14px] font-medium text-white hover:bg-white/10"
-      >
-        {t("close")}
-      </button>
     </div>
   );
 }

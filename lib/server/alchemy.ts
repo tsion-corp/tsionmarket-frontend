@@ -59,6 +59,8 @@ export const EVM_NETWORKS = [
   "mythos-mainnet",
 ];
 export const SOLANA_NETWORK = "solana-mainnet";
+const BASE_PORTFOLIO_NETWORKS = ["base-mainnet"] as const;
+export type PortfolioScope = "all" | "base";
 
 // How a holding is classified for display: a native coin (ETH/POL/SOL), a
 // stablecoin (USDC/USDT), a real-world asset (from the RWA registry), or any
@@ -298,8 +300,10 @@ function normalize(
     const usdPrice = t.tokenPrices?.find((p) => p.currency === "usd");
     let priceUsd = usdPrice ? parseFloat(usdPrice.value) : 0;
     if (priceUsd === 0 && rwaInfo) priceUsd = rwaInfo.priceUsd;
-    // Memecoins: Alchemy rarely prices them, but the trade catalog does.
-    if (priceUsd === 0 && memeInfo) priceUsd = memeInfo.priceUsd;
+    // Memecoins: Alchemy rarely prices them, but the trade catalog does. When
+    // the catalog cannot either, the price stays unknown (0 here, which the
+    // holdings list reads as unpriced and labels "Valuation unavailable").
+    if (priceUsd === 0 && memeInfo && memeInfo.priceUsd !== null) priceUsd = memeInfo.priceUsd;
     // Alchemy sometimes returns an empty price array for a tracked stablecoin
     // (Polygon USDC has done this). They are dollar-pegged, so value a held
     // balance at $1 rather than $0, which would hide a real holding.
@@ -347,10 +351,18 @@ function normalize(
 // chain order.
 async function withTrackedBaseline(
   held: TokenBalance[],
-  networks: string[]
+  networks: readonly string[]
 ): Promise<TokenBalance[]> {
   const present = new Set(held.map((t) => `${t.network}:${(t.address ?? "native").toLowerCase()}`));
-  const nativePrices = await fetchPrices(NATIVE_PRICE_SYMBOLS).catch(() => [] as SymbolPrice[]);
+  const nativeSymbols = [
+    ...new Set(
+      networks.flatMap((network) => {
+        const native = NATIVE_TOKEN[network];
+        return native ? [native.symbol] : [];
+      })
+    ),
+  ];
+  const nativePrices = await fetchPrices(nativeSymbols).catch(() => [] as SymbolPrice[]);
   const priceOf = (symbol: string) => nativePrices.find((p) => p.symbol === symbol)?.priceUsd ?? 0;
 
   const baseline: TokenBalance[] = [];
@@ -563,25 +575,44 @@ export async function fetchPortfolio(
   evm?: string,
   solana?: string,
   fresh: FreshScope | null = null,
-  bearer: string | null = null
+  // The caller's bearer, so the complete portfolio can include coins bought
+  // outside the catalogue. Null for an unauthenticated read, which simply
+  // gets the shared registries.
+  bearer: string | null = null,
+  scope: PortfolioScope = "all"
 ): Promise<Portfolio> {
-  if (!evm && !solana) return { totalUsd: 0, tokens: [] };
-  const cacheKey = `portfolio:${evm ?? ""}:${solana ?? ""}`;
+  const includeSolana = scope === "all" && Boolean(solana);
+  if (!evm && !includeSolana) return { totalUsd: 0, tokens: [] };
+  const evmNetworks = scope === "base" ? BASE_PORTFOLIO_NETWORKS : EVM_NETWORKS;
+  const cacheKey =
+    scope === "base" ? `portfolio:base:${evm ?? ""}` : `portfolio:${evm ?? ""}:${solana ?? ""}`;
   const skipCache = fresh !== null;
   return cached(
     cacheKey,
     async (): Promise<Portfolio> => {
-      // The registries name the contracts the on-chain read asks for, so they
-      // come first; both are cached on their own.
-      // The caller's own positions are read alongside the shared registries:
-      // the catalogue page cannot name a coin bought outside it, and this is
-      // what makes it a holding the owner can see. See lib/server/meme-positions.
-      const [rwa, shared, own] = await Promise.all([
-        fetchRwaRegistry(),
-        fetchBuyableRegistry(),
-        fetchMemePositions(bearer),
-      ]);
-      const registries = withOwnPositions(shared, own);
+      let rwa: RwaRegistry = {};
+      let registries: { buyable: BuyableRegistry; meme: MemeRegistry } = {
+        buyable: {},
+        meme: {},
+      };
+      if (scope === "all") {
+        // Dynamic catalogs are part of the complete portfolio. Chess only
+        // needs Base gas and its fixed funding assets, so its fast path does
+        // not wait on these unrelated services.
+        //
+        // The caller's own positions are read alongside the shared
+        // registries: the catalogue page cannot name a coin bought outside
+        // it, and this is what makes it a holding the owner can see. See
+        // lib/server/meme-positions. It rides the same scope gate, because
+        // the funding path has no use for it either.
+        const [registryRwa, shared, own] = await Promise.all([
+          fetchRwaRegistry(),
+          fetchBuyableRegistry(),
+          fetchMemePositions(bearer),
+        ]);
+        rwa = registryRwa;
+        registries = withOwnPositions(shared, own);
+      }
 
       // EVM balances come from the chain through the read pool (see
       // lib/server/portfolio-holdings); Solana still uses the Portfolio API
@@ -592,7 +623,7 @@ export async function fetchPortfolio(
         requests.push(
           readEvmPortfolioTokens(
             evm,
-            EVM_NETWORKS,
+            evmNetworks,
             (network) => allowedContracts(network, rwa, registries.buyable),
             fresh
           ).then((sweep) => {
@@ -601,7 +632,7 @@ export async function fetchPortfolio(
           })
         );
       }
-      if (solana) {
+      if (includeSolana && solana) {
         // The Portfolio API pages through every spam token the wallet has
         // ever received; a Base trade must not pay for that again.
         requests.push(
@@ -634,7 +665,7 @@ export async function fetchPortfolio(
         .flatMap((r) => r.value);
       const held = normalize(tokensFromBatches, rwa, registries.buyable, registries.meme);
       // Only baseline the chains the user actually has a wallet on.
-      const networks = [...(evm ? EVM_NETWORKS : []), ...(solana ? [SOLANA_NETWORK] : [])];
+      const networks = [...(evm ? evmNetworks : []), ...(includeSolana ? [SOLANA_NETWORK] : [])];
       const tokens = await withTrackedBaseline(held, networks);
       const totalUsd = tokens.reduce((sum, t) => sum + t.valueUsd, 0);
       return missing.length > 0 ? { totalUsd, tokens, missing } : { totalUsd, tokens };

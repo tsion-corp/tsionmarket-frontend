@@ -15,7 +15,20 @@ import {
 } from "@tanstack/react-table";
 import { BalanceCard } from "@/features/portfolio/components/balance-card";
 import { KashBanner } from "@/features/portfolio/components/kash-banner";
+import { MarketSquareBanner } from "@/features/portfolio/components/market-square-banner";
 import { KashCard } from "@/features/portfolio/components/kash-card";
+// The phone's portfolio head: a swipe carousel of the balance and Kash+ cards,
+// then a promo strip. Desktop keeps the side-by-side grid below.
+import { KashCardMobile } from "@/features/portfolio/components/kash-card-mobile";
+import { BalanceCarousel } from "@/features/portfolio/components/balance-carousel";
+import Link from "next/link";
+import { PromoCarousel } from "@/components/ui/promo-deck";
+import { PromoBanner, PromoRail } from "@/components/ui/promo-rail";
+import { ARKSTORE_URL } from "@/lib/brand";
+import { marketSquareHref } from "@/lib/market-square";
+import { GetKashBanner } from "@/features/portfolio/components/get-kash-banner";
+import { SetTheStakeBanner } from "@/features/portfolio/components/set-the-stake-banner";
+import { ArkStoreBanner } from "@/features/portfolio/components/ark-store-banner";
 import { KashBuyModal } from "@/features/portfolio/components/kash-buy-modal";
 import { KashConvertModal } from "@/features/portfolio/components/kash-convert-modal";
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
@@ -32,12 +45,17 @@ import { tokenBg } from "@/lib/trade/assets";
 import { track } from "@/lib/analytics/mixpanel";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
-import { Eyebrow } from "@/components/ui/eyebrow";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
-import { isZeroValueHolding, selectHoldings } from "@/features/portfolio/lib/holdings";
+import {
+  isUnpricedHolding,
+  isZeroValueHolding,
+  memeTokenOf,
+  selectHoldings,
+  withoutServiceKnownMemes,
+} from "@/features/portfolio/lib/holdings";
+import { useMemePortfolio } from "@/features/portfolio/hooks/use-meme-portfolio";
 import { canSellAsset } from "@/lib/sell";
-import { isPolymarketCollateral } from "@/lib/polymarket/config";
 import type { MemeToken } from "@/lib/meme/api";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
@@ -46,37 +64,14 @@ import type { BuyPayload, DetailPayload, RwaTradePayload, SellPayload } from "@/
 interface PortfolioViewProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
+  /** Replays the walkthrough; owned by the route, wired into the balance card. */
+  onTakeTour: () => void;
   crossBorderSlot: ReactNode;
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenBuy: (buy: BuyPayload) => void;
   onOpenSell: (sell: SellPayload) => void;
   onOpenRwaTrade: (rwaTrade: RwaTradePayload) => void;
   onOpenMemeSell: (token: MemeToken) => void;
-}
-
-// A held meme balance as the trade sheet's listing shape; the sheet re-fetches
-// the fresh catalog entry (risk, tradability) by address itself.
-function toMemeToken(t: TokenBalance): MemeToken {
-  return {
-    chainId: 8453,
-    address: t.address as string,
-    name: t.name,
-    symbol: t.symbol,
-    decimals: t.decimals,
-    logoUrl: t.logo,
-    priceUsd: t.priceUsd > 0 ? String(t.priceUsd) : null,
-    liquidityUsd: null,
-    volume24hUsd: null,
-    priceChange24hPercent: null,
-    marketCapUsd: null,
-    fdvUsd: null,
-    pairAddress: null,
-    dexName: null,
-    riskLevel: "UNKNOWN",
-    buyEnabled: true,
-    sellEnabled: true,
-    warnings: [],
-  };
 }
 
 const holdingsColumn = createColumnHelper<TokenBalance>();
@@ -89,6 +84,7 @@ const HOLDINGS_COLUMNS = [
 export function PortfolioView({
   onOpenFunds,
   onOpenWithdraw,
+  onTakeTour,
   // crossBorderSlot is unused while the section below is commented out.
   onOpenDetail,
   onOpenBuy,
@@ -97,9 +93,14 @@ export function PortfolioView({
   onOpenMemeSell,
 }: PortfolioViewProps) {
   const { tokens, loading, error, refetch } = usePortfolio();
+  // The service's positions: the same query the Memecoins section's first tab
+  // reads, so this asks for nothing extra. Coins it knows are shown there, with
+  // cost basis and P&L, and leave the generic table below.
+  const { items: servicePositions } = useMemePortfolio();
   const money = useMoney();
   const router = useRouter();
   const t = useTranslations("portfolio");
+  const tDiscovery = useTranslations("discovery");
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
   const [kashModal, setKashModal] = useState<
@@ -122,9 +123,9 @@ export function PortfolioView({
   // that rounds to $0.00. A held balance we could not price is not zero-value and
   // survives the toggle; see isZeroValueHolding.
   const visibleTokens = useMemo(() => {
-    const holdings = selectHoldings(tokens);
+    const holdings = withoutServiceKnownMemes(selectHoldings(tokens), servicePositions);
     return hideZero ? holdings.filter((t) => !isZeroValueHolding(t)) : holdings;
-  }, [tokens, hideZero]);
+  }, [tokens, hideZero, servicePositions]);
 
   const table = useReactTable({
     data: visibleTokens,
@@ -163,31 +164,34 @@ export function PortfolioView({
     // which cannot source or deliver them. Route both buy and sell to the RWA
     // panel. `address` is always set for an RWA (it is never a native balance).
     const isRwa = token.kind === "rwa" && token.address !== null;
-    // Trade-catalog memecoins sell through the meme trade service; Dextopus
-    // cannot quote them, so its sell sheet always fails for these.
-    const isMeme = token.meme === true && token.address !== null;
-    const isPredictionCollateral = isPolymarketCollateral(token.network, token.address);
+    // Trade-catalog memecoins sell through the meme trade service, on the chain
+    // the holding lives on; Dextopus cannot quote them, so its sell sheet
+    // always fails for these.
+    const meme = memeTokenOf(token);
+    // A real balance nobody could price: its value is unknown, never "$0.00".
+    const unpriced = isUnpricedHolding(token);
     // Otherwise offer "Sell" only for assets Dextopus can take as an origin;
     // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
     const sellable = canSellAsset(token.network, token.address);
 
-    const buyAction = isPredictionCollateral
-      ? () => router.push("/prediction")
-      : isRwa
-        ? () =>
-            onOpenRwaTrade({
-              network: token.network,
-              address: token.address as string,
-              symbol: token.symbol,
-              mode: "buy",
-            })
-        : () =>
-            onOpenBuy({
-              symbol: token.symbol,
-              name: token.name,
-              priceUsd: token.priceUsd,
-              logo: token.logo,
-            });
+    // Polymarket collateral used to send the reader to /prediction here.
+    // Production does not offer that section, so the holding is an ordinary
+    // one: its balance still shows, it just has no prediction doorway.
+    const buyAction = isRwa
+      ? () =>
+          onOpenRwaTrade({
+            network: token.network,
+            address: token.address as string,
+            symbol: token.symbol,
+            mode: "buy",
+          })
+      : () =>
+          onOpenBuy({
+            symbol: token.symbol,
+            name: token.name,
+            priceUsd: token.priceUsd,
+            logo: token.logo,
+          });
 
     const sellAction = isRwa
       ? {
@@ -200,10 +204,10 @@ export function PortfolioView({
               mode: "sell",
             }),
         }
-      : isMeme
+      : meme
         ? {
             cta2: t("sell", { name: token.name }),
-            onCta2: () => onOpenMemeSell(toMemeToken(token)),
+            onCta2: () => onOpenMemeSell(meme),
           }
         : sellable
           ? {
@@ -227,16 +231,19 @@ export function PortfolioView({
       sym: token.symbol,
       name: token.name,
       sub: `${formatQty(token.balance)} ${token.symbol}`,
-      price: money.format(token.priceUsd),
+      price: unpriced ? t("valuationUnavailable") : money.format(token.priceUsd),
       chg: "",
       bg: tokenBg(token.symbol),
       stats: [
         { k: t("holdings"), v: `${formatQty(token.balance)} ${token.symbol}` },
-        { k: t("marketPrice"), v: money.format(token.priceUsd) },
+        { k: t("marketPrice"), v: unpriced ? "—" : money.format(token.priceUsd) },
         { k: t("network"), v: displayNetworkLabel(token) },
-        { k: t("positionValue"), v: money.format(token.valueUsd) },
+        {
+          k: t("positionValue"),
+          v: unpriced ? t("valuationUnavailable") : money.format(token.valueUsd),
+        },
       ],
-      cta: isPredictionCollateral ? t("managePrediction") : t("buyMore", { name: token.name }),
+      cta: t("buyMore", { name: token.name }),
       onCta: buyAction,
       ...sellAction,
       coingeckoId: coingeckoId(token.symbol) ?? undefined,
@@ -245,11 +252,69 @@ export function PortfolioView({
     });
   };
 
+  // The Market Square banner, or nothing when the square has no URL configured.
+  // The square is a sibling deployment rather than a route here, so without a
+  // destination there is no banner to draw, which is the rule the sidebar entry
+  // follows too. `squareBanner` is the placeholder the duplicate stake banner
+  // below was standing in for.
+  const squareHref = marketSquareHref();
+  const squareBanner = squareHref ? <MarketSquareBanner href={squareHref} /> : null;
+
+  // The ArkStore ticket, first on both strips: the deck a phone swipes and the
+  // rail the desk carries. The store is another deployment, so it is a plain
+  // anchor into a new tab rather than a route.
+  const arkStoreBanner = (
+    <a
+      href={ARKSTORE_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={t("arkStoreAria")}
+      className="block w-full"
+    >
+      <ArkStoreBanner />
+    </a>
+  );
+
+  // The stake banner, and the third rail stop it used to fill on its own. With
+  // the square switched off there is still no Market Square banner, so it
+  // repeats as it always did and the carousel keeps something to move to.
+  const stakeBanner = (
+    <PromoBanner
+      href="/casino"
+      title={tDiscovery("stakeTitle")}
+      subtitle={tDiscovery("stakeSubtitle")}
+      background="#ed2b07"
+      glyph="/market/promo-stake-flame.svg"
+      scallop="/market/promo-stake-scallop.svg"
+      art={[
+        {
+          src: "/market/promo-stake-glow-left.svg",
+          top: -17.38,
+          left: -19.85,
+          width: 253.22,
+          height: 253.22,
+        },
+        {
+          src: "/market/promo-stake-glow-right.svg",
+          top: -71.99,
+          left: 188.68,
+          width: 439.41,
+          height: 439.41,
+        },
+      ]}
+    />
+  );
+
+  // "Your Holdings" is hidden at request. The list/table, its error and empty
+  // states, and all the machinery feeding them stay in place behind this flag,
+  // so flipping it to false brings the section straight back.
+  const HOLDINGS_HIDDEN = true;
+  // What a held balance nobody could price shows in place of "$0.00". Read here
+  // because the holdings rows below name each row `t`.
+  const valuationUnavailable = t("valuationUnavailable");
+
   return (
     <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      <div className="mb-4">
-        <KashBanner onBuy={() => setKashModal("buy")} />
-      </div>
       <KashBuyModal
         open={kashModal === "buy"}
         wallet={kashWallet}
@@ -260,10 +325,49 @@ export function PortfolioView({
       <KashUpgradeModal open={kashModal === "upgrade"} onClose={() => setKashModal(null)} />
       <KashSendModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
 
-      <Eyebrow>{t("eyebrow")}</Eyebrow>
+      {/* Phone head: swipe carousel of the two starfield cards, then the promo
+          strip. The carousel gives the h-full cards their height. */}
+      <div className="md:hidden">
+        <BalanceCarousel>
+          <BalanceCard
+            onOpenFunds={onOpenFunds}
+            onOpenWithdraw={onOpenWithdraw}
+            onTakeTour={onTakeTour}
+          />
+          <KashCardMobile
+            onBuy={() => setKashModal("buy")}
+            onConvert={() => setKashModal("convert")}
+            onHistory={() => setKashModal("history")}
+          />
+        </BalanceCarousel>
+        {/* The phone's own promo strip, one ticket at a time. The desk has its
+            own rail under the balance cards below. */}
+        <div className="mt-3">
+          <PromoCarousel>
+            {arkStoreBanner}
+            {/* The ticket is presentational; the doorway to the casino lives
+                here at the composition site. Embla suppresses the click after a
+                drag, so a tap navigates and a swipe still pages the deck. */}
+            <Link
+              href="/casino"
+              aria-label="Set the stake, play in the casino"
+              className="block w-full"
+            >
+              <SetTheStakeBanner />
+            </Link>
+            <GetKashBanner onBuy={() => setKashModal("buy")} />
+            {squareBanner}
+          </PromoCarousel>
+        </div>
+      </div>
 
-      <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-        <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} />
+      {/* Desktop: the side-by-side grid. */}
+      <div className="hidden gap-3 md:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <BalanceCard
+          onOpenFunds={onOpenFunds}
+          onOpenWithdraw={onOpenWithdraw}
+          onTakeTour={onTakeTour}
+        />
         <KashCard
           onBuy={() => setKashModal("buy")}
           onClaim={
@@ -287,11 +391,28 @@ export function PortfolioView({
         />
       </div>
 
+      {/* The promo rail, as the Market design draws the desktop head: below the
+          two cards, a carousel of banners. Desktop-only — the phone carries its
+          own promo strip in the mobile head above. */}
+      <div className="mt-3 hidden md:block">
+        <PromoRail label={tDiscovery("promoRailCarousel")}>
+          {arkStoreBanner}
+          {stakeBanner}
+          <KashBanner onBuy={() => setKashModal("buy")} />
+          {squareBanner ?? stakeBanner}
+        </PromoRail>
+      </div>
+
+      {/* Memecoins live behind the balance card's coins button now, as the
+          Memecoins view of the holdings sheet (holdings-modal.tsx), not as a
+          section of this page. */}
+
       {/* Commented out for now, at explicit request — cross-border is still
           just a "coming soon" announcement banner, not a live flow. */}
       {/* <div className="mt-3">{crossBorderSlot}</div> */}
 
-      {errored ? (
+      {/* "Your Holdings" — hidden at request (see HOLDINGS_HIDDEN above). */}
+      {HOLDINGS_HIDDEN ? null : errored ? (
         <div className="ws-card mt-[18px] flex flex-col items-center gap-3 px-6 py-12 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/6">
             <WalletIcon size={22} />
@@ -455,14 +576,14 @@ export function PortfolioView({
                         <TypeChip kind={t.kind} />
                       </span>
                       <span className="tnum hidden text-right text-sm font-normal min-[560px]:block">
-                        {money.format(t.priceUsd)}
+                        {isUnpricedHolding(t) ? "—" : money.format(t.priceUsd)}
                       </span>
                       <span className="hidden items-center justify-end gap-1.5 text-[13px] font-normal text-white/60 min-[560px]:flex">
                         <NetworkIcon network={displayNetworkIconKey(t)} size={16} />
                         {displayNetworkLabel(t)}
                       </span>
                       <span className="tnum text-right font-sans text-sm font-medium">
-                        {money.format(t.valueUsd)}
+                        {isUnpricedHolding(t) ? valuationUnavailable : money.format(t.valueUsd)}
                       </span>
                     </button>
                   );

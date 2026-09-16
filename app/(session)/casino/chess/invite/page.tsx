@@ -1,20 +1,17 @@
-"use client";
+import { ChessLobbyFrame } from "@/features/casino/components/chess-app/chess-lobby-frame";
 
-import { Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import { CasinoPage } from "@/features/casino/components/casino-page";
-import { InviteSection } from "@/features/casino";
-
-function InviteFromParams() {
-  return <InviteSection inviteCode={useSearchParams()?.get("code") ?? null} />;
+export function chessInviteSource(code?: string | string[]) {
+  const inviteCode = Array.isArray(code) ? code[0] : code;
+  return inviteCode
+    ? `/api/chess/challenge/invite/${encodeURIComponent(inviteCode)}`
+    : "/api/chess/play?setup=friend#game-setup";
 }
 
-export default function ChessInvitePage() {
-  return (
-    <CasinoPage hideBackLink>
-      <Suspense fallback={null}>
-        <InviteFromParams />
-      </Suspense>
-    </CasinoPage>
-  );
+export default async function ChessInvitePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ code?: string | string[] }>;
+}) {
+  const rawCode = (await searchParams).code;
+  return <ChessLobbyFrame source={chessInviteSource(rawCode)} />;
 }

@@ -115,22 +115,18 @@ describe("useVaultGame reads", () => {
     expect(state.chain).not.toHaveBeenCalled();
   });
 
-  it("reads the contract once when the service cannot be reached", async () => {
+  // There is no contract read of our own behind the service any more. GET
+  // /games/:id falls through to the chain service-side when the index lags —
+  // verified on 2026-09-15, when it answered for a game the index did not hold
+  // — so an unreachable service is a retry, not a second decode in the browser.
+  // A v4-shaped decode of a v5 game does not fail, it reports a pot of 7.49e29.
+  it("retries rather than reading the contract when the service cannot be reached", async () => {
     state.service = "down";
-    state.chain.mockResolvedValue({
-      starter: "0xstarter",
-      endTime: Math.floor(Date.now() / 1000) + 60,
-      settled: false,
-      king: "0xking",
-      minWagerWei: 200000000000000n,
-      potWei: 400000000000000n,
-      exists: true,
-    });
     const { wrapper } = harness();
     const { result } = renderHook(() => useVaultGame(7), { wrapper });
-    await waitFor(() => expect(result.current.game).not.toBeNull());
-    expect(state.chain).toHaveBeenCalledTimes(1);
-    expect(result.current.game?.pot.usdValue).toBeCloseTo(1.6, 2);
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.game).toBeNull();
+    expect(state.chain).not.toHaveBeenCalled();
   });
 });
 
@@ -157,25 +153,18 @@ describe("useVaultGame confirmGame", () => {
     state.service = original;
   });
 
-  it("falls back to the contract only when the service is unreachable", async () => {
+  // Same reason as above: a game the service cannot confirm is not confirmed
+  // here either, so the caller waits rather than being handed a row this app
+  // decoded for itself.
+  it("does not confirm a game the service cannot answer for", async () => {
     state.service = "down";
-    state.chain.mockResolvedValue({
-      starter: "0xstarter",
-      endTime: Math.floor(Date.now() / 1000) + 60,
-      settled: false,
-      king: "0xstarter",
-      minWagerWei: 200000000000000n,
-      potWei: 200000000000000n,
-      exists: true,
-    });
     const { client, wrapper } = harness(true);
     const { result } = renderHook(() => useVaultGame(null), { wrapper });
-    expect(await result.current.confirmGame(9)).toBe(true);
-    expect(state.chain).toHaveBeenCalledTimes(1);
-    expect(client.getQueryData(VAULT_KEYS.game(9))).toMatchObject({ gameId: 9, active: true });
+    expect(await result.current.confirmGame(9)).toBe(false);
+    expect(state.chain).not.toHaveBeenCalled();
+    expect(client.getQueryData(VAULT_KEYS.game(9))).toBeUndefined();
   });
 });
-
 describe("useVaultGame and the followed game", () => {
   it("unfollows a game the moment it reads as settled", async () => {
     state.followed = 7;

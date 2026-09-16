@@ -4,8 +4,8 @@ import type { EIP1193Provider } from "viem";
 // Wiring test for the sponsored send: a fake fetch answers every JSON-RPC call
 // the flow makes and records the method behind each one, so the test can pin
 // the exact set of round trips one send costs. Production traced fifteen or
-// more "base-mainnet" rows per buy; the send is expected to cost one Alchemy
-// gas-and-paymaster call, one bundler send and the receipt lookups, with the
+// more "base-mainnet" rows per buy; the BSO send is expected to cost one gas
+// estimate, one bundler send and the receipt lookups, with the
 // wallet's delegation read once and remembered.
 
 const WALLET = "0x1111111111111111111111111111111111111111" as const;
@@ -14,18 +14,10 @@ const DELEGATED_CODE = `0xef0100${IMPL.slice(2)}`;
 const OP_HASH = `0x${"ab".repeat(32)}` as const;
 const TX_HASH = `0x${"cd".repeat(32)}` as const;
 const SIGNATURE = `0x${"11".repeat(64)}1b` as const;
-const PAYMASTER = "0x2222222222222222222222222222222222222222";
-
-const GAS_AND_PAYMASTER = {
-  paymaster: PAYMASTER,
-  paymasterData: "0x1234",
+const ESTIMATED_GAS = {
   callGasLimit: "0x5208",
   verificationGasLimit: "0x7530",
   preVerificationGas: "0xc350",
-  maxFeePerGas: "0x3b9aca00",
-  maxPriorityFeePerGas: "0x3b9aca0",
-  paymasterVerificationGasLimit: "0x2710",
-  paymasterPostOpGasLimit: "0x0",
 };
 
 const RECEIPT = {
@@ -97,8 +89,8 @@ function installFakeRpc(options: { code: string; receiptOnLook?: number }) {
         return "0x10";
       case "eth_getLogs":
         return [];
-      case "alchemy_requestGasAndPaymasterAndData":
-        return GAS_AND_PAYMASTER;
+      case "eth_estimateUserOperationGas":
+        return ESTIMATED_GAS;
       case "eth_sendUserOperation":
         return OP_HASH;
       case "eth_getUserOperationReceipt":
@@ -175,20 +167,20 @@ describe("sendSponsoredEvmCalls round trips", () => {
     vi.unstubAllGlobals();
   });
 
-  it("costs one gas-and-paymaster call, one send and the receipt on a delegated wallet", async () => {
+  it("costs one gas estimate, one send and the receipt on a delegated wallet", async () => {
     const calls = installFakeRpc({ code: DELEGATED_CODE });
 
     await expect(send()).resolves.toBe(TX_HASH);
 
     expect(methodsAt(calls, "/api/evm-rpc/base-mainnet")).toEqual(["eth_getCode", "eth_call"]);
     expect(methodsAt(calls, "/api/alchemy-bundler/base-mainnet")).toEqual([
-      "alchemy_requestGasAndPaymasterAndData",
+      "eth_estimateUserOperationGas",
       "eth_sendUserOperation",
       "eth_getUserOperationReceipt",
     ]);
   });
 
-  it("fills the user operation from the Alchemy answer instead of estimating again", async () => {
+  it("fills the BSO user operation from Alchemy's gas estimate", async () => {
     const calls = installFakeRpc({ code: DELEGATED_CODE });
 
     await send();
@@ -197,36 +189,30 @@ describe("sendSponsoredEvmCalls round trips", () => {
     const op = sent?.params[0] as Record<string, unknown>;
     expect(op.sender).toBe(WALLET);
     expect(op.nonce).toBe("0x5");
-    expect(op.paymaster).toBe(PAYMASTER);
-    expect(op.paymasterData).toBe("0x1234");
+    expect(op.paymaster).toBeUndefined();
+    expect(op.paymasterData).toBeUndefined();
     expect(op.callGasLimit).toBe("0x5208");
     expect(op.verificationGasLimit).toBe("0x7530");
-    expect(op.preVerificationGas).toBe("0xc350");
-    expect(op.maxFeePerGas).toBe("0x3b9aca00");
-    expect(op.maxPriorityFeePerGas).toBe("0x3b9aca0");
-    expect(op.paymasterVerificationGasLimit).toBe("0x2710");
-    expect(op.paymasterPostOpGasLimit).toBe("0x0");
+    expect(op.preVerificationGas).toBe("0x0");
+    expect(op.maxFeePerGas).toBe("0x0");
+    expect(op.maxPriorityFeePerGas).toBe("0x0");
     expect(op.signature).toBe(SIGNATURE);
     expect(op.eip7702Auth).toBeUndefined();
     expect(sent?.params[1]).toBe("0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108");
   });
 
-  it("asks Alchemy with the sender, nonce, calldata and a stub signature", async () => {
+  it("asks Alchemy to estimate the sender, nonce, calldata and stub signature", async () => {
     const calls = installFakeRpc({ code: DELEGATED_CODE });
 
     await send();
 
-    const asked = calls.find((c) => c.method === "alchemy_requestGasAndPaymasterAndData");
-    const request = asked?.params[0] as Record<string, unknown>;
-    expect(request.entryPoint).toBe("0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108");
-    expect(typeof request.dummySignature).toBe("string");
-    const op = request.userOperation as Record<string, unknown>;
+    const asked = calls.find((c) => c.method === "eth_estimateUserOperationGas");
+    const op = asked?.params[0] as Record<string, unknown>;
     expect(op.sender).toBe(WALLET);
     expect(op.nonce).toBe("0x5");
     expect(typeof op.callData).toBe("string");
+    expect(typeof op.signature).toBe("string");
     expect(op.eip7702Auth).toBeUndefined();
-    // The policy is the proxy's secret; the browser never names one.
-    expect(request.policyId).toBeUndefined();
   });
 
   it("keeps looking for the receipt until the bundler has it", async () => {
@@ -235,7 +221,7 @@ describe("sendSponsoredEvmCalls round trips", () => {
     await expect(send()).resolves.toBe(TX_HASH);
 
     expect(methodsAt(calls, "/api/alchemy-bundler/base-mainnet")).toEqual([
-      "alchemy_requestGasAndPaymasterAndData",
+      "eth_estimateUserOperationGas",
       "eth_sendUserOperation",
       "eth_getUserOperationReceipt",
       "eth_getUserOperationReceipt",
@@ -275,8 +261,8 @@ describe("sendSponsoredEvmCalls round trips", () => {
       "eth_call",
       "eth_getTransactionCount",
     ]);
-    const asked = calls.find((c) => c.method === "alchemy_requestGasAndPaymasterAndData");
-    const op = (asked?.params[0] as { userOperation: Record<string, unknown> }).userOperation;
+    const asked = calls.find((c) => c.method === "eth_estimateUserOperationGas");
+    const op = asked?.params[0] as Record<string, unknown>;
     expect(op.eip7702Auth).toEqual({
       address: IMPL,
       chainId: "0x2105",

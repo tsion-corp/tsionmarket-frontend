@@ -36,6 +36,9 @@ function match(over: Partial<ChessMatch> = {}): ChessMatch {
     ...over,
     clockMode: over.clockMode ?? "real_time",
     computer: over.computer ?? null,
+    variant: over.variant ?? "standard",
+    initialFen: over.initialFen ?? "8/8/8/8/8/8/8/8 w - - 0 1",
+    chess960Position: over.chess960Position ?? null,
     timeExtensions: over.timeExtensions ?? {
       allowed: false,
       used: 0,

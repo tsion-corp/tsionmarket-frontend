@@ -16,7 +16,7 @@ vi.mock("@/lib/trade/receipt", () => ({
   }),
 }));
 
-import { nativeSendCost } from "@/lib/trade/native-gas";
+import { canPayNativeFee, nativeSendCost } from "@/lib/trade/native-gas";
 
 describe("nativeSendCost", () => {
   beforeEach(() => {
@@ -79,5 +79,22 @@ describe("nativeSendCost", () => {
     // Must cover 21169 gas at 2 × base fee (0.0043050 APE), with headroom.
     expect(reserve).toBeGreaterThan(0.0043050446);
     expect(reserve).toBeLessThan(0.0043050446 * 1.6);
+  });
+});
+
+// Reported from staging on 2026-09-12: a USD₮0 sale on HyperEVM, which pays
+// its own gas since #401 unsponsored the chain, failed at the node with "gas
+// required exceeds allowance". The sheet had let it through because the wallet
+// held some HYPE, and "some" was the whole test.
+describe("canPayNativeFee", () => {
+  it("asks for the measured fee, not merely a non-zero balance", () => {
+    expect(canPayNativeFee(0.00002, 0.0009)).toBe(false);
+    expect(canPayNativeFee(0.0009, 0.0009)).toBe(true);
+    expect(canPayNativeFee(1.5, 0.0009)).toBe(true);
+  });
+
+  it("falls back to the old test while the measurement is still out", () => {
+    expect(canPayNativeFee(0, undefined)).toBe(false);
+    expect(canPayNativeFee(0.00002, undefined)).toBe(true);
   });
 });

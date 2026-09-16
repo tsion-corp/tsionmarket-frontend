@@ -11,6 +11,7 @@ import {
   fetchCashierConfig,
   fetchChessBalance,
   isCashierAccessDenied,
+  isChessDepositPending,
   isCashierUnavailable,
   USDC_DECIMALS,
   type CashierWithdrawal,
@@ -32,9 +33,11 @@ export const CASHIER_KEYS = {
 // The config is deployment state, not user state; it changes when the backend
 // team flips it on, so an occasional re-read is plenty.
 const CONFIG_STALE_MS = 5 * 60_000;
-// Stakes lock and settle server-side, so the balance moves without any local
-// action; poll it while a cashier screen is mounted.
-const BALANCE_POLL_MS = 15_000;
+// Money-changing actions invalidate this query immediately. This slower poll
+// is only a repair path for a settlement or deposit confirmation missed while
+// the client was disconnected.
+export const CASHIER_BALANCE_STALE_MS = 60_000;
+export const CASHIER_BALANCE_POLL_MS = 2 * 60_000;
 
 // The service wants the deposit transfer at its confirmation depth before it
 // credits, so the first confirm right after the send can legitimately fail.
@@ -89,8 +92,13 @@ export function useChessCashierStatus() {
     // again or links the wallet, so stop there instead of hammering the route.
     retry: (failureCount, error) =>
       !isCashierAccessDenied(error) && !isCashierUnavailable(error) && failureCount < 4,
+    staleTime: CASHIER_BALANCE_STALE_MS,
     refetchInterval: (query) =>
-      isCashierAccessDenied(query.state.error) ? false : BALANCE_POLL_MS,
+      isCashierAccessDenied(query.state.error) ? false : CASHIER_BALANCE_POLL_MS,
+    refetchIntervalInBackground: false,
+    // Refresh when the user returns without keeping an active game on a short
+    // polling loop.
+    refetchOnWindowFocus: true,
   });
 
   return {
@@ -101,8 +109,36 @@ export function useChessCashierStatus() {
     feePct: config.data ? feePctFromBps(config.data.platformFeeBps) : null,
     available: balance.data?.availableUsdc ?? "0",
     locked: balance.data?.lockedUsdc ?? "0",
+    total: balance.data?.totalUsdc ?? "0",
     lockBuckets: cashierLockBuckets(balance.data),
     balanceLoading: enabled && balance.isLoading,
+  };
+}
+
+// Withdrawal-only access for the global chess navigation. Unlike the full
+// cashier hook, this does not initialize token sending because legacy ledger
+// funds can only leave the ledger; they can never be topped up from this UI.
+export function useChessCashierWithdrawal() {
+  const queryClient = useQueryClient();
+  const status = useChessCashierStatus();
+  const { wallet } = status;
+
+  const withdraw = useMutation({
+    mutationFn: (amountUsdc: string): Promise<CashierWithdrawal> => {
+      if (!wallet) throw new Error("Connect your wallet first.");
+      return createChessWithdrawal(wallet, amountUsdc);
+    },
+    onSuccess: () => {
+      if (wallet) {
+        void queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet) });
+      }
+    },
+  });
+
+  return {
+    ...status,
+    withdraw: withdraw.mutateAsync,
+    withdrawing: withdraw.isPending,
   };
 }
 
@@ -145,9 +181,8 @@ export function useChessCashier() {
           try {
             const credited = await confirmChessDeposit(wallet, txHash);
             return { txHash, credited: credited.amountUsdc };
-          } catch {
-            // Most likely still short of the confirmation depth. The confirm
-            // is idempotent by hash, so trying again is free.
+          } catch (error) {
+            if (!isChessDepositPending(error)) throw error;
           }
         }
         // The money is with the cashier; only the credit acknowledgement is

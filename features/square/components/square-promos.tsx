@@ -157,7 +157,8 @@ export function SquarePostsPromo() {
   );
 }
 
-/** Rooms that are live right now. */
+/** "Join the Conversation" — mobile promo card for Market Square. Renders
+ *  even without live data as a static doorway into the square. */
 export function SquareLivePromo() {
   const t = useTranslations("square");
   const feed = useSquareFeed("live");
@@ -174,49 +175,110 @@ export function SquareLivePromo() {
     [feed.data]
   );
 
-  if (streams.length === 0) return null;
+  const squareHref = squareLinks.home();
 
   return (
-    <PromoShell title={t("promoLiveTitle")} action={t("openSquare")}>
-      {streams.map((stream) => (
-        <PromoCard key={stream.id} href={squareLinks.live(stream.id)} width="w-[320px]">
-          <div className="flex items-start justify-between gap-2">
-            <SquareAvatar
-              src={stream.owner?.avatarUrl ?? null}
-              seed={stream.owner?.id ?? stream.id}
-              name={stream.owner?.displayName}
-              size={42}
+    <>
+      {/* ── Mobile: "Join the Conversation" card ── */}
+      {/* Split at md, not sm: the phone dashboard mounts this promo inside a
+          md:hidden column, so the crossover has to match or the desktop rail
+          leaks into the 640-767 band while the card disappears. */}
+      <section className="mx-auto w-full px-4 md:hidden">
+        <span className="mb-2 inline-flex items-center gap-1 text-white">
+          <span className="ws-display text-[15px]">{t("joinConversation")}</span>
+          <svg viewBox="0 0 24 24" aria-hidden className="h-4 w-4">
+            <path
+              d="m9 6 6 6-6 6"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             />
-            {/* Live is the one thing here that must be unmistakable, so it
-                keeps the square's red and a pulse — motion-safe, so it holds
-                still for anyone who asked for that. */}
-            <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#FF0B0B] px-2 py-1">
-              <span className="size-1.5 rounded-full bg-white motion-safe:animate-pulse" />
-              <span className="text-[9.5px] font-bold tracking-wide text-white uppercase">
-                {t("liveNow")}
-              </span>
-            </span>
-          </div>
+          </svg>
+        </span>
 
-          {/* Same reason as the post body: stream titles carry emoji too. */}
-          <p className="mt-2.5 line-clamp-2 text-[13px] leading-[21px] font-semibold text-[#E5E5E5]">
-            {stream.title}
-          </p>
-          <p className="mt-1.5 truncate text-[11.5px] text-white/50">
-            {stream.owner
-              ? t("createdBy", { name: stream.owner.displayName })
-              : t("createdInSquare")}
-          </p>
-          <p className="mt-0.5 text-[11.5px] text-white/50">
-            {t("joinedCount", { count: stream.peakViewers })}
-          </p>
+        <div className="relative overflow-hidden rounded-[16px]">
+          {/* The clean SVG has all decorative elements pixel-perfect from
+              Figma: purple gradient, stardust, waves, avatars, text, and
+              button shapes. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/market-square/card-linked.svg"
+            alt={t("joinConversation")}
+            width={363}
+            height={173}
+            className="block h-auto w-full"
+          />
 
-          <span className="mt-auto block rounded-full bg-[#34C759] py-2 text-center text-[12.5px] font-bold text-black">
-            {t("joinLive")}
-          </span>
-        </PromoCard>
-      ))}
-    </PromoShell>
+          {/* Transparent link zones over the SVG's button shapes.
+              Figma: Join Space rect at (246, 80.4) 102x34 in 363x173 card.
+              Figma: Play Chess rect at (246.7, 124.5) 102x33 in 363x173. */}
+          {squareHref ? (
+            <a
+              href={squareHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Join Space"
+              className="absolute z-10 cursor-pointer"
+              style={{ left: "67.8%", top: "46.5%", width: "28.1%", height: "19.9%" }}
+            />
+          ) : null}
+          <a
+            href="/casino/chess"
+            aria-label="Play Chess"
+            className="absolute z-10 cursor-pointer"
+            style={{ left: "67.9%", top: "72%", width: "28.2%", height: "19.1%" }}
+          />
+        </div>
+      </section>
+
+      {/* ── Desktop: horizontal rail inside PromoShell (only with live data) ── */}
+      {streams.length > 0 ? (
+        <div className="hidden md:block">
+          <PromoShell title={t("promoLiveTitle")} action={t("openSquare")}>
+            {streams.map((stream) => (
+              <PromoCard key={stream.id} href={squareLinks.live(stream.id)} width="w-[320px]">
+                <div className="flex items-start justify-between gap-2">
+                  <SquareAvatar
+                    src={stream.owner?.avatarUrl ?? null}
+                    seed={stream.owner?.id ?? stream.id}
+                    name={stream.owner?.displayName}
+                    size={42}
+                  />
+                  {/* Live is the one thing here that must be unmistakable, so it
+                      keeps the square's red and a pulse — motion-safe, so it
+                      holds still for anyone who asked for that. */}
+                  <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-[#FF0B0B] px-2 py-1">
+                    <span className="size-1.5 rounded-full bg-white motion-safe:animate-pulse" />
+                    <span className="text-[9.5px] font-bold tracking-wide text-white uppercase">
+                      {t("liveNow")}
+                    </span>
+                  </span>
+                </div>
+
+                {/* Same reason as the post body: stream titles carry emoji too. */}
+                <p className="mt-2.5 line-clamp-2 text-[13px] leading-[21px] font-semibold text-[#E5E5E5]">
+                  {stream.title}
+                </p>
+                <p className="mt-1.5 truncate text-[11.5px] text-white/50">
+                  {stream.owner
+                    ? t("createdBy", { name: stream.owner.displayName })
+                    : t("createdInSquare")}
+                </p>
+                <p className="mt-0.5 text-[11.5px] text-white/50">
+                  {t("joinedCount", { count: stream.peakViewers })}
+                </p>
+
+                <span className="mt-auto block rounded-full bg-[#34C759] py-2 text-center text-[12.5px] font-bold text-black">
+                  {t("joinLive")}
+                </span>
+              </PromoCard>
+            ))}
+          </PromoShell>
+        </div>
+      ) : null}
+    </>
   );
 }
 

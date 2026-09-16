@@ -118,7 +118,11 @@ export async function dextopusGet<T>(
   fallback: string,
   purpose: DextopusPurpose = "deposit"
 ): Promise<T> {
-  const res = await apiFetch(`/api/dextopus/${purposedPath(path, purpose)}`);
+  const res = await apiFetch(
+    `/api/dextopus/${purposedPath(path, purpose)}`,
+    {},
+    { requireAuth: true }
+  );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new DextopusError(errorMessage(data, fallback), res.status);
   return data as T;
@@ -141,11 +145,15 @@ async function dextopusPost<T>(
   fallback: string,
   purpose: DextopusPurpose = "deposit"
 ): Promise<T> {
-  const res = await apiFetch(`/api/dextopus/${purposedPath(path, purpose)}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const res = await apiFetch(
+    `/api/dextopus/${purposedPath(path, purpose)}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    },
+    { requireAuth: true }
+  );
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new DextopusError(errorMessage(data, fallback), res.status);
   return data as T;
@@ -178,7 +186,11 @@ interface RawToken {
 // instead of trusting the per-chain flag.
 interface RawMasterToken {
   address: string;
+  symbol?: string;
+  name?: string;
+  decimals?: number;
   chainId: number;
+  logoUrl?: string;
   supportsStaticAddress?: boolean;
 }
 
@@ -189,6 +201,8 @@ interface MasterEligibility {
   // Chain ids that have at least one eligible origin token, so the network
   // picker never offers a chain that dead-ends into an empty token list.
   chainIds: number[];
+  // The full token catalog, deduped by symbol, for the deposit picker UI.
+  allTokens: DepositToken[];
 }
 
 export async function fetchMasterEligibility(): Promise<MasterEligibility> {
@@ -198,12 +212,30 @@ export async function fetchMasterEligibility(): Promise<MasterEligibility> {
   );
   const keys: string[] = [];
   const chainIds = new Set<number>();
+  const seen = new Set<string>();
+  const allTokens: DepositToken[] = [];
   for (const t of data.tokens ?? []) {
-    if (!t.supportsStaticAddress) continue;
-    keys.push(eligibilityKey(t.chainId, t.address));
-    chainIds.add(t.chainId);
+    if (t.supportsStaticAddress) {
+      keys.push(eligibilityKey(t.chainId, t.address));
+      chainIds.add(t.chainId);
+    }
+    // Dedupe by symbol for the picker UI.
+    const sym = (t.symbol ?? "").toUpperCase();
+    if (sym && !seen.has(sym)) {
+      seen.add(sym);
+      allTokens.push({
+        address: t.address,
+        symbol: t.symbol ?? "",
+        name: t.name ?? t.symbol ?? "",
+        decimals: t.decimals ?? 18,
+        chainId: t.chainId,
+        logoUrl: t.logoUrl ?? null,
+        supportsStaticAddress: t.supportsStaticAddress ?? false,
+      });
+    }
   }
-  return { keys, chainIds: [...chainIds] };
+  allTokens.sort((a, b) => a.symbol.localeCompare(b.symbol));
+  return { keys, chainIds: [...chainIds], allTokens };
 }
 
 export const MASTER_ELIGIBILITY_KEY = ["deposit-master-eligibility"] as const;
@@ -214,6 +246,17 @@ function useMasterEligibility() {
     ...CATALOG_OPTIONS,
     queryFn: fetchMasterEligibility,
   });
+}
+
+/** All deposit tokens from the master catalog, deduped by symbol. */
+export function useAllDepositTokens() {
+  const master = useMasterEligibility();
+  return {
+    data: master.data?.allTokens ?? [],
+    isPending: master.isPending,
+    isError: master.isError,
+    refetch: master.refetch,
+  };
 }
 
 // Chain ids with at least one static-address-eligible origin token, per

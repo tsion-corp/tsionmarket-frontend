@@ -14,9 +14,11 @@ import type { RwaTradePayload } from "@/lib/modal-types";
 export function RwaTradeModal({
   payload,
   onContinueInBackground,
+  onTopUp,
 }: {
   payload: RwaTradePayload;
   onContinueInBackground?: () => void;
+  onTopUp?: () => void;
 }) {
   const t = useTranslations("rwa");
   const { assets: rawAssets, loading } = useRwaAssets();
@@ -32,6 +34,7 @@ export function RwaTradeModal({
         initialMode={payload.mode}
         bare
         onContinueInBackground={onContinueInBackground}
+        onAddFunds={onTopUp}
       />
     );
   }

@@ -5,6 +5,7 @@ import type {
   ChessPuzzle,
   ChessPuzzleAttempt,
   ChessPuzzleCatalog,
+  ChessPuzzleSolution,
 } from "@/features/casino/lib/api/types";
 
 export async function fetchPuzzleCatalog(): Promise<ChessPuzzleCatalog> {
@@ -21,6 +22,14 @@ export async function fetchNextPuzzle(
     rating,
     ...(theme ? { theme } : {}),
   });
+}
+
+export async function fetchPuzzle(puzzleId: string): Promise<ChessPuzzle> {
+  return chessGet<ChessPuzzle>(`/puzzles/${encodeURIComponent(puzzleId)}`);
+}
+
+export async function fetchPuzzleSolution(puzzleId: string): Promise<ChessPuzzleSolution> {
+  return chessGet<ChessPuzzleSolution>(`/puzzles/${encodeURIComponent(puzzleId)}/solution`);
 }
 
 export async function attemptPuzzle(

@@ -91,3 +91,57 @@ export function formatEth(wei: bigint, maxDecimals = 6): string {
   const trimmed = fraction.replace(/0+$/, "");
   return trimmed ? `${whole}.${trimmed}` : `${whole}`;
 }
+
+// ---------------------------------------------------------------------------
+// USDC, from v5 on
+// ---------------------------------------------------------------------------
+//
+// v5 lets whoever starts a game choose its asset, and we choose USDC for every
+// game we start (ADR-2026-09-15-last-man-v5-usdc). That removes the conversion
+// the helpers above exist for: a USDC amount IS a dollar amount, so there is no
+// price in the path and no window in which a quoted stake can move before it is
+// signed. The ETH helpers stay for as long as an ETH game can still be read.
+
+/** The asset every game this app starts is played in. */
+export const GAME_ASSET = {
+  address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const,
+  symbol: "USDC" as const,
+  decimals: 6,
+} as const;
+
+const UNITS_PER_USDC = 10n ** BigInt(GAME_ASSET.decimals);
+
+/**
+ * `usd` as USDC base units.
+ *
+ * Rounds to the nearest unit rather than truncating: 0.07 has no exact float,
+ * and truncating would send a unit less than the player asked for, which the
+ * contract's floor can then reject. This is the one place a float is allowed
+ * to become an integer; everything downstream is bigint.
+ *
+ * 0n for anything that is not a positive, finite amount, which callers must
+ * read as "nothing to send" rather than free.
+ */
+export function usdToUnits(usd: number): bigint {
+  if (!Number.isFinite(usd) || usd <= 0) return 0n;
+  return BigInt(Math.round(usd * Number(UNITS_PER_USDC)));
+}
+
+/** What `units` of the game asset is worth in dollars. Display only. */
+export function unitsToUsd(units: bigint): number {
+  return Number(units) / Number(UNITS_PER_USDC);
+}
+
+/**
+ * A game-asset amount as a decimal string, with no trailing zeros and no
+ * invented precision. Used where the service has not already formatted the
+ * figure for us; prefer TokenAmount.amount when it has.
+ */
+export function formatGameAmount(units: bigint): string {
+  const whole = units / UNITS_PER_USDC;
+  const fraction = (units % UNITS_PER_USDC)
+    .toString()
+    .padStart(GAME_ASSET.decimals, "0")
+    .replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : `${whole}`;
+}

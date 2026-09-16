@@ -1,3 +1,14 @@
+packages:
+  - "."
+  - "features/casino/components/chess/*"
+  - "features/casino/components/chess/@types/*"
+
+allowBuilds:
+  esbuild: true
+
+patchedDependencies:
+  "@toast-ui/editor@3.2.2": features/casino/components/chess/bits/patches/@toast-ui__editor.patch
+
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver

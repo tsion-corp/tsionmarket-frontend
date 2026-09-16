@@ -42,6 +42,11 @@ export const DEPOSIT_BRIDGE_URL = "https://bridge.polymarket.com/deposit";
 // leaves the server.
 export const BUILDER_SIGN_PATH = "/api/polymarket/sign";
 
+// Authenticated same-origin proxy for the Polymarket gasless relayer. Besides
+// keeping relayer auth server-side, it collapses an upstream 429 into one
+// response instead of the SDK's built-in eleven-request retry burst.
+export const RELAYER_PROXY_PATH = "/api/polymarket/relayer";
+
 // Path of the Polygon JSON-RPC proxy the SDK reads through, replacing the
 // public endpoint it ships with (polygon.drpc.org, which answers 500 often
 // enough to break trading approvals). Shares the app's one EVM RPC proxy on the

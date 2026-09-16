@@ -1,0 +1,65 @@
+body.blind-mode #top {
+  position: relative;
+  max-width: 1800px;
+  top: unset;
+  padding: 0;
+  width: unset;
+  background: unset;
+  border-bottom-color: transparent;
+  transform: unset;
+  ---site-header-sticky-padding: 0;
+}
+body.blind-mode #top #topnav,
+body.blind-mode #top .dropdown {
+  opacity: unset;
+  visibility: unset;
+  pointer-events: unset;
+  transition: unset;
+}
+body.blind-mode #main-wrap {
+  margin-top: var(---sticky-gap);
+}
+body.blind-mode .is::before,
+body.blind-mode .is::after,
+body.blind-mode [data-icon]::before {
+  content: none;
+  display: none;
+  visibility: hidden;
+}
+body.blind-mode .uflair {
+  display: none;
+}
+
+#blind-mode {
+  position: static;
+  text-align: center;
+  padding: 5px 0;
+  background: #888;
+  height: auto;
+}
+
+#topnav div {
+  visibility: visible;
+  font-size: 0.8em;
+}
+
+#main-wrap {
+  margin-top: 170px;
+}
+
+#clinput .link {
+  display: none;
+}
+#clinput input {
+  width: auto;
+}
+
+#nvui-button {
+  font-size: 2em;
+  background-color: black;
+  color: white;
+  padding: 0.5em 1em;
+  border-radius: 10px;
+}
+
+/*# sourceMappingURL=bits.blind.css.map */
