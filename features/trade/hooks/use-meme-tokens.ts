@@ -21,6 +21,7 @@ import {
 } from "@/lib/meme/catalog";
 import type { MemeChainSlug } from "@/lib/meme/chain";
 import { useSectionActive } from "@/components/ui/section-visibility";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 const TRENDING_POLL_MS = 30_000;
 const SEARCH_DEBOUNCE_MS = 350;
@@ -36,7 +37,7 @@ export function useTrendingMemes() {
     // only detaches the observer: the last data stays on screen, `refetch()`
     // still works, and the query drops out of the window-focus herd too.
     subscribed: active,
-    refetchInterval: TRENDING_POLL_MS,
+    refetchInterval: pollUnlessFailing(TRENDING_POLL_MS),
     staleTime: 15_000,
   });
   return {
@@ -182,7 +183,7 @@ export function useMemeToken(identity: Pick<MemeToken, "address" | "chainId"> | 
     subscribed: active,
     enabled: !!address && chainId !== null,
     staleTime: 20_000,
-    refetchInterval: 30_000,
+    refetchInterval: pollUnlessFailing(30_000),
     retry: (failureCount, error) => isTemporary(error) && failureCount < TOKEN_RETRIES,
     // 1 s, 2 s, 4 s, 8 s.
     retryDelay: (failureCount) => TOKEN_RETRY_BASE_MS * 2 ** failureCount,

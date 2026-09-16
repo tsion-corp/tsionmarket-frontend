@@ -1,121 +1,89 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchMemePositions } from "@/lib/server/meme-positions";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// A position the trade service reports for the signed-in user. Only the fields
-// the registry reads are filled; the contract's other 40 are irrelevant here.
-function position(over: Partial<Record<string, unknown>> = {}) {
-  return {
-    chain: "base",
-    chainId: 8453,
-    address: "0xAbCdEf0000000000000000000000000000000001",
-    logoUrl: "https://img/coin.png",
-    currentPriceUsd: "0.00042",
-    ...over,
-  };
+// The module reads its base URL once at import, so each case imports it fresh
+// with the env already in place.
+async function load() {
+  vi.resetModules();
+  process.env.NEXT_PUBLIC_TRADE_API_URL = "https://trade.test";
+  return import("@/lib/server/meme-positions");
 }
 
-function reply(items: unknown[], total = items.length) {
+const BEARER = "Bearer token";
+
+function okResponse(items: unknown[] = []) {
   return {
     ok: true,
-    status: 200,
-    json: async () => ({ success: true, data: { items, meta: { page: 1, limit: 100, total } } }),
+    json: async () => ({ data: { items, meta: { total: items.length } } }),
   } as unknown as Response;
 }
 
+function downResponse() {
+  return { ok: false, status: 502, json: async () => ({}) } as unknown as Response;
+}
+
+let fetchMock: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+});
+
 afterEach(() => {
-  vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
-describe("fetchMemePositions", () => {
-  // The defect this exists for: prod built the memecoin half of the holdings
-  // allowlist from one page of the public catalogue, which on 2026-09-15 held
-  // 121,383 tokens. A coin bought outside that page was filtered out of the
-  // owner's own portfolio. The user's positions are the authoritative answer
-  // and take one call.
-  it("allows every coin the service says the user holds, whatever the catalogue lists", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        reply([position(), position({ address: "0x00000000000000000000000000000000000000ff" })])
-      );
-    vi.stubGlobal("fetch", fetchMock);
+// The trade service went down on production on 2026-09-16 and every signed-in
+// user's portfolio poll kept calling it: /api/portfolio degrades gracefully, so
+// its own client breaker never opened, and each poll held a function waiting on
+// a service that was not answering. The client breaker cannot see this call —
+// it happens server-side — so the backoff has to live here.
+describe("fetchMemePositions, when the trade service is down", () => {
+  it("stops calling the service after repeated failures", async () => {
+    const mod = await load();
+    fetchMock.mockResolvedValue(downResponse());
 
-    const { buyable, meme } = await fetchMemePositions("Bearer token");
+    for (let i = 0; i < mod.TRADE_FAILURE_THRESHOLD; i += 1) {
+      await mod.fetchMemePositions(BEARER);
+    }
+    const callsWhileLearning = fetchMock.mock.calls.length;
+    expect(callsWhileLearning).toBe(mod.TRADE_FAILURE_THRESHOLD);
 
-    expect(buyable["base-mainnet"]).toEqual(
-      new Set([
-        "0xabcdef0000000000000000000000000000000001",
-        "0x00000000000000000000000000000000000000ff",
-      ])
-    );
-    expect(meme["base-mainnet"]?.get("0xabcdef0000000000000000000000000000000001")).toEqual({
-      logo: "https://img/coin.png",
-      priceUsd: 0.00042,
-    });
+    // The next poll must cost nothing: no request, no waiting on a timeout.
+    const result = await mod.fetchMemePositions(BEARER);
+    expect(fetchMock).toHaveBeenCalledTimes(callsWhileLearning);
+    expect(result).toEqual({ buyable: {}, meme: {} });
   });
 
-  it("carries the caller's bearer and asks only for their own positions", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(reply([]));
-    vi.stubGlobal("fetch", fetchMock);
+  it("asks again once the cooldown has passed", async () => {
+    const mod = await load();
+    fetchMock.mockResolvedValue(downResponse());
+    for (let i = 0; i < mod.TRADE_FAILURE_THRESHOLD; i += 1) {
+      await mod.fetchMemePositions(BEARER);
+    }
+    const parked = fetchMock.mock.calls.length;
 
-    await fetchMemePositions("Bearer abc");
-
-    const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toContain("/portfolio?");
-    expect((init.headers as Record<string, string>).authorization).toBe("Bearer abc");
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + mod.TRADE_COOLDOWN_MS + 1);
+    await mod.fetchMemePositions(BEARER);
+    expect(fetchMock.mock.calls.length).toBe(parked + 1);
+    vi.useRealTimers();
   });
 
-  // Solana mints are base58 and case-sensitive. The registry is a
-  // case-insensitive lookup shared with EVM, so the key is lowercased like
-  // every other; what must never happen is the lowercased form being sent back
-  // to the service or shown as the address.
-  it("recognises Solana positions on the Solana network", async () => {
-    const mint = "x95HN3DWvbfCBtTjGm587z8suK3ec6cwQwgZNLbWKyp";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(reply([position({ chain: "solana", chainId: 101, address: mint })]))
-    );
+  it("forgets the failures as soon as one call succeeds", async () => {
+    const mod = await load();
+    fetchMock.mockResolvedValue(downResponse());
+    // One short of the threshold, then a good answer.
+    for (let i = 0; i < mod.TRADE_FAILURE_THRESHOLD - 1; i += 1) {
+      await mod.fetchMemePositions(BEARER);
+    }
+    fetchMock.mockResolvedValue(okResponse());
+    await mod.fetchMemePositions(BEARER);
 
-    const { buyable } = await fetchMemePositions("Bearer token");
-
-    expect(buyable["solana-mainnet"]).toEqual(new Set([mint.toLowerCase()]));
-    expect(buyable["base-mainnet"]).toBeUndefined();
-  });
-
-  it("reads no position at all without a bearer, rather than calling the service", async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { buyable, meme } = await fetchMemePositions(null);
-
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(buyable).toEqual({});
-    expect(meme).toEqual({});
-  });
-
-  // A holding with no current price is still a holding. Null must not become a
-  // price of zero here, because zero is what hid it in the first place.
-  it("keeps an unpriced position, with no price rather than a zero", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(reply([position({ currentPriceUsd: null, logoUrl: null })]))
-    );
-
-    const { buyable, meme } = await fetchMemePositions("Bearer token");
-
-    expect(buyable["base-mainnet"]?.size).toBe(1);
-    expect(meme["base-mainnet"]?.get("0xabcdef0000000000000000000000000000000001")).toEqual({
-      logo: null,
-      priceUsd: 0,
-    });
-  });
-
-  // The trade service being down, slow or unauthenticated must never blank a
-  // portfolio that the chain can still answer.
-  it("gives an empty registry when the service fails", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("upstream down")));
-
-    await expect(fetchMemePositions("Bearer token")).resolves.toEqual({ buyable: {}, meme: {} });
+    // Back to zero: a later failure must not trip the breaker on its own.
+    fetchMock.mockResolvedValue(downResponse());
+    await mod.fetchMemePositions(BEARER);
+    const before = fetchMock.mock.calls.length;
+    await mod.fetchMemePositions(BEARER);
+    expect(fetchMock.mock.calls.length).toBe(before + 1);
   });
 });

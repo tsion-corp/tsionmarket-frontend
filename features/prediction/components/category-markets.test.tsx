@@ -1,7 +1,21 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "@/messages/en.json";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveryMarketEvent, DiscoveryMarketSummary } from "../markets/api";
 import { CategoryMarketsShell } from "./politics-markets-shell";
+
+// The panel reads its labels from the real catalogue, so every render — and
+// every rerender — needs the provider around it.
+function render(ui: React.ReactElement) {
+  const wrap = (node: React.ReactElement) => (
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      {node}
+    </NextIntlClientProvider>
+  );
+  const view = rtlRender(wrap(ui));
+  return { ...view, rerender: (next: React.ReactElement) => view.rerender(wrap(next)) };
+}
 
 const mocks = vi.hoisted(() => ({ catalog: vi.fn() }));
 
@@ -22,6 +36,42 @@ vi.mock("../house-slip-store", () => ({
 }));
 vi.mock("./category-bet-sidebar", () => ({
   CategoryBetSidebar: () => null,
+}));
+
+// The positions panel now sits above the list on every discovery feed. It
+// reaches the wallet layer, which has its own suites, so it is stood in here:
+// these suites are about the market list, not the money path.
+vi.mock("../hooks/use-polymarket-positions-controller", () => ({
+  usePolymarketPositionsController: () => ({
+    positions: {
+      positions: [],
+      available: null,
+      cashable: null,
+      loading: false,
+      loaded: false,
+      error: null,
+      refresh: vi.fn(),
+    },
+    slip: null,
+    setSlip: vi.fn(),
+    onRedeem: vi.fn(),
+    onSellPosition: vi.fn(),
+    onCashOut: vi.fn(),
+    redeemingId: null,
+    claiming: false,
+    selling: false,
+    cashingOut: false,
+    claimedConditionIds: [],
+  }),
+}));
+vi.mock("@/components/ui/currency-select", () => ({
+  useMoney: () => ({
+    format: (usd: number) => `$${usd}`,
+    formatExact: (usd: number) => `$${usd}.00`,
+    ready: true,
+    currency: { code: "USD", symbol: "$" },
+    setCurrency: vi.fn(),
+  }),
 }));
 
 export function market(id: string, title: string): DiscoveryMarketSummary {

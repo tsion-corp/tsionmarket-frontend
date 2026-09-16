@@ -37,6 +37,7 @@ import type { MemeTimeframe } from "@/lib/meme/types";
 import { createSessionCache, type SessionCache, type SessionCacheEntry } from "@/lib/session-cache";
 import { useSectionActive } from "@/components/ui/section-visibility";
 import type { useMemeCatalog } from "@/features/trade/hooks/use-meme-tokens";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 // The market screener and the Trending strip's data, shared by the desk and
 // the phone tab (ADR-2026-09-15-meme-trending-screener, 2.4 and 2.5).
@@ -182,7 +183,7 @@ export function useTrendingBoard({
     initialData: seed?.data,
     initialDataUpdatedAt: seed?.savedAt,
     staleTime: SCREENER_STALE_MS,
-    refetchInterval: TRENDING_REFRESH_MS,
+    refetchInterval: pollUnlessFailing(TRENDING_REFRESH_MS),
     // `subscribed`, as in useTrendingMemes: off screen the timer stops but the
     // last board stays on screen and refetch still works.
     subscribed: active && enabled,

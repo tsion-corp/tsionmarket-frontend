@@ -17,6 +17,7 @@ import {
   type PortfolioPosition,
   type TradeActivity,
 } from "@/lib/meme/portfolio";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 // The trade service's portfolio on the portfolio screen.
 //
@@ -44,7 +45,7 @@ export function useMemePortfolioSummary() {
     queryFn: fetchPortfolioSummary,
     enabled: signedIn,
     subscribed: active,
-    refetchInterval: MEME_PORTFOLIO_POLL_MS,
+    refetchInterval: pollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
     staleTime: STALE_MS,
   });
   return {
@@ -87,7 +88,7 @@ function usePagedList<T>(
     getNextPageParam: (last) => nextCatalogPage(last.meta),
     enabled: signedIn,
     subscribed: active,
-    refetchInterval: MEME_PORTFOLIO_POLL_MS,
+    refetchInterval: pollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
     staleTime: STALE_MS,
   });
 
@@ -173,7 +174,7 @@ export function useMemePosition(chain: PortfolioChain | null, address: string | 
     },
     enabled: signedIn && chain !== null && address !== null,
     subscribed: active,
-    refetchInterval: MEME_PORTFOLIO_POLL_MS,
+    refetchInterval: pollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
     staleTime: STALE_MS,
   });
   return {

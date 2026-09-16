@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchSwapHistory, type SwapDetail } from "@/lib/meme/api";
+import { pollUnlessFailing } from "@/lib/query-poll";
 
 // The wallet's swap history, for the transactions feed on the memecoin screens.
 //
@@ -35,7 +36,10 @@ export function useMemeSwaps(): MemeSwaps {
   const query = useQuery({
     queryKey: ["meme", "swaps", SWAP_FEED_LIMIT],
     queryFn: () => fetchSwapHistory(1, SWAP_FEED_LIMIT),
-    refetchInterval: SWAP_POLL_MS,
+    // Backs off while the trade service is failing. Without this a swap
+    // feed whose request never succeeds is asked every fifteen seconds,
+    // three times a tick, for as long as the tab is open.
+    refetchInterval: pollUnlessFailing(SWAP_POLL_MS),
     staleTime: 10_000,
   });
 
