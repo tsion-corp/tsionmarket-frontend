@@ -246,3 +246,49 @@ describe("token activity", () => {
     expect(token).not.toHaveProperty("pairCreatedAt");
   });
 });
+
+// The prod trade service has been sending 24h changes of up to 2.8e19 percent
+// (果蝇, ARGUS, 2026-09-16), which rendered as "$100 -> $22,478,541,914,774,794"
+// on the trending strip. A percentage that large is not a market move, it is a
+// division by a missing or near-zero baseline price upstream. The boundary is
+// where we are required to map an upstream payload into our own domain, so an
+// impossible reading is mapped to "unavailable" rather than carried through.
+// It is never replaced with an invented number: the strip shows no change at
+// all for that window, and every other field on the token still parses.
+describe("impossible price changes", () => {
+  const changeOf = (priceChangePercent: unknown) =>
+    parseTokenPage({
+      items: [
+        {
+          ...LIVE_LIST_TOKEN,
+          activity: {
+            "24h": { volumeUsd: "9000", transactions: 300, traders: 80, priceChangePercent },
+          },
+        },
+      ],
+      meta: LIVE_TOKEN_PAGE.meta,
+    }).items[0];
+
+  it("drops a change too large to be a real market move", () => {
+    const token = changeOf("22478541914774794240");
+
+    expect(token.activity?.["24h"]?.priceChangePercent).toBeNull();
+    // The rest of the window survives: only the unusable field is dropped.
+    expect(token.activity?.["24h"]?.volumeUsd).toBe("9000");
+    expect(token.activity?.["24h"]?.transactions).toBe(300);
+  });
+
+  it("keeps a large but real memecoin move", () => {
+    expect(changeOf("94000").activity?.["24h"]?.priceChangePercent).toBe("94000");
+  });
+
+  it("keeps ordinary and negative changes untouched", () => {
+    for (const value of ["-4.5", "0", "12.340000000000002", "-99.9"]) {
+      expect(changeOf(value).activity?.["24h"]?.priceChangePercent).toBe(value);
+    }
+  });
+
+  it("drops a change that is not a number at all", () => {
+    expect(changeOf("NaN").activity?.["24h"]?.priceChangePercent).toBeNull();
+  });
+});

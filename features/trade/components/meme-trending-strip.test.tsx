@@ -90,8 +90,11 @@ beforeEach(() => {
 });
 
 describe("MemeTrendingStrip sizes", () => {
-  it("pages four cards on the desk and five on a phone, over a 172px floor", () => {
-    expect(TRENDING_DESK_PAGE_SIZE).toBe(4);
+  // Three on the desk since 2026-09-16: at four, a card was narrow enough to
+  // cut a long change figure mid-number. The phone keeps four, which its grid
+  // draws two by two.
+  it("pages three cards on the desk and four on a phone, over a 172px floor", () => {
+    expect(TRENDING_DESK_PAGE_SIZE).toBe(3);
     expect(TRENDING_PHONE_PAGE_SIZE).toBe(4);
     expect(TRENDING_DESK_HEIGHT).toBe(172);
   });

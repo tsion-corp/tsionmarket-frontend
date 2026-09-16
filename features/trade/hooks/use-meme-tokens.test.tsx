@@ -17,7 +17,11 @@ vi.mock("@/lib/meme/api", async (importOriginal) => ({
 }));
 
 import { TradeApiError } from "@/lib/meme/api";
-import { useMemeCatalog, useMemeToken } from "@/features/trade/hooks/use-meme-tokens";
+import {
+  __setCatalogSessionStorageForTests,
+  useMemeCatalog,
+  useMemeToken,
+} from "@/features/trade/hooks/use-meme-tokens";
 
 const MINT = { address: "x95HN3DWvbfCBtTjGm587z8suK3ec6cwQwgZNLbWKyp", chainId: 101 };
 const providerError = () => new TradeApiError("PROVIDER_ERROR", "rpc down", 502, "req-502");
@@ -39,6 +43,12 @@ async function advance(ms: number) {
   });
 }
 const settle = () => advance(1);
+
+// These cases are about how the catalogue pages, not about its session cache,
+// and a seeded first page would satisfy page 1 without asking for it. Run them
+// in a tab with no storage at all, so every page is a real request.
+beforeEach(() => __setCatalogSessionStorageForTests(null));
+afterEach(() => __setCatalogSessionStorageForTests(undefined));
 
 beforeEach(() => {
   vi.useFakeTimers();

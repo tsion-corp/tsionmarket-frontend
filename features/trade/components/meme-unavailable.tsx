@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { retryCircuitNow } from "@/lib/api/circuit-store";
 
 // The list's failure state: what happened, and a way to ask again. Shown in
 // place of the rows, never beside them, so a stale page is not mistaken for a
@@ -13,7 +14,10 @@ export function MemeUnavailable({ onRetry }: { onRetry?: () => void }) {
       {onRetry ? (
         <button
           type="button"
-          onClick={onRetry}
+          onClick={() => {
+            retryCircuitNow();
+            onRetry();
+          }}
           className="cursor-pointer rounded-full border border-white/15 px-4 py-1.5 font-sans text-[12.5px] font-medium text-white/80 transition-colors hover:border-white/30 hover:text-white"
         >
           {t("retry")}

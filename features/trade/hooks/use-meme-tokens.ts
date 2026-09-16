@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   TradeApiError,
@@ -18,13 +18,66 @@ import {
   nextCatalogPage,
   tradableHere,
   type DiscoveryView,
+  type Paged,
 } from "@/lib/meme/catalog";
 import type { MemeChainSlug } from "@/lib/meme/chain";
 import { useSectionActive } from "@/components/ui/section-visibility";
 import { pollUnlessFailing } from "@/lib/query-poll";
+import { createSessionCache, type SessionCache } from "@/lib/session-cache";
 
 const TRENDING_POLL_MS = 30_000;
 const SEARCH_DEBOUNCE_MS = 350;
+
+// The catalogue's first page, kept in sessionStorage so a tab that opens while
+// the trade service is failing shows the last good list instead of an empty
+// panel. The trending strip has done this since the screener shipped; the
+// catalogue did not, which is why a single failed page could leave the desk
+// reading "Memecoin markets are unavailable" while the strip beside it, on its
+// own seed, looked perfectly healthy.
+//
+// Only the first page is kept. It is what fills the visible rows, and holding
+// every loaded page would put megabytes of token data in storage for a list
+// the user pages through once.
+const CATALOG_SESSION_NAMESPACE = "wsws.meme-catalog";
+const CATALOG_SESSION_VERSION = 1;
+const CATALOG_SESSION_MAX_ENTRIES = 4;
+export const CATALOG_SESSION_MAX_AGE_MS = 5 * 60_000;
+
+let catalogCache: SessionCache | null = null;
+let catalogStorageOverride: Storage | null | undefined;
+
+// Built on first use, not at module load: the constructor probes
+// window.sessionStorage, which does not exist while rendering on the server.
+function catalogSession(): SessionCache {
+  catalogCache ??= createSessionCache({
+    namespace: CATALOG_SESSION_NAMESPACE,
+    version: CATALOG_SESSION_VERSION,
+    maxEntries: CATALOG_SESSION_MAX_ENTRIES,
+    storage: catalogStorageOverride,
+  });
+  return catalogCache;
+}
+
+/**
+ * Tests only: point the catalogue's session cache at an in-memory Storage, or
+ * pass undefined to go back to window.sessionStorage.
+ */
+export function __setCatalogSessionStorageForTests(storage: Storage | null | undefined): void {
+  catalogStorageOverride = storage;
+  catalogCache = null;
+}
+
+const subscribeToNothing = () => () => undefined;
+
+// False on the server and during hydration, true after. Storage is only read
+// once this is true, so the client's first frame is still the server's.
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    subscribeToNothing,
+    () => true,
+    () => false
+  );
+}
 
 export function useTrendingMemes() {
   const active = useSectionActive();
@@ -62,15 +115,40 @@ export function useMemeCatalog({
   view = DEFAULT_DISCOVERY_VIEW,
   chain,
 }: { view?: DiscoveryView; chain?: MemeChainSlug } = {}) {
+  const hydrated = useHydrated();
+  const sessionKey = `catalog:${chain ?? "all"}`;
+  // Read once per mount, after hydration. TanStack applies initialData to a
+  // query that exists but holds nothing, so a seed found here fills the first
+  // page without standing in the way of the refresh that follows.
+  const seed = useMemo(
+    () =>
+      hydrated
+        ? catalogSession().read<Paged<MemeToken>>(sessionKey, CATALOG_SESSION_MAX_AGE_MS)
+        : null,
+    [hydrated, sessionKey]
+  );
   const query = useInfiniteQuery({
     queryKey: ["meme", "catalog", "pages", chain ?? "all"],
     queryFn: ({ pageParam }) => fetchTokenCatalogPage(pageParam, chain),
     initialPageParam: 1,
     getNextPageParam: (last) => nextCatalogPage(last.meta),
     staleTime: 15_000,
+    initialData: seed ? { pages: [seed.data], pageParams: [1] } : undefined,
+    initialDataUpdatedAt: seed?.savedAt,
   });
   const pages = query.data?.pages;
   const merged = useMemo(() => (pages ? mergeCatalogPages(pages) : null), [pages]);
+  // Keep the newest first page. Writing only what the service actually
+  // returned, never the seed read back out: a seeded page carries the
+  // savedAt it was stored under, so re-writing it would reset its age and
+  // keep a stale list alive indefinitely.
+  const firstPage = pages?.[0];
+  const { dataUpdatedAt, isSuccess } = query;
+  useEffect(() => {
+    if (!isSuccess || !firstPage) return;
+    if (seed && dataUpdatedAt <= seed.savedAt) return;
+    catalogSession().write(sessionKey, firstPage);
+  }, [isSuccess, firstPage, sessionKey, dataUpdatedAt, seed]);
   const shown = useMemo(() => (merged ? tradableHere(merged, view) : null), [merged, view]);
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = query;
   const loadMore = useCallback(() => {

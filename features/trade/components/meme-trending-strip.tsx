@@ -18,7 +18,10 @@ import type { MemeTimeframe, MemeToken } from "@/lib/meme/types";
 // ranked, a page at a time (ADR-2026-09-15-meme-trending-screener, section 3).
 // Presentational: the controller hook owns the query, the page and the heat.
 
-export const TRENDING_DESK_PAGE_SIZE = 4;
+// Three across on the desk. Four made each card narrow enough that a long
+// change figure was cut mid-number, which is how "+2323839..." reached the
+// screen; three gives the figure room to finish.
+export const TRENDING_DESK_PAGE_SIZE = 3;
 // Four on a phone as well, which the grid draws two by two. A side-scroller
 // held five but cut the card at the screen's edge, and a card sliced down the
 // middle reads as broken rather than as an invitation to swipe.

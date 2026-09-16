@@ -617,7 +617,7 @@ describe("the memecoin desk's screener", () => {
 
   it("asks the controller for the desk's Trending page size and view", () => {
     renderDesk();
-    expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 4 });
+    expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 3 });
   });
 
   it("draws Trending and the toolbar in the left column, beside the rail", () => {

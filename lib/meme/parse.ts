@@ -66,6 +66,23 @@ function wholeCount(value: number | null | undefined): number | null {
 
 type ActivityRow = NonNullable<z.output<typeof tokenListItemSchema>["activity"]>;
 
+// The largest 24h move we will carry through as real. A memecoin can genuinely
+// run thousands of percent in a day, so this sits far above any honest move:
+// 1e6 percent is a ten-thousand-fold rise. Past it the number is not a market
+// move but a division by a missing or near-zero baseline price upstream, which
+// is how the trade service came to report 2.8e19 percent on 2026-09-16.
+const MAX_REAL_CHANGE_PERCENT = 1e6;
+
+// A change we can show, or null. Null means "not available for this window",
+// which is what every reader already handles; the value is never replaced with
+// an invented one, and the rest of the window is untouched.
+function usableChange(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || Math.abs(value) > MAX_REAL_CHANGE_PERCENT) return null;
+  return raw;
+}
+
 // Every window the row carries gets all four fields, null where the service
 // left one out, so a reader never has to tell absent from null. A window that
 // is missing or null stays missing: it is never filled from another window.
@@ -78,7 +95,7 @@ function toActivity(row: ActivityRow): Partial<Record<MemeTimeframe, MemeActivit
       volumeUsd: sample.volumeUsd ?? null,
       transactions: wholeCount(sample.transactions),
       traders: wholeCount(sample.traders),
-      priceChangePercent: sample.priceChangePercent ?? null,
+      priceChangePercent: usableChange(sample.priceChangePercent),
     };
   }
   return activity;
