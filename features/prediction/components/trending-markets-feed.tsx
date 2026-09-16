@@ -176,7 +176,7 @@ export function DiscoveryMarketsFeed({
             this page to check an open bet, claim a win or cash out should not
             have to scroll a feed to find it. The panel is its own card, so it
             takes the section's gutter rather than the list's full-bleed rows. */}
-        <div className="mx-auto w-full max-w-[1350px] px-4 pt-4 lg:px-6">
+        <div className="mx-auto w-full max-w-[1350px] px-4 pb-7 sm:pb-9 lg:px-6">
           <PredictionPositions controller={positionsCtl} />
         </div>
 

@@ -74,6 +74,26 @@ clears it.
 healthy p95 at roughly 834 ms and its degraded threshold at 2.5 s; an 8 second
 ceiling only ever held a request open on an upstream that was never going to answer.
 
+## The empty panel, and a card that led nowhere
+
+Two follow-ups from reading the panel on production.
+
+The panel sat flush against the first market row, so the card and the list read
+as one block. It now carries the same bottom gutter it carries on top.
+
+"No open positions yet" is the common first view, and it was one grey line under
+a rule. It is now a real empty state: the section's own mark, the fact, and the
+line saying what the section is for. No new copy, so no locale changes.
+
+Separately, the "Join the Conversation" band on the dashboard led with a chess
+room card. No caller ever passed `ConversationRow` a room, so the card always
+fell back to a fixed headline behind a pill pointing at `/casino/chess/watch`,
+which does not resolve. A card that only ever led somewhere broken is worse than
+no card, so it is gone along with the fallback that produced it, and the band
+starts with the square's own rooms. The square's cards are now the only cards the
+band has, so a hidden square renders no band at all rather than a heading over an
+empty rail.
+
 ## What this does not change
 
 - No polling cadence gets faster. Every change here makes the app ask for less.

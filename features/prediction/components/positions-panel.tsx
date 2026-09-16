@@ -93,12 +93,23 @@ export function PositionsPanel({
       </div>
 
       {error ? (
-        <div className="border-t border-white/6 px-6 py-6 text-center text-[13px] font-normal text-white/45">
-          {error}
+        <div className="border-t border-white/6 px-6 py-8 text-center">
+          <p className="text-down font-sans text-[13.5px] font-medium">{error}</p>
         </div>
       ) : loaded && positions.length === 0 ? (
-        <div className="border-t border-white/6 px-6 py-6 text-center text-[13px] font-normal text-white/45">
-          {t("noPositions")}
+        /* Nothing staked yet is the common first view, so it gets a real empty
+           state rather than one grey line: the section's own mark, the fact,
+           and what the section is for once there is something in it. */
+        <div className="border-t border-white/6 px-6 py-10 text-center">
+          <span className="mx-auto grid size-11 place-items-center rounded-full bg-white/5 text-white/25">
+            <ChartBarsIcon size={20} />
+          </span>
+          <p className="mt-3.5 font-sans text-[14px] font-medium text-white/75">
+            {t("noPositions")}
+          </p>
+          <p className="mx-auto mt-1 max-w-[290px] text-[12.5px] font-normal text-white/40">
+            {t("positionsSubtitle")}
+          </p>
         </div>
       ) : positions.length > 0 ? (
         positions.map((raw, i) => {

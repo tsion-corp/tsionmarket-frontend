@@ -79,17 +79,28 @@ function realSlideHeadlines(): string[] {
 }
 
 describe("conversation row", () => {
-  // The band is Square and nothing else now: the room the design drew it
-  // around, the rooms that are live, the way into one of your own, and the
-  // feed. The Arkade's games have their own shelf.
-  it("deals the chess room, then the rooms, going live and the feed", () => {
+  // The band is Square and nothing else: the rooms that are live, the way into
+  // one of your own, and the feed. The Arkade's games have their own shelf.
+  it("deals the rooms, going live and the feed", () => {
     render(<ConversationRow />, { wrapper });
     expect(realSlideHeadlines()).toEqual([
-      enMessages.discovery.conversationHeadline,
       enMessages.discovery.squareIdleHeadline,
       enMessages.discovery.goLiveHeadline,
       enMessages.discovery.feedHeadline,
     ]);
+  });
+
+  // The band used to lead with a chess room card that no caller ever supplied
+  // with a real room, so it always showed a fixed headline behind a pill to
+  // /casino/chess/watch, which does not resolve. It is gone, and no pill in
+  // the band points into the chess route any more.
+  it("carries no chess room card and no way into the broken chess route", () => {
+    render(<ConversationRow />, { wrapper });
+    expect(screen.queryByText(enMessages.discovery.conversationHeadline)).toBeNull();
+    const chessBound = screen
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("href")?.includes("/casino/chess"));
+    expect(chessBound).toEqual([]);
   });
 
   it("carries no Arkade game, which is the other shelf's job", () => {
@@ -132,5 +143,25 @@ describe("conversation row", () => {
     ]);
     render(<ConversationRow />, { wrapper });
     expect(screen.getAllByText("Base season, who wins").length).toBeGreaterThan(0);
+  });
+});
+
+// The square's cards are the only cards the band has now, so a hidden square
+// leaves nothing to deal. The band must go rather than render a heading over
+// an empty rail.
+describe("conversation row with the square hidden", () => {
+  it("renders nothing at all", async () => {
+    vi.resetModules();
+    vi.doMock("@/lib/market-square", () => ({
+      MARKET_SQUARE_HIDDEN: true,
+      marketSquareHref: () => null,
+    }));
+    const { ConversationRow: Hidden } =
+      await import("@/features/discovery/components/conversation-row");
+
+    const { container } = render(<Hidden />, { wrapper });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(screen.queryByText(enMessages.discovery.conversationTitle)).toBeNull();
   });
 });
