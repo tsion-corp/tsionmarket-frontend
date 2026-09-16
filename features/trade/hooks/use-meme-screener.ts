@@ -11,6 +11,7 @@ import { fetchScreenerPage, fetchTrendingBoard, type MemeToken } from "@/lib/mem
 import {
   mergeCatalogPages,
   nextCatalogPage,
+  rankableHere,
   tradableHere,
   type DiscoveryView,
   type Paged,
@@ -191,7 +192,9 @@ export function useTrendingBoard({
   useSessionWriteBack(sessionKey, result.data, result.dataUpdatedAt);
 
   const data = result.data;
-  const tokens = useMemo(() => (data ? tradableHere(data, view).items : []), [data, view]);
+  // rankableHere, not tradableHere: this is the strip, and a row with neither a
+  // price nor a 24h change has nothing for it to show. See lib/meme/catalog.ts.
+  const tokens = useMemo(() => (data ? rankableHere(data, view).items : []), [data, view]);
   const { refetch: refetchQuery } = result;
   const refetch = useCallback(() => {
     void refetchQuery();

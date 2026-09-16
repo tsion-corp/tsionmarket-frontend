@@ -316,3 +316,32 @@ export function tradableHere(
   const items = page.items.filter((token) => isMemecoinHere(token, view)).map(withRiskDefaults);
   return { items, meta: page.meta, shownCount: items.length };
 }
+
+// True when a row has something for the Trending strip to show: a price, or a
+// 24h change, or both. A row with neither is an empty shell.
+function rankable(token: MemeToken): boolean {
+  return token.priceUsd !== null || (token.activity?.["24h"]?.priceChangePercent ?? null) !== null;
+}
+
+/**
+ * The Trending strip's rows: `tradableHere`, minus the rows there is nothing to
+ * rank.
+ *
+ * The strip's heading promises the hottest coins over a window. On 2026-09-16
+ * the trade service answered /tokens/trending with 40 rows of which 35 carried
+ * no price and no 24h change, and the top three cards on production rendered as
+ * a name over two dashes. A row with neither figure cannot be one of the
+ * hottest coins, whichever position the service returned it in, so the strip
+ * falls through to the next row that has one.
+ *
+ * Only the strip uses this. The catalogue still lists a token with no price
+ * yet: there it is an entry in a directory, not a claim about performance.
+ */
+export function rankableHere(
+  page: Paged<MemeToken>,
+  view: DiscoveryView = "curated"
+): ShownPage<MemeToken> {
+  const shown = tradableHere(page, view);
+  const items = shown.items.filter(rankable);
+  return { items, meta: shown.meta, shownCount: items.length };
+}
