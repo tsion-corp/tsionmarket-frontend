@@ -1,14 +1,187 @@
-import { redirect } from "next/navigation";
+"use client";
 
-// Prediction is not offered on production: the gateway's `prediction` service,
-// which the sportsbook and combo routes behind this page call, answers 502 on
-// api.tsionark.com. `prediction-market` is a different service and is live;
-// this page does not use it.
-//
-// The route is kept as a redirect rather than deleted so a shared link or a
-// bookmark lands somewhere real instead of on a page whose every request
-// fails. Restoring the section is restoring this file from git and taking
-// "prediction" out of HIDDEN_NAV_SECTIONS in lib/sections.ts.
-export default function PredictionReclaimPage() {
-  redirect("/dashboard");
+import { useCallback, useEffect, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { getWalletAddress } from "@/lib/user";
+import { useEvmSendBatch } from "@/hooks/use-evm-send";
+import { publicClientForChain } from "@/lib/trade/receipt";
+import { awaitReceipt } from "@/lib/trade/receipt";
+import {
+  PREDICTION_CHAIN_ID,
+  readLegacyClaimState,
+  buildLegacyClaimCalls,
+  type LegacyClaimState,
+} from "@/features/prediction";
+
+// Reclaim page for winnings stranded on the SUPERSEDED prediction contract
+// (0xF9A870…). Those markets never show in the normal app (the indexer only
+// tracks the current contract), so this page reads the old contract directly and
+// lets a winner log in with the SAME email they used, then redeem + claim their
+// own shares in one sponsored (gasless) transaction. Only the winner can do this
+// — the contract burns their own shares; there is no admin/owner override.
+
+const USDC = (v: bigint) => `$${(Number(v) / 1e6).toFixed(2)}`;
+
+type Phase = "idle" | "loading" | "claiming" | "done" | "error";
+
+export default function ReclaimPage() {
+  const { ready, authenticated, login, user } = usePrivy();
+  const sendBatch = useEvmSendBatch();
+  const wallet = getWalletAddress(user, "ethereum");
+
+  const [state, setState] = useState<LegacyClaimState | null>(null);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  // Amount the user claimed, captured before the claim so the success screen
+  // can show it even though a refresh would zero the state out.
+  const [claimedAmount, setClaimedAmount] = useState<bigint>(0n);
+
+  const load = useCallback(async () => {
+    if (!wallet) return;
+    setPhase("loading");
+    setError(null);
+    try {
+      setState(await readLegacyClaimState(wallet));
+      setPhase("idle");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't read your winnings.");
+      setPhase("error");
+    }
+  }, [wallet]);
+
+  useEffect(() => {
+    if (!authenticated || !wallet) return;
+    // Defer so the effect body itself doesn't call setState synchronously
+    // (load() flips phase to "loading") — avoids the cascading-render lint.
+    const id = setTimeout(() => void load(), 0);
+    return () => clearTimeout(id);
+  }, [authenticated, wallet, load]);
+
+  const claim = useCallback(async () => {
+    if (!state) return;
+    const calls = buildLegacyClaimCalls(state.redeemables);
+    // calls always has the trailing claim(); only proceed if there's at least
+    // one solvent redeem to batch with it (or a pre-existing pending balance).
+    const hasSolvent = state.redeemables.some((r) => r.solvent);
+    if (!hasSolvent && state.pending === 0n) return;
+    const amount = state.claimableShares + state.pending;
+    setPhase("claiming");
+    setError(null);
+    try {
+      const hash = await sendBatch(calls, PREDICTION_CHAIN_ID);
+      // The sponsored batch is submitted: the claim is in. Show success now
+      // instead of blocking on confirmation. awaitReceipt throws on its poll
+      // timeout even when the tx lands, which used to flip us into an error
+      // state and hide the success message. Don't refresh either: reloading
+      // zeroes the now-claimed state and flashes the "no winnings" empty state.
+      setTxHash(hash);
+      setClaimedAmount(amount);
+      setPhase("done");
+      // Confirm in the background only to catch an on-chain revert. A timeout
+      // is not a failure here, so swallow it; only surface an actual revert.
+      awaitReceipt(publicClientForChain(PREDICTION_CHAIN_ID), hash, "Confirming…").catch((e) => {
+        if (e instanceof Error && e.message.includes("failed on-chain")) {
+          setError(e.message);
+          setPhase("error");
+        }
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Claim failed. Please try again.");
+      setPhase("error");
+    }
+  }, [state, sendBatch]);
+
+  // What the claim button will actually pay: solvent positions + any pending.
+  const claimable = state ? state.claimableShares + state.pending : 0n;
+  const blocked = state ? state.blockedShares : 0n;
+  const hasWinnings = state ? claimable > 0n || blocked > 0n : false;
+
+  return (
+    <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-5 py-16">
+      <div>
+        <h1 className="text-2xl font-semibold">Reclaim your winnings</h1>
+        <p className="mt-2 text-sm text-white/60">
+          Some earlier markets moved to a new home. If you won one of them, your payout is waiting
+          here. Log in with the same email you used and claim it, free of charge.
+        </p>
+      </div>
+
+      {!ready ? (
+        <p className="text-white/50">Loading…</p>
+      ) : !authenticated ? (
+        <button
+          onClick={() => login()}
+          className="rounded-xl bg-white py-3 font-semibold text-black"
+        >
+          Log in to check
+        </button>
+      ) : phase === "loading" ? (
+        <p className="text-white/50">Checking your winnings…</p>
+      ) : phase === "done" ? (
+        <div className="border-up/40 bg-up/10 rounded-xl border p-5">
+          <p className="text-up font-semibold">Successfully reclaimed 🎉</p>
+          <p className="mt-1 text-sm text-white/70">
+            {claimedAmount > 0n ? `${USDC(claimedAmount)} was ` : "Your winnings were "}
+            sent to your wallet.
+          </p>
+          {txHash ? (
+            <a
+              href={`https://basescan.org/tx/${txHash}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 block text-xs text-white/50 underline"
+            >
+              View transaction
+            </a>
+          ) : null}
+        </div>
+      ) : !hasWinnings ? (
+        <div className="rounded-xl border border-white/12 bg-white/5 p-5">
+          <p className="text-sm text-white/70">
+            No unclaimed winnings found for this account on the old contract.
+          </p>
+          <p className="mt-1 text-xs break-all text-white/45">Wallet: {wallet}</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-white/12 bg-white/5 p-5">
+            <p className="text-sm text-white/60">You can claim</p>
+            <p className="mt-0.5 text-3xl font-semibold">{USDC(claimable)}</p>
+            {state && state.redeemables.length > 0 ? (
+              <ul className="mt-3 space-y-1 text-xs text-white/50">
+                {state.redeemables.map((r) => (
+                  <li key={`${r.marketId.toString()}-${r.side}`}>
+                    {r.label} ({r.kind === "winning" ? "winnings" : "refund"}): {USDC(r.shares)}
+                    {r.solvent ? null : <span className="text-white/35"> (unavailable)</span>}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {state && state.pending > 0n ? (
+              <p className="mt-2 text-xs text-white/50">
+                Already redeemed, ready to withdraw: {USDC(state.pending)}
+              </p>
+            ) : null}
+            {blocked > 0n ? (
+              <p className="mt-3 text-xs text-white/40">
+                {USDC(blocked)} from one market can&apos;t be paid out right now (that market is
+                short on funds). We&apos;re looking into it. The rest is claimable now.
+              </p>
+            ) : null}
+          </div>
+
+          <button
+            onClick={claim}
+            disabled={phase === "claiming" || claimable === 0n}
+            className="rounded-xl bg-white py-3 font-semibold text-black disabled:opacity-60"
+          >
+            {phase === "claiming" ? "Claiming…" : `Claim ${USDC(claimable)}`}
+          </button>
+        </div>
+      )}
+
+      {error ? <p className="text-down text-sm">{error}</p> : null}
+    </main>
+  );
 }

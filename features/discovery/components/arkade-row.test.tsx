@@ -65,10 +65,10 @@ function realSlideHeadlines(): string[] {
 }
 
 describe("Arkade row", () => {
-  // The shelf follows the Arkade catalogue, so Checkers, Arkjet and Pilot
-  // Chicken are absent here exactly as they are from CASINO_GAMES. Their
-  // cards are still exported and still tested on their own; they are simply
-  // not dealt on production.
+  // The shelf follows the Arkade catalogue, so Checkers is absent here exactly
+  // as it is from CASINO_GAMES. Its card is still exported and still tested on
+  // its own; it is simply not dealt on production. Arkjet and Pilot Chicken
+  // returned with the gateway's `arkjet` service on 2026-09-16.
   it("deals one card per offered game, in the Arkade's own order", () => {
     render(<ArkadeRow />, { wrapper });
     expect(realSlideHeadlines()).toEqual([
@@ -77,6 +77,8 @@ describe("Arkade row", () => {
       `${enMessages.discovery.lastManMarathonLead} ${enMessages.discovery.lastManMarathonTitle}`,
       enMessages.discovery.chessHeadline,
       enMessages.discovery.arkballHeadline,
+      enMessages.discovery.arkjetHeadline,
+      enMessages.discovery.chickenHeadline,
     ]);
   });
 

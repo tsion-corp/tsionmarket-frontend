@@ -7,8 +7,9 @@ const SPAN: Record<TileSize, number> = { hero: 4, tall: 2, medium: 2, wide: 3 };
 describe("casino game catalogue", () => {
   // The order the team set on 2026-09-11 was Last Man, Chess, ArkBall,
   // Checkers. Checkers is not offered on production, so the playable run is
-  // Last Man, Chess, ArkBall. Last Man takes the hero slot and Chess the
-  // two-column slot beside it, so the first row still fills the six columns.
+  // Last Man, Chess, ArkBall, then the two crash games. Last Man takes the
+  // hero slot and Chess the two-column slot beside it, so the first row still
+  // fills the six columns.
   it("leads with Last Man, then Chess and ArkBall", () => {
     expect(CASINO_GAMES.slice(0, 3).map((g) => g.id)).toEqual([
       "last-standing",
@@ -20,15 +21,31 @@ describe("casino game catalogue", () => {
     expect(SPAN[first.size] + SPAN[second.size]).toBe(6);
   });
 
-  // Production does not offer these three. They are commented out of the
-  // catalogue rather than deleted, so this asserts the hub lists none of
-  // them; restoring any is uncommenting its entry, and this test is the
-  // reminder to update the shelf in arkade-row.tsx at the same time.
-  it("offers no Checkers, Arkjet or Pilot Chicken", () => {
-    const ids = CASINO_GAMES.map((g) => g.id);
-    expect(ids).not.toContain("checkers");
-    expect(ids).not.toContain("arkjet");
-    expect(ids).not.toContain("chicken");
+  // Arkjet and Pilot Chicken returned on 2026-09-16, once the gateway's
+  // `arkjet` service went live on production. They take Checkers' place in
+  // the run, playable, with their branded art kept in colour.
+  it("places Arkjet and Pilot Chicken after ArkBall", () => {
+    const arkball = CASINO_GAMES.findIndex((game) => game.id === "arkball");
+    expect(CASINO_GAMES[arkball + 1]).toMatchObject({
+      id: "arkjet",
+      href: "/casino/arkjet",
+      preserveImageColor: true,
+      comingSoon: false,
+    });
+    expect(CASINO_GAMES[arkball + 2]).toMatchObject({
+      id: "chicken",
+      href: "/casino/chicken",
+      preserveImageColor: true,
+      comingSoon: false,
+    });
+  });
+
+  // Checkers alone is not offered on production. It is commented out of the
+  // catalogue rather than deleted, so this asserts the hub does not list it;
+  // restoring it is uncommenting its entry, and this test is the reminder to
+  // update the shelf in arkade-row.tsx at the same time.
+  it("offers no Checkers", () => {
+    expect(CASINO_GAMES.map((g) => g.id)).not.toContain("checkers");
   });
 
   it("keeps that order under the All games filter", () => {

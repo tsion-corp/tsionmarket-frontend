@@ -117,14 +117,14 @@ describe("PerpsMenuDrawer", () => {
 
   // buildNav is the single reader of the nav switches, so the drawer offers
   // exactly what the rail offers: Real assets since they returned on
-  // 2026-09-09, and neither Perpetuals nor Prediction, which production does
-  // not offer.
+  // 2026-09-09 and Prediction since 2026-09-16, and not Perpetuals, which
+  // production does not offer.
   it("offers the same sections as the rail", () => {
     render(<PerpsScreen />);
     fireEvent.click(hamburger());
     expect(screen.getByRole("button", { name: "Real assets" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Prediction" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Perpetuals" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Prediction" })).toBeNull();
   });
 
   it("closes and navigates when a section is chosen", () => {

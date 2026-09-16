@@ -122,17 +122,18 @@ type TabId = (typeof TABS)[number]["id"];
 /**
  * Tabs this build does not offer.
  *
- * A visibility switch, like HIDDEN_NAV_SECTIONS in lib/sections.ts, and for
- * the same two reasons: Perpetuals is a product decision, and Prediction is
- * what production can serve — the gateway's `prediction` service answers 502
- * there. TABS above stays the full catalogue so TabId keeps naming every tab
- * and the handoff routes below still typecheck; only the strip the reader is
- * offered is filtered, and a ?tab= pointing at a hidden one falls back to
- * Spot rather than opening a tab with nothing behind it.
+ * A visibility switch, like HIDDEN_NAV_SECTIONS in lib/sections.ts, and it
+ * carries the same entry: Perpetuals, a product decision rather than a
+ * backend one. Prediction came off on 2026-09-16 once the gateway's
+ * `prediction` service went live on production. TABS above stays the full
+ * catalogue so TabId keeps naming every tab and the handoff routes below
+ * still typecheck; only the strip the reader is offered is filtered, and a
+ * ?tab= pointing at a hidden one falls back to Spot rather than opening a tab
+ * with nothing behind it.
  *
  * Empty this list to offer them again.
  */
-const HIDDEN_TABS: readonly TabId[] = ["perps", "prediction"];
+const HIDDEN_TABS: readonly TabId[] = ["perps"];
 
 function isOfferedTab(id: string | null): id is TabId {
   return TABS.some((tab) => tab.id === id) && !HIDDEN_TABS.includes(id as TabId);

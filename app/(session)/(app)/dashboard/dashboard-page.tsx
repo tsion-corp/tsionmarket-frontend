@@ -31,9 +31,11 @@ import { ConversationRow } from "@/features/discovery/components/conversation-ro
 import { ArkadeRow } from "@/features/discovery/components/arkade-row";
 import { TokenMovesRow } from "@/features/discovery/components/token-moves-row";
 import { Next100xRow } from "@/features/discovery/components/next-100x-row";
+import { PredictionStartsRow } from "@/features/discovery/components/prediction-starts-row";
 import { RealAssetsRow, realAssetsLead } from "@/features/discovery/components/real-assets-row";
 import { useMemeSpots } from "@/app/(session)/(app)/dashboard/discovery/memecoins";
 import { useTokenSpots } from "@/app/(session)/(app)/dashboard/discovery/tokens";
+import { usePredictionSpots } from "@/app/(session)/(app)/dashboard/discovery/predictions";
 import { useRwaSpots } from "@/app/(session)/(app)/dashboard/discovery/real-assets";
 import { useDiscoveryTrade } from "@/app/(session)/(app)/dashboard/discovery/trade-intents";
 import { useInterest } from "@/hooks/use-interest";
@@ -85,13 +87,11 @@ const BRIEF_HREF: Record<BriefedSectionId, string> = {
 // Which doorway follows which brief, indexed by the brief's position. Spread
 // rather than stacked, so Prediction and Arkade are met while reading. An index
 // with no entry gets no banner, so a reordered or shorter list still works.
-// Prediction is not offered on production (HIDDEN_NAV_SECTIONS in
-// lib/sections.ts), so its doorway is `undefined` here rather than removed:
-// the track is indexed by brief position, and dropping the entry would move
-// Arkade up into Prediction's slot. ExploreBanners has no prediction banner
-// on this branch either, for the reason its own comment gives. Restoring the
-// section means putting the banner back there and "prediction" back here.
-const INTERLEAVED_BANNERS: readonly ("casino" | undefined)[] = [undefined, undefined, "casino"];
+const INTERLEAVED_BANNERS: readonly ("prediction" | "casino" | undefined)[] = [
+  "prediction",
+  undefined,
+  "casino",
+];
 
 /**
  * Market Square blocks, by the same index — a SECOND track rather than entries
@@ -187,6 +187,7 @@ export function DashboardPage() {
   // the same reason as the two rows above: discovery does not import the
   // feature slices. Until this was wired the card had no markets prop and
   // showed the design's sample market on every dashboard.
+  const predictionSpots = usePredictionSpots();
   // "Own the Real World" shows for everyone; the saved onboarding interest
   // only decides whether it leads the discovery area or closes it. Its assets
   // come from the feed already loaded above.
@@ -334,6 +335,11 @@ export function DashboardPage() {
         <div className="px-4">
           <ArkadeRow />
         </div>
+        {/* "Your Next Prediction Starts Here" — the same discovery card the
+            desktop shows, on the phone with its horizontal gutter. */}
+        <div className="px-4">
+          <PredictionStartsRow markets={predictionSpots} />
+        </div>
         {/* "Stay Ahead of Token Moves" — the desktop token-moves discovery
             card, now on the phone too, in the phone's gutter. */}
         <div className="px-4">
@@ -353,12 +359,10 @@ export function DashboardPage() {
         {rwaLeads ? null : <div className="px-4">{realAssets}</div>}
       </div>
 
-      {/* Not composed here on production: OwnMarketRow (the perps desk's
-          shelf) and PredictionStartsRow, with its usePredictionSpots hook.
-          Perps and Prediction are both in HIDDEN_NAV_SECTIONS; dropping the
-          hook also stops the dashboard asking the gateway's `prediction`
-          service, which answers 502 in production. Restore all three imports
-          with the sections. */}
+      {/* Not composed here on production: OwnMarketRow, the perps desk's
+          shelf. Perps is in HIDDEN_NAV_SECTIONS, so the shelf would be a way
+          into a section the rail does not offer. Restore its import with the
+          section. */}
 
       {/* Desktop: the discovery shelves, as the phone design's desktop sibling
           draws them under the balance cards — Token Moves, Join the
@@ -376,6 +380,7 @@ export function DashboardPage() {
             with Square's rooms until the two were split. */}
         <ArkadeRow />
         <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
+        <PredictionStartsRow markets={predictionSpots} />
         {rwaLeads ? null : realAssets}
       </div>
 
@@ -405,9 +410,15 @@ export function DashboardPage() {
                 <Body rows={PREVIEW_ROWS} />
               </SectionOverview>
             </SectionVisibility>
-            {/* One doorway between the briefs, so Arkade is met while reading
-                  rather than only at the very bottom. */}
-            {INTERLEAVED_BANNERS[index] ? (
+            {/* One doorway between the briefs, so Prediction and Arkade are
+                  met while reading rather than only at the very bottom. The
+                  phone shows the rich prediction card at the top of the home
+                  instead, so here the prediction doorway is desktop-only. */}
+            {INTERLEAVED_BANNERS[index] === "prediction" ? (
+              <div className="hidden md:block">
+                <ExploreBanners only="prediction" />
+              </div>
+            ) : INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
             {/* Square content between the briefs, so closed by the sections

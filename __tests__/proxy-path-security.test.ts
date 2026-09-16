@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { NextRequest } from "next/server";
 import { GET as tradeGet } from "@/app/api/trade/[...path]/route";
+import { GET as predictionGet } from "@/app/api/prediction/[...path]/route";
 import { GET as vaultGet } from "@/app/api/vault/[...path]/route";
 import { GET as earnGet } from "@/app/api/earn/[...path]/route";
 
@@ -14,6 +15,14 @@ describe("Proxy Route Path Traversal Security", () => {
   it("rejects path traversal in /api/trade", async () => {
     const maliciousReq = makeReq("http://localhost:3000/api/trade/../admin");
     const res = await tradeGet(maliciousReq);
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("BAD_REQUEST");
+  });
+
+  it("rejects path traversal in /api/prediction", async () => {
+    const maliciousReq = makeReq("http://localhost:3000/api/prediction/%2e%2e/internal");
+    const res = await predictionGet(maliciousReq);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.code).toBe("BAD_REQUEST");

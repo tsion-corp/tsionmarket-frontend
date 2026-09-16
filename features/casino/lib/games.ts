@@ -112,38 +112,33 @@ export const CASINO_GAMES: CasinoGame[] = [
   //   comingSoon: false,
   // },
 
-  // Arkjet and Pilot Chicken are NOT offered on production (2026-09-16).
-  // Their gateway service, `arkjet`, answers 502 on api.tsionark.com, so the
-  // routes behind them have nothing to call. Restoring them is uncommenting
-  // these entries, their two cards in
-  // features/discovery/components/arkade-row.tsx, and confirming the service
-  // is live.
-  // {
-  //   id: "arkjet",
-  //   name: "Arkjet",
-  //   category: "New",
-  //   size: "tall",
-  //   glyph: "✈",
-  //   image: "/casino/arkjet/hero.webp",
-  //   preserveImageColor: true,
-  //   isNew: true,
-  //   href: "/casino/arkjet",
-  //   note: "Cash out before the multiplier crashes",
-  //   comingSoon: false,
-  // },
-  // {
-  //   id: "chicken",
-  //   name: "Pilot Chicken",
-  //   category: "New",
-  //   size: "tall",
-  //   glyph: "C",
-  //   image: "/casino/chicken/ark-chicken.png",
-  //   preserveImageColor: true,
-  //   isNew: true,
-  //   href: "/casino/chicken",
-  //   note: "Cross each lane and cash out before the crash",
-  //   comingSoon: false,
-  // },
+  {
+    id: "arkjet",
+    name: "Arkjet",
+    category: "New",
+    size: "tall",
+    glyph: "✈",
+    image: "/casino/arkjet/hero.webp",
+    preserveImageColor: true,
+    isNew: true,
+    href: "/casino/arkjet",
+    note: "Cash out before the multiplier crashes",
+    comingSoon: false,
+  },
+
+  {
+    id: "chicken",
+    name: "Pilot Chicken",
+    category: "New",
+    size: "tall",
+    glyph: "C",
+    image: "/casino/chicken/ark-chicken.png",
+    preserveImageColor: true,
+    isNew: true,
+    href: "/casino/chicken",
+    note: "Cross each lane and cash out before the crash",
+    comingSoon: false,
+  },
   {
     id: "ayo",
     name: "Ayo",
