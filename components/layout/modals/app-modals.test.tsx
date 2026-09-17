@@ -1,5 +1,7 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "@/messages/en.json";
 import { memeToken } from "@/features/trade/lib/meme-fixture";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
 
@@ -30,12 +32,17 @@ describe("AppModalHost on a memeBuy modal", () => {
     memeSheetProps.length = 0;
     const token = memeToken({ symbol: "PEPE" });
 
+    // Every modal here is a dynamic import, so its loading fallback renders
+    // first and that fallback speaks. The host always sits inside the intl
+    // provider in the app; the test has to say so too.
     render(
-      <AppModalHost
-        active={{ type: "memeBuy", memeBuy: token }}
-        onClose={vi.fn()}
-        onConfirmed={vi.fn()}
-      />
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <AppModalHost
+          active={{ type: "memeBuy", memeBuy: token }}
+          onClose={vi.fn()}
+          onConfirmed={vi.fn()}
+        />
+      </NextIntlClientProvider>
     );
 
     expect(await screen.findByTestId("meme-trade-sheet")).toHaveTextContent("BUY");

@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { ModalLoading } from "@/components/layout/modals/modal-loading";
 import { useCallback, useState } from "react";
 import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -22,36 +23,36 @@ import type { DepositPrefill } from "@/lib/voice/intent";
 // host, none of which draws a chart on load.
 const DetailModal = dynamic(
   () => import("@/components/layout/modals/detail-modal").then((m) => m.DetailModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 
 const AccountModal = dynamic(
   () => import("@/components/layout/modals/account-modal").then((m) => m.AccountModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const FundsModal = dynamic(
   () => import("@/features/funds/components/funds-modal").then((m) => m.FundsModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const WithdrawModal = dynamic(
   () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const BuySheet = dynamic(
   () => import("@/features/trade/components/buy-sheet").then((m) => m.BuySheet),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const SellSheet = dynamic(
   () => import("@/features/trade/components/sell-sheet").then((m) => m.SellSheet),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const MemeTradeSheet = dynamic(
   () => import("@/features/trade/components/meme-trade-sheet").then((m) => m.MemeTradeSheet),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const RwaTradeModal = dynamic(
   () => import("@/features/rwa/components/rwa-trade-modal").then((m) => m.RwaTradeModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 
 export interface AppModals {

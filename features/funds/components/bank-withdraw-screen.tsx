@@ -17,6 +17,7 @@ import {
   useResolveBankAccount,
 } from "@/hooks/use-ramping";
 import { friendlyError } from "@/lib/errors";
+import { FormFeedback, asError, asNotice, type Feedback } from "@/components/ui/form-feedback";
 import { getWalletAddress } from "@/lib/user";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SETTLE_CHAINS } from "@/lib/deposit";
@@ -169,7 +170,18 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const [creation, setCreation] = useState<OfframpOrder | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [sendError, setSendError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
+
+  // Any edit to the amount, the bank or the account number starts a different
+  // withdrawal, so the previous attempt's result stops describing it. Without
+  // this the note survived every edit and every revisit of the screen, which
+  // is how a working offramp came to look broken.
+  const editing =
+    <T,>(set: (v: T) => void) =>
+    (v: T) => {
+      setFeedback(null);
+      set(v);
+    };
 
   const usdc = tokens.find(
     (tk) => tk.network === BASE.alchemyNetwork && tk.symbol.toUpperCase() === "USDC"
@@ -295,7 +307,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   }, [query, banks.data]);
 
   const pickBank = (b: SelectedBank) => {
-    setBank(b);
+    editing(setBank)(b);
     setQuery("");
     setShowBankPicker(false);
     setAccount("");
@@ -304,7 +316,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
 
   const onAccountChange = (raw: string) => {
     const next = raw.replace(/\D/g, "").slice(0, 10);
-    setAccount(next);
+    editing(setAccount)(next);
     resolve.reset();
     // Verify as soon as a full account number is entered, no extra tap.
     if (bank && next.length === 10) {
@@ -375,7 +387,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
 
   const submit = async () => {
     if (!bank || !verifiedName || !validAmount || !walletAddress) return;
-    setSendError(null);
+    setFeedback(null);
     setSubmitting(true);
     let broadcasting = false;
     try {
@@ -391,7 +403,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
       });
       setCreation(result);
       if (!result.depositAddress) {
-        setSendError(t("noAddress"));
+        setFeedback(asError(t("noAddress")));
         return;
       }
       broadcasting = true;
@@ -406,7 +418,11 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
     } catch (e) {
       // Past broadcast, a failure can't be reported as "not sent": the transfer
       // may already be on-chain. Surface an unconfirmed note instead.
-      setSendError(broadcasting ? t("sendUnconfirmed") : friendlyError(e, t("createFailed")));
+      // Past broadcast this is a notice, not an error: the transfer may
+      // already be on chain, so it is never shown in the failure colour.
+      setFeedback(
+        broadcasting ? asNotice(t("sendUnconfirmed")) : asError(friendlyError(e, t("createFailed")))
+      );
     } finally {
       setSubmitting(false);
     }
@@ -560,7 +576,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
               value={formatAmountInput(amountInput)}
               onChange={(e) => {
                 const raw = e.target.value.replace(/,/g, "");
-                if (DECIMAL.test(raw)) setAmountInput(raw);
+                if (DECIMAL.test(raw)) editing(setAmountInput)(raw);
               }}
               placeholder={entry === "ngn" ? "0" : "0.00"}
               className="ws-display tnum w-full border-none bg-transparent text-[42px] text-white outline-none placeholder:text-white/40"
@@ -597,7 +613,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
           </div>
         </div>
 
-        {sendError ? <p className="text-down mt-3 text-[13px]">{sendError}</p> : null}
+        <FormFeedback feedback={feedback} />
 
         <button
           onClick={submit}
@@ -682,7 +698,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         continue
       </button>
 
-      {sendError ? <p className="text-down mt-3 text-[13px]">{sendError}</p> : null}
+      <FormFeedback feedback={feedback} />
 
       {/* Beneficiary tabs */}
       <div className="mt-8 flex items-center justify-between px-2">

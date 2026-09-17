@@ -41,6 +41,7 @@ import {
   extractScannedAddress,
 } from "@/lib/wallet-address";
 import { friendlyError } from "@/lib/errors";
+import { FormFeedback, asError, asNotice, type Feedback } from "@/components/ui/form-feedback";
 import { isSubmittedEvmOperationError } from "@/lib/trade/sponsor";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
@@ -184,7 +185,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   const [amount, setAmount] = useState("");
   const [debouncedAmount, setDebouncedAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [depositRequestId, setDepositRequestId] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -354,7 +355,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
   const submit = async () => {
     if (!selectedDestination) return;
-    setError(null);
+    setFeedback(null);
     setSubmitting(true);
     // One processing toast that resolves in place; dismissed if we bail on a
     // validation check before anything is actually sent.
@@ -384,7 +385,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         return;
       }
       if (!refundTo) {
-        setError(t("walletNotReady"));
+        setFeedback(asError(t("walletNotReady")));
         toast.dismiss(toastId);
         return;
       }
@@ -392,7 +393,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       // withdrawal, bound to the exact amount and recipient, with a full
       // unexpired window on its deposit address.
       if (!quoteInput) {
-        setError(t("walletNotReady"));
+        setFeedback(asError(t("walletNotReady")));
         toast.dismiss(toastId);
         return;
       }
@@ -400,7 +401,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       try {
         fresh = await createWithdrawQuote(quoteInput);
       } catch (e) {
-        setError(quoteErrorMessage(e, t));
+        setFeedback(asError(quoteErrorMessage(e, t)));
         toast.dismiss(toastId);
         return;
       }
@@ -433,10 +434,13 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       // bundler: it wraps failures after eth_sendUserOperation returned a hash.
       // Validation, signing and pre-submission failures remain safe to retry.
       if (isSubmittedEvmOperationError(e)) {
-        setError(t("withdrawalUnconfirmed"));
-        toast.error(t("withdrawalUnconfirmedToast"), { id: toastId });
+        // Submitted, not failed: the operation reached the bundler, so the
+        // withdrawal may still complete. Neither the message nor the toast
+        // may dress that as a failure.
+        setFeedback(asNotice(t("withdrawalUnconfirmed")));
+        toast.info(t("withdrawalUnconfirmedToast"), { id: toastId });
       } else {
-        setError(friendlyError(e, t("withdrawalNotSentFallback")));
+        setFeedback(asError(friendlyError(e, t("withdrawalNotSentFallback"))));
         toast.error(t("withdrawalNotSent"), { id: toastId });
       }
     } finally {
@@ -822,7 +826,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
               </div>
             )}
 
-            {error && <div className="text-down mt-3 text-[13px] font-normal">{error}</div>}
+            <FormFeedback feedback={feedback} />
 
             <button
               onClick={() => void submit()}

@@ -782,7 +782,8 @@
     "switchMarket": "Markt wechseln",
     "close": "Schließen",
     "signIn": "Anmelden",
-    "openDashboard": "Dashboard öffnen"
+    "openDashboard": "Dashboard öffnen",
+    "loading": "Wird geladen…"
   },
   "portfolio": {
     "valuationUnavailable": "Bewertung nicht verfügbar",

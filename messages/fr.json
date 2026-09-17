@@ -782,7 +782,8 @@
     "switchMarket": "Changer de marché",
     "close": "Fermer",
     "signIn": "Se connecter",
-    "openDashboard": "Ouvrir le tableau de bord"
+    "openDashboard": "Ouvrir le tableau de bord",
+    "loading": "Chargement…"
   },
   "portfolio": {
     "valuationUnavailable": "Valorisation indisponible",

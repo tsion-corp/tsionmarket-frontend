@@ -11,6 +11,7 @@ import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
 import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
 import { ModalShell } from "@/components/ui/modal-shell";
+import { ModalLoading } from "@/components/layout/modals/modal-loading";
 import { PortfolioFab } from "@/features/portfolio/components/portfolio-fab";
 import { InviteFriendsModal, useClaimReferralFromLink } from "@/features/referrals";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
@@ -25,11 +26,11 @@ import type { SectionId } from "@/lib/sections";
 // quick-action dial is opened.
 const FundsModal = dynamic(
   () => import("@/features/funds/components/funds-modal").then((m) => m.FundsModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 const WithdrawModal = dynamic(
   () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
-  { ssr: false }
+  { ssr: false, loading: () => <ModalLoading /> }
 );
 
 interface DashboardShellProps {
