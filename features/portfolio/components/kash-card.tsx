@@ -226,6 +226,7 @@ export function KashCard({
             >
               <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>
               <span className="whitespace-nowrap">KASH +</span>
+              <span className="ml-2 text-[0.38em] font-normal">ESP</span>
             </div>
             <div className="flex max-w-full flex-wrap items-center justify-center gap-[6.05px] px-2 font-serif text-[16px] leading-[21.93px] font-medium tracking-[-0.08px] text-black/80">
               {/* The unit price, so the holding above is checkable rather than a

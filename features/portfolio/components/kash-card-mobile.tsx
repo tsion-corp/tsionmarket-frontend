@@ -117,7 +117,8 @@ export function KashCardMobile({ onBuy, onConvert, onHistory }: KashCardMobilePr
           ) : (
             <>
               <div className="tnum ws-display text-[9.3cqw] leading-none font-bold tracking-[-0.02em] whitespace-nowrap">
-                {balanceDisplay} KASH+
+                {balanceDisplay} KASH+{" "}
+                <span className="ml-[1.5cqw] text-[0.42em] font-normal">ESP</span>
               </div>
               {unitPrice && (
                 <div className="mt-[3.5cqw] flex items-center justify-center gap-[1cqw] text-[2.7cqw] font-medium text-black/55">
