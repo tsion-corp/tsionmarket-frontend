@@ -24,10 +24,11 @@ export function LegacyChessBalance() {
   const { mask } = useBalanceVisibility();
   const [open, setOpen] = useState(false);
 
-  if (!cashier.configured || !hasPositiveUsdc(cashier.total)) return null;
+  if (!cashier.configured) return null;
 
   const displayBalance = mask(money.format(Number(cashier.total)));
   const canMove = hasPositiveUsdc(cashier.available) && !cashier.withdrawing;
+  const hasLockedFunds = hasPositiveUsdc(cashier.locked);
 
   const moveToProfile = async () => {
     const amount = cashier.available;
@@ -95,7 +96,7 @@ export function LegacyChessBalance() {
             </span>
           </div>
 
-          {hasPositiveUsdc(cashier.locked) ? (
+          {hasLockedFunds ? (
             <p className="mt-3 text-[12.5px] leading-normal text-white/55">
               {cashier.locked} USD is still locked and will become movable after it is released.
             </p>
@@ -109,9 +110,11 @@ export function LegacyChessBalance() {
           >
             {cashier.withdrawing
               ? "Moving to profile..."
-              : canMove
-                ? `Move ${cashier.available} USD to profile`
-                : "Funds are still locked"}
+                : canMove
+                  ? `Move ${cashier.available} USD to profile`
+                  : hasLockedFunds
+                    ? "Funds are still locked"
+                    : "No in-play funds"}
           </button>
 
           {cashier.config?.withdrawalFeeBps ? (

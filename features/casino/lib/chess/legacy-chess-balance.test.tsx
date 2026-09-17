@@ -68,10 +68,15 @@ describe("LegacyChessBalance", () => {
     state.refetchUntilChanged.mockReset().mockResolvedValue(true);
   });
 
-  it("stays out of the navigation when no legacy funds are available", () => {
+  it("shows a zero in-play balance when no legacy funds are available", () => {
     render(<LegacyChessBalance />);
 
-    expect(screen.queryByText("In play")).not.toBeInTheDocument();
+    expect(screen.getByText("In play")).toBeInTheDocument();
+    expect(screen.getByText("$0.00")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /legacy in-play balance/i }));
+
+    expect(screen.getByRole("button", { name: "No in-play funds" })).toBeDisabled();
   });
 
   it("remains visible while legacy funds are locked", () => {
