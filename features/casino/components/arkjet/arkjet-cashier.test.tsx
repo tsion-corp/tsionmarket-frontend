@@ -3,7 +3,12 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 
-const mocks = vi.hoisted(() => ({ funding: vi.fn(), deposit: vi.fn(), retry: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  funding: vi.fn(),
+  deposit: vi.fn(),
+  recoverDeposit: vi.fn(),
+  retry: vi.fn(),
+}));
 vi.mock("@/features/casino/hooks/use-arkjet-funding", () => ({
   useArkjetFunding: mocks.funding,
 }));
@@ -28,7 +33,9 @@ function fundingState() {
     configUnavailable: false,
     configError: null,
     depositing: false,
+    recoveringDeposit: false,
     withdrawing: false,
+    pendingDepositHash: null,
     config: {
       currency: "USDC",
       currencyDecimalPlaces: 6,
@@ -40,6 +47,7 @@ function fundingState() {
       withdrawalFeeBps: 100,
     },
     deposit: mocks.deposit,
+    recoverDeposit: mocks.recoverDeposit,
     retryConfig: mocks.retry,
   };
 }
@@ -56,6 +64,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.funding.mockReturnValue(fundingState());
   mocks.deposit.mockResolvedValue({ txHash: "0xconfirmed", credited: "0.1" });
+  mocks.recoverDeposit.mockResolvedValue({ txHash: `0x${"a".repeat(64)}`, credited: "0.1" });
 });
 
 describe("USDC cashier", () => {
@@ -100,5 +109,17 @@ describe("USDC cashier", () => {
     expect(
       screen.queryByRole("button", { name: "Transfer USDC and add funds" })
     ).not.toBeInTheDocument();
+  });
+
+  it("recovers a transferred deposit without sending USDC again", async () => {
+    const txHash = `0x${"a".repeat(64)}`;
+    mocks.funding.mockReturnValue({ ...fundingState(), pendingDepositHash: txHash });
+    mountCashier();
+
+    expect(screen.getByRole("textbox", { name: "Base transaction hash" })).toHaveValue(txHash);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm transfer" }));
+
+    await waitFor(() => expect(mocks.recoverDeposit).toHaveBeenCalledWith(txHash));
+    expect(mocks.deposit).not.toHaveBeenCalled();
   });
 });

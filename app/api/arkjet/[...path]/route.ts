@@ -10,12 +10,16 @@ import {
 // Keep browsers on the app origin. In development the proxy talks directly to
 // the Rust worker; production uses the normal /v1/arkjet gateway registration.
 const LOCAL_DEV_ARKJET_API = "http://127.0.0.1:8096";
-const UPSTREAMS = upstreamCandidates(
+const DEPLOYED_UPSTREAMS = upstreamCandidates(
   process.env.ARKJET_API_URL,
-  process.env.NODE_ENV === "development" ? LOCAL_DEV_ARKJET_API : undefined,
   process.env.NEXT_PUBLIC_ARKJET_API_URL,
   wsapiService("arkjet")
 );
+// A funding read and its confirmation must hit the same ledger. Falling back
+// to a deployed service in development can send real USDC to that service's
+// custody address and then confirm it against the local database.
+const UPSTREAMS =
+  process.env.NODE_ENV === "development" ? [LOCAL_DEV_ARKJET_API] : DEPLOYED_UPSTREAMS;
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 const PUBLIC_READ =

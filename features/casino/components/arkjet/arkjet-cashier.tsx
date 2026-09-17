@@ -26,6 +26,7 @@ interface ArkjetCashierProps {
 }
 
 const DECIMAL = /^\d*\.?\d*$/;
+const TRANSACTION_HASH = /^0x[0-9a-fA-F]{64}$/;
 const NETWORK = "base-mainnet";
 const SCOPE = [NETWORK] as const;
 
@@ -47,6 +48,7 @@ export function ArkjetCashier({
   const [mode, setMode] = useState<CashierMode>("deposit");
   const [amount, setAmount] = useState("");
   const [awaitingCredit, setAwaitingCredit] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState<string | null>(null);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -57,6 +59,7 @@ export function ArkjetCashier({
   }, [onClose]);
 
   const config = funding.config;
+  const recoveryHash = recoveryInput ?? funding.pendingDepositHash ?? "";
   const token = config
     ? portfolio.tokens.find(
         (item) =>
@@ -83,7 +86,7 @@ export function ArkjetCashier({
   const belowMinimum = enteredMinor > 0n && enteredMinor < minimumMinor;
   const overBalance = mode === "withdraw" && enteredMinor > availableMinor;
   const overWallet = mode === "deposit" && depositTokenUnits > walletRaw;
-  const busy = funding.depositing || funding.withdrawing;
+  const busy = funding.depositing || funding.recoveringDeposit || funding.withdrawing;
   const ready =
     normalized !== null &&
     !belowMinimum &&
@@ -147,6 +150,31 @@ export function ArkjetCashier({
       toast.error(friendlyError(error, `The ${productName} withdrawal could not be completed.`), {
         id: toastId,
       });
+    }
+  };
+
+  const recoverDeposit = async () => {
+    const txHash = recoveryHash.trim();
+    if (!TRANSACTION_HASH.test(txHash) || !config) return;
+    const toastId = toast.loading("Checking the Base USDC transfer…");
+    try {
+      const result = await funding.recoverDeposit(txHash);
+      if (result.credited) {
+        toast.success(`${money(result.credited, config.currency)} confirmed for ${productName}.`, {
+          id: toastId,
+        });
+        setRecoveryInput("");
+        setAwaitingCredit(false);
+      } else {
+        toast.dismiss(toastId);
+        setAwaitingCredit(true);
+      }
+    } catch (error) {
+      console.error("Arkjet deposit confirmation failed", error);
+      toast.error(
+        "The transfer is on Base, but the ledger credit is still pending. Wait a moment and confirm this transfer again; do not send more USDC.",
+        { id: toastId }
+      );
     }
   };
 
@@ -271,8 +299,8 @@ export function ArkjetCashier({
             ) : null}
             {awaitingCredit ? (
               <div className={styles.cashierPending}>
-                The USDC transfer succeeded. {productName} is waiting for{" "}
-                {config.requiredConfirmations} Base confirmation(s) before crediting the balance.
+                The USDC transfer succeeded, but the {productName} ledger credit is still pending.
+                Use Confirm transfer below; do not send USDC again.
               </div>
             ) : null}
 
@@ -290,6 +318,34 @@ export function ArkjetCashier({
                   ? "Transfer USDC and add funds"
                   : "Withdraw to Privy wallet"}
             </button>
+
+            {mode === "deposit" ? (
+              <details
+                className={styles.cashierRecovery}
+                open={Boolean(funding.pendingDepositHash)}
+              >
+                <summary>USDC sent but balance missing?</summary>
+                <p>Paste the Base transaction hash to safely retry the ledger credit.</p>
+                <div className={styles.cashierRecoveryRow}>
+                  <input
+                    value={recoveryHash}
+                    inputMode="text"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    placeholder="0x…"
+                    aria-label="Base transaction hash"
+                    onChange={(event) => setRecoveryInput(event.target.value.trim())}
+                  />
+                  <button
+                    type="button"
+                    disabled={!TRANSACTION_HASH.test(recoveryHash) || funding.recoveringDeposit}
+                    onClick={() => void recoverDeposit()}
+                  >
+                    {funding.recoveringDeposit ? "Checking…" : "Confirm transfer"}
+                  </button>
+                </div>
+              </details>
+            ) : null}
 
             <div className={styles.cashierFootnote}>
               {t("settlement", { product: productName })}
