@@ -43,7 +43,13 @@ const account = (over: Partial<KashAccount> = {}): KashAccount =>
 
 function renderCard() {
   render(
-    <KashCard onBuy={() => {}} onConvert={() => {}} onHistory={() => {}} onUpgrade={() => {}} />,
+    <KashCard
+      onBuy={() => {}}
+      onSend={() => {}}
+      onConvert={() => {}}
+      onHistory={() => {}}
+      onUpgrade={() => {}}
+    />,
     { wrapper }
   );
 }
@@ -114,10 +120,10 @@ describe("KashCard balance states", () => {
 // Send is off the card for now; Buy and Convert stay. The send modal and its
 // wiring remain in the codebase, only the door is gone.
 describe("KashCard actions", () => {
-  it("offers Buy and Convert but not Send", () => {
+  it("offers Buy, Send, and Convert", () => {
     renderCard();
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
   });
 });

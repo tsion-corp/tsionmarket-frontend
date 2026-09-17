@@ -245,6 +245,24 @@ export function pointsToKash(
 }
 
 /**
+ * The USD value of a KSH amount at the live price, formatted to cents. This is
+ * an approximation shown beside the amount ("≈ $X.XX"), never a transacted
+ * figure: the send moves the exact KSH amount, the dollar line is only
+ * orientation. Returns null when the amount or price is missing or unusable, so
+ * the caller can hide the line rather than render "$NaN".
+ */
+export function kashToUsd(kashAmount: string, kashPriceUsd: string | undefined): string | null {
+  const kash = Number(kashAmount);
+  const price = Number(kashPriceUsd);
+  if (!Number.isFinite(kash) || kash <= 0) return null;
+  if (!Number.isFinite(price) || price <= 0) return null;
+  return (kash * price).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+/**
  * A KSH amount for display: thousands separators, and no more precision than a
  * reader can use. Balances run to five or six figures, and an unseparated
  * 1994000 is unreadable at a glance.

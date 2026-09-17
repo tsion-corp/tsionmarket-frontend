@@ -370,6 +370,7 @@ export function PortfolioView({
         />
         <KashCard
           onBuy={() => setKashModal("buy")}
+          onSend={() => setKashModal("send")}
           onClaim={
             kashWallet
               ? () =>

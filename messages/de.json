@@ -2715,6 +2715,8 @@
     "sendSubtitle": "Sende KASH an jede Adresse. Keine Gebühren.",
     "sendRecipient": "Empfängeradresse",
     "sendBadAddress": "Das sieht nicht nach einer gültigen Adresse aus.",
+    "sendLookingUp": "Wird gesucht…",
+    "sendUnknownName": "Wir konnten diesen Namen nicht finden.",
     "sendToSelf": "Das ist deine eigene Adresse.",
     "sendUnavailableOffchain": "Senden ist möglich, sobald KASH startet. Aktuell sind Guthaben Vorstart-Gutschriften, die die Plattform nicht verlassen können.",
     "sendCta": "Kash+ senden",

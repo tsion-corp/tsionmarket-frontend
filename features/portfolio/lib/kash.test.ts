@@ -7,6 +7,7 @@ import {
   formatKashAmount,
   gateProgress,
   isValidKashAmount,
+  kashToUsd,
   pointsToKash,
   settlesIn,
   revenueShareTiers,
@@ -105,6 +106,24 @@ describe("pointsToKash", () => {
     expect(pointsToKash("0", 0.001, "0.001")).toBeNull();
     expect(pointsToKash("80", undefined, "0.001")).toBeNull();
     expect(pointsToKash("80", 0.001, "0")).toBeNull();
+  });
+});
+
+describe("kashToUsd", () => {
+  it("multiplies the amount by the live price, to cents", () => {
+    expect(kashToUsd("1000", "0.0005")).toBe("0.50");
+    expect(kashToUsd("100000", "0.002")).toBe("200.00");
+  });
+
+  it("adds thousands separators for large values", () => {
+    expect(kashToUsd("1000000", "0.0025")).toBe("2,500.00");
+  });
+
+  it("returns null rather than NaN when the amount or price is unusable", () => {
+    expect(kashToUsd("0", "0.001")).toBeNull();
+    expect(kashToUsd("", "0.001")).toBeNull();
+    expect(kashToUsd("50", undefined)).toBeNull();
+    expect(kashToUsd("50", "0")).toBeNull();
   });
 });
 

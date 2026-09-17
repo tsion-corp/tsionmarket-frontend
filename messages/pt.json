@@ -2715,6 +2715,8 @@
     "sendSubtitle": "Envie KASH para qualquer endereço. Sem taxas.",
     "sendRecipient": "Endereço do destinatário",
     "sendBadAddress": "Isso não parece um endereço válido.",
+    "sendLookingUp": "Procurando…",
+    "sendUnknownName": "Não encontramos esse nome.",
     "sendToSelf": "Esse é o seu próprio endereço.",
     "sendUnavailableOffchain": "O envio abre quando o KASH for lançado. Por enquanto os saldos são créditos de pré-lançamento que não podem sair da plataforma.",
     "sendCta": "Enviar Kash+",
