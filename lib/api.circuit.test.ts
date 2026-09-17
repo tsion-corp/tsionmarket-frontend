@@ -18,6 +18,30 @@ afterEach(() => {
 });
 
 describe("apiFetch under an outage", () => {
+  it("honors Retry-After across Arkjet reads without blocking another service or writes", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 429, headers: { "Retry-After": "120" } }));
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      await apiFetch("/api/arkjet/rounds/current");
+      await expect(apiFetch("/api/arkjet/bets/balance")).rejects.toMatchObject({ status: 429 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      await apiFetch("/api/portfolio");
+      await apiFetch("/api/arkjet/bets", { method: "POST" });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(119_000);
+      await expect(apiFetch("/api/arkjet/rounds/current")).rejects.toMatchObject({ status: 429 });
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await apiFetch("/api/arkjet/rounds/current");
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   /**
    * The claim this app needs to be able to make: when the server is
    * unreachable, polling stops COSTING anything. Match state polls every

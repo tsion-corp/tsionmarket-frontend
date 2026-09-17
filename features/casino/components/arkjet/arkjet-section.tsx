@@ -234,7 +234,7 @@ function FairnessDialog({
 
 export function ArkjetSection() {
   const arkjet = useArkjet();
-  const portfolio = usePortfolio();
+  const portfolio = usePortfolio({ scope: "base" });
   const [menuOpen, setMenuOpen] = useState(false);
   const [fairnessOpen, setFairnessOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
@@ -262,8 +262,8 @@ export function ArkjetSection() {
 
   const wageringEnabled = arkjet.capabilities?.wageringEnabled === true;
   const settlementEnabled = arkjet.capabilities?.settlementEnabled === true;
-  const currency = arkjet.balance?.currency ?? arkjet.riskRules?.currency ?? "NGN";
-  const minimumBet = arkjet.riskRules?.minimumBet ?? "10.00";
+  const currency = arkjet.balance?.currency ?? arkjet.riskRules?.currency ?? "USDC";
+  const minimumBet = arkjet.riskRules?.minimumBet ?? "0.10";
   const minimumCashout = arkjet.riskRules?.minimumCashoutMultiplier ?? "1.10";
   const maximumCashout = arkjet.riskRules?.maximumCashoutMultiplier ?? "100.00";
   const activeBets = arkjet.bets.filter(

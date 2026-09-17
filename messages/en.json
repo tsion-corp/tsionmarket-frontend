@@ -3355,6 +3355,13 @@
     "statusCancelled": "Cancelled",
     "pendingNote": "Not in your holdings until confirmed."
   },
+  "arkjetFunding": {
+    "disabled": "Wallet funding is disabled on this deployment. {product} will not move funds until the USDC vault is configured.",
+    "temporary": "Wallet funding is temporarily unavailable.",
+    "retry": "Retry",
+    "settlement": "{product} balances settle 1:1 in Base USDC.",
+    "fee": "Fee: {amount} USDC."
+  },
   "tradeErrors": {
     "tokenBlocked": "This token has been blocked by our team, so it can't be traded.",
     "tokenRiskBlocked": "This token is blocked for safety reasons, so it can't be traded.",

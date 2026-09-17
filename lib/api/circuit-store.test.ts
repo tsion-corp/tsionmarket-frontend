@@ -7,6 +7,8 @@ import {
   circuitSnapshot,
   recordCircuitFailure,
   recordCircuitSuccess,
+  readRetryAt,
+  recordReadRateLimit,
   resetCircuitForTest,
   retryCircuitNow,
   useCircuit,
@@ -98,5 +100,25 @@ describe("circuit store", () => {
     recordCircuitFailure("/api/portfolio", 404, NOW);
     recordCircuitFailure("/api/portfolio", 429, NOW);
     expect(circuitSnapshot().state).toBe("closed");
+  });
+
+  it("honors an HTTP-date Retry-After for all reads of that service", () => {
+    const retryAt = NOW + 90_000;
+    recordReadRateLimit("/api/arkjet/rounds/current", new Date(retryAt).toUTCString(), NOW);
+    expect(readRetryAt("/api/arkjet/bets/balance", NOW)).toBe(retryAt);
+    expect(readRetryAt("/api/portfolio", NOW)).toBeNull();
+    expect(readRetryAt("/api/arkjet/rounds/current", retryAt)).toBeNull();
+  });
+
+  it.each([null, "invalid", "-2", "0"])("uses a safe cooldown for Retry-After %s", (header) => {
+    recordReadRateLimit("/api/arkjet/bets/balance", header, NOW);
+    expect(readRetryAt("/api/arkjet/rounds/current", NOW)).toBe(NOW + 60_000);
+  });
+
+  it("does not clear a rate-limit cooldown when an earlier request succeeds", () => {
+    recordReadRateLimit("/api/arkjet/bets/balance", "90", NOW);
+    recordCircuitSuccess("/api/arkjet/rounds/current");
+    recordReadRateLimit("/api/arkjet/bets/current", "1", NOW);
+    expect(readRetryAt("/api/arkjet/rounds/current", NOW)).toBe(NOW + 90_000);
   });
 });

@@ -137,7 +137,8 @@ export interface ArkjetFundingConfig {
   requiredConfirmations: number;
   currency: string;
   currencyDecimalPlaces: number;
-  ngnMinorPerUsdc: string;
+  ledgerMinorPerUsdc: string;
+  ngnMinorPerUsdc?: string;
   withdrawalFeeBps: number;
   withdrawalsEnabled: boolean;
   simulatedWithdrawals: boolean;

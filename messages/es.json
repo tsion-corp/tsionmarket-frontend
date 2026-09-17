@@ -3355,6 +3355,13 @@
     "statusCancelled": "Cancelada",
     "pendingNote": "No figura en tus tenencias hasta confirmarse."
   },
+  "arkjetFunding": {
+    "disabled": "Los depósitos desde la cartera están desactivados en este entorno. {product} no moverá fondos hasta que se configure la bóveda USDC.",
+    "temporary": "Los depósitos desde la cartera no están disponibles temporalmente.",
+    "retry": "Reintentar",
+    "settlement": "Los saldos de {product} se liquidan 1:1 en Base USDC.",
+    "fee": "Comisión: {amount} USDC."
+  },
   "tradeErrors": {
     "tokenBlocked": "Nuestro equipo ha bloqueado este token, así que no se puede operar.",
     "tokenRiskBlocked": "Este token está bloqueado por motivos de seguridad, así que no se puede operar.",

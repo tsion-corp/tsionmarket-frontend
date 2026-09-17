@@ -3355,6 +3355,13 @@
     "statusCancelled": "Storniert",
     "pendingNote": "Erst nach Bestätigung in deinem Bestand."
   },
+  "arkjetFunding": {
+    "disabled": "Wallet-Einzahlungen sind in dieser Bereitstellung deaktiviert. {product} bewegt keine Gelder, bis der USDC-Tresor konfiguriert ist.",
+    "temporary": "Wallet-Einzahlungen sind vorübergehend nicht verfügbar.",
+    "retry": "Erneut versuchen",
+    "settlement": "{product}-Guthaben werden 1:1 in Base USDC abgerechnet.",
+    "fee": "Gebühr: {amount} USDC."
+  },
   "tradeErrors": {
     "tokenBlocked": "Dieser Token wurde von unserem Team gesperrt und kann nicht gehandelt werden.",
     "tokenRiskBlocked": "Dieser Token ist aus Sicherheitsgründen gesperrt und kann nicht gehandelt werden.",

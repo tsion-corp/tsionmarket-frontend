@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import type { ArkjetBalance } from "@/features/casino/lib/api/arkjet";
 import { useArkjetFunding } from "@/features/casino/hooks/use-arkjet-funding";
 import {
   amountUnits,
-  fixedNgnPerUsdc,
-  ngnToDepositUsdc,
   normalizeArkjetAmount,
-  usdcUnitsToNgn,
   withdrawalUsdcEstimate,
 } from "@/features/casino/lib/arkjet-funding";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -43,8 +41,9 @@ export function ArkjetCashier({
   productName = "Arkjet",
   tone = "arkjet",
 }: ArkjetCashierProps) {
+  const t = useTranslations("arkjetFunding");
   const funding = useArkjetFunding();
-  const portfolio = usePortfolio();
+  const portfolio = usePortfolio({ scope: "base" });
   const [mode, setMode] = useState<CashierMode>("deposit");
   const [amount, setAmount] = useState("");
   const [awaitingCredit, setAwaitingCredit] = useState(false);
@@ -74,26 +73,12 @@ export function ArkjetCashier({
     ? toBaseUnits(balance?.available ?? "0", config.currencyDecimalPlaces)
     : 0n;
   const minimumMinor = config ? toBaseUnits(minimumAmount, config.currencyDecimalPlaces) : 0n;
-  const depositUsdc =
-    config && normalized
-      ? ngnToDepositUsdc(
-          normalized,
-          config.currencyDecimalPlaces,
-          config.tokenDecimals,
-          config.ngnMinorPerUsdc
-        )
-      : "0";
+  const depositUsdc = normalized ?? "0";
   const depositTokenUnits = config ? toBaseUnits(depositUsdc, config.tokenDecimals) : 0n;
   const withdrawal =
     config && normalized
-      ? withdrawalUsdcEstimate(
-          normalized,
-          config.currencyDecimalPlaces,
-          config.tokenDecimals,
-          config.ngnMinorPerUsdc,
-          config.withdrawalFeeBps
-        )
-      : { feeNgn: "0", receiveUsdc: "0" };
+      ? withdrawalUsdcEstimate(normalized, config.currencyDecimalPlaces, config.withdrawalFeeBps)
+      : { feeUsdc: "0", receiveUsdc: "0" };
 
   const belowMinimum = enteredMinor > 0n && enteredMinor < minimumMinor;
   const overBalance = mode === "withdraw" && enteredMinor > availableMinor;
@@ -113,14 +98,7 @@ export function ArkjetCashier({
       setAmount(balance?.available ?? "0");
       return;
     }
-    setAmount(
-      usdcUnitsToNgn(
-        walletRaw,
-        config.tokenDecimals,
-        config.currencyDecimalPlaces,
-        config.ngnMinorPerUsdc
-      )
-    );
+    setAmount(fromBaseUnits(walletRaw, config.tokenDecimals));
   };
 
   const switchMode = (next: CashierMode) => {
@@ -201,10 +179,14 @@ export function ArkjetCashier({
 
         {funding.configLoading ? (
           <div className={styles.cashierUnavailable}>Loading wallet funding…</div>
-        ) : !funding.configured || !config ? (
+        ) : funding.configUnavailable ? (
+          <div className={styles.cashierUnavailable}>{t("disabled", { product: productName })}</div>
+        ) : funding.configError || !funding.configured || !config ? (
           <div className={styles.cashierUnavailable}>
-            Wallet funding is disabled on this deployment. {productName} will not move funds until
-            the vault and conversion rate are configured.
+            {t("temporary")}
+            <button type="button" onClick={() => void funding.retryConfig()}>
+              {t("retry")}
+            </button>
           </div>
         ) : (
           <>
@@ -253,7 +235,7 @@ export function ArkjetCashier({
                   autoFocus
                   inputMode="decimal"
                   value={amount}
-                  placeholder="10.00"
+                  placeholder="0.10"
                   onChange={(event) =>
                     DECIMAL.test(event.target.value) && setAmount(event.target.value)
                   }
@@ -310,11 +292,9 @@ export function ArkjetCashier({
             </button>
 
             <div className={styles.cashierFootnote}>
-              Fixed conversion: 1 USDC ={" "}
-              {fixedNgnPerUsdc(config.ngnMinorPerUsdc, config.currencyDecimalPlaces)}{" "}
-              {config.currency}.
+              {t("settlement", { product: productName })}
               {mode === "withdraw" && config.withdrawalFeeBps > 0
-                ? ` Fee: ${withdrawal.feeNgn} ${config.currency}.`
+                ? ` ${t("fee", { amount: withdrawal.feeUsdc })}`
                 : ""}
             </div>
           </>

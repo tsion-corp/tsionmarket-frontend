@@ -96,6 +96,7 @@ export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {})
   );
   const balancePage = watchesBalance(usePathname());
   const pollMs = balancePage ? POLL_MS : GLANCED_POLL_MS;
+  const fullPortfolioKey = queryKeys.portfolio.byWallet(evm, solana);
 
   // Set while waiting for a just-made trade to show up, naming the networks
   // the trade touched so only those skip the server's caches. A ref because
@@ -105,6 +106,22 @@ export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {})
   const query = useQuery<Portfolio>({
     queryKey,
     enabled,
+    initialData: () => {
+      if (scope !== "base") return undefined;
+      const cached = queryClient.getQueryState<Portfolio>(fullPortfolioKey);
+      if (!cached?.data || cached.isInvalidated || cached.data.missing?.includes("base-mainnet")) {
+        return undefined;
+      }
+      const tokens = cached.data.tokens.filter((token) => token.network === "base-mainnet");
+      return {
+        ...cached.data,
+        tokens,
+        totalUsd: tokens.reduce((total, token) => total + token.valueUsd, 0),
+        missing: [],
+      };
+    },
+    // Retain the source timestamp: copying a stale balance must not make it fresh.
+    initialDataUpdatedAt: () => queryClient.getQueryState(fullPortfolioKey)?.dataUpdatedAt,
     queryFn: async () => {
       const params = new URLSearchParams();
       if (evm) params.set("evm", evm);

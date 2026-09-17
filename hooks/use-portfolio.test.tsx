@@ -58,6 +58,7 @@ describe("usePortfolio fresh reads", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    location.pathname = "/dashboard";
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     apiFetch.mockReset();
     apiFetch.mockImplementation(async () => answer(snapshot));
@@ -80,6 +81,35 @@ describe("usePortfolio fresh reads", () => {
     expect(requestedUrls()[0]).toBe(`/api/portfolio?evm=${EVM}&scope=base`);
     expect(client.getQueryData<Portfolio>(["portfolio", "base", EVM])).toEqual(snapshot);
     expect(client.getQueryData(["portfolio", EVM, null])).toBeUndefined();
+  });
+
+  it("reuses a fresh full-portfolio snapshot for Base without another request", async () => {
+    client.setQueryData(["portfolio", EVM, null], snapshot);
+    const { result } = renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(result.current.tokens).toEqual(snapshot.tokens);
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("does not reuse a portfolio whose Base source failed", async () => {
+    client.setQueryData(["portfolio", EVM, null], {
+      ...snapshot,
+      missing: ["base-mainnet"],
+    });
+    renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(requestedUrls()).toEqual([`/api/portfolio?evm=${EVM}&scope=base`]);
+  });
+
+  it("refreshes a stale portfolio using only Base and deduplicates consumers", async () => {
+    client.setQueryData(["portfolio", EVM, null], snapshot, {
+      updatedAt: Date.now() - 4 * 60_000,
+    });
+    location.pathname = "/casino/arkjet";
+    renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
+    renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(requestedUrls()).toEqual([`/api/portfolio?evm=${EVM}&scope=base`]);
   });
 
   // Balance pages recover partial snapshots without the old five-second RPC

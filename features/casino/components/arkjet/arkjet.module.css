@@ -347,6 +347,16 @@
   color: #8a8c93;
 }
 
+.cashierUnavailable button {
+  margin-left: 8px;
+  cursor: pointer;
+  border: 0;
+  background: transparent;
+  color: #f06b76;
+  font: inherit;
+  font-weight: 800;
+}
+
 .cashierSubmit {
   width: 100%;
   margin-top: 16px;

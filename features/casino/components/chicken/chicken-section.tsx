@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ChickenDifficulty, ChickenSession } from "@/features/casino/lib/api/arkjet";
 import { useChicken } from "@/features/casino/hooks/use-chicken";
+import { amountUnits, normalizeArkjetAmount, stepArkjetAmount } from "../../lib/arkjet-funding";
 import { ArkjetCashier } from "../arkjet/arkjet-cashier";
 import { ChickenCharacter, type ChickenAnimation } from "./chicken-character";
 import styles from "./chicken.module.css";
@@ -14,7 +15,7 @@ const DIFFICULTY_LABEL: Record<ChickenDifficulty, string> = {
   medium: "🐔 Medium",
   hard: "🍗 Hard",
 };
-const FAST_STAKES = [10, 25, 50, 100];
+const FAST_STAKES = [1, 2, 5, 10];
 const PLANES = [
   "plane-cargo",
   "plane-double-engine",
@@ -106,7 +107,7 @@ function LanePlane() {
 export function ChickenSection() {
   const game = useChicken();
   const [difficulty, setDifficulty] = useState<ChickenDifficulty>("medium");
-  const [amount, setAmount] = useState("10.00");
+  const [amount, setAmount] = useState("0.10");
   const [notice, setNotice] = useState<string | null>(null);
   const [cashierOpen, setCashierOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -134,7 +135,10 @@ export function ChickenSection() {
     visualSession?.steps.filter((item) => item.won && item.step <= revealedStep) ?? [];
   const currentWonStep = visibleSteps.at(-1)?.step ?? 0;
   const nextStep = currentStep + 1;
-  const currency = game.risk?.currency ?? game.balance?.currency ?? "NGN";
+  const currency = game.risk?.currency ?? game.balance?.currency ?? "USDC";
+  const minimumStake = game.risk?.minimumBet ?? "0.1";
+  const normalizedAmount = normalizeArkjetAmount(amount, 6);
+  const validAmount = amountUnits(normalizedAmount, 6) >= amountUnits(minimumStake, 6);
   const overlayVisible = menuOpen || historyOpen;
   const visualBusy = !["ready", "waiting"].includes(phase);
   const controlsLocked = game.pending || visualBusy;
@@ -630,11 +634,7 @@ export function ChickenSection() {
                 <button
                   type="button"
                   disabled={active || controlsLocked}
-                  onClick={() =>
-                    setAmount(
-                      String(Math.max(Number(game.risk?.minimumBet ?? 10), Number(amount) - 10))
-                    )
-                  }
+                  onClick={() => setAmount(stepArkjetAmount(amount, minimumStake, "decrease"))}
                   aria-label="Decrease stake"
                 >
                   −
@@ -644,8 +644,8 @@ export function ChickenSection() {
                   <input
                     type="number"
                     inputMode="decimal"
-                    min={game.risk?.minimumBet ?? "10"}
-                    step="0.01"
+                    min={game.risk?.minimumBet ?? "0.1"}
+                    step="0.000001"
                     disabled={active || controlsLocked}
                     value={amount}
                     onChange={(event) => setAmount(event.target.value)}
@@ -655,7 +655,7 @@ export function ChickenSection() {
                 <button
                   type="button"
                   disabled={active || controlsLocked}
-                  onClick={() => setAmount(String(Number(amount || 0) + 10))}
+                  onClick={() => setAmount(stepArkjetAmount(amount, minimumStake, "increase"))}
                   aria-label="Increase stake"
                 >
                   +
@@ -679,7 +679,7 @@ export function ChickenSection() {
                 <button
                   type="button"
                   className={styles.mainBet}
-                  disabled={controlsLocked || !amount || active}
+                  disabled={controlsLocked || !validAmount || active}
                   onClick={() => {
                     if (!game.authenticated) {
                       game.login();
@@ -723,7 +723,7 @@ export function ChickenSection() {
       {cashierOpen ? (
         <ArkjetCashier
           balance={game.balance}
-          minimumAmount={game.risk?.minimumBet ?? "10.00"}
+          minimumAmount={game.risk?.minimumBet ?? "0.10"}
           productName="Chicken Cross"
           tone="chicken"
           onClose={() => setCashierOpen(false)}

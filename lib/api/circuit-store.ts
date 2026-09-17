@@ -58,6 +58,7 @@ export function circuitServiceOf(path: string): string {
 }
 
 const circuits = new Map<string, CircuitSnapshot>();
+const readCooldowns = new Map<string, number>();
 const listeners = new Set<() => void>();
 
 // The summary the UI reads: the loud services folded into one snapshot. Kept
@@ -118,6 +119,26 @@ export function circuitAllows(path: string, now = Date.now()): boolean {
   return false;
 }
 
+export function readRetryAt(path: string, now = Date.now()): number | null {
+  const service = circuitServiceOf(path);
+  const retryAt = readCooldowns.get(service);
+  if (retryAt && retryAt > now) return retryAt;
+  readCooldowns.delete(service);
+  return null;
+}
+
+export function recordReadRateLimit(
+  path: string,
+  retryAfter: string | null,
+  now = Date.now()
+): void {
+  const seconds = retryAfter?.trim() ? Number(retryAfter) : NaN;
+  const parsed = Number.isFinite(seconds) ? now + seconds * 1_000 : Date.parse(retryAfter ?? "");
+  const retryAt = Number.isFinite(parsed) && parsed > now ? parsed : now + 60_000;
+  const service = circuitServiceOf(path);
+  readCooldowns.set(service, Math.max(readCooldowns.get(service) ?? 0, retryAt));
+}
+
 export function recordCircuitFailure(path: string, status?: number, now = Date.now()): void {
   if (!isCircuitFailure(status)) return;
   const service = circuitServiceOf(path);
@@ -146,6 +167,7 @@ export function retryCircuitNow(): void {
 /** Test seam: the breakers are module state, so a suite must be able to clear them. */
 export function resetCircuitForTest(): void {
   circuits.clear();
+  readCooldowns.clear();
   const before = summary;
   summary = CLOSED;
   if (before.state !== "closed") for (const listener of listeners) listener();

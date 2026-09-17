@@ -8,14 +8,15 @@ import type {
 } from "@/features/casino/lib/api/arkjet";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { amountUnits, normalizeArkjetAmount, stepArkjetAmount } from "../../lib/arkjet-funding";
 import styles from "./arkjet.module.css";
 
-const QUICK_AMOUNT_FACTORS = [1, 2, 5, 10];
+const QUICK_AMOUNTS = [1, 2, 5, 10];
 
 function validAmount(value: string): string {
   const cleaned = value.replace(/[^0-9.]/gu, "");
   const [whole = "", ...rest] = cleaned.split(".");
-  return rest.length ? `${whole}.${rest.join("").slice(0, 2)}` : whole;
+  return rest.length ? `${whole}.${rest.join("").slice(0, 6)}` : whole;
 }
 
 function fixedMultiplier(value: string): string {
@@ -73,18 +74,18 @@ export function ArkjetBetCard({
   onCashout,
 }: ArkjetBetCardProps) {
   const [mode, setMode] = useState<"bet" | "auto">("bet");
-  const minimum = Math.max(Number(minimumAmount) || 10, 0.01);
-  const [amount, setAmount] = useState(() => minimum.toFixed(2));
+  const minimum = normalizeArkjetAmount(minimumAmount, 6) ?? "0.1";
+  const [amount, setAmount] = useState(() => stepArkjetAmount("0", minimum, "increase"));
   const [cashout, setCashout] = useState("2.00");
   const idempotency = useRef<{ fingerprint: string; key: string } | null>(null);
-  const numericAmount = Number(amount) || 0;
+  const normalizedAmount = normalizeArkjetAmount(amount, 6);
   const autoCashout = Number(cashout) || 0;
   const minimumCashout = Math.max(Number(minimumCashoutMultiplier) || 1.1, 1);
   const maximumCashout = Math.max(Number(maximumCashoutMultiplier) || 100, minimumCashout);
   const currentMultiplier = Number(round.currentMultiplier) || 1;
   const panelId = slot === 1 ? "A" : "B";
   const canSubmitAmount =
-    numericAmount >= minimum &&
+    amountUnits(normalizedAmount, 6) >= amountUnits(minimum, 6) &&
     (mode === "bet" || (autoCashout >= minimumCashout && autoCashout <= maximumCashout));
 
   let action = "Wait for next round";
@@ -222,7 +223,7 @@ export function ArkjetBetCard({
               className={styles.stepButton}
               aria-label={`Decrease ticket ${slot}`}
               disabled={Boolean(activeBet) || busy}
-              onClick={() => setAmount(Math.max(minimum, numericAmount - minimum).toFixed(2))}
+              onClick={() => setAmount(stepArkjetAmount(amount, minimum, "decrease"))}
             >
               −
             </button>
@@ -239,17 +240,16 @@ export function ArkjetBetCard({
               className={styles.stepButton}
               aria-label={`Increase ticket ${slot}`}
               disabled={Boolean(activeBet) || busy}
-              onClick={() => setAmount((numericAmount + minimum).toFixed(2))}
+              onClick={() => setAmount(stepArkjetAmount(amount, minimum, "increase"))}
             >
               +
             </button>
           </div>
           <div className={styles.quickGrid}>
-            {QUICK_AMOUNT_FACTORS.map((factor) => {
-              const quick = minimum * factor;
+            {QUICK_AMOUNTS.map((quick) => {
               return (
                 <button
-                  key={factor}
+                  key={quick}
                   type="button"
                   className={styles.quickButton}
                   disabled={Boolean(activeBet) || busy}

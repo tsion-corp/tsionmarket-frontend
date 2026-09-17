@@ -11,9 +11,10 @@ import {
 } from "@/features/casino/lib/api/arkjet";
 import { ARKJET_KEYS } from "@/features/casino/hooks/use-arkjet";
 import { useSendToken } from "@/hooks/use-withdraw";
-import type { GatewayApiError } from "@/lib/api/envelope";
+import { errorStatus, type GatewayApiError } from "@/lib/api/envelope";
 import { getWalletAddress } from "@/lib/user";
 import { toBaseUnits } from "@/lib/trade/math";
+import { validateArkjetFundingConfig } from "@/features/casino/lib/arkjet-funding";
 
 const CONFIG_STALE_MS = 5 * 60_000;
 const CONFIRM_ATTEMPTS = 5;
@@ -33,7 +34,7 @@ function wait(ms: number): Promise<void> {
 
 function isFundingUnavailable(error: unknown): boolean {
   const code = (error as GatewayApiError | null)?.code;
-  return code === "CONFLICT" || code === "NOT_CONFIGURED" || code === "SERVICE_UNAVAILABLE";
+  return code === "CONFLICT" || code === "NOT_CONFIGURED";
 }
 
 function isDepositStillConfirming(error: unknown): boolean {
@@ -88,9 +89,11 @@ export function useArkjetFunding() {
 
   const config = useQuery({
     queryKey: ARKJET_KEYS.funding,
-    queryFn: fetchArkjetFundingConfig,
+    queryFn: async () => validateArkjetFundingConfig(await fetchArkjetFundingConfig()),
     staleTime: CONFIG_STALE_MS,
-    retry: (failureCount, error) => !isFundingUnavailable(error) && failureCount < 2,
+    throwOnError: false,
+    retry: (failureCount, error) =>
+      errorStatus(error) !== 429 && !isFundingUnavailable(error) && failureCount < 3,
   });
 
   const invalidateBalance = () => {
@@ -132,11 +135,12 @@ export function useArkjetFunding() {
   });
 
   const withdraw = useMutation({
-    mutationFn: async (amountNgn: string): Promise<ArkjetWithdrawal> => {
+    mutationFn: async (amountUsdc: string): Promise<ArkjetWithdrawal> => {
+      if (!config.data) throw new Error("Arkjet wallet funding is not configured.");
       if (!ready || !authenticated || !wallet) throw new Error("Connect your Privy wallet first.");
-      const idempotencyKey = getWithdrawalIdempotencyKey(wallet, amountNgn);
-      const result = await createArkjetWithdrawal(amountNgn, idempotencyKey);
-      clearWithdrawalIdempotencyKey(wallet, amountNgn);
+      const idempotencyKey = getWithdrawalIdempotencyKey(wallet, amountUsdc);
+      const result = await createArkjetWithdrawal(amountUsdc, idempotencyKey);
+      clearWithdrawalIdempotencyKey(wallet, amountUsdc);
 
       if (result.status === "FAILED") {
         throw new Error("The withdrawal failed and your Arkjet balance was restored. Try again.");
@@ -148,8 +152,11 @@ export function useArkjetFunding() {
 
   return {
     configured: config.isSuccess,
+    configUnavailable: config.isError && isFundingUnavailable(config.error),
+    configError: config.isError && !isFundingUnavailable(config.error) ? config.error : null,
     config: config.data ?? null,
     configLoading: config.isLoading,
+    retryConfig: config.refetch,
     wallet,
     deposit: deposit.mutateAsync,
     depositing: deposit.isPending,

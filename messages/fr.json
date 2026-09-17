@@ -3355,6 +3355,13 @@
     "statusCancelled": "Annulée",
     "pendingNote": "Pas dans tes avoirs avant confirmation."
   },
+  "arkjetFunding": {
+    "disabled": "Les dépôts depuis le portefeuille sont désactivés sur ce déploiement. {product} ne déplacera aucun fonds tant que le coffre USDC ne sera pas configuré.",
+    "temporary": "Les dépôts depuis le portefeuille sont temporairement indisponibles.",
+    "retry": "Réessayer",
+    "settlement": "Les soldes {product} sont réglés à 1:1 en Base USDC.",
+    "fee": "Frais : {amount} USDC."
+  },
   "tradeErrors": {
     "tokenBlocked": "Ce jeton a été bloqué par notre équipe, il ne peut donc pas être échangé.",
     "tokenRiskBlocked": "Ce jeton est bloqué pour des raisons de sécurité, il ne peut donc pas être échangé.",

@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pollUnlessFailing } from "@/lib/query-poll";
+import { readRetryAt } from "@/lib/api/circuit-store";
 import {
   fetchArkjetChat,
   postArkjetMessage,
@@ -23,9 +25,12 @@ export function useArkjetChat(enabled: boolean) {
     queryKey: CHAT_KEY,
     queryFn: fetchArkjetChat,
     enabled,
-    refetchInterval: enabled ? 1_500 : false,
-    staleTime: 500,
-    retry: 2,
+    refetchInterval: pollUnlessFailing(10_000),
+    staleTime: 10_000,
+    retry: false,
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
   const send = useMutation({
     mutationFn: postArkjetMessage,
@@ -83,6 +88,7 @@ export function useArkjetChat(enabled: boolean) {
     if (!enabled) return;
     let active = true;
     const heartbeat = async () => {
+      if (document.visibilityState === "hidden" || readRetryAt("/api/arkjet/chat")) return;
       try {
         const presence = await refreshArkjetPresence();
         if (!active) return;
