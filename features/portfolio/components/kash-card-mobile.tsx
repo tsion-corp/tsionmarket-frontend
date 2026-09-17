@@ -42,6 +42,8 @@ function ApproxEqualsGlyph({ className }: { className?: string }) {
 
 interface KashCardMobileProps {
   onBuy: () => void;
+  /** Open the Send Kash modal. */
+  onSend: () => void;
   onConvert: () => void;
   onHistory: () => void;
 }
@@ -50,7 +52,7 @@ interface KashCardMobileProps {
 // 1:1565). The dark KashCard still serves `sm` and up; this stands in on a
 // phone. Same rewards data, same actions: the coin balance up top, the unit
 // price under it, and Buy / Convert along the bottom.
-export function KashCardMobile({ onBuy, onConvert, onHistory }: KashCardMobileProps) {
+export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCardMobileProps) {
   const t = useTranslations("kash");
   const { data: account, isError, walletMissing } = useKashAccount();
   const { data: status } = useKashStatus();
@@ -131,20 +133,29 @@ export function KashCardMobile({ onBuy, onConvert, onHistory }: KashCardMobilePr
           )}
         </div>
 
-        {/* Actions, above the cloud bank */}
-        <div className="grid grid-cols-2 gap-[1.9cqw]">
-          {/* Send is off the card for now. The modal and its wiring stay; only
-              the door is gone, so restoring it is this one pill. */}
+        {/* Actions, above the cloud bank. Three to a row, as the comp has them.
+            The label shrinks with the card rather than the row wrapping, so a
+            long one ("Umwandeln") still sits on its line on the narrowest
+            phone; the 14px padding keeps the tap target at full height either
+            way. */}
+        <div className="grid grid-cols-3 gap-[1.9cqw]">
+          <button
+            onClick={onSend}
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-white py-[14px] text-[min(15px,3.6cqw)] font-semibold whitespace-nowrap text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
+          >
+            <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw] rotate-180" />
+            {t("send")}
+          </button>
           <button
             onClick={onBuy}
-            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-white py-[14px] text-[15px] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-white py-[14px] text-[min(15px,3.6cqw)] font-semibold whitespace-nowrap text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
           >
             <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw]" />
             {t("buy")}
           </button>
           <button
             onClick={onConvert}
-            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-black py-[14px] text-[15px] font-semibold text-white shadow-[0_1.6px_3.3px_rgba(0,0,0,0.28)] transition-transform active:scale-[0.98]"
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-black py-[14px] text-[min(15px,3.6cqw)] font-semibold whitespace-nowrap text-white shadow-[0_1.6px_3.3px_rgba(0,0,0,0.28)] transition-transform active:scale-[0.98]"
           >
             <ArrowsLeftRightGlyph className="h-[3.7cqw] w-[3.7cqw]" />
             {t("convert")}
