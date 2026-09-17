@@ -1,30 +1,14 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { use } from "react";
-import { EventDetail } from "@/features/prediction";
-import {
-  isPredictionMarketCategory,
-  parsePredictionCategory,
-} from "@/features/prediction/categories";
-import { DiscoveryEventDetail } from "@/features/prediction/components/trending-event-detail";
-
-// One multi-outcome EVENT (Polymarket-style grouped market): the candidate/
-// outcome list, context + rules, and event comments. `id` is the group id or
-// slug. The auth guard and the app shell come from the (app) layout.
-export default function PredictionEventPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ id: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-}) {
-  const { id } = use(params);
-  const query = use(searchParams);
-  const category = parsePredictionCategory(
-    typeof query.category === "string" ? query.category : undefined
-  );
-  if (query.source === "markets" && isPredictionMarketCategory(category)) {
-    return <DiscoveryEventDetail eventId={id} category={category} />;
-  }
-  return <EventDetail idOrSlug={id} />;
+// Prediction is not offered on production: the gateway's `prediction` service,
+// which the sportsbook and combo routes behind this page call, answers 502 on
+// api.tsionark.com. `prediction-market` is a different service and is live;
+// this page does not use it.
+//
+// The route is kept as a redirect rather than deleted so a shared link or a
+// bookmark lands somewhere real instead of on a page whose every request
+// fails. Restoring the section is restoring this file from git and taking
+// "prediction" out of HIDDEN_NAV_SECTIONS in lib/sections.ts.
+export default function PredictionEventPage() {
+  redirect("/dashboard");
 }

@@ -291,10 +291,9 @@ function renderView() {
 }
 
 // The strip this build offers. TABS in the view is still the full catalogue;
-// Leverage is in HIDDEN_TABS, so it is not dealt. Prediction came off that
-// list on 2026-09-16 and takes the last seat again.
-const tabNames = ["Spot", "Memecoins", "Real assets", "Prediction"];
-const [SPOT, MEMES, RWA, PREDICTION] = [0, 1, 2, 3];
+// Leverage and Prediction are in HIDDEN_TABS, so they are not dealt.
+const tabNames = ["Spot", "Memecoins", "Real assets"];
+const [SPOT, MEMES, RWA] = [0, 1, 2];
 
 // Each tab names its own field, so a test says which list it is searching.
 // The Real assets and Prediction fields belong to those panels, not to this
@@ -373,6 +372,7 @@ describe("MobileMarketView chrome", () => {
       .map((t) => t.textContent?.trim());
     expect(found).toEqual(tabNames);
     expect(found).not.toContain("Leverage");
+    expect(found).not.toContain("Prediction");
   });
 
   it("marks only the active tab selected and keeps it the sole tab stop", () => {
@@ -431,26 +431,24 @@ describe("MobileMarketView chrome", () => {
     fireEvent.keyDown(tabs()[SPOT], { key: "ArrowRight" });
     expect(tabs()[MEMES]).toHaveAttribute("aria-selected", "true");
 
-    // End reaches Prediction, which is its own product route rather than a
-    // panel here: the strip hands off and the selection stays where it was.
     fireEvent.keyDown(tabs()[MEMES], { key: "End" });
-    expect(router.push).toHaveBeenCalledWith("/prediction");
-    expect(tabs()[MEMES]).toHaveAttribute("aria-selected", "true");
+    expect(tabs()[RWA]).toHaveAttribute("aria-selected", "true");
 
-    fireEvent.keyDown(tabs()[MEMES], { key: "Home" });
+    fireEvent.keyDown(tabs()[RWA], { key: "Home" });
     expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
 
-    // Wrapping backwards from the first tab opens Prediction's own route.
+    // Wrapping backwards from the first tab lands on the last offered tab.
+    // It used to open Prediction's own route, which this build does not offer.
     fireEvent.keyDown(tabs()[SPOT], { key: "ArrowLeft" });
-    expect(router.push).toHaveBeenLastCalledWith("/prediction");
-    expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
+    expect(tabs()[RWA]).toHaveAttribute("aria-selected", "true");
+    expect(router.push).not.toHaveBeenCalledWith("/prediction");
   });
 
   // Gap 5: the strip scrolls, so a selected tab off-screen must be brought in.
   it("scrolls the newly selected tab into view", () => {
     renderView();
     const scrollIntoView = vi.fn();
-    const target = tabs()[PREDICTION];
+    const target = tabs()[RWA];
     target.scrollIntoView = scrollIntoView;
     fireEvent.keyDown(tabs()[SPOT], { key: "End" });
     expect(scrollIntoView).toHaveBeenCalled();
@@ -484,9 +482,6 @@ describe("MobileMarketView chrome", () => {
   it("draws no field of its own for the panels that search themselves", () => {
     renderView();
     fireEvent.click(tabs()[RWA]);
-    expect(screen.queryAllByRole("searchbox")).toHaveLength(0);
-
-    fireEvent.click(tabs()[PREDICTION]);
     expect(screen.queryAllByRole("searchbox")).toHaveLength(0);
   });
 
@@ -624,21 +619,23 @@ describe("MobileMarketView chrome", () => {
   });
 });
 
-// Prediction has one responsive product shell. The Market strip remains an
-// entry point, but no longer mounts the retired phone-only market cards.
-describe("MobileMarketView, routing to Prediction", () => {
-  it("opens the standalone prediction route from the Prediction tab", () => {
+// Prediction is not offered on production: the gateway's `prediction` service
+// answers 502 there, so the strip neither deals the tab nor sends anyone to
+// the route behind it.
+describe("MobileMarketView, with Prediction not offered", () => {
+  it("deals no Prediction tab and never routes to it", () => {
     renderView();
-    fireEvent.click(tabs()[PREDICTION]);
-    expect(router.push).toHaveBeenCalledWith("/prediction");
+    expect(screen.queryByRole("tab", { name: "Prediction" })).toBeNull();
+    for (const tab of tabs()) fireEvent.click(tab);
+    expect(router.push).not.toHaveBeenCalledWith("/prediction");
   });
 
-  it("repairs a legacy prediction query URL without rendering the old cards", () => {
+  it("opens Spot for a legacy ?tab=prediction link rather than redirecting", () => {
     search.query = "tab=prediction";
     try {
       renderView();
-      expect(router.replace).toHaveBeenCalledWith("/prediction");
-      expect(screen.queryByRole("tabpanel")).not.toBeInTheDocument();
+      expect(router.replace).not.toHaveBeenCalledWith("/prediction");
+      expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
     } finally {
       search.query = "";
     }

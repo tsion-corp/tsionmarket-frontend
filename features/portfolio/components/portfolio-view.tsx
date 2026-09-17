@@ -56,7 +56,6 @@ import {
 } from "@/features/portfolio/lib/holdings";
 import { useMemePortfolio } from "@/features/portfolio/hooks/use-meme-portfolio";
 import { canSellAsset } from "@/lib/sell";
-import { isPolymarketCollateral } from "@/lib/polymarket/config";
 import type { MemeToken } from "@/lib/meme/api";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
@@ -171,28 +170,28 @@ export function PortfolioView({
     const meme = memeTokenOf(token);
     // A real balance nobody could price: its value is unknown, never "$0.00".
     const unpriced = isUnpricedHolding(token);
-    const isPredictionCollateral = isPolymarketCollateral(token.network, token.address);
     // Otherwise offer "Sell" only for assets Dextopus can take as an origin;
     // native POL/SOL, for example, cannot be sold, so we don't dead-end the user.
     const sellable = canSellAsset(token.network, token.address);
 
-    const buyAction = isPredictionCollateral
-      ? () => router.push("/prediction")
-      : isRwa
-        ? () =>
-            onOpenRwaTrade({
-              network: token.network,
-              address: token.address as string,
-              symbol: token.symbol,
-              mode: "buy",
-            })
-        : () =>
-            onOpenBuy({
-              symbol: token.symbol,
-              name: token.name,
-              priceUsd: token.priceUsd,
-              logo: token.logo,
-            });
+    // Polymarket collateral used to send the reader to /prediction here.
+    // Production does not offer that section, so the holding is an ordinary
+    // one: its balance still shows, it just has no prediction doorway.
+    const buyAction = isRwa
+      ? () =>
+          onOpenRwaTrade({
+            network: token.network,
+            address: token.address as string,
+            symbol: token.symbol,
+            mode: "buy",
+          })
+      : () =>
+          onOpenBuy({
+            symbol: token.symbol,
+            name: token.name,
+            priceUsd: token.priceUsd,
+            logo: token.logo,
+          });
 
     const sellAction = isRwa
       ? {
@@ -244,7 +243,7 @@ export function PortfolioView({
           v: unpriced ? t("valuationUnavailable") : money.format(token.valueUsd),
         },
       ],
-      cta: isPredictionCollateral ? t("managePrediction") : t("buyMore", { name: token.name }),
+      cta: t("buyMore", { name: token.name }),
       onCta: buyAction,
       ...sellAction,
       coingeckoId: coingeckoId(token.symbol) ?? undefined,

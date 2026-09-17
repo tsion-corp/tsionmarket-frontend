@@ -64,18 +64,17 @@ const REORDERABLE: SectionId[] = [
  * Real assets returned on 2026-09-09 once the gateway's rwa and gas-sponsor
  * services were confirmed live in production.
  *
- * Prediction returned on 2026-09-16: the gateway's `prediction` service is
- * live on api.tsionark.com and registers its sportsbook, combo and markets
- * routes, so everything behind /prediction has something to call again.
- *
- * Perpetuals stays listed, and it is a product decision rather than a backend
- * one: `perp` answers on production, but the desk is exercised on staging and
- * is not offered here yet.
+ * Perpetuals and Prediction are listed on 2026-09-16. Perps is a product
+ * decision: the desk is exercised on staging and is not offered here yet.
+ * Prediction is not a choice at all, it is what production can serve. The
+ * gateway's `prediction` service answers 502 on api.tsionark.com, so the
+ * sportsbook and combo routes behind /prediction have nothing to call. Note
+ * that `prediction-market`, a different service, IS live; it is unaffected.
  *
  * To offer a section again, take its id out of this list; nothing else
  * changes.
  */
-export const HIDDEN_NAV_SECTIONS: readonly SectionId[] = ["perps"];
+export const HIDDEN_NAV_SECTIONS: readonly SectionId[] = ["perps", "prediction"];
 
 // Sections that are their own page rather than an anchor.
 export const SECTION_ROUTES: Partial<Record<SectionId, string>> = {

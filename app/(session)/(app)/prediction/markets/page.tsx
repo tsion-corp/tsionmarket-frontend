@@ -1,61 +1,14 @@
-import dynamic from "next/dynamic";
-import {
-  isPredictionMarketCategory,
-  parsePredictionCategory,
-} from "@/features/prediction/categories";
-import {
-  SportsbookShell,
-  type SportsbookEventKind,
-  type SportsbookGameState,
-} from "@/features/prediction/sportsbook";
-import type { DiscoveryMarketSort } from "@/features/prediction/markets/api";
+import { redirect } from "next/navigation";
 
-const CategoryMarketsShell = dynamic(() =>
-  import("@/features/prediction/components/politics-markets-shell").then(
-    (module) => module.CategoryMarketsShell
-  )
-);
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-export default async function PredictionMarketsPage({
-  searchParams,
-}: {
-  searchParams: SearchParams;
-}) {
-  const query = await searchParams;
-  const value = (key: string) => {
-    const candidate = query[key];
-    return typeof candidate === "string" ? candidate : "";
-  };
-  const requestedState = value("state");
-  const state: SportsbookGameState =
-    requestedState === "live" || requestedState === "all" ? requestedState : "prematch";
-  const requestedKind = value("kind");
-  const eventKind: SportsbookEventKind =
-    requestedKind === "virtual" || requestedKind === "esports" ? requestedKind : "sports";
-  const category = parsePredictionCategory(value("category"));
-  const requestedSort = value("sort");
-  const sort: DiscoveryMarketSort =
-    requestedSort === "volume" ||
-    requestedSort === "liquidity" ||
-    requestedSort === "newest" ||
-    requestedSort === "ending_soon"
-      ? requestedSort
-      : "volume_24h";
-
-  if (isPredictionMarketCategory(category)) {
-    return <CategoryMarketsShell key={`${category}:${sort}`} category={category} sort={sort} />;
-  }
-
-  return (
-    <SportsbookShell
-      requestedSport={value("sport") || "football"}
-      country={value("country")}
-      league={value("league")}
-      state={state}
-      eventKind={eventKind}
-      initialView={value("view") === "tickets" ? "tickets" : "markets"}
-    />
-  );
+// Prediction is not offered on production: the gateway's `prediction` service,
+// which the sportsbook and combo routes behind this page call, answers 502 on
+// api.tsionark.com. `prediction-market` is a different service and is live;
+// this page does not use it.
+//
+// The route is kept as a redirect rather than deleted so a shared link or a
+// bookmark lands somewhere real instead of on a page whose every request
+// fails. Restoring the section is restoring this file from git and taking
+// "prediction" out of HIDDEN_NAV_SECTIONS in lib/sections.ts.
+export default function PredictionMarketsPage() {
+  redirect("/dashboard");
 }
