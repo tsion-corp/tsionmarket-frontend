@@ -6,6 +6,7 @@ import { scrollToSection } from "@/lib/scroll";
 import { isNavTarget, type TradePrefill } from "@/lib/voice/intent";
 import { prefillToQuery } from "@/lib/voice/prefill";
 import { SECTION_ROUTES } from "@/lib/sections";
+import { isSquareZonePath, openSquareZone } from "@/lib/square-zone";
 
 // The one place that knows how to move between app sections: a section listed
 // in SECTION_ROUTES is a real route, so it always navigates there; every other
@@ -44,7 +45,13 @@ export function useAppNavigate(): (id: string, prefill?: TradePrefill) => void {
           scrollToSection("portfolio");
           return;
         }
-        router.push(query ? `${route}?${query}` : route);
+        const target = query ? `${route}?${query}` : route;
+        // The Square is its own app (lib/square-zone): a full load, not a push.
+        if (isSquareZonePath(target)) {
+          openSquareZone(target);
+          return;
+        }
+        router.push(target);
         return;
       }
       if ((pathname === "/portfolio" || pathname === "/dashboard") && !query) {

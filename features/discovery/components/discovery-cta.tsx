@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { isSquareZonePath } from "@/lib/square-zone";
 
 // The padding contract for every discovery pill.
 //
@@ -140,11 +141,22 @@ export function DiscoveryCta({
       </button>
     );
   }
-  return external ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" style={style} className={classes}>
-      {content}
-    </a>
-  ) : (
+  if (external) {
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" style={style} className={classes}>
+        {content}
+      </a>
+    );
+  }
+  // /square is the Square's own app (lib/square-zone): same tab, full load.
+  if (isSquareZonePath(href)) {
+    return (
+      <a href={href} style={style} className={classes}>
+        {content}
+      </a>
+    );
+  }
+  return (
     <Link href={href} style={style} className={classes}>
       {content}
     </Link>

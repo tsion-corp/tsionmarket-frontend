@@ -46,6 +46,19 @@ if (process.env.NODE_ENV === "production" && !process.env.NEXT_PUBLIC_PRIVY_APP_
   );
 }
 
+/** The Square zone's rewrites, or none when its deployment URL is not set. */
+function squareZoneRewrites(raw: string | undefined) {
+  const zone = raw?.trim().replace(/\/+$/, "");
+  if (!zone) return [];
+  if (!/^https:\/\/[a-z0-9.-]+$/i.test(zone)) {
+    throw new Error(`SQUARE_ZONE_URL must be an https origin with no path, got "${zone}"`);
+  }
+  return [
+    { source: "/square", destination: `${zone}/square` },
+    { source: "/square/:path*", destination: `${zone}/square/:path*` },
+  ];
+}
+
 const nextConfig: NextConfig = {
   // Stamped into the client bundle so analytics can attribute an event to the
   // release it came from. Read from package.json, so it moves with a version
@@ -74,6 +87,13 @@ const nextConfig: NextConfig = {
   // as fallback aliases because the upstream CSS and runtime build them.
   async rewrites() {
     return {
+      // MARKET SQUARE IS A NEXT.JS MULTI-ZONE. /square and everything under it
+      // is served by the Square's own deployment, whose build answers under
+      // /square (its NEXT_PUBLIC_SQUARE_BASE_PATH), so the prefix is kept in
+      // the destination. beforeFiles, so nothing in this app can shadow it.
+      // Unset (local dev without the zone), /square is simply not found here.
+      // Every link into it is a full page load: see lib/square-zone.ts.
+      beforeFiles: squareZoneRewrites(process.env.SQUARE_ZONE_URL),
       fallback: [
         {
           source: "/npm/:path*",

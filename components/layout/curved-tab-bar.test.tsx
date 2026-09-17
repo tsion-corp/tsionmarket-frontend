@@ -83,15 +83,23 @@ describe("CurvedTabBar", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("sends the Square seat to the app's own Square page, as the desktop rail does", () => {
-    // The rail's entry opens /square in-app (ADR-2026-09-12); the phone seat
-    // opened the Square's deployment in a new tab instead (ogazboiz, 2026-09-13).
+  it("sends the Square seat to /square in this tab, as a full page load", () => {
+    // /square is the Square's own app (lib/square-zone): a client push would
+    // ask this build for a route it no longer has, and a new tab loses Ark.
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...original, assign },
+    });
     const { onNavigate } = renderBar();
     fireEvent.click(screen.getByRole("button", { name: "Square" }));
-    expect(router.push).toHaveBeenCalledWith("/square");
+    expect(assign).toHaveBeenCalledWith("/square");
+    expect(router.push).not.toHaveBeenCalledWith("/square");
     expect(open).not.toHaveBeenCalled();
     expect(onNavigate).not.toHaveBeenCalled();
+    Object.defineProperty(window, "location", { configurable: true, value: original });
     open.mockRestore();
   });
 

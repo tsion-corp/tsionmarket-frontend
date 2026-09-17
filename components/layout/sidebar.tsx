@@ -11,6 +11,7 @@ import type { DashboardSection } from "@/lib/modal-types";
 import { deriveProfile } from "@/lib/user";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
+import { SQUARE_ZONE_PATH } from "@/lib/square-zone";
 import { AccountPopover } from "@/components/layout/account-popover";
 
 interface SidebarProps {
@@ -151,19 +152,20 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
         <nav className="flex min-h-0 flex-col gap-[3px] overflow-x-hidden overflow-y-auto">
           {items.slice(0, squareIndex).map(renderItem)}
 
-          {/* Market Square has a page of its own at /square (ADR-2026-09-12
-              square-page-in-app), and the design gives it an ordinary rail row
-              between Prediction and Arkade. It is a next/link like the logo
-              above rather than a nav button: the square is not in the
-              reorderable section list, so it is seated here by hand. The
-              outbound "Open the Square" sits on the page's header. With the
-              square hidden it renders nothing rather than a dead entry, and
+          {/* Market Square lives at /square, and the design gives it an
+              ordinary rail row between Prediction and Arkade. /square is the
+              Square's OWN app (a Next.js Multi-Zone, lib/square-zone), so this
+              is a plain anchor — a full page load — not a next/link, which
+              would ask this build for a route it no longer has. The square is
+              not in the reorderable section list, so it is seated here by
+              hand. With the square hidden it renders nothing rather than a
+              dead entry, and
               MARKET_SQUARE_HIDDEN in lib/market-square.ts is the off switch.
               It is not affected by SQUARE_SECTIONS_HIDDEN, which only governs
               the square's sections on the portfolio. */}
           {squareShown ? (
-            <Link
-              href="/square"
+            <a
+              href={SQUARE_ZONE_PATH}
               onClick={onClose}
               data-tour-nav="square"
               className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-[11px] text-left font-sans text-[14.5px] font-medium transition-colors ${
@@ -183,7 +185,7 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
                 />
               </span>
               <span className="flex-1">{tSquare("navLabel")}</span>
-            </Link>
+            </a>
           ) : null}
 
           {items.slice(squareIndex).map(renderItem)}
