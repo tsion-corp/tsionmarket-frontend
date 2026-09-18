@@ -16,6 +16,7 @@ const MESSAGES: Record<string, Record<string, string>> = {
     couldntLoad: "Couldn't load",
     portfolioAllocation: "Portfolio allocation",
     depositPending: "Your deposit is settling.",
+    refresh: "Refresh",
   },
   tour: { replayCta: "Take a tour" },
   portfolio: {
@@ -114,6 +115,7 @@ function view(over: Partial<BalanceCardViewProps> = {}): BalanceCardViewProps {
     formatMasked: (amount: number) => `$${amount.toFixed(2)}`,
     onOpenFunds: vi.fn(),
     onOpenWithdraw: vi.fn(),
+    onRefresh: vi.fn(),
     onTakeTour,
     ...over,
   };
@@ -158,5 +160,34 @@ describe("BalanceCardMobile holdings button", () => {
     fireEvent.click(screen.getByRole("button", { name: "Your holdings" }));
     fireEvent.click(screen.getByText("LINK"));
     expect(appModals.openDetail).toHaveBeenCalledTimes(1);
+  });
+
+  // On a phone the Portfolio Allocation control opens the holdings list rather
+  // than the desktop card's inline ring: there is no room for the ring here.
+  it("opens the same holdings popup from the Portfolio Allocation control", () => {
+    const trigger = screen.getByRole("button", { name: "Portfolio allocation" });
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("LINK")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+});
+
+// The cache-first balance never polls, so the card carries a manual re-read for
+// a change made outside the app.
+describe("BalanceCardMobile refresh control", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("re-reads the balance when pressed", () => {
+    const onRefresh = vi.fn();
+    render(<BalanceCardMobile {...view({ onRefresh })} />);
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("is disabled while a read is already in flight", () => {
+    render(<BalanceCardMobile {...view({ refreshing: true })} />);
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
   });
 });

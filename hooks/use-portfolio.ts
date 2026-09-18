@@ -15,21 +15,22 @@ import type { ReceiptLog } from "@/lib/meme/delivery";
 
 export type { Portfolio, TokenBalance } from "@/lib/server/alchemy";
 
-// Balances don't need second-by-second freshness, and every tick here is a
-// round trip through our now-cached but still real Alchemy call — a minute
-// is plenty for background polling. Anything that needs to see its own
-// effect immediately (e.g. right after a trade or withdrawal) calls
-// `refetch()` directly instead of waiting on this interval.
-const POLL_MS = 60 * 1000;
-// Off the portfolio page only the balance chip in the shell reads this, and
-// a trade gets its own scoped fresh read, so three minutes is plenty there
-// (ADR-2026-09-09-portfolio-polling-at-scale).
-const GLANCED_POLL_MS = 3 * 60 * 1000;
-// A partial response can mean one optional network among dozens timed out.
-// Retrying the entire portfolio every five seconds from every balance chip
-// caused chess pages to hammer Alchemy even when their Base balance was valid.
-// Dedicated balance pages recover sooner; all other pages stay on their normal
-// low-rate cadence. Explicit post-transaction refreshes are unaffected.
+// The balance is cache-first and event-driven: a stored value (rehydrated from
+// localStorage or the server prefetch) is treated as fresh and shown without a
+// refetch, and the number is only re-read from RPC when it can actually have
+// changed — a completed in-app transaction (the ~30 refetchFresh /
+// refetchUntilChanged call sites), a detected incoming deposit, or a manual
+// refresh. There is no steady background poll: balances don't move on their own
+// between those events, so polling every minute was a round trip through a real
+// Alchemy call for a number that hadn't changed
+// (supersedes ADR-2026-09-09-portfolio-polling-at-scale).
+//
+// The one exception is an INCOMPLETE snapshot: a partial response can mean one
+// optional network among dozens timed out, leaving the total a floor. On a page
+// devoted to balances that heals at this cadence until the snapshot is whole,
+// then stops. Elsewhere (including chess) a partial snapshot must not turn a
+// cached balance chip into a cross-chain RPC polling loop, so it waits for the
+// next event instead.
 const INCOMPLETE_BALANCE_PAGE_POLL_MS = 30_000;
 
 function watchesBalance(pathname: string | null): boolean {
@@ -95,7 +96,6 @@ export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {})
     [scope, evm, solana]
   );
   const balancePage = watchesBalance(usePathname());
-  const pollMs = balancePage ? POLL_MS : GLANCED_POLL_MS;
   const fullPortfolioKey = queryKeys.portfolio.byWallet(evm, solana);
 
   // Set while waiting for a just-made trade to show up, naming the networks
@@ -150,13 +150,18 @@ export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {})
       return failureCount < 5;
     },
     retryDelay: (attempt) => Math.min(800 * 2 ** attempt, 4000),
-    staleTime: pollMs,
-    // Only a page devoted to balances accelerates recovery of a partial
-    // snapshot. Elsewhere (including chess), one optional failed network must
-    // not turn a cached balance chip into a cross-chain RPC polling loop.
+    // Cache-first: a stored balance stays fresh until an event replaces it, so
+    // mounting a balance chip never triggers a background refetch. Explicit
+    // post-transaction refetch()s bypass this, as does the incomplete-snapshot
+    // heal below.
+    staleTime: Infinity,
+    // The only background refetch left: heal a partial snapshot on a balance
+    // page until it is whole, then stop. A complete snapshot never polls.
     refetchInterval: (query) =>
-      query.state.data?.missing?.length && balancePage ? INCOMPLETE_BALANCE_PAGE_POLL_MS : pollMs,
+      query.state.data?.missing?.length && balancePage ? INCOMPLETE_BALANCE_PAGE_POLL_MS : false,
     refetchOnWindowFocus: false,
+    // A network blip is not a balance change; don't re-read on reconnect.
+    refetchOnReconnect: false,
   });
 
   const { refetch } = query;

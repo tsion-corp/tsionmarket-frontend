@@ -4,7 +4,7 @@ import { useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
 import { Disclosure } from "@/components/ui/disclosure";
-import { EyeOffIcon } from "@/components/ui/icons";
+import { EyeOffIcon, RefreshIcon } from "@/components/ui/icons";
 import { useHoldingsLauncher } from "@/features/portfolio/components/holdings-launcher";
 import { PortfolioDonut } from "@/features/portfolio/components/portfolio-donut";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
@@ -29,6 +29,7 @@ export function BalanceCardDesktop({
   formatMasked,
   onOpenFunds,
   onOpenWithdraw,
+  onRefresh,
 }: BalanceCardViewProps) {
   const t = useTranslations("balance");
   const tPortfolio = useTranslations("portfolio");
@@ -130,9 +131,19 @@ export function BalanceCardDesktop({
               </span>
             )}
           </button>
-          {refreshing ? (
-            <span className="bg-accent size-1.5 animate-pulse rounded-full" title="Refreshing…" />
-          ) : null}
+          {/* Manual re-read: the balance is cache-first and doesn't poll, so
+              this pulls in a change made outside the app. Spins while any read
+              (this one or a post-transaction one) is in flight. */}
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            aria-label={t("refresh")}
+            title={t("refresh")}
+            className="ws-pressable grid size-[36.69px] shrink-0 cursor-pointer place-items-center rounded-full text-white/45 disabled:cursor-default disabled:opacity-70"
+          >
+            <RefreshIcon size={20} className={refreshing ? "animate-spin" : ""} />
+          </button>
         </div>
 
         {loading ? (

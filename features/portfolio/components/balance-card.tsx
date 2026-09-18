@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback, useMemo } from "react";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { Responsive } from "@/components/ui/responsive";
@@ -24,7 +25,7 @@ interface BalanceCardProps {
 // with CSS. Both are presentational, so mounting both runs no effect twice and
 // costs no extra request.
 export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: BalanceCardProps) {
-  const { tokens, loading, refreshing, error } = usePortfolio();
+  const { tokens, loading, refreshing, error, refetch, refetchFresh } = usePortfolio();
   // The headline figure spans everything the wallet holds today (spot +
   // perps); readyToSpend below stays spot-only on purpose, see its own
   // comment.
@@ -39,6 +40,16 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: Balance
   // What a purchase can actually draw on. A portfolio can be worth a lot and
   // still have nothing spendable, which the total alone never shows.
   const readyToSpend = readyToSpendUsd(tokens);
+
+  // Manual refresh: bypass the short server cache, but only for networks the
+  // wallet actually holds — never a fresh sweep of every known chain
+  // (ADR-2026-09-09-portfolio-refresh-scope). With nothing held yet, a plain
+  // refetch re-reads the normal snapshot.
+  const heldNetworks = useMemo(() => [...new Set(tokens.map((token) => token.network))], [tokens]);
+  const onRefresh = useCallback(() => {
+    if (heldNetworks.length > 0) void refetchFresh(heldNetworks);
+    else void refetch();
+  }, [heldNetworks, refetchFresh, refetch]);
 
   // The settling-deposit hold only applies while there is nothing withdrawable.
   // It exists to stop hammering the button for money that has not landed yet;
@@ -64,6 +75,7 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: Balance
     formatMasked: (amount) => mask(money.format(amount)),
     onOpenFunds,
     onOpenWithdraw,
+    onRefresh,
     onTakeTour,
   };
 

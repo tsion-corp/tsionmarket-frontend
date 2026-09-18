@@ -373,7 +373,8 @@
     "takeTour": "Faire la visite",
     "portfolioAllocation": "Répartition du portefeuille",
     "quickActions": "Actions rapides",
-    "closeQuickActions": "Fermer les actions rapides"
+    "closeQuickActions": "Fermer les actions rapides",
+    "refresh": "Actualiser"
   },
   "remitBanner": {
     "title": "Envoyez de l'argent à l'étranger",

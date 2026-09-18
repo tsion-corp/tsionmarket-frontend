@@ -373,7 +373,8 @@
     "takeTour": "Tour starten",
     "portfolioAllocation": "Portfolio-Aufteilung",
     "quickActions": "Schnellaktionen",
-    "closeQuickActions": "Schnellaktionen schließen"
+    "closeQuickActions": "Schnellaktionen schließen",
+    "refresh": "Aktualisieren"
   },
   "remitBanner": {
     "title": "Geld über Grenzen senden",

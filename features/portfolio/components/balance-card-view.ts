@@ -20,6 +20,12 @@ export interface BalanceCardViewProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
   /**
+   * Re-reads the balance on demand. The balance is cache-first and does not
+   * poll, so this is the user's escape hatch for a change made outside the app
+   * (e.g. funds moved from another wallet) that no in-app transaction covered.
+   */
+  onRefresh: () => void;
+  /**
    * Replays the walkthrough. Supplied by the route rather than reached for
    * here: the tour is another feature, and features never import each other.
    */

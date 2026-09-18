@@ -373,7 +373,8 @@
     "takeTour": "Take a tour",
     "portfolioAllocation": "Portfolio Allocation",
     "quickActions": "Quick actions",
-    "closeQuickActions": "Close quick actions"
+    "closeQuickActions": "Close quick actions",
+    "refresh": "Refresh"
   },
   "remitBanner": {
     "title": "Send money across borders",

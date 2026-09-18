@@ -1,9 +1,14 @@
 "use client";
 
-// import { useState } from "react"; // parked with the Portfolio Allocation toggle below
 import { CurrencySelect, useMoney } from "@/components/ui/currency-select";
 import { useTranslations } from "next-intl";
-import { ArrowUpRightIcon, EyeIcon, EyeOffIcon, WalletIcon } from "@/components/ui/icons";
+import {
+  ArrowUpRightIcon,
+  EyeIcon,
+  EyeOffIcon,
+  RefreshIcon,
+  WalletIcon,
+} from "@/components/ui/icons";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 import { useHoldingsLauncher } from "@/features/portfolio/components/holdings-launcher";
 
@@ -24,15 +29,14 @@ export function BalanceCardMobile({
   formatMasked,
   onOpenFunds,
   onOpenWithdraw,
+  onRefresh,
 }: BalanceCardViewProps) {
   const t = useTranslations("balance");
   const tPortfolio = useTranslations("portfolio");
   const money = useMoney();
-  // The holdings list behind the coins button, shared with the desktop card.
+  // The holdings list, opened by both the coins button and the Portfolio
+  // Allocation control below; shared with the desktop card.
   const holdings = useHoldingsLauncher();
-  // Portfolio Allocation toggle hidden on mobile for now (see the commented
-  // button below); its state is parked until it returns.
-  // const [allocationOpen, setAllocationOpen] = useState(false);
 
   // The two money actions, sized to match the Kash card's buttons.
   const action =
@@ -95,12 +99,20 @@ export function BalanceCardMobile({
               >
                 {hidden ? <EyeOffIcon size={15} /> : <EyeIcon size={15} />}
               </button>
-              {refreshing ? (
-                <span
-                  className="bg-accent size-1.5 animate-pulse rounded-full"
-                  title="Refreshing…"
-                />
-              ) : null}
+              {/* Manual re-read: the balance is cache-first and doesn't poll,
+                  so this is how a change made outside the app is pulled in. It
+                  spins while a read (this one or a post-transaction one) is in
+                  flight. */}
+              <button
+                type="button"
+                onClick={onRefresh}
+                disabled={refreshing}
+                aria-label={t("refresh")}
+                title={t("refresh")}
+                className="grid size-6 cursor-pointer place-items-center rounded-full text-white/55 transition-colors active:bg-white/8 disabled:cursor-default disabled:opacity-70"
+              >
+                <RefreshIcon size={14} className={refreshing ? "animate-spin" : ""} />
+              </button>
             </div>
 
             {loading ? (
@@ -150,11 +162,15 @@ export function BalanceCardMobile({
             </button>
           </div>
 
-          {/* Portfolio Allocation toggle — hidden on mobile for now, at request.
+          {/* Portfolio Allocation. On a phone there is no room for the desktop
+              card's inline ring, so this opens the holdings list — the same
+              popup the coins button opens — rather than toggling a disclosure.
+              The chevron turns while that dialog is open. */}
           <button
             type="button"
-            onClick={() => setAllocationOpen((open) => !open)}
-            aria-expanded={allocationOpen}
+            onClick={holdings.openHoldings}
+            aria-haspopup="dialog"
+            aria-expanded={holdings.open}
             className="flex cursor-pointer items-center gap-1 px-1.5 text-[#7a7a7a] transition-colors active:text-white/80"
           >
             <span className="size-[3px] shrink-0 rounded-full bg-current" />
@@ -164,7 +180,7 @@ export function BalanceCardMobile({
             <svg
               viewBox="0 0 24 24"
               aria-hidden
-              className={`size-[14px] shrink-0 transition-transform ${allocationOpen ? "rotate-180" : ""}`}
+              className={`size-[14px] shrink-0 transition-transform ${holdings.open ? "rotate-180" : ""}`}
               fill="none"
             >
               <path
@@ -176,7 +192,6 @@ export function BalanceCardMobile({
               />
             </svg>
           </button>
-          */}
         </div>
       </div>
       {holdings.host}

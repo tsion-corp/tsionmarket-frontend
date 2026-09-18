@@ -3,6 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { BELL_POLL_MS, useActivity } from "@/features/activity/hooks/use-activity";
 import { useDepositAnalytics } from "@/features/activity/hooks/use-deposit-analytics";
+import { useDepositBalanceRefresh } from "@/features/activity/hooks/use-deposit-balance-refresh";
 import { getWalletAddress } from "@/lib/user";
 
 // Watches settled deposits and reports them, rendering nothing.
@@ -24,6 +25,10 @@ export function DepositAnalytics() {
   // silently cancelled the bell's five minute throttle for every dashboard.
   // This only needs to NOTICE an arrival, not watch for one.
   const { items } = useActivity({ pollMs: BELL_POLL_MS });
-  useDepositAnalytics(items, getWalletAddress(user, "ethereum") ?? "");
+  const wallet = getWalletAddress(user, "ethereum") ?? "";
+  useDepositAnalytics(items, wallet);
+  // A settled deposit is a balance change the cache-first portfolio would
+  // otherwise miss until the next transaction; the same arrival refreshes it.
+  useDepositBalanceRefresh(items, wallet);
   return null;
 }

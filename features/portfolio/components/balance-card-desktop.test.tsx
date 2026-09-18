@@ -16,6 +16,7 @@ const MESSAGES: Record<string, Record<string, string>> = {
     couldntLoad: "Couldn't load",
     portfolioAllocation: "Portfolio allocation",
     depositPending: "Your deposit is settling.",
+    refresh: "Refresh",
     assetsHeld: "assets",
     breakdownEmpty: "Nothing held yet.",
     slice_cash: "Cash",
@@ -123,6 +124,7 @@ function view(over: Partial<BalanceCardViewProps> = {}): BalanceCardViewProps {
     formatMasked: (amount: number) => `$${amount.toFixed(2)}`,
     onOpenFunds: vi.fn(),
     onOpenWithdraw: vi.fn(),
+    onRefresh: vi.fn(),
     onTakeTour,
     ...over,
   };
@@ -310,5 +312,29 @@ describe("BalanceCardDesktop portfolio allocation disclosure", () => {
     renderCard({ tokens: [] });
     expect(screen.queryByRole("button", { name: /Portfolio allocation/ })).toBeNull();
     expect(screen.queryByText("Tokens")).toBeNull();
+  });
+});
+
+// The cache-first balance never polls, so the card carries a manual re-read for
+// a change made outside the app.
+describe("BalanceCardDesktop refresh control", () => {
+  it("re-reads the balance when pressed", () => {
+    const onRefresh = vi.fn();
+    render(
+      <BalanceVisibilityProvider>
+        <BalanceCardDesktop {...view({ onRefresh })} />
+      </BalanceVisibilityProvider>
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("is disabled while a read is already in flight", () => {
+    render(
+      <BalanceVisibilityProvider>
+        <BalanceCardDesktop {...view({ refreshing: true })} />
+      </BalanceVisibilityProvider>
+    );
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
   });
 });

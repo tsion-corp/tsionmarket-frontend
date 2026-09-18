@@ -62,26 +62,26 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("kash account poll", () => {
-  // Five minutes, down from thirty seconds (2026-09-11). The engine saw every
-  // person on the home page twice a minute for a balance that changes when
-  // they act, and every action refreshes the card itself. The poll is only
-  // for credits from outside the app, and those can wait a few minutes or
-  // the next return to the tab.
-  it("reads once on mount and not again for the next four minutes", async () => {
+describe("kash account reads", () => {
+  // Cache-first (2026-09-17): the balance is persisted to localStorage and no
+  // longer polled. It changes when the user acts (every action refreshes the
+  // card itself) and when a credit lands from outside; those outside credits
+  // are caught on opening the card and on returning to the tab, not a timer.
+  it("reads once on mount and never again on a timer", async () => {
     const { useKashAccount } = await import("@/features/portfolio/hooks/use-kash");
     vi.useFakeTimers();
     renderHook(() => useKashAccount(), { wrapper: wrapper(client) });
 
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      await vi.advanceTimersByTimeAsync(1_000);
     });
     expect(getKashAccount).toHaveBeenCalledTimes(1);
 
+    // Minutes pass with the tab in front: no background poll, so no re-read.
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(90_000);
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
     });
-    expect(getKashAccount).toHaveBeenCalledTimes(2);
+    expect(getKashAccount).toHaveBeenCalledTimes(1);
   });
 
   // A hop to another page and back used to re-read the account on every
@@ -105,7 +105,7 @@ describe("kash account poll", () => {
     second.unmount();
   });
 
-  it("stops polling once the tab is hidden", async () => {
+  it("spends no request while the tab is hidden", async () => {
     const { useKashAccount } = await import("@/features/portfolio/hooks/use-kash");
     vi.useFakeTimers();
     renderHook(() => useKashAccount(), { wrapper: wrapper(client) });
@@ -120,8 +120,8 @@ describe("kash account poll", () => {
       await vi.advanceTimersByTimeAsync(60_000);
     });
 
-    // The whole point: a backgrounded tab cannot show anyone a new number, so
-    // it must not spend a request on one. Six ticks would have passed.
+    // A backgrounded tab cannot show anyone a new number, so it must not spend
+    // a request on one. With no poll there is nothing on a timer either.
     expect(getKashAccount.mock.calls.length).toBe(whenHidden);
   });
 

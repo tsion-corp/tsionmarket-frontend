@@ -101,15 +101,19 @@ describe("usePortfolio fresh reads", () => {
     expect(requestedUrls()).toEqual([`/api/portfolio?evm=${EVM}&scope=base`]);
   });
 
-  it("refreshes a stale portfolio using only Base and deduplicates consumers", async () => {
+  it("serves a stale Base snapshot from cache without refetching on mount", async () => {
+    // Cache-first: an old snapshot is shown as-is. It is refreshed by a
+    // transaction, a detected deposit, or a manual refresh — never by the mere
+    // act of mounting a balance chip, which used to poll every minute.
     client.setQueryData(["portfolio", EVM, null], snapshot, {
       updatedAt: Date.now() - 4 * 60_000,
     });
     location.pathname = "/casino/arkjet";
-    renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
+    const { result } = renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
     renderHook(() => usePortfolio({ scope: "base" }), { wrapper });
     await act(() => vi.advanceTimersByTimeAsync(0));
-    expect(requestedUrls()).toEqual([`/api/portfolio?evm=${EVM}&scope=base`]);
+    expect(result.current.tokens).toEqual(snapshot.tokens);
+    expect(apiFetch).not.toHaveBeenCalled();
   });
 
   // Balance pages recover partial snapshots without the old five-second RPC
@@ -256,10 +260,13 @@ describe("usePortfolio.applyReceipt", () => {
   });
 });
 
-// The balance is the page on /portfolio and /dashboard and a chip in the
-// shell everywhere else. The poll follows: a minute where it is watched,
-// three minutes where it is glanced at (ADR-2026-09-09-portfolio-polling-at-scale).
-describe("usePortfolio poll cadence by page", () => {
+// The balance is cache-first and event-driven: after the first load it is not
+// re-read on a timer. It refreshes only when it can have changed — a
+// transaction (refetchFresh), a detected deposit, or a manual refresh. The one
+// exception is an incomplete snapshot on a balance page, which heals at 30s
+// until whole (covered above). Supersedes the poll cadence of
+// ADR-2026-09-09-portfolio-polling-at-scale.
+describe("usePortfolio does not poll", () => {
   let client: QueryClient;
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -277,24 +284,27 @@ describe("usePortfolio poll cadence by page", () => {
     location.pathname = "/dashboard";
   });
 
-  it("polls every minute on the portfolio page", async () => {
+  it("does not re-read a complete snapshot on the portfolio page over time", async () => {
     location.pathname = "/portfolio";
     renderHook(() => usePortfolio(), { wrapper });
     await act(() => vi.advanceTimersByTimeAsync(0));
-    await act(() => vi.advanceTimersByTimeAsync(61_000));
-    expect(apiFetch).toHaveBeenCalledTimes(2);
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    // Minutes pass; a whole snapshot is fresh forever, so nothing refetches.
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
   });
 
-  it("polls every three minutes elsewhere", async () => {
+  it("does not heal an incomplete snapshot off a balance page", async () => {
+    // Only a page devoted to balances accelerates recovery; a chip on a game
+    // page must not turn one failed optional network into a polling loop.
     location.pathname = "/casino/chess";
     apiFetch.mockImplementation(async () =>
       answer({ ...snapshot, missing: ["worldchain-mainnet"] })
     );
     renderHook(() => usePortfolio(), { wrapper });
     await act(() => vi.advanceTimersByTimeAsync(0));
-    await act(() => vi.advanceTimersByTimeAsync(61_000));
     expect(apiFetch).toHaveBeenCalledTimes(1);
-    await act(() => vi.advanceTimersByTimeAsync(120_000));
-    expect(apiFetch).toHaveBeenCalledTimes(2);
+    await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
   });
 });

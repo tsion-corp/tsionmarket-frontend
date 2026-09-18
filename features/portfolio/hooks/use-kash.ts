@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy, useSignMessage } from "@privy-io/react-auth";
 import { queryKeys } from "@/lib/query-keys";
+import { PERSISTED_GC_TIME } from "@/lib/query-persist";
 import { getWalletAddress } from "@/lib/user";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { markKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
@@ -25,16 +26,6 @@ import {
 // status read off the hot path.
 const STATUS_STALE_MS = 60 * 1000;
 
-// The account payload changes when the user acts AND when something arrives
-// from outside the app entirely: points credited from a swap made on another
-// surface, or KSH sent by someone else. The user's own actions refresh the
-// card themselves; this interval exists only for those outside credits.
-//
-// Five minutes, down from thirty seconds (2026-09-11). The home page is this
-// card, so the engine saw every signed-in person twice a minute, uncached,
-// for a figure that almost never moves on its own. An outside credit still
-// shows within five minutes, or at once on the next return to the tab.
-const ACCOUNT_POLL_MS = 5 * 60 * 1000;
 // A figure read seconds ago is still the figure: a hop to another page and
 // back, or a second card on the same page, must not re-read it.
 const ACCOUNT_STALE_MS = 30 * 1000;
@@ -60,16 +51,18 @@ export function useKashAccount() {
     queryFn: () => getKashAccount(wallet as string),
     enabled: ready && authenticated && Boolean(wallet),
     staleTime: ACCOUNT_STALE_MS,
-    refetchInterval: ACCOUNT_POLL_MS,
-    // Only while the tab is in front. Backgrounded, this was the single most
-    // expensive call in the app: a ten second poll that never slept, so one
-    // forgotten tab cost 360 authed reads an hour whether or not anyone was
-    // there. Every other poll in the app already pauses on blur.
-    //
-    // The case that comment defended, leaving to a wallet or an explorer and
-    // coming back expecting a new number, is what refetchOnWindowFocus is for.
-    // Returning to the tab still refetches immediately, so the number appears
-    // on its own exactly as before.
+    // Persisted to localStorage (query-persist.ts), so a returning user paints
+    // the last balance at once. Kept in memory the full persisted window so it
+    // survives to be written and restored, like the other persisted reads.
+    gcTime: PERSISTED_GC_TIME,
+    // No background timer. The balance changes when the user acts (their own
+    // actions refresh the card through useInvalidateKash) and when something
+    // lands from outside — points from a swap on another surface, KSH sent by
+    // someone else, the weekly server settlement. Those outside credits are
+    // caught by the read on opening the card and the one on returning to the
+    // tab, not a clock: the home page is this card, so a poll here meant the
+    // engine saw every signed-in person on a timer for a figure that almost
+    // never moves on its own.
     refetchOnWindowFocus: true,
   });
 

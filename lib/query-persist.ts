@@ -19,6 +19,10 @@ export const PERSISTED_PREFIXES = new Set([
   "deposit-static-stable",
   "portfolio",
   "prices",
+  // The Kash+ balance and its engine status. Cached like the wallet balance so
+  // the card paints the last figure instantly on reload instead of a spinner;
+  // the refresh on opening the card lands behind it.
+  "kash",
   "buy-destinations",
   "rwa-assets",
   "rwa-categories",
