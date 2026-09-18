@@ -2715,8 +2715,6 @@
     "sendSubtitle": "Send KASH to any address. No fees.",
     "sendRecipient": "Recipient address",
     "sendBadAddress": "That doesn't look like a valid address.",
-    "sendLookingUp": "Looking up…",
-    "sendUnknownName": "We couldn't find that name.",
     "sendToSelf": "That's your own address.",
     "sendUnavailableOffchain": "Sending opens once KASH launches. Right now balances are pre-launch credits that can't leave the platform.",
     "sendCta": "Send Kash+",

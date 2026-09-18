@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ReactNode } from "react";
@@ -39,18 +39,16 @@ const account = (over: Partial<KashAccount> = {}): KashAccount =>
     ...over,
   }) as KashAccount;
 
-const onSend = vi.fn();
-
 function renderCard() {
-  render(
-    <KashCardMobile onBuy={() => {}} onSend={onSend} onConvert={() => {}} onHistory={() => {}} />,
-    { wrapper }
-  );
+  render(<KashCardMobile onBuy={() => {}} onConvert={() => {}} onHistory={() => {}} />, {
+    wrapper,
+  });
 }
 
-// The phone renders this card, not KashCard, so an action added to the desktop
-// card is not on a phone until it is added here too. Send reached production
-// on the desktop card alone exactly that way.
+// Send is off the card for now; Buy and Convert stay. The send modal and its
+// wiring remain in the codebase, only the door is gone. The phone card carries
+// the same guard as the desktop one: users were sending KASH+ to the Dextopus
+// deposit address and losing it.
 describe("KashCardMobile actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -62,16 +60,10 @@ describe("KashCardMobile actions", () => {
     kashHooks.useKashStatus.mockReturnValue({ data: undefined });
   });
 
-  it("offers Send, Buy and Convert", () => {
+  it("offers Buy and Convert but not Send", () => {
     renderCard();
-    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
-  });
-
-  it("opens the send modal from the phone card", () => {
-    renderCard();
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
-    expect(onSend).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
   });
 });
