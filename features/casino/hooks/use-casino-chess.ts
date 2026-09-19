@@ -568,7 +568,15 @@ export function useChessMatch(matchId: string | null, seatName: string | null = 
         setOptimistic(next);
       }
     },
-    onError: () => setOptimistic(null),
+    onError: () => {
+      setOptimistic(null);
+      if (matchId) {
+        void queryClient.refetchQueries({
+          queryKey: CHESS_KEYS.match(matchId),
+          type: "active",
+        });
+      }
+    },
     // The command acknowledgement already carries committed authoritative
     // state. Socket events update the opponent/spectators; HTTP is reserved for
     // reconnect gaps and explicit snapshot repair, not one refetch per move.

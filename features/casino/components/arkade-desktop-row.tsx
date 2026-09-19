@@ -7,6 +7,7 @@ import {
   ArkadeGameCard,
   type ArkadeBadgeTone,
 } from "@/features/casino/components/arkade-game-card";
+import type { CasinoPresenceByGame } from "@/features/casino/lib/api/presence";
 
 /**
  * One row of the desktop Arkade catalogue (node 173:47144): three game cards
@@ -48,6 +49,7 @@ export interface ArkadeDesktopRowProps {
   // Overrides `badge` on the first card only — Trending's lead card is the one
   // "Most Played" tile over a rail of "Hot".
   firstBadge?: ArkadeBadgeTone;
+  presenceByGame?: CasinoPresenceByGame;
 }
 
 export function ArkadeDesktopRow({
@@ -57,6 +59,7 @@ export function ArkadeDesktopRow({
   loading,
   badge,
   firstBadge,
+  presenceByGame,
 }: ArkadeDesktopRowProps) {
   const t = useTranslations("casino.hub");
 
@@ -100,6 +103,7 @@ export function ArkadeDesktopRow({
           <ArkadeGameCard
             game={game}
             surface="desktop"
+            presence={presenceByGame?.[game.id as keyof CasinoPresenceByGame]}
             badge={index === 0 && firstBadge ? firstBadge : badge}
             onActivate={onSelectGame}
           />

@@ -183,6 +183,35 @@ export function exceedsUsdcBalance(amount: string, balance: string): boolean {
   return units > toBaseUnits(balance, USDC_DECIMALS);
 }
 
+export interface CashierFundingPlan {
+  depositUsdc: string;
+  totalAvailableUsdc: string;
+  sufficient: boolean;
+}
+
+// A wager consumes the existing cashier ledger before asking the wallet for
+// more. This prevents every wager from sending a second on-chain deposit and
+// leaves the chain involved only when the ledger has a real shortfall.
+export function cashierFundingPlan(
+  stakeUsdc: string,
+  ledgerUsdc: string,
+  walletUsdc: string
+): CashierFundingPlan | null {
+  const stake = parseUsdcAmount(stakeUsdc);
+  if (stake === null) return null;
+  const ledger = toBaseUnits(ledgerUsdc || "0", USDC_DECIMALS);
+  const wallet = toBaseUnits(walletUsdc || "0", USDC_DECIMALS);
+  const nonNegativeLedger = ledger > 0n ? ledger : 0n;
+  const nonNegativeWallet = wallet > 0n ? wallet : 0n;
+  const total = nonNegativeLedger + nonNegativeWallet;
+  const shortfall = stake > nonNegativeLedger ? stake - nonNegativeLedger : 0n;
+  return {
+    depositUsdc: fromBaseUnits(shortfall, USDC_DECIMALS),
+    totalAvailableUsdc: fromBaseUnits(total, USDC_DECIMALS),
+    sufficient: stake <= total,
+  };
+}
+
 export interface ComputerWagerBreakdown {
   youLock: string;
   balanceAfter: string;

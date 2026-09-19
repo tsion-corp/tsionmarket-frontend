@@ -18,8 +18,13 @@ const DEPLOYED_UPSTREAMS = upstreamCandidates(
 // A funding read and its confirmation must hit the same ledger. Falling back
 // to a deployed service in development can send real USDC to that service's
 // custody address and then confirm it against the local database.
+const HAS_EXPLICIT_UPSTREAM = Boolean(
+  process.env.ARKJET_API_URL?.trim() || process.env.NEXT_PUBLIC_ARKJET_API_URL?.trim()
+);
 const UPSTREAMS =
-  process.env.NODE_ENV === "development" ? [LOCAL_DEV_ARKJET_API] : DEPLOYED_UPSTREAMS;
+  process.env.NODE_ENV === "development" && !HAS_EXPLICIT_UPSTREAM
+    ? [LOCAL_DEV_ARKJET_API]
+    : DEPLOYED_UPSTREAMS;
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 const PUBLIC_READ =

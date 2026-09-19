@@ -41,12 +41,15 @@ export function parentRoute(pathname: string): { href: string; label: string } {
   return { href, label: SECTION_LABEL[href] ?? titleCase(parts[parts.length - 2]) };
 }
 
-function BackLink({ pathname }: { pathname: string }) {
+function BackLink({ pathname, actions }: { pathname: string; actions?: React.ReactNode }) {
   const guard = useCasinoNavGuard();
   const { href, label } = parentRoute(pathname);
 
   return (
-    <div className="mx-auto w-full max-w-[1520px] px-4 pt-5 sm:px-6 lg:px-8">
+    <div
+      className="mx-auto flex w-full max-w-[1520px] items-center justify-between gap-2 px-4 pt-5 sm:px-6 lg:px-8"
+      data-casino-back-row
+    >
       <Link
         href={href}
         // The screen below may need to ask something first, e.g. a game that
@@ -54,11 +57,16 @@ function BackLink({ pathname }: { pathname: string }) {
         onClick={(event) => {
           if (guard.blocked()) event.preventDefault();
         }}
-        className="inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12.5px] font-medium text-white/60 transition-colors hover:border-white/25 hover:text-white"
+        className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 font-sans text-[12.5px] font-medium text-white/60 transition-colors hover:border-white/25 hover:text-white"
       >
         <ChevronLeftIcon size={12} />
         {label}
       </Link>
+      {actions ? (
+        <div className="min-w-0" data-casino-back-actions>
+          {actions}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -87,6 +95,7 @@ export function CasinoPage({
   children,
   hideBackLink,
   immersive,
+  backActions,
 }: {
   children: React.ReactNode;
   // The chess lobby pins its layout to the viewport and the sidebar already
@@ -96,6 +105,7 @@ export function CasinoPage({
   // game from inheriting the portfolio rail and search header while every
   // other Arkade route keeps the normal product shell.
   immersive?: boolean;
+  backActions?: React.ReactNode;
 }) {
   const pathname = usePathname();
   const isHub = pathname === "/casino";
@@ -128,7 +138,9 @@ export function CasinoPage({
   return (
     <CasinoDashboardShell>
       <CasinoNavGuardProvider>
-        {isHub || hideBackLink || !pathname ? null : <BackLink pathname={pathname} />}
+        {isHub || hideBackLink || !pathname ? null : (
+          <BackLink pathname={pathname} actions={backActions} />
+        )}
         {children}
       </CasinoNavGuardProvider>
     </CasinoDashboardShell>

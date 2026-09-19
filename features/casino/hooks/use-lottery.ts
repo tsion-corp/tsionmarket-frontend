@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrivy } from "@privy-io/react-auth";
+import { useTranslations } from "next-intl";
 import {
   createLotteryQuickPick,
   fetchCurrentLotteryDraw,
@@ -9,17 +10,13 @@ import {
   fetchLotteryEligibility,
   fetchLotteryResults,
   fetchLotteryTickets,
-  purchaseLotteryTicket,
   type LotterySelection,
 } from "@/features/casino/lib/api/lottery";
-import { fetchChessBalance } from "@/features/casino/lib/api/cashier";
-import {
-  CASHIER_BALANCE_POLL_MS,
-  CASHIER_BALANCE_STALE_MS,
-  CASHIER_KEYS,
-} from "@/features/casino/hooks/use-chess-cashier";
+import { useLotteryFunding } from "./use-lottery-funding";
 import { errorCode } from "@/lib/api/envelope";
 import { getWalletAddress } from "@/lib/user";
+import { lotterySelectionKey } from "@/features/casino/lib/lottery";
+import { LotteryFundingError } from "@/features/casino/lib/lottery-funding";
 
 export const LOTTERY_KEYS = {
   config: ["casino", "lottery", "config"] as const,
@@ -41,6 +38,7 @@ export interface LotteryPurchaseRequest {
 }
 
 export function useLottery() {
+  const t = useTranslations("casino.arkball");
   const queryClient = useQueryClient();
   const { user, ready, authenticated } = usePrivy();
   const wallet = getWalletAddress(user, "ethereum");
@@ -77,16 +75,10 @@ export function useLottery() {
     retry: retryPrivateRead,
     staleTime: 30_000,
   });
-  const balance = useQuery({
-    queryKey: CASHIER_KEYS.balance(wallet ?? "none"),
-    queryFn: () => fetchChessBalance(wallet as string),
-    enabled: privateReadsEnabled,
-    retry: retryPrivateRead,
-    staleTime: CASHIER_BALANCE_STALE_MS,
-    refetchInterval: CASHIER_BALANCE_POLL_MS,
-    refetchIntervalInBackground: false,
-    refetchOnWindowFocus: true,
-  });
+  const funding = useLotteryFunding(
+    currentDraw.data ?? null,
+    config.data?.rule.pricePerTicketUsdc ?? null
+  );
 
   const quickPick = useMutation({
     mutationFn: async () => {
@@ -99,23 +91,32 @@ export function useLottery() {
   });
 
   const purchase = useMutation({
-    mutationFn: ({ selection, idempotencyKey }: LotteryPurchaseRequest) => {
-      if (!wallet) throw new Error("Connect your wallet first.");
-      if (!currentDraw.data) throw new Error("The next draw is not ready yet.");
-      return purchaseLotteryTicket(currentDraw.data.id, {
-        player: wallet,
-        whiteNumbers: selection.whiteNumbers,
-        powerNumber: selection.powerNumber,
-        idempotencyKey,
-      });
+    mutationFn: (request: LotteryPurchaseRequest) => {
+      if (!privateReadsEnabled) throw new LotteryFundingError(t("funding.signIn"));
+      if (!funding.pendingTicket) {
+        if (!eligibility.data || !tickets.data)
+          throw new LotteryFundingError(t("funding.eligibilityLoading"));
+        if (!eligibility.data.eligible)
+          throw new LotteryFundingError(eligibility.data.reason || t("notEligible"));
+        if (
+          tickets.data.some(
+            (ticket) =>
+              ticket.drawId === currentDraw.data?.id &&
+              lotterySelectionKey(ticket) === lotterySelectionKey(request.selection)
+          )
+        ) {
+          throw new LotteryFundingError(t("combinationOwned"));
+        }
+      }
+      return funding.purchase(request);
     },
+    retry: false,
     onSuccess: async () => {
       if (!wallet) return;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: LOTTERY_KEYS.currentDraw }),
         queryClient.invalidateQueries({ queryKey: LOTTERY_KEYS.tickets(wallet) }),
         queryClient.invalidateQueries({ queryKey: LOTTERY_KEYS.eligibility(wallet) }),
-        queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet) }),
       ]);
     },
   });
@@ -127,14 +128,18 @@ export function useLottery() {
     results: results.data ?? [],
     tickets: tickets.data ?? [],
     eligibility: eligibility.data ?? null,
-    availableUsdc: balance.data?.availableUsdc ?? "0",
-    lockedUsdc: balance.data?.lockedUsdc ?? "0",
+    availableUsdc: funding.availableUsdc,
+    balanceLoading: funding.balanceLoading,
+    balanceError: funding.balanceError,
+    fundingConfigured: funding.configured,
+    pendingTicket: funding.pendingTicket,
+    purchasePhase: funding.phase,
     loading: config.isLoading || currentDraw.isLoading,
-    error: config.error ?? currentDraw.error,
+    error: config.error ?? currentDraw.error ?? funding.pendingError,
     ticketsLoading: privateReadsEnabled && tickets.isLoading,
     quickPick: quickPick.mutateAsync,
     quickPicking: quickPick.isPending,
     purchase: purchase.mutateAsync,
-    purchasing: purchase.isPending,
+    purchasing: purchase.isPending || funding.purchasing,
   };
 }

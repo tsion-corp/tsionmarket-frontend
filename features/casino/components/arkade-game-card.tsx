@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { CasinoGame } from "@/features/casino/lib/games";
-import type { GamePresence } from "@/features/casino/lib/api/types";
+import type { CasinoGamePresence } from "@/features/casino/lib/api/presence";
 
 /**
  * One Arkade catalogue card.
@@ -18,7 +18,7 @@ import type { GamePresence } from "@/features/casino/lib/api/types";
  *
  * Presentational. Activating a playable card calls `onActivate`; the player
  * count comes in through `presence` and is shown only when the presence API has
- * a real figure, never invented.
+ * supplied the product's modeled audience figure.
  */
 
 export type ArkadeCardSurface = "phone" | "desktop";
@@ -57,23 +57,6 @@ const PHONE_BADGE =
 const CTA_CHROME =
   "linear-gradient(178.79deg, rgba(255,255,255,0.2) 2.36%, rgba(237,237,240,0.2) 38.57%, rgba(203,203,209,0.2) 62.39%, rgba(245,245,248,0.2) 97.64%)";
 const CTA_SHADOW = "inset 0 0.667px 0 rgba(255,255,255,0.95), 0 1.335px 5.338px rgba(0,0,0,0.5)";
-
-// A generic two-person glyph for the live-player line (the comp's user-multiple
-// icon). Inline rather than an exported asset: the set carries no equivalent,
-// and this keeps the card free of an expiring URL.
-function UsersGlyph({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" aria-hidden className={className}>
-      <path
-        d="M9 11.5a3.25 3.25 0 1 0 0-6.5 3.25 3.25 0 0 0 0 6.5ZM3.5 19c0-2.9 2.46-5 5.5-5s5.5 2.1 5.5 5M16 6.2a3 3 0 0 1 0 5.6M17 14.2c1.9.5 3.5 2 3.5 4.3"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 // The artwork layer, bled to fill the frame. `game.image` mixes local paths
 // with remote URLs and the app configures no next/image remotePatterns, so this
@@ -121,7 +104,7 @@ function DesktopBody({
   badge,
 }: {
   game: CasinoGame;
-  presence?: GamePresence;
+  presence?: CasinoGamePresence;
   badge?: ArkadeBadgeTone;
 }) {
   const t = useTranslations("casino.hub");
@@ -146,6 +129,19 @@ function DesktopBody({
         </span>
       ) : null}
 
+      {players != null ? (
+        <span
+          data-game-presence={game.id}
+          className="backdrop-bl-sm absolute top-0 right-0 z-10 inline-flex h-[30px] items-center gap-1.5 rounded-bl-[14px] bg-black/75 px-3 font-serif text-[12px] leading-none font-bold whitespace-nowrap text-white"
+        >
+          <span
+            aria-hidden
+            className="size-2 rounded-full bg-[#8cff00] shadow-[0_0_7px_rgba(140,255,0,0.9)]"
+          />
+          {t("presencePlayers", { count: players })}
+        </span>
+      ) : null}
+
       <span className="absolute inset-x-[14px] bottom-[13.34px] flex flex-col gap-[12px]">
         {/* Title over a two-line note, held to a narrow column so the note
             wraps as it does in the comp. */}
@@ -161,16 +157,7 @@ function DesktopBody({
         </span>
 
         <span className="flex min-h-[38px] items-center justify-between gap-3">
-          {players != null ? (
-            <span className="flex items-center gap-[6.977px]">
-              <UsersGlyph className="size-6 shrink-0 text-white/60" />
-              <span className="font-serif text-[12px] leading-[1.1] font-semibold tracking-[-0.18px] whitespace-nowrap text-white/60">
-                {t("presencePlaying", { count: players.toLocaleString() })}
-              </span>
-            </span>
-          ) : (
-            <span aria-hidden />
-          )}
+          <span aria-hidden />
 
           {game.comingSoon ? null : (
             <span
@@ -240,7 +227,7 @@ function CardBody({
 }: {
   game: CasinoGame;
   surface: ArkadeCardSurface;
-  presence?: GamePresence;
+  presence?: CasinoGamePresence;
   badge?: ArkadeBadgeTone;
 }) {
   return surface === "desktop" ? (
@@ -253,9 +240,8 @@ function CardBody({
 export interface ArkadeGameCardProps {
   game: CasinoGame;
   surface: ArkadeCardSurface;
-  // Live figures for this game, absent until the presence API answers. Drives
-  // the desktop card's player line; never invented when missing.
-  presence?: GamePresence;
+  // Audience figures for this game, absent until the presence API answers.
+  presence?: CasinoGamePresence;
   // The badge the section wants this card to wear (desktop only).
   badge?: ArkadeBadgeTone;
   // How a playable desktop-surface card renders: a button (the desktop route

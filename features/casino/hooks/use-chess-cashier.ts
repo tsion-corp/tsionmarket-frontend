@@ -41,9 +41,11 @@ export const CASHIER_BALANCE_POLL_MS = 2 * 60_000;
 
 // The service wants the deposit transfer at its confirmation depth before it
 // credits, so the first confirm right after the send can legitimately fail.
-// Four tries three seconds apart cover Base's confirmation time comfortably.
+// The sponsored send already waits for an on-chain receipt. Confirmation can
+// still lag briefly between RPC providers, so retry promptly instead of
+// making the user sit through a three-second blind wait each time.
 const CONFIRM_ATTEMPTS = 4;
-const CONFIRM_DELAY_MS = 3_000;
+const CONFIRM_DELAY_MS = 1_000;
 
 const NETWORK = "base-mainnet";
 
@@ -112,6 +114,7 @@ export function useChessCashierStatus() {
     total: balance.data?.totalUsdc ?? "0",
     lockBuckets: cashierLockBuckets(balance.data),
     balanceLoading: enabled && balance.isLoading,
+    balanceError: balance.isError,
   };
 }
 
@@ -146,7 +149,9 @@ export function useChessCashierWithdrawal() {
 // the embedded wallet, so this hook mounts the wallet SDK; only cashier
 // surfaces (the sheet) should use it, everything else reads
 // useChessCashierStatus.
-export function useChessCashier() {
+export function useChessCashier({
+  onDepositSent,
+}: { onDepositSent?: (txHash: string) => void } = {}) {
   const queryClient = useQueryClient();
   const status = useChessCashierStatus();
   const { sendToken } = useSendToken();
@@ -174,6 +179,9 @@ export function useChessCashier() {
           to: config.depositAddress,
           amount: toBaseUnits(amountUsdc, USDC_DECIMALS),
         });
+
+        // Callers can retain the transfer before confirmation fails or times out.
+        onDepositSent?.(txHash);
 
         setDepositPhase("confirming");
         for (let attempt = 0; attempt < CONFIRM_ATTEMPTS; attempt++) {

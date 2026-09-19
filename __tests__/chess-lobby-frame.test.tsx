@@ -173,6 +173,55 @@ describe("ChessLobbyFrame", () => {
     detach();
   });
 
+  it("keeps rated matchmaking on Standard and switches variants to Casual", () => {
+    const frameDocument = document.implementation.createHTMLDocument("Ark Chess");
+    frameDocument.body.innerHTML = `
+      <form data-lobby-setup>
+        <input name="variant" value="standard">
+        <input id="rated" name="mode" value="rated" type="radio" checked>
+        <label for="rated">Rated</label>
+        <input id="casual" name="mode" value="casual" type="radio">
+        <label for="casual">Casual</label>
+        <p data-rated-variant-note hidden>Variants are Casual.</p>
+        <div class="mselect">
+          <input class="mselect__toggle" type="checkbox">
+          <label class="mselect__label">
+            <span class="icon" data-icon="standard"></span>
+            <span class="name">Standard</span>
+            <span class="desc">Standard rules</span>
+          </label>
+          <div class="mselect__list">
+            <div class="mselect__item current" data-variant="standard" data-icon="standard">
+              <span class="name">Standard</span><span class="desc">Standard rules</span>
+            </div>
+            <div class="mselect__item" data-variant="atomic" data-icon="atomic">
+              <span class="name">Atomic</span><span class="desc">Exploding captures</span>
+            </div>
+          </div>
+        </div>
+      </form>
+    `;
+
+    const detach = installChessVariantPickers(frameDocument);
+    const rated = frameDocument.querySelector<HTMLInputElement>("#rated")!;
+    const casual = frameDocument.querySelector<HTMLInputElement>("#casual")!;
+    const note = frameDocument.querySelector<HTMLElement>("[data-rated-variant-note]")!;
+
+    frameDocument
+      .querySelector('[data-variant="atomic"]')!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(rated.disabled).toBe(true);
+    expect(casual.checked).toBe(true);
+    expect(note.hidden).toBe(false);
+
+    frameDocument
+      .querySelector('[data-variant="standard"]')!
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(rated.disabled).toBe(false);
+    expect(note.hidden).toBe(true);
+    detach();
+  });
+
   it("creates funded lobby fallback games without a clock at maximum public strength", async () => {
     fundedComputer.start.mockResolvedValue({ id: "funded-lobby" });
     render(<ChessLobbyFrame source="/api/chess/play?setup=hook" />);
@@ -213,6 +262,23 @@ describe("ChessLobbyFrame", () => {
     screen.getByTitle("Ark Chess").dispatchEvent(new Event("load"));
 
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("reveals a rated lobby redirect even when the matching iframe load already fired", async () => {
+    const { rerender } = render(
+      <ChessLobbyFrame source="/api/chess/play?tab=lobby&setup=hook#game-setup" />
+    );
+    const frame = screen.getByTitle<HTMLIFrameElement>("Ark Chess");
+    fireEvent.load(frame);
+    expect(frame).toHaveClass("opacity-100");
+
+    rerender(<ChessLobbyFrame source="/api/chess/play?tab=lobby" />);
+
+    await waitFor(() => {
+      expect(frame).toHaveAttribute("src", "/api/chess/play?tab=lobby");
+      expect(frame).toHaveClass("opacity-100");
+      expect(frame.style.visibility).toBe("");
+    });
   });
 
   it("clears an expired session and opens the shared login page", async () => {

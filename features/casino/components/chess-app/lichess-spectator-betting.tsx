@@ -7,11 +7,10 @@ import { useSessionWallet } from "@/components/providers/server-session";
 import { useMatchMarket, usePlaceBet } from "@/features/casino/hooks/use-casino-betting";
 import { useChessCashier } from "@/features/casino/hooks/use-chess-cashier";
 import {
+  cashierFundingPlan,
   confirmChessDeposit,
-  exceedsUsdcBalance,
   isChessDepositPending,
   normalizeUsdcAmount,
-  parseUsdcAmount,
 } from "@/features/casino/lib/api/cashier";
 import { postMatchChatMessage } from "@/features/casino/lib/api/chess";
 import { estimatePariMutuelReturn } from "@/features/casino/lib/betting-math";
@@ -29,7 +28,7 @@ const BASE_NETWORK = "base-mainnet";
 const BASE_USDC = USDC_BY_CHAIN.base.address.toLowerCase();
 
 interface PendingDeposit {
-  stakeUsdc: string;
+  amountUsdc: string;
   txHash: string;
 }
 
@@ -91,14 +90,17 @@ function BetForm({
   const inputId = useId();
 
   const odds = market.odds;
-  const availableUsdc = baseUsdcBalance(portfolio.tokens);
+  const walletUsdc = baseUsdcBalance(portfolio.tokens);
   const stakeUsdc = normalizeUsdcAmount(stakeInput);
-  const parsedStake = parseUsdcAmount(stakeInput);
-  const overBalance = parsedStake !== null && exceedsUsdcBalance(stakeInput, availableUsdc);
+  const funding = stakeUsdc
+    ? cashierFundingPlan(stakeUsdc, cashier.available, walletUsdc)
+    : null;
+  const depositUsdc = funding?.depositUsdc ?? "0";
+  const needsDeposit = depositUsdc !== "0";
+  const overBalance = funding ? !funding.sufficient : false;
   const isPlayer =
     sameWallet(match.white?.walletAddress, viewer) || sameWallet(match.black?.walletAddress, viewer);
-  const marketOpen =
-    !match.computer && match.state === "in_progress" && (odds?.status ?? "open") === "open";
+  const marketOpen = match.state === "in_progress" && (odds?.status ?? "open") === "open";
   const rake = (odds?.rakeBps ?? cashier.config?.platformFeeBps ?? 500) / 10_000;
   const potentialReturn =
     selection && odds && stakeUsdc
@@ -113,7 +115,8 @@ function BetForm({
     marketOpen &&
     !isPlayer &&
     !overBalance &&
-    !portfolio.loading &&
+    !cashier.balanceLoading &&
+    (!needsDeposit || !portfolio.loading) &&
     !isFunding &&
     !placeBet.isPending;
   const finalMessage = settledMessage(odds?.status, odds?.winningOutcome);
@@ -128,31 +131,33 @@ function BetForm({
     const toastId = toast.loading("Placing spectator bet...");
     setIsFunding(true);
     try {
-      let txHash: string;
-      const pending = pendingDeposit.current;
-      if (pending) {
-        if (pending.stakeUsdc !== stakeUsdc) {
-          throw new Error(
-            `Finish confirming the pending ${pending.stakeUsdc} USDC stake before changing it.`
-          );
-        }
-        txHash = pending.txHash;
-        try {
-          await confirmChessDeposit(viewer, txHash);
-        } catch (error) {
-          if (!isChessDepositPending(error)) throw error;
-          throw new Error(
-            "Your Base USDC transfer is still confirming. Retry shortly; no second transfer will be sent."
-          );
-        }
-      } else {
-        const outcome = await cashier.deposit(stakeUsdc);
-        txHash = outcome.txHash;
-        pendingDeposit.current = { stakeUsdc, txHash };
-        if (!outcome.credited) {
-          throw new Error(
-            "Your Base USDC transfer is still confirming. Retry shortly; no second transfer will be sent."
-          );
+      if (needsDeposit) {
+        let txHash: string;
+        const pending = pendingDeposit.current;
+        if (pending) {
+          if (pending.amountUsdc !== depositUsdc) {
+            throw new Error(
+              `Finish confirming the pending ${pending.amountUsdc} USDC deposit before changing the stake.`
+            );
+          }
+          txHash = pending.txHash;
+          try {
+            await confirmChessDeposit(viewer, txHash);
+          } catch (error) {
+            if (!isChessDepositPending(error)) throw error;
+            throw new Error(
+              "Your Base USDC transfer is still confirming. Retry shortly; no second transfer will be sent."
+            );
+          }
+        } else {
+          const outcome = await cashier.deposit(depositUsdc);
+          txHash = outcome.txHash;
+          pendingDeposit.current = { amountUsdc: depositUsdc, txHash };
+          if (!outcome.credited) {
+            throw new Error(
+              "Your Base USDC transfer is still confirming. Retry shortly; no second transfer will be sent."
+            );
+          }
         }
       }
 
@@ -184,14 +189,17 @@ function BetForm({
   };
 
   let actionLabel = "Confirm bet";
-  if (isFunding || cashier.depositing) actionLabel = "Funding bet...";
+  if (cashier.depositPhase === "sending") actionLabel = "Signing Base transfer...";
+  else if (cashier.depositPhase === "confirming") actionLabel = "Confirming Base transfer...";
+  else if (isFunding || cashier.depositing) actionLabel = "Funding bet...";
   else if (placeBet.isPending) actionLabel = "Placing...";
   else if (!viewer) actionLabel = "Sign in to bet";
   else if (isPlayer) actionLabel = "Players cannot bet";
   else if (!marketOpen) actionLabel = "Market closed";
   else if (market.isLoading) actionLabel = "Loading market...";
   else if (!cashier.configured) actionLabel = "Betting balance unavailable";
-  else if (portfolio.loading) actionLabel = "Loading balance...";
+  else if (cashier.balanceLoading || (needsDeposit && portfolio.loading))
+    actionLabel = "Loading balance...";
   else if (!selection) actionLabel = "Choose White or Black";
   else if (!stakeUsdc) actionLabel = "Enter a stake";
   else if (overBalance) actionLabel = "Insufficient balance";
@@ -218,10 +226,6 @@ function BetForm({
         <p className="ark-spectator-bet-notice is-error">Could not load this market.</p>
       ) : finalMessage ? (
         <p className="ark-spectator-bet-notice">{finalMessage}</p>
-      ) : match.computer ? (
-        <p className="ark-spectator-bet-notice">
-          Spectator betting is only available on player games.
-        </p>
       ) : isPlayer ? (
         <p className="ark-spectator-bet-notice">Players cannot bet on their own game.</p>
       ) : null}
@@ -270,7 +274,10 @@ function BetForm({
 
       <div className="ark-spectator-bet-summary" data-sensitive="true">
         <span>
-          Profile balance <b>{portfolio.loading ? "-" : formatUsd(Number(availableUsdc))}</b>
+          Chess balance <b>{cashier.balanceLoading ? "-" : formatUsd(Number(cashier.available))}</b>
+        </span>
+        <span>
+          Base wallet <b>{portfolio.loading ? "-" : formatUsd(Number(walletUsdc))}</b>
         </span>
         <span>
           Potential payout <b>{stakeUsdc && selection ? formatUsd(potentialReturn) : "-"}</b>

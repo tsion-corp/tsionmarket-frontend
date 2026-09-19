@@ -662,6 +662,9 @@ export interface ChessPositionFrame {
   legalMoves?: string[];
   check?: boolean;
   step?: ChessRoundStepWire;
+  result?: ChessResultWire | null;
+  resultReason?: string | null;
+  finishedAt?: string | null;
 }
 
 // Fold a `position` frame into the cached match. The board (fen/turn/clocks)
@@ -696,6 +699,10 @@ export function applyPositionFrame(prev: ChessMatch, frame: ChessPositionFrame):
     state: STATE_BY_STATUS[frame.status],
     clocks: { w: frame.clocks.whiteMs / 1000, b: frame.clocks.blackMs / 1000 },
     clockUpdatedAt: frame.clockUpdatedAt ?? new Date().toISOString(),
+    result:
+      frame.result === undefined ? prev.result : toResult(frame.result, frame.resultReason ?? null),
+    resultReason: frame.resultReason === undefined ? prev.resultReason : frame.resultReason,
+    finishedAt: frame.finishedAt === undefined ? prev.finishedAt : frame.finishedAt,
     moves,
     round,
   };

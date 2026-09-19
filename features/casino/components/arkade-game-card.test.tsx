@@ -209,6 +209,19 @@ describe("ArkadeGameCard", () => {
       expect(note.className).toContain("text-[13px]");
     });
 
+    it("shows the exact live count in the Sporty-style player tag", () => {
+      const { container } = renderCard(
+        <ArkadeGameCard
+          game={chess}
+          surface="desktop"
+          presence={{ game: "chess", playersOnline: 1086, estimated: true }}
+        />
+      );
+
+      expect(screen.getByText("1086 players")).toBeInTheDocument();
+      expect(container.querySelector('[data-game-presence="chess"]')).not.toBeNull();
+    });
+
     it("hands the card back as a button, with no href of its own", () => {
       renderCard(<ArkadeGameCard game={chess} surface="desktop" />);
       const card = screen.getByRole("button", { name: "Play Chess" });

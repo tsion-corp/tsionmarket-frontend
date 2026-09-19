@@ -1,19 +1,24 @@
 "use client";
 
-import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useSessionWallet } from "@/components/providers/server-session";
 import { CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { fetchLiveMatches } from "@/features/casino/lib/api/chess";
 import { CHESS_KEYS } from "@/features/casino/hooks/use-casino-chess";
 import { LiveGameList } from "@/features/casino/components/chess/broadcast/live-game-list";
+import { applyLiveGamesFrame } from "@/features/casino/lib/chess/live-games";
+import { subscribeChessTopic } from "@/features/casino/lib/chess/live-socket";
+import type { ChessMatch } from "@/features/casino/lib/api/types";
 
 // The list is not the game transport. Individual boards receive moves over the
 // chess socket, so this request only repairs the catalog when games start/end.
 const LIVE_GAMES_POLL_MS = 30_000;
+const LIVE_GAMES_TOPIC = "chess:live";
 
 export function LiveGamesSection() {
+  const queryClient = useQueryClient();
   const wallet = useSessionWallet("ethereum")?.toLowerCase() ?? null;
   const channel = useSearchParams()?.get("channel") ?? "best";
   const live = useQuery({
@@ -23,6 +28,7 @@ export function LiveGamesSection() {
     refetchInterval: LIVE_GAMES_POLL_MS,
     refetchIntervalInBackground: false,
   });
+  const refetchLive = live.refetch;
   const matches = useMemo(
     () =>
       (live.data ?? []).filter(
@@ -44,6 +50,23 @@ export function LiveGamesSection() {
           .map((match) => match.id)
       ),
     [matches, wallet]
+  );
+
+  useEffect(
+    () =>
+      subscribeChessTopic(LIVE_GAMES_TOPIC, (frame) => {
+        if (frame.type === "__resync") {
+          void refetchLive();
+          return;
+        }
+        if (frame.type !== "state" && frame.type !== "position" && frame.type !== "gameOver") {
+          return;
+        }
+        queryClient.setQueryData<ChessMatch[]>(CHESS_KEYS.liveMatches, (previous) =>
+          applyLiveGamesFrame(previous, frame)
+        );
+      }),
+    [queryClient, refetchLive]
   );
 
   if (live.isLoading) return <CasinoLoading label="Loading current games" rows={12} />;

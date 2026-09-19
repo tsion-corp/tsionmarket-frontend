@@ -49,7 +49,8 @@ describe("chess dark canvas", () => {
     expect(shell).toContain("data-chess-header-actions-space");
     expect(shell).toContain('<ChessHeaderActions placement="header" />');
     expect(shell).not.toContain("<ChessProfileBalance />");
-    expect(profileBalance).toContain('style={{ marginInlineEnd: "16px" }}');
+    expect(profileBalance).toContain("compact = false");
+    expect(profileBalance).toContain('style={{ marginInlineEnd: compact ? undefined : "16px" }}');
     expect(profileBalance).toContain('href="/casino"');
     expect(profileBalance).toContain(">\n        Arkade\n      </Link>");
     expect(lobbyFrame).not.toContain("<ChessProfileBalance />");

@@ -20,6 +20,10 @@ import {
   WHITE_BALL_MAX,
 } from "@/features/casino/lib/lottery";
 import { toBaseUnits } from "@/lib/trade/math";
+import {
+  LotteryFundingError,
+  type PendingLotteryTicket,
+} from "@/features/casino/lib/lottery-funding";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 
@@ -31,6 +35,10 @@ interface TicketBuilderProps {
   salesCloseAt: string;
   priceUsdc: string;
   availableUsdc: string;
+  balanceLoading?: boolean;
+  balanceError?: boolean;
+  fundingConfigured?: boolean;
+  pendingTicket?: PendingLotteryTicket | null;
   eligibility: LotteryEligibility | null;
   ownedTickets: LotteryTicket[];
   quickPick: () => Promise<LotterySelection>;
@@ -40,6 +48,7 @@ interface TicketBuilderProps {
   }) => Promise<LotteryTicket>;
   quickPicking: boolean;
   purchasing: boolean;
+  purchasePhase?: "idle" | "sending" | "confirming" | "submitting";
 }
 
 export function TicketBuilder({
@@ -48,12 +57,17 @@ export function TicketBuilder({
   salesCloseAt,
   priceUsdc,
   availableUsdc,
+  balanceLoading = false,
+  balanceError = false,
+  fundingConfigured = true,
+  pendingTicket = null,
   eligibility,
   ownedTickets,
   quickPick,
   purchase,
   quickPicking,
   purchasing,
+  purchasePhase = "idle",
 }: TicketBuilderProps) {
   const t = useTranslations("casino.arkball");
   const [step, setStep] = useState<PickerStep>("white");
@@ -85,10 +99,18 @@ export function TicketBuilder({
   );
   const duplicate = selection ? ownedKeys.has(lotterySelectionKey(selection)) : false;
   const salesOpen = now !== null && lotterySalesOpen(drawStatus, salesCloseAt, now);
-  const sufficientBalance = toBaseUnits(availableUsdc, 6) >= toBaseUnits(priceUsdc, 6);
+  const sufficientBalance =
+    !balanceLoading && !balanceError && toBaseUnits(availableUsdc, 6) >= toBaseUnits(priceUsdc, 6);
   const eligible = eligibility?.eligible ?? true;
   const ready =
-    selection !== null && salesOpen && sufficientBalance && eligible && !duplicate && !purchasing;
+    selection !== null &&
+    salesOpen &&
+    sufficientBalance &&
+    fundingConfigured &&
+    eligible &&
+    !duplicate &&
+    !purchasing &&
+    !pendingTicket;
 
   const clear = () => {
     setWhiteNumbers([]);
@@ -121,6 +143,22 @@ export function TicketBuilder({
     }
   };
 
+  const submitPurchase = async (selected: LotterySelection, idempotencyKey: string) => {
+    const toastId = toast.loading(t("buyingTicket"));
+    try {
+      await purchase({ selection: selected, idempotencyKey });
+      toast.success(t("ticketPurchased"), { id: toastId });
+      clear();
+    } catch (error) {
+      if (error instanceof LotteryFundingError) {
+        if (error.pending) toast.info(error.message, { id: toastId });
+        else toast.error(error.message, { id: toastId });
+      } else {
+        toast.error(friendlyError(error, t("ticketPurchaseFailed")), { id: toastId });
+      }
+    }
+  };
+
   const onPurchase = async () => {
     if (!selection || !ready) return;
     const fingerprint = lotterySelectionKey(selection);
@@ -129,29 +167,35 @@ export function TicketBuilder({
         ? pending.current.key
         : window.crypto.randomUUID();
     pending.current = { fingerprint, key: idempotencyKey };
-    const toastId = toast.loading(t("buyingTicket"));
-    try {
-      await purchase({ selection, idempotencyKey });
-      toast.success(t("ticketPurchased"), { id: toastId });
-      clear();
-    } catch (error) {
-      toast.error(friendlyError(error, t("ticketPurchaseFailed")), { id: toastId });
-    }
+    await submitPurchase(selection, idempotencyKey);
   };
+
+  const progressLabel =
+    purchasePhase === "sending"
+      ? t("funding.signing")
+      : purchasePhase === "confirming"
+        ? t("funding.confirmingTransfer")
+        : t("buyingTicket");
 
   const buttonReason = !salesOpen
     ? t("salesClosed")
     : !eligible
       ? eligibility?.reason || t("notEligible")
-      : !sufficientBalance
-        ? t("notEnoughUsdc")
-        : duplicate
-          ? t("combinationOwned")
-          : selection === null
-            ? whiteNumbers.length < WHITE_BALL_COUNT
-              ? t("chooseWhiteRemaining", { count: WHITE_BALL_COUNT - whiteNumbers.length })
-              : t("chooseArkBall")
-            : null;
+      : balanceLoading
+        ? t("funding.balanceLoading")
+        : balanceError
+          ? t("funding.balanceUnavailable")
+          : !fundingConfigured
+            ? t("funding.unavailable")
+            : !sufficientBalance
+              ? t("notEnoughUsdc")
+              : duplicate
+                ? t("combinationOwned")
+                : selection === null
+                  ? whiteNumbers.length < WHITE_BALL_COUNT
+                    ? t("chooseWhiteRemaining", { count: WHITE_BALL_COUNT - whiteNumbers.length })
+                    : t("chooseArkBall")
+                  : null;
 
   return (
     <section className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
@@ -167,7 +211,7 @@ export function TicketBuilder({
             <button
               type="button"
               onClick={onQuickPick}
-              disabled={!salesOpen || quickPicking}
+              disabled={!salesOpen || quickPicking || purchasing}
               className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/12 bg-white/5 px-3.5 py-2 text-[12px] font-semibold text-white/72 transition hover:border-white/25 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
               <DiceIcon size={15} />
@@ -176,6 +220,7 @@ export function TicketBuilder({
             <button
               type="button"
               onClick={clear}
+              disabled={purchasing}
               className="cursor-pointer rounded-full border border-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/45 transition hover:text-white"
             >
               {t("clear")}
@@ -234,6 +279,7 @@ export function TicketBuilder({
                 step === "white" ? whiteNumbers.includes(number) : powerNumber === number;
               const disabled =
                 !salesOpen ||
+                purchasing ||
                 (step === "white" && whiteNumbers.length >= WHITE_BALL_COUNT && !selected);
               return (
                 <LotteryBall
@@ -252,6 +298,21 @@ export function TicketBuilder({
       </div>
 
       <aside className="h-fit rounded-[24px] border border-red-400/16 bg-[linear-gradient(180deg,rgba(222,24,51,0.13),rgba(255,255,255,0.035))] p-5 shadow-[0_28px_80px_rgba(0,0,0,0.28)] xl:sticky xl:top-5">
+        {pendingTicket ? (
+          <div className="mb-4 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3">
+            <p className="text-[12px] leading-5 text-white/65">{t("pendingTicketNotice")}</p>
+            <button
+              type="button"
+              disabled={purchasing}
+              onClick={() =>
+                void submitPurchase(pendingTicket.selection, pendingTicket.idempotencyKey)
+              }
+              className="mt-2 w-full cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-[12px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {purchasing ? progressLabel : t("retryPendingTicket")}
+            </button>
+          </div>
+        ) : null}
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[10px] font-semibold tracking-[0.13em] text-red-300 uppercase">
@@ -283,7 +344,11 @@ export function TicketBuilder({
           <div className="flex justify-between gap-4 text-white/45">
             <span>{t("availableBalance")}</span>
             <span className="tnum font-semibold text-white/75">
-              {formatLotteryUsdc(availableUsdc, 6)} USDC
+              {balanceLoading
+                ? "..."
+                : balanceError
+                  ? "--"
+                  : `${formatLotteryUsdc(availableUsdc, 6)} USDC`}
             </span>
           </div>
           <div className="flex justify-between gap-4 text-white/45">
@@ -306,7 +371,7 @@ export function TicketBuilder({
           onClick={onPurchase}
           className="mt-4 w-full cursor-pointer rounded-xl bg-[#dc1935] px-4 py-3.5 text-[13px] font-extrabold text-white shadow-[0_12px_30px_rgba(220,25,53,0.25)] transition hover:bg-[#ee2340] disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-white/28 disabled:shadow-none"
         >
-          {purchasing ? t("buyingTicket") : t("buyTicket", { price: formatLotteryUsdc(priceUsdc) })}
+          {purchasing ? progressLabel : t("buyTicket", { price: formatLotteryUsdc(priceUsdc) })}
         </button>
         <p className="mt-3 text-center text-[10px] leading-4 text-white/32">
           {t("purchaseDisclosure")}

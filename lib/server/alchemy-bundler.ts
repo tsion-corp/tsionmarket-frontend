@@ -172,7 +172,14 @@ function withPaymasterPolicy(call: RpcCall, policyId: string): RpcCall {
 }
 
 export async function forwardAlchemyBundlerRequest(req: NextRequest, network: string) {
-  const claims = await verifyRequest(req);
+  // Consume the request stream while the access token is being verified. A
+  // cold verification can outlive the browser transport timeout; reading the
+  // body afterwards then produces null and makes a valid user operation look
+  // malformed.
+  const [claims, body] = await Promise.all([
+    verifyRequest(req),
+    req.json().catch(() => null) as Promise<unknown>,
+  ]);
   if (!claims) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -188,7 +195,6 @@ export async function forwardAlchemyBundlerRequest(req: NextRequest, network: st
     return NextResponse.json({ error: "Alchemy API key is missing" }, { status: 503 });
   }
 
-  const body = await req.json().catch(() => null);
   const calls = (Array.isArray(body) ? body : [body]) as Array<RpcCall | null>;
   if (
     calls.length === 0 ||

@@ -19,8 +19,12 @@ const USER_OPERATION_EVENT_TOPIC =
   "0x49628fd1471006c1482da88028e9ce4dbb080b815c9b0344d39e5a8e6ec1419f" as const;
 const USER_OPERATION_RECEIPT_TIMEOUT_MS = 45_000;
 const ONCHAIN_RECOVERY_TIMEOUT_MS = 30_000;
-const USER_OPERATION_RECEIPT_FIRST_LOOK_MS = 2_000;
-const USER_OPERATION_RECEIPT_POLL_MS = 3_000;
+// Base normally includes the operation within a couple of seconds. Looking
+// once per second avoids the old three-second blind spot after a block lands
+// without creating a high-frequency background poll; this loop only exists
+// while the user has an operation in flight.
+const USER_OPERATION_RECEIPT_FIRST_LOOK_MS = 1_000;
+const USER_OPERATION_RECEIPT_POLL_MS = 1_000;
 const ONCHAIN_RECOVERY_POLL_MS = 5_000;
 const ONCHAIN_RECOVERY_BLOCKS = 2_000n;
 
@@ -246,9 +250,9 @@ export async function sendSponsoredEvmCallsWithReceipt({
   }
 }
 
-// The bundler cannot have a receipt before the next block, so the first look
-// waits one Base block rather than asking at once, then asks every
-// USER_OPERATION_RECEIPT_POLL_MS until the deadline.
+// Give the bundler a short head start, then check at a bounded cadence until
+// Base includes the operation. This is user-action polling, not a page-level
+// interval, and stops as soon as the receipt appears.
 async function waitForReceipt(
   bundlerClient: BundlerClient,
   hash: `0x${string}`

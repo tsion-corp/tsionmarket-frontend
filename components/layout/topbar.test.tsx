@@ -139,4 +139,13 @@ describe("Topbar chrome", () => {
     expect(bar.className).toContain("bg-cover");
     expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
   });
+
+  it("keeps the account controls in the app topbar on ArkBall", () => {
+    pathname = "/casino/arkball";
+    const { container } = render(<Topbar onOpenAccount={() => {}} />);
+    expect(container.firstElementChild).toContainElement(
+      screen.getByRole("button", { name: "Account" })
+    );
+    expect(screen.queryByRole("link", { name: "Balance $1.17" })).not.toBeInTheDocument();
+  });
 });

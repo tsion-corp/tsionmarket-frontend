@@ -54,7 +54,14 @@ function methodsAllowed(body: unknown): boolean {
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ network: string }> }) {
-  const claims = await verifyRequest(req);
+  // Start consuming the streamed body immediately. Session verification can
+  // need a remote JWKS refresh; waiting for it first lets the 10s RPC client
+  // abort, after which req.json() sees an empty stream and retries the same
+  // read several times.
+  const [claims, body] = await Promise.all([
+    verifyRequest(req),
+    req.json().catch(() => null) as Promise<unknown>,
+  ]);
   if (!claims) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -67,7 +74,6 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ network: s
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const body = await req.json().catch(() => null);
   if (!body || !methodsAllowed(body)) {
     // A bare 404 so the endpoint does not describe itself to anyone probing it.
     // The reason is logged instead: a rejected batch is otherwise

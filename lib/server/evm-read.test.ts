@@ -26,9 +26,40 @@ describe("readEvm provider order", () => {
     vi.resetModules();
     vi.stubEnv("ZERODEV_PROJECT_ID", "test-project-id-123");
     vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.stubEnv("BASE_READ_RPC_URL", "");
+    vi.stubEnv("BASE_READ_RPC_TOKEN", "");
     vi.stubGlobal("fetch", vi.fn());
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-07T12:00:00Z"));
+  });
+
+  it("uses the configured Base node before ZeroDev and keeps its token server-side", async () => {
+    vi.stubEnv("BASE_READ_RPC_URL", "https://base.example/main/evm/8453");
+    vi.stubEnv("BASE_READ_RPC_TOKEN", "private-token");
+    vi.mocked(fetch).mockResolvedValueOnce(
+      json(200, [{ jsonrpc: "2.0", id: 1, result: "0x2105" }])
+    );
+    const { readEvm } = await import("./evm-read");
+
+    const out = await readEvm("base-mainnet", 8453, CALLS);
+
+    expect(out[0].result).toBe("0x2105");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(urlOf(vi.mocked(fetch).mock.calls[0])).toBe(
+      "https://base.example/main/evm/8453?token=private-token"
+    );
+  });
+
+  it("falls through when the configured Base node is unavailable", async () => {
+    vi.stubEnv("BASE_READ_RPC_URL", "https://base.example/main/evm/8453");
+    vi.stubEnv("BASE_READ_RPC_TOKEN", "private-token");
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(json(401, { error: "unauthorized" }))
+      .mockResolvedValueOnce(json(200, [{ jsonrpc: "2.0", id: 1, result: "0x10" }]));
+    const { readEvm } = await import("./evm-read");
+
+    expect((await readEvm("base-mainnet", 8453, CALLS))[0].result).toBe("0x10");
+    expect(urlOf(vi.mocked(fetch).mock.calls[1])).toContain("rpc.zerodev.app");
   });
   afterEach(() => {
     vi.unstubAllEnvs();

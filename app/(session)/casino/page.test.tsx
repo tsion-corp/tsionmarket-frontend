@@ -21,6 +21,17 @@ vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({ tokens: [], loading: false, totalUsd: 0 }),
 }));
 
+vi.mock("@/features/casino/hooks/use-casino-presence", () => ({
+  useCasinoPresence: () => ({
+    data: {
+      chess: { game: "chess", playersOnline: 1086, estimated: true },
+      arkball: { game: "arkball", playersOnline: 1024, estimated: true },
+      arkjet: { game: "arkjet", playersOnline: 893, estimated: true },
+      chicken: { game: "chicken", playersOnline: 1362, estimated: true },
+    },
+  }),
+}));
+
 vi.mock("@/features/casino/components/arkade-mobile", () => ({
   ArkadeMobile: () => <div data-testid="mobile-catalogue" />,
 }));

@@ -589,6 +589,26 @@ describe("live game frames", () => {
     expect(terminal.takeback.takebackable).toBe(false);
   });
 
+  it("applies terminal result metadata from the immediate position frame", () => {
+    const active = toChessMatch(wire());
+    const terminal = applyPositionFrame(active, {
+      fen: active.fen,
+      turn: "white",
+      ply: 4,
+      clocks: { whiteMs: 0, blackMs: 286_000 },
+      clockUpdatedAt: "2026-07-30T09:03:00.000Z",
+      status: "finished",
+      result: "black",
+      resultReason: "timeout",
+      finishedAt: "2026-07-30T09:03:00.000Z",
+    });
+
+    expect(terminal.state).toBe("settled");
+    expect(terminal.result).toEqual({ kind: "timeout", winner: "b" });
+    expect(terminal.resultReason).toBe("timeout");
+    expect(terminal.finishedAt).toBe("2026-07-30T09:03:00.000Z");
+  });
+
   it("preserves clock-extension capability when a compact state frame omits it", () => {
     const active = toChessMatch(
       wire({

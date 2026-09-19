@@ -20,6 +20,7 @@ import { ArkadeSectionHeader } from "@/features/casino/components/arkade-section
 import { FEATURED_STATS } from "@/features/casino/lib/featured";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import type { CasinoPresenceByGame } from "@/features/casino/lib/api/presence";
 
 /**
  * Arkade on a phone (Figma 2234:11169): the same surface the desktop draws,
@@ -84,11 +85,13 @@ function ArkadeRail({
   label,
   badge,
   firstBadge,
+  presenceByGame,
 }: {
   games: CasinoGame[];
   label: string;
   badge?: ArkadeBadgeTone;
   firstBadge?: ArkadeBadgeTone;
+  presenceByGame?: CasinoPresenceByGame;
 }) {
   return (
     <ul
@@ -101,6 +104,7 @@ function ArkadeRail({
             game={game}
             surface="desktop"
             render="link"
+            presence={presenceByGame?.[game.id as keyof CasinoPresenceByGame]}
             badge={index === 0 && firstBadge ? firstBadge : badge}
             onActivate={reportGameOpened}
           />
@@ -123,6 +127,7 @@ export interface ArkadeMobileProps {
   onSelectGame?: (game: CasinoGame) => void;
   // Which filter the surface opens on.
   defaultCategory?: GameCategoryFilter;
+  presenceByGame?: CasinoPresenceByGame;
 }
 
 export function ArkadeMobile({
@@ -131,6 +136,7 @@ export function ArkadeMobile({
   onAddFunds,
   onSelectGame,
   defaultCategory = "All games",
+  presenceByGame,
 }: ArkadeMobileProps = {}) {
   const t = useTranslations("casino.hub");
   const [category, setCategory] = useState<GameCategoryFilter>(defaultCategory);
@@ -260,7 +266,7 @@ export function ArkadeMobile({
         </div>
       ) : searching ? (
         // Filtered lookup: one rail, no banner or section headings.
-        <ArkadeRail games={visible} label={t("title")} />
+        <ArkadeRail games={visible} label={t("title")} presenceByGame={presenceByGame} />
       ) : (
         <div className="flex flex-col gap-9">
           <section className="flex flex-col gap-6">
@@ -270,13 +276,19 @@ export function ArkadeMobile({
               label={t("trendingTitle")}
               badge="hot"
               firstBadge="mostPlayed"
+              presenceByGame={presenceByGame}
             />
           </section>
 
           {newGames.length > 0 ? (
             <section className="flex flex-col gap-6">
               <ArkadeSectionHeader title={t("newTitle")} subtitle={t("newSubtitle")} />
-              <ArkadeRail games={newGames} label={t("newTitle")} badge="new" />
+              <ArkadeRail
+                games={newGames}
+                label={t("newTitle")}
+                badge="new"
+                presenceByGame={presenceByGame}
+              />
             </section>
           ) : null}
         </div>

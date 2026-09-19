@@ -196,12 +196,30 @@ export function installChessVariantPickers(frameDocument: Document): () => void 
     const labelName = picker.querySelector<HTMLElement>(".mselect__label .name");
     const labelDescription = picker.querySelector<HTMLElement>(".mselect__label .desc");
     const fromPosition = form?.querySelector<HTMLElement>(".from-position-fields");
+    const rated = form?.querySelector<HTMLInputElement>('input[name="mode"][value="rated"]');
+    const casual = form?.querySelector<HTMLInputElement>('input[name="mode"][value="casual"]');
+    const ratedLabel = rated?.labels?.item(0) ?? null;
+    const ratedVariantNote = form?.querySelector<HTMLElement>("[data-rated-variant-note]");
     if (!form || !input || !toggle) continue;
+
+    const syncRatedAvailability = (variant: ChessVariant) => {
+      if (!rated || !casual) return;
+      const casualOnly = variant !== "standard";
+      rated.disabled = casualOnly;
+      rated.setAttribute("aria-disabled", String(casualOnly));
+      ratedLabel?.classList.toggle("disabled", casualOnly);
+      if (ratedVariantNote) ratedVariantNote.hidden = !casualOnly;
+      if (casualOnly && rated.checked) {
+        casual.checked = true;
+        casual.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    };
 
     const select = (item: HTMLElement) => {
       const variant = item.dataset.variant as ChessVariant | undefined;
       if (!variant) return;
       input.value = variant;
+      syncRatedAvailability(variant);
       for (const candidate of picker.querySelectorAll<HTMLElement>("[data-variant]")) {
         candidate.classList.toggle("current", candidate === item);
         candidate.setAttribute("aria-selected", String(candidate === item));
@@ -232,6 +250,7 @@ export function installChessVariantPickers(frameDocument: Document): () => void 
     toggle.addEventListener("change", onToggle);
     picker.addEventListener("click", onClick);
     picker.addEventListener("keydown", onKeyDown);
+    syncRatedAvailability((input.value || "standard") as ChessVariant);
     cleanups.push(() => {
       toggle.removeEventListener("change", onToggle);
       picker.removeEventListener("click", onClick);
@@ -302,8 +321,8 @@ export function ChessLobbyFrame({ source }: { source: string }) {
   }, []);
 
   useEffect(() => {
-    setFrameReady(false);
     setFrameSource(source);
+    frameRef.current?.style.removeProperty("visibility");
   }, [source]);
 
   useEffect(() => {
@@ -324,8 +343,6 @@ export function ChessLobbyFrame({ source }: { source: string }) {
       if (promotingFrameNavigation) return;
       promotingFrameNavigation = true;
       stopLifecyclePolling();
-      frame.style.visibility = "hidden";
-      setFrameReady(false);
       router.push(destination);
     };
     const startLifecyclePolling = (document: Document) => {
@@ -812,7 +829,10 @@ export function ChessLobbyFrame({ source }: { source: string }) {
 
     const onFrameLoad = () => attach(true);
     frame.addEventListener("load", onFrameLoad);
-    attach(false);
+    // A backend form can finish its iframe redirect before React receives the
+    // matching parent route. In that case assigning the same src does not fire
+    // another load event, so reveal the already-complete document immediately.
+    attach(frame.contentDocument?.readyState === "complete");
     return () => {
       detachVariantPickers();
       detachSetupPersistence();
