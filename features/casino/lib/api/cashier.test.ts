@@ -3,6 +3,7 @@ import { apiError } from "@/lib/api/envelope";
 import {
   cashierFundingPlan,
   cashierLockBuckets,
+  cashierTotalUsdc,
   chessComputerWagerBreakdown,
   computerWagerBreakdown,
   exceedsUsdcBalance,
@@ -317,6 +318,19 @@ describe("cashierLockBuckets", () => {
       pendingWithdrawalUsdc: "0",
       lockedOtherUsdc: "0",
     });
+  });
+});
+
+describe("cashierTotalUsdc", () => {
+  it("combines available and locked funds instead of trusting a stale total", () => {
+    expect(
+      cashierTotalUsdc({
+        player: "0xabc",
+        availableUsdc: "0.07",
+        lockedUsdc: "0.01062",
+        totalUsdc: "0",
+      })
+    ).toBe("0.08062");
   });
 });
 

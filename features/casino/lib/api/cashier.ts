@@ -147,6 +147,15 @@ export function cashierLockBuckets(balance: CashierBalance | null | undefined): 
   };
 }
 
+// The in-play balance is everything still held by the Chess ledger. Derive it
+// from the authoritative buckets so an available balance cannot disappear
+// because an older response supplied an incorrect total field.
+export function cashierTotalUsdc(balance: CashierBalance | null | undefined): string {
+  const available = toBaseUnits(balance?.availableUsdc ?? "0", USDC_DECIMALS);
+  const locked = toBaseUnits(balance?.lockedUsdc ?? "0", USDC_DECIMALS);
+  return fromBaseUnits(available + locked, USDC_DECIMALS);
+}
+
 export function hasPositiveUsdc(value: string): boolean {
   return toBaseUnits(value, USDC_DECIMALS) > 0n;
 }

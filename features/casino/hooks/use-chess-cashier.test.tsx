@@ -17,6 +17,8 @@ vi.mock("@privy-io/react-auth", () => ({
 }));
 vi.mock("@/features/casino/lib/api/cashier", () => ({
   cashierLockBuckets: () => ({ match: "0", swiss: "0", bet: "0", lottery: "0", other: "0" }),
+  cashierTotalUsdc: (balance?: { availableUsdc?: string; lockedUsdc?: string }) =>
+    String(Number(balance?.availableUsdc ?? 0) + Number(balance?.lockedUsdc ?? 0)),
   confirmChessDeposit: vi.fn(),
   createChessWithdrawal: vi.fn(),
   feePctFromBps: (bps: number) => bps / 100,
@@ -28,8 +30,8 @@ vi.mock("@/features/casino/lib/api/cashier", () => ({
   USDC_DECIMALS: 6,
 }));
 vi.mock("@/hooks/use-withdraw", () => ({ useSendToken: vi.fn() }));
-vi.mock("@/lib/user", () => ({
-  getWalletAddress: () => "0x0000000000000000000000000000000000000001",
+vi.mock("@/components/providers/server-session", () => ({
+  useSessionWallet: () => "0x0000000000000000000000000000000000000001",
 }));
 
 import {

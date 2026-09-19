@@ -11,13 +11,13 @@ describe("chess upstream routing", () => {
     vi.unstubAllEnvs();
   });
 
-  it("pins deployed chess traffic to staging", () => {
+  it("pins deployed chess traffic to the production ledger", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("CHESS_API_URL", "https://api.tsionark.com/v1/chess");
     vi.stubEnv("NEXT_PUBLIC_CHESS_API_URL", "https://legacy.example/chess");
 
     expect(chessUpstreamCandidates()).toEqual([DEPLOYED_CHESS_API]);
-    expect(chessUpstreamBase()).toBe("https://staging.tsionark.com/v1/chess");
+    expect(chessUpstreamBase()).toBe("https://api.tsionark.com/v1/chess");
   });
 
   it("keeps the explicit and local Chess APIs first in development", () => {

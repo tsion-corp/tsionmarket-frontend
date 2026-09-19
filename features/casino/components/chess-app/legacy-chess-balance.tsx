@@ -26,8 +26,16 @@ export function LegacyChessBalance({ compact = false }: { compact?: boolean } = 
 
   if (!cashier.configured) return null;
 
-  const displayBalance = mask(money.format(Number(cashier.total)));
-  const canMove = hasPositiveUsdc(cashier.available) && !cashier.withdrawing;
+  const displayBalance = cashier.balanceLoading
+    ? "…"
+    : cashier.balanceError
+      ? "—"
+      : mask(money.format(Number(cashier.total)));
+  const canMove =
+    !cashier.balanceLoading &&
+    !cashier.balanceError &&
+    hasPositiveUsdc(cashier.available) &&
+    !cashier.withdrawing;
   const hasLockedFunds = hasPositiveUsdc(cashier.locked);
 
   const moveToProfile = async () => {
@@ -59,7 +67,11 @@ export function LegacyChessBalance({ compact = false }: { compact?: boolean } = 
         type="button"
         onClick={() => setOpen(true)}
         className={`${styles.legacyAction} flex h-10 ${compact ? "min-w-[84px] sm:min-w-[104px]" : "min-w-[104px]"} shrink-0 items-center justify-end rounded-[10px] border border-amber-300/20 bg-amber-300/[0.07] px-3 text-right shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:border-amber-300/35 hover:bg-amber-300/[0.11]`}
-        aria-label={`Legacy in-play balance ${displayBalance}. Move to profile`}
+        aria-label={
+          cashier.balanceError
+            ? "Legacy in-play balance unavailable"
+            : `Legacy in-play balance ${displayBalance}. Move to profile`
+        }
         data-sensitive="balance"
       >
         <span>
@@ -92,7 +104,7 @@ export function LegacyChessBalance({ compact = false }: { compact?: boolean } = 
               className="ws-display tnum text-[18px] text-white"
               data-sensitive="balance"
             >
-              {cashier.available} USD
+              {cashier.balanceLoading ? "…" : cashier.balanceError ? "—" : cashier.available} USD
             </span>
           </div>
 

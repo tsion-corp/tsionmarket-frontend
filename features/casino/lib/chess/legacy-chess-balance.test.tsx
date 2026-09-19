@@ -5,6 +5,8 @@ const state = vi.hoisted(() => ({
   available: "0",
   locked: "0",
   total: "0",
+  balanceLoading: false,
+  balanceError: false,
   withdrawing: false,
   withdraw: vi.fn(),
   refetchUntilChanged: vi.fn(),
@@ -38,6 +40,8 @@ vi.mock("@/features/casino/hooks/use-chess-cashier", () => ({
     available: state.available,
     locked: state.locked,
     total: state.total,
+    balanceLoading: state.balanceLoading,
+    balanceError: state.balanceError,
     withdrawing: state.withdrawing,
     withdraw: state.withdraw,
     config: { withdrawalFeeBps: 300 },
@@ -63,6 +67,8 @@ describe("LegacyChessBalance", () => {
     state.available = "0";
     state.locked = "0";
     state.total = "0";
+    state.balanceLoading = false;
+    state.balanceError = false;
     state.withdrawing = false;
     state.withdraw.mockReset().mockResolvedValue({ status: "submitted" });
     state.refetchUntilChanged.mockReset().mockResolvedValue(true);
@@ -87,6 +93,14 @@ describe("LegacyChessBalance", () => {
     fireEvent.click(screen.getByRole("button", { name: /legacy in-play balance/i }));
 
     expect(screen.getByRole("button", { name: "Funds are still locked" })).toBeDisabled();
+  });
+
+  it("does not present a failed balance request as zero", () => {
+    state.balanceError = true;
+    render(<LegacyChessBalance />);
+
+    expect(screen.getByText("—")).toBeInTheDocument();
+    expect(screen.queryByText("$0.00")).not.toBeInTheDocument();
   });
 
   it("moves the full available legacy balance to the profile", async () => {

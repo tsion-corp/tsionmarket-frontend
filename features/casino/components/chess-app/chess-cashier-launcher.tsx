@@ -35,6 +35,8 @@ export function ChessCashierLauncher({
   const t = useTranslations("casino.chess.cashier");
   const cashier = useChessCashierStatus();
   const [mode, setMode] = useState<CashierMode | null>(null);
+  const available = cashier.balanceLoading ? "…" : cashier.balanceError ? "—" : cashier.available;
+  const locked = cashier.balanceLoading ? "…" : cashier.balanceError ? "—" : cashier.locked;
 
   if (!cashier.configured) return null;
 
@@ -59,13 +61,13 @@ export function ChessCashierLauncher({
             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
               {t("available")}
             </div>
-            <div className="tnum text-[14px] font-semibold text-white">{cashier.available} USD</div>
+            <div className="tnum text-[14px] font-semibold text-white">{available} USD</div>
           </div>
           <div className="rounded-[10px] border border-white/6 bg-black/10 px-3 py-2.5">
             <div className="mb-1 text-[11px] tracking-[0.05em] text-white/38 uppercase">
               {t("locked")}
             </div>
-            <div className="tnum text-[14px] font-semibold text-white">{cashier.locked} USD</div>
+            <div className="tnum text-[14px] font-semibold text-white">{locked} USD</div>
           </div>
         </div>
 
