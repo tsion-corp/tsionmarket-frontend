@@ -64,6 +64,20 @@ describe("chess live socket replay", () => {
     vi.unstubAllEnvs();
   });
 
+  // The deployment names its gateway. Production ignored that and used a
+  // hardcoded staging host, which no longer accepts connections at all.
+  it("uses the gateway the deployment names, in production too", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.resetModules();
+    const { subscribeChessTopic } = await import("@/features/casino/lib/chess/live-socket");
+    const unsubscribe = subscribeChessTopic("chess:match:match-1", () => {});
+
+    expect(FakeSocket.instances[0]!.url).toContain("wss://chess.test/");
+
+    unsubscribe();
+    await vi.advanceTimersByTimeAsync(8_000);
+  });
+
   it("reconnects with the last delivered topic revision", async () => {
     const { subscribeChessTopic } = await import("@/features/casino/lib/chess/live-socket");
     const topic = "chess:match:match-1";
@@ -256,14 +270,19 @@ describe("chess live socket replay", () => {
     await vi.advanceTimersByTimeAsync(8_000);
   });
 
-  it("pins production sockets to the deployed staging gateway", async () => {
+  // This used to pin production to a hardcoded host so a stale variable could
+  // not misdirect it. That host (ws-staging) now answers 502, while the
+  // variable both deployments set names the live gateway, so the pin was the
+  // thing misdirecting production. A deployment that names no gateway falls
+  // back to the live one rather than the retired staging host.
+  it("falls back to the live gateway when the deployment names none", async () => {
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("NEXT_PUBLIC_CHESS_WS_URL", "wss://stale-gateway.example");
+    vi.stubEnv("NEXT_PUBLIC_CHESS_WS_URL", "");
 
     const { subscribeChessTopic } = await import("@/features/casino/lib/chess/live-socket");
     const unsubscribe = subscribeChessTopic("chess:match:production", vi.fn());
 
-    expect(FakeSocket.instances[0]?.url).toBe("wss://ws-staging.tsionark.com");
+    expect(FakeSocket.instances[0]?.url).toBe("wss://ws.tsionark.com");
 
     unsubscribe();
     await vi.advanceTimersByTimeAsync(8_000);

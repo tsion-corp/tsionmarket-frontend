@@ -19,11 +19,19 @@ import { resolveAuthTokens } from "@/lib/privy-token";
 // topic-less and ignored here.
 
 const LOCAL_CHESS_WS_URL = "ws://127.0.0.1:8100";
-const DEPLOYED_CHESS_WS_URL = "wss://ws-staging.tsionark.com";
+// The gateway a deployment without NEXT_PUBLIC_CHESS_WS_URL falls back to. It
+// is the live one: the staging host this used to name stopped accepting
+// connections, and production reached for it before its own variable.
+const DEPLOYED_CHESS_WS_URL = "wss://ws.tsionark.com";
+// A variable set to nothing is a variable nobody set: it must not resolve to
+// an empty address.
+const NAMED_WS_URL = process.env.NEXT_PUBLIC_CHESS_WS_URL?.trim();
 const WS_URL =
-  process.env.NODE_ENV === "production"
-    ? DEPLOYED_CHESS_WS_URL
-    : (process.env.NEXT_PUBLIC_CHESS_WS_URL ?? LOCAL_CHESS_WS_URL);
+  NAMED_WS_URL !== undefined && NAMED_WS_URL !== ""
+    ? NAMED_WS_URL
+    : process.env.NODE_ENV === "production"
+      ? DEPLOYED_CHESS_WS_URL
+      : LOCAL_CHESS_WS_URL;
 
 export interface GatewayFrame {
   type?: string;
