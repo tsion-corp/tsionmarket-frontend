@@ -3171,7 +3171,9 @@
     "reconnecting": "Reconnecting…"
   },
   "carousel": {
-    "goToSlide": "Go to slide {index}"
+    "goToSlide": "Go to slide {index}",
+    "pause": "Pause the banners",
+    "play": "Play the banners"
   },
   "discovery": {
     "promoRailCarousel": "Promotions",

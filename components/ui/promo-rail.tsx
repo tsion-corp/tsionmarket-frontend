@@ -106,11 +106,17 @@ interface PromoRailProps {
 // bare gutter, and enough of the following banner in view that the strip reads
 // as something that moves. Each banner fills the slide it is given and scales
 // as one piece, so the four edges still line up.
+//
+// `autoAdvance="persist"` is what makes the rail move on its own on a desktop.
+// Under the default the banners stop the moment the pointer comes to rest on
+// the page, which on a desktop is most of the time, so the rail sat still for
+// as long as anyone was looking at it. The carousel's pause control comes with
+// this mode.
 export function PromoRail({ label, children }: PromoRailProps) {
   return (
     <div className="rounded-[14px] bg-[#232222] px-[21px] py-[11px]">
       {/* 22 is the gap the design sets between rail banners. */}
-      <Carousel label={label} gapPx={22}>
+      <Carousel label={label} gapPx={22} autoAdvance="persist">
         {children}
       </Carousel>
     </div>

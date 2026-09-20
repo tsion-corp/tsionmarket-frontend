@@ -1,6 +1,14 @@
 "use client";
 
-import { Children, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  Children,
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { useTranslations } from "next-intl";
 import useEmblaCarousel from "embla-carousel-react";
 
@@ -27,6 +35,32 @@ const ONE_UP_BELOW = 768;
 // and a trimmed one 278.30px, which leaves 51px and reads as a bug.
 const TRIM_MIN_SLIDE_PX = 481.94;
 
+// The accumulated horizontal wheel delta, in pixels, that moves the carousel by
+// one slide, and the quiet period after a step.
+//
+// A trackpad flick arrives as dozens of small deltas as the momentum decays, so
+// a threshold on its own would run the whole rail off one gesture. The
+// threshold decides how far a reader has to push, the cooldown decides that one
+// flick is one slide. Both are here, in one place, because they are the part of
+// this that can only really be judged on hardware.
+export const WHEEL_STEP_PX = 40;
+export const WHEEL_COOLDOWN_MS = 320;
+
+// How long the automatic advance stays off after a drag, a wheel step or a dot
+// tap, so a rail that keeps moving does not pull itself out from under someone
+// who has just reached for it.
+export const INTERACTION_PAUSE_MS = 8000;
+
+// One line of wheel delta in pixels, for the browsers that report `deltaMode`
+// in lines rather than pixels. Firefox on Windows is the common one. 16 is this
+// app's root font size, so a line is one line of body text.
+const WHEEL_LINE_PX = 16;
+
+// Where a reader's choice to stop the banners lives for the session. One key
+// for every carousel: stopping the banners means the banners, not this
+// particular instance of them.
+const PAUSE_STORAGE_KEY = "ws.carousel.paused";
+
 // True when the element was focused by keyboard rather than by a click. Chrome,
 // Safari and Firefox all support :focus-visible; jsdom does not implement it and
 // throws on the selector, and in a test there is no viewport to scroll anyway.
@@ -36,6 +70,59 @@ function focusedByKeyboard(element: Element) {
   } catch {
     return false;
   }
+}
+
+// Reading and writing the session's pause choice. A browser can refuse storage
+// outright, in a private window or behind a cookie policy, and the accessor
+// throws rather than returning null: these two catches are that capability
+// check, not a swallowed failure. Without storage the rail simply plays, and a
+// choice made on the page still holds until it is unmounted.
+function readStoredPause(): boolean {
+  try {
+    return window.sessionStorage.getItem(PAUSE_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeStoredPause(paused: boolean) {
+  try {
+    window.sessionStorage.setItem(PAUSE_STORAGE_KEY, String(paused));
+  } catch {
+    // Nothing to do: the choice is still held in the store below for this page.
+  }
+}
+
+// The pause choice as one store rather than one piece of state per carousel,
+// the same shape `features/trade/components/spot-mode.tsx` uses for the spot
+// mode. The stored key is global, so stopping the banners on one rail stops
+// them everywhere, and a subscription is what keeps two rails on a page from
+// disagreeing.
+const pauseListeners = new Set<() => void>();
+let bannersPaused = false;
+
+function subscribeToPause(notify: () => void) {
+  pauseListeners.add(notify);
+  return () => {
+    pauseListeners.delete(notify);
+  };
+}
+
+function setBannersPaused(paused: boolean) {
+  bannersPaused = paused;
+  writeStoredPause(paused);
+  for (const notify of pauseListeners) notify();
+}
+
+// A wheel delta in pixels. Most events are already pixels (`deltaMode` 0), some
+// browsers report lines, and a few report pages.
+function wheelPixels(delta: number, deltaMode: number, viewport: HTMLElement) {
+  if (deltaMode === 1) return delta * WHEEL_LINE_PX;
+  // A page is one carousel viewport wide. A node that has not been measured,
+  // which is what jsdom and a hidden rail both give, falls back to the window
+  // so that a page is never worth nothing.
+  if (deltaMode === 2) return delta * (viewport.clientWidth || window.innerWidth);
+  return delta;
 }
 
 // The width one slide takes so that `slides` whole slides, their gaps and the
@@ -84,6 +171,14 @@ interface CarouselProps {
    * a card that small it comes out of the artwork. Default 0.
    */
   trimPx?: number;
+  /**
+   * "hover" (the default) pauses the advance while the pointer rests on the
+   * carousel, which is how every carousel in the app behaved before this prop
+   * existed. "persist" keeps advancing under a resting pointer and pauses only
+   * on the gates a reader cannot argue with: the pause control, focus inside,
+   * a hidden tab, a carousel off screen, and the seconds after an interaction.
+   */
+  autoAdvance?: "hover" | "persist";
   /** Extra classes for the outer region. */
   className?: string;
 }
@@ -97,7 +192,8 @@ interface CarouselProps {
 //
 // Embla has no built-in autoplay, so a plain interval calls `scrollNext` on the
 // cadence `intervalMs` asks for, paused while the pointer or focus is on the
-// carousel and switched off entirely under reduced motion. `loop: true` is
+// carousel (or, under `autoAdvance="persist"`, on the narrower set of gates
+// below) and switched off entirely under reduced motion. `loop: true` is
 // Embla's own wraparound, which replaces the clone-and-jump engine this
 // component used to hand-roll: the same effect, for a fraction of the code.
 //
@@ -115,6 +211,7 @@ export function Carousel({
   peek = 0.12,
   gapPx = 12,
   trimPx = 0,
+  autoAdvance = "hover",
   className = "",
 }: CarouselProps) {
   const t = useTranslations("carousel");
@@ -127,8 +224,33 @@ export function Carousel({
   const [paused, setPaused] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
 
+  // The `autoAdvance="persist"` gates. Each starts in the state that lets the
+  // carousel play, so the server frame and the first client frame agree and
+  // nothing is held back before the browser has answered. The stored pause
+  // choice is reconciled after mount, below, for the same reason.
+  const controlPaused = useSyncExternalStore(
+    subscribeToPause,
+    () => bannersPaused,
+    () => false
+  );
+  const [focusWithin, setFocusWithin] = useState(false);
+  const [tabHidden, setTabHidden] = useState(false);
+  const [offScreen, setOffScreen] = useState(false);
+  const [interactions, setInteractions] = useState(0);
+
+  const sectionRef = useRef<HTMLElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const trackId = useId();
+
+  // A counter rather than a timestamp, so two interactions inside one
+  // millisecond still restart the pause below.
+  //
+  // Only "persist" reads it: under "hover" the pointer resting on the carousel
+  // is already the pause, and there is nothing to record.
+  const noteInteraction = useCallback(() => {
+    if (autoAdvance !== "persist") return;
+    setInteractions((count) => count + 1);
+  }, [autoAdvance]);
 
   // Embla's own ref callback, merged with a plain ref so the keyboard handler
   // below can still reach the viewport node directly.
@@ -159,15 +281,138 @@ export function Carousel({
     };
   }, [emblaApi]);
 
-  // Autoplay. Off with nothing to loop through, off with intervalMs at 0, off
-  // while the pointer or focus rests on the carousel, off under reduced
-  // motion: the same four gates the hand-built engine used to check before it
-  // moved.
+  // A drag counts as an interaction, the same as a wheel step or a dot tap.
   useEffect(() => {
-    if (!emblaApi || !loop || !intervalMs || paused || reducedMotion) return;
+    if (!emblaApi) return;
+    emblaApi.on("pointerDown", noteInteraction);
+    return () => {
+      emblaApi.off("pointerDown", noteInteraction);
+    };
+  }, [emblaApi, noteInteraction]);
+
+  // The interaction pause runs out on its own. Every fresh interaction changes
+  // the count, which restarts this timer rather than letting the first one
+  // expire early.
+  useEffect(() => {
+    if (!interactions) return;
+    const timer = window.setTimeout(() => setInteractions(0), INTERACTION_PAUSE_MS);
+    return () => window.clearTimeout(timer);
+  }, [interactions]);
+
+  // The stored pause choice is read after mount, never during render: the
+  // server has no session storage, so reading it during render would make the
+  // first client frame disagree with the markup it is hydrating.
+  useEffect(() => {
+    if (autoAdvance !== "persist") return;
+    const stored = readStoredPause();
+    if (stored !== bannersPaused) setBannersPaused(stored);
+  }, [autoAdvance]);
+
+  // The rest of the "persist" gates, all of them about whether a reader is in a
+  // position to see the carousel move. None of this is wired up under "hover",
+  // where a resting pointer already covers most of it.
+  useEffect(() => {
+    if (autoAdvance !== "persist") return;
+    const section = sectionRef.current;
+    if (!section) return;
+
+    const onFocusIn = () => setFocusWithin(true);
+    const onFocusOut = (event: FocusEvent) => {
+      // focusout also fires when focus moves from one slide to the next, which
+      // is still focus inside the carousel.
+      const next = event.relatedTarget;
+      if (next instanceof Node && section.contains(next)) return;
+      setFocusWithin(false);
+    };
+    const onVisibility = () => setTabHidden(document.visibilityState === "hidden");
+    const observer = new IntersectionObserver((entries) => {
+      const entry = entries[entries.length - 1];
+      if (entry) setOffScreen(!entry.isIntersecting);
+    });
+
+    section.addEventListener("focusin", onFocusIn);
+    section.addEventListener("focusout", onFocusOut);
+    document.addEventListener("visibilitychange", onVisibility);
+    observer.observe(section);
+    onVisibility();
+
+    return () => {
+      section.removeEventListener("focusin", onFocusIn);
+      section.removeEventListener("focusout", onFocusOut);
+      document.removeEventListener("visibilitychange", onVisibility);
+      observer.disconnect();
+    };
+  }, [autoAdvance]);
+
+  // Wheel and trackpad. Embla binds pointer and touch drag only, and the
+  // viewport is overflow-hidden over a transform-driven track, so without this
+  // there is nothing for a trackpad to move: the rail can only be pressed and
+  // dragged. Registered here rather than as React's `onWheel` because React's
+  // wheel listener is passive and so cannot preventDefault.
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || !emblaApi) return;
+
+    let accumulated = 0;
+    let cooldownUntil = 0;
+
+    const onWheel = (event: WheelEvent) => {
+      // Horizontal intent only: a two-finger trackpad swipe, or the mouse
+      // convention of shift plus a wheel. Everything else is the page's, and
+      // is left alone with nothing prevented.
+      const horizontal =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY)
+          ? event.deltaX
+          : event.shiftKey
+            ? event.deltaY
+            : 0;
+      if (!horizontal) return;
+
+      const delta = wheelPixels(horizontal, event.deltaMode, viewport);
+      // At the end of a carousel that does not loop the gesture belongs to the
+      // page. A rail must never trap the reader's scroll.
+      if (delta > 0 ? !emblaApi.canScrollNext() : !emblaApi.canScrollPrev()) return;
+      event.preventDefault();
+
+      // One flick is one step: the rest of the momentum is dropped rather than
+      // queued up behind the cooldown.
+      const now = Date.now();
+      if (now < cooldownUntil) return;
+
+      accumulated += delta;
+      if (Math.abs(accumulated) < WHEEL_STEP_PX) return;
+
+      if (accumulated > 0) emblaApi.scrollNext();
+      else emblaApi.scrollPrev();
+      accumulated = 0;
+      cooldownUntil = now + WHEEL_COOLDOWN_MS;
+      noteInteraction();
+    };
+
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", onWheel);
+  }, [emblaApi, noteInteraction]);
+
+  // Autoplay. Off with nothing to loop through, off with intervalMs at 0, off
+  // under reduced motion. The fourth gate is the pointer or focus resting on
+  // the carousel, which is the whole of it under "hover" and the same four
+  // gates the hand-built engine used to check before it moved. Under "persist"
+  // a resting pointer no longer counts, and the gates are the ones a reader
+  // cannot argue with.
+  const stopped =
+    autoAdvance === "persist"
+      ? controlPaused || focusWithin || tabHidden || offScreen || interactions > 0
+      : paused;
+
+  // What the timer actually does, named once so the live region below cannot
+  // drift from it.
+  const advancing = Boolean(loop && intervalMs) && !stopped && !reducedMotion;
+
+  useEffect(() => {
+    if (!emblaApi || !advancing) return;
     const timer = window.setInterval(() => emblaApi.scrollNext(), intervalMs);
     return () => window.clearInterval(timer);
-  }, [emblaApi, intervalMs, loop, paused, reducedMotion]);
+  }, [emblaApi, intervalMs, advancing]);
 
   // The slide width has to change with the frame, and a width that changes with
   // the frame cannot be an inline style. It goes in a rule of its own, keyed to
@@ -194,8 +439,16 @@ export function Carousel({
       ? `@container ws-carousel (width < ${ONE_UP_BELOW}px){${trackSelector}{--ws-carousel-slide:${slideWidthFor(1, gapPx, peek, 0)}}}`
       : "";
 
+  // The control belongs only where the carousel actually moves on its own. A
+  // rail that never advances has nothing to pause, and it is "persist" that
+  // takes the hover pause away and so owes the reader a replacement.
+  const showPauseControl = autoAdvance === "persist" && intervalMs > 0 && loop;
+
+  const togglePauseControl = () => setBannersPaused(!controlPaused);
+
   return (
     <section
+      ref={sectionRef}
       aria-roledescription="carousel"
       aria-label={label}
       className={`flex flex-col ${className}`}
@@ -240,9 +493,12 @@ export function Carousel({
           <div
             data-ws-carousel={trackId}
             // Off while the carousel advances on its own, so a screen reader is
-            // not interrupted by slides nobody asked for. Once it is paused, or
-            // if it never rotates, a move is something the reader asked for.
-            aria-live={paused || !intervalMs ? "polite" : "off"}
+            // not interrupted by slides nobody asked for. Once it has actually
+            // stopped, or if it never rotates, a move is something the reader
+            // asked for. This reads the same gate the timer does: under
+            // "persist" a resting pointer no longer stops the rail, so it must
+            // not flip the announcement either.
+            aria-live={advancing ? "off" : "polite"}
             className="flex touch-pan-y"
             // Spacing is a negative margin here plus a left padding on each
             // slide, NOT a CSS `gap`. Embla measures slides with
@@ -285,18 +541,41 @@ export function Carousel({
           positioned ::after, the same technique `meme-market-metrics.tsx` uses
           for a trigger in a row too tight for a 44px box to sit in the flow. */}
       {count > 1 ? (
-        <div className="mt-3 flex justify-center gap-[3px]">
+        <div className="relative mt-3 flex justify-center gap-[3px]">
           {slides.map((_, i) => (
             <button
               key={i}
               type="button"
-              onClick={() => emblaApi?.scrollTo(i)}
+              onClick={() => {
+                noteInteraction();
+                emblaApi?.scrollTo(i);
+              }}
               aria-label={t("goToSlide", { index: i + 1 })}
               className={`relative h-1 cursor-pointer rounded-full transition-all after:absolute after:top-1/2 after:left-1/2 after:h-11 after:w-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] ${
                 i === selected ? "w-9 bg-white" : "w-3.5 bg-white/45"
               }`}
             />
           ))}
+          {/* WCAG 2.2.2 wants a way to stop anything that moves on its own for
+              more than five seconds. Hovering was that mechanism until
+              "persist"; this is its replacement. Absolutely positioned so the
+              dots stay centred on the rail rather than shifting aside to make
+              room, and carrying the dots' own 44px hit area on the same
+              ::after. The label says what pressing it will do; aria-pressed
+              says whether the pause is on. */}
+          {showPauseControl ? (
+            <button
+              type="button"
+              onClick={togglePauseControl}
+              aria-pressed={controlPaused}
+              aria-label={controlPaused ? t("play") : t("pause")}
+              className="absolute top-1/2 right-0 flex h-3 w-3 -translate-y-1/2 cursor-pointer items-center justify-center text-white/45 transition-colors after:absolute after:top-1/2 after:left-1/2 after:h-11 after:w-11 after:-translate-x-1/2 after:-translate-y-1/2 after:content-[''] hover:text-white"
+            >
+              <svg viewBox="0 0 12 12" aria-hidden className="h-3 w-3 fill-current">
+                {controlPaused ? <path d="M3 2l7 4-7 4z" /> : <path d="M3 2h2v8H3zm4 0h2v8H7z" />}
+              </svg>
+            </button>
+          ) : null}
         </div>
       ) : null}
     </section>
