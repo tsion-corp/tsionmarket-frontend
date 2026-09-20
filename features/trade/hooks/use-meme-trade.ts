@@ -167,6 +167,19 @@ function linkedCache(): Set<string> {
   }
 }
 
+// Drops one wallet's hint, never the whole set: the other chain's wallet is
+// linked independently and must not be charged a second signature for this
+// chain's failure.
+function forgetLinked(key: string) {
+  try {
+    const set = linkedCache();
+    set.delete(key);
+    window.localStorage.setItem(LINKED_KEY, JSON.stringify([...set]));
+  } catch {
+    // Storage can be blocked; the hint is only an optimisation.
+  }
+}
+
 function markLinked(key: string) {
   try {
     const set = linkedCache();
@@ -228,7 +241,7 @@ export function useMemeTrade() {
   // repeat trades skip the signature. The backend stays authoritative: an
   // ownership mismatch clears the cache and relinks once.
   const ensureLinked = useCallback(
-    async (chainId: number) => {
+    async (chainId: number, { force = false }: { force?: boolean } = {}) => {
       if (!user) throw new Error("Sign in first.");
       if (chainId === SOLANA_CHAIN_ID) {
         // The Solana sibling: the same challenge shape, signed as raw bytes
@@ -236,7 +249,8 @@ export function useMemeTrade() {
         // is never lowercased, on the wire or in the cache key.
         if (!solanaWallet) throw new Error("Sign in first.");
         const key = `${user.id}:solana:${solanaWallet}`;
-        if (linkedCache().has(key)) return;
+        if (force) forgetLinked(key);
+        else if (linkedCache().has(key)) return;
         const signer = solanaWallets.find((w) => w.address === solanaWallet);
         if (!signer) throw new Error("Your Solana wallet is still connecting. Try again.");
         setPhase("linking");
@@ -251,7 +265,8 @@ export function useMemeTrade() {
       }
       if (!wallet) throw new Error("Sign in first.");
       const key = `${user.id}:${wallet.toLowerCase()}`;
-      if (linkedCache().has(key)) return;
+      if (force) forgetLinked(key);
+      else if (linkedCache().has(key)) return;
       setPhase("linking");
       const challenge = await createWalletChallenge(wallet);
       const { signature } = await signMessage({ message: challenge.message }, { address: wallet });
@@ -268,7 +283,10 @@ export function useMemeTrade() {
   const linkForPreview = useCallback(
     async (chainId: number) => {
       try {
-        await ensureLinked(chainId);
+        // Forced: this only runs after the service said the wallet is not
+        // linked, so the browser's hint is wrong whatever it says. Trusting it
+        // here made the relink a no-op, and the preview refused forever.
+        await ensureLinked(chainId, { force: true });
         setPhase("idle");
       } catch (e) {
         setPhase("failed");
@@ -319,12 +337,7 @@ export function useMemeTrade() {
         quote = await runQuote();
       } catch (e) {
         if (e instanceof TradeApiError && e.code === "WALLET_OWNERSHIP_MISMATCH" && user) {
-          try {
-            window.localStorage.removeItem(LINKED_KEY);
-          } catch {
-            /* cache only */
-          }
-          await ensureLinked(SOLANA_CHAIN_ID);
+          await ensureLinked(SOLANA_CHAIN_ID, { force: true });
           setPhase("quoting");
           quote = await runQuote();
         } else {
@@ -398,12 +411,7 @@ export function useMemeTrade() {
         } catch (e) {
           // A stale linked-cache entry: relink once, then quote again.
           if (e instanceof TradeApiError && e.code === "WALLET_OWNERSHIP_MISMATCH" && user) {
-            try {
-              window.localStorage.removeItem(LINKED_KEY);
-            } catch {
-              /* cache only */
-            }
-            await ensureLinked(chainId);
+            await ensureLinked(chainId, { force: true });
             setPhase("quoting");
             quote = await runQuote();
           } else {
