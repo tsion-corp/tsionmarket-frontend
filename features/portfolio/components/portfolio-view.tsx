@@ -26,7 +26,6 @@ import { PromoCarousel } from "@/components/ui/promo-deck";
 import { PromoBanner, PromoRail } from "@/components/ui/promo-rail";
 import { ARKSTORE_URL } from "@/lib/brand";
 import { marketSquareHref } from "@/lib/market-square";
-import { GetKashBanner } from "@/features/portfolio/components/get-kash-banner";
 import { SetTheStakeBanner } from "@/features/portfolio/components/set-the-stake-banner";
 import { ArkStoreBanner } from "@/features/portfolio/components/ark-store-banner";
 import { KashBuyModal } from "@/features/portfolio/components/kash-buy-modal";
@@ -355,7 +354,9 @@ export function PortfolioView({
             >
               <SetTheStakeBanner />
             </Link>
-            <GetKashBanner onBuy={() => setKashModal("buy")} />
+            {/* The same banner the desk shows, not a flat export of it: its
+                words are real text in the app's own faces, and they translate. */}
+            <KashBanner onBuy={() => setKashModal("buy")} />
             {squareBanner}
           </PromoCarousel>
         </div>
