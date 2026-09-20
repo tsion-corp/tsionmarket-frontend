@@ -1,5 +1,5 @@
 import { act, renderHook } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { pad, toHex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -14,13 +14,15 @@ vi.mock("@/lib/api", () => ({ apiFetch }));
 vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ ready: true, authenticated: true, user: null }),
 }));
+const session = vi.hoisted(() => ({ evm: null as string | null }));
 vi.mock("@/components/providers/server-session", () => ({
-  useSessionWallet: (chain: string) => (chain === "ethereum" ? EVM : null),
+  useSessionWallet: (chain: string) => (chain === "ethereum" ? session.evm : null),
 }));
 const location = vi.hoisted(() => ({ pathname: "/dashboard" }));
 vi.mock("next/navigation", () => ({ usePathname: () => location.pathname }));
 
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { queryKeys } from "@/lib/query-keys";
 
 const snapshot: Portfolio = {
   totalUsd: 10,
@@ -60,6 +62,7 @@ describe("usePortfolio fresh reads", () => {
     vi.useFakeTimers();
     location.pathname = "/dashboard";
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    session.evm = EVM;
     apiFetch.mockReset();
     apiFetch.mockImplementation(async () => answer(snapshot));
   });
@@ -188,6 +191,7 @@ describe("usePortfolio.applyReceipt", () => {
 
   beforeEach(() => {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    session.evm = EVM;
     apiFetch.mockReset();
     apiFetch.mockImplementation(async () => answer(snapshot));
   });
@@ -275,6 +279,7 @@ describe("usePortfolio does not poll", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    session.evm = EVM;
     apiFetch.mockReset();
     apiFetch.mockImplementation(async () => answer(snapshot));
   });
@@ -306,5 +311,119 @@ describe("usePortfolio does not poll", () => {
     expect(apiFetch).toHaveBeenCalledTimes(1);
     await act(() => vi.advanceTimersByTimeAsync(5 * 60_000));
     expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Balances vanished for users whose read failed or went stale: nothing asked
+// again until they found the refresh icon. A balance heals itself.
+describe("usePortfolio recovery", () => {
+  let client: QueryClient;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    location.pathname = "/dashboard";
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    session.evm = EVM;
+    apiFetch.mockReset();
+    apiFetch.mockImplementation(async () => answer(snapshot));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    onlineManager.setOnline(true);
+    client.clear();
+  });
+
+  const seed = (ageMs: number) =>
+    client.setQueryData(queryKeys.portfolio.byWallet(EVM, null), snapshot, {
+      updatedAt: Date.now() - ageMs,
+    });
+
+  it("re-reads a balance stored hours ago when a screen mounts", async () => {
+    seed(6 * 60 * 60_000);
+    renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a balance read moments ago without asking again", async () => {
+    seed(1_000);
+    renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  // A rate-limited read is never retried, so before this it ended there: no
+  // balance, and no further attempt until the user found the refresh icon.
+  it("keeps trying after a rate-limited read, without the user pressing refresh", async () => {
+    apiFetch.mockImplementation(async () => new Response("no", { status: 429 }));
+    const { result } = renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(result.current.tokens).toHaveLength(0);
+
+    apiFetch.mockImplementation(async () => answer(snapshot));
+    await act(() => vi.advanceTimersByTimeAsync(30_000));
+    expect(apiFetch.mock.calls.length).toBeGreaterThan(1);
+    expect(result.current.tokens).toHaveLength(1);
+  });
+
+  // Base is where the balance people talk about lives, and its reads go to our
+  // own node, so a snapshot without it heals wherever the user happens to be.
+  it("heals a snapshot missing Base even away from a balance page", async () => {
+    location.pathname = "/casino/chess";
+    apiFetch.mockImplementation(async () => answer({ ...snapshot, missing: ["base-mainnet"] }));
+    renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(apiFetch).toHaveBeenCalledTimes(1);
+    await act(() => vi.advanceTimersByTimeAsync(35_000));
+    expect(apiFetch.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  it("re-reads once the device is back online", async () => {
+    apiFetch.mockImplementation(async () => new Response("no", { status: 429 }));
+    renderHook(() => usePortfolio(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    apiFetch.mockImplementation(async () => answer(snapshot));
+
+    await act(async () => {
+      onlineManager.setOnline(false);
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    await act(async () => {
+      onlineManager.setOnline(true);
+      await vi.advanceTimersByTimeAsync(100);
+    });
+    expect(apiFetch.mock.calls.length).toBeGreaterThan(1);
+  });
+});
+
+// Signed in, but Privy has not handed over the embedded wallet yet. There is
+// no balance to read and none to show: reporting zero tells the user their
+// money is gone.
+describe("usePortfolio before the wallet is known", () => {
+  let client: QueryClient;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    apiFetch.mockReset();
+    apiFetch.mockImplementation(async () => answer(snapshot));
+    session.evm = null;
+  });
+  afterEach(() => {
+    session.evm = EVM;
+    client.clear();
+  });
+
+  it("stays loading rather than reporting an empty balance", () => {
+    const { result } = renderHook(() => usePortfolio(), { wrapper });
+    expect(result.current.loading).toBe(true);
+    expect(result.current.error).toBe(false);
+    expect(apiFetch).not.toHaveBeenCalled();
   });
 });

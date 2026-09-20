@@ -386,3 +386,61 @@ describe("fetchPortfolio, a held meme with no catalogue price", () => {
     expect(meme?.valueUsd).toBe(0);
   });
 });
+
+// A wallet with both chains lost its EVM balances silently: the Solana leg
+// answered, so the snapshot looked complete, and a complete snapshot is
+// cached and never re-read. The EVM networks have to be reported as missing.
+describe("fetchPortfolio when the chain read fails", () => {
+  const WALLET = "0x1111111111111111111111111111111111111111";
+  const SOLANA = "So1anaWa11etAddress111111111111111111111111";
+
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.doMock("@/lib/server/rwa-registry", () => ({ fetchRwaRegistry: async () => ({}) }));
+    vi.doMock("@/lib/server/buyable-registry", () => ({
+      fetchBuyableRegistry: async () => ({ buyable: {}, meme: {} }),
+    }));
+    vi.doMock("@/lib/server/portfolio-holdings", async () => {
+      const actual = await vi.importActual<typeof import("@/lib/server/portfolio-holdings")>(
+        "@/lib/server/portfolio-holdings"
+      );
+      return {
+        ...actual,
+        readEvmPortfolioTokens: vi.fn(async () => {
+          throw new Error("read pool unavailable");
+        }),
+      };
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ data: { tokens: [] } }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          })
+      )
+    );
+  });
+  afterEach(async () => {
+    const { resetResponseCache } = await import("./response-cache");
+    resetResponseCache();
+    vi.doUnmock("@/lib/server/portfolio-holdings");
+    vi.doUnmock("@/lib/server/rwa-registry");
+    vi.doUnmock("@/lib/server/buyable-registry");
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("reports the EVM networks as missing rather than as a complete snapshot", async () => {
+    const { fetchPortfolio } = await import("./alchemy");
+    const portfolio = await fetchPortfolio(WALLET, SOLANA);
+    expect(portfolio.missing).toEqual(expect.arrayContaining(["base-mainnet"]));
+  });
+
+  it("still fails outright when the wallet has no other chain to fall back on", async () => {
+    const { fetchPortfolio } = await import("./alchemy");
+    await expect(fetchPortfolio(WALLET, undefined)).rejects.toThrow();
+  });
+});

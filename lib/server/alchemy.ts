@@ -626,10 +626,21 @@ export async function fetchPortfolio(
             evmNetworks,
             (network) => allowedContracts(network, rwa, registries.buyable),
             fresh
-          ).then((sweep) => {
-            missing = sweep.missing;
-            return sweep.tokens;
-          })
+          ).then(
+            (sweep) => {
+              missing = sweep.missing;
+              return sweep.tokens;
+            },
+            (error: unknown) => {
+              // The whole EVM leg failed. Solana may still answer, and a
+              // snapshot with no EVM balances and nothing marked missing reads
+              // as a complete zero: it is cached for 75s here, kept forever by
+              // the browser, and the user watches their money disappear. Name
+              // every EVM network instead, which shortens both lifetimes.
+              missing = [...evmNetworks];
+              throw error;
+            }
+          )
         );
       }
       if (includeSolana && solana) {

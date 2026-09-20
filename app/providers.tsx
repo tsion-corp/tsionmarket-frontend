@@ -11,6 +11,7 @@ import {
   RQ_PERSIST_BUSTER,
   isPersistedKey,
 } from "@/lib/query-persist";
+import { safeLocalStorage } from "@/lib/safe-storage";
 import { Toaster } from "@/components/ui/toaster";
 import { ClickRipple } from "@/components/ui/click-ripple";
 
@@ -21,11 +22,13 @@ import { ClickRipple } from "@/components/ui/click-ripple";
 // landing page and the privacy policy no longer download a wallet SDK.
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(createQueryClient);
-  // Storage is undefined on the server, which makes the persister a no-op there,
-  // so the same provider tree renders on both sides without a hydration mismatch.
+  // Storage is undefined on the server, and on a browser that blocks or has
+  // filled it, which makes the persister a no-op in both cases: the same
+  // provider tree renders on both sides without a hydration mismatch, and a
+  // blocked browser loses the cache rather than the page.
   const [persister] = useState(() =>
     createSyncStoragePersister({
-      storage: typeof window !== "undefined" ? window.localStorage : undefined,
+      storage: safeLocalStorage(),
       key: RQ_PERSIST_KEY,
       throttleTime: 1000,
     })
