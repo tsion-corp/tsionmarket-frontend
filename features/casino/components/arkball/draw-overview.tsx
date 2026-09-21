@@ -110,7 +110,6 @@ export function DrawOverview({ current, latest }: DrawOverviewProps) {
         <div className="ws-display mt-1 text-[clamp(30px,4vw,44px)] tracking-[-0.035em] text-white">
           ${formatLotteryUsdc(current.advertisedJackpotUsdc)}
         </div>
-        <div className="mt-1 text-[11px] text-white/42">{t("cashValueEqualsPool")}</div>
       </article>
 
       <article className="rounded-[22px] border border-white/8 bg-[linear-gradient(145deg,rgba(255,255,255,0.085),rgba(255,255,255,0.025))] p-5 shadow-[0_24px_60px_rgba(0,0,0,0.22)]">

@@ -15,10 +15,10 @@ const currentDraw: LotteryDraw = {
   drawAt: "2026-08-16T20:00:00Z",
   totalTickets: 4,
   totalPlayers: 4,
-  currentPoolUsdc: "1.48",
-  broughtForwardUsdc: "0.00",
-  advertisedJackpotUsdc: "1.48",
-  cashValueUsdc: "1.48",
+  currentPoolUsdc: "2.59",
+  broughtForwardUsdc: "15.54",
+  advertisedJackpotUsdc: "10018.13",
+  cashValueUsdc: "10018.13",
   payoutUsdc: "0.00",
   payoutPerWinningTicketUsdc: "0.00",
   rolloverUsdc: "0.00",
@@ -54,6 +54,19 @@ const latestDraw: LotteryDraw = {
 };
 
 describe("DrawOverview", () => {
+  it("shows one combined promotional jackpot without changing ticket activity", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+        <DrawOverview current={currentDraw} latest={latestDraw} />
+      </NextIntlClientProvider>
+    );
+
+    expect(screen.getByText("$10,018.13")).toBeInTheDocument();
+    expect(screen.getByText("Tickets").parentElement).toHaveTextContent("4");
+    expect(screen.queryByText("$10,000")).not.toBeInTheDocument();
+    expect(screen.queryByText("Cash value equals the funded pool")).not.toBeInTheDocument();
+  });
+
   it("formats draw dates when the inherited runtime time zone is invalid", () => {
     const onError = vi.fn();
 
