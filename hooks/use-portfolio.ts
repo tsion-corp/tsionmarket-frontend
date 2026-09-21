@@ -11,6 +11,7 @@ import type { Portfolio } from "@/lib/server/alchemy";
 import type { TokenBalance } from "@/lib/server/alchemy";
 import { freshParam, type FreshScope } from "@/lib/portfolio/fresh-scope";
 import { applyNativeDelta as moveNative, applyTransfers } from "@/lib/portfolio/apply-transfers";
+import { visibleTotalUsd } from "@/lib/portfolio/dust";
 import type { ReceiptLog } from "@/lib/meme/delivery";
 
 export type { Portfolio, TokenBalance } from "@/lib/server/alchemy";
@@ -285,7 +286,10 @@ export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {})
   );
 
   return {
-    totalUsd: query.data?.totalUsd ?? 0,
+    // Dust is left out: anyone can send unsolicited tokens to any address, and
+    // counting fractions of a cent made an untouched wallet read "<$0.01"
+    // instead of "$0.00". See lib/portfolio/dust.
+    totalUsd: query.data ? visibleTotalUsd(query.data.tokens) : 0,
     tokens: query.data?.tokens ?? EMPTY_TOKENS,
     // Also loading while Privy is still starting, and while a signed-in
     // session has no wallet address yet: the shell renders before Privy is

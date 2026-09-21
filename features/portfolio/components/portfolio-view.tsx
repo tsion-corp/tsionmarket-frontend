@@ -48,7 +48,7 @@ import { SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { usePortfolio, type TokenBalance } from "@/hooks/use-portfolio";
 import {
   isUnpricedHolding,
-  isZeroValueHolding,
+  isSmallBalance,
   memeTokenOf,
   selectHoldings,
   withoutServiceKnownMemes,
@@ -118,12 +118,13 @@ export function PortfolioView({
 
   // The table shows bought assets only, so drop the USDC-on-Base deposit float
   // first (see selectHoldings). Then, when hideZero is on, drop rows with no real
-  // value — the always-present USDC/USDT/native baseline (shown at $0) plus dust
-  // that rounds to $0.00. A held balance we could not price is not zero-value and
-  // survives the toggle; see isZeroValueHolding.
+  // value: the always-present USDC/USDT/native baseline (shown at $0) and the
+  // unsolicited tokens worth a fraction of a cent that anyone can send to any
+  // address. A held balance we could not price survives the toggle, since its
+  // value is unknown rather than nothing. See isSmallBalance.
   const visibleTokens = useMemo(() => {
     const holdings = withoutServiceKnownMemes(selectHoldings(tokens), servicePositions);
-    return hideZero ? holdings.filter((t) => !isZeroValueHolding(t)) : holdings;
+    return hideZero ? holdings.filter((t) => !isSmallBalance(t)) : holdings;
   }, [tokens, hideZero, servicePositions]);
 
   const table = useReactTable({
@@ -465,7 +466,7 @@ export function PortfolioView({
               <span className="ws-display text-[22px]">{t("yourHoldings")}</span>
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2 text-[12.5px] font-normal whitespace-nowrap text-white/60">
-                  <span>{t("hideZeroValue")}</span>
+                  <span>{t("hideSmallBalances")}</span>
                   <Switch
                     size="sm"
                     checked={hideZero}

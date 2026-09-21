@@ -17,8 +17,24 @@ vi.mock("@/lib/api", () => ({ apiFetch }));
 
 const { useGlobalBalance } = await import("@/hooks/use-global-balance");
 
+// A portfolio worth `totalUsd`, held in one token. The total is derived from
+// the holdings (dust is left out of it), so a payload that names a figure with
+// nothing behind it is not a payload the server can send.
 function portfolioResponse(totalUsd: number) {
-  return { ok: true, status: 200, json: async () => ({ totalUsd, tokens: [] }) };
+  const token = {
+    symbol: "USDC",
+    name: "USD Coin",
+    network: "base-mainnet",
+    address: "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913",
+    decimals: 6,
+    kind: "stablecoin",
+    balance: totalUsd,
+    rawBalance: String(Math.round(totalUsd * 1e6)),
+    priceUsd: 1,
+    valueUsd: totalUsd,
+    logo: null,
+  };
+  return { ok: true, status: 200, json: async () => ({ totalUsd, tokens: [token] }) };
 }
 
 function perpsResponse(withdrawable: string) {

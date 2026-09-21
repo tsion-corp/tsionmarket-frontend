@@ -7,7 +7,9 @@ import { SheetNav } from "@/components/ui/sheet-nav";
 import { NetworkList } from "@/features/funds/components/network-list";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { QrCode } from "@/components/ui/qr-code";
-import { ChevronLeftIcon, SearchIcon } from "@/components/ui/icons";
+import { SearchIcon } from "@/components/ui/icons";
+import { useModalScreen } from "@/components/ui/modal-shell";
+import { filterChains, filterTokens } from "@/features/funds/lib/search";
 import { track } from "@/lib/analytics/mixpanel";
 import { useDepositChains, useDepositTokens, useStaticDepositAddress } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
@@ -43,6 +45,15 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
   const tokens = useDepositTokens(originChain?.chainId ?? null);
 
   const resetToken = () => setOriginToken(null);
+  // Back out of the token list to the networks. The search box is shared by both
+  // steps, so it is cleared on the way: a token name left in it would filter the
+  // network list to nothing.
+  const resetChain = () => {
+    setOriginChain(null);
+    setSearchQuery("");
+  };
+  const [showingHelp, setShowingHelp] = useState(false);
+  const showingTokensStep = originChain !== null;
 
   /*
     Picker view — Figma node 2154:63768.
@@ -60,7 +71,6 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
       Token rows icon:22.66 rounded-[8.3px] name:~11px Medium ticker:~9px Regular white/50
   */
   const allChains = useMemo(() => chains.data ?? [], [chains.data]);
-  const chainSearch = searchQuery.trim().toLowerCase();
 
   // ── Search history from localStorage ──
   const HISTORY_KEY = "deposit-chain-history";
@@ -107,57 +117,38 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
   };
 
   // Filter chains by search query
-  const filteredChains = useMemo(() => {
-    if (!chainSearch) return allChains;
-    return allChains.filter((c) => c.name.toLowerCase().includes(chainSearch));
-  }, [allChains, chainSearch]);
+  const filteredChains = useMemo(
+    () => filterChains(allChains, searchQuery),
+    [allChains, searchQuery]
+  );
+
+  // The shell draws Back beside its close button, so each step only says where
+  // back goes. The funding flow takes the whole phone: it is a task, not a peek.
+  useModalScreen({
+    back: showingHelp ? () => setShowingHelp(false) : showingTokensStep ? resetChain : onBack,
+    fullScreen: true,
+  });
 
   const chipClass =
     "flex cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[13px] font-medium text-white/80 transition-colors hover:bg-white/10";
 
+  if (showingHelp) return <HowToDepositView />;
+
   // Step 3: Address view (separate component — mounts wallet hooks)
   if (originToken && originChain) {
-    return (
-      <DepositAddressView
-        chain={originChain}
-        token={originToken}
-        onBack={resetToken}
-        onBackToStart={onBack}
-      />
-    );
+    return <DepositAddressView chain={originChain} token={originToken} onBack={resetToken} />;
   }
 
   // Steps 1 & 2: Network picker → Token picker, same modal, content swaps
-  const showingTokens = originChain !== null;
+  const showingTokens = showingTokensStep;
   const tokenList = tokens.data ?? [];
-  const tokenSearch = searchQuery.trim().toLowerCase();
-  const filteredTokenList = tokenSearch
-    ? tokenList.filter(
-        (t) =>
-          t.symbol.toLowerCase().includes(tokenSearch) || t.name.toLowerCase().includes(tokenSearch)
-      )
-    : tokenList;
-  const eligibleTokens = filteredTokenList.filter((t) => t.supportsStaticAddress);
+  const filteredTokenList = filterTokens(tokenList, searchQuery);
 
   return (
-    <div className="flex h-[75vh] flex-col">
-      {/* ── STICKY TOP ── */}
-      <div className="shrink-0 px-4 pb-4">
-        {/* Back — only on network step */}
-        {!showingTokens && (
-          <div className="pt-4">
-            <button
-              onClick={onBack}
-              className="flex cursor-pointer items-center gap-[6px] text-[13px] font-normal text-white/60 hover:text-white"
-            >
-              <ChevronLeftIcon size={14} />
-              Back
-            </button>
-          </div>
-        )}
-
+    <div className="flex flex-col">
+      <div className="shrink-0 pb-3">
         {/* Title */}
-        <div className={showingTokens ? "pt-2" : "mt-6"}>
+        <div>
           <h2 className="text-[18px] leading-[22px] font-semibold tracking-[-0.18px] text-white">
             {showingTokens ? "Token To Send" : "Deposit Crypto"}
           </h2>
@@ -169,8 +160,8 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
         </div>
 
         {/* Search */}
-        <div className="mt-5">
-          <div className="flex h-[48px] items-center gap-2.5 rounded-full border border-white/8 bg-white/[0.04] px-5">
+        <div className="mt-4">
+          <div className="flex h-[44px] items-center gap-2.5 rounded-full border border-white/8 bg-white/[0.04] px-4">
             <SearchIcon size={14} className="shrink-0 text-white/40" />
             <input
               type="text"
@@ -184,17 +175,21 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 
         {!showingTokens && (
           <>
-            <div className="mt-4 flex h-[48px] items-center gap-3 rounded-[12px] border border-white/8 bg-white/[0.04] px-5">
+            <button
+              type="button"
+              onClick={() => setShowingHelp(true)}
+              className="mt-3 flex h-[44px] w-full cursor-pointer items-center gap-3 rounded-[12px] border border-white/8 bg-white/[0.04] px-4 text-left transition-colors hover:bg-white/8"
+            >
               <span className="flex size-5 shrink-0 items-center justify-center rounded-full border border-white/25 text-[10px] text-white/50">
                 ⓘ
               </span>
-              <div className="text-[11px] leading-[14px] font-medium">
-                <p className="text-white">How to deposit?</p>
-                <p className="text-white/50">learn more →</p>
-              </div>
-            </div>
+              <span className="text-[11px] leading-[14px] font-medium">
+                <span className="block text-white">How to deposit?</span>
+                <span className="block text-white/50">learn more →</span>
+              </span>
+            </button>
             {historyChains.length > 0 && (
-              <div className="mt-5">
+              <div className="mt-4">
                 <p className="mb-3 text-[13px] font-normal text-white/45">Search history</p>
                 <div className="flex flex-wrap gap-3">
                   {historyChains.slice(0, 3).map((c) => (
@@ -212,7 +207,7 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
               </div>
             )}
             {recommendedChains.length > 0 && (
-              <div className="mt-5">
+              <div className="mt-4">
                 <p className="mb-3 text-[13px] font-normal text-white/45">Recommended</p>
                 <div className="flex flex-wrap gap-3">
                   {recommendedChains.map((c) => (
@@ -233,8 +228,8 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
         )}
       </div>
 
-      {/* ── SCROLLABLE BOTTOM — swaps between networks and tokens ── */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* Networks or tokens, in the shell's own scroll rather than a second one. */}
+      <div>
         {showingTokens ? (
           tokens.isPending ? (
             <div className="py-8 text-center text-[13px] text-white/40">Loading tokens…</div>
@@ -256,9 +251,9 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
                 <button
                   key={`${tk.chainId}:${tk.address}`}
                   onClick={() => setOriginToken(tk)}
-                  className="flex w-full cursor-pointer items-center gap-3 px-6 py-3.5 text-left transition-colors hover:bg-white/[0.04]"
+                  className="-mx-1 flex w-full cursor-pointer items-center gap-3 rounded-xl px-1 py-2 text-left transition-colors hover:bg-white/[0.04]"
                 >
-                  <AssetIcon sym={tk.symbol} bg="#26262b" size={40} logo={tk.logoUrl} />
+                  <AssetIcon sym={tk.symbol} bg="#26262b" size={34} logo={tk.logoUrl} />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] leading-[18px] font-semibold text-white">
                       {tk.symbol}
@@ -285,109 +280,74 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 }
 
 // ---------------------------------------------------------------------------
-// Token picker — shown after selecting a network.
-// Figma: "Token To Send" title, search, scrollable token rows.
+// "How to deposit?" — the whole thing in plain words, for someone who has
+// never sent crypto. Reached from the card on the network step; the shell's
+// Back returns there.
 // ---------------------------------------------------------------------------
 
-function TokenPickerView({
-  chain,
-  tokens,
-  loading,
-  error,
-  onRetry,
-  onSelect,
-  onBack,
-}: {
-  chain: DepositChain;
-  tokens: DepositToken[];
-  loading: boolean;
-  error: boolean;
-  onRetry: () => void;
-  onSelect: (token: DepositToken) => void;
-  onBack: () => void;
-}) {
-  const [query, setQuery] = useState("");
-  const eligible = useMemo(() => {
-    const list = tokens.filter((t) => t.supportsStaticAddress);
-    const q = query.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter(
-      (t) => t.symbol.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)
-    );
-  }, [tokens, query]);
+const HOW_TO_STEPS: { title: string; body: string }[] = [
+  {
+    title: "Pick the network you are sending from",
+    body: "A network is the road your money travels on. Choose the same one your other app or exchange will send on. If you are not sure, Base is the cheapest and fastest.",
+  },
+  {
+    title: "Pick the coin you are sending",
+    body: "Any coin on the list works. Whatever you send arrives in your balance as US dollars, so you do not have to hold that coin afterwards.",
+  },
+  {
+    title: "Copy the address we show you",
+    body: "The address is where your money goes. Tap Copy Address, or scan the square code with the app you are sending from. The address is yours and you can use it again any time.",
+  },
+  {
+    title: "Send from the other app",
+    body: "Paste the address there, choose the same network you picked here, and send. Send at least a dollar's worth: smaller amounts can cost more to move than they are worth.",
+  },
+  {
+    title: "Wait a moment",
+    body: "Most deposits land in under a minute. You do not need to keep this screen open; your balance updates on its own.",
+  },
+];
 
+function HowToDepositView() {
   return (
-    <div className="flex h-full max-h-[100dvh] flex-col px-4 pt-[env(safe-area-inset-top)] md:max-h-[75vh]">
-      {/* Sticky top */}
-      <div className="shrink-0 pb-4">
-        {/* Back */}
-        <div className="pt-4">
-          <button
-            onClick={onBack}
-            className="flex cursor-pointer items-center gap-[6px] text-[13px] font-normal text-white/60 hover:text-white"
+    <div className="flex flex-col">
+      <h2 className="text-[18px] leading-[22px] font-semibold tracking-[-0.18px] text-white">
+        How to deposit
+      </h2>
+      <p className="mt-1.5 text-[12px] leading-[16px] font-normal text-white/60">
+        Sending money in takes five steps. Here they are in order.
+      </p>
+
+      <ol className="mt-4 flex flex-col gap-3">
+        {HOW_TO_STEPS.map((step, index) => (
+          <li
+            key={step.title}
+            className="flex gap-3 rounded-[12px] border border-white/8 bg-white/[0.04] px-3.5 py-3"
           >
-            <ChevronLeftIcon size={14} />
-            Back
-          </button>
-        </div>
+            <span className="tnum mt-0.5 grid size-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-semibold text-white/70">
+              {index + 1}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-[13px] leading-[17px] font-semibold text-white">
+                {step.title}
+              </span>
+              <span className="mt-1 block text-[12px] leading-[17px] font-normal text-white/60">
+                {step.body}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
 
-        {/* Title */}
-        <h2 className="mt-6 text-[18px] leading-[22px] font-semibold tracking-[-0.18px] text-white">
-          Token To Send
-        </h2>
-
-        {/* Search */}
-        <div className="mt-5">
-          <div className="flex h-[48px] items-center gap-2.5 rounded-full border border-white/8 bg-white/[0.04] px-5">
-            <SearchIcon size={14} className="shrink-0 text-white/40" />
-            <input
-              type="text"
-              placeholder="Search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="min-w-0 flex-1 bg-transparent text-[13px] font-medium tracking-[-0.39px] text-white placeholder:text-white/40 focus:outline-none"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Scrollable token list */}
-      <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-        {loading ? (
-          <div className="py-8 text-center text-[13px] text-white/40">Loading tokens…</div>
-        ) : error ? (
-          <div className="py-8 text-center text-[13px] text-white/40">
-            Couldn&apos;t load tokens.{" "}
-            <button onClick={onRetry} className="text-accent cursor-pointer underline">
-              Try again
-            </button>
-          </div>
-        ) : eligible.length === 0 ? (
-          <div className="py-8 text-center text-[13px] text-white/40">
-            No tokens available on {chain.name}
-          </div>
-        ) : (
-          <div className="flex flex-col">
-            {eligible.map((tk) => (
-              <button
-                key={`${tk.chainId}:${tk.address}`}
-                onClick={() => onSelect(tk)}
-                className="flex w-full cursor-pointer items-center gap-3 px-2 py-3.5 text-left transition-colors hover:bg-white/[0.04]"
-              >
-                <AssetIcon sym={tk.symbol} bg="#26262b" size={40} logo={tk.logoUrl} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[14px] leading-[18px] font-semibold text-white">
-                    {tk.symbol}
-                  </span>
-                  <span className="block truncate text-[12px] leading-[16px] font-normal text-white/50">
-                    {tk.name}
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      <p className="mt-4 flex items-start gap-2 text-[12px] leading-[16px] font-normal text-white/50">
+        <span aria-hidden className="mt-px shrink-0">
+          ⚠️
+        </span>
+        <span>
+          Send only the coin and network you picked. Anything sent on a different network can be
+          lost, and it is not something we can undo.
+        </span>
+      </p>
     </div>
   );
 }
@@ -401,12 +361,10 @@ function DepositAddressView({
   chain,
   token,
   onBack,
-  onBackToStart,
 }: {
   chain: DepositChain;
   token: DepositToken;
   onBack: () => void;
-  onBackToStart: () => void;
 }) {
   const t = useTranslations("fundsFlow");
   const { user } = usePrivy();
@@ -433,6 +391,10 @@ function DepositAddressView({
 
   const staticAddr = useStaticDepositAddress(req);
 
+  // The address, the code and the warnings are the whole screen: it takes the
+  // phone and fits inside it, so nobody has to scroll to reach the address.
+  useModalScreen({ back: onBack, fullScreen: true, fits: true });
+
   useEffect(() => {
     if (staticAddr.isError) {
       track("deposit_failed", { method: "crypto", reason: "address_unavailable" });
@@ -442,7 +404,7 @@ function DepositAddressView({
   // Loading
   if (!staticAddr.data && !staticAddr.isError) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4">
+      <div className="flex h-full flex-col items-center justify-center">
         <div className="mx-auto mb-3 size-6 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
         <p className="text-[13px] font-normal text-white/50">Creating deposit address…</p>
       </div>
@@ -452,7 +414,7 @@ function DepositAddressView({
   // Error
   if (staticAddr.isError || !staticAddr.data) {
     return (
-      <div className="flex h-full flex-col items-center justify-center px-4">
+      <div className="flex h-full flex-col items-center justify-center">
         <p className="text-[14px] font-medium text-white/70">
           Couldn&apos;t create deposit address
         </p>
@@ -491,20 +453,9 @@ function DepositAddressView({
   };
 
   return (
-    <div className="flex flex-col px-4 pb-6">
-      {/* Back */}
-      <div className="pt-4">
-        <button
-          onClick={onBack}
-          className="flex cursor-pointer items-center gap-[6px] text-[13px] font-normal text-white/60 hover:text-white"
-        >
-          <ChevronLeftIcon size={14} />
-          Back
-        </button>
-      </div>
-
+    <div className="flex h-full flex-col">
       {/* Token title + network */}
-      <div className="mt-6 flex flex-col items-center">
+      <div className="flex flex-col items-center">
         <div className="flex items-center gap-2">
           <AssetIcon sym={token.symbol} bg="#26262b" size={28} logo={token.logoUrl} />
           <h2 className="text-[20px] font-bold text-white">{token.symbol} -Deposit</h2>
@@ -513,8 +464,8 @@ function DepositAddressView({
       </div>
 
       {/* QR code with token icon centered — QrCode only, no address */}
-      <div className="mt-8 flex justify-center">
-        <div className="relative overflow-hidden rounded-[20px] bg-white p-5">
+      <div className="mt-4 flex min-h-0 flex-1 items-center justify-center">
+        <div className="relative overflow-hidden rounded-[20px] bg-white p-4">
           <QrCode value={addr} />
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
             <AssetIcon sym={token.symbol} bg="white" size={40} logo={token.logoUrl} />
@@ -523,7 +474,7 @@ function DepositAddressView({
       </div>
 
       {/* Wallet address card */}
-      <div className="mt-10 rounded-[14px] border border-white/12 bg-white/[0.04] px-4 py-3.5">
+      <div className="mt-4 shrink-0 rounded-[14px] border border-white/12 bg-white/[0.04] px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-medium text-white/70">Wallet Address &gt;</p>
@@ -553,7 +504,7 @@ function DepositAddressView({
       </div>
 
       {/* Warning */}
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-2.5 flex shrink-0 items-center gap-2">
         <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-red-400/50 text-[8px] text-red-400">
           !
         </span>
@@ -561,7 +512,7 @@ function DepositAddressView({
       </div>
 
       {/* Minimum deposit */}
-      <div className="mt-8 flex items-center gap-2">
+      <div className="mt-2.5 flex shrink-0 items-start gap-2">
         <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-white/25 text-[8px] text-white/50">
           !
         </span>
@@ -573,19 +524,19 @@ function DepositAddressView({
       </div>
 
       {/* Waiting */}
-      <div className="mt-4 flex items-center justify-center gap-2 text-[13px] font-normal text-white/50">
+      <div className="mt-3 flex shrink-0 items-center justify-center gap-2 text-[13px] font-normal text-white/50">
         <span className="bg-accent size-1.5 animate-pulse rounded-full" />
         Waiting for your deposit…
       </div>
 
       {/* Bottom buttons */}
-      <div className="mt-auto flex gap-3 pt-8">
+      <div className="mt-3 flex shrink-0 gap-3">
         {/* <button className="flex-1 cursor-pointer rounded-full border border-white/20 py-3.5 text-[14px] font-semibold text-white/60 transition-colors hover:bg-white/6">
           Save Picture
         </button> */}
         <button
           onClick={copyAddress}
-          className="flex-1 cursor-pointer rounded-full bg-[#5dd9a3] py-3.5 text-[14px] font-semibold text-black transition-opacity hover:opacity-90"
+          className="flex-1 cursor-pointer rounded-full bg-[#5dd9a3] py-3 text-[14px] font-semibold text-black transition-opacity hover:opacity-90"
         >
           Copy Address
         </button>

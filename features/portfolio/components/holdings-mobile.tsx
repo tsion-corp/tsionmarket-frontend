@@ -71,7 +71,7 @@ export function HoldingsMobile({
             />
           </div>
           <label className="flex shrink-0 items-center gap-2 text-[12px] font-normal whitespace-nowrap text-white/55">
-            {t("hideZeroValue")}
+            {t("hideSmallBalances")}
             <Switch size="sm" checked={hideZero} onCheckedChange={onHideZero} />
           </label>
         </div>

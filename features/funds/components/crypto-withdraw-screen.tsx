@@ -7,14 +7,10 @@ import { DepositStatus } from "@/components/ui/deposit-status";
 import { QrScanSheet } from "@/features/funds/components/qr-scan-sheet";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { AssetIcon } from "@/components/ui/asset-icon";
-import {
-  ChevronDownIcon,
-  ChevronLeftIcon,
-  QrScanIcon,
-  SearchIcon,
-  WalletIcon,
-} from "@/components/ui/icons";
+import { ChevronDownIcon, QrScanIcon, SearchIcon, WalletIcon } from "@/components/ui/icons";
 import { NetworkList } from "@/features/funds/components/network-list";
+import { filterChains, filterTokens } from "@/features/funds/lib/search";
+import { useModalScreen } from "@/components/ui/modal-shell";
 import {
   createWithdrawQuote,
   useDepositChains,
@@ -190,6 +186,28 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   const [depositRequestId, setDepositRequestId] = useState<string | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
 
+  // Step: token -> network -> form. Same modal, content swaps.
+  const showingNetworks = destSymbol !== null && destChainId === null;
+  const showingForm = destSymbol !== null && destChainId !== null;
+
+  // One step back, whichever step this is. The search box is shared by the token
+  // and network steps, so it is cleared on the way back: a token name left in it
+  // would filter the network list to nothing.
+  const goBack = () => {
+    setSearchQuery("");
+    if (showingForm) {
+      setDestChainId(null);
+    } else if (showingNetworks) {
+      setDestSymbol(null);
+      setDestChainId(null);
+    } else {
+      onBack();
+    }
+  };
+
+  // The shell draws Back beside its close button and gives the flow the phone.
+  useModalScreen({ back: goBack, fullScreen: true });
+
   // Debounce the amount that feeds the quote so we don't mint a fresh quote on
   // every keystroke; the submit button waits for this to catch up.
   useEffect(() => {
@@ -249,6 +267,11 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
       }))
       .sort((a, b) => a.symbol.localeCompare(b.symbol));
   }, [allDestinations]);
+  // The box above this list searches it. It used to search nothing.
+  const visibleSymbolOptions = useMemo(
+    () => filterTokens(symbolOptions, searchQuery),
+    [symbolOptions, searchQuery]
+  );
   const selectedSymbolOption = symbolOptions.find((o) => o.symbol === destSymbol) ?? null;
 
   const chainIdsForSymbol = useMemo(() => {
@@ -450,8 +473,9 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
 
   // Networks available for the selected token (must be before any return)
   const networksForToken = useMemo(() => {
-    return (allChains.data ?? []).filter((c) => chainIdsForSymbol.has(c.chainId));
-  }, [allChains.data, chainIdsForSymbol]);
+    const forToken = (allChains.data ?? []).filter((c) => chainIdsForSymbol.has(c.chainId));
+    return filterChains(forToken, searchQuery);
+  }, [allChains.data, chainIdsForSymbol, searchQuery]);
 
   if (txHash) {
     return (
@@ -528,34 +552,10 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
     );
   }
 
-  // Step: token → network → form. Same modal, content swaps.
-  const showingNetworks = destSymbol !== null && destChainId === null;
-  const showingForm = destSymbol !== null && destChainId !== null;
-
   return (
-    <div className="flex h-[75vh] flex-col">
-      {/* ── STICKY TOP ── */}
+    <div className="flex flex-col">
       <div className="shrink-0 pb-2">
-        <div className="pt-2">
-          <button
-            onClick={() => {
-              if (showingForm) {
-                setDestChainId(null);
-              } else if (showingNetworks) {
-                setDestSymbol(null);
-                setDestChainId(null);
-              } else {
-                onBack();
-              }
-            }}
-            className="flex cursor-pointer items-center gap-[6px] text-[13px] font-normal text-white hover:text-white/80"
-          >
-            <ChevronLeftIcon size={14} />
-            Back
-          </button>
-        </div>
-
-        <div className="mt-3">
+        <div>
           <h2 className="text-[20px] leading-[26px] font-bold text-white">
             {showingForm
               ? t("withdrawCryptoTitle")
@@ -583,7 +583,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         {/* Search — only on token and network steps */}
         {!showingForm && (
           <div className="mt-3">
-            <div className="flex h-[44px] items-center gap-2.5 rounded-full border border-white/8 bg-white/[0.04] px-4">
+            <div className="flex h-[42px] items-center gap-2.5 rounded-full border border-white/8 bg-white/[0.04] px-4">
               <SearchIcon size={14} className="shrink-0 text-white/40" />
               <input
                 type="text"
@@ -597,8 +597,8 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
         )}
       </div>
 
-      {/* ── SCROLLABLE BOTTOM ── */}
-      <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+      {/* The steps scroll with the shell rather than inside a box of their own. */}
+      <div>
         {/* Step 1: Token list */}
         {!showingNetworks &&
           !showingForm &&
@@ -614,18 +614,18 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
                 Try again
               </button>
             </div>
-          ) : symbolOptions.length === 0 ? (
+          ) : visibleSymbolOptions.length === 0 ? (
             <div className="py-8 text-center text-[13px] text-white/40">No tokens available</div>
           ) : (
             <div className="flex flex-col">
-              {symbolOptions.map((tk) => (
+              {visibleSymbolOptions.map((tk) => (
                 <button
                   key={tk.symbol}
                   onClick={() => {
                     setDestSymbol(tk.symbol);
                     setDestChainId(null);
                   }}
-                  className="flex w-full cursor-pointer items-center gap-2.5 px-1 py-2.5 text-left transition-colors hover:bg-white/[0.04]"
+                  className="-mx-1 flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-1 py-1.5 text-left transition-colors hover:bg-white/[0.04]"
                 >
                   <AssetIcon sym={tk.symbol} bg="#26262b" size={32} logo={tk.logoUrl} />
                   <span className="min-w-0 flex-1">

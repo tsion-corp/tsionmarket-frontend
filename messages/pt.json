@@ -793,7 +793,7 @@
     "holdingsViewsLabel": "O que detém",
     "holdingsViewCoins": "Moedas",
     "holdingsViewMemecoins": "Memecoins",
-    "hideZeroValue": "Ocultar valores a zero",
+    "hideSmallBalances": "Ocultar saldos pequenos",
     "searchPlaceholder": "Pesquisar",
     "asset": "Ativo",
     "type": "Tipo",

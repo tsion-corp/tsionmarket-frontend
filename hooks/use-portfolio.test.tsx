@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { pad, toHex } from "viem";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -425,5 +425,48 @@ describe("usePortfolio before the wallet is known", () => {
     expect(result.current.loading).toBe(true);
     expect(result.current.error).toBe(false);
     expect(apiFetch).not.toHaveBeenCalled();
+  });
+});
+
+// Reported on production: wallets that have only ever been sent unsolicited
+// tokens read "<$0.01" instead of "$0.00", new accounts included. The balance
+// is what the app can show as a figure, so dust is not part of it.
+describe("usePortfolio total", () => {
+  let client: QueryClient;
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+  );
+  const dust = (symbol: string, valueUsd: number) => ({
+    ...snapshot.tokens[0]!,
+    symbol,
+    name: symbol,
+    address: `0x${symbol.padEnd(40, "0")}`,
+    priceUsd: 0.000001,
+    valueUsd,
+  });
+
+  beforeEach(() => {
+    session.evm = EVM;
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    apiFetch.mockReset();
+  });
+  afterEach(() => client.clear());
+
+  it("ignores dust, so a wallet of unsolicited tokens totals zero", async () => {
+    apiFetch.mockImplementation(async () =>
+      answer({ totalUsd: 0.0034, tokens: [dust("OMI", 0.0004), dust("GOD", 0.003)] })
+    );
+    const { result } = renderHook(() => usePortfolio(), { wrapper });
+    await waitFor(() => expect(result.current.tokens).toHaveLength(2));
+    expect(result.current.totalUsd).toBe(0);
+  });
+
+  it("keeps everything worth a cent or more", async () => {
+    apiFetch.mockImplementation(async () =>
+      answer({ totalUsd: 10.0004, tokens: [snapshot.tokens[0]!, dust("OMI", 0.0004)] })
+    );
+    const { result } = renderHook(() => usePortfolio(), { wrapper });
+    await waitFor(() => expect(result.current.tokens).toHaveLength(2));
+    expect(result.current.totalUsd).toBe(10);
   });
 });

@@ -793,7 +793,7 @@
     "holdingsViewsLabel": "Was Sie halten",
     "holdingsViewCoins": "Coins",
     "holdingsViewMemecoins": "Memecoins",
-    "hideZeroValue": "Nullwerte ausblenden",
+    "hideSmallBalances": "Kleine Guthaben ausblenden",
     "searchPlaceholder": "Suchen",
     "asset": "Asset",
     "type": "Typ",
