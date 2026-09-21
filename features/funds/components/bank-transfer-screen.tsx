@@ -96,9 +96,9 @@ function compactNgn(amount: number): string {
 // USDC settles to the wallet automatically once the payment clears, and the
 // final figures shown come from the order itself, never from our own math.
 export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps) {
-  // The bank flow is a form to fill in, so it takes the whole phone. Its own
-  // header already carries a back button, so the shell draws only the close.
-  useModalScreen({ fullScreen: true });
+  // The flow takes the whole phone, with Back beside the shell's close button
+  // so the rest of the screen is free to centre itself on a tall one.
+  useModalScreen({ back: onBack, fullScreen: true });
 
   const t = useTranslations("bankTransfer");
   const { user } = usePrivy();
@@ -216,7 +216,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   if (!created && (!reused || reusedDead)) {
     return (
       <div>
-        <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
+        <SheetNav title={t("title")} subtitle={t("subtitle")} />
 
         <div className="mt-8 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 pt-5 pb-6">
           <div className="mb-6 text-[14px] font-medium text-white/50 capitalize">
@@ -474,7 +474,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   const account = order?.paymentAccount ?? null;
   return (
     <div>
-      <SheetNav title={t("transferTitle")} onBack={onBack} />
+      <SheetNav title={t("transferTitle")} />
 
       {account ? (
         <>

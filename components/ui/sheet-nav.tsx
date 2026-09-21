@@ -6,7 +6,10 @@ import { ChevronLeftIcon } from "@/components/ui/icons";
 interface SheetNavProps {
   title: string;
   subtitle?: string;
-  onBack: () => void;
+  // Omitted when the shell around this screen draws Back itself, which keeps
+  // that button pinned beside the close button instead of scrolling with the
+  // content.
+  onBack?: () => void;
 }
 
 // Header for a sub-screen inside the funds and withdraw sheets. The back button
@@ -17,6 +20,19 @@ interface SheetNavProps {
 // and keeps the text link stacked above the title.
 export function SheetNav({ title, subtitle, onBack }: SheetNavProps) {
   const t = useTranslations("fundsFlow");
+  if (!onBack) {
+    return (
+      <div className="mb-4">
+        <div className="ws-display min-w-0 text-[22px] tracking-[-0.01em] md:text-[24px]">
+          {title}
+        </div>
+        {subtitle ? (
+          <p className="mt-1.5 text-[13.5px] leading-normal font-normal text-white/60">{subtitle}</p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="mb-4">
       <button

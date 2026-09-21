@@ -8,6 +8,10 @@ function Screen(props: { back?: () => void; fullScreen?: boolean; fits?: boolean
   return <p>content</p>;
 }
 
+function content(): HTMLElement {
+  return screen.getByText("content").parentElement as HTMLElement;
+}
+
 function panel(): HTMLElement {
   return screen.getByText("content").closest("[class*='bg-sheet']") as HTMLElement;
 }
@@ -44,6 +48,29 @@ describe("ModalShell", () => {
     );
     expect(panel().className).toContain("overflow-hidden");
     expect(panel().className).not.toContain("overflow-y-auto");
+  });
+
+  // A short step on a tall phone left its content at the top with dead space
+  // under it. The content sits in the middle of what is left; Back and close
+  // stay at the top, where they belong.
+  it("centres a full-screen step's content, with the header still on top", () => {
+    render(
+      <ModalShell open onClose={vi.fn()}>
+        <Screen fullScreen back={vi.fn()} />
+      </ModalShell>
+    );
+    expect(content().className).toContain("justify-content:safe_center");
+    // Still above the content, not centred with it.
+    expect(panel().firstElementChild).toContainElement(screen.getByLabelText("Close"));
+  });
+
+  it("leaves a bottom sheet's content where it is", () => {
+    render(
+      <ModalShell open onClose={vi.fn()}>
+        <Screen />
+      </ModalShell>
+    );
+    expect(content().className).not.toContain("justify-content:safe_center");
   });
 
   // Every step used to draw its own Back wherever its markup started, which is

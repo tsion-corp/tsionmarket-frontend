@@ -191,7 +191,15 @@ export function ModalShell({
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={contentKey}
-                  className={cn("min-h-0 flex-1", contentClassName)}
+                  className={cn(
+                    "min-h-0 flex-1",
+                    // A step that takes the whole phone is usually shorter than
+                    // it, and read from the middle rather than the top. `safe`
+                    // keeps a step that outgrows the screen scrollable from its
+                    // first line instead of centring its overflow out of reach.
+                    chrome.fullScreen && "flex flex-col [justify-content:safe_center]",
+                    contentClassName
+                  )}
                   initial={reduce ? { opacity: 0 } : { opacity: 0, y: 14 }}
                   animate={reduce ? { opacity: 1 } : { opacity: 1, y: 0 }}
                   exit={reduce ? { opacity: 0 } : { opacity: 0, y: -10 }}

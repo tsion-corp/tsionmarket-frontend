@@ -148,10 +148,6 @@ function BankAvatar({
 // order's deposit address, and the rail pays the Naira to the bank. The final
 // Naira figure shown comes from the order once the rail reports it.
 export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
-  // The bank flow is a form to fill in, so it takes the whole phone. Its own
-  // header already carries a back button, so the shell draws only the close.
-  useModalScreen({ fullScreen: true });
-
   const t = useTranslations("bankWithdraw");
   const { user } = usePrivy();
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
@@ -166,6 +162,14 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const [query, setQuery] = useState("");
   const [bank, setBank] = useState<SelectedBank | null>(null);
   const [showBankPicker, setShowBankPicker] = useState(false);
+
+  // The flow takes the whole phone, and Back sits beside the shell's close
+  // button rather than scrolling with the form. The bank picker is a step of
+  // its own, so it hands back its own way out.
+  useModalScreen({
+    back: showBankPicker ? () => setShowBankPicker(false) : onBack,
+    fullScreen: true,
+  });
   const [account, setAccount] = useState("");
   const [beneficiaryTab, setBeneficiaryTab] = useState<"recent" | "favorite" | "all">("recent");
   // Users type Naira by default (the amount they want in their bank) and can
@@ -455,11 +459,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   if (showBankPicker) {
     return (
       <div>
-        <SheetNav
-          title={t("title")}
-          subtitle={t("subtitle")}
-          onBack={() => setShowBankPicker(false)}
-        />
+        <SheetNav title={t("title")} subtitle={t("subtitle")} />
 
         <label className="focus-within:border-accent/45 mt-6 flex items-center gap-2.5 rounded-2xl border border-white/15 bg-[#1b1b1b] px-5 py-4 transition-colors">
           <SearchIcon size={16} />
@@ -538,7 +538,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   if (showAmountStep) {
     return (
       <div>
-        <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
+        <SheetNav title={t("title")} subtitle={t("subtitle")} />
 
         {/* Selected bank pill */}
         <button
@@ -641,7 +641,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   // Initial screen: bank pill + account input + continue + beneficiaries.
   return (
     <div>
-      <SheetNav title={t("title")} subtitle={t("subtitle")} onBack={onBack} />
+      <SheetNav title={t("title")} subtitle={t("subtitle")} />
 
       {/* Bank selector pill */}
       <button
