@@ -28,7 +28,7 @@ const UPSTREAMS =
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 const PUBLIC_READ =
-  /^(?:capabilities|rounds\/(?:current|history|[0-9a-f-]{36})|fairness\/(?:rules|commitments\/current|proofs\/[0-9a-f-]{36})|risk\/rules)$/iu;
+  /^(?:capabilities|rounds\/(?:current|history|[0-9a-f-]{36})|activity\/simulated\/(?:current|rounds\/[0-9a-f-]{36})|fairness\/(?:rules|commitments\/current|proofs\/[0-9a-f-]{36})|risk\/rules)$/iu;
 const CHAT_PATH = /^chat(?:\/|$)/u;
 const CHAT_LIKE = /^chat\/messages\/[0-9a-f-]{36}\/like$/iu;
 const BET_READ = /^bets\/(?:current|history|balance)$/u;

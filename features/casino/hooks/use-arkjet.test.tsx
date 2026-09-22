@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({
   fetchArkjetCurrentRound: vi.fn(),
   fetchArkjetRoundHistory: vi.fn(),
+  fetchArkjetSimulatedActivity: vi.fn(),
   fetchArkjetCapabilities: vi.fn(),
   fetchArkjetFairnessRules: vi.fn(),
   fetchArkjetRiskRules: vi.fn(),
@@ -33,6 +34,8 @@ vi.mock("@/features/casino/lib/arkjet/live-socket", () => ({
   isArkjetBet: (value: unknown) => Boolean(value && typeof value === "object" && "betId" in value),
   isArkjetRound: (value: unknown) =>
     Boolean(value && typeof value === "object" && "roundId" in value && "sequence" in value),
+  isArkjetSimulatedActivityFeed: (value: unknown) =>
+    Boolean(value && typeof value === "object" && "isSimulated" in value && "items" in value),
   sendArkjetCommand: live.sendArkjetCommand,
   subscribeArkjetTopics: live.subscribeArkjetTopics,
 }));
@@ -58,6 +61,12 @@ beforeEach(() => {
   live.subscribeArkjetTopics.mockClear();
   api.fetchArkjetCurrentRound.mockResolvedValue(round);
   api.fetchArkjetRoundHistory.mockResolvedValue({ items: [] });
+  api.fetchArkjetSimulatedActivity.mockResolvedValue({
+    roundId: "round-1",
+    source: "simulation",
+    isSimulated: true,
+    items: [],
+  });
   api.fetchArkjetCurrentBets.mockResolvedValue({ items: [] });
   api.fetchArkjetBalance.mockResolvedValue({ available: "0.5", currency: "USDC" });
   api.fetchArkjetCapabilities.mockResolvedValue({ wageringEnabled: true });
@@ -107,6 +116,7 @@ describe("Arkjet request cadence", () => {
       api.fetchArkjetRiskRules,
     ])
       expect(mock).toHaveBeenCalledTimes(1);
+    expect(api.fetchArkjetSimulatedActivity.mock.calls.length).toBeLessThanOrEqual(2);
   });
 
   it("backs off failed reads instead of retrying and polling through a 429", async () => {
@@ -120,6 +130,7 @@ describe("Arkjet request cadence", () => {
     expect(api.fetchArkjetBalance).toHaveBeenCalledTimes(1);
     expect(api.fetchArkjetCurrentBets).toHaveBeenCalledTimes(1);
     expect(api.fetchArkjetRoundHistory).toHaveBeenCalledTimes(1);
+    expect(api.fetchArkjetSimulatedActivity).toHaveBeenCalledTimes(1);
   });
 
   it("refreshes settlement data once when a running round finishes", async () => {
@@ -134,5 +145,27 @@ describe("Arkjet request cadence", () => {
     expect(api.fetchArkjetBalance).toHaveBeenCalledTimes(2);
     expect(api.fetchArkjetCurrentBets).toHaveBeenCalledTimes(2);
     expect(api.fetchArkjetRoundHistory).toHaveBeenCalledTimes(2);
+    expect(api.fetchArkjetSimulatedActivity).toHaveBeenCalledTimes(2);
+  });
+
+  it("coalesces live activity bursts into the latest 100ms snapshot", async () => {
+    renderHook(() => useArkjet(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    const calls = live.subscribeArkjetTopics.mock.calls as unknown as Array<
+      [string | null, (frame: { type: string; data: unknown }) => void]
+    >;
+    const listener = calls.at(-1)?.[1];
+    expect(listener).toBeTypeOf("function");
+
+    const first = { roundId: "round-1", source: "simulation", isSimulated: true, items: [1] };
+    const latest = { roundId: "round-1", source: "simulation", isSimulated: true, items: [1, 2] };
+    act(() => {
+      listener?.({ type: "simulatedActivityUpdated", data: first });
+      listener?.({ type: "simulatedActivityUpdated", data: latest });
+    });
+    expect(client.getQueryData(ARKJET_KEYS.activity)).not.toEqual(latest);
+
+    await act(() => vi.advanceTimersByTimeAsync(100));
+    expect(client.getQueryData(ARKJET_KEYS.activity)).toEqual(latest);
   });
 });

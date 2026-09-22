@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import type { ArkjetFairnessRules, ArkjetRound } from "@/features/casino/lib/api/arkjet";
+import type {
+  ArkjetFairnessRules,
+  ArkjetRound,
+  ArkjetSimulatedActivityFeed,
+  ArkjetSimulatedActivityItem,
+} from "@/features/casino/lib/api/arkjet";
 import { useArkjet } from "@/features/casino/hooks/use-arkjet";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { ArkjetBetCard } from "./arkjet-bet-card";
@@ -50,15 +55,73 @@ function displayMoney(value: string, currency: string): string {
   })} ${currency}`;
 }
 
+function displayActivityMoney(value: string): string {
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) return value;
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+const ACTIVITY_AVATARS = [
+  "/avatar/avatar-01.jpg",
+  "/avatar/avatar-02.jpg",
+  "/avatar/avatar-03.jpg",
+  "/avatar/avatar-04.jpg",
+  "/avatar/avatar-05.jpg",
+  "/avatar/avatar-06.jpg",
+  "/avatar/avatar-07.jpg",
+  "/avatar/avatar-08.jpg",
+  "/avatar/avatar-09.jpg",
+] as const;
+
+function activityAvatar(seed: string): (typeof ACTIVITY_AVATARS)[number] {
+  let hash = 0;
+  for (const character of seed) hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  return ACTIVITY_AVATARS[hash % ACTIVITY_AVATARS.length];
+}
+
+function ActivityAvatar({
+  item,
+  stacked = false,
+}: {
+  item: ArkjetSimulatedActivityItem;
+  stacked?: boolean;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- these are fixed local 24px avatars; Next Image adds unnecessary client runtime.
+    <img
+      className={stacked ? styles.avatar : styles.roundDot}
+      src={activityAvatar(item.profileAvatarSeed)}
+      alt=""
+      width={24}
+      height={24}
+      draggable={false}
+      aria-hidden="true"
+    />
+  );
+}
+
 function LeftRail({
   rounds,
+  activity,
   algorithmVersion,
 }: {
   rounds: ArkjetRound[];
+  activity: ArkjetSimulatedActivityFeed | null;
   algorithmVersion: string;
 }) {
   const [tab, setTab] = useState<RailTab>("all");
   const shown = orderedRounds(rounds, tab).slice(0, 20);
+  const activityItems = [...(activity?.items ?? [])].sort(
+    (left, right) => Number(right.stake) - Number(left.stake)
+  );
+  const showingActivity = tab === "all";
+  const activeEntries = activity?.activeEntries ?? 0;
+  const totalEntries = activity?.totalEntries ?? 0;
+  const settledEntries = Math.max(0, totalEntries - activeEntries);
+  const progress = totalEntries > 0 ? (settledEntries / totalEntries) * 100 : 0;
 
   return (
     <aside className={`${styles.panel} ${styles.leftRail}`}>
@@ -75,51 +138,114 @@ function LeftRail({
         ))}
       </div>
       <div className={styles.railSummary}>
-        <div className={styles.summaryTop}>
-          <div className={styles.avatarStack}>
-            <span className={styles.avatar}>A</span>
-            <span className={styles.avatar}>R</span>
-            <span className={styles.avatar}>K</span>
-          </div>
-          <strong className={styles.summaryValue}>{shown.length}</strong>
-        </div>
-        <div className={styles.summaryMeta}>
-          <span>{shown.length} verified rounds</span>
-          <span>Live feed</span>
-        </div>
-      </div>
-      <div className={styles.railColumns}>
-        <span>Round</span>
-        <span>Result</span>
-        <span>Proof</span>
-      </div>
-      <div className={styles.railRows}>
-        {shown.map((round) => {
-          const multiplier = Number(round.crashMultiplier);
-          return (
-            <div
-              key={round.roundId}
-              className={`${styles.railRow} ${multiplier >= 2 ? styles.railRowWon : ""}`}
-            >
-              <div className={styles.roundIdentity}>
-                <span className={styles.roundDot}>{String(round.sequence).slice(-2)}</span>
-                <span className={styles.roundLabel}>Round #{round.sequence}</span>
+        {showingActivity ? (
+          <>
+            <div className={styles.summaryTop}>
+              <div className={styles.avatarStack}>
+                {activityItems.slice(0, 3).map((item) => (
+                  <ActivityAvatar key={item.activityId} item={item} stacked />
+                ))}
               </div>
-              <strong className={multiplier >= 2 ? styles.multiplierHigh : styles.multiplierLow}>
-                {multiplier.toFixed(2)}x
+              <strong className={styles.summaryValue}>
+                {displayActivityMoney(activity?.totalDisplayPayout ?? "0")}
               </strong>
-              <span>{round.serverSeedCommitment.slice(0, 4)}</span>
             </div>
-          );
-        })}
-        {shown.length === 0 ? (
-          <div className={styles.railRow}>No completed rounds currently</div>
+            <div className={styles.summaryMeta}>
+              <span>
+                <strong>
+                  {activeEntries}/{totalEntries}
+                </strong>{" "}
+                Tickets
+              </span>
+              <span>Total win {activity?.currency ?? "USDC"}</span>
+            </div>
+            <div className={styles.activityProgress} aria-hidden="true">
+              <span style={{ width: `${progress}%` }} />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={styles.summaryTop}>
+              <div className={styles.avatarStack}>
+                <span className={styles.avatar}>A</span>
+                <span className={styles.avatar}>R</span>
+                <span className={styles.avatar}>K</span>
+              </div>
+              <strong className={styles.summaryValue}>{shown.length}</strong>
+            </div>
+            <div className={styles.summaryMeta}>
+              <span>{shown.length} verified rounds</span>
+              <span>Live feed</span>
+            </div>
+          </>
+        )}
+      </div>
+      <div className={`${styles.railColumns} ${showingActivity ? styles.activityColumns : ""}`}>
+        <span>{showingActivity ? "Profile" : "Round"}</span>
+        <span>{showingActivity ? `Ticket ${activity?.currency ?? "USDC"}` : "Result"}</span>
+        {showingActivity ? <span>X</span> : null}
+        <span>{showingActivity ? `Win ${activity?.currency ?? "USDC"}` : "Proof"}</span>
+      </div>
+      <div className={`${styles.railRows} ${showingActivity ? styles.activityRailRows : ""}`}>
+        {showingActivity
+          ? activityItems.map((item) => (
+              <div
+                key={item.activityId}
+                className={`${styles.railRow} ${styles.activityRow} ${
+                  item.status === "CASHED_OUT" ? styles.railRowWon : ""
+                }`}
+                aria-label={`${item.profileName}, ${item.status.toLowerCase().replace("_", " ")}`}
+              >
+                <div className={styles.roundIdentity}>
+                  <ActivityAvatar item={item} />
+                  <span className={styles.roundLabel}>{item.profileName}</span>
+                </div>
+                <strong className={styles.activityStake}>{displayActivityMoney(item.stake)}</strong>
+                <strong className={styles.activityMultiplier}>
+                  {item.status === "CASHED_OUT" && item.cashoutMultiplier
+                    ? `${Number(item.cashoutMultiplier).toFixed(2)}x`
+                    : ""}
+                </strong>
+                <strong className={styles.activityWin}>
+                  {item.status === "CASHED_OUT" && item.displayPayout
+                    ? displayActivityMoney(item.displayPayout)
+                    : ""}
+                </strong>
+              </div>
+            ))
+          : shown.map((round) => {
+              const multiplier = Number(round.crashMultiplier);
+              return (
+                <div
+                  key={round.roundId}
+                  className={`${styles.railRow} ${multiplier >= 2 ? styles.railRowWon : ""}`}
+                >
+                  <div className={styles.roundIdentity}>
+                    <span className={styles.roundDot}>{String(round.sequence).slice(-2)}</span>
+                    <span className={styles.roundLabel}>Round #{round.sequence}</span>
+                  </div>
+                  <strong
+                    className={multiplier >= 2 ? styles.multiplierHigh : styles.multiplierLow}
+                  >
+                    {multiplier.toFixed(2)}x
+                  </strong>
+                  <span>{round.serverSeedCommitment.slice(0, 4)}</span>
+                </div>
+              );
+            })}
+        {showingActivity && activityItems.length === 0 ? (
+          <div className={styles.railEmpty}>Activity will appear when the next flight opens.</div>
+        ) : null}
+        {!showingActivity && shown.length === 0 ? (
+          <div className={styles.railEmpty}>No completed rounds currently</div>
         ) : null}
       </div>
-      <div className={styles.railFooter}>
-        <span className={styles.fairBadge}>⬡ Provably Fair Game</span>
-        <span>{displayVersion(algorithmVersion)}</span>
-      </div>
+      {!showingActivity ? (
+        <div className={styles.railFooter}>
+          <span className={styles.fairBadge}>⬡ Provably Fair Game</span>
+          <span>{displayVersion(algorithmVersion)}</span>
+        </div>
+      ) : null}
     </aside>
   );
 }
@@ -345,7 +471,11 @@ export function ArkjetSection() {
       </header>
 
       <div className={`${styles.layout} ${chatOpen ? "" : styles.layoutChatClosed}`}>
-        <LeftRail rounds={arkjet.history} algorithmVersion={arkjet.current.algorithmVersion} />
+        <LeftRail
+          rounds={arkjet.history}
+          activity={arkjet.activity}
+          algorithmVersion={arkjet.current.algorithmVersion}
+        />
         <section className={styles.center}>
           <ArkjetMultiplierBar rounds={arkjet.history} />
           <ArkjetStage round={arkjet.current} animationEnabled={animation} soundEnabled={sound} />

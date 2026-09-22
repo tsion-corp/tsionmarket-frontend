@@ -126,11 +126,20 @@ describe("Arkjet live socket", () => {
       revision: 1,
       data: { betId: "bet-1", roundId: "round-1", status: "ACCEPTED" },
     });
+    connection.message({
+      type: "simulatedActivityUpdated",
+      topic: "arkjet:rounds",
+      revision: 2,
+      data: { roundId: "round-1", source: "simulation", isSimulated: true, items: [] },
+    });
     expect(listener).toHaveBeenCalledWith(
       expect.objectContaining({ type: "multiplier", revision: 1 })
     );
     expect(listener).toHaveBeenCalledWith(
       expect.objectContaining({ type: "betAccepted", revision: 1 })
+    );
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "simulatedActivityUpdated", revision: 2 })
     );
 
     unsubscribe();

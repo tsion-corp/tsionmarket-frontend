@@ -15,9 +15,11 @@ import {
   fetchArkjetFairnessRules,
   fetchArkjetRiskRules,
   fetchArkjetRoundHistory,
+  fetchArkjetSimulatedActivity,
   type ArkjetBet,
   type ArkjetBetList,
   type ArkjetRound,
+  type ArkjetSimulatedActivityFeed,
   type CreateArkjetBetInput,
 } from "@/features/casino/lib/api/arkjet";
 import {
@@ -26,6 +28,7 @@ import {
   ARKJET_SOCKET_RESYNC,
   isArkjetBet,
   isArkjetRound,
+  isArkjetSimulatedActivityFeed,
   sendArkjetCommand,
   subscribeArkjetTopics,
 } from "@/features/casino/lib/arkjet/live-socket";
@@ -33,6 +36,7 @@ import {
 export const ARKJET_KEYS = {
   current: ["casino", "arkjet", "round", "current"] as const,
   history: ["casino", "arkjet", "rounds", "history"] as const,
+  activity: ["casino", "arkjet", "activity", "simulated", "current"] as const,
   capabilities: ["casino", "arkjet", "capabilities"] as const,
   rules: ["casino", "arkjet", "fairness", "rules"] as const,
   riskRules: ["casino", "arkjet", "risk", "rules", "usdc-v1"] as const,
@@ -69,6 +73,13 @@ export function useArkjet() {
     queryFn: () => fetchArkjetRoundHistory(24),
     refetchInterval: socketReady ? false : pollUnlessFailing(60_000),
     staleTime: 60_000,
+  });
+  const activity = useQuery({
+    ...READ_OPTIONS,
+    queryKey: ARKJET_KEYS.activity,
+    queryFn: fetchArkjetSimulatedActivity,
+    refetchInterval: socketReady ? false : pollUnlessFailing(10_000),
+    staleTime: 2_000,
   });
   const capabilities = useQuery({
     ...READ_OPTIONS,
@@ -129,6 +140,7 @@ export function useArkjet() {
     if (!changedWithoutTerminal && !finished) return;
     // Refresh settlements immediately, with slow polling only as missed-transition repair.
     void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.history });
+    void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.activity });
     if (hasSession) {
       void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.balance });
       void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.bets });
@@ -156,13 +168,17 @@ export function useArkjet() {
   );
 
   const synchronize = useCallback(async () => {
-    const [roundResult, betsResult, balanceResult] = await Promise.allSettled([
+    const [roundResult, activityResult, betsResult, balanceResult] = await Promise.allSettled([
       fetchArkjetCurrentRound(),
+      fetchArkjetSimulatedActivity(),
       hasSession ? fetchArkjetCurrentBets() : Promise.resolve(null),
       hasSession ? fetchArkjetBalance() : Promise.resolve(null),
     ]);
     if (roundResult.status === "fulfilled") {
       queryClient.setQueryData(ARKJET_KEYS.current, roundResult.value);
+    }
+    if (activityResult.status === "fulfilled") {
+      queryClient.setQueryData(ARKJET_KEYS.activity, activityResult.value);
     }
     if (betsResult.status === "fulfilled" && betsResult.value) {
       queryClient.setQueryData([...ARKJET_KEYS.bets, user?.id ?? null], betsResult.value);
@@ -173,7 +189,21 @@ export function useArkjet() {
   }, [hasSession, queryClient, user?.id]);
 
   useEffect(() => {
-    return subscribeArkjetTopics(hasSession ? (user?.id ?? null) : null, (frame) => {
+    let pendingActivity: ArkjetSimulatedActivityFeed | null = null;
+    let activityFlushTimer: ReturnType<typeof setTimeout> | null = null;
+    const flushActivity = () => {
+      activityFlushTimer = null;
+      if (!pendingActivity) return;
+      const snapshot = pendingActivity;
+      pendingActivity = null;
+      void queryClient.cancelQueries({ queryKey: ARKJET_KEYS.activity });
+      queryClient.setQueryData<ArkjetSimulatedActivityFeed>(ARKJET_KEYS.activity, snapshot);
+    };
+    const queueActivity = (snapshot: ArkjetSimulatedActivityFeed) => {
+      pendingActivity = snapshot;
+      activityFlushTimer ??= setTimeout(flushActivity, 100);
+    };
+    const unsubscribe = subscribeArkjetTopics(hasSession ? (user?.id ?? null) : null, (frame) => {
       if (frame.type === ARKJET_SOCKET_READY.type) {
         setSocketReady(true);
         return;
@@ -206,8 +236,16 @@ export function useArkjet() {
         queryClient.setQueryData(ARKJET_KEYS.current, frame.data);
         return;
       }
+      if (isArkjetSimulatedActivityFeed(frame.data)) {
+        queueActivity(frame.data);
+        return;
+      }
       if (isArkjetBet(frame.data)) applyBet(frame.data);
     });
+    return () => {
+      unsubscribe();
+      if (activityFlushTimer) clearTimeout(activityFlushTimer);
+    };
   }, [applyBet, hasSession, queryClient, synchronize, user?.id]);
 
   const shouldFallBackToHttp = (error: unknown): boolean => {
@@ -270,6 +308,7 @@ export function useArkjet() {
   return {
     current: current.data ?? null,
     history: history.data?.items ?? [],
+    activity: activity.data ?? null,
     capabilities: capabilities.data ?? null,
     rules: rules.data ?? null,
     riskRules: riskRules.data ?? null,

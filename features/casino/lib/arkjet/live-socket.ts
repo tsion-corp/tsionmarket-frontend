@@ -1,6 +1,10 @@
 "use client";
 
-import type { ArkjetBet, ArkjetRound } from "@/features/casino/lib/api/arkjet";
+import type {
+  ArkjetBet,
+  ArkjetRound,
+  ArkjetSimulatedActivityFeed,
+} from "@/features/casino/lib/api/arkjet";
 import { apiError } from "@/lib/api/envelope";
 import { resolveAuthTokens } from "@/lib/privy-token";
 
@@ -240,7 +244,11 @@ function handleData(frame: ArkjetGatewayFrame): void {
     frame.type === "multiplier" ||
     frame.type === "betAccepted" ||
     frame.type === "betCancelled" ||
-    frame.type === "betCashedOut"
+    frame.type === "betCashedOut" ||
+    frame.type === "simulatedActivityOpened" ||
+    frame.type === "simulatedActivityStarted" ||
+    frame.type === "simulatedActivityUpdated" ||
+    frame.type === "simulatedActivitySettled"
   ) {
     notify(frame);
   }
@@ -345,6 +353,26 @@ export function isArkjetBet(value: unknown): value is ArkjetBet {
   if (!value || typeof value !== "object") return false;
   const bet = value as Partial<ArkjetBet>;
   return typeof bet.betId === "string" && typeof bet.roundId === "string";
+}
+
+export function isArkjetSimulatedActivityFeed(
+  value: unknown
+): value is ArkjetSimulatedActivityFeed {
+  if (!value || typeof value !== "object") return false;
+  const feed = value as Partial<ArkjetSimulatedActivityFeed>;
+  return (
+    typeof feed.roundId === "string" &&
+    feed.source === "simulation" &&
+    feed.isSimulated === true &&
+    Array.isArray(feed.items) &&
+    feed.items.every(
+      (item) =>
+        item !== null &&
+        typeof item === "object" &&
+        typeof (item as { activityId?: unknown }).activityId === "string" &&
+        (item as { isSimulated?: unknown }).isSimulated === true
+    )
+  );
 }
 
 export async function sendArkjetCommand<T>(command: Record<string, unknown>): Promise<T> {

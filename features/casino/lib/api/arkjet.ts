@@ -33,6 +33,44 @@ export interface ArkjetRoundHistory {
   nextBeforeSequence: number | null;
 }
 
+export type ArkjetSimulatedActivityStatus =
+  "PENDING" | "ACTIVE" | "CASHED_OUT" | "LOST" | "CANCELLED";
+
+export interface ArkjetSimulatedActivityItem {
+  activityId: string;
+  roundId: string;
+  position: number;
+  profileName: string;
+  profileAvatarSeed: string;
+  currency: string;
+  stake: string;
+  cashoutTargetMultiplier: string;
+  status: ArkjetSimulatedActivityStatus;
+  cashoutMultiplier: string | null;
+  displayPayout: string | null;
+  joinedAt: string | null;
+  settledAt: string | null;
+  source: "simulation";
+  isSimulated: true;
+}
+
+export interface ArkjetSimulatedActivityFeed {
+  roundId: string;
+  currency: string;
+  totalEntries: number;
+  activeEntries: number;
+  cashedOutEntries: number;
+  lostEntries: number;
+  totalStake: string;
+  totalDisplayPayout: string;
+  minimumStake: string;
+  maximumStake: string;
+  source: "simulation";
+  isSimulated: true;
+  disclosure: string;
+  items: ArkjetSimulatedActivityItem[];
+}
+
 export interface ArkjetCapabilities {
   fairnessEnabled: boolean;
   roundEngineEnabled: boolean;
@@ -289,6 +327,10 @@ export function fetchArkjetCurrentRound(): Promise<ArkjetRound> {
 
 export function fetchArkjetRoundHistory(limit = 18): Promise<ArkjetRoundHistory> {
   return arkjet.get<ArkjetRoundHistory>("/rounds/history", { limit });
+}
+
+export function fetchArkjetSimulatedActivity(): Promise<ArkjetSimulatedActivityFeed> {
+  return arkjet.get<ArkjetSimulatedActivityFeed>("/activity/simulated/current");
 }
 
 export function fetchArkjetCapabilities(): Promise<ArkjetCapabilities> {

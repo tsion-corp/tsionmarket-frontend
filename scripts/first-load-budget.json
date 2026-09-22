@@ -1,5 +1,5 @@
 {
-  "$comment": "Initial client JavaScript per route, gzipped kB. A ratchet: set just above what the route ships, lowered as it improves. See scripts/first-load.mjs. 2026-09-13: /, /privacy, /welcome, /prediction and /casino raised by 12-32 kB for the Watchtower error reporting SDK (@sentry/nextjs). It is loaded statically on purpose: deferring it would move the bytes out of first load but miss the hydration-time crashes that are the most valuable thing it catches.",
+  "$comment": "Initial client JavaScript per route, gzipped kB. A ratchet: set just above what the route ships, lowered as it improves. See scripts/first-load.mjs. 2026-09-13: /, /privacy, /welcome, /prediction and /casino raised by 12-32 kB for the Watchtower error reporting SDK (@sentry/nextjs). It is loaded statically on purpose: deferring it would move the bytes out of first load but miss the hydration-time crashes that are the most valuable thing it catches. 2026-09-22: /casino/chess/coach-lab receives a 10 kB route-specific margin because Node 24 gzip output crosses the 1900 kB default while Node 25 stays below it.",
   "default": 1900,
   "routes": {
     "/": 320,
@@ -14,6 +14,7 @@
     "/rwa": 1700,
     "/activity": 1650,
     "/prediction": 1880,
-    "/casino": 1885
+    "/casino": 1885,
+    "/casino/chess/coach-lab": 1910
   }
 }
