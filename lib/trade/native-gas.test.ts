@@ -98,3 +98,69 @@ describe("canPayNativeFee", () => {
     expect(canPayNativeFee(0.00002, undefined)).toBe(true);
   });
 });
+
+// The same staging report, one layer down. The reserve above was measured from
+// a plain value transfer, but a USD₮0 sale is an ERC-20 transfer, which costs
+// about three times as much gas. So the gate asked for a third of the real fee
+// and waved through a wallet that could not pay: topping up to just past it
+// still failed at the node.
+describe("nativeSendCost for a token send", () => {
+  const TOKEN = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+  const FROM = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+  const TO = "0xcccccccccccccccccccccccccccccccccccccccc";
+
+  beforeEach(() => {
+    getGasPrice.mockResolvedValue(1_000_000_000n);
+    getBlock.mockResolvedValue({ baseFeePerGas: null });
+    estimateMaxPriorityFeePerGas.mockResolvedValue(0n);
+  });
+
+  it("estimates the token transfer itself, not a native send", async () => {
+    estimateGas.mockResolvedValue(65_000n);
+    await nativeSendCost("hyperliquid-mainnet", {
+      tokenAddress: TOKEN,
+      from: FROM,
+      to: TO,
+      amount: 1_000_000n,
+    });
+    const [call] = estimateGas.mock.calls.at(-1) ?? [];
+    expect(call.to.toLowerCase()).toBe(TOKEN);
+    expect(call.account).toBe(FROM);
+    // transfer(address,uint256)
+    expect(call.data.startsWith("0xa9059cbb")).toBe(true);
+  });
+
+  it("floors a token send at the ERC-20 minimum, well above a native transfer", async () => {
+    estimateGas.mockResolvedValue(21_000n);
+    const token = await nativeSendCost("hyperliquid-mainnet", {
+      tokenAddress: TOKEN,
+      from: FROM,
+      to: TO,
+      amount: 1n,
+    });
+    const native = await nativeSendCost("hyperliquid-mainnet");
+    expect(token).toBeGreaterThan(native * 2.5);
+  });
+
+  // A wallet that cannot cover the transfer makes the node revert the
+  // estimate. That is the exact case the gate exists for, so it must not
+  // collapse back to the native floor and pass.
+  it("keeps the ERC-20 floor when the node refuses to estimate", async () => {
+    estimateGas.mockRejectedValue(new Error("execution reverted"));
+    const token = await nativeSendCost("hyperliquid-mainnet", {
+      tokenAddress: TOKEN,
+      from: FROM,
+      to: TO,
+      amount: 1n,
+    });
+    expect(token).toBeCloseTo(0.08125e-3, 6);
+  });
+
+  it("leaves a native send exactly as it was", async () => {
+    estimateGas.mockResolvedValue(21_000n);
+    expect(await nativeSendCost("hyperliquid-mainnet", { tokenAddress: null })).toBeCloseTo(
+      0.00002625,
+      10
+    );
+  });
+});

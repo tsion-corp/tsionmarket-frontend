@@ -8,7 +8,9 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
+import { usePrivy } from "@privy-io/react-auth";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { getWalletAddress } from "@/lib/user";
 import { useSell } from "@/features/trade/hooks/use-sell";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
@@ -49,6 +51,8 @@ export function SellSheet({ payload, onClose, initialAmount = "" }: SellSheetPro
   const [maxRequested, setMaxRequested] = useState(false);
   const sell = useSell();
 
+  const { user } = usePrivy();
+  const feePayer = getWalletAddress(user, "ethereum") ?? undefined;
   const nativeSym = nativeSymbol(payload.network);
   const chainLabel = networkLabel(payload.network);
 
@@ -78,10 +82,14 @@ export function SellSheet({ payload, onClose, initialAmount = "" }: SellSheetPro
   // itself: the same figure answers "what must this wallet hold to send at
   // all", which is what the hint below is for.
   const measuredGas = useQuery({
-    queryKey: ["nativeSendCost", payload.network],
-    queryFn: () => nativeSendCost(payload.network),
+    queryKey: ["nativeSendCost", payload.network, payload.address],
+    queryFn: () =>
+      nativeSendCost(payload.network, { tokenAddress: payload.address, from: feePayer }),
     enabled: !sponsored && nativeSym !== null,
-    staleTime: 30_000,
+    // Gas moves with traffic, so the figure is re-read while the sheet is open
+    // rather than frozen at the price when it was first opened.
+    staleTime: 15_000,
+    refetchInterval: 15_000,
     retry: 1,
   });
 

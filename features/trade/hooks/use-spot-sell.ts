@@ -6,14 +6,16 @@ import { useTranslations } from "next-intl";
 import { BASE_CHAIN_ID, chainIdOfNetwork } from "@/lib/meme/chain";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { networkForChainId } from "@/lib/trade-share";
+import { usePrivy } from "@privy-io/react-auth";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { getWalletAddress } from "@/lib/user";
 import { useSell } from "@/features/trade/hooks/use-sell";
 import { tradeRef, useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
 import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
-import { nativeSendCost } from "@/lib/trade/native-gas";
+import { canPayNativeFee, nativeSendCost } from "@/lib/trade/native-gas";
 import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
@@ -97,6 +99,8 @@ export function useSpotSell({
       : null;
   }, [holding]);
 
+  const { user } = usePrivy();
+  const feePayer = getWalletAddress(user, "ethereum") ?? undefined;
   const network = holding?.network ?? null;
   const nativeSym = network ? nativeSymbol(network) : null;
 
@@ -107,38 +111,38 @@ export function useSpotSell({
     ? hasGasPolicyForNetwork(network) || network === "solana-mainnet"
     : false;
 
+  const nativeBalance = useMemo(
+    () =>
+      portfolio.tokens.find(
+        (token) => token.network === network && token.symbol === nativeSym && token.address === null
+      )?.balance ?? 0,
+    [portfolio.tokens, network, nativeSym]
+  );
+
+  // Selling a chain's own gas token pays the fee out of the same balance, so
+  // the most that can be sold is the balance minus that fee.
+  const sellsNativeToken = holding !== null && holding.address === null && !sponsored;
+  // Measured wherever the sender pays, not only when selling the gas token, so
+  // the same figure answers "can this wallet afford to send at all". Gas moves
+  // with traffic, so it is re-read rather than frozen at the first reading.
+  const measuredGas = useQuery({
+    queryKey: ["nativeSendCost", network, holding?.address ?? null],
+    queryFn: () =>
+      nativeSendCost(network as string, {
+        tokenAddress: holding?.address ?? null,
+        from: feePayer,
+      }),
+    enabled: !sponsored && network !== null && nativeSym !== null,
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+    retry: 1,
+  });
+
   // A chain whose native token we cannot name is treated as having gas: we
   // cannot prove the wallet is short of a token we cannot identify, and refusing
   // the sale on that guess blocks someone who is holding plenty.
-  const hasGas = useMemo(
-    () =>
-      sponsored ||
-      nativeSym === null ||
-      portfolio.tokens.some(
-        (token) => token.network === network && token.symbol === nativeSym && token.balance > 0
-      ),
-    [sponsored, portfolio.tokens, network, nativeSym]
-  );
-
-  /**
-   * Selling a chain's own gas token pays the fee out of the same balance, so the
-   * most that can be sold is the balance minus that fee. Reading the live cost
-   * makes the reserve the fee itself rather than a round number picked in
-   * advance.
-   *
-   * Gated on `sellsNativeToken`, so it never runs for the ordinary case, and
-   * held for 30 seconds. It is not a poll: one read, only when the asset being
-   * sold IS the chain's fee token, which is the only case whose maximum depends
-   * on it.
-   */
-  const sellsNativeToken = holding !== null && holding.address === null && !sponsored;
-  const measuredGas = useQuery({
-    queryKey: ["nativeSendCost", network],
-    queryFn: () => nativeSendCost(network as string),
-    enabled: sellsNativeToken && network !== null,
-    staleTime: 30_000,
-    retry: 1,
-  });
+  const hasGas =
+    sponsored || nativeSym === null || canPayNativeFee(nativeBalance, measuredGas.data);
 
   const maxSell = !holding
     ? 0
