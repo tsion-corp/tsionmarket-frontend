@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { coingeckoHeaders, coingeckoUrl } from "@/lib/server/coingecko";
 
 const ONE_DAY = 86400;
 
@@ -65,10 +66,10 @@ export async function GET(
   const platform = COINGECKO_PLATFORM[chain];
   if (platform) {
     try {
-      const res = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${platform}/contract/${address}`,
-        { next: { revalidate: ONE_DAY } }
-      );
+      const res = await fetch(coingeckoUrl(`/coins/${platform}/contract/${address}`), {
+        headers: coingeckoHeaders(),
+        next: { revalidate: ONE_DAY },
+      });
       if (res.ok) {
         const data = await res.json();
         const image: string | undefined = data?.image?.large ?? data?.image?.small;

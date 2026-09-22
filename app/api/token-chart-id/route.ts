@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { coingeckoHeaders, coingeckoUrl } from "@/lib/server/coingecko";
 
 // Resolves a token's CoinGecko coin id from its contract address, so a market
 // the top-coins feed doesn't cover can still be charted. The mapping is stable,
@@ -11,12 +12,11 @@ export async function GET(req: NextRequest) {
   const address = req.nextUrl.searchParams.get("address");
   if (!platform || !address) return NextResponse.json({ id: null });
 
-  const url = `https://api.coingecko.com/api/v3/coins/${platform}/contract/${encodeURIComponent(
-    address
-  )}`;
+  const url = coingeckoUrl(`/coins/${platform}/contract/${encodeURIComponent(address)}`);
 
   try {
     const res = await fetch(url, {
+      headers: coingeckoHeaders(),
       next: { revalidate: ONE_DAY },
       signal: AbortSignal.timeout(8_000),
     });

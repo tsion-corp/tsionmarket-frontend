@@ -1,4 +1,5 @@
 import "server-only";
+import { coingeckoHeaders, coingeckoUrl } from "@/lib/server/coingecko";
 import type { OndoMarket } from "@/lib/ondo";
 
 // CoinGecko markets proxy. One call returns live price, 24h and 1y change, and
@@ -29,7 +30,8 @@ export async function fetchOndoMarkets(ids: string[]): Promise<OndoMarket[]> {
     per_page: String(ids.length),
   });
 
-  const res = await fetch(`https://api.coingecko.com/api/v3/coins/markets?${params.toString()}`, {
+  const res = await fetch(coingeckoUrl(`/coins/markets?${params.toString()}`), {
+    headers: coingeckoHeaders(),
     next: { revalidate: FIVE_MINUTES },
     signal: AbortSignal.timeout(8_000),
   });

@@ -1,4 +1,5 @@
 import "server-only";
+import { coingeckoHeaders, coingeckoUrl } from "@/lib/server/coingecko";
 import type { MarketToken } from "@/lib/market-catalog";
 
 // CoinGecko /coins/markets proxy for the Markets explorer. Public data, no key.
@@ -26,7 +27,7 @@ export async function fetchMarketTokens(category: string | null): Promise<Market
     price_change_percentage: "24h",
   });
   if (category) params.set("category", category);
-  const url = `https://api.coingecko.com/api/v3/coins/markets?${params.toString()}`;
+  const url = coingeckoUrl(`/coins/markets?${params.toString()}`);
 
   // CoinGecko's free tier rate-limits (429) under rapid chain switching, so
   // retry a couple of times before surfacing an error, and never let a non-array
@@ -35,6 +36,7 @@ export async function fetchMarketTokens(category: string | null): Promise<Market
   for (let attempt = 0; attempt <= 2; attempt++) {
     try {
       const res = await fetch(url, {
+        headers: coingeckoHeaders(),
         next: { revalidate: FIVE_MINUTES },
         // See buyable-registry: unbounded reads are what hold a function open
         // through an upstream outage.
