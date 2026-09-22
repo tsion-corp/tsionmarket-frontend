@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { squareLinks } from "@/lib/square/links";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import type { MarketSquareFeedStream } from "@/lib/api/market-square";
 
 /**

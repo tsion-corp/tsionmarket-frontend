@@ -3,7 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { squareLinks } from "@/lib/square/links";
 import { startsIn } from "@/lib/square/starts-in";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { IconSpark, TOPIC_ICONS } from "@/features/square/components/square-home-icons";
 import type { MarketSquareRoom, MarketSquareTopic } from "@/lib/api/market-square";
 

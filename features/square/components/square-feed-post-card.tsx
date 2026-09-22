@@ -13,7 +13,7 @@ import { isVideoPost, postMediaList } from "@/lib/square/post-media";
 import { marketSquareHref } from "@/lib/market-square";
 import { useSquareEngage } from "@/features/square/hooks/use-square-engage";
 import { useRecordView } from "@/features/square/hooks/use-record-view";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { SquareCommentsSheet } from "@/features/square/components/square-comments-sheet";
 import { SquareMediaRail } from "@/features/square/components/square-media-rail";
 import {

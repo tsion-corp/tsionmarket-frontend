@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
-import { Avatar } from "@/components/ui/avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
+import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { InviteFriendsModal } from "@/features/referrals";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
@@ -76,6 +77,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
     },
   });
   const profile = deriveProfile(user);
+  const squareAvatar = useSquareAvatar();
   const hasPasskey = user?.linkedAccounts.some((a) => a.type === "passkey") ?? false;
 
   const item =
@@ -84,7 +86,7 @@ export function AccountModal({ onClose }: AccountModalProps) {
   return (
     <div>
       <div className="flex items-center gap-[13px]">
-        <Avatar seed={profile.avatarSeed} size={46} />
+        <SquareAvatar src={squareAvatar} seed={user?.id ?? ""} name={profile.name} size={46} />
         <div className="min-w-0" data-sensitive="other">
           <div className="ws-display truncate text-[21px]">{profile.name}</div>
           <div className="truncate text-[12.5px] font-normal text-white/50">{profile.email}</div>

@@ -11,6 +11,7 @@ import {
   searchSquare,
 } from "@/lib/api/market-square";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
+import { queryKeys } from "@/lib/query-keys";
 
 /**
  * The reads behind the Square page, one per section of the Square's Home.
@@ -32,9 +33,10 @@ export const SQUARE_HOME_KEYS = {
   rooms: (status: "live" | "scheduled") => ["market-square", "rooms", status] as const,
   people: ["market-square", "people"] as const,
   houses: ["market-square", "houses"] as const,
-  // Shared with the dashboard's section and the compose sheet, so the
-  // reader's identity and the topic vocabulary are fetched once for all.
-  me: ["market-square", "me"] as const,
+  // Shared with the dashboard's section, the compose sheet and the account
+  // chrome's avatar, so the reader's identity is fetched once for all. The key
+  // itself lives in lib/query-keys, which is the only place `hooks/` can reach.
+  me: queryKeys.marketSquare.me(),
   topics: ["market-square", "topics"] as const,
 };
 

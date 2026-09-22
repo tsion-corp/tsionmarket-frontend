@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { squareLinks } from "@/lib/square/links";
 import { groupRoomCode, looksLikeRoomCode } from "@/lib/square/room-code";
 import { useSquareSearch } from "@/features/square/hooks/use-square-home";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { SquarePersonRow } from "@/features/square/components/square-person-row";
 
 /**

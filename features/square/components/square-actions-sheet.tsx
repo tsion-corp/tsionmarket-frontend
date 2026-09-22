@@ -10,7 +10,7 @@ import {
   fetchTrendingDiscussions,
 } from "@/lib/api/market-square";
 import { squareLinks } from "@/lib/square/links";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { DiscussionRail } from "@/features/square/components/discussion-rail";
 

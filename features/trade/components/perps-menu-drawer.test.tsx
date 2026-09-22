@@ -76,6 +76,11 @@ function hamburger() {
   return screen.getByRole("button", { name: "Menu" });
 }
 
+// The account face reads the player's square profile. These cover the rail
+// and its chrome, not where the picture comes from, so the read is stubbed
+// out: null is the ordinary answer and leaves the seeded artwork in place.
+vi.mock("@/hooks/use-square-avatar", () => ({ useSquareAvatar: () => null }));
+
 describe("PerpsMenuDrawer", () => {
   beforeEach(() => {
     push.mockClear();

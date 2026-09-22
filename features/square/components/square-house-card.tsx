@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { squareLinks } from "@/lib/square/links";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import type { MarketSquareHouse } from "@/lib/api/market-square";
 
 /** A design unit of the 356-wide card, as a share of its real width. */

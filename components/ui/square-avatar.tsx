@@ -17,6 +17,11 @@ import { artworkForSeed, resolveSeed } from "@/lib/square/avatar-seed";
  * faces for one person reads as two people, and it undermines the whole point
  * of surfacing the square's content on this dashboard.
  *
+ * It sits in `components/ui` rather than the square slice because the account
+ * chrome draws it too — the sidebar, topbar, popover and account modal all
+ * show the player their own square face, and `components/layout` may not
+ * import a feature.
+ *
  * `seed` must be the STABLE identity — the Privy DID — not a display name.
  * Seeding on a name re-rolls someone's avatar the moment they rename.
  */

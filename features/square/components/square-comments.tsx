@@ -8,7 +8,7 @@ import { AsyncError, AsyncLoading } from "@/components/ui/async-state";
 import { timeAgo } from "@/lib/format";
 import { authorName } from "@/lib/square/author";
 import { addPostComment, fetchPostComments } from "@/lib/api/market-square";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { useBumpCommentCount } from "@/features/square/hooks/use-square-engage";
 import type { MarketSquareFeedPost } from "@/lib/api/market-square";
 

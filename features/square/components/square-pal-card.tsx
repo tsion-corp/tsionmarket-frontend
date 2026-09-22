@@ -6,7 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { setFollow, type SuggestedProfile } from "@/lib/api/market-square";
 import { squareLinks } from "@/lib/square/links";
 import { cn } from "@/lib/utils";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import {
   IconPalAdd,
   IconPalPass,

@@ -34,6 +34,7 @@ const {
   findLiveStreamsForRef,
   resolveSpeakerRequest,
   fetchMySpeakerRequest,
+  fetchSquareMe,
 } = await import("./market-square");
 
 function wireStream(overrides: Record<string, unknown>) {
@@ -286,5 +287,21 @@ describe("searchSquare", () => {
   it("treats an absent list as nothing matched", async () => {
     calls.get.mockResolvedValue({});
     expect(await searchSquare("x")).toEqual({ items: [], nextCursor: null });
+  });
+});
+
+describe("fetchSquareMe", () => {
+  // `/me` IS the caller's identity: the square reads it off the bearer token
+  // and our proxy refuses the path outright without a verified session. Asking
+  // for it anonymously is not a degraded read, it is a guaranteed 401 — which
+  // is what left the account chrome drawing a seeded mascot for somebody who
+  // had uploaded a picture.
+  it("asks with the caller's session, not anonymously", async () => {
+    calls.authedGet.mockResolvedValue({ id: "did:privy:a", avatarUrl: "https://cdn/a.png" });
+
+    await fetchSquareMe();
+
+    expect(calls.authedGet).toHaveBeenCalledWith("/me");
+    expect(calls.get).not.toHaveBeenCalled();
   });
 });

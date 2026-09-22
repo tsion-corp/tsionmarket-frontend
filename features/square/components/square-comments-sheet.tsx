@@ -23,7 +23,7 @@ import {
   type MarketSquareFeedPost,
 } from "@/lib/api/market-square";
 import { useBumpCommentCount } from "@/features/square/hooks/use-square-engage";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import {
   OrgBadgeChip,
   RoleChip,

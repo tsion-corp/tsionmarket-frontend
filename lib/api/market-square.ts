@@ -721,9 +721,19 @@ export interface MarketSquareMe {
   role: MarketSquareRole;
 }
 
-/** The reader's own square identity, for the compose sheet's header. */
+/**
+ * The reader's own square identity: the compose sheet's header, and the face
+ * the account chrome draws.
+ *
+ * `authedGet`, never `get`. The plain read is deliberately anonymous — it
+ * sends no credentials so public answers stay cacheable — and `/me` is the one
+ * path where that cannot work: the square reads the caller off the bearer
+ * token, and our own proxy refuses the path before forwarding a byte without a
+ * verified session. Asked anonymously it is not a thinner answer, it is a
+ * guaranteed 401.
+ */
 export async function fetchSquareMe(): Promise<MarketSquareMe> {
-  return marketSquare.get<MarketSquareMe>("/me");
+  return marketSquare.authedGet<MarketSquareMe>("/me");
 }
 
 /**

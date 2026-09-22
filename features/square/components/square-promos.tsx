@@ -11,7 +11,7 @@ import { withFeaturedFirst } from "@/lib/square/featured";
 import { squareLinks } from "@/lib/square/links";
 import { fetchSuggestedProfiles } from "@/lib/api/market-square";
 import { useSquareFeed } from "@/features/square/hooks/use-square-feed";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { PromoCard, PromoShell } from "@/features/square/components/promo-shell";
 import { VerifiedChip } from "@/features/square/components/verified-chip";
 import {

@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
-import { Avatar } from "@/components/ui/avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
+import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { InviteFriendsModal } from "@/features/referrals";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
@@ -84,6 +85,7 @@ export function AccountPopover({ open, onClose, triggerRef }: AccountPopoverProp
   });
 
   const profile = deriveProfile(user);
+  const squareAvatar = useSquareAvatar();
   const hasPasskey = user?.linkedAccounts?.some((a) => a.type === "passkey") ?? false;
 
   useEffect(() => {
@@ -136,7 +138,12 @@ export function AccountPopover({ open, onClose, triggerRef }: AccountPopoverProp
           >
             {/* User Identity Header */}
             <div className="flex items-center gap-2.5 px-1 pb-2">
-              <Avatar seed={profile.avatarSeed} size={36} />
+              <SquareAvatar
+                src={squareAvatar}
+                seed={user?.id ?? ""}
+                name={profile.name}
+                size={36}
+              />
               <div className="min-w-0 flex-1" data-sensitive="other">
                 <div className="truncate text-[13.5px] font-medium text-white">{profile.name}</div>
                 <div className="truncate text-[11.5px] font-normal text-white/50">

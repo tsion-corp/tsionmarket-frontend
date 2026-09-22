@@ -1,7 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import { squareLinks } from "@/lib/square/links";
 import type { MarketSquareFeedStream } from "@/lib/api/market-square";
 

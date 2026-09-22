@@ -32,6 +32,13 @@ export const queryKeys = {
     account: (wallet?: string | null) =>
       [...queryKeys.kash.all, "account", wallet ?? null] as const,
   },
+  marketSquare: {
+    all: ["market-square"] as const,
+    // The reader's own square identity. Read by the square's own page and by
+    // the account chrome, which wants the avatar off it — one key so the two
+    // share a single request.
+    me: () => [...queryKeys.marketSquare.all, "me"] as const,
+  },
   dextopus: {
     all: ["dextopus"] as const,
     chains: () => ["deposit-chains"] as const,

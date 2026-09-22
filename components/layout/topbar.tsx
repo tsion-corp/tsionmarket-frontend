@@ -6,7 +6,8 @@ import { useTranslations } from "next-intl";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { MarketLogo } from "@/components/ui/market-logo";
-import { Avatar } from "@/components/ui/avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
+import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { HelpIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
 import { requestTourReplay, startDashboardTour } from "@/features/tour";
@@ -32,6 +33,7 @@ function CompassIcon({ size = 17 }: { size?: number }) {
 export function Topbar({ onOpenAccount }: TopbarProps) {
   const { user } = usePrivy();
   const profile = deriveProfile(user);
+  const squareAvatar = useSquareAvatar();
   const t = useTranslations("topbar");
   const tTour = useTranslations("tour");
   const router = useRouter();
@@ -85,7 +87,7 @@ export function Topbar({ onOpenAccount }: TopbarProps) {
         aria-label={t("account")}
         className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left md:hidden md:gap-[8.29px]"
       >
-        <Avatar seed={profile.avatarSeed} size={38} />
+        <SquareAvatar src={squareAvatar} seed={user?.id ?? ""} name={profile.name} size={38} />
         <span className={`min-w-0 flex-col md:flex md:gap-[5.43px] ${isHome ? "flex" : "hidden"}`}>
           <span className="block truncate font-sans text-[14px] font-semibold text-white md:font-serif md:text-[15px] md:leading-[17.4px] md:tracking-[-0.15px]">
             {profile.name}

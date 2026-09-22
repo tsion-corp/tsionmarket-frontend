@@ -14,7 +14,7 @@ import { CoinChip } from "@/features/square/components/coin-chip";
 import { ExpandableText } from "@/features/square/components/expandable-text";
 import { FollowButton } from "@/features/square/components/follow-button";
 import { authorName } from "@/lib/square/author";
-import { SquareAvatar } from "@/features/square/components/square-avatar";
+import { SquareAvatar } from "@/components/ui/square-avatar";
 import type { MarketSquareFeedPost } from "@/lib/api/market-square";
 import type { TradableSymbol } from "@/lib/square/tradable";
 import type { BuyPayload } from "@/lib/modal-types";
