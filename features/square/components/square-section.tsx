@@ -11,7 +11,7 @@ import { useSquareFeed } from "@/features/square/hooks/use-square-feed";
 import { SquareLiveStrip } from "@/features/square/components/square-live-strip";
 import { SquarePostCard } from "@/features/square/components/square-post-card";
 import { SquareRail } from "@/features/square/components/square-rail";
-import { SquareTabs, type SquareTab } from "@/features/square/components/square-tabs";
+import { Tabs, type Tab } from "@/components/ui/tabs";
 import { SquareComposer } from "@/components/share/square-composer";
 import type { TradableSymbol } from "@/lib/square/tradable";
 import type { BuyPayload } from "@/lib/modal-types";
@@ -102,7 +102,7 @@ export function SquareSection({
     staleTime: 30 * 60_000,
   });
 
-  const tabs = useMemo<SquareTab[]>(
+  const tabs = useMemo<Tab[]>(
     () => [
       { id: LANE_FOR_YOU, label: t("laneForYou") },
       { id: LANE_FOLLOWING, label: t("laneFollowing") },
@@ -141,7 +141,7 @@ export function SquareSection({
       <div className="ws-card mt-4 flex gap-8 p-4 sm:p-5 lg:p-6">
         <div className="w-full min-w-0 lg:max-w-[680px] xl:max-w-none">
           <div className="border-grey-800 border-b">
-            <SquareTabs tabs={tabs} active={tab} onSelect={setTab} label={t("tabsLabel")} />
+            <Tabs tabs={tabs} active={tab} onSelect={setTab} label={t("tabsLabel")} />
           </div>
 
           <div className="mt-4">

@@ -42,7 +42,7 @@ interface PerpLedgerTabsProps {
 // venue, and it fetches nothing.
 //
 // This is the third hand-rolled tablist in the tree, after
-// features/square/components/square-tabs.tsx and the market strip in
+// components/ui/tabs.tsx and the market strip in
 // features/trade/components/mobile-market-view.tsx. All three should collapse
 // into one primitive under components/ui/ once the screens in flight have
 // landed; features cannot import each other, so none of them can reuse another

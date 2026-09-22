@@ -13,8 +13,11 @@ vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => privy.state,
 }));
 
+const route = { pathname: "/portfolio", search: "" };
 vi.mock("next/navigation", () => ({
   useRouter: () => router,
+  usePathname: () => route.pathname,
+  useSearchParams: () => new URLSearchParams(route.search),
 }));
 
 vi.mock("next-intl", () => ({
@@ -75,7 +78,23 @@ describe("AuthGuard", () => {
     privy.state = { ready: true, authenticated: false };
     mount(true);
     expect(screen.queryByTestId("page")).toBeNull();
-    expect(router.replace).toHaveBeenCalledWith("/auth");
+    expect(router.replace).toHaveBeenCalledWith("/auth?next=%2Fportfolio");
+  });
+
+  // Not a game-link feature: any protected route a signed-out browser lands on
+  // is carried through sign-in, query string included.
+  it.each([
+    ["/casino/last-standing/150", "", "/auth?next=%2Fcasino%2Flast-standing%2F150"],
+    ["/spot", "asset=DOGE", "/auth?next=%2Fspot%3Fasset%3DDOGE"],
+    ["/square", "", "/auth?next=%2Fsquare"],
+  ])("carries %s through sign-in", (pathname, search, expected) => {
+    route.pathname = pathname;
+    route.search = search;
+    privy.state = { ready: true, authenticated: false };
+    render(<AuthGuard>content</AuthGuard>);
+    expect(router.replace).toHaveBeenCalledWith(expected);
+    route.pathname = "/portfolio";
+    route.search = "";
   });
 
   it("shows the page once Privy is ready and signed in, without the server", () => {

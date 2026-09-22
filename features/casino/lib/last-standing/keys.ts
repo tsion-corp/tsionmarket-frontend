@@ -6,6 +6,8 @@ export const VAULT_KEYS = {
   games: ["vault", "games"] as const,
   game: (gameId: number) => ["vault", "game", gameId] as const,
   winners: ["vault", "winners"] as const,
+  // Every winner ever, walked server-side for the all-time board.
+  leaderboard: ["vault", "leaderboard"] as const,
   activities: ["vault", "activities"] as const,
   // The socket's contract-shaped lobby rows. Under the same prefix, so a
   // reconnect resync refreshes them with everything else, but not under

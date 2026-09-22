@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { onOpenSupportChat } from "@/lib/support-chat/open";
 import { useTranslations } from "next-intl";
 import { ChatHeader } from "./chat-header";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
@@ -21,6 +22,10 @@ export function SupportChatWidget({ defaultOpen = false }: SupportChatWidgetProp
   const [isOpen, setIsOpen] = useState(defaultOpen);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isTyping, setIsTyping] = useState(false);
+
+  // Opened from elsewhere in the shell, such as the account menu's
+  // "Help & support".
+  useEffect(() => onOpenSupportChat(() => setIsOpen(true)), []);
 
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     const welcomeMsg: ChatMessage = {

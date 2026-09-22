@@ -194,14 +194,14 @@ export function DashboardPage() {
   const rwaLeads = realAssetsLead(useInterest());
   // The square's feed tab lives here because two siblings drive it: the
   // section's own strip, and the plus sheet's discussions.
-  const [squareTab, setSquareTab] = useState<string | undefined>(undefined);
+  const [squareTab, setTab] = useState<string | undefined>(undefined);
   const openTopic = useCallback((key: string) => {
-    setSquareTab(`topic:${key}`);
+    setTab(`topic:${key}`);
     // Otherwise the tab changes off-screen and the tap reads as doing nothing.
     document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
   }, []);
   const openDiscussion = useCallback((tag: string) => {
-    setSquareTab(`tag:${tag}`);
+    setTab(`tag:${tag}`);
     // Otherwise the tab changes off-screen and the tap reads as doing nothing.
     document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
   }, []);
@@ -435,7 +435,7 @@ export function DashboardPage() {
           onOpenBuy={modals.openBuy}
           markets={spotMarkets}
           tab={squareTab}
-          onTabChange={setSquareTab}
+          onTabChange={setTab}
         />
       )}
       {/* Fixed to the viewport, so it sits the same wherever it renders. It

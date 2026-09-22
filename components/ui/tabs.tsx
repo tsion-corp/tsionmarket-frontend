@@ -2,13 +2,13 @@
 
 import { useCallback, useRef } from "react";
 
-export interface SquareTab {
+export interface Tab {
   id: string;
   label: string;
 }
 
 /**
- * The feed's tab strip: sticky, and horizontally scrollable when it overflows.
+ * A tab strip, horizontally scrollable when it overflows.
  *
  * Three things the accessible-tabs guidance is explicit about, and which a row
  * of styled buttons usually gets wrong:
@@ -27,13 +27,13 @@ export interface SquareTab {
  * The strip fades at its right edge while there is more to scroll to — the
  * affordance that says "this moves" without spending space on arrows.
  */
-export function SquareTabs({
+export function Tabs({
   tabs,
   active,
   onSelect,
   label,
 }: {
-  tabs: SquareTab[];
+  tabs: Tab[];
   active: string;
   onSelect: (id: string) => void;
   label: string;

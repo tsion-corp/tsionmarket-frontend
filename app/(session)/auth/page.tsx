@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
 import { markKnownUser } from "@/lib/known-user";
+import { returnPathFrom } from "@/lib/return-to";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
@@ -63,6 +64,9 @@ export default function AuthPage() {
   // Where step 2 hands off to: a first-timer continues onboarding at the
   // interest page, a returning user goes back to the portfolio.
   const [destination, setDestination] = useState("/portfolio");
+  const searchParams = useSearchParams();
+  // Where they were headed before sign-in took over, when it is ours to go to.
+  const returnTo = returnPathFrom(searchParams?.toString() ?? "");
 
   // Runs after any login completes (OAuth redirect return, email code,
   // passkey) and for already-signed-in visitors. One gate decides step 2:
@@ -79,7 +83,10 @@ export default function AuthPage() {
     // signed in to. Best effort and off the critical path.
     void recordConsent(user.id);
     const firstTime = !hasEmbeddedWallet(user, "ethereum");
-    const after = firstTime ? "/interests" : "/portfolio";
+    // A link they followed wins over the default landing, first-timer or not:
+    // someone handed a game at an event should reach the game, and onboarding
+    // is still one tap away afterwards.
+    const after = returnTo ?? (firstTime ? "/interests" : "/portfolio");
     const hasPasskey = user.linkedAccounts.some((account) => account.type === "passkey");
     void ensureWallets(user).then(() => {
       if (hasPasskey) {
@@ -89,7 +96,7 @@ export default function AuthPage() {
         setPhase("passkey");
       }
     });
-  }, [ready, authenticated, user, ensureWallets, router]);
+  }, [ready, authenticated, user, ensureWallets, router, returnTo]);
 
   const busy = ready && authenticated && phase !== "passkey";
   // Every sign in method waits on the terms being accepted.

@@ -162,7 +162,12 @@ export function startMusic(): void {
   const ac = audioContext();
   if (!ac) return;
   try {
-    if (ac.state === "suspended") void ac.resume();
+    if (ac.state === "suspended") {
+      // resume() REJECTS when the browser will not allow audio yet. Left
+      // unhandled, `playing` stays true against a silent context and every
+      // later attempt returns early at the guard above — silence for good.
+      void ac.resume().catch(() => markSilent());
+    }
     master = ac.createGain();
     // Quiet by design: it sits under the game, it is not the game.
     master.gain.setValueAtTime(0.0001, ac.currentTime);
@@ -177,6 +182,41 @@ export function startMusic(): void {
   } catch {
     playing = false;
   }
+}
+
+/**
+ * Lets a suspended context run again.
+ *
+ * A browser hands back a suspended AudioContext when it is created without a
+ * user gesture. `startMusic` asks it to resume, but that ask is refused on a
+ * cold document while `playing` is already true — so nothing would ever ask
+ * again. This is the second ask, made from a real gesture.
+ */
+export function resumeMusic(): void {
+  // Rejected until the browser will allow audio, and an unhandled rejection
+  // here would surface as a console error on every refused attempt.
+  if (context && context.state === "suspended") void context.resume().catch(() => {});
+}
+
+/**
+ * Rolls back to "not playing" without a fade.
+ *
+ * For the case where the track never actually became audible: there is
+ * nothing to fade, and the flag has to clear so the next gesture can try.
+ */
+function markSilent(): void {
+  playing = false;
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  master = null;
+  notify();
+}
+
+/** Whether sound is genuinely coming out, not merely requested. */
+export function isMusicAudible(): boolean {
+  return playing && context?.state === "running";
 }
 
 // Pauses the loop with a short fade so it never clicks off mid-note.
@@ -204,4 +244,74 @@ export function stopMusic(): void {
     }
   }
   notify();
+}
+
+// Events worth trying on.
+//
+// Only some of these grant "transient activation", the permission a browser
+// needs before it will let audio run: a pointer or key going DOWN does,
+// pointermove, wheel and scroll do NOT. They are listened for anyway, because
+// on a page that already has activation they start the track sooner — but an
+// attempt from one of them can leave the context suspended, which is why
+// arming does not stop at the first event.
+const GESTURES = [
+  "pointerdown",
+  "pointerup",
+  "click",
+  "keydown",
+  "touchend",
+  "touchstart",
+  "pointermove",
+  "wheel",
+  "scroll",
+] as const;
+
+let armed: (() => void) | null = null;
+
+/**
+ * Starts the track at the first interaction that the browser will accept.
+ *
+ * `startMusic` only takes effect inside a user gesture, so a player who
+ * arrived on a cold document (a shared link, a fresh tab) gets silence no
+ * matter what the arena asks for.
+ *
+ * It keeps listening until sound is actually coming out. Stopping at the first
+ * event was the bug: a mouse moving across the page fires `pointermove`
+ * without granting activation, so the attempt it triggered left the context
+ * suspended and nothing ever asked again.
+ *
+ * Returns the disarm, so leaving the arena cannot leave listeners behind that
+ * would start a game's music on another page.
+ */
+export function armMusicOnGesture(): () => void {
+  if (typeof window === "undefined") return () => {};
+  // Already waiting: keep the first arming rather than stacking listeners.
+  if (armed) return armed;
+
+  const attempt = () => {
+    resumeMusic();
+    startMusic();
+    if (isMusicAudible()) disarm();
+  };
+  const disarm = () => {
+    for (const type of GESTURES) window.removeEventListener(type, attempt);
+    armed = null;
+  };
+
+  for (const type of GESTURES) {
+    // Passive: this must never delay a scroll.
+    window.addEventListener(type, attempt, { passive: true });
+  }
+  armed = disarm;
+  return disarm;
+}
+
+/** Stops waiting for an interaction, wherever the arming happened. */
+export function disarmMusic(): void {
+  armed?.();
+}
+
+/** Whether the track is waiting on a first interaction. For tests and the UI. */
+export function isMusicArmed(): boolean {
+  return armed !== null;
 }

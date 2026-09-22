@@ -2,6 +2,7 @@
 
 import { notFound } from "next/navigation";
 import { use } from "react";
+import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
 import { CasinoPage } from "@/features/casino/components/casino-page";
 import { LastStandingSection } from "@/features/casino/components/last-standing/last-standing-section";
 
@@ -10,11 +11,20 @@ import { LastStandingSection } from "@/features/casino/components/last-standing/
 // requesting game NaN.
 export default function LastStandingGamePage({ params }: { params: Promise<{ gameId: string }> }) {
   const { gameId } = use(params);
+  const modals = useAppModals();
   if (!/^\d+$/.test(gameId)) notFound();
 
   return (
     <CasinoPage>
-      <LastStandingSection gameId={Number(gameId)} />
+      {/* A player short of the entry needs somewhere to go, not a toast: the
+          deposit flow is hosted here so the game can open it in place. */}
+      <LastStandingSection gameId={Number(gameId)} onAddFunds={modals.openFunds} />
+      <AppModalHost
+        active={modals.modal}
+        onClose={modals.close}
+        onConfirmed={modals.showDone}
+        onOpenFunds={modals.openFunds}
+      />
     </CasinoPage>
   );
 }

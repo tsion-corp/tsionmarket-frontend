@@ -1,4 +1,6 @@
 import type {
+  LeaderboardWinner,
+  PaidAmount,
   TokenAmount,
   VaultActivity,
   VaultGame,
@@ -63,6 +65,35 @@ function isVaultWinner(value: unknown): value is VaultWinner {
     typeof v.settlementTx === "string" &&
     typeof v.settledAt === "string"
   );
+}
+
+// The board prices from the raw units itself, so it does not require the
+// service's usdValue/formattedUsd the way isTokenAmount does.
+function isPaidAmount(value: unknown): value is PaidAmount {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.amount === "string" && typeof v.raw === "string" && typeof v.decimals === "number"
+  );
+}
+
+// The board's own row. It is deliberately not a VaultWinner: the leaderboard
+// route trims each winner to the four fields the board reads, so validating it
+// against the full record would reject every row.
+function isLeaderboardWinner(value: unknown): value is LeaderboardWinner {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    typeof v.gameId === "number" &&
+    typeof v.winner === "string" &&
+    v.winner.length > 0 &&
+    isPaidAmount(v.paid)
+  );
+}
+
+export function onlyLeaderboardWinners(value: unknown): LeaderboardWinner[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isLeaderboardWinner);
 }
 
 export function onlyVaultWinners(value: unknown): VaultWinner[] {

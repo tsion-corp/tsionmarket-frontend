@@ -14,6 +14,7 @@ import {
   isVaultGame,
   onlyVaultActivities,
   onlyVaultGames,
+  onlyLeaderboardWinners,
   onlyVaultWinners,
 } from "@/features/casino/lib/vault-game";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
@@ -58,6 +59,21 @@ export interface VaultGame {
 // starter's share included when the same wallet opened the game. The three
 // optional splits arrived with the 2026-09-10 service; older rows carry only
 // `toWinner`.
+// An amount without the service's own USD figures, which are native-only by
+// its contract and so are recomputed here anyway (see lib/last-standing/pricing).
+export type PaidAmount = Pick<TokenAmount, "amount" | "raw" | "tokenSymbol" | "token" | "decimals">;
+
+// What the leaderboard route serves: a winner trimmed to what the board reads.
+// Not a VaultWinner, which also carries the pot, the splits and the settlement
+// transaction that no rank depends on.
+export interface LeaderboardWinner {
+  gameId: number;
+  winner: string;
+  // What settle() actually sent that wallet, the starter's share included.
+  paid: PaidAmount;
+  settledAt: string | number | null;
+}
+
 export interface VaultWinner {
   gameId: number;
   winner: string;
@@ -203,7 +219,7 @@ export interface VaultPlayer {
   gamesStarted: number;
   gamesWon: number;
   paidWei: string;
-  paid: TokenAmount;
+  paid: PaidAmount;
   lastGameId: number | null;
 }
 
@@ -243,6 +259,22 @@ export async function fetchVaultWinners(): Promise<VaultWinner[]> {
     console.warn(`[vault] dropped ${total - rows.length} /game/winners row(s) not in shape`);
   }
   vaultLog("REST /game/winners", { rows: rows.length });
+  return rows;
+}
+
+// Every winner the vault has recorded, for the all-time board. The service
+// pages this feed; the walk happens in our own route (app/api/vault/leaderboard)
+// so a reader makes one request rather than sequencing six.
+export async function fetchAllVaultWinners(): Promise<LeaderboardWinner[]> {
+  const res = await fetch("/api/vault/leaderboard", { headers: { accept: "application/json" } });
+  if (!res.ok) throw new Error("The vault is unavailable right now.");
+  const body = (await res.json()) as { data?: { winners?: unknown } };
+  const rows = onlyLeaderboardWinners(body.data?.winners);
+  const total = Array.isArray(body.data?.winners) ? body.data.winners.length : 0;
+  if (rows.length !== total) {
+    console.warn(`[vault] dropped ${total - rows.length} leaderboard row(s) not in shape`);
+  }
+  vaultLog("REST /api/vault/leaderboard", { rows: rows.length });
   return rows;
 }
 

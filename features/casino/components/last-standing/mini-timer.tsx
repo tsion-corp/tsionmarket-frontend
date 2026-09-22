@@ -7,7 +7,6 @@ import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
-import { parseEther } from "viem";
 import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { secondsUntil } from "@/features/casino/lib/last-standing/clock";
@@ -17,6 +16,7 @@ import {
   subscribeFollowedGame,
 } from "@/features/casino/lib/last-standing/followed-game";
 import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
+import { usdToUnits } from "@/features/casino/lib/last-standing/stake";
 import { getWalletAddress } from "@/lib/user";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -54,7 +54,7 @@ interface DocumentPictureInPictureApi {
 
 type PipTier = "document" | "video" | "overlay";
 
-function detectTier(): PipTier | null {
+export function detectTier(): PipTier | null {
   if (typeof window === "undefined") return null;
   const videoCapable =
     typeof document !== "undefined" &&
@@ -297,6 +297,30 @@ const HINT_STORAGE_KEY = "ws-last-standing-mini-hint";
 const hintSeen = () =>
   typeof window === "undefined" || localStorage.getItem(HINT_STORAGE_KEY) === "1";
 
+/**
+ * Raises the pop-out on the best tier this browser allows.
+ *
+ * Must be called inside a user gesture: both picture-in-picture APIs require
+ * one. The in-app overlay does not, which is why it is the fallback that can
+ * never fail.
+ */
+export function openMiniWindow(tier: PipTier | null, onFail?: () => void): void {
+  if (tier === "document") {
+    void openDocumentPip().catch(() => {
+      setState({ pipWindow: null });
+      onFail?.();
+    });
+  } else if (tier === "video") {
+    void openVideoPip().catch(() => {
+      // The floating video can be refused (power saving, browser policy). The
+      // in-app overlay always works, so fall back to it rather than failing.
+      setState({ videoActive: false, overlayActive: true });
+    });
+  } else {
+    setState({ overlayActive: true });
+  }
+}
+
 export function MiniTimerLauncher() {
   const t = useTranslations("casino.lastStanding");
   const tier = useSyncExternalStore(subscribe, detectTier, () => null);
@@ -326,22 +350,7 @@ export function MiniTimerLauncher() {
     if (typeof Notification !== "undefined" && Notification.permission === "default") {
       void Notification.requestPermission();
     }
-    if (tier === "document") {
-      void openDocumentPip().catch(() => {
-        setState({ pipWindow: null });
-        toast.error(t("miniFailed"));
-      });
-    } else if (tier === "video") {
-      void openVideoPip().catch(() => {
-        // The floating video can be refused (power saving, browser policy).
-        // The in-app overlay always works, so fall back to it instead of a
-        // dead error toast.
-        setState({ videoActive: false, overlayActive: true });
-      });
-    } else {
-      // In-app overlay: nothing to request, nothing that can fail.
-      setState({ overlayActive: true });
-    }
+    openMiniWindow(tier, () => toast.error(t("miniFailed")));
   }, [open, tier, t]);
 
   if (tier === null) return null;
@@ -492,12 +501,18 @@ function MiniTimerLive({
   const remaining = gameActive ? Math.min(ticked, serverSeconds) : (status?.timerDuration ?? 0);
   const urgent = gameActive && remaining > 0 && remaining <= URGENT_SECONDS;
   const clock = formatCountdown(remaining);
-  const statusLabel = gameActive
-    ? urgent
-      ? t("statusEnding")
-      : t("statusLiveRound")
-    : status?.isGameStarted
-      ? t("statusRoundEnded")
+  // The server still calls a game active while the keeper settles it, so the
+  // local clock reaching zero is what tells the pop-out the round is done.
+  const settling = gameActive && remaining <= 0;
+  const ended = settling || (!gameActive && !!status?.isGameStarted);
+  const statusLabel = ended
+    ? settling
+      ? t("statusSettling")
+      : t("statusRoundEnded")
+    : gameActive
+      ? urgent
+        ? t("statusEnding")
+        : t("statusLiveRound")
       : t("statusIdle");
 
   const pot = money.format(status?.vaultBalance.usdValue ?? 0);
@@ -523,8 +538,11 @@ function MiniTimerLive({
     const toastId = toast.loading(t("ctaPlacing"));
     try {
       if (followedGameId === null || !game) return;
-      const stakeWei = parseEther(game.minWager.amount);
-      await wager(followedGameId, stakeWei);
+      // The game is played in USDC. parseEther here sent a 38-cent wager as
+      // 380000000000000000 base units of a 6-decimal token, which the
+      // contract could only reject — the arena page already converts at the
+      // game's own scale and this had been left behind.
+      await wager(followedGameId, usdToUnits(Number(game.minWager.amount)));
       toast.success(t("toastYoureIn"), { id: toastId });
       resyncGame();
       void settleBalance();
@@ -637,14 +655,18 @@ function MiniTimerLive({
         {clock}
       </div>
       <div className="text-[12px] text-white/45">{statusLabel}</div>
-      <button
-        type="button"
-        onClick={() => void onStake()}
-        disabled={wagering || !status || !address}
-        className="text-ink mt-2 w-full cursor-pointer rounded-xl bg-white p-2.5 text-[14px] font-bold disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {stakeLabel}
-      </button>
+      {/* A finished round cannot take another wager: the contract reverts it,
+          and offering the button reads as the pop-out not having noticed. */}
+      {ended ? null : (
+        <button
+          type="button"
+          onClick={() => void onStake()}
+          disabled={wagering || !status || !address}
+          className="text-ink mt-2 w-full cursor-pointer rounded-xl bg-white p-2.5 text-[14px] font-bold disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {stakeLabel}
+        </button>
+      )}
       <div className="text-[11px] text-white/40">
         {t("yourBalance")} {balance}
       </div>

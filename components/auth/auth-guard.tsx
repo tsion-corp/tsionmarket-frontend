@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useSearchParams, useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { useIdleLogout } from "@/hooks/use-idle-logout";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { toast } from "@/lib/toast";
+import { authUrlFor } from "@/lib/return-to";
 
 // Sign the user out after this long with no interaction, so a funded session
 // left open on an unattended device doesn't stay open. Twelve hours: two
@@ -29,13 +30,19 @@ interface AuthGuardProps {
 export function AuthGuard({ children, serverVerified = false }: AuthGuardProps) {
   const { ready, authenticated } = usePrivy();
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const t = useTranslations("auth");
 
   useEffect(() => {
     if (ready && !authenticated) {
-      router.replace("/auth");
+      // A shared game link reaches people who are not signed in. Carrying the
+      // path through sign-in is what puts them in the round they were invited
+      // to instead of on the portfolio.
+      const query = searchParams?.toString();
+      router.replace(authUrlFor(`${pathname ?? ""}${query ? `?${query}` : ""}`));
     }
-  }, [ready, authenticated, router]);
+  }, [ready, authenticated, router, pathname, searchParams]);
 
   // The message derives its figure from the same constant as the timer. The
   // two had drifted: the timer said two hours while the toast said fifteen

@@ -240,7 +240,7 @@ function PagedRows<T>({
  * into view; without that, choosing Prediction on a 390px screen left it
  * half-clipped at the right edge.
  *
- * This duplicates features/square/components/square-tabs.tsx, which solves the
+ * This duplicates components/ui/tabs.tsx, which solves the
  * same problem for the feed. The two should be merged into a shared primitive
  * under components/ui/ once the screens in flight have landed; features cannot
  * import each other, so neither can reuse the other where they sit today.

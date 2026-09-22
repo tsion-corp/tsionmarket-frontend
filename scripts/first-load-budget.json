@@ -1,5 +1,5 @@
 {
-  "$comment": "Initial client JavaScript per route, gzipped kB. A ratchet: set just above what the route ships, lowered as it improves. See scripts/first-load.mjs. 2026-09-13: /, /privacy, /welcome, /prediction and /casino raised by 12-32 kB for the Watchtower error reporting SDK (@sentry/nextjs). It is loaded statically on purpose: deferring it would move the bytes out of first load but miss the hydration-time crashes that are the most valuable thing it catches. 2026-09-22: /casino/chess/coach-lab receives a 10 kB route-specific margin because Node 24 gzip output crosses the 1900 kB default while Node 25 stays below it.",
+  "$comment": "Initial client JavaScript per route, gzipped kB. A ratchet: set just above what the route ships, lowered as it improves. See scripts/first-load.mjs. 2026-09-13: /, /privacy, /welcome, /prediction and /casino raised by 12-32 kB for the Watchtower error reporting SDK (@sentry/nextjs). It is loaded statically on purpose: deferring it would move the bytes out of first load but miss the hydration-time crashes that are the most valuable thing it catches. 2026-09-22: /casino/chess/coach-lab receives a 10 kB route-specific margin because Node 24 gzip output crosses the 1900 kB default while Node 25 stays below it. 2026-09-22: the three /casino/chess/learn routes join coach-lab at 1910. They sat 1-4 kB under the 1900 default and the Last Man work moved them 5 kB WITHOUT chess importing any of it: measured against main, /casino itself and /dashboard were unchanged and the chunk count did not move, so this is shared chunks being redistributed rather than new code reaching chess. A route this close to the default crosses it on an unrelated change.",
   "default": 1900,
   "routes": {
     "/": 320,
@@ -15,6 +15,9 @@
     "/activity": 1650,
     "/prediction": 1880,
     "/casino": 1885,
-    "/casino/chess/coach-lab": 1910
+    "/casino/chess/coach-lab": 1910,
+    "/casino/chess/learn/practice": 1910,
+    "/casino/chess/learn/studies": 1910,
+    "/casino/chess/learn/studies/[id]": 1910
   }
 }

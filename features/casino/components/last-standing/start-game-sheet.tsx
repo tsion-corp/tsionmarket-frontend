@@ -12,6 +12,8 @@ import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
+import { markPrivate } from "@/features/casino/lib/last-standing/visibility";
+import { GameShareCard } from "@/features/casino/components/last-standing/game-share-card";
 import {
   GAME_ASSET,
   formatGameAmount,
@@ -30,16 +32,11 @@ interface StartGameSheetProps {
   formatUsd: (usd: number) => string;
   /** Opens funding when the wallet is short on ETH; without it the CTA just says so. */
   onFund?: () => void;
+  /** False when a public game already holds the lobby slot. */
+  canStartPublic?: boolean;
 }
 
-// The pot split, fixed by the contract. Shown before signing because opening a
-// game is the only way to earn the starter's share, and nobody will do it who
-// does not know it exists.
-const SPLIT = [
-  { key: "splitWinner", pct: 50 },
-  { key: "splitPlatform", pct: 40 },
-  { key: "splitStarter", pct: 10 },
-] as const;
+type Visibility = "public" | "private";
 
 export function StartGameSheet({
   onClose,
@@ -47,6 +44,7 @@ export function StartGameSheet({
   formatUsd,
   onFund,
   ensureCanStart,
+  canStartPublic = true,
 }: StartGameSheetProps) {
   const t = useTranslations("casino.lastStanding");
   const router = useRouter();
@@ -59,6 +57,12 @@ export function StartGameSheet({
   // Null until they type: the field shows the cheapest stake the contract will
   // actually accept, which is not always our preferred figure.
   const [edited, setEdited] = useState<string | null>(null);
+  // Private by default when the lobby slot is taken: that is the only choice
+  // available then, so it should be the one already selected.
+  const [visibility, setVisibility] = useState<Visibility>(canStartPublic ? "public" : "private");
+  // Set once the game exists, which swaps the form for the share card rather
+  // than navigating away from the link the starter now needs.
+  const [started, setStarted] = useState<number | null>(null);
 
   // The contract's floor for the asset we play in, from the same hook the lobby
   // button reads, so the sheet can only ever quote what the button promised.
@@ -91,7 +95,9 @@ export function StartGameSheet({
   const confirm = async () => {
     if (!ready) return;
     try {
-      if (ensureCanStart && !(await ensureCanStart())) {
+      // Only a public game competes for the lobby slot; a private one never
+      // does, so it is never blocked by a game already running.
+      if (visibility === "public" && ensureCanStart && !(await ensureCanStart())) {
         toast.error(t("toastStartBlockedLive"));
         onClose();
         return;
@@ -100,19 +106,44 @@ export function StartGameSheet({
       // The stake has left the wallet: show it gone now, confirm from Base once.
       void settleBalance();
       // The pop-out timer follows whatever you last put money into.
-      if (gameId !== null) followGame(gameId);
+      if (gameId !== null) {
+        followGame(gameId);
+        if (visibility === "private") markPrivate(gameId);
+      }
       track("game_staked", { game: "last_man", amount_usd: sendUsd });
       toast.success(t("toastGameStarted"));
       // A second or two at most, and only when the index trails the receipt.
       if (gameId !== null) await confirmGame(gameId);
       onStarted();
-      // Straight into the game they just opened, so they can share it.
-      if (gameId !== null) router.push(`/casino/last-standing/${gameId}`);
-      onClose();
+      // The link and its code come first: at a stand the next thing that
+      // happens is somebody scanning it, not the starter watching the clock.
+      if (gameId !== null) setStarted(gameId);
+      else onClose();
     } catch (error) {
       toast.error(friendlyError(error, t("toastStartFailed")));
     }
   };
+
+  if (started !== null) {
+    const url = `${typeof window === "undefined" ? "" : window.location.origin}/casino/last-standing/${started}`;
+    return (
+      <div>
+        <SheetNav title={t("shareNavTitle")} onBack={onClose} />
+        <div className="mt-3">
+          <GameShareCard
+            gameId={started}
+            url={url}
+            stakeLabel={t("shareStake", { amount: formatUsd(sendUsd) })}
+            isPrivate={visibility === "private"}
+            onOpen={() => {
+              router.push(`/casino/last-standing/${started}`);
+              onClose();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -160,13 +191,51 @@ export function StartGameSheet({
         </p>
       ) : null}
 
-      <div className="ws-inset mt-5 divide-y divide-white/6">
-        {SPLIT.map((row) => (
-          <div key={row.key} className="flex items-center justify-between px-4 py-2.5">
-            <span className="text-[13px] font-normal text-white/60">{t(row.key)}</span>
-            <span className="tnum text-[13.5px] font-semibold text-white">{row.pct}%</span>
-          </div>
-        ))}
+      {/* Who can find the game. The contract does not know the difference, so
+          this is about the lobby listing, and the copy says exactly that. */}
+      <div className="mt-5">
+        <span className="text-[11.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
+          {t("visibilityLabel")}
+        </span>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {(["public", "private"] as const).map((option) => {
+            const selected = visibility === option;
+            const blocked = option === "public" && !canStartPublic;
+            return (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={selected}
+                disabled={blocked}
+                onClick={() => setVisibility(option)}
+                className={
+                  "cursor-pointer rounded-[13px] border px-3.5 py-3 text-left transition-colors " +
+                  "disabled:cursor-not-allowed disabled:opacity-40 " +
+                  (selected
+                    ? "border-accent/50 bg-accent/[0.09]"
+                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.06]")
+                }
+              >
+                <span
+                  className={
+                    "block text-[13.5px] font-semibold " + (selected ? "text-accent" : "text-white")
+                  }
+                >
+                  {t(option === "public" ? "visibilityPublic" : "visibilityPrivate")}
+                </span>
+                <span className="mt-0.5 block text-[11.5px] leading-[1.45] font-normal text-white/50">
+                  {t(
+                    blocked
+                      ? "visibilityPublicTaken"
+                      : option === "public"
+                        ? "visibilityPublicNote"
+                        : "visibilityPrivateNote"
+                  )}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Short on ETH with a way to fund: the button becomes the way. */}

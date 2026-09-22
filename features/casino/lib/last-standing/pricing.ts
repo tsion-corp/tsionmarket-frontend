@@ -1,4 +1,4 @@
-import type { TokenAmount } from "@/features/casino/lib/vault-api";
+import type { PaidAmount, TokenAmount } from "@/features/casino/lib/vault-api";
 import { GAME_ASSET } from "@/features/casino/lib/last-standing/stake";
 
 // What a game amount is worth in dollars.
@@ -14,13 +14,13 @@ import { GAME_ASSET } from "@/features/casino/lib/last-standing/stake";
 // The service's own `usdValue` is native-only by its contract and comes back as
 // 0 for a token game, so it cannot be trusted as "already priced" either.
 
-function isGameAsset(amount: TokenAmount): boolean {
+function isGameAsset(amount: PaidAmount): boolean {
   if (amount.token) return amount.token.toLowerCase() === GAME_ASSET.address.toLowerCase();
   return amount.tokenSymbol?.toUpperCase() === GAME_ASSET.symbol;
 }
 
 /** Dollars for one amount, or null when it cannot be priced. */
-export function usdOf(amount: TokenAmount, ethPriceUsd: number): number | null {
+export function usdOf(amount: PaidAmount, ethPriceUsd: number): number | null {
   const size = Number(amount.amount);
   if (!Number.isFinite(size)) return null;
   if (isGameAsset(amount)) return size;

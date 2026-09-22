@@ -9,10 +9,9 @@ import { SquareAvatar } from "@/components/ui/square-avatar";
 import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { InviteFriendsModal } from "@/features/referrals";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
+import { openSupportChat } from "@/lib/support-chat/open";
 import { deriveProfile } from "@/lib/user";
 import { toast } from "@/lib/toast";
-
-const SUPPORT_FORM_URL = "https://forms.gle/T5DLdFCAbRsVrzU97";
 
 interface AccountPopoverProps {
   open: boolean;
@@ -185,17 +184,20 @@ export function AccountPopover({ open, onClose, triggerRef }: AccountPopoverProp
                 <span>{t("inviteFriends")}</span>
               </button>
 
-              <a
-                href={SUPPORT_FORM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* The in-app chat, not a form in a new tab: support is a
+                  conversation the shell already carries. */}
+              <button
+                type="button"
                 role="menuitem"
-                onClick={onClose}
+                onClick={() => {
+                  onClose();
+                  openSupportChat();
+                }}
                 className={itemClass}
               >
                 <HelpIcon size={18} />
                 <span>{t("helpSupport")}</span>
-              </a>
+              </button>
 
               <button
                 type="button"

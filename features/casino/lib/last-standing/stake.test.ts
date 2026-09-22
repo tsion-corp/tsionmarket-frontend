@@ -162,3 +162,28 @@ describe("USDC stakes", () => {
     expect(formatGameAmount(0n)).toBe("0");
   });
 });
+
+// The pop-out sent its wager through parseEther, an 18-decimal conversion,
+// against a game played in 6-decimal USDC: a 38-cent wager left as
+// 380000000000000000 base units, which the contract could only reject. The
+// arena page had been fixed for this and the pop-out was left behind, so the
+// failure read to the player as "the network rejected this transaction".
+describe("usdToUnits against the game's own scale", () => {
+  it("converts a wager at the game asset's decimals, not ether's", () => {
+    expect(usdToUnits(0.38)).toBe(380_000n);
+    expect(usdToUnits(1)).toBe(1_000_000n);
+  });
+
+  // The number parseEther would have produced, kept here so the two can never
+  // be confused again.
+  it("is a billion times smaller than the 18-decimal reading", () => {
+    const asEther = BigInt(Math.round(0.38 * 1e18));
+    expect(asEther / usdToUnits(0.38)).toBe(1_000_000_000_000n);
+  });
+
+  it("refuses a nonsense amount rather than sending one", () => {
+    expect(usdToUnits(0)).toBe(0n);
+    expect(usdToUnits(-1)).toBe(0n);
+    expect(usdToUnits(Number.NaN)).toBe(0n);
+  });
+});

@@ -15,6 +15,8 @@ import { estimateWinnerPayout, isSameAddress } from "@/features/casino/lib/last-
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
 import {
   MiniTimerLauncher,
+  detectTier,
+  openMiniWindow,
   formatCountdown,
 } from "@/features/casino/components/last-standing/mini-timer";
 import { useCountdown } from "@/features/casino/components/last-standing/use-countdown";
@@ -52,11 +54,16 @@ import { activityAmount } from "@/features/casino/lib/last-standing/activity-pay
 import { usePrices } from "@/hooks/use-prices";
 import { usePaged } from "@/hooks/use-paged";
 import { getWalletAddress } from "@/lib/user";
+import { shouldBeginRoundEnd } from "@/features/casino/lib/last-standing/round-end";
+import { useLeavePrompt } from "@/features/casino/hooks/use-leave-prompt";
+import { KeepWatchingDialog } from "@/features/casino/components/last-standing/keep-watching-dialog";
 import { truncateAddress } from "@/lib/format";
 import { friendlyError, isAlreadySettledError } from "@/lib/errors";
 import {
   isMusicPlaying,
   setUrgentMode,
+  armMusicOnGesture,
+  disarmMusic,
   startMusic,
   stopMusic,
   subscribeMusic,
@@ -77,6 +84,9 @@ const EXPLORER_TX_URL = "https://basescan.org/tx/";
 // drives BOTH the game resync (status/winners/pot — so the table, pool and
 // timer converge seconds after the clock dies, not on the socket's ~10s
 // cadence) and the balance re-check for the credited winnings.
+// Longer than any sponsored wager realistically takes to land, so a wager that
+// never confirms cannot hold the verdict back for the rest of the round.
+const OWN_WAGER_HOLD_MS = 25_000;
 const WIN_POLL_WINDOW_MS = 30_000;
 const WIN_POLL_INTERVAL_MS = 2_500;
 // Suspense window shown to everyone the moment a round ends, before revealing
@@ -179,9 +189,11 @@ function WifiOffIcon({ size = 22 }: { size?: number }) {
 interface LastStandingSectionProps {
   /** Which game this screen is showing. The vault runs many at once. */
   gameId: number;
+  /** Opens the deposit flow for a player whose balance is under the entry. */
+  onAddFunds?: () => void;
 }
 
-export function LastStandingSection({ gameId }: LastStandingSectionProps) {
+export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionProps) {
   const t = useTranslations("casino.lastStanding");
   const tBuySell = useTranslations("buySell");
   const tBuySellNotEnough = tBuySell("notEnoughBalance");
@@ -361,7 +373,62 @@ export function LastStandingSection({ gameId }: LastStandingSectionProps) {
   // The clock is out. In v4 a finished game is finished: a wager on it reverts,
   // so the play button has to give way to what can actually be done — settle
   // it, if nobody has, and go start another.
+  /**
+   * While this client's own wager is unresolved, the local clock reaching zero
+   * proves nothing: the wager extends the round the moment it lands.
+   *
+   * Reported from the arena, 2026-09-22: a wager placed at five seconds was
+   * still confirming when the clock hit zero, so the round-end sequence ran
+   * and showed the player a winner card — then the wager landed, the pot went
+   * to $0.76 and the round carried on. The back-out worked, but only after a
+   * verdict had already been shown.
+   *
+   * Held until the round visibly extends, or until the wager has had longer to
+   * land than any sponsored send realistically takes.
+   */
+  const ownWagerRef = useRef(false);
+  const ownWagerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const holdRoundEnd = () => {
+    ownWagerRef.current = true;
+    if (ownWagerTimerRef.current) clearTimeout(ownWagerTimerRef.current);
+    // A ceiling, not the usual path: a wager that never lands must not hold
+    // the verdict back for the rest of the round.
+    ownWagerTimerRef.current = setTimeout(() => {
+      ownWagerRef.current = false;
+    }, OWN_WAGER_HOLD_MS);
+  };
+
+  const releaseRoundEnd = () => {
+    ownWagerRef.current = false;
+    if (ownWagerTimerRef.current) {
+      clearTimeout(ownWagerTimerRef.current);
+      ownWagerTimerRef.current = null;
+    }
+  };
+
   const roundOver = !!status?.isGameStarted && !gameActive;
+
+  // The arena starts its own sound off the first thing the player does here:
+  // a move, a scroll, a tap. Calling startMusic outright would set the track
+  // "playing" against a context the browser has suspended, and then nothing
+  // would ever ask again.
+  useEffect(() => {
+    if (roundOver) return;
+    return armMusicOnGesture();
+  }, [roundOver]);
+
+  // Offered only while there is still a round to miss.
+  const leaving = useLeavePrompt(!roundOver);
+
+  // The round is over: the groove has nothing left to score, and leaving it
+  // running under a results screen reads as a page that did not notice.
+  useEffect(() => {
+    if (roundOver) {
+      stopMusic();
+      disarmMusic();
+    }
+  }, [roundOver]);
   const iAmKing =
     !!address && !!status?.lastPlayer && status.lastPlayer.toLowerCase() === address.toLowerCase();
   const countdown = useCountdown(status?.timeRemaining ?? 0, gameActive, degraded);
@@ -493,16 +560,30 @@ export function LastStandingSection({ gameId }: LastStandingSectionProps) {
   // zero; if a buzzer-beater wager actually continued the round, the reveal
   // below notices and quietly backs out.
   useEffect(() => {
-    if (!gameActive || countdown > 0 || phase !== null || roundEndedRef.current) return;
-    // On a degraded connection the local zero is not evidence: wagers this
-    // client never heard about may have extended the round. The clock stays
-    // frozen under the reconnect overlay; the resync on reconnection brings
-    // the truth, and the active->inactive transition above runs the round
-    // end from fresh data if it really is over.
-    if (degraded) return;
+    // The conditions live in lib/last-standing/round-end, where they are
+    // tested: getting this wrong shows a winner card for a running round.
+    if (
+      !shouldBeginRoundEnd({
+        gameActive,
+        countdown,
+        alreadyEnding: phase !== null || roundEndedRef.current,
+        degraded,
+        ownWagerPending: ownWagerRef.current,
+      })
+    ) {
+      return;
+    }
     beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown, gameActive, phase, degraded]);
+
+  // The wager landed and the round is plainly running again, so the hold has
+  // done its job. Also cleared on unmount, so no timer fires into a gone
+  // component.
+  useEffect(() => {
+    if (gameActive && countdown > 3) releaseRoundEnd();
+  }, [gameActive, countdown]);
+  useEffect(() => () => releaseRoundEnd(), []);
 
   // Reveal after the suspense: everyone sees who won. If a winner is known we
   // announce them by truncated address; the winning wallet gets the personal
@@ -766,6 +847,7 @@ export function LastStandingSection({ gameId }: LastStandingSectionProps) {
     // modal), so this toast plus the button's "Placing your play…" state is the
     // only feedback the player sees while the gasless wager settles.
     const toastId = toast.loading(t("ctaPlacing"));
+    holdRoundEnd();
     try {
       await wager(gameId, amountUnits);
       followGame(gameId);
@@ -785,6 +867,8 @@ export function LastStandingSection({ gameId }: LastStandingSectionProps) {
       void settleBalance();
       return true;
     } catch (e) {
+      // It will never land, so it must not hold the verdict back.
+      releaseRoundEnd();
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
       return false;
     }
@@ -792,8 +876,12 @@ export function LastStandingSection({ gameId }: LastStandingSectionProps) {
 
   const onPlay = async () => {
     if (!canPlay) {
-      // Nothing to open: the stake comes off the USDC balance, so a balance too
-      // small for the entry is a fact to state, not a flow to start.
+      // The CTA already reads "Add money to play", so pressing it opens the
+      // deposit flow. Only without one is there nothing to do but say so.
+      if (onAddFunds) {
+        onAddFunds();
+        return;
+      }
       toast.error(t("toastBalanceShort"));
       return;
     }
@@ -1523,6 +1611,22 @@ export function LastStandingSection({ gameId }: LastStandingSectionProps) {
         prizeLabel={money.format(revealPrizeUsd)}
         formatMoney={money.format}
         onClose={() => setPhase(null)}
+      />
+
+      {/* Asked on the way out. "Yes" runs inside this click, which is the
+          gesture both picture-in-picture APIs require. */}
+      <KeepWatchingDialog
+        open={leaving.pending !== null}
+        onKeep={() =>
+          leaving.leave(() => {
+            // Point the pop-out at THIS game before raising it. Following is
+            // otherwise only set by joining, so a watcher who never wagered
+            // took an empty clock with them.
+            followGame(gameId);
+            openMiniWindow(detectTier());
+          })
+        }
+        onStay={leaving.stay}
       />
     </div>
   );
