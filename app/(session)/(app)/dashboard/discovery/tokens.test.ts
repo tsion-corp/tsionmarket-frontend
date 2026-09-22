@@ -270,7 +270,7 @@ describe("useTokenSpots", () => {
 
   it("drops a delisted token rather than pointing at a page that cannot buy it", () => {
     feed([
-      token({ symbol: "DOGE", change24h: 30, marketCap: 14_000_000_000 }),
+      token({ symbol: "DEGEN", change24h: 30, marketCap: 14_000_000_000 }),
       token({ symbol: "ETH", change24h: 1, marketCap: 306_000_000_000 }),
     ]);
     const { result } = renderHook(() => useTokenSpots());

@@ -342,7 +342,10 @@ export function MemeTradeSheet({
   // A quote that fails for any reason other than the auto-retried wallet-link
   // mismatch above leaves the details card empty with no other visible signal.
   // Surface it explicitly once there is a real amount to quote.
+  // Gated on previewOpen: the preview is off while a trade runs, so its last
+  // answer is stale and must not be shown as the current state.
   const previewFailed =
+    previewOpen &&
     amountValid &&
     sideEnabled &&
     !overBalance &&

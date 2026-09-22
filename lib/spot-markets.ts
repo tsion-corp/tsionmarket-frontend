@@ -21,13 +21,17 @@ export interface SpotMarket {
 }
 
 // Markets taken off the spot desk on the maintainers' instruction
-// (2026-09-07): DOGE, RON (Ronin's native coin) and MON (Monad's). This is
-// the BUY list only. A wallet that already holds any of them still sees the
-// holding and sells it through the same route as before; the swap route for
-// cbDOGE stays for exactly that reason.
+// (2026-09-07): RON (Ronin's native coin) and MON (Monad's). This is the BUY
+// list only. A wallet that already holds any of them still sees the holding
+// and sells it through the same route as before.
 // Second batch (2026-09-07 16:29): GUN, xDAI (Gnosis native) and PLUME.
+//
+// DOGE was delisted with the first batch because it could be bought on spot
+// but not sold there: the sell leg had no swap-route branch, so it asked
+// Dextopus for a route to an asset Dextopus does not carry. useSpotSell now
+// sells it through the same Base swap engine that buys it, so it is listed
+// again.
 export const SPOT_DELISTED: ReadonlySet<string> = new Set([
-  "DOGE",
   "RON",
   "MON",
   "GUN",

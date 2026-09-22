@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { BASE_CHAIN_ID } from "@/lib/meme/chain";
+import { BASE_CHAIN_ID, chainIdOfNetwork } from "@/lib/meme/chain";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { networkForChainId } from "@/lib/trade-share";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSell } from "@/features/trade/hooks/use-sell";
+import { tradeRef, useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
+import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { maxSellable } from "@/lib/trade/gas-buffer";
@@ -79,7 +81,21 @@ export function useSpotSell({
   const t = useTranslations("buySell");
   const portfolio = usePortfolio();
   const sell = useSell();
+  const memeTrade = useMemeTrade();
   const [busy, setBusy] = useState(false);
+
+  // A market Dextopus does not carry is bought through the Base swap engine
+  // (see use-spot-buy), so the sale has to leave by the same door. Matched on
+  // the holding itself, not just the symbol: the same ticker on another chain
+  // is a different asset and still sells through Dextopus.
+  const swapRoute = useMemo(() => {
+    const route = holding ? swapRouteForSymbol(holding.symbol) : null;
+    if (!route || !holding?.address) return null;
+    return route.tokenAddress.toLowerCase() === holding.address.toLowerCase() &&
+      route.chainId === chainIdOfNetwork(holding.network)
+      ? route
+      : null;
+  }, [holding]);
 
   const network = holding?.network ?? null;
   const nativeSym = network ? nativeSymbol(network) : null;
@@ -171,6 +187,48 @@ export function useSpotSell({
     });
     toastRef.current = toast.loading(t("sellingToast", { symbol: holding.symbol }));
 
+    if (swapRoute) {
+      try {
+        const result = await memeTrade.trade({
+          chainId: swapRoute.chainId,
+          side: "SELL",
+          tokenAddress: swapRoute.tokenAddress,
+          amount: entered,
+          slippageBps: SLIPPAGE_BPS,
+        });
+        // Only the service's CONFIRMED is "sold". Delivered-but-unrecorded and
+        // pending say so, with the reference support will ask for.
+        const ref = tradeRef(result.swapId, result.requestId);
+        toast.success(
+          result.outcome === "delivered"
+            ? t("deliveredToast", { name: holding.symbol, ref })
+            : result.outcome === "pending"
+              ? t("pendingToast", { name: holding.symbol, ref })
+              : t("soldToast", { symbol: holding.symbol }),
+          { id: toastRef.current }
+        );
+        toastRef.current = undefined;
+        track("trade_completed", {
+          vertical: "spot",
+          asset: holding.symbol,
+          side: "sell",
+          amount_usd: value * holding.priceUsd,
+        });
+        onSold();
+        void portfolio.refetchUntilChanged(scopeOf(networkForChainId(BASE_CHAIN_ID)));
+      } catch (error) {
+        track("trade_failed", { vertical: "spot", asset: holding.symbol, reason: "sell_failed" });
+        toast.error(
+          `${friendlyError(error, t("sellFailedToast", { symbol: holding.symbol }))} ${supportDetail(error)}`.trim(),
+          { id: toastRef.current }
+        );
+        toastRef.current = undefined;
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     try {
       // Clamp to the exact on-chain balance so a Max never sends more than the
       // wallet holds: the figure on screen is a rounded float, the clamp is not.
@@ -228,7 +286,10 @@ export function useSpotSell({
   };
 
   return {
-    pending: busy || sell.isPending,
+    pending:
+      busy ||
+      sell.isPending ||
+      (swapRoute !== null && memeTrade.phase !== "idle" && memeTrade.phase !== "failed"),
     blockedReason,
     maxAmount,
     submit,

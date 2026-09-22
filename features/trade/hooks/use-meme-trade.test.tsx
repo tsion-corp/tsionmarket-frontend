@@ -18,6 +18,11 @@ const solana = vi.hoisted(() => ({
   wallets: [] as { address: string }[],
   send: vi.fn(),
 }));
+const evm = vi.hoisted(() => ({
+  // Connected by default; the guard under test only bites when it is not.
+  wallets: [{ address: "0xabc0000000000000000000000000000000000001", walletClientType: "privy" }],
+  signMessage: vi.fn(async () => ({ signature: "0xsig" })),
+}));
 const chain = vi.hoisted(() => ({
   evmSend: vi.fn(),
   readBaseTokenBalance: vi.fn(),
@@ -48,7 +53,8 @@ vi.mock("@privy-io/react-auth", async (importOriginal) => ({
       ],
     },
   }),
-  useSignMessage: () => ({ signMessage: vi.fn(async () => ({ signature: "0xsig" })) }),
+  useSignMessage: () => ({ signMessage: evm.signMessage }),
+  useWallets: () => ({ wallets: evm.wallets }),
 }));
 vi.mock("@privy-io/react-auth/solana", () => ({
   useSignMessage: () => ({ signMessage: vi.fn() }),
@@ -81,6 +87,7 @@ vi.mock("@/lib/meme/api", async (importOriginal) => {
 import {
   useMemePreview,
   useMemeTrade,
+  usePreviewRelink,
   tradeRef,
   type TradeResult,
 } from "@/features/trade/hooks/use-meme-trade";
@@ -884,5 +891,61 @@ describe("useMemeTrade linking for a preview the service refused", () => {
     });
     const kept = JSON.parse(window.localStorage.getItem("wsws.meme-linked.v1") ?? "[]") as string[];
     expect(kept).toContain("did:privy:u1:solana:SoLwallet");
+  });
+});
+
+// Reported 2026-09-19: a user could not sell, and it never recovered.
+describe("useMemeTrade relinking after a preview the service refused", () => {
+  const mismatch = () => new TradeApiError("WALLET_OWNERSHIP_MISMATCH", "not linked", 403);
+
+  afterEach(() => {
+    evm.wallets = [{ address: WALLET, walletClientType: "privy" }];
+    window.localStorage.clear();
+    vi.clearAllMocks();
+  });
+
+  it("tries again after a link attempt fails", async () => {
+    const link = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("wallet still connecting"))
+      .mockResolvedValueOnce(undefined);
+    const refetch = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ error }: { error: unknown }) => usePreviewRelink(error, 8453, link, refetch),
+      { initialProps: { error: mismatch() as unknown } }
+    );
+    await waitFor(() => expect(link).toHaveBeenCalledTimes(1));
+
+    rerender({ error: mismatch() });
+
+    await waitFor(() => expect(link).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
+  });
+
+  // The original guard: after a successful link, a refusal is a real one.
+  it("does not link twice when the link succeeded and the refusal stands", async () => {
+    const link = vi.fn().mockResolvedValue(undefined);
+    const refetch = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ error }: { error: unknown }) => usePreviewRelink(error, 8453, link, refetch),
+      { initialProps: { error: mismatch() as unknown } }
+    );
+    await waitFor(() => expect(link).toHaveBeenCalledTimes(1));
+
+    rerender({ error: mismatch() });
+
+    await waitFor(() => expect(refetch).toHaveBeenCalled());
+    expect(link).toHaveBeenCalledTimes(1);
+  });
+
+  it("says the wallet is still connecting rather than asking it to sign", async () => {
+    evm.wallets = [];
+    const { result } = renderHook(() => useMemeTrade(), { wrapper: tradeWrapper });
+
+    await expect(result.current.linkForPreview(8453)).rejects.toThrow(/still connecting/i);
+    expect(api.createWalletChallenge).not.toHaveBeenCalled();
+    expect(evm.signMessage).not.toHaveBeenCalled();
   });
 });

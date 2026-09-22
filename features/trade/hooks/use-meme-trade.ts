@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy, useSignMessage } from "@privy-io/react-auth";
+import { usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
 import {
   useSignMessage as useSolanaSignMessage,
   useWallets as useSolanaWallets,
@@ -193,6 +193,7 @@ function markLinked(key: string) {
 export function useMemeTrade() {
   const { user } = usePrivy();
   const { signMessage } = useSignMessage();
+  const { wallets: evmWallets } = useWallets();
   const { signMessage: signSolanaMessage } = useSolanaSignMessage();
   const { wallets: solanaWallets } = useSolanaWallets();
   const evmSend = useEvmSendWithReceipt();
@@ -264,6 +265,10 @@ export function useMemeTrade() {
         return;
       }
       if (!wallet) throw new Error("Sign in first.");
+      // The address is known before the signer for it is up, so check the
+      // signer exists rather than spending a challenge it cannot sign.
+      const signer = evmWallets.find((w) => w.walletClientType === "privy");
+      if (!signer) throw new Error("Your wallet is still connecting. Try again.");
       const key = `${user.id}:${wallet.toLowerCase()}`;
       if (force) forgetLinked(key);
       else if (linkedCache().has(key)) return;
@@ -273,7 +278,7 @@ export function useMemeTrade() {
       await verifyWallet(challenge.challengeId, signature);
       markLinked(key);
     },
-    [wallet, solanaWallet, solanaWallets, user, signMessage, signSolanaMessage]
+    [wallet, solanaWallet, solanaWallets, evmWallets, user, signMessage, signSolanaMessage]
   );
 
   // Standalone linking for the preview path: the backend requires the wallet
@@ -668,6 +673,8 @@ export function usePreviewRelink(
     linkForPreview(chainId)
       .then(() => refetch())
       .catch((e: unknown) => {
+        // Only a link that happened counts as the one attempt.
+        triedRef.current.delete(chainId);
         console.warn("[meme] linking the wallet for a preview failed", e);
       });
   }, [error, chainId, linkForPreview, refetch]);

@@ -13,10 +13,13 @@ function route(symbol: string, chainName: string, destinationChainId: number): B
   };
 }
 
-// Requested off the spot desk on 2026-09-07: DOGE (a same-chain swap route,
-// not a Dextopus destination), RON (Ronin's native coin) and MON (Monad's).
-// They come off the BUY list only: holdings of them stay visible and sell
-// through the same Dextopus route as before.
+// Requested off the spot desk on 2026-09-07: RON (Ronin's native coin) and
+// MON (Monad's). They come off the BUY list only: holdings of them stay
+// visible and sell through the same Dextopus route as before.
+//
+// DOGE came off with them because spot could buy it and not sell it. That
+// leg is fixed (useSpotSell routes a swap market through the swap engine),
+// so DOGE is listed again and is deliberately absent from this set.
 describe("spotSymbolsFor: delisted markets", () => {
   const destinations = [
     route("ETH", "base", 8453),
@@ -26,15 +29,7 @@ describe("spotSymbolsFor: delisted markets", () => {
   ];
 
   it("names the delisted symbols", () => {
-    expect([...SPOT_DELISTED].sort()).toEqual([
-      "DEGEN",
-      "DOGE",
-      "GUN",
-      "MON",
-      "PLUME",
-      "RON",
-      "XDAI",
-    ]);
+    expect([...SPOT_DELISTED].sort()).toEqual(["DEGEN", "GUN", "MON", "PLUME", "RON", "XDAI"]);
   });
 
   // Second batch, 2026-09-07 16:29: GUN (Avalanche and GUNZ), xDAI (Gnosis
@@ -50,13 +45,15 @@ describe("spotSymbolsFor: delisted markets", () => {
       route("USDC.e", "polygon", 137),
       route("USDzC", "zora", 7777777),
     ]);
-    expect(symbols).toEqual(["ETH"]);
+    // DOGE rides in from the swap routes, not from these destinations.
+    expect(symbols).toEqual(["ETH", "DOGE"]);
   });
 
-  it("drops DOGE, RON and MON and keeps everything else buyable", () => {
+  it("drops RON and MON, and keeps DOGE and everything else buyable", () => {
     const symbols = spotSymbolsFor(destinations);
     expect(symbols).toContain("ETH");
-    expect(symbols).not.toContain("DOGE");
+    // Buyable through its Base swap route, and now sellable through it too.
+    expect(symbols).toContain("DOGE");
     expect(symbols).not.toContain("RON");
     expect(symbols).not.toContain("MON");
     // Stablecoins were already excluded from the spot list.
