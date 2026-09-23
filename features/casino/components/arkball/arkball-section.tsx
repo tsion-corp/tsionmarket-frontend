@@ -7,6 +7,7 @@ import { DrawOverview } from "@/features/casino/components/arkball/draw-overview
 import { TicketBuilder } from "@/features/casino/components/arkball/ticket-builder";
 import { TicketHistory } from "@/features/casino/components/arkball/ticket-history";
 import { useLottery } from "@/features/casino/hooks/use-lottery";
+import { useArkballReport } from "@/features/casino/hooks/use-arkball-report";
 import { formatLotteryUsdc } from "@/features/casino/lib/lottery";
 import { friendlyError } from "@/lib/errors";
 
@@ -15,6 +16,8 @@ export function ArkBallSection() {
   const lottery = useLottery();
   const current = lottery.currentDraw;
   const rule = lottery.config?.rule;
+  // Above the early returns below: a hook cannot be called behind a branch.
+  useArkballReport(current);
 
   if (lottery.loading) {
     return (

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useLoginWithEmail } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
+import { track } from "@/lib/analytics/mixpanel";
+import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { OtpInput } from "@/components/auth/otp-input";
 
@@ -24,6 +26,10 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
   const [error, setError] = useState<string | null>(null);
   const { sendCode, loginWithCode, state } = useLoginWithEmail();
 
+  // Both legs of the email flow report the same way; only the step differs.
+  const reportFailure = (err: unknown) =>
+    track("login_failed", { method: "email", ...reasonFor(AUTH_FAILURE, err) });
+
   const busy = state.status === "sending-code" || state.status === "submitting-code";
 
   const submitEmail = async () => {
@@ -32,11 +38,13 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
       return;
     }
     setError(null);
+    track("auth_method_selected", { method: "email" });
     try {
       await sendCode({ email });
       setStep("code");
     } catch (err) {
       console.error("Sending login code failed:", err);
+      reportFailure(err);
       setError(t("emailSendFailed"));
     }
   };
@@ -47,6 +55,7 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
       await loginWithCode({ code: value });
     } catch (err) {
       console.error("Code verification failed:", err);
+      reportFailure(err);
       setCode("");
       setError(t("codeMismatch"));
     }

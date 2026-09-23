@@ -109,6 +109,10 @@ export function StartGameSheet({
       if (gameId !== null) {
         followGame(gameId);
         if (visibility === "private") markPrivate(gameId);
+        // Opening a round, which is a different act from buying into one: the
+        // starter takes a share of the pot. A round the contract did not give
+        // an id to cannot be joined to anything, so it is not reported.
+        track("last_man_created", { game_id: String(gameId), entry_fee_usd: sendUsd });
       }
       track("game_staked", { game: "last_man", amount_usd: sendUsd });
       toast.success(t("toastGameStarted"));

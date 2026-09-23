@@ -50,6 +50,7 @@ export function usePlaceDraughtsBet() {
       track("spectator_bet_placed", {
         game: "checkers",
         match_id: input.matchId,
+        game_id: input.matchId,
         side: input.selection,
         amount_usd: Number(input.stakeUsdc),
       });

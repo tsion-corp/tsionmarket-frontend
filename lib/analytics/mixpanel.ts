@@ -15,8 +15,12 @@ import type {
   UserProfile,
 } from "@/lib/analytics/events";
 import { validateEvent } from "@/lib/analytics/schema";
+import { ANALYTICS_ENVIRONMENT } from "@/lib/analytics/environment";
+import { RELAY_PATH, RELAY_ROUTES } from "@/lib/analytics/relay";
 
 const TOKEN = process.env.NEXT_PUBLIC_MIXPANEL_TOKEN;
+// Ships with the build, so a report can tell which release an event came from.
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
 /**
  * The SDK, once it has loaded. It is fetched on demand rather than imported at
@@ -99,6 +103,21 @@ export function analyticsReady(): Promise<void> {
 async function bootMixpanel(): Promise<void> {
   const { default: loaded } = await import("mixpanel-browser");
   loaded.init(TOKEN as string, {
+    // Through our own origin to the EU host, past ad blockers. See ./relay.
+    // The SDK replaces api_routes whole rather than merging it, so the routes
+    // it would otherwise take from its defaults are named too. Recording and
+    // feature flags are off in this app, so those two are never called; the
+    // relay does not forward them.
+    api_host: `${window.location.origin}${RELAY_PATH}`,
+    api_routes: {
+      // No trailing slash: Next redirects one away, which would cost every
+      // send an extra round trip.
+      track: RELAY_ROUTES.track,
+      engage: RELAY_ROUTES.engage,
+      groups: RELAY_ROUTES.groups,
+      record: "record/",
+      flags: "flags/",
+    },
     persistence: "localStorage",
     // Off: the catalog in ./events is a deliberate taxonomy, and autocapture
     // adds click, scroll and pageview rows that report nothing the named events
@@ -112,6 +131,13 @@ async function bootMixpanel(): Promise<void> {
     // practice: a browser sending DNT gets no events at all, and Mixpanel
     // persists that decision, so the browser stays silent on later visits too.
     ignore_dnt: false,
+  });
+  // On every event from the first one, signed in or not. The identity provider
+  // adds what is only known about a signed-in account.
+  loaded.register({
+    environment: ANALYTICS_ENVIRONMENT,
+    platform: "web",
+    ...(APP_VERSION ? { app_version: APP_VERSION } : {}),
   });
   mp = loaded;
   for (const job of pending.splice(0)) {
@@ -140,18 +166,27 @@ async function bootMixpanel(): Promise<void> {
 }
 
 /**
- * Ties Mixpanel's distinct_id to the account's canonical EVM wallet address.
+ * Ties Mixpanel's distinct_id to the account's canonical EVM wallet address,
+ * lowercased.
  *
  * That address is assigned server-side at signup and is the same on every
  * device, which is what merges a user's laptop and phone sessions into one
  * person. It is public on-chain, stable per account, and doubles as the join
  * key to on-chain data. Never identify by email, and never switch to the
  * Solana address: an id that changes is two users as far as reports go.
+ *
+ * Lowercased on the catalog's instruction. Mixpanel's distinct_id is
+ * case-sensitive, so this is not cosmetic: every profile created before it was
+ * keyed by the checksummed address and does not follow its owner across. The
+ * data team runs an identity merge after release to rejoin them; see
+ * docs/adr/ADR-2026-09-22-mixpanel-management-catalog.md. Lowercasing happens
+ * here and only here, so one convention holds everywhere.
  */
 export function identifyUser(walletEvm: string, profile?: UserProfile): void {
   if (!ready() || !walletEvm) return;
+  const distinctId = walletEvm.toLowerCase();
   try {
-    withMixpanel((m) => m.identify(walletEvm));
+    withMixpanel((m) => m.identify(distinctId));
     if (profile) withMixpanel((m) => m.people.set(compact(profile as Record<string, unknown>)));
   } catch (error) {
     console.warn("[analytics] failed to identify", error);
@@ -163,6 +198,22 @@ export function identifyUser(walletEvm: string, profile?: UserProfile): void {
 export function resetAnalytics(): void {
   if (!ready()) return;
   withMixpanel((m) => m.reset());
+}
+
+/**
+ * Clears an identity this device still holds from an earlier session.
+ *
+ * Call when a visit starts with no session. A session that ended while the tab
+ * was closed (the idle sign-out, an expired token) never passed through a
+ * logout here, so the device kept the last person's identity, and the next
+ * person's anonymous events were attributed to them. An anonymous device is
+ * left alone: resetting it would split one visitor's trail in two.
+ */
+export function resetStaleIdentity(): void {
+  if (!ready()) return;
+  withMixpanel((m) => {
+    if (m.get_property("$user_id")) m.reset();
+  });
 }
 
 /**
@@ -232,15 +283,18 @@ function accumulateProfile(name: AnalyticsEventName, props: Record<string, unkno
       if (typeof vertical === "string") unionProfile("verticals_used", [vertical]);
       return;
     }
-    // One event covers both rails, so the running total cannot count a Naira
-    // deposit twice the way it did when the bank rail had a name of its own.
-    case "deposit_completed": {
+    // The two rails have separate event names again, so both are read here.
+    // They are disjoint by construction, which is what stops a naira deposit
+    // being counted twice the way it was when one deposit fired both names.
+    case "deposit_completed":
+    case "bank_transfer_completed": {
       incrementProfile({ total_deposit_usd: num("amount_usd") });
       setProfile({ has_deposited: true });
-      // set_once, so these keep describing the first deposit. The method comes
-      // off the event, which is the only thing that knows which rail it was.
+      // set_once, so these keep describing the first deposit. The rail is the
+      // event's own name: neither event carries a `method` any more, because
+      // neither can mean more than one thing.
       setProfileOnce({
-        first_deposit_method: typeof props.method === "string" ? props.method : undefined,
+        first_deposit_method: name === "bank_transfer_completed" ? "bank" : "crypto",
         first_deposit_date: new Date().toISOString(),
       });
       return;

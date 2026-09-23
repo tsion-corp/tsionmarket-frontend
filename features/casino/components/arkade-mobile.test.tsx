@@ -81,6 +81,16 @@ const ayo: CasinoGame = {
   comingSoon: true,
 };
 
+// A game that is playable but has no agreed analytics id, which is the case
+// the catalogue's map is there to handle.
+const poker: CasinoGame = {
+  ...ayo,
+  id: "poker",
+  name: "Poker",
+  href: "/casino/poker",
+  comingSoon: false,
+};
+
 const sample = [chess, arkball, lastMan, ayo];
 
 describe("ArkadeMobile", () => {
@@ -152,7 +162,7 @@ describe("ArkadeMobile", () => {
   });
 
   it("reports game_opened with the catalogue's analytics id", () => {
-    renderMobile(<ArkadeMobile games={[chess, arkball, lastMan]} />);
+    renderMobile(<ArkadeMobile games={[chess, arkball, lastMan, poker]} />);
 
     fireEvent.click(screen.getByRole("link", { name: "Play Chess" }));
     expect(tracked).toHaveBeenCalledWith("game_opened", { game: "chess" });
@@ -160,9 +170,15 @@ describe("ArkadeMobile", () => {
     // itself, so a second call would mean the event had been duplicated.
     expect(tracked).toHaveBeenCalledTimes(1);
 
-    // ArkBall has no agreed analytics id, so opening it reports nothing.
+    // ArkBall has an id of its own now, and reports under it.
     tracked.mockClear();
     fireEvent.click(screen.getByRole("link", { name: "Play ArkBall" }));
+    expect(tracked).toHaveBeenCalledWith("game_opened", { game: "arkball" });
+
+    // Poker has no agreed analytics id, so opening it reports nothing rather
+    // than inventing one.
+    tracked.mockClear();
+    fireEvent.click(screen.getByRole("link", { name: "Play Poker" }));
     expect(tracked).not.toHaveBeenCalled();
   });
 

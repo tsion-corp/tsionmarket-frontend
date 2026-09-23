@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
@@ -56,7 +56,8 @@ vi.mock("@/components/share/share-to-square", () => ({ ShareToSquare: () => null
 vi.mock("@/features/trade/components/spot-mode", () => ({
   useSpotMode: () => ({ mode: "simple" }),
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
+const analytics = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 vi.mock("@/lib/toast", () => ({
   toast: { loading: vi.fn(() => "t1"), success: vi.fn(), error: vi.fn(), dismiss: vi.fn() },
 }));
@@ -126,5 +127,44 @@ describe("BuySheet swap path and the low-liquidity consent", () => {
     typeAmount("10");
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(screen.getByRole("button", { name: buyLabel })).toBeEnabled();
+  });
+});
+
+// A swap-market buy is reported from the swap's result: its own amounts, and a
+// delivered swap counts, because the receipt proves the money moved.
+describe("BuySheet swap path analytics", () => {
+  beforeEach(() => {
+    analytics.track.mockClear();
+  });
+
+  it("reports a delivered buy with the swap's amounts and reference", async () => {
+    swapToken.token = memeToken({ symbol: "cbDOGE4", address: "0xcbdoge4", warnings: [] });
+    trade.mockResolvedValueOnce({
+      outcome: "delivered",
+      swapId: "swap-9",
+      requestId: "req-9",
+      amounts: { amount_usd: 10, token_quantity: 98.2, amount_source: "fill" },
+      txHash: "0xswap",
+    } as never);
+    renderSheet();
+    typeAmount("10");
+    fireEvent.click(screen.getByRole("button", { name: buyLabel }));
+
+    await waitFor(() =>
+      expect(analytics.track).toHaveBeenCalledWith(
+        "trade_completed",
+        expect.objectContaining({
+          vertical: "spot",
+          asset: "DOGE",
+          side: "buy",
+          amount_usd: 10,
+          token_quantity: 98.2,
+          amount_source: "fill",
+          recorded: "delivered",
+          order_id: "swap-9",
+          tx_hash: "0xswap",
+        })
+      )
+    );
   });
 });

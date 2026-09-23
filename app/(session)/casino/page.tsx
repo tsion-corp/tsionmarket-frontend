@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
 import { ArkadeDesktop } from "@/features/casino/components/arkade-desktop";
@@ -13,6 +14,16 @@ export default function CasinoHubPage() {
   const router = useRouter();
   const modals = useAppModals();
   const presence = useCasinoPresence();
+
+  // The hub itself. page_view already reports the route; this is the Arkade
+  // funnel's own top, so the drop-off from opening Arkade to opening a game is
+  // readable without joining two different events.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    track("arkade_opened");
+  }, []);
 
   // ArkadeDesktop is presentational, so opening a game is the route's job. The
   // hrefs come from the static catalogue, never from user input.

@@ -701,3 +701,77 @@ describe("switching side", () => {
     expect(view.result.current.notice).toBeNull();
   });
 });
+
+// A real-asset trade reports its value in dollars on both sides. The field
+// holds tokens on a sell, and sending it as amount_usd is the units bug.
+describe("what a trade reports", () => {
+  const reported = (event: string) =>
+    analytics.track.mock.calls.filter(([name]) => name === event).map(([, p]) => p);
+
+  it("reports a sale at the USDC the quote expects, with the tokens as the quantity", async () => {
+    portfolio.tokens = [
+      usdc("solana-mainnet", 1.5, SOLANA_USDC_MINT),
+      token({
+        symbol: "ONDO",
+        network: "solana-mainnet",
+        address: "solondo",
+        decimals: 9,
+        balance: 5,
+        rawBalance: "5000000000",
+        priceUsd: 2,
+        valueUsd: 10,
+      }),
+    ];
+    rwaApi.quoteAsync.mockResolvedValue(quoteResult("12000000", "11400000"));
+    rwaApi.buildAsync.mockResolvedValue(
+      action({ chain: "solana", quote: quoteResult("12000000", "11400000").best ?? undefined })
+    );
+    const view = mount({
+      asset: asset({ chain: "solana", address: "SoLONDO", id: "ondo-solana" }),
+      initialSide: "sell",
+    });
+    await type(view, "5");
+    await act(async () => {
+      await view.result.current.confirm();
+    });
+
+    expect(reported("trade_previewed")).toEqual([
+      { vertical: "rwa", asset: "ONDO", side: "sell", amount_usd: 12, token_quantity: 5 },
+    ]);
+    expect(reported("trade_completed")).toEqual([
+      {
+        vertical: "rwa",
+        asset: "ONDO",
+        side: "sell",
+        amount_usd: 12,
+        token_quantity: 5,
+        // The two amounts divided, so it cannot disagree with them.
+        fill_price_usd: 2.4,
+        amount_source: "quote",
+        // The same id its trade_submitted carried, so the two join.
+        order_id: "action-1",
+        issuer: "Ondo",
+        // Solana has no chain id both of our services agree on, so none is sent.
+        token_address: "SoLONDO",
+      },
+    ]);
+  });
+
+  it("reports a buy as the USDC it spent", async () => {
+    const view = mount({ asset: asset() });
+    await type(view, "10");
+    await act(async () => {
+      await view.result.current.confirm();
+    });
+
+    expect(reported("trade_completed")).toEqual([
+      expect.objectContaining({
+        vertical: "rwa",
+        asset: "ONDO",
+        side: "buy",
+        amount_usd: 10,
+        amount_source: "fill",
+      }),
+    ]);
+  });
+});

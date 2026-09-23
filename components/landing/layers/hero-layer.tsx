@@ -33,7 +33,10 @@ export function HeroLayer() {
         </p>
       </RevealItem>
       <RevealItem duration={1} className="pointer-events-auto mt-[30px]">
-        <LaunchCta className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/16 bg-white/8 px-6 py-[13px] text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-[50px] hover:bg-white/12">
+        <LaunchCta
+          placement="hero"
+          className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-white/16 bg-white/8 px-6 py-[13px] text-[15px] font-medium text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.25)] backdrop-blur-[50px] hover:bg-white/12"
+        >
           {t("getStarted")}
           <ArrowUpRightIcon className="text-[#d4d4d8]" />
         </LaunchCta>

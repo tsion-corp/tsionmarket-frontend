@@ -25,7 +25,10 @@ export function CtaLayer() {
           </p>
         </RevealItem>
         <RevealItem duration={1} className="pointer-events-auto mt-8 flex justify-center">
-          <LaunchCta className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-[26px] py-[15px] text-[15px] font-semibold text-[#0a0a0a] hover:opacity-90">
+          <LaunchCta
+            placement="cta"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-[26px] py-[15px] text-[15px] font-semibold text-[#0a0a0a] hover:opacity-90"
+          >
             {t("getStarted")}
             <ArrowUpRightIcon className="text-[#8a8a8f]" />
           </LaunchCta>

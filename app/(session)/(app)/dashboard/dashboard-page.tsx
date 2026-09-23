@@ -16,10 +16,8 @@ import { ExploreBanners } from "@/components/layout/explore-banners";
 // also exports the full ActivityView and the remit barrel the CrossBorderModal;
 // neither renders here, and through the barrels both shipped in the dashboard's
 // first load. optimizePackageImports only rewrites npm barrels, not ours.
-import { DepositAnalytics } from "@/features/activity/components/deposit-analytics";
 import { SectionVisibility } from "@/components/ui/section-visibility";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
-import { BankDepositAnalytics } from "@/features/funds";
 import { CrossBorderBanner } from "@/features/remit/components/cross-border-banner";
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 import { MemeSettlementTracker } from "@/features/trade/components/meme-settlement-tracker";
@@ -294,13 +292,9 @@ export function DashboardPage() {
     <>
       <RwaSettlementTracker />
       <MemeSettlementTracker />
-      {/* Reports settled deposits. It used to ride on the recent-activity
-            list that stood here; it is mounted on its own now that history
-            lives only on its own page. */}
-      <DepositAnalytics />
-      {/* Follows a bank deposit to settlement so the arrival above can be
-            reported as the Naira deposit it is, rather than as a chain one. */}
-      <BankDepositAnalytics />
+      {/* Deposit and withdrawal reporting used to be mounted here, so a
+            deposit counted only if its owner came back to the dashboard. It
+            now runs from the session providers, on every signed-in page. */}
 
       {/* The account, in full. It is what someone opened Ark to see, and the
             only section that is not a doorway to somewhere else. */}

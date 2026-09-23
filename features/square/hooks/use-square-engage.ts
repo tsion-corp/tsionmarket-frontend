@@ -7,6 +7,7 @@ import {
   type MarketSquareFeedPage,
   type MarketSquareFeedPost,
 } from "@/lib/api/market-square";
+import { track } from "@/lib/analytics/mixpanel";
 
 type FeedCache = { pages: MarketSquareFeedPage[]; pageParams: unknown[] };
 
@@ -56,7 +57,7 @@ export function useSquareEngage() {
   return useMutation<
     { likeCount?: number; repostCount?: number },
     unknown,
-    { postId: string; action: "like" | "repost"; on: boolean },
+    { postId: string; action: "like" | "repost"; on: boolean; authorId?: string },
     { snapshot: [readonly unknown[], unknown][] }
   >({
     mutationFn: ({
@@ -69,7 +70,14 @@ export function useSquareEngage() {
       on: boolean;
     }) => (action === "like" ? setPostLike(postId, on) : setPostRepost(postId, on)),
 
-    onMutate: async ({ postId, action, on }) => {
+    onMutate: async ({ postId, action, on, authorId }) => {
+      // Only the act itself, never undoing it: the catalog has no event for
+      // an unlike, and sending post_liked for one would double every count
+      // built on it.
+      if (on) {
+        const props = { post_id: postId, ...(authorId ? { author_id: authorId } : {}) };
+        track(action === "like" ? "post_liked" : "post_reposted", props);
+      }
       // Stop an in-flight refetch from landing on top of the optimistic edit
       // and flipping the control back under the user's finger.
       await queryClient.cancelQueries({ queryKey: FEED_KEY });

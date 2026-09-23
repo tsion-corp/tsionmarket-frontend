@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ChevronLeftIcon, ClockIcon } from "@/components/ui/icons";
@@ -8,6 +8,7 @@ import { ActivityRow, dayHeading } from "@/features/activity/components/activity
 import { PnlCards } from "@/features/activity/components/pnl-cards";
 import { useActivity, type ActivityEntry } from "@/features/activity/hooks/use-activity";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { track } from "@/lib/analytics/mixpanel";
 import { displaySymbol } from "@/lib/buy";
 
 const NO_GAMES: ActivityEntry[] = [];
@@ -22,6 +23,14 @@ const PAGE_SIZE = 12;
 // casino feature and merges in, since those never touch the chain.
 export function ActivityView({ gameEntries = NO_GAMES }: { gameEntries?: ActivityEntry[] } = {}) {
   const t = useTranslations("activity");
+  // Opening the timeline. Reported once per mount: this view is also embedded
+  // in the dashboard, where a re-render must not read as a second visit.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    track("arkivity_opened");
+  }, []);
   const { items: chainItems, loading, error, partial, refetch } = useActivity();
   const portfolio = usePortfolio();
   const [page, setPage] = useState(0);

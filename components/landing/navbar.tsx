@@ -80,7 +80,10 @@ export function Navbar({ onNavigate }: NavbarProps) {
       </div>
       <div className="flex items-center gap-1 sm:gap-1.5">
         <LanguageSelect />
-        <LaunchCta className="text-ink inline-flex cursor-pointer items-center gap-[7px] rounded-full bg-white px-3 py-2 text-[12px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-[13px] sm:px-5 sm:py-[11px] sm:text-sm">
+        <LaunchCta
+          placement="navbar"
+          className="text-ink inline-flex cursor-pointer items-center gap-[7px] rounded-full bg-white px-3 py-2 text-[12px] font-semibold whitespace-nowrap hover:opacity-90 min-[400px]:text-[13px] sm:px-5 sm:py-[11px] sm:text-sm"
+        >
           {known ? t("login") : t("getStarted")}
           <ArrowUpRightIcon className="text-arrow hidden min-[400px]:block" />
         </LaunchCta>

@@ -26,6 +26,8 @@ import {
 } from "@/features/casino/lib/lottery-funding";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
+import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 
 type PickerStep = "white" | "arkball";
 
@@ -75,6 +77,13 @@ export function TicketBuilder({
   const [powerNumber, setPowerNumber] = useState<number | null>(null);
   const [now, setNow] = useState<number | null>(null);
   const pending = useRef<{ fingerprint: string; key: string } | null>(null);
+  // Whether the numbers on the slip came from the dice rather than the board.
+  // Cleared the moment a ball is touched by hand, so a quick pick the player
+  // then edited is reported as their own selection.
+  const quickPicked = useRef(false);
+  // A selection is complete once the fifth white ball and the ArkBall are both
+  // set. Reported once per combination, not on every tap that builds it.
+  const selectedReported = useRef<string | null>(null);
 
   useEffect(() => {
     const tick = () => setNow(Date.now());
@@ -87,6 +96,16 @@ export function TicketBuilder({
   }, []);
 
   const selection = completeLotterySelection(whiteNumbers, powerNumber);
+  // A hand-built slip is complete the moment the last ball lands. Reported from
+  // an effect rather than from the tap handlers, because either of the two can
+  // be the one that completes it.
+  const selectionKey = selection ? lotterySelectionKey(selection) : null;
+  useEffect(() => {
+    if (!selectionKey || selectedReported.current === selectionKey) return;
+    selectedReported.current = selectionKey;
+    if (quickPicked.current) return;
+    track("arkball_numbers_selected", { draw_id: drawId, quick_pick: false });
+  }, [selectionKey, drawId]);
   const ownedKeys = new Set(
     ownedTickets
       .filter((ticket) => ticket.drawId === drawId)
@@ -124,11 +143,13 @@ export function TicketBuilder({
     setWhiteNumbers(next);
     if (next.length === WHITE_BALL_COUNT) setStep("arkball");
     pending.current = null;
+    quickPicked.current = false;
   };
 
   const chooseArkBall = (number: number) => {
     setPowerNumber(number);
     pending.current = null;
+    quickPicked.current = false;
   };
 
   const onQuickPick = async () => {
@@ -138,6 +159,10 @@ export function TicketBuilder({
       setPowerNumber(picked.powerNumber);
       setStep("arkball");
       pending.current = null;
+      // A quick pick is complete the moment it lands, which is the one case
+      // where the selection is finished without the player touching a ball.
+      quickPicked.current = true;
+      track("arkball_numbers_selected", { draw_id: drawId, quick_pick: true });
     } catch (error) {
       toast.error(friendlyError(error, t("quickPickFailed")));
     }
@@ -145,11 +170,32 @@ export function TicketBuilder({
 
   const submitPurchase = async (selected: LotterySelection, idempotencyKey: string) => {
     const toastId = toast.loading(t("buyingTicket"));
+    const price = Number(priceUsdc);
     try {
-      await purchase({ selection: selected, idempotencyKey });
+      const ticket = await purchase({ selection: selected, idempotencyKey });
+      track("arkball_ticket_purchased", {
+        draw_id: drawId,
+        ticket_id: ticket.id,
+        ticket_price_usd: Number(ticket.priceUsdc ?? priceUsdc),
+        // The five main numbers as one sortable string: a list property cannot
+        // be grouped or filtered in a report.
+        white_balls: [...selected.whiteNumbers].sort((a, b) => a - b).join(","),
+        arkball_number: selected.powerNumber,
+        quick_pick: quickPicked.current,
+      });
       toast.success(t("ticketPurchased"), { id: toastId });
       clear();
     } catch (error) {
+      // A funding error that is still pending has not failed: the ticket is
+      // waiting on a transfer, and the retry below reports its own outcome.
+      const pendingFunding = error instanceof LotteryFundingError && error.pending;
+      if (!pendingFunding) {
+        track("arkball_ticket_failed", {
+          draw_id: drawId,
+          ...(Number.isFinite(price) ? { ticket_price_usd: price } : {}),
+          ...reasonFor(GAME_FAILURE, error),
+        });
+      }
       if (error instanceof LotteryFundingError) {
         if (error.pending) toast.info(error.message, { id: toastId });
         else toast.error(error.message, { id: toastId });

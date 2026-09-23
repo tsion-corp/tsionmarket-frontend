@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { useModalScreen } from "@/components/ui/modal-shell";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
-import { track } from "@/lib/analytics/mixpanel";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSendToken } from "@/hooks/use-withdraw";
@@ -20,6 +19,7 @@ import {
 import { friendlyError } from "@/lib/errors";
 import { FormFeedback, asError, asNotice, type Feedback } from "@/components/ui/form-feedback";
 import { getWalletAddress } from "@/lib/user";
+import { openOfframpWatch } from "@/lib/ramping/offramp-watch";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SETTLE_CHAINS } from "@/lib/deposit";
 import {
@@ -244,43 +244,9 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   // the pre-send estimate until then.
   const paidNgn = order?.amountNgn ?? payoutNgn;
 
-  // Reported once on settlement, from the order's own figures. The amounts and
-  // the rail, never the account it was paid into.
-  const reportedComplete = useRef(false);
-  useEffect(() => {
-    if (!done || reportedComplete.current) return;
-    // What the rail says it moved beats what was typed: a payout converts at
-    // the rate that applied when it ran, which is not always the one quoted on
-    // this screen.
-    const usd = Number(order?.amountUsdc) || amount;
-    const rate = Number(order?.rate) || ngnRate;
-    const ngn = Number(paidNgn) || (rate > 0 ? usd * rate : 0);
-    if (!(usd > 0) || !(ngn > 0)) {
-      // A guessed figure on a money event is worse than a late one, and the
-      // Naira leg is the whole point of reporting this rail. Stay quiet and let
-      // a later poll, which will carry the order's figures, report it.
-      console.warn("[analytics] bank withdrawal settled with no figures to report");
-      return;
-    }
-    reportedComplete.current = true;
-    // No recipient here, deliberately: a bank withdrawal's recipient is an
-    // account number, which must never leave the app. The crypto rail sends
-    // recipient_address because an on-chain address is public; this one has no
-    // equivalent that is safe to send.
-    track("withdraw_completed", {
-      method: "bank",
-      asset: "USDC",
-      amount_usd: usd,
-      // The net Naira that reached the account, and the rate the two legs
-      // imply, so amount_ngn / fx_rate is always amount_usd. Two decimals, the
-      // precision the rail quotes rates at. The rail reports no fee of its
-      // own, so none is sent rather than a zero standing in.
-      amount_ngn: ngn,
-      fx_rate: Math.round((ngn / usd) * 100) / 100,
-      // The registry's name, not the tile's label, so one bank is one row.
-      bank: bank?.railName ?? "",
-    });
-  }, [done, order, paidNgn, amount, ngnRate, bank]);
+  // Completion is reported by use-offramp-settlement, which follows the order
+  // from every signed-in page. Reporting it here too would count a payout
+  // twice whenever this screen was still open.
 
   // Popular banks resolved to real uuids against the live list.
   const popularBanks = useMemo(() => {
@@ -424,6 +390,20 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         amount: toBaseUnits(amountUsdcText, BASE.decimals),
       });
       setTxHash(hash);
+      // The payout is now the rail's to make. Remembered so it is reported
+      // when it ends, whether or not this screen is still open (see
+      // use-offramp-settlement). Not before the send: an order the user never
+      // funded is not a withdrawal that failed.
+      openOfframpWatch(
+        {
+          wallet: walletAddress,
+          orderId: result.id,
+          // The registry's name, not the tile's label, so one bank is one row.
+          bank: bank.railName,
+          amountUsd: Number(amountUsdcText),
+        },
+        Date.now()
+      );
     } catch (e) {
       // Past broadcast, a failure can't be reported as "not sent": the transfer
       // may already be on-chain. Surface an unconfirmed note instead.

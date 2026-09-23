@@ -7,6 +7,7 @@ import { useKycSubmit } from "@/features/funds/hooks/use-pouch-kyc";
 import { friendlyError } from "@/lib/errors";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS, tagClaritySession } from "@/lib/analytics/clarity";
 import { setSuper, track } from "@/lib/analytics/mixpanel";
+import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import {
   buildKycDocuments,
   isFormSubmittable,
@@ -113,13 +114,16 @@ export function KycForm({
         setSuper({ kyc_status: "pending" });
         void tagClaritySession({ kyc_status: "pending" });
       } else if (result.state === "rejected") {
-        track("kyc_failed", { reason: "rejected" });
+        // The provider does not say why it refused, only that it did.
+        track("kyc_failed", { reason: "unknown", reason_detail: "rejected" });
       }
       onSubmitted(result.state, result.message);
-    } catch {
+    } catch (error) {
       // A coded reason, never the provider's raw text: that can quote back the
       // value the user typed.
-      track("kyc_failed", { reason: "submit_error" });
+      // The stage is the fallback detail; a classified error carries its own
+      // code and overrides it.
+      track("kyc_failed", { reason_detail: "submit_error", ...reasonFor(AUTH_FAILURE, error) });
       // Surfaced below via submit.error.
     }
   };

@@ -3,6 +3,9 @@
 import { useLoginWithOAuth, type OAuthProviderType } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
+import { track } from "@/lib/analytics/mixpanel";
+import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
+import type { AuthMethod } from "@/lib/analytics/events";
 
 function GoogleLogo() {
   return (
@@ -52,10 +55,17 @@ export function SocialButtons({ disabled = false }: SocialButtonsProps) {
   const { initOAuth, loading } = useLoginWithOAuth();
 
   const signIn = async (provider: OAuthProviderType) => {
+    // Twitter is "x" in the catalog. Only the providers this screen offers
+    // reach here, so the cast is over a closed set.
+    const method = (provider === "twitter" ? "x" : provider) as AuthMethod;
+    track("auth_method_selected", { method });
     try {
       await initOAuth({ provider });
     } catch (err) {
       console.error("OAuth login failed:", err);
+      // Reported as a login: this screen is one form for both, and whether the
+      // account would have been new is not knowable before it exists.
+      track("login_failed", { method, ...reasonFor(AUTH_FAILURE, err) });
       toast.error(t("oauthError"));
     }
   };

@@ -25,7 +25,15 @@ function item(over: Partial<ActivityItem>): ActivityItem {
 describe("newDepositArrivals", () => {
   it("reports an inbound stablecoin transfer as a deposit", () => {
     expect(newDepositArrivals([item({})], new Set())).toEqual([
-      { id: "0xabc:log:1", network: "base-mainnet", amountUsd: 25 },
+      {
+        id: "0xabc:log:1",
+        hash: item({}).hash,
+        network: "base-mainnet",
+        // The stablecoin that landed. deposit_completed reports it as `asset`.
+        asset: "USDC",
+        amountUsd: 25,
+        timestamp: item({}).timestamp,
+      },
     ]);
   });
 

@@ -98,7 +98,8 @@ const toastCalls = vi.hoisted(() => ({
   dismiss: vi.fn(),
 }));
 vi.mock("@/lib/toast", () => ({ toast: toastCalls }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
+const analytics = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 vi.mock("@/lib/trade/solana-balance", () => ({ fetchConfirmedSolanaBalance: async () => 0n }));
 vi.mock("@/lib/trade/pending-settlement", () => ({
   savePendingRwaSettlement: vi.fn(),
@@ -608,5 +609,124 @@ describe("the low-liquidity consent", () => {
     await typeAmount("5");
     expect(screen.queryByRole("alertdialog")).toBeNull();
     expect(previewHook.consented.every((c) => c === true)).toBe(true);
+  });
+});
+
+// A sale reports what it is worth in dollars and how many tokens it moved.
+// Sending the typed token count as amount_usd is what put $1.26M of phantom
+// memecoin volume into Mixpanel.
+describe("what a trade reports", () => {
+  const BASE_USDC = "0x833589fcd6edb6e08f4c7c32d4f71b54bda02913";
+  const sellQuote = () =>
+    swapPreview({
+      side: "SELL",
+      sellToken: memeToken({ symbol: "PEPE", decimals: 18 }),
+      buyToken: { address: BASE_USDC, symbol: "USDC", decimals: 6 },
+      sellAmountAtomic: "1000000000000000000000000",
+      expectedBuyAmountAtomic: "5000000",
+    });
+  const reported = (event: string) =>
+    analytics.track.mock.calls.filter(([name]) => name === event).map(([, p]) => p);
+
+  beforeEach(() => {
+    analytics.track.mockClear();
+    portfolio.tokens = [
+      {
+        network: "base-mainnet",
+        symbol: "PEPE",
+        address: "0xpepe",
+        balance: 2_000_000,
+        rawBalance: "2000000000000000000000000",
+        decimals: 18,
+      },
+    ];
+  });
+
+  async function sell(result: unknown) {
+    previewHook.quote = sellQuote();
+    tradeHook.trade.mockResolvedValue(result);
+    renderSheet({ defaultSide: "SELL" });
+    fireEvent.change(screen.getByLabelText("You sell"), { target: { value: "1000000" } });
+    await tick(700);
+    fireEvent.click(cta());
+    await waitFor(() => expect(tradeHook.trade).toHaveBeenCalled());
+  }
+
+  it("previews a sale in dollars, with the tokens as the quantity", async () => {
+    await sell({
+      outcome: "confirmed",
+      swapId: "s1",
+      requestId: null,
+      amounts: null,
+      txHash: null,
+    });
+    expect(reported("trade_previewed")).toEqual([
+      {
+        vertical: "memecoin",
+        asset: "PEPE",
+        side: "sell",
+        amount_usd: 5,
+        token_quantity: 1_000_000,
+      },
+    ]);
+  });
+
+  it("reports a sale at the USDC the swap proved, never the token count", async () => {
+    await sell({
+      outcome: "confirmed",
+      swapId: "s1",
+      requestId: null,
+      amounts: { amount_usd: 4.97, token_quantity: 1_000_000, amount_source: "fill" },
+      txHash: "0xswap",
+    });
+    await waitFor(() => expect(reported("trade_completed")).toHaveLength(1));
+    expect(reported("trade_completed")[0]).toMatchObject({
+      vertical: "memecoin",
+      asset: "PEPE",
+      side: "sell",
+      amount_usd: 4.97,
+      token_quantity: 1_000_000,
+      amount_source: "fill",
+      recorded: "confirmed",
+      order_id: "s1",
+      tx_hash: "0xswap",
+    });
+  });
+
+  it("reports a dismissed wallet as a cancellation, with what the trade was worth", async () => {
+    // A user saying no is not a failed trade; counted as one, it made the
+    // memecoin failure rate look like an outage.
+    previewHook.quote = sellQuote();
+    tradeHook.trade.mockRejectedValue(Object.assign(new Error("User rejected"), { code: 4001 }));
+    renderSheet({ defaultSide: "SELL" });
+    fireEvent.change(screen.getByLabelText("You sell"), { target: { value: "1000000" } });
+    await tick(700);
+    fireEvent.click(cta());
+    await waitFor(() => expect(reported("trade_failed")).toHaveLength(1));
+    expect(reported("trade_failed")[0]).toEqual({
+      vertical: "memecoin",
+      asset: "PEPE",
+      side: "sell",
+      reason: "user_cancelled",
+      amount_usd: 5,
+    });
+  });
+
+  it("falls back to the quote's proceeds when the swap could not be priced", async () => {
+    await sell({
+      outcome: "delivered",
+      swapId: "s2",
+      requestId: null,
+      amounts: null,
+      txHash: null,
+    });
+    await waitFor(() => expect(reported("trade_completed")).toHaveLength(1));
+    expect(reported("trade_completed")[0]).toMatchObject({
+      side: "sell",
+      amount_usd: 5,
+      token_quantity: 1_000_000,
+      amount_source: "quote",
+      recorded: "delivered",
+    });
   });
 });

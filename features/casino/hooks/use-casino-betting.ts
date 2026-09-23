@@ -76,6 +76,7 @@ export function usePlaceBet() {
       track("spectator_bet_placed", {
         game: "chess",
         match_id: input.matchId,
+        game_id: input.matchId,
         side: input.selection,
         amount_usd: Number(input.stakeUsdc),
       });

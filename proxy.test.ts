@@ -92,5 +92,27 @@ describe("proxy", () => {
       expect(get("/").status).toBe(200);
       expect(get("/api/waitlist").status).toBe(200);
     });
+
+    it("lets analytics from the landing page through to its relay", () => {
+      // The landing page reports its visits. Redirected, the SDK would get the
+      // landing page's HTML back instead of Mixpanel's answer and retry forever.
+      expect(get("/api/relay/e").status).toBe(200);
+    });
+
+    it("keeps the campaign tags when it sends a visitor to the landing page", () => {
+      // A shared link with utm_* that lands before launch must still say which
+      // campaign brought the visitor.
+      const res = get("/dashboard?utm_source=x&utm_campaign=launch");
+      expect(res.headers.get("Location")).toBe(
+        "https://tsionark.com/?utm_source=x&utm_campaign=launch"
+      );
+    });
+  });
+
+  describe("analytics under maintenance", () => {
+    it("keeps the relay open, so the maintenance page's visits are not retried forever", () => {
+      process.env.ALLOW_ACCESS = "false";
+      expect(get("/api/relay/e").status).toBe(200);
+    });
   });
 });

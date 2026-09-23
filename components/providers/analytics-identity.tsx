@@ -5,11 +5,12 @@ import { useLogin, usePrivy } from "@privy-io/react-auth";
 import {
   identifyUser,
   resetAnalytics,
+  resetStaleIdentity,
   setProfileOnce,
   setSuper,
   track,
 } from "@/lib/analytics/mixpanel";
-import type { SignupMethod } from "@/lib/analytics/events";
+import type { AuthMethod } from "@/lib/analytics/events";
 import { identifyClarity, tagClaritySession } from "@/lib/analytics/clarity";
 import { deriveProfile, getWalletAddress } from "@/lib/user";
 
@@ -29,10 +30,12 @@ import { deriveProfile, getWalletAddress } from "@/lib/user";
 // Privy's own login method names, mapped to the ones the catalog uses. Twitter
 // is reported as "x". Anything unrecognised passes through as-is rather than
 // being forced into one of the known values.
-function authMethod(method: string | null): SignupMethod {
+function authMethod(method: string | null): AuthMethod {
   if (!method) return "email";
   if (method === "twitter") return "x";
-  if (method === "google" || method === "email" || method === "passkey") return method;
+  if (method === "google" || method === "email" || method === "passkey" || method === "apple")
+    return method;
+  if (method === "siwe" || method === "wallet") return "wallet";
   if (method.includes("kingschat")) return "kingschat";
   return "email";
 }
@@ -40,8 +43,32 @@ function authMethod(method: string | null): SignupMethod {
 // Ships with the build, so a report can tell which release an event came from.
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
+// A completed sign-in, waiting for the account to be identified before it is
+// sent. See sendSignIn below.
+type SignIn = { isNewUser: boolean; method: AuthMethod };
+
+function sendSignIn({ isNewUser, method }: SignIn): void {
+  if (isNewUser) {
+    track("signup_completed", { method });
+    // set_once, so these keep describing the account's first sign-in rather
+    // than drifting to whichever method was used most recently.
+    setProfileOnce({ signup_method: method, signup_date: new Date().toISOString() });
+  } else {
+    track("login_completed", { method });
+  }
+}
+
 export function AnalyticsIdentity(): null {
   const { ready, authenticated, user } = usePrivy();
+  // Identity is set once per signed-in account. Privy re-renders this on token
+  // refreshes and wallet updates, and re-identifying on each would restate the
+  // profile for no gain.
+  const identifiedAs = useRef<string | null>(null);
+  // A sign-in that completed before the account had its wallet, and so before
+  // it could be identified. Sent the moment it is.
+  const pendingSignIn = useRef<SignIn | null>(null);
+  // Whether this visit has already cleared a previous session's identity.
+  const staleChecked = useRef(false);
 
   // One callback for both cases, rather than instrumenting each of the auth
   // components separately: Privy tells us here whether this was a first login
@@ -51,21 +78,14 @@ export function AnalyticsIdentity(): null {
       // Entering the app with a live session is not a login: counting it would
       // turn every page refresh into a sign-in.
       if (wasAlreadyAuthenticated) return;
-      const method = authMethod(loginMethod);
-      if (isNewUser) {
-        track("signup_completed", { method });
-        // set_once, so these keep describing the account's first sign-in
-        // rather than drifting to whichever method was used most recently.
-        setProfileOnce({ signup_method: method, signup_date: new Date().toISOString() });
-      } else {
-        track("login_completed", { method });
-      }
+      const signIn = { isNewUser, method: authMethod(loginMethod) };
+      // A first sign-in completes before the embedded wallet exists. Sent now,
+      // it would be anonymous and land on no one; held, it is sent on the
+      // account once the wallet arrives and identifies it.
+      if (identifiedAs.current) sendSignIn(signIn);
+      else pendingSignIn.current = signIn;
     },
   });
-  // Identity is set once per signed-in account. Privy re-renders this on token
-  // refreshes and wallet updates, and re-identifying on each would restate the
-  // profile for no gain.
-  const identifiedAs = useRef<string | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -74,9 +94,15 @@ export function AnalyticsIdentity(): null {
       if (identifiedAs.current !== null) {
         resetAnalytics();
         identifiedAs.current = null;
+      } else if (!staleChecked.current) {
+        // No session, and none seen in this tab. Anything the device still
+        // holds is a previous session's identity.
+        resetStaleIdentity();
       }
+      staleChecked.current = true;
       return;
     }
+    staleChecked.current = true;
 
     const walletEvm = getWalletAddress(user, "ethereum");
     // Until the embedded wallet exists there is no canonical id to attach to,
@@ -86,6 +112,10 @@ export function AnalyticsIdentity(): null {
     const profile = deriveProfile(user);
     const solAddress = getWalletAddress(user, "solana");
 
+    // Passed as Privy gives it; identifyUser lowercases it, and does so in one
+    // place so every caller lands on the same id. See the ADR: the lowercase
+    // form is the catalog's, and profiles created before it do not follow
+    // their owner across.
     identifyUser(walletEvm, {
       // Mixpanel's reserved contact fields. Governed: set here only, never
       // copied onto an event.
@@ -97,12 +127,17 @@ export function AnalyticsIdentity(): null {
     // Super properties ride on every later event. KYC status and deposit
     // history are not known from the Privy session alone, so the screens that
     // learn them call setSuper again rather than this guessing a value.
-    setSuper({ platform: "web", app_version: APP_VERSION });
+    // `wallet_evm` is the lowercase form on-chain data is keyed by, for joins.
+    setSuper({ platform: "web", app_version: APP_VERSION, wallet_evm: walletEvm.toLowerCase() });
 
     void identifyClarity(walletEvm);
     void tagClaritySession({ user_tier: "new" });
 
     identifiedAs.current = walletEvm;
+    if (pendingSignIn.current) {
+      sendSignIn(pendingSignIn.current);
+      pendingSignIn.current = null;
+    }
   }, [ready, authenticated, user]);
 
   return null;

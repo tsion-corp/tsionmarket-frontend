@@ -42,6 +42,7 @@ import {
 } from "@/features/casino/lib/api/chess";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { track } from "@/lib/analytics/mixpanel";
+import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { newChessIdempotencyKey } from "@/features/casino/lib/api/chess-idempotency";
 import { CHESS_PRODUCT_KEYS } from "@/features/casino/hooks/use-chess-products";
 import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
@@ -952,18 +953,11 @@ export function useChessMatchSocial(
   };
 }
 
-// A time control reads as "30s", "2m" or a legacy "5+3". The catalog wants it
-// in minutes, so a per-move budget in seconds becomes a fraction of one.
-//
-// Returns 0 for anything it cannot read. Analytics must never be the reason a
-// join fails, and this runs inside the mutation's onSuccess, where a throw
-// would take the navigation with it.
-function clockMinutes(label: string | undefined): number {
-  const main = label?.split("+")[0]?.trim();
-  if (!main) return 0;
-  if (main.endsWith("m")) return Number(main.slice(0, -1)) || 0;
-  if (main.endsWith("s")) return Number(main.slice(0, -1)) / 60 || 0;
-  return Number(main) || 0;
+// A requested stake as the event's amount, left out when there is none to
+// report rather than sent as a nought the player never staked.
+function stakeOf(stakeUsdc: string | number | null | undefined): { amount_usd?: number } {
+  const stake = Number(stakeUsdc ?? 0);
+  return Number.isFinite(stake) && stake > 0 ? { amount_usd: stake } : {};
 }
 
 export function useCreateChallenge() {
@@ -974,15 +968,29 @@ export function useCreateChallenge() {
       createChallenge({ ...input, creator: requireWallet(wallet.address) }),
     onSuccess: ({ match }, input) => {
       const stake = Number(match.stakeUsdc ?? 0);
+      // This app's "auto" is the catalog's play_online, and "invite" is
+      // challenge_friend. game_staked is not sent for chess any more: the
+      // chess_* events carry the money, and both would count one stake twice.
+      const mode = input.mode === "auto" ? "play_online" : "challenge_friend";
       track("chess_game_created", {
-        clock_min: clockMinutes(input.timeControl),
-        stake_usd: stake,
-        // The catalog's "quick" is this app's auto-pairing mode.
-        mode: input.mode === "auto" ? "quick" : "invite",
+        game_id: match.id,
+        mode,
+        staked: stake > 0,
+        amount_usd: stake,
+        ...(input.timeControl ? { time_control: input.timeControl } : {}),
       });
-      if (stake > 0) track("game_staked", { game: "chess", amount_usd: stake });
+      // An invite is a challenge sent to somebody; an auto-paired game is not.
+      if (mode === "challenge_friend") {
+        track("chess_challenge_sent", { game_id: match.id, amount_usd: stake });
+      }
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
+    },
+    onError: (error, input) => {
+      track("chess_game_failed", {
+        ...stakeOf(input.stakeUsdc),
+        ...reasonFor(GAME_FAILURE, error),
+      });
     },
   });
 }
@@ -1006,6 +1014,12 @@ export function useCreateComputerMatch() {
         void queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet.address) });
       }
     },
+    onError: (error, input) => {
+      track("chess_game_failed", {
+        ...stakeOf(input.stakeUsdc),
+        ...reasonFor(GAME_FAILURE, error),
+      });
+    },
   });
 }
 
@@ -1018,14 +1032,20 @@ export function useAcceptChallenge() {
     onSuccess: (match) => {
       const stake = Number(match.stakeUsdc ?? 0);
       track("chess_challenge_accepted", {
-        stake_usd: stake,
-        clock_min: clockMinutes(match.timeControl),
+        game_id: match.id,
+        amount_usd: stake,
+        ...(match.timeControl ? { time_control: match.timeControl } : {}),
       });
-      // Both seats are filled, so the game is under way.
-      track("chess_game_started", { stake_usd: stake });
-      if (stake > 0) track("game_staked", { game: "chess", amount_usd: stake });
+      // chess_game_started is reported by the play screen, for both players
+      // (see use-chess-start-report); reporting it here too would count the
+      // accepter twice and the creator never.
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
+    },
+    // The challenge is known by its id here; its stake is not, because the
+    // accept never came back with the match that carries it.
+    onError: (error, challengeId) => {
+      track("chess_game_failed", { game_id: challengeId, ...reasonFor(GAME_FAILURE, error) });
     },
   });
 }

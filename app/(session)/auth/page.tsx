@@ -54,12 +54,20 @@ export default function AuthPage() {
   const handled = useRef(false);
   const [phase, setPhase] = useState<Phase>("signin");
 
-  // The top of the funnel: the sign-in screen was reached. Reported once per
-  // mount, before any method is chosen, so the drop-off to a completed sign-in
-  // is measurable.
+  // The top of the funnel: the sign-in screen was reached by someone signing
+  // in. Reported once per mount, before any method is chosen, so the drop-off
+  // to a completed sign-in is measurable. Not for a visitor with a live session:
+  // this page forwards them straight on, and counting them inflated the top of
+  // the funnel with people who were never signing in.
+  const authStartedReported = useRef(false);
   useEffect(() => {
-    track("auth_started");
-  }, []);
+    if (!ready || authenticated || authStartedReported.current) return;
+    authStartedReported.current = true;
+    // `intent` is which door was used, not what the visitor turns out to be:
+    // this screen is one form for both, so everyone arriving at it is reported
+    // as signing in until a completed signup says otherwise.
+    track("auth_started", { intent: "login" });
+  }, [ready, authenticated]);
 
   // Where step 2 hands off to: a first-timer continues onboarding at the
   // interest page, a returning user goes back to the portfolio.

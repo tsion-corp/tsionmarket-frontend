@@ -6,9 +6,16 @@ import { useTranslations } from "next-intl";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { BRAND } from "@/lib/brand";
 import { isAppLive } from "@/lib/launch-gate";
+import { track } from "@/lib/analytics/mixpanel";
 
 interface LaunchCtaProps {
   className?: string;
+  /**
+   * Where on the page this button sits: hero, enter, cta, navbar. Reported as
+   * `get_started_clicked.placement`, which is what says which part of the
+   * landing page actually converts.
+   */
+  placement: string;
   children: React.ReactNode;
 }
 
@@ -17,12 +24,16 @@ interface LaunchCtaProps {
 // the same button opens a coming-soon notice instead, so the page keeps its
 // energy while the doors are closed. The film only renders once the gate is
 // open, so in practice this is the takedown switch's backstop.
-export function LaunchCta({ className, children }: LaunchCtaProps) {
+export function LaunchCta({ className, placement, children }: LaunchCtaProps) {
   const [open, setOpen] = useState(false);
+  // Reported whether or not the doors are open: a press against a closed gate
+  // is still someone trying to get in, and the two are told apart by whether
+  // an auth_started follows.
+  const clicked = () => track("get_started_clicked", { placement });
 
   if (isAppLive()) {
     return (
-      <Link href="/auth" className={className}>
+      <Link href="/auth" className={className} onClick={clicked}>
         {children}
       </Link>
     );
@@ -30,7 +41,14 @@ export function LaunchCta({ className, children }: LaunchCtaProps) {
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className}>
+      <button
+        type="button"
+        onClick={() => {
+          clicked();
+          setOpen(true);
+        }}
+        className={className}
+      >
         {children}
       </button>
       {open ? <ComingSoonOverlay onClose={() => setOpen(false)} /> : null}

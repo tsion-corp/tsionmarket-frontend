@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { pageNameForPath, pageNameForSection } from "@/lib/analytics/page-name";
+import { campaignTags, pageNameForPath, pageNameForSection } from "@/lib/analytics/page-name";
 
 // A hand-rolled mock, not vi.fn() defaults, so every assertion below reads
 // straight off calls the module actually made.
@@ -14,6 +14,7 @@ const reset = vi.fn();
 const track = vi.fn();
 const register = vi.fn();
 const hasOptedOut = vi.fn(() => false);
+const getProperty = vi.fn<(name: string) => unknown>(() => undefined);
 
 vi.mock("mixpanel-browser", () => ({
   default: {
@@ -29,6 +30,7 @@ vi.mock("mixpanel-browser", () => ({
     track,
     register,
     has_opted_out_tracking: hasOptedOut,
+    get_property: getProperty,
   },
 }));
 
@@ -52,6 +54,8 @@ beforeEach(() => {
   register.mockClear();
   hasOptedOut.mockClear();
   hasOptedOut.mockReturnValue(false);
+  getProperty.mockReset();
+  getProperty.mockReturnValue(undefined);
 });
 
 afterEach(() => {
@@ -103,6 +107,32 @@ describe("with a configured token", () => {
     );
   });
 
+  it("sends events through our own origin, on neutral paths, not straight to Mixpanel", async () => {
+    // Ad blockers drop requests to api-js.mixpanel.com, and filter lists match
+    // words like "track" in paths on any host. app/api/relay forwards them to
+    // the project's EU ingestion host.
+    const { initAnalytics, analyticsReady } = await loadWithToken("test_token");
+    initAnalytics();
+    await analyticsReady();
+    expect(init).toHaveBeenCalledWith(
+      "test_token",
+      expect.objectContaining({
+        api_host: `${window.location.origin}/api/relay`,
+        api_routes: expect.objectContaining({ track: "e", engage: "p", groups: "g" }),
+      })
+    );
+  });
+
+  it("labels every event with the environment it came from", async () => {
+    // One project serves production, previews and local builds, so reports
+    // that count real people filter on this.
+    vi.stubEnv("NEXT_PUBLIC_VERCEL_ENV", "preview");
+    const { initAnalytics, analyticsReady } = await loadWithToken("test_token");
+    initAnalytics();
+    await analyticsReady();
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({ environment: "preview" }));
+  });
+
   it("says so when the browser is opted out, rather than going quietly silent", async () => {
     // Do Not Track disables the SDK and Mixpanel persists that, so the browser
     // stays silent on later visits. Without this line that is indistinguishable
@@ -149,6 +179,18 @@ describe("with a configured token", () => {
     identifyUser("0x1111111111111111111111111111111111111111", { $email: "a@b.com" });
     expect(identify).toHaveBeenCalledWith("0x1111111111111111111111111111111111111111");
     expect(peopleSet).toHaveBeenCalledWith({ $email: "a@b.com" });
+  });
+
+  it("lowercases the address, as the catalog specifies", async () => {
+    // Mixpanel's distinct_id is case-sensitive, so this is not cosmetic: a
+    // checksummed id and a lowercase one are two different people. Lowercasing
+    // happens in identifyUser and nowhere else, so one convention holds across
+    // every caller.
+    const { initAnalytics, analyticsReady, identifyUser } = await loadWithToken("test_token");
+    initAnalytics();
+    await analyticsReady();
+    identifyUser("0xAbC1111111111111111111111111111111111111");
+    expect(identify).toHaveBeenCalledWith("0xabc1111111111111111111111111111111111111");
   });
 
   it("ignores an identify with no address, so anonymous events stay mergeable", async () => {
@@ -248,22 +290,59 @@ describe("page names", () => {
     expect(pageNameForSection("square")).toBe("market_square");
   });
 
+  it("names the landing pages, which is where campaign links point", () => {
+    expect(pageNameForPath("/")).toBe("landing");
+    expect(pageNameForPath("/welcome")).toBe("welcome");
+    // Every page reports itself now, not only the nav sections.
+    expect(pageNameForPath("/auth")).toBe("auth");
+    expect(pageNameForPath("/dashboard")).toBe("portfolio");
+  });
+
+  it("names each Arkade game rather than lumping them together", () => {
+    // "Which game" is the question asked of Arkade most often, and a single
+    // arkade row cannot answer it.
+    expect(pageNameForPath("/casino")).toBe("arkade");
+    expect(pageNameForPath("/casino/chess/play")).toBe("arkade_chess");
+    expect(pageNameForPath("/casino/arkjet")).toBe("arkade_arkjet");
+    expect(pageNameForPath("/casino/last-standing/42")).toBe("arkade_last_man");
+  });
+
+  it("returns no name for a route nobody has mapped", () => {
+    // Not a reason to drop the event: page_view still carries the raw path.
+    expect(pageNameForPath("/some/unmapped/route")).toBeNull();
+  });
+
   it("resolves the square page to its section", () => {
     expect(pageNameForPath("/square")).toBe("market_square");
   });
 
   it("resolves a nested route to its section", () => {
-    expect(pageNameForPath("/casino/checkers/play")).toBe("arkade");
-    expect(pageNameForPath("/prediction/event/abc")).toBe("prediction");
+    expect(pageNameForPath("/casino/checkers/play")).toBe("arkade_checkers");
+    // A market inside prediction is its own page; the index is not.
+    expect(pageNameForPath("/prediction")).toBe("prediction");
+    expect(pageNameForPath("/prediction/event/abc")).toBe("prediction_market");
     expect(pageNameForPath("/earn/sponsor/new")).toBe("earn");
+    expect(pageNameForPath("/earn/listing/abc")).toBe("earn_listing");
   });
 
-  it("reports nothing for a route that is not a nav section", () => {
-    // Better a missing page_view than one naming a page the catalog has no
-    // word for.
-    expect(pageNameForPath("/auth")).toBeNull();
-    expect(pageNameForPath("/interests")).toBeNull();
-    expect(pageNameForPath("/")).toBeNull();
+  it("reads the campaign tags off the url being viewed", () => {
+    // The SDK only ever sees the URL the session booted on, so a campaign link
+    // clicked part-way through a session would otherwise go unattributed.
+    expect(campaignTags("?utm_source=x&utm_campaign=launch")).toEqual({
+      utm_source: "x",
+      utm_campaign: "launch",
+    });
+    // Absent tags are left out rather than sent as empty strings.
+    expect(campaignTags("?utm_source=&foo=bar")).toEqual({});
+    expect(campaignTags("")).toEqual({});
+  });
+
+  it("names the pages that are not nav sections too", () => {
+    // page_view covers the whole app now, so the sign-in page and the landing
+    // page are pages in their own right rather than gaps in the data.
+    expect(pageNameForPath("/auth")).toBe("auth");
+    expect(pageNameForPath("/interests")).toBe("interests");
+    expect(pageNameForPath("/")).toBe("landing");
   });
 });
 
@@ -308,6 +387,7 @@ describe("profile totals derived from events", () => {
       asset: "ETH",
       side: "buy",
       amount_usd: 25,
+      amount_source: "fill",
     });
 
     expect(peopleIncrement).toHaveBeenCalledWith({ trade_count: 1, total_volume_usd: 25 });
@@ -319,8 +399,7 @@ describe("profile totals derived from events", () => {
     initAnalytics();
     await analyticsReady();
 
-    send("deposit_completed", {
-      method: "bank",
+    send("bank_transfer_completed", {
       amount_ngn: 40000,
       amount_usd: 25,
       fx_rate: 1600,
@@ -335,17 +414,17 @@ describe("profile totals derived from events", () => {
     );
   });
 
-  it("takes the first deposit's rail off the event, not off its name", async () => {
-    // Both rails send the same event now. The method property is the only
-    // thing that knows which one it was, so a hardcoded default here would
-    // put every user's first deposit on the wrong rail.
+  it("takes the first deposit's rail off the event name", async () => {
+    // The rails have separate names again, so the name is the only thing that
+    // knows which one it was. A hardcoded default would put every user's
+    // first deposit on the wrong rail.
     const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
     await analyticsReady();
 
     send("deposit_completed", {
-      method: "crypto",
-      source_network: "base-mainnet",
+      network: "base-mainnet",
+      asset: "USDC",
       amount_usd: 25,
     });
 
@@ -355,15 +434,14 @@ describe("profile totals derived from events", () => {
   });
 
   it("counts one Naira deposit once", async () => {
-    // The bank rail used to have an event of its own, and a Naira deposit
-    // fired both it and deposit_completed: the same money added to the
-    // lifetime total twice.
+    // The rails have a name each again. A Naira deposit once fired both, and
+    // the same money was added to the lifetime total twice; the two are now
+    // disjoint, so only one of them can ever fire for a given arrival.
     const { initAnalytics, analyticsReady, track: send } = await loadWithToken("test-token");
     initAnalytics();
     await analyticsReady();
 
-    send("deposit_completed", {
-      method: "bank",
+    send("bank_transfer_completed", {
       amount_ngn: 5000,
       amount_usd: 3.448275,
       fx_rate: 1450,
@@ -381,7 +459,7 @@ describe("profile totals derived from events", () => {
     initAnalytics();
     await analyticsReady();
 
-    send("page_view", { page: "portfolio" });
+    send("page_view", { page: "portfolio", path: "/portfolio" });
 
     expect(peopleIncrement).not.toHaveBeenCalled();
     expect(peopleUnion).not.toHaveBeenCalled();
@@ -393,7 +471,13 @@ describe("profile totals derived from events", () => {
     await analyticsReady();
 
     // A free trade still counts as a trade, but zero volume moves nothing.
-    send("trade_completed", { vertical: "spot", asset: "ETH", side: "buy", amount_usd: 0 });
+    send("trade_completed", {
+      vertical: "spot",
+      asset: "ETH",
+      side: "buy",
+      amount_usd: 0,
+      amount_source: "fill",
+    });
 
     expect(peopleIncrement).toHaveBeenCalledWith({ trade_count: 1 });
   });
@@ -455,8 +539,7 @@ describe("catalog enforcement", () => {
     await analyticsReady();
 
     expect(() =>
-      (send as unknown as Loose)("deposit_completed", {
-        method: "bank",
+      (send as unknown as Loose)("bank_transfer_completed", {
         amount_usd: 3.448275,
         amount_ngn: "5000",
         fx_rate: 1450,
@@ -490,5 +573,24 @@ describe("catalog enforcement", () => {
     expect(error).toHaveBeenCalledWith(expect.stringContaining("unknown property"));
     expect(track).toHaveBeenCalled();
     error.mockRestore();
+  });
+});
+
+describe("a previous session's identity", () => {
+  it("is cleared when the device still holds an identified user", async () => {
+    getProperty.mockImplementation((name: string) => (name === "$user_id" ? "0xAbC" : undefined));
+    const { initAnalytics, analyticsReady, resetStaleIdentity } = await loadWithToken("t");
+    initAnalytics();
+    await analyticsReady();
+    resetStaleIdentity();
+    expect(reset).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves an anonymous device alone, so one visitor's trail is not split", async () => {
+    const { initAnalytics, analyticsReady, resetStaleIdentity } = await loadWithToken("t");
+    initAnalytics();
+    await analyticsReady();
+    resetStaleIdentity();
+    expect(reset).not.toHaveBeenCalled();
   });
 });

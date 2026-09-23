@@ -209,4 +209,8 @@ export const TRACKED_GAMES: Record<string, Game | undefined> = {
   chess: "chess",
   checkers: "checkers",
   "last-standing": "last_man",
+  arkball: "arkball",
+  arkjet: "arkjet",
+  // The catalog's name for the game this app routes at /casino/chicken.
+  chicken: "pilot_chicken",
 };

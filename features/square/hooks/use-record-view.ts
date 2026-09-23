@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { recordPostView } from "@/lib/api/market-square";
+import { track } from "@/lib/analytics/mixpanel";
 
 /**
  * Posts already counted this page load.
@@ -29,7 +30,10 @@ const DWELL_MS = 1000;
  * Failures are swallowed on purpose: a view that goes unrecorded is invisible
  * to the reader, and there is nothing useful to tell them about it.
  */
-export function useRecordView(postId: string): (node: HTMLElement | null) => void {
+export function useRecordView(
+  postId: string,
+  authorId?: string
+): (node: HTMLElement | null) => void {
   const timer = useRef<number>(0);
   const observer = useRef<IntersectionObserver | null>(null);
 
@@ -61,6 +65,10 @@ export function useRecordView(postId: string): (node: HTMLElement | null) => voi
           if (counted.has(postId)) return;
           counted.add(postId);
           observer.current?.disconnect();
+          // Reported on the same threshold the service counts: half the card
+          // for a full second. Sent before the request, because a view the
+          // reader gave is a view whether or not the service took it.
+          track("post_viewed", { post_id: postId, ...(authorId ? { author_id: authorId } : {}) });
           void recordPostView(postId).catch(() => {
             // Let it be retried on a later page load rather than pretending
             // it landed.

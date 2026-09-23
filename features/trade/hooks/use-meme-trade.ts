@@ -11,6 +11,7 @@ import { useEvmSendWithReceipt } from "@/hooks/use-evm-send";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 import { formatReceived, receivedFromLogs, type ReceiptLog } from "@/lib/meme/delivery";
+import { swapTradeAmounts, type TradeAmounts } from "@/lib/analytics/trade-amounts";
 import { formatUsdcAtomic } from "@/lib/meme/format";
 import { memePortfolioKeys } from "@/lib/meme/portfolio";
 import { isSubmittedEvmOperationError } from "@/lib/trade/sponsor";
@@ -48,6 +49,12 @@ import { reportTradeRecordingMismatch } from "@/lib/analytics/watchtower";
 
 export interface MemeTradeInput extends Omit<SwapRequest, "walletAddress"> {
   chainId: number;
+  /**
+   * Called once the swap has been sent and registered with the trade service,
+   * with its swap id. This is the moment an order exists, before any verdict
+   * on it; analytics reports `trade_submitted` from here.
+   */
+  onSubmitted?: (swapId: string) => void;
 }
 
 export interface MemePreviewInput extends SwapRequest {
@@ -72,6 +79,15 @@ export interface TradeResult {
   outcome: TradeOutcome;
   swapId: string | null;
   requestId: string | null;
+  /**
+   * What the trade is worth and how many tokens moved, for analytics: the
+   * quote's exact input leg and the receipt's proof of what arrived. Null when
+   * the swap cannot be priced in USDC (a Solana quote states no amounts), in
+   * which case the caller prices it from its own quote.
+   */
+  amounts: TradeAmounts | null;
+  /** The swap transaction's hash, when the chain returned one. */
+  txHash: string | null;
 }
 
 // The support reference for a delivered or pending trade, as shown on screen:
@@ -317,7 +333,7 @@ export function useMemeTrade() {
         swap_id: quote.swapId,
         recorded,
         request_id: ref ?? undefined,
-        hash: hash ?? undefined,
+        tx_hash: hash ?? undefined,
       });
       reportTradeRecordingMismatch({ swapId: quote.swapId, requestId: ref, hash, recorded });
       setRequestId(ref);
@@ -330,7 +346,7 @@ export function useMemeTrade() {
   // the signature. The quote is one transaction, so there is nothing to
   // execute in order and no balance-delta proof yet; CONFIRMED is the word.
   const tradeSolana = useCallback(
-    async (body: SwapRequest): Promise<TradeResult> => {
+    async (body: SwapRequest, onSubmitted?: (swapId: string) => void): Promise<TradeResult> => {
       const signer = solanaWallets.find((w) => w.address === body.walletAddress);
       if (!signer) throw new Error("Your Solana wallet is still connecting. Try again.");
       const runQuote = () => quoteWithProviderRetry((key) => quoteSolanaSwap(body, key));
@@ -369,18 +385,31 @@ export function useMemeTrade() {
       });
       await registerSolanaSubmission(quote.swapId, body.walletAddress, signature);
       setSettled({ txHash: signature, chainId: SOLANA_CHAIN_ID });
+      onSubmitted?.(quote.swapId);
 
       setPhase("confirming");
       const status = await awaitTerminalStatus(quote.swapId);
       if (status === null) {
         console.warn(`[meme] swap ${quote.swapId} still not terminal after the poll ceiling`);
         setPhase("pending");
-        return { outcome: "pending", swapId: quote.swapId, requestId: null };
+        return {
+          outcome: "pending",
+          swapId: quote.swapId,
+          requestId: null,
+          amounts: null,
+          txHash: signature,
+        };
       }
       if (status === "CONFIRMED") {
         refreshServicePortfolio();
         setPhase("confirmed");
-        return { outcome: "confirmed", swapId: quote.swapId, requestId: null };
+        return {
+          outcome: "confirmed",
+          swapId: quote.swapId,
+          requestId: null,
+          amounts: null,
+          txHash: signature,
+        };
       }
       throw new TradeApiError(status, "The trade didn't complete.", 200);
     },
@@ -388,10 +417,12 @@ export function useMemeTrade() {
   );
 
   const trade = useCallback(
-    async ({ chainId, ...input }: MemeTradeInput): Promise<TradeResult> => {
+    async ({ chainId, onSubmitted, ...input }: MemeTradeInput): Promise<TradeResult> => {
       // A second press while one runs is the same action, not a new one, and
       // nothing is known about it yet.
-      if (activeRef.current) return { outcome: "pending", swapId: null, requestId: null };
+      if (activeRef.current) {
+        return { outcome: "pending", swapId: null, requestId: null, amounts: null, txHash: null };
+      }
       const chainWallet = walletFor(chainId);
       if (!chainWallet) throw new Error("Sign in first.");
       activeRef.current = true;
@@ -402,7 +433,7 @@ export function useMemeTrade() {
       setQuotedFee(null);
       try {
         if (chainId === SOLANA_CHAIN_ID) {
-          return await tradeSolana({ ...input, walletAddress: chainWallet });
+          return await tradeSolana({ ...input, walletAddress: chainWallet }, onSubmitted);
         }
         const wallet = chainWallet;
         const body: SwapRequest = { ...input, walletAddress: wallet };
@@ -499,11 +530,16 @@ export function useMemeTrade() {
           }
         }
 
+        // Every call has been sent and registered (or refused as already
+        // recorded): the order exists, whatever the service says about it next.
+        onSubmitted?.(quote.swapId);
+
         // The swap's receipt is in hand, and its own logs say what the wallet
         // was paid: proof of delivery with no balance read, while the
         // server's formal verification finishes in the background.
         const received = receivedFromLogs(receivedLogs, receivedToken, wallet as `0x${string}`);
         const delivered = received !== null && received > 0n;
+        const amounts = swapTradeAmounts(quote, delivered ? received : null);
         if (delivered) {
           setReceived({
             amount: formatReceived(received, quote.buyToken.decimals ?? 18),
@@ -526,6 +562,8 @@ export function useMemeTrade() {
             outcome: "delivered",
             swapId: quote.swapId,
             requestId: registrationRefused.requestId,
+            amounts,
+            txHash: settledHash,
           };
         }
 
@@ -540,12 +578,24 @@ export function useMemeTrade() {
             `[meme] swap ${quote.swapId} (${settledHash ?? "no hash"}) still not terminal after the poll ceiling`
           );
           setPhase("pending");
-          return { outcome: "pending", swapId: quote.swapId, requestId: null };
+          return {
+            outcome: "pending",
+            swapId: quote.swapId,
+            requestId: null,
+            amounts,
+            txHash: settledHash,
+          };
         }
         if (status === "CONFIRMED") {
           refreshServicePortfolio();
           setPhase("confirmed");
-          return { outcome: "confirmed", swapId: quote.swapId, requestId: null };
+          return {
+            outcome: "confirmed",
+            swapId: quote.swapId,
+            requestId: null,
+            amounts,
+            txHash: settledHash,
+          };
         }
         // The wallet's balance moved: the trade happened, whatever the
         // service recorded. Its verifier compares a sponsored user
@@ -557,7 +607,13 @@ export function useMemeTrade() {
         // team.
         if (delivered) {
           settleAsDelivered(quote, settledHash, status, null);
-          return { outcome: "delivered", swapId: quote.swapId, requestId: null };
+          return {
+            outcome: "delivered",
+            swapId: quote.swapId,
+            requestId: null,
+            amounts,
+            txHash: settledHash,
+          };
         }
         throw new TradeApiError(status, "The trade didn't complete.", 200);
       } catch (e) {

@@ -94,7 +94,9 @@ export function PasskeyEnroll({ onDone }: { onDone: () => void }) {
 
       <button
         onClick={() => {
-          track("passkey_skipped");
+          // Unsupported devices only have "Continue": not a choice, so the
+          // report says which it was.
+          track("passkey_skipped", { supported });
           onDone();
         }}
         disabled={busy}

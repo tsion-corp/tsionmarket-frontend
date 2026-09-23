@@ -95,6 +95,7 @@ export function PuzzleSection() {
       playerRating: PLAYER_PUZZLE_RATING,
       targetRating,
       theme: requestedTheme,
+      puzzleId: loaded.puzzle.id,
     };
     const removeBridge = installPuzzleBridge(bridgeOptions);
     installLichessRuntime(wallet.address ?? undefined, inertPowertip);

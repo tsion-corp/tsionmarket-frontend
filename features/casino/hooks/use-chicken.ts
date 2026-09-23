@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ARKJET_KEYS } from "@/features/casino/hooks/use-arkjet";
 import { pollUnlessFailing } from "@/lib/query-poll";
+import { track } from "@/lib/analytics/mixpanel";
+import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
+import { chickenReports } from "@/features/casino/lib/chicken-analytics";
 import {
   cashoutChicken,
   fetchActiveChicken,
@@ -97,8 +100,21 @@ export function useChicken() {
     staleTime: 2_000,
   });
 
+  // What has already been reported about a round. The session is cumulative
+  // and arrives again on every socket frame and every resync, so without this
+  // one lane crossed would be reported on each of them.
+  const reported = useRef(new Set<string>());
+
   const settle = useCallback(
     (session: ChickenSession) => {
+      for (const report of chickenReports(session)) {
+        if (reported.current.has(report.key)) continue;
+        reported.current.add(report.key);
+        if (report.name === "chicken_round_started") track(report.name, report.props);
+        else if (report.name === "chicken_lane_advanced") track(report.name, report.props);
+        else if (report.name === "chicken_cashed_out") track(report.name, report.props);
+        else track("chicken_round_lost", report.props);
+      }
       void queryClient.cancelQueries({ queryKey: KEYS.active });
       queryClient.setQueryData(KEYS.active, session.status === "active" ? session : null);
       setTerminalResult(session.status === "active" ? null : session);
@@ -178,7 +194,12 @@ export function useChicken() {
         : started;
     },
     onSuccess: settle,
-    onError: () => {
+    onError: (error, input) => {
+      track("chicken_round_failed", {
+        ...(Number.isFinite(Number(input.amount)) ? { amount_usd: Number(input.amount) } : {}),
+        difficulty: input.difficulty,
+        ...reasonFor(GAME_FAILURE, error),
+      });
       void Promise.all([synchronize(), queryClient.invalidateQueries({ queryKey: KEYS.balance })]);
     },
   });

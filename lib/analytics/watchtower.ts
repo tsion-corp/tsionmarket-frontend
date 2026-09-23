@@ -21,6 +21,7 @@
 // file is the safety net underneath it, not a replacement for it.
 
 import * as Sentry from "@sentry/nextjs";
+import { ANALYTICS_ENVIRONMENT } from "@/lib/analytics/environment";
 
 // The endpoint and project, as one Sentry-format DSN:
 // https://<project key>@watchtower-logger.vercel.app/<project id>
@@ -68,9 +69,8 @@ export function normalizeDsn(dsn: string | undefined): string | undefined {
 const DSN = normalizeDsn(CONFIGURED_DSN);
 
 // Which deployment an event came from, so a staging crash never pages anyone
-// for production. Vercel sets NEXT_PUBLIC_VERCEL_ENV to production, preview or
-// development; local runs fall back to the node environment.
-const ENVIRONMENT = process.env.NEXT_PUBLIC_VERCEL_ENV ?? process.env.NODE_ENV ?? "development";
+// for production. Shared with Mixpanel; see ./environment.
+const ENVIRONMENT = ANALYTICS_ENVIRONMENT;
 
 // Ties an event to the build it came from. next.config.ts already stamps the
 // package version into the bundle for analytics, so this reuses it rather than

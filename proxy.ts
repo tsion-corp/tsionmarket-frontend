@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { RELAY_PATH } from "@/lib/analytics/relay";
 
 // The route guard behind the launch gate (see lib/launch-gate.ts). While the
 // site is closed, by the clock or by ALLOW_ACCESS=false, every request except
@@ -57,8 +58,16 @@ function closedResponse(request: NextRequest): NextResponse {
   return response;
 }
 
+// Analytics from whatever page the closed site serves (the landing page, the
+// maintenance notice) goes through the relay. Turned away, the SDK would get
+// HTML back instead of Mixpanel's answer and retry the batch forever.
+function isAnalyticsRelay(pathname: string): boolean {
+  return pathname === RELAY_PATH || pathname.startsWith(`${RELAY_PATH}/`);
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  if (isAnalyticsRelay(pathname)) return NextResponse.next();
 
   if (underMaintenance()) {
     if (MAINTENANCE_OPEN_PATHS.has(pathname)) return NextResponse.next();
@@ -67,7 +76,11 @@ export function proxy(request: NextRequest) {
 
   if (!beforeLaunch()) return NextResponse.next();
   if (OPEN_PATHS.has(pathname)) return NextResponse.next();
-  return NextResponse.redirect(new URL("/", request.url));
+  // The query rides along: a campaign link's utm_* tags are what Mixpanel
+  // attributes the visit by, and the landing page is where it reads them.
+  const home = new URL("/", request.url);
+  home.search = request.nextUrl.search;
+  return NextResponse.redirect(home);
 }
 
 export const config = {

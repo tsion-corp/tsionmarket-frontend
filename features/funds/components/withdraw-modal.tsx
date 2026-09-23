@@ -34,14 +34,20 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
           title={t("cryptoTitle")}
           subtitle={t("cryptoSubtitle")}
           badge={t("popular")}
-          onClick={() => setStep("crypto")}
+          onClick={() => {
+            track("withdraw_method_selected", { method: "wallet" });
+            setStep("crypto");
+          }}
         />
         {BANK_WITHDRAW_ENABLED && (
           <MethodTile
             icon={<BankIcon size={22} />}
             title={t("bankTitle")}
             subtitle={t("bankSubtitle")}
-            onClick={() => setStep("bank")}
+            onClick={() => {
+              track("withdraw_method_selected", { method: "bank" });
+              setStep("bank");
+            }}
           />
         )}
       </div>

@@ -53,7 +53,12 @@ function isPublicIp(ip: string): boolean {
   );
 }
 
-function clientPublicIp(headers: Headers): string | null {
+/**
+ * The visitor's public IP from the platform's forwarding headers, skipping
+ * private and loopback addresses a proxy hop may have added. Null when none of
+ * the headers carries one.
+ */
+export function clientPublicIp(headers: Headers): string | null {
   const candidates = [
     headers.get("x-vercel-forwarded-for"),
     headers.get("x-forwarded-for"),

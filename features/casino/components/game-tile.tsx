@@ -181,9 +181,9 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
   return (
     <Link
       href={game.href}
-      // Only the three games the catalog names report an open; the other tiles
-      // (draw, and anything added later) have no agreed name, so they send
-      // nothing rather than inventing one.
+      // Only the games the catalog names report an open; the other tiles
+      // (ayo, poker, racing, and anything added later) have no agreed name, so
+      // they send nothing rather than inventing one.
       onClick={() => {
         const game_id = TRACKED_GAMES[game.id];
         if (game_id) track("game_opened", { game: game_id });

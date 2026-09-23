@@ -78,6 +78,7 @@ import {
 } from "@/features/casino/lib/last-standing/sound";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 
 const EXPLORER_TX_URL = "https://basescan.org/tx/";
 // How long to keep re-checking after a win, and how often. The settle window
@@ -722,14 +723,21 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       wonPendingRef.current = true;
       if (!wonReportedRef.current) {
         wonReportedRef.current = true;
-        track("last_man_won", {
-          pot_usd: lastPotRef.current || potUsd,
-          winnings_usd: revealPrizeUsd,
-          started_it: winnerIsStarter,
+        const pot = lastPotRef.current || potUsd;
+        // The three shares from the contract's live split, not from a rate
+        // written down here: the owner can retune it, and a report that
+        // divided the pot by a hardcoded rate would restate old rounds.
+        // The treasury takes whatever the winner and the starter do not.
+        track("last_man_ended", {
+          game_id: String(gameId),
+          pot_usd: pot,
+          winner_payout_usd: revealPrizeUsd,
+          creator_usd: (pot * splitStarterBps) / 10_000,
+          house_usd: (pot * (10_000 - splitWinnerBps - splitStarterBps)) / 10_000,
         });
       }
     }
-  }, [phase, youWon, potUsd, revealPrizeUsd, winnerIsStarter]);
+  }, [phase, youWon, potUsd, revealPrizeUsd, gameId, splitWinnerBps, splitStarterBps]);
   useEffect(() => {
     if (wonPendingRef.current && hasPending && !claiming) {
       wonPendingRef.current = false;
@@ -851,11 +859,9 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     try {
       await wager(gameId, amountUnits);
       followGame(gameId);
-      // `game_staked` is the generic "money went into a game" event the
-      // catalog uses across all of them, so it rides alongside the
-      // last-man-specific one.
-      track("last_man_played", { cost_usd: amountUsd });
-      track("game_staked", { game: "last_man", amount_usd: amountUsd });
+      // Buying into the round. `game_staked` is not sent beside it any more:
+      // this event carries the money, and both would count one buy-in twice.
+      track("last_man_joined", { game_id: String(gameId), entry_fee_usd: amountUsd });
       toast.success(t("toastYoureIn"), { id: toastId });
       playWagerSound();
       // The wager just landed on-chain, but the backend indexes it a moment
@@ -869,6 +875,11 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     } catch (e) {
       // It will never land, so it must not hold the verdict back.
       releaseRoundEnd();
+      track("last_man_failed", {
+        game_id: String(gameId),
+        entry_fee_usd: amountUsd,
+        ...reasonFor(GAME_FAILURE, e),
+      });
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
       return false;
     }

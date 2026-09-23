@@ -8,6 +8,8 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { KASH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
+import { kashRate } from "@/features/portfolio/lib/kash-analytics";
 import { friendlyError } from "@/lib/errors";
 import { useKashAccount, useKashStatus } from "@/features/portfolio/hooks/use-kash";
 import {
@@ -89,9 +91,19 @@ export function KashConvertModal({ open, onClose }: KashConvertModalProps) {
     try {
       const result = await deskSell.mutateAsync({ wallet, kashAmount: amount });
       const usdcOut = deskQuote.data?.usdcOut ?? "";
-      track("kash_sold", { kash_amount: Number(amount), amount_usd: Number(usdcOut) });
+      track("kash_sold", {
+        kash_amount: Number(amount),
+        amount_usd: Number(usdcOut),
+        ...kashRate(usdcOut, amount),
+        ...(result.txHash ? { tx_hash: result.txHash } : {}),
+      });
       setDone({ usdc: usdcOut, kash: amount, txHash: result.txHash });
     } catch (error) {
+      track("kash_failed", {
+        side: "sell",
+        kash_amount: Number(amount),
+        ...reasonFor(KASH_FAILURE, error),
+      });
       toast.error(friendlyError(error, t("convertFailed")));
     }
   };

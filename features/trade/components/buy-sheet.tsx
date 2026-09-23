@@ -27,6 +27,9 @@ import { tradeShareRef } from "@/lib/trade-share";
 import { useMoney } from "@/components/ui/currency-select";
 import { ShareToSquare } from "@/components/share/share-to-square";
 import { track } from "@/lib/analytics/mixpanel";
+import { TRADE_FAILURE, failureReasonForStage, reasonFor } from "@/lib/analytics/failure-reason";
+import { tradeAmounts, USDC_DECIMALS, type TradeAmounts } from "@/lib/analytics/trade-amounts";
+import { swapTradeFacts } from "@/features/trade/lib/trade-analytics";
 import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { BRAND } from "@/lib/brand";
 import { friendlyError } from "@/lib/errors";
@@ -215,20 +218,28 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   const settledRef = useRef(false);
   // Id of the processing toast opened on confirm, resolved when the order settles.
   const toastRef = useRef<string | number | undefined>(undefined);
+  // What the order in flight spends, fixed when it is placed: the field may
+  // hold a different amount by the time it settles.
+  const spentRef = useRef<TradeAmounts | null>(null);
   useEffect(() => {
     if (!showTracking || settledRef.current) return;
     if (stage === "settled") {
       settledRef.current = true;
       // Reported on settlement rather than on confirm, so the number counts
-      // filled orders and not attempts.
-      track("trade_completed", {
-        vertical: "spot",
-        asset: payload.symbol,
-        side: "buy",
-        amount_usd: value,
-        network: route?.chainName,
-        mode: spotMode,
-      });
+      // filled orders and not attempts. A swap-market buy is reported from its
+      // own result in confirm() instead, where the amounts and the reference
+      // are, and where a delivered swap is counted too.
+      if (!isSwapMarket && spentRef.current) {
+        track("trade_completed", {
+          vertical: "spot",
+          asset: payload.symbol,
+          side: "buy",
+          ...spentRef.current,
+          network: route?.chainName,
+          mode: spotMode,
+          order_id: requestId ?? undefined,
+        });
+      }
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged(
@@ -239,7 +250,18 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
       );
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = true;
-      track("trade_failed", { vertical: "spot", asset: payload.symbol, reason: stage });
+      // A swap-market failure carries the error it failed with; a Dextopus
+      // order only says which stage it ended in.
+      track("trade_failed", {
+        vertical: "spot",
+        asset: payload.symbol,
+        side: "buy",
+        ...(isSwapMarket
+          ? reasonFor(TRADE_FAILURE, memeTrade.error)
+          : failureReasonForStage(TRADE_FAILURE, stage)),
+        amount_usd: spentRef.current?.amount_usd,
+        order_id: isSwapMarket ? undefined : (requestId ?? undefined),
+      });
       // A swap-market failure is already toasted, with the real reason, from
       // confirm()'s own catch below — trade() only resolves or rejects once
       // the whole flow (including confirmation polling) is done, so there is
@@ -255,11 +277,12 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
     showTracking,
     stage,
     isSwapMarket,
+    memeTrade.error,
     payload.name,
     payload.symbol,
     route?.chainName,
     route?.destinationChainId,
-    value,
+    requestId,
     portfolio,
     t,
     spotMode,
@@ -293,6 +316,15 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
       side: "buy",
       amount_usd: value,
     });
+    // A buy's input is exact USDC, so what it spends is known up front.
+    const spent = tradeAmounts({
+      usdRaw: usdcBaseUnits(amount),
+      usdDecimals: USDC_DECIMALS,
+      tokenRaw: null,
+      tokenDecimals: null,
+      source: "fill",
+    });
+    spentRef.current = spent;
     toastRef.current = toast.loading(t("buyingToast", { name: payload.name }));
     if (swapRoute) {
       try {
@@ -302,7 +334,25 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
           tokenAddress: swapRoute.tokenAddress,
           amount,
           slippageBps: SLIPPAGE_BPS,
+          onSubmitted: (swapId) =>
+            track("trade_submitted", {
+              vertical: "spot",
+              asset: payload.symbol,
+              side: "buy",
+              amount_usd: spent.amount_usd,
+              order_id: swapId,
+            }),
         });
+        const facts = swapTradeFacts(result, spent);
+        if (facts) {
+          track("trade_completed", {
+            vertical: "spot",
+            asset: payload.symbol,
+            side: "buy",
+            ...facts,
+            mode: spotMode,
+          });
+        }
         // CONFIRMED is toasted "bought" by the settlement effect above.
         // Delivered and pending are not settled and say so, with the
         // reference support will ask for.
@@ -341,6 +391,13 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
         slippageBps: SLIPPAGE_BPS,
       });
       setBought(formatAmount(Number(fromBaseUnits(result.estimatedOutput, route.decimals))));
+      track("trade_submitted", {
+        vertical: "spot",
+        asset: payload.symbol,
+        side: "buy",
+        amount_usd: spent.amount_usd,
+        order_id: result.requestId,
+      });
       setRequestId(result.requestId);
       // Kept so the confirmation can offer to share it. It was discarded
       // before, which is why the settled screen had nothing to point at.

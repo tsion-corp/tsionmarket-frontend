@@ -3,6 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { useLoginWithPasskey } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
+import { track } from "@/lib/analytics/mixpanel";
+import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { toast } from "@/lib/toast";
 
 const subscribeNever = () => () => {};
@@ -48,6 +50,7 @@ export function PasskeyButton({ disabled = false }: PasskeyButtonProps) {
   const { loginWithPasskey, state } = useLoginWithPasskey({
     onError: (err) => {
       console.error("Passkey login failed:", err);
+      track("login_failed", { method: "passkey", ...reasonFor(AUTH_FAILURE, err) });
       toast.error(t("passkeyError"));
     },
   });
@@ -59,7 +62,10 @@ export function PasskeyButton({ disabled = false }: PasskeyButtonProps) {
   return (
     <div className="mt-[11px] flex flex-col gap-2">
       <button
-        onClick={() => loginWithPasskey()}
+        onClick={() => {
+          track("auth_method_selected", { method: "passkey" });
+          void loginWithPasskey();
+        }}
         disabled={busy || disabled}
         className={`flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-full border border-white/14 bg-transparent px-4 py-3.5 font-sans text-sm font-medium text-white/90 transition-colors hover:border-white/28 hover:bg-white/6 disabled:opacity-60 md:rounded-[14px] md:p-[13px] ${
           disabled ? "disabled:cursor-not-allowed" : "disabled:cursor-wait"

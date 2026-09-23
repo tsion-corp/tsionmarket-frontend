@@ -6,6 +6,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { createSquarePost, fetchSquareTopics, uploadSquareMedia } from "@/lib/api/market-square";
 import type { SquareUpload } from "@/lib/api/market-square";
+import { track } from "@/lib/analytics/mixpanel";
+import { SQUARE_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { squareLinks } from "@/lib/square/links";
 import { COUNTER_VISIBLE_FROM, canPost, remaining } from "@/lib/square/compose";
 import { ComposerTools } from "@/components/share/composer-tools";
@@ -123,8 +125,15 @@ function ComposerBody({
     if (!ready) return;
     setPosting(true);
     setError(null);
+    // What kind of post this is, by what is attached to it.
+    const mediaType = media === null ? "text" : media.kind === "video" ? "video" : "image";
     try {
       const post = await createSquarePost(text.trim(), topics, media);
+      track("post_created", {
+        post_id: post.id,
+        media_type: mediaType,
+        has_media: media !== null,
+      });
       setPostedId(post.id);
       setText("");
       setTopics([]);
@@ -132,7 +141,8 @@ function ComposerBody({
       // The dashboard feed is the surface directly behind this sheet, so the
       // new post should be there when it closes rather than after a reload.
       await queryClient.invalidateQueries({ queryKey: ["market-square", "feed"] });
-    } catch {
+    } catch (error) {
+      track("post_failed", { media_type: mediaType, ...reasonFor(SQUARE_FAILURE, error) });
       // Never claim a post landed. The composer keeps the text so a failure
       // costs the author nothing but a second tap.
       setError(t("postFailed"));

@@ -150,6 +150,8 @@ vi.mock("@/features/trade/hooks/use-cctp-deposit-fee", () => ({
 vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({ refetchFresh: vi.fn(), tokens: [] }),
 }));
+const analytics = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 
 const { HyperliquidProPerps } = await import("@/features/trade/components/hyperliquid-pro-perps");
 
@@ -531,6 +533,95 @@ describe("HyperliquidProPerps", () => {
       };
       await act(async () => props.onClosePosition(position, []));
       expect(trading.refetchAll).toHaveBeenCalled();
+    });
+  });
+
+  // The desk used to report nothing to Mixpanel: the perp events were wired to
+  // the previous venue and never moved across.
+  describe("what the desk reports", () => {
+    const reported = (event: string) =>
+      analytics.track.mock.calls.filter(([name]) => name === event).map(([, p]) => p);
+
+    beforeEach(() => analytics.track.mockClear());
+
+    it("reports the market on screen once, however often the desk re-renders", () => {
+      const view = renderDesk();
+      view.rerender(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <HyperliquidProPerps />
+        </NextIntlClientProvider>
+      );
+      expect(reported("perp_market_viewed")).toEqual([
+        { pair: "BTC", market_type: "crypto", venue: "hyperliquid" },
+      ]);
+    });
+
+    it("reports a position the user closed", async () => {
+      trading.actions.closePosition.mockResolvedValue({ id: "close-1", status: "filled" });
+      renderDesk();
+      const props = positionsListProps.mock.calls.at(-1)?.[0] as {
+        onClosePosition: (p: unknown, siblings: string[]) => Promise<void>;
+      };
+      await act(async () =>
+        props.onClosePosition(
+          {
+            id: "pos-1",
+            assetId: "asset-btc",
+            side: "long",
+            size: "0.01",
+            entryPrice: "64000",
+            leverage: 10,
+            markPrice: "65000",
+            unrealizedPnlUsdc: "10",
+          },
+          []
+        )
+      );
+      expect(reported("perp_trade_closed")).toEqual([
+        expect.objectContaining({
+          pair: "BTC",
+          direction: "long",
+          position_id: "pos-1",
+          close_reason: "manual",
+          exit_price: 65000,
+          pnl_usd: 10,
+          notional_usd: 650,
+          order_id: "close-1",
+          venue: "hyperliquid",
+        }),
+      ]);
+    });
+
+    it("reports an order that failed, in the agreed vocabulary", async () => {
+      trading.actions.placeOrder.mockRejectedValue(new Error("User rejected the request."));
+      renderDesk();
+      const ticket = () =>
+        ticketProps.mock.calls.at(-1)?.[0] as {
+          onQuantityChange: (v: string) => void;
+          onBuy: () => void;
+        };
+      act(() => ticket().onQuantityChange("100"));
+      await act(async () => ticket().onBuy());
+      expect(reported("perp_trade_failed")).toEqual([
+        expect.objectContaining({ pair: "BTC", direction: "long", reason: "user_cancelled" }),
+      ]);
+    });
+
+    it("reports the order as submitted before the venue answers", async () => {
+      // An order that is rejected, or never comes back at all, is still an
+      // order someone placed. Without this the funnel loses it entirely.
+      trading.actions.placeOrder.mockRejectedValue(new Error("User rejected the request."));
+      renderDesk();
+      const ticket = () =>
+        ticketProps.mock.calls.at(-1)?.[0] as {
+          onQuantityChange: (v: string) => void;
+          onBuy: () => void;
+        };
+      act(() => ticket().onQuantityChange("100"));
+      await act(async () => ticket().onBuy());
+      expect(reported("perp_order_submitted")).toEqual([
+        expect.objectContaining({ pair: "BTC", direction: "long", order_type: "market" }),
+      ]);
     });
   });
 

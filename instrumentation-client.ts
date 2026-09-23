@@ -10,7 +10,7 @@ import {
   watchtowerEnabled,
   watchtowerOptions,
 } from "@/lib/analytics/watchtower";
-import { pageNameForPath } from "@/lib/analytics/page-name";
+import { campaignTags, pageNameForPath } from "@/lib/analytics/page-name";
 
 initAnalytics();
 void initClarity();
@@ -29,21 +29,36 @@ void initClarity();
 // directly, so instrumentation.ts does not set it.
 if (watchtowerEnabled) Sentry.init({ ...watchtowerOptions(), tunnel: WATCHTOWER_TUNNEL_PATH });
 
+/**
+ * Reports a page. `path` is always sent and `page` only when the route has a
+ * name, so a route nobody has named yet is still counted rather than silently
+ * missing. The campaign tags come off the URL being viewed, which is what
+ * attributes a link clicked part-way through a session.
+ *
+ * `referrer` is sent on the first load only: after that the browser still
+ * reports whatever site the session came from, and repeating it on every
+ * in-app navigation would read as a fresh arrival from that site each time.
+ */
+function reportPage(path: string, search: string, referrer?: string): void {
+  const page = pageNameForPath(path);
+  track("page_view", {
+    ...campaignTags(search),
+    ...(page ? { page } : {}),
+    path,
+    ...(referrer ? { referrer } : {}),
+  });
+}
+
 // The first load never goes through a router transition, so it is reported
 // here; every later navigation comes through the hook below.
 if (typeof window !== "undefined") {
-  const page = pageNameForPath(window.location.pathname);
-  if (page) track("page_view", { page });
+  reportPage(window.location.pathname, window.location.search, document.referrer || undefined);
 }
 
 // Mixpanel doesn't see client-side route changes on its own; this is Next's
 // hook for exactly that, fired on every push/replace/back-forward navigation.
 //
-// Only the nav sections are reported. A path that is not one of them (auth,
-// interests, a modal route) sends nothing rather than inventing a page name,
-// so `page_view` stays the "a section was opened" event the catalog describes.
-// Dashboard tab changes are reported by the dashboard itself, which knows
-// which section is showing without parsing a URL.
+// Every route is reported, named or not.
 // Next calls this once per navigation, and two tools want it, so it is one
 // exported function that fans out rather than two competing exports. Watchtower
 // goes first: it opens the navigation span that any error during the transition
@@ -54,7 +69,6 @@ export function onRouterTransitionStart(
 ): void {
   if (watchtowerEnabled) Sentry.captureRouterTransitionStart(url, navigationType);
 
-  const path = url.startsWith("http") ? new URL(url).pathname : url.split("?")[0];
-  const page = pageNameForPath(path);
-  if (page) track("page_view", { page });
+  const parsed = url.startsWith("http") ? new URL(url) : new URL(url, window.location.origin);
+  reportPage(parsed.pathname, parsed.search);
 }

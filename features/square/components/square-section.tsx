@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { Eyebrow } from "@/components/ui/eyebrow";
@@ -12,6 +12,7 @@ import { SquareLiveStrip } from "@/features/square/components/square-live-strip"
 import { SquarePostCard } from "@/features/square/components/square-post-card";
 import { SquareRail } from "@/features/square/components/square-rail";
 import { Tabs, type Tab } from "@/components/ui/tabs";
+import { track } from "@/lib/analytics/mixpanel";
 import { SquareComposer } from "@/components/share/square-composer";
 import type { TradableSymbol } from "@/lib/square/tradable";
 import type { BuyPayload } from "@/lib/modal-types";
@@ -65,9 +66,24 @@ export function SquareSection({
   // section still works on its own.
   const tab = controlledTab ?? ownTab;
   const setTab = (next: string) => {
+    // The tab id carries its own kind (`lane:`, `topic:`, a discussion id), so
+    // it is reported whole rather than split into a kind and a value nobody
+    // would join back up.
+    if (next !== tab) track("square_feed_filtered", { filter: next });
     setOwnTab(next);
     onTabChange?.(next);
   };
+
+  // Opening the Square. Reported once per mount, with the tab the catalog
+  // names: this section is the home surface, and pals and chat are routes of
+  // their own that report through page_view until they have an entry point
+  // worth counting separately.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current) return;
+    opened.current = true;
+    track("square_opened", { tab: "home" });
+  }, []);
   const squareHref = squareLinks.home();
   const [composing, setComposing] = useState(false);
 

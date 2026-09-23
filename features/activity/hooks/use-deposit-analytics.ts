@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { track } from "@/lib/analytics/mixpanel";
+import { insertIdFor } from "@/lib/analytics/insert-id";
 import {
   depositCandidateIds,
   newDepositArrivals,
@@ -12,6 +13,10 @@ import { claimOnrampWatch, hasOpenOnrampWatch } from "@/lib/ramping/onramp-watch
 import type { ActivityItem } from "@/lib/server/activity";
 
 const STORAGE_KEY = "wsws.analytics.reported-deposits.v1";
+
+// How far back a device's first run reports. Mixpanel's browser endpoint
+// refuses an event more than five days old, so four keeps well inside it.
+const FIRST_RUN_WINDOW_MS = 4 * 24 * 60 * 60 * 1000;
 
 function readSeen(): Set<string> {
   try {
@@ -76,32 +81,50 @@ export function useDepositAnalytics(items: ActivityItem[], wallet: string): void
     // them, by which time the rail has usually reported.
     const held = new Set<string>();
 
-    if (!isFirstRun) {
-      const now = Date.now();
-      for (const arrival of arrivals) {
-        // Claiming removes the deposit it matched, so two arrivals cannot be
-        // attributed to the same transfer.
-        const bank = claimOnrampWatch(wallet, arrival.amountUsd, now);
-        if (bank) {
-          track("deposit_completed", { method: "bank", amount_usd: arrival.amountUsd, ...bank });
-          continue;
-        }
-        if (hasOpenOnrampWatch(wallet, now)) {
-          // Calling this crypto now cannot be taken back if the rail reports it
-          // as the bank deposit a moment later, and a wrong rail is the defect
-          // this whole path exists to fix. Waiting costs one poll.
-          held.add(arrival.id);
-          continue;
-        }
-        track("deposit_completed", {
-          method: "crypto",
-          // The network it settled on. The chain the user sent from is not
-          // recoverable from the arrival; `deposit_network_selected` carries
-          // that, earlier in the same funnel.
-          source_network: arrival.network,
+    const now = Date.now();
+    // A device's first run reports only what arrived recently. Older arrivals
+    // are history: replaying them would report a returning user's past
+    // deposits as new. Recent ones are reported, because a new account's first
+    // deposit is exactly what sits in activity the first time this runs, and a
+    // silent first run is what used to drop it. The same deposit reported by
+    // another device dedupes on its $insert_id and time.
+    const reportable = isFirstRun
+      ? arrivals.filter((arrival) => now - arrival.timestamp <= FIRST_RUN_WINDOW_MS)
+      : arrivals;
+
+    for (const arrival of reportable) {
+      const time = Math.floor(arrival.timestamp / 1000);
+      // Claiming removes the deposit it matched, so two arrivals cannot be
+      // attributed to the same transfer.
+      const bank = claimOnrampWatch(wallet, arrival.amountUsd, now);
+      if (bank) {
+        track("bank_transfer_completed", {
           amount_usd: arrival.amountUsd,
+          ...bank,
+          tx_hash: arrival.hash,
+          time,
+          $insert_id: insertIdFor("bank_transfer_completed", arrival.id),
         });
+        continue;
       }
+      if (hasOpenOnrampWatch(wallet, now)) {
+        // Calling this crypto now cannot be taken back if the rail reports it
+        // as the bank deposit a moment later, and a wrong rail is the defect
+        // this whole path exists to fix. Waiting costs one poll.
+        held.add(arrival.id);
+        continue;
+      }
+      track("deposit_completed", {
+        // The network it settled on. The chain the user sent from is not
+        // recoverable from the arrival; `deposit_network_selected` carries
+        // that, earlier in the same funnel.
+        network: arrival.network,
+        asset: arrival.asset,
+        amount_usd: arrival.amountUsd,
+        tx_hash: arrival.hash,
+        time,
+        $insert_id: insertIdFor("deposit_completed", arrival.id),
+      });
     }
 
     // Remember everything considered, not just what was reported, so a

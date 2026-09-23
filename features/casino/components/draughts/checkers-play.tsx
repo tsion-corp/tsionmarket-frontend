@@ -349,13 +349,16 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
             : match.result.reason === "abandoned"
               ? ("abandoned" as const)
               : ("no_moves" as const);
+    const payout = match.computer?.wager
+      ? computerGamePayout(match.computer.wager, outcome)
+      : gamePayout(match.wager?.stakeUsdc, outcome, match.wager?.feeBps ?? 500);
     track("game_result", {
       game: "checkers",
       result: outcome,
       reason,
-      ...(match.computer?.wager
-        ? computerGamePayout(match.computer.wager, outcome)
-        : gamePayout(match.wager?.stakeUsdc, outcome, match.wager?.feeBps ?? 500)),
+      ...payout,
+      amount_usd: payout.payout_usd,
+      game_id: match.id,
     });
   }, [seat, match?.id, match?.state, match?.result, match?.wager, match?.computer?.wager]);
 

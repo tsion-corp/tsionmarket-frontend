@@ -211,10 +211,24 @@ export function useSwissTournament(tournamentId: string | null) {
       setNameVersion((v) => v + 1);
       applyDetail(next);
       refreshBalance();
-      track("tournament_joined", {
-        game: "chess",
-        entry_usd: Number(next.entryFeeUsdc),
-      });
+      // Swiss is one service feature shared by both board games, so the game
+      // comes off the tournament rather than being assumed. It used to be
+      // hardcoded to chess, which reported every draughts entry as a chess one.
+      const entryFee = Number(next.entryFeeUsdc) || 0;
+      if (next.game === "draughts") {
+        track("tournament_joined", {
+          game: "checkers",
+          entry_usd: entryFee,
+          amount_usd: entryFee,
+          tournament_id: tournamentId as string,
+        });
+      } else {
+        track("chess_tournament_joined", {
+          tournament_id: tournamentId as string,
+          tournament_type: "swiss",
+          entry_fee_usd: entryFee,
+        });
+      }
     },
   });
 

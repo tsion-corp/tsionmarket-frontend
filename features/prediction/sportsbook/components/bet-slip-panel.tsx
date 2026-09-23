@@ -23,8 +23,16 @@ import {
 import { updateSportsbookSlip, useSportsbookSlip } from "../slip-store";
 import { reconcileSlipSelections } from "../slip-reconciliation";
 import { TicketsPanel } from "./tickets-panel";
+import { track } from "@/lib/analytics/mixpanel";
+import { PREDICTION_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 
 const QUICK_STAKES = ["2", "5", "10"];
+
+function numeric<K extends string>(key: K, value: string | null): Partial<Record<K, number>> {
+  if (value === null) return {};
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? ({ [key]: parsed } as Record<K, number>) : {};
+}
 
 interface BetSlipPanelProps {
   capabilities: SportsbookCapabilities | undefined;
@@ -129,10 +137,34 @@ export function BetSlipPanel({
       setReviewedFingerprint(slipFingerprint);
       return;
     }
-    const order = await placement.mutateAsync({
-      selections: slip.selections,
-      stakeUsdc: slip.stake,
+    // What the slip was when it was sent, fixed before it is cleared. The
+    // house takes a minimum of three legs, so leg_count rides on all three
+    // events and a rejection for too few legs is readable from the data.
+    const legs = {
+      leg_count: slip.selections.length,
+      stake_usd: Number(slip.stake),
+      // Both are decimal strings here; the catalog takes numbers, and a figure
+      // that will not parse is left out rather than sent as a zero.
+      ...numeric("combined_odds", odds),
+      ...numeric("potential_payout_usd", estimate),
+    };
+    track("prediction_slip_submitted", {
+      ...legs,
+      market_ids: slip.selections.map((selection) => selection.conditionId).join(","),
     });
+    let order;
+    try {
+      order = await placement.mutateAsync({
+        selections: slip.selections,
+        stakeUsdc: slip.stake,
+      });
+    } catch (error) {
+      track("prediction_bet_failed", { ...legs, ...reasonFor(PREDICTION_FAILURE, error) });
+      // Surfaced by the placement hook's own error state; the slip stays put
+      // so the stake can be retried.
+      throw error;
+    }
+    track("prediction_bet_placed", { ...legs, slip_id: order.ticketId });
     updateSportsbookSlip((current) => ({ ...current, selections: [] }));
     onTicket(order.ticketId);
   }

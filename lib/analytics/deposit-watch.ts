@@ -22,8 +22,13 @@ export const MAX_REMEMBERED = 500;
 
 export interface DepositArrival {
   id: string;
+  hash: string;
   network: string;
+  /** The stablecoin that landed: USDC or USDT. */
+  asset: string;
   amountUsd: number;
+  /** When it arrived, in milliseconds since epoch. */
+  timestamp: number;
 }
 
 // An inbound stablecoin transfer worth a dollar figure. Being one of these does
@@ -75,7 +80,14 @@ export function newDepositArrivals(
         !selfInitiated.has(normalizeHash(item.hash))
     )
     .sort((a, b) => a.timestamp - b.timestamp)
-    .map((item) => ({ id: item.id, network: item.network, amountUsd: item.amount }));
+    .map((item) => ({
+      id: item.id,
+      hash: item.hash,
+      network: item.network,
+      asset: item.symbol.toUpperCase(),
+      amountUsd: item.amount,
+      timestamp: item.timestamp,
+    }));
 }
 
 /**

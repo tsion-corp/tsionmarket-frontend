@@ -152,7 +152,7 @@ export function SquarePostCard({
   const t = useTranslations("square");
   const engage = useSquareEngage();
   const [commenting, setCommenting] = useState(false);
-  const seenRef = useRecordView(post.id);
+  const seenRef = useRecordView(post.id, post.author?.id);
   const author = post.author;
   // Never offer to follow yourself.
   const isMe = meId !== undefined && author?.id === meId;
@@ -400,7 +400,12 @@ export function SquarePostCard({
           activeClass="text-up"
           disabled={engage.isPending}
           onClick={() =>
-            engage.mutate({ postId: post.id, action: "repost", on: !post.repostedByMe })
+            engage.mutate({
+              postId: post.id,
+              action: "repost",
+              on: !post.repostedByMe,
+              authorId: post.author?.id,
+            })
           }
         >
           <svg viewBox="0 0 24 24" aria-hidden className="h-full w-full">
@@ -421,7 +426,14 @@ export function SquarePostCard({
           active={post.likedByMe}
           activeClass="text-down"
           disabled={engage.isPending}
-          onClick={() => engage.mutate({ postId: post.id, action: "like", on: !post.likedByMe })}
+          onClick={() =>
+            engage.mutate({
+              postId: post.id,
+              action: "like",
+              on: !post.likedByMe,
+              authorId: post.author?.id,
+            })
+          }
         >
           <svg viewBox="0 0 24 24" aria-hidden className="h-full w-full">
             <path

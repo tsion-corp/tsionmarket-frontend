@@ -59,7 +59,9 @@ export function CheckersLobby() {
         },
         address
       );
-      if (stake) track("game_staked", { game: "checkers", amount_usd: Number(stake) });
+      if (stake) {
+        track("game_staked", { game: "checkers", amount_usd: Number(stake), game_id: match.id });
+      }
       router.push(`/casino/checkers/play?match=${match.id}`);
     } catch (cause) {
       toast.error(friendlyError(cause, "Couldn't start that game."));

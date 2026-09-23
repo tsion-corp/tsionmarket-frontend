@@ -16,6 +16,7 @@ import {
 import { copyText } from "@/lib/clipboard";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
 import { track } from "@/lib/analytics/mixpanel";
+import { DEPOSIT_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { friendlyError } from "@/lib/errors";
 import { errorCode } from "@/lib/api/envelope";
 import { getWalletAddress } from "@/lib/user";
@@ -305,9 +306,16 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
                 Date.now()
               );
               track("bank_account_requested", {
+                provider: cached.account.bankName,
                 amount_ngn: ngnAmount,
                 fx_rate: Number(rate) || 0,
                 reused: true,
+              });
+              // The account is already in hand, so it is generated in the same
+              // breath it is asked for.
+              track("bank_account_generated", {
+                provider: cached.account.bankName,
+                bank: cached.account.bankName,
               });
               return;
             }
@@ -344,9 +352,36 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
                   // The amount and the rate the user accepted. Never the
                   // account number that came back with them.
                   track("bank_account_requested", {
+                    provider: result.paymentAccount?.bankName ?? "",
                     amount_ngn: ngnAmount,
                     fx_rate: Number(rate) || 0,
                     reused: false,
+                  });
+                  if (result.paymentAccount) {
+                    track("bank_account_generated", {
+                      provider: result.paymentAccount.bankName,
+                      bank: result.paymentAccount.bankName,
+                    });
+                  } else {
+                    // The order was created but carries no account to pay
+                    // into, so there is nothing for the user to do with it.
+                    track("bank_account_failed", {
+                      provider: "",
+                      reason: "account_generation_failed",
+                    });
+                  }
+                },
+                onError: (error) => {
+                  track("bank_account_failed", {
+                    provider: "",
+                    ...reasonFor(DEPOSIT_FAILURE, error),
+                  });
+                  // The dollar value is not known here: the user entered naira
+                  // and no order came back to convert it, so it is left out
+                  // rather than guessed from the quoted rate.
+                  track("deposit_failed", {
+                    method: "bank",
+                    ...reasonFor(DEPOSIT_FAILURE, error),
                   });
                 },
               }

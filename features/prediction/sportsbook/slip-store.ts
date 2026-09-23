@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import type { SlipSelection } from "./api";
+import { track } from "@/lib/analytics/mixpanel";
 
 const LEGACY_STORAGE_KEY = "wsws.prediction.sportsbook-slip.v1";
 const STORAGE_KEY = "wsws.prediction.sportsbook-slip.v2";
@@ -98,14 +99,39 @@ export function updateSportsbookSlip(update: (current: SportsbookSlip) => Sports
 export function toggleSportsbookSelection(selection: SlipSelection) {
   updateSportsbookSlip((current) => {
     if (current.selections.some(({ id }) => id === selection.id)) {
-      return { ...current, selections: current.selections.filter(({ id }) => id !== selection.id) };
+      const selections = current.selections.filter(({ id }) => id !== selection.id);
+      track("prediction_selection_removed", {
+        market_id: selection.conditionId,
+        slip_size: selections.length,
+      });
+      return { ...current, selections };
     }
-    if (selection.expressForbidden) return { ...current, selections: [selection] };
+    // `slip_size` is the slip after the change on both events, so a report can
+    // read the two as one series rather than having to know which way the
+    // count was about to move.
+    const added = (selections: SlipSelection[]) => {
+      track("prediction_selection_added", {
+        market_id: selection.conditionId,
+        outcome: selection.outcomeTitle,
+        ...oddsOf(selection),
+        slip_size: selections.length,
+      });
+      return selections;
+    };
+    // A selection that cannot combine replaces the slip rather than joining it.
+    if (selection.expressForbidden) return { ...current, selections: added([selection]) };
     const compatible = current.selections.filter(
       (item) => item.conditionId !== selection.conditionId && !item.expressForbidden
     );
-    return { ...current, selections: [...compatible, selection].slice(-20) };
+    return { ...current, selections: added([...compatible, selection].slice(-20)) };
   });
+}
+
+// The provider quotes odds as a decimal string. Omitted rather than sent as a
+// zero when it is not a number we can use.
+function oddsOf(selection: SlipSelection): { odds?: number } {
+  const odds = Number(selection.odds);
+  return Number.isFinite(odds) && odds > 0 ? { odds } : {};
 }
 
 export function useSportsbookSlip(): SportsbookSlip {

@@ -13,6 +13,7 @@ import {
   type ArenaSummary,
   type CreateArenaInput,
 } from "@/features/casino/lib/api/arena";
+import { track } from "@/lib/analytics/mixpanel";
 import { defaultPlayerName, organizerWalletMatches } from "@/features/casino/lib/api/swiss";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 
@@ -108,8 +109,19 @@ export function useArenaTournament(arenaId: string) {
       rememberJoinedName(arenaId, address, name);
       return next;
     },
-    onSuccess: applyDetail,
+    onSuccess: (next) => {
+      applyDetail(next);
+      // Arenas are chess only and carry no entry fee, so the nought is the
+      // real figure rather than one we could not find.
+      track("chess_tournament_joined", {
+        tournament_id: arenaId,
+        tournament_type: "arena",
+        entry_fee_usd: 0,
+      });
+    },
   });
+  // Re-joins with the player's own name to set their country. Not a second
+  // entry, so it reports nothing.
   const { mutate: syncCountry } = useMutation({
     mutationFn: async (name: string) => {
       const address = requireWallet(wallet.address);

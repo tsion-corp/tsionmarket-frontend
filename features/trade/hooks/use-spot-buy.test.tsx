@@ -64,7 +64,8 @@ vi.mock("@/features/trade/hooks/use-meme-trade", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/features/trade/hooks/use-meme-trade")>()),
   useMemeTrade: () => ({ phase: "idle", trade: memeTradeHook.trade }),
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
+const analytics = vi.hoisted(() => ({ track: vi.fn() }));
+vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
@@ -190,5 +191,73 @@ describe("useSpotBuy on a swap market", () => {
     await placeOrder();
     expect(toasts.success).toHaveBeenCalledWith("pendingToast", expect.anything());
     expect(toasts.success).not.toHaveBeenCalledWith("boughtToast", expect.anything());
+  });
+});
+
+// A buy reports the USDC it spent and the tokens it got. A delivered swap is a
+// trade: the receipt proves the money moved, whatever the service recorded.
+describe("useSpotBuy analytics", () => {
+  const completed = () =>
+    analytics.track.mock.calls.filter(([name]) => name === "trade_completed").map(([, p]) => p);
+
+  beforeEach(() => {
+    status.data = undefined;
+    swapRoute.value = null;
+    analytics.track.mockClear();
+    memeTradeHook.trade.mockReset();
+  });
+
+  it("reports a delivered swap-market buy with the swap's own amounts", async () => {
+    swapRoute.value = { tokenAddress: "0xdoge" };
+    memeTradeHook.trade.mockResolvedValue({
+      outcome: "delivered",
+      swapId: "s1",
+      requestId: "r1",
+      amounts: { amount_usd: 25, token_quantity: 255.1, amount_source: "fill" },
+      txHash: "0xswap",
+    });
+    await placeOrder();
+    expect(completed()).toEqual([
+      {
+        vertical: "spot",
+        asset: "LINK",
+        side: "buy",
+        amount_usd: 25,
+        token_quantity: 255.1,
+        amount_source: "fill",
+        recorded: "delivered",
+        order_id: "s1",
+        tx_hash: "0xswap",
+      },
+    ]);
+  });
+
+  it("does not count a pending swap-market buy yet", async () => {
+    swapRoute.value = { tokenAddress: "0xdoge" };
+    memeTradeHook.trade.mockResolvedValue({
+      outcome: "pending",
+      swapId: "s2",
+      requestId: null,
+      amounts: null,
+      txHash: null,
+    });
+    await placeOrder();
+    expect(completed()).toEqual([]);
+  });
+
+  it("reports a settled Dextopus buy as the USDC it spent, with its request id", async () => {
+    const { rerender } = await placeOrder();
+    status.data = settled({ status: "settled" });
+    rerender();
+    expect(completed()).toEqual([
+      {
+        vertical: "spot",
+        asset: "LINK",
+        side: "buy",
+        amount_usd: 25,
+        amount_source: "fill",
+        order_id: "req-1",
+      },
+    ]);
   });
 });

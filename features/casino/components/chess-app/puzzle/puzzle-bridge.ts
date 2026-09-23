@@ -4,6 +4,7 @@ import {
   fetchPuzzleSolution,
 } from "@/features/casino/lib/api/chess-puzzles";
 import type { ChessPuzzle, ChessPuzzleSolution } from "@/features/casino/lib/api/types";
+import { track } from "@/lib/analytics/mixpanel";
 import {
   puzzleThemeDescription,
   puzzleThemeLabel,
@@ -20,6 +21,8 @@ interface PuzzleBridgeOptions {
   playerRating: number;
   targetRating: number;
   theme?: string;
+  /** The puzzle on the board when the bridge is installed. */
+  puzzleId: string;
 }
 
 interface ArkPuzzleBridge {
@@ -124,6 +127,14 @@ export function installPuzzleBridge(options: PuzzleBridgeOptions) {
   const pending = new Set<Promise<void>>();
   const startedAt = Date.now();
 
+  // The bridge is the only thing that knows which puzzle is on the board:
+  // finishing one fetches the next without the page reloading, so the section
+  // that mounted it never sees the change. Both puzzle events are reported
+  // here for that reason, and so there is one owner rather than two that can
+  // disagree about which puzzle is current.
+  let currentPuzzleId = options.puzzleId;
+  track('chess_puzzle_started', { puzzle_id: currentPuzzleId });
+
   const bridge = {
     async attempt(input: {
       puzzleId: string;
@@ -148,12 +159,17 @@ export function installPuzzleBridge(options: PuzzleBridgeOptions) {
     },
     async complete(input: { win: boolean }) {
       await Promise.allSettled(pending);
+      // Only a win is a solve. A puzzle the player gave up on finishes too,
+      // and counting it would make the solve rate meaningless.
+      if (input.win) track('chess_puzzle_solved', { puzzle_id: currentPuzzleId });
       const nextPuzzle = await fetchNextPuzzle(
         options.player,
         options.targetRating,
         options.theme
       );
       const nextSolution = await fetchPuzzleSolution(nextPuzzle.id);
+      currentPuzzleId = nextPuzzle.id;
+      track('chess_puzzle_started', { puzzle_id: currentPuzzleId });
       return {
         round: { win: input.win, ratingDiff: 0, themes: {} },
         next: toLichessPuzzleData(

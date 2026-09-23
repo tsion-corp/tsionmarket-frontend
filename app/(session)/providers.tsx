@@ -11,6 +11,11 @@ import { SessionCacheGuard } from "@/components/providers/session-cache-guard";
 import { IdentityTokenBridge } from "@/components/providers/identity-token-bridge";
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
+// Deep imports, not the barrels, for the reason given for the casino import
+// below: this provider is on every session route.
+import { DepositAnalytics } from "@/features/activity/components/deposit-analytics";
+import { BankDepositAnalytics } from "@/features/funds/components/bank-deposit-analytics";
+import { BankWithdrawAnalytics } from "@/features/funds/components/bank-withdraw-analytics";
 import { PredictionCashoutTracker } from "@/features/prediction/components/prediction-cashout-tracker";
 import { usePredictionQueryBroadcast } from "@/features/prediction/markets/query-broadcast";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
@@ -128,6 +133,14 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
                 inside PrivyProvider to read it. Renders nothing. */}
             <AnalyticsIdentity />
             <AnalyticsSegments />
+            {/* Report money arriving and leaving: settled deposits on either
+                rail, and bank withdrawals to their payout. Here rather than on
+                the dashboard, which a user who deposits and goes straight to
+                trading never returns to. Each waits for a signed-in wallet.
+                Render nothing. */}
+            <DepositAnalytics />
+            <BankDepositAnalytics />
+            <BankWithdrawAnalytics />
             {/* Watches open Polymarket cashouts for the market workspace.
                 Needs Privy and the query client. Renders nothing. */}
             <PredictionCashoutTracker />

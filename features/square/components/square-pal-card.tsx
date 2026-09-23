@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useMutation } from "@tanstack/react-query";
+import { track } from "@/lib/analytics/mixpanel";
 import { setFollow, type SuggestedProfile } from "@/lib/api/market-square";
 import { squareLinks } from "@/lib/square/links";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,13 @@ export function SquarePalCard({
     onMutate: (next) => {
       const previous = following;
       setFollowing(next);
+      // `source` is where the button was pressed, which is what says which
+      // surface actually grows the graph.
+      const targetId = person.id;
+      if (targetId) {
+        if (next) track("user_followed", { target_user_id: targetId, source: "pals_deck" });
+        else track("user_unfollowed", { target_user_id: targetId });
+      }
       return { previous };
     },
     onError: (_error, _next, context) => setFollowing(context?.previous ?? false),
