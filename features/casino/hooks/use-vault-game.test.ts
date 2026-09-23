@@ -10,12 +10,59 @@ import { apiError } from "@/lib/api/envelope";
 // `service` what the REST fallback answers.
 const state = vi.hoisted(() => ({
   connected: true,
-  service: "ok" as "ok" | "settled" | "missing" | "down",
+  service: "ok" as "ok" | "settled" | "missing" | "down" | "unstarted" | "legacy",
   chain: vi.fn(),
   rpc: vi.fn(),
   followed: null as number | null,
   unfollow: vi.fn(),
 }));
+
+// What the service answers for a game whose start transaction the chain has
+// not caught up with: the row exists, the round has not begun. Seen on a real
+// create, which is how a just-opened game rendered an empty pot and a dead
+// clock.
+function unstartedRow(gameId: number) {
+  return {
+    gameId,
+    starter: "0xstarter",
+    king: "0x0000000000000000000000000000000000000000",
+    pot: { amount: "0", raw: "0", tokenSymbol: "USDC", usdValue: 0, formattedUsd: "\u2014" },
+    minWager: { amount: "0", raw: "0", tokenSymbol: "USDC", usdValue: 0, formattedUsd: "\u2014" },
+    endTime: 0,
+    timeRemaining: 0,
+    settled: false,
+    active: false,
+  };
+}
+
+// What the service answers for an id the CURRENT contract has not reached yet.
+// Game ids repeat across contract generations, so the retired v4 contract's
+// long-settled ETH game still shows through until v5's own row is indexed.
+function legacyRow(gameId: number) {
+  return {
+    gameId,
+    starter: "0xlegacy",
+    king: "0xlegacy",
+    pot: {
+      amount: "0.0004",
+      raw: "400000000000000",
+      tokenSymbol: "ETH",
+      usdValue: 1,
+      formattedUsd: "$1.07",
+    },
+    minWager: {
+      amount: "0.0002",
+      raw: "200000000000000",
+      tokenSymbol: "ETH",
+      usdValue: 0.5,
+      formattedUsd: "$0.54",
+    },
+    endTime: 1787340713,
+    timeRemaining: 0,
+    settled: true,
+    active: false,
+  };
+}
 
 function row(gameId: number, settled = false) {
   return {
@@ -43,6 +90,8 @@ vi.mock("@/features/casino/lib/vault-api", async () => {
     fetchGame: (gameId: number) => {
       if (state.service === "ok") return Promise.resolve(row(gameId));
       if (state.service === "settled") return Promise.resolve(row(gameId, true));
+      if (state.service === "unstarted") return Promise.resolve(unstartedRow(gameId));
+      if (state.service === "legacy") return Promise.resolve(legacyRow(gameId));
       if (state.service === "missing")
         return Promise.reject(apiError("NOT_FOUND", "Game not found", 404));
       return Promise.reject(new Error("fetch failed"));
@@ -163,6 +212,54 @@ describe("useVaultGame confirmGame", () => {
     expect(await result.current.confirmGame(9)).toBe(false);
     expect(state.chain).not.toHaveBeenCalled();
     expect(client.getQueryData(VAULT_KEYS.game(9))).toBeUndefined();
+  });
+
+  // The bug behind "I created a game, opened it, and saw an empty pot with no
+  // countdown". The service does not 404 for a game the chain has not caught
+  // up with: it answers from the contract a block or two behind the receipt,
+  // so the row is real and the round has not started. Seeding that marks it
+  // FRESH, the arena renders it, and with the socket up nothing refetches. The
+  // same game opened from the lobby was fine, because nothing seeded it there.
+  it("does not seed a row whose round has not started", async () => {
+    vi.useFakeTimers();
+    state.service = "unstarted";
+    const { client, wrapper } = harness(true);
+    const { result } = renderHook(() => useVaultGame(null), { wrapper });
+    const confirmed = result.current.confirmGame(9);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(await confirmed).toBe(false);
+    expect(client.getQueryData(VAULT_KEYS.game(9))).toBeUndefined();
+    expect(client.getQueryData(VAULT_KEYS.games)).toBeUndefined();
+  });
+
+  // Same 200, different wrong row. Ids repeat across contract generations, so
+  // an id the current contract has not reached still answers with the retired
+  // contract's settled game. A game the caller created a moment ago cannot
+  // already be over, so that row is never the one they just paid for.
+  it("does not seed a settled row from the retired contract", async () => {
+    vi.useFakeTimers();
+    state.service = "legacy";
+    const { client, wrapper } = harness(true);
+    const { result } = renderHook(() => useVaultGame(null), { wrapper });
+    const confirmed = result.current.confirmGame(194);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(await confirmed).toBe(false);
+    expect(client.getQueryData(VAULT_KEYS.game(194))).toBeUndefined();
+  });
+
+  it("keeps asking until the round is live, then seeds that", async () => {
+    vi.useFakeTimers();
+    state.service = "unstarted";
+    const { client, wrapper } = harness(true);
+    const { result } = renderHook(() => useVaultGame(null), { wrapper });
+    const timer = setInterval(() => {
+      state.service = "ok";
+    }, 1_000);
+    const confirmed = result.current.confirmGame(9);
+    await vi.advanceTimersByTimeAsync(3_000);
+    clearInterval(timer);
+    expect(await confirmed).toBe(true);
+    expect(client.getQueryData(VAULT_KEYS.game(9))).toMatchObject({ gameId: 9, active: true });
   });
 });
 describe("useVaultGame and the followed game", () => {

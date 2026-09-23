@@ -77,9 +77,9 @@ function LinkIcon({ size = 16, className = "" }: { size?: number; className?: st
   );
 }
 
-function MascotHero() {
+function MascotHero({ className = "mx-auto mt-4 w-[min(290px,82%)]" }: { className?: string }) {
   return (
-    <div className="relative mx-auto mt-4 w-[min(290px,82%)]">
+    <div className={`relative ${className}`}>
       {/* Faded at the bottom so the artwork's cropped shadow melts into the
           sheet instead of ending on a hard edge. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -102,6 +102,35 @@ function Spinner() {
   return (
     <div className="grid h-48 place-items-center">
       <span className="h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+    </div>
+  );
+}
+
+/**
+ * One figure on the stat strip.
+ *
+ * The strip is the thing a page can do that a 520px sheet could not: state
+ * where this person stands in one line, before any of the detail. The figures
+ * are not new — two came from the progress card and two from inside the
+ * network panel, where they were three scrolls apart.
+ */
+function StatTile({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
+  return (
+    <div
+      className={
+        "rounded-[16.54px] border-[0.75px] px-4 py-3.5 " +
+        (accent ? "border-accent/30 bg-accent/[0.07]" : "border-black/7 bg-[#3C3C3C]/21")
+      }
+    >
+      <div
+        className={
+          "tnum text-[22px] leading-none font-semibold lg:text-[26px] " +
+          (accent ? "text-accent" : "text-white")
+        }
+      >
+        {value}
+      </div>
+      <div className="mt-1.5 text-[11.5px] leading-[1.35] font-normal text-white/50">{label}</div>
     </div>
   );
 }
@@ -155,70 +184,122 @@ function InviteScreen({
   };
 
   return (
-    <>
-      <MascotHero />
-      <h2 className="ws-display mt-4 text-center text-[25px]">{t("headline")}</h2>
-      <p className="mx-auto mt-1.5 max-w-[300px] text-center text-[13.5px] leading-[1.5] font-normal text-white/55">
-        {t("sub")}
-      </p>
+    // One column on a phone, two from lg up.
+    //
+    // The hero carries the whole action — who this is for, the link, the share
+    // and how far along they are — because those four things are one thought
+    // and they were spread over a 520px scroll before. What is left is
+    // reference (the two rules) and record (who joined, the network), so the
+    // rules go in a sticky rail and the lists take the wide column, which is
+    // the only part of this page long enough to scroll.
+    <div className="flex flex-col gap-4 lg:gap-5">
+      <section className="relative overflow-hidden rounded-[22px] border-[0.75px] border-white/8 bg-[#3C3C3C]/21 p-5 sm:p-6 lg:p-9">
+        {/* A single soft light behind the mascots, so the band reads as one
+            object at 1100px instead of a flat slab with a picture on it. */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 -left-20 h-72 w-72 rounded-full bg-white/[0.06] blur-3xl"
+        />
 
-      <div className="mt-5 flex items-center gap-2.5 rounded-full border border-white/12 bg-white/5 py-1.5 pr-1.5 pl-4">
-        <LinkIcon className="shrink-0 text-white/45" />
-        <span className="tnum min-w-0 flex-1 truncate text-[13.5px] font-normal text-white/75">
-          {displayLink(url)}
-        </span>
-        <button
-          onClick={() => void copy()}
-          className="text-ink shrink-0 cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[13px] font-semibold hover:opacity-90"
-        >
-          {copied ? t("copied") : t("copy")}
-        </button>
+        <div className="relative grid gap-6 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:items-center lg:gap-12">
+          <MascotHero className="mx-auto w-[min(260px,72%)] lg:mx-0 lg:w-full" />
+
+          <div className="min-w-0">
+            <h2 className="ws-display text-center text-[25px] lg:text-left lg:text-[34px] lg:leading-[1.12]">
+              {t("headline")}
+            </h2>
+            <p className="mx-auto mt-1.5 max-w-[300px] text-center text-[13.5px] leading-[1.5] font-normal text-white/55 lg:mx-0 lg:mt-3 lg:max-w-[440px] lg:text-left lg:text-[14.5px]">
+              {t("sub")}
+            </p>
+
+            {/* The link and the share sit together: they are the page's one
+                action, and they were at opposite ends of a scroll before. */}
+            <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center lg:mt-6">
+              <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-white/12 bg-white/5 py-1.5 pr-1.5 pl-4">
+                <LinkIcon className="shrink-0 text-white/45" />
+                <span className="tnum min-w-0 flex-1 truncate text-[13.5px] font-normal text-white/75">
+                  {displayLink(url)}
+                </span>
+                <button
+                  onClick={() => void copy()}
+                  className="text-ink shrink-0 cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[13px] font-semibold hover:opacity-90"
+                >
+                  {copied ? t("copied") : t("copy")}
+                </button>
+              </div>
+
+              <button
+                onClick={() => void share()}
+                className="shrink-0 cursor-pointer rounded-full border border-white/14 bg-white/6 px-6 py-3 font-sans text-[14px] font-semibold text-white transition-colors hover:bg-white/10 sm:py-2.5"
+              >
+                {t("cta")}
+              </button>
+            </div>
+
+            {/* Progress belongs beside the link rather than in a card further
+                down: it is the answer to "did that work", and a rail is where
+                things you consult live, not things you check. */}
+            <div className="mt-6 border-t border-white/8 pt-4 lg:mt-7">
+              <div className="flex items-center justify-between text-[13px]">
+                <span className="font-normal text-white/50">{t("referralsLabel")}</span>
+                <span className="tnum font-medium text-white">
+                  {referred}/{goal}
+                </span>
+              </div>
+              <div className="mt-2.5">
+                <ProgressBar pct={pct} />
+              </div>
+              {pending > 0 ? (
+                <p className="mt-2 text-[12px] font-normal text-white/45">
+                  {t("pendingNote", { count: pending })}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Two figures always, four once there is a network below this person.
+          Two columns on a phone so the tiles stay readable rather than
+          shrinking to fit four across a 360px screen. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label={t("referralsLabel")} value={referred} />
+        <StatTile label={t("depositPending")} value={pending} />
+        {network ? (
+          <>
+            <StatTile label={t("networkTotal")} value={network.downline.total} />
+            <StatTile label={t("networkCounted")} value={network.downline.counted} accent />
+          </>
+        ) : null}
       </div>
 
-      <ReferralCard className="mt-4">
-        <ReferralCardTitle>{t("progress")}</ReferralCardTitle>
-        <div className="mt-3">
-          <ProgressBar pct={pct} />
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start lg:gap-5">
+        {/* The rules come FIRST in the document, so a phone still reads hero,
+            eligibility, how it works, then the lists — the order the sheet
+            had. On a wide viewport they move to the rail. */}
+        <aside className="flex flex-col gap-3 lg:sticky lg:top-4 lg:order-2">
+          {/* The comp puts eligibility ahead of how-it-works, and marks it with
+              a red info glyph: it states the rule that decides whether a
+              referral pays out at all, so it is a warning, not a description. */}
+          <ReferralCard>
+            <ReferralCardTitle icon={<InfoIcon size={16} className="shrink-0 text-[#FF0909]" />}>
+              {t("eligibilityTitle")}
+            </ReferralCardTitle>
+            <ReferralCardBody>{t("eligibilityBody")}</ReferralCardBody>
+          </ReferralCard>
+
+          <ReferralCard>
+            <ReferralCardTitle>{t("howTitle")}</ReferralCardTitle>
+            <ReferralCardBody>{t("howBody")}</ReferralCardBody>
+          </ReferralCard>
+        </aside>
+
+        <div className="flex min-w-0 flex-col gap-3 lg:order-1">
+          <ReferralListCard referrals={referrals} referred={referred} pending={pending} />
+          <NetworkPanel network={network} loading={networkLoading} />
         </div>
-        <div className="mt-2.5 flex items-center justify-between text-[13px]">
-          <span className="font-normal text-white/50">{t("referralsLabel")}</span>
-          <span className="tnum font-medium text-white">
-            {referred}/{goal}
-          </span>
-        </div>
-        {pending > 0 ? (
-          <p className="mt-1.5 text-[12px] font-normal text-white/45">
-            {t("pendingNote", { count: pending })}
-          </p>
-        ) : null}
-      </ReferralCard>
-
-      {/* The comp puts eligibility ahead of how-it-works, and marks it with a
-          red info glyph: it states the rule that decides whether a referral
-          pays out at all, so it is a warning, not a description. */}
-      <ReferralCard className="mt-3">
-        <ReferralCardTitle icon={<InfoIcon size={16} className="shrink-0 text-[#FF0909]" />}>
-          {t("eligibilityTitle")}
-        </ReferralCardTitle>
-        <ReferralCardBody>{t("eligibilityBody")}</ReferralCardBody>
-      </ReferralCard>
-
-      <ReferralCard className="mt-3">
-        <ReferralCardTitle>{t("howTitle")}</ReferralCardTitle>
-        <ReferralCardBody>{t("howBody")}</ReferralCardBody>
-      </ReferralCard>
-
-      <ReferralListCard referrals={referrals} referred={referred} pending={pending} />
-
-      <NetworkPanel network={network} loading={networkLoading} />
-
-      <button
-        onClick={() => void share()}
-        className="ws-chrome text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
-      >
-        {t("cta")}
-      </button>
-    </>
+      </div>
+    </div>
   );
 }
 

@@ -12,6 +12,8 @@ import {
 interface NetworkPanelProps {
   network: ReferralNetwork | null;
   loading: boolean;
+  /** The page owns the gaps between cards, so the card carries none itself. */
+  className?: string;
 }
 
 /**
@@ -23,13 +25,13 @@ interface NetworkPanelProps {
  * closed to begin with because the counts are the answer most of the time, and
  * a generation can hold hundreds of people.
  */
-export function NetworkPanel({ network, loading }: NetworkPanelProps) {
+export function NetworkPanel({ network, loading, className }: NetworkPanelProps) {
   const t = useTranslations("referral");
   const branches = useDownlineBranches();
 
   if (loading) {
     return (
-      <ReferralCard className="mt-3">
+      <ReferralCard className={className}>
         <ReferralCardTitle>{t("networkTitle")}</ReferralCardTitle>
         <div className="mt-3 flex flex-col gap-2">
           {[0, 1, 2].map((i) => (
@@ -43,7 +45,7 @@ export function NetworkPanel({ network, loading }: NetworkPanelProps) {
   const generations = network?.generations ?? [];
 
   return (
-    <ReferralCard className="mt-3">
+    <ReferralCard className={className}>
       <ReferralCardTitle>{t("networkTitle")}</ReferralCardTitle>
 
       {generations.length === 0 ? (
@@ -52,11 +54,10 @@ export function NetworkPanel({ network, loading }: NetworkPanelProps) {
         </p>
       ) : (
         <>
-          <div className="mt-3 flex gap-2">
-            <Stat label={t("networkTotal")} value={network?.downline.total ?? 0} />
-            <Stat label={t("networkCounted")} value={network?.downline.counted ?? 0} accent />
-          </div>
-
+          {/* The two totals are in the page's stat strip now, where they sit
+              beside the referral counts they belong with. The panel keeps what
+              only it can say: the shape of the network, generation by
+              generation. */}
           <ul className="mt-3 flex flex-col gap-1.5">
             {generations.map((generation) => (
               <GenerationRow
@@ -73,22 +74,6 @@ export function NetworkPanel({ network, loading }: NetworkPanelProps) {
         </>
       )}
     </ReferralCard>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: number; accent?: boolean }) {
-  return (
-    <div
-      className={
-        "flex-1 rounded-[12px] border px-3 py-2.5 " +
-        (accent ? "border-accent/30 bg-accent/[0.07]" : "border-white/10 bg-white/[0.03]")
-      }
-    >
-      <div className={"tnum text-[19px] font-semibold " + (accent ? "text-accent" : "text-white")}>
-        {value}
-      </div>
-      <div className="mt-0.5 text-[11.5px] font-normal text-white/50">{label}</div>
-    </div>
   );
 }
 

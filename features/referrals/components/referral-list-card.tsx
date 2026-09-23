@@ -62,12 +62,15 @@ export function ReferralListCard({
   referrals,
   referred,
   pending,
+  className,
 }: {
   referrals?: ReferralEntry[];
   /** Counted referrals, the number behind the Active tab. */
   referred: number;
   /** Joined but not yet deposited, the number behind the Inactive tab. */
   pending: number;
+  /** The page owns the gaps between cards, so the card carries none itself. */
+  className?: string;
 }) {
   const t = useTranslations("referral");
   const [tab, setTab] = useState<Tab>("active");
@@ -82,7 +85,7 @@ export function ReferralListCard({
   const countedButUnlisted = rows.length === 0 && total > 0;
 
   return (
-    <ReferralCard className="mt-3">
+    <ReferralCard className={className}>
       {/* 326x48 in a 358 card: a 4px inset track holding two 40px pills with
           8px between them. Tab semantics, not plain buttons: these select one
           of two views, and a screen reader should hear it that way. */}

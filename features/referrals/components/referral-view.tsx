@@ -23,32 +23,47 @@ export function ReferralView() {
   const t = useTranslations("referral");
   const stats = useReferralStats(true);
 
-  return (
-    <div className="mx-auto w-full max-w-[520px] px-4 pt-2 pb-16 sm:px-6">
-      <h1 className="ws-display text-center text-[19px]">{t("title")}</h1>
+  // A page, not a sheet, so the column grows with the viewport instead of
+  // holding a 520px strip in the middle of a desktop. The claim step keeps a
+  // narrow measure of its own: it is a single form, and a form stretched to
+  // 1100px is harder to fill, not easier.
+  const claiming = !stats.isPending && !stats.isError && !stats.data?.username;
 
-      {stats.isPending ? (
-        <Spinner />
-      ) : stats.isError || !stats.data ? (
-        <div className="py-14 text-center">
-          <p className="text-[13.5px] font-normal text-white/55">{t("loadFailed")}</p>
-          <button
-            onClick={() => void stats.refetch()}
-            className="mt-4 cursor-pointer rounded-full border border-white/14 bg-white/6 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-white/10"
-          >
-            {t("retry")}
-          </button>
-        </div>
-      ) : stats.data.username ? (
-        <InviteScreen
-          username={stats.data.username}
-          referred={stats.data.referred}
-          pending={stats.data.pending}
-          referrals={stats.data.referrals}
-        />
-      ) : (
-        <ClaimScreen />
-      )}
+  return (
+    <div
+      className={
+        "mx-auto w-full px-4 pt-2 pb-16 sm:px-6 lg:px-8 " +
+        (claiming ? "max-w-[520px]" : "max-w-[1180px]")
+      }
+    >
+      <h1 className="ws-display text-center text-[19px] lg:text-left lg:text-[24px]">
+        {t("title")}
+      </h1>
+
+      <div className="mt-4 lg:mt-5">
+        {stats.isPending ? (
+          <Spinner />
+        ) : stats.isError || !stats.data ? (
+          <div className="py-14 text-center">
+            <p className="text-[13.5px] font-normal text-white/55">{t("loadFailed")}</p>
+            <button
+              onClick={() => void stats.refetch()}
+              className="mt-4 cursor-pointer rounded-full border border-white/14 bg-white/6 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-white/10"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        ) : stats.data.username ? (
+          <InviteScreen
+            username={stats.data.username}
+            referred={stats.data.referred}
+            pending={stats.data.pending}
+            referrals={stats.data.referrals}
+          />
+        ) : (
+          <ClaimScreen />
+        )}
+      </div>
     </div>
   );
 }

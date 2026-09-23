@@ -47,10 +47,44 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * add a way to be wrong without adding an answer. See
  * ADR-2026-09-15-last-man-v5-usdc, decision 7.
  */
+/**
+ * Whether a row is plausibly the game the caller has just paid for.
+ *
+ * Two rows are not, and both come back with a 200 rather than a 404, so the
+ * retry loop below never saw either of them:
+ *
+ * - The ALL-ZERO row. The service answers for a game its index has not reached
+ *   by reading the contract, and that read can land a block or two before the
+ *   start transaction. The id is real, the round has not begun: no pot, no end
+ *   time, not active.
+ * - A SETTLED row. A game the caller created a moment ago cannot already be
+ *   over. This is the legacy contract showing through: ids repeat across
+ *   contract generations, v4 ran past 400 while v5 has only just passed 190,
+ *   so an id in that window still answers with v4's long-settled ETH game
+ *   until v5's own row is indexed (checked live on 2026-09-23: 194 served a
+ *   settled v4 row, and 193 served the v5 row once it existed).
+ */
+function looksLikeAFreshGame(game: VaultGame): boolean {
+  if (game.settled) return false;
+  return game.active || game.endTime > 0;
+}
+
 async function loadFreshGame(gameId: number): Promise<VaultGame | null> {
   for (let attempt = 1; attempt <= CONFIRM_ATTEMPTS; attempt += 1) {
     try {
-      return await fetchGame(gameId);
+      const game = await fetchGame(gameId);
+      if (looksLikeAFreshGame(game)) return game;
+      // Seeding this would write it into the cache as FRESH, so the arena
+      // would open on it and — with the socket up and the REST poll therefore
+      // off — nothing would ever replace it. The same game opened from the
+      // lobby was always fine, because nothing seeds it there.
+      vaultLog(`confirm ${gameId}: row is not the game just created`, {
+        attempt,
+        settled: game.settled,
+        endTime: game.endTime,
+      });
+      if (attempt < CONFIRM_ATTEMPTS) await wait(CONFIRM_RETRY_MS);
+      continue;
     } catch (error) {
       if (isVaultNotFound(error)) {
         vaultLog(`confirm ${gameId}: service has no row yet`, { attempt });
