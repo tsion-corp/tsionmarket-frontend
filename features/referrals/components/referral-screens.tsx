@@ -1,19 +1,13 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
-import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { CloseIcon, InfoIcon } from "@/components/ui/icons";
+import { InfoIcon } from "@/components/ui/icons";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import {
-  useReferralStats,
-  useSetUsername,
-  useUsernameAvailability,
-} from "@/features/referrals/hooks/use-referrals";
+import { useSetUsername, useUsernameAvailability } from "@/features/referrals/hooks/use-referrals";
 import {
   displayLink,
   inviteLink,
@@ -23,6 +17,8 @@ import {
   type ReferralEntry,
 } from "@/features/referrals/lib/referrals";
 import { ReferralListCard } from "@/features/referrals/components/referral-list-card";
+import { NetworkPanel } from "@/features/referrals/components/network-panel";
+import { useReferralNetwork } from "@/features/referrals/hooks/use-referral-network";
 import {
   ReferralCard,
   ReferralCardBody,
@@ -30,15 +26,13 @@ import {
 } from "@/features/referrals/components/referral-card";
 import { CANONICAL_SITE_URL, shareOrigin } from "@/lib/site-url";
 
-// The Invite Friends screen, built to the designer's comp: the three mascots
-// with sparkles, "Let's grow together!", the invite link with Copy, a progress
-// card counting referrals, "How it works?", and a chrome Invite and Earn
-// button. Before any of that can exist the user needs a username, since the
-// username IS the invite code, so a first visit shows the claim step instead.
+// The referral screen: the three mascots with sparkles, "Let's grow together!",
+// the invite link with Copy, a progress card, the eligibility rule, how it
+// works, the people invited, and the reader's own network by generation.
 //
-// Portaled to <body>: this opens from inside the account modal, whose animated
-// panel carries a transform, and a transformed ancestor would trap our fixed
-// overlay inside it.
+// This was a modal reached from the account menu. It is a route now: the
+// network view is something people come back to and read, which is a page's
+// job, and a link to it survives being shared or bookmarked.
 
 const MASCOTS = "/referral/mascots.png";
 
@@ -124,6 +118,9 @@ function InviteScreen({
   pending: number;
   referrals?: ReferralEntry[];
 }) {
+  // Only fetched once a username exists: without one there is no link, so
+  // there is nothing under this person yet to read.
+  const { network, loading: networkLoading } = useReferralNetwork(true);
   const t = useTranslations("referral");
   const origin = useOrigin();
   const url = inviteLink(origin, username);
@@ -213,6 +210,8 @@ function InviteScreen({
 
       <ReferralListCard referrals={referrals} referred={referred} pending={pending} />
 
+      <NetworkPanel network={network} loading={networkLoading} />
+
       <button
         onClick={() => void share()}
         className="ws-chrome text-ink mt-5 w-full cursor-pointer rounded-full bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
@@ -295,86 +294,4 @@ function ClaimScreen() {
   );
 }
 
-export function InviteFriendsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const t = useTranslations("referral");
-  const reduce = useReducedMotion();
-  const stats = useReferralStats(open);
-
-  // Portals need a document; render nothing during SSR.
-  const mounted = useSyncExternalStore(
-    NO_UPDATES,
-    () => true,
-    () => false
-  );
-  if (!mounted) return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {open ? (
-        <>
-          <motion.button
-            aria-label={t("title")}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            onClick={onClose}
-            className="fixed inset-0 z-[440] cursor-default bg-black/70 backdrop-blur-[7px]"
-          />
-          <div className="pointer-events-none fixed inset-0 z-[441] flex items-end justify-center md:items-center md:p-6">
-            <motion.div
-              initial={reduce ? { opacity: 0 } : { y: "100%" }}
-              animate={reduce ? { opacity: 1 } : { y: 0 }}
-              exit={reduce ? { opacity: 0 } : { y: "100%" }}
-              transition={
-                reduce
-                  ? { duration: 0.15 }
-                  : { type: "spring", stiffness: 380, damping: 38, mass: 0.9 }
-              }
-              className="bg-sheet ws-no-scrollbar pointer-events-auto max-h-[92dvh] w-full overflow-y-auto rounded-t-[24px] border border-white/14 px-[26px] pt-4 pb-[26px] shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_-20px_90px_-30px_rgba(0,0,0,0.9)] md:w-[min(440px,100%)] md:rounded-[24px] md:pt-[22px]"
-            >
-              <span
-                aria-hidden
-                className="mx-auto mb-4 block h-1 w-9 rounded-full bg-white/20 md:hidden"
-              />
-              <div className="relative flex items-center justify-center">
-                <span className="ws-display text-[17px]">{t("title")}</span>
-                <button
-                  onClick={onClose}
-                  aria-label="Close"
-                  className="absolute right-0 grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full border border-white/12 bg-white/6 text-white/70"
-                >
-                  <CloseIcon />
-                </button>
-              </div>
-
-              {stats.isPending ? (
-                <Spinner />
-              ) : stats.isError || !stats.data ? (
-                <div className="py-14 text-center">
-                  <p className="text-[13.5px] font-normal text-white/55">{t("loadFailed")}</p>
-                  <button
-                    onClick={() => void stats.refetch()}
-                    className="mt-4 cursor-pointer rounded-full border border-white/14 bg-white/6 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-white/10"
-                  >
-                    {t("retry")}
-                  </button>
-                </div>
-              ) : stats.data.username ? (
-                <InviteScreen
-                  username={stats.data.username}
-                  referred={stats.data.referred}
-                  pending={stats.data.pending}
-                  referrals={stats.data.referrals}
-                />
-              ) : (
-                <ClaimScreen />
-              )}
-            </motion.div>
-          </div>
-        </>
-      ) : null}
-    </AnimatePresence>,
-    document.body
-  );
-}
+export { InviteScreen, ClaimScreen, Spinner };

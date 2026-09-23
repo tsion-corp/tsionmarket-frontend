@@ -2884,7 +2884,18 @@
     "noInactive": "Personne n'est en attente d'un premier dépôt.",
     "listUnavailable": "{count, plural, one {# parrainage s'affichera ici lorsque les noms seront disponibles.} other {# parrainages s'afficheront ici lorsque les noms seront disponibles.}}",
     "eligibilityTitle": "Éligibilité au parrainage",
-    "eligibilityBody": "Votre ami doit s'inscrire via votre lien de parrainage et effectuer un premier dépôt d'au moins 1 $ pour que le parrainage soit comptabilisé."
+    "eligibilityBody": "Votre ami doit s'inscrire via votre lien de parrainage et effectuer un premier dépôt d'au moins 1 $ pour que le parrainage soit comptabilisé.",
+    "networkTitle": "Ton réseau",
+    "networkEmpty": "Personne n'est encore entré par ton lien. Partage-le et ils apparaîtront ici.",
+    "networkTotal": "Dans ton réseau",
+    "networkCounted": "Comptés",
+    "networkGeneration": "Génération {n}",
+    "networkRowCounts": "{counted} sur {total} comptés",
+    "networkBranchEmpty": "Personne à ce niveau pour l'instant.",
+    "networkLoading": "Chargement…",
+    "networkMore": "Voir plus",
+    "networkCountedTag": "Compté",
+    "networkPendingTag": "Pas encore"
   },
   "marquee": {
     "liveLabel": "En direct",

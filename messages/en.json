@@ -2884,7 +2884,18 @@
     "noInactive": "Nobody is waiting on a first deposit.",
     "listUnavailable": "{count, plural, one {# referral to show here once names are available.} other {# referrals to show here once names are available.}}",
     "eligibilityTitle": "Referral Eligibility",
-    "eligibilityBody": "Your friend must join through your referral link and make a first deposit of at least $1 for the referral to count."
+    "eligibilityBody": "Your friend must join through your referral link and make a first deposit of at least $1 for the referral to count.",
+    "networkTitle": "Your network",
+    "networkEmpty": "Nobody has joined through your link yet. Share it and they'll show up here.",
+    "networkTotal": "In your network",
+    "networkCounted": "Counted",
+    "networkGeneration": "Generation {n}",
+    "networkRowCounts": "{counted} of {total} counted",
+    "networkBranchEmpty": "Nobody at this level yet.",
+    "networkLoading": "Loading…",
+    "networkMore": "Show more",
+    "networkCountedTag": "Counted",
+    "networkPendingTag": "Not yet"
   },
   "marquee": {
     "liveLabel": "Live",

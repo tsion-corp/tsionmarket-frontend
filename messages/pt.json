@@ -2884,7 +2884,18 @@
     "noInactive": "Ninguém está a aguardar um primeiro depósito.",
     "listUnavailable": "{count, plural, one {# indicação aparecerá aqui quando houver nomes disponíveis.} other {# indicações aparecerão aqui quando houver nomes disponíveis.}}",
     "eligibilityTitle": "Elegibilidade de indicações",
-    "eligibilityBody": "O teu amigo tem de aderir através do teu link de indicação e fazer um primeiro depósito de pelo menos 1 $ para a indicação contar."
+    "eligibilityBody": "O teu amigo tem de aderir através do teu link de indicação e fazer um primeiro depósito de pelo menos 1 $ para a indicação contar.",
+    "networkTitle": "A tua rede",
+    "networkEmpty": "Ainda não entrou ninguém pelo teu link. Partilha-o e vão aparecer aqui.",
+    "networkTotal": "Na tua rede",
+    "networkCounted": "Contados",
+    "networkGeneration": "Geração {n}",
+    "networkRowCounts": "{counted} de {total} contados",
+    "networkBranchEmpty": "Ainda não há ninguém neste nível.",
+    "networkLoading": "A carregar…",
+    "networkMore": "Ver mais",
+    "networkCountedTag": "Contado",
+    "networkPendingTag": "Ainda não"
   },
   "marquee": {
     "liveLabel": "Ao vivo",

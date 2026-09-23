@@ -147,7 +147,14 @@ async function walletGate(req: NextRequest, claimed: string | null): Promise<Nex
 // Privy identity token itself, so no wallet appears in the request at all.
 // The proxy checks for a session and passes the token through; ownership is
 // enforced upstream, where the wallet comes out of the verified token.
-const IDENTITY_GET_PATHS = new Set(["referrals/me"]);
+const IDENTITY_GET_PATHS = new Set([
+  "referrals/me",
+  // The caller's own network. Both are scoped upstream by the verified token,
+  // exactly as referrals/me is: neither takes a wallet, so there is nothing
+  // here to check beyond "is somebody signed in".
+  "referrals/me/network",
+  "referrals/me/downline",
+]);
 const IDENTITY_POST_PATHS = new Set(["referrals/claim"]);
 const IDENTITY_PUT_PATHS = new Set(["profiles/me/username"]);
 

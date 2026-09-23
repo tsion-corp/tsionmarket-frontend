@@ -110,3 +110,64 @@ describe("wallet-scoped reads", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * The network reads are scoped upstream by the verified Privy token, exactly
+ * as /referrals/me is. What the proxy owes them is narrow and easy to get
+ * wrong: require a session, forward the token, and do not forward it anywhere
+ * else.
+ */
+describe("the caller's own referral network", () => {
+  const withIdentity = (path: string) =>
+    new NextRequest(`http://app.test/api/kash/${path}`, {
+      headers: { authorization: "Bearer t", "privy-id-token": "privy-token" },
+    });
+
+  it.each(["referrals/me/network", "referrals/me/downline?generation=1"])(
+    "forwards %s with the caller's identity token",
+    async (path) => {
+      const res = await route.GET(withIdentity(path), ctx(path.split("?")[0]));
+      expect(res.status).toBe(200);
+      const [url, init] = fetch.mock.calls[0];
+      expect(String(url)).toContain(path.split("?")[0]);
+      expect(new Headers(init.headers).get("privy-id-token")).toBe("privy-token");
+    }
+  );
+
+  it("carries the generation and cursor upstream", async () => {
+    const path = "referrals/me/downline";
+    const req = new NextRequest(`http://app.test/api/kash/${path}?generation=2&cursor=42`, {
+      headers: { authorization: "Bearer t", "privy-id-token": "privy-token" },
+    });
+    await route.GET(req, ctx(path));
+    expect(String(fetch.mock.calls[0][0])).toContain("generation=2&cursor=42");
+  });
+
+  it.each(["referrals/me/network", "referrals/me/downline"])(
+    "refuses %s without an identity token",
+    async (path) => {
+      const res = await route.GET(get(path), ctx(path));
+      expect(res.status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each(["referrals/me/network", "referrals/me/downline"])(
+    "refuses %s without a session",
+    async (path) => {
+      verifyRequest.mockResolvedValue(null);
+      const res = await route.GET(withIdentity(path), ctx(path));
+      expect(res.status).toBe(401);
+      expect(fetch).not.toHaveBeenCalled();
+    }
+  );
+
+  // The token is the caller's identity; it belongs only on the routes the
+  // engine verifies it on.
+  it("does not forward the identity token to an unrelated read", async () => {
+    const path = `accounts/${WALLET}`;
+    await route.GET(withIdentity(path), ctx(path));
+    const [, init] = fetch.mock.calls[0];
+    expect(new Headers(init.headers).get("privy-id-token")).toBeNull();
+  });
+});

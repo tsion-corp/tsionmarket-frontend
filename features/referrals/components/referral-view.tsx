@@ -1,0 +1,54 @@
+"use client";
+
+import { useTranslations } from "next-intl";
+import { useReferralStats } from "@/features/referrals/hooks/use-referrals";
+import {
+  ClaimScreen,
+  InviteScreen,
+  Spinner,
+} from "@/features/referrals/components/referral-screens";
+
+/**
+ * The referral page.
+ *
+ * It was a modal opened from the account menu. A page instead, for two
+ * reasons: the network view is something people come back to and read rather
+ * than glance at, and a route can be linked, shared and returned to, which a
+ * sheet that only exists while a menu is open cannot.
+ *
+ * Until a username exists there is no invite link and nothing below this
+ * person, so a first visit is the claim step and nothing else.
+ */
+export function ReferralView() {
+  const t = useTranslations("referral");
+  const stats = useReferralStats(true);
+
+  return (
+    <div className="mx-auto w-full max-w-[520px] px-4 pt-2 pb-16 sm:px-6">
+      <h1 className="ws-display text-center text-[19px]">{t("title")}</h1>
+
+      {stats.isPending ? (
+        <Spinner />
+      ) : stats.isError || !stats.data ? (
+        <div className="py-14 text-center">
+          <p className="text-[13.5px] font-normal text-white/55">{t("loadFailed")}</p>
+          <button
+            onClick={() => void stats.refetch()}
+            className="mt-4 cursor-pointer rounded-full border border-white/14 bg-white/6 px-5 py-2.5 text-[13px] font-medium text-white hover:bg-white/10"
+          >
+            {t("retry")}
+          </button>
+        </div>
+      ) : stats.data.username ? (
+        <InviteScreen
+          username={stats.data.username}
+          referred={stats.data.referred}
+          pending={stats.data.pending}
+          referrals={stats.data.referrals}
+        />
+      ) : (
+        <ClaimScreen />
+      )}
+    </div>
+  );
+}

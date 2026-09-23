@@ -13,7 +13,7 @@ import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { ModalLoading } from "@/components/layout/modals/modal-loading";
 import { PortfolioFab } from "@/features/portfolio/components/portfolio-fab";
-import { InviteFriendsModal, useClaimReferralFromLink } from "@/features/referrals";
+import { useClaimReferralFromLink } from "@/features/referrals";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import type { NavItem } from "@/components/layout/nav-items";
@@ -56,9 +56,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   // copy for the balance card and the empty states.
   const [fundsOpen, setFundsOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
-  // The marquee's invite item opens the same Invite Friends modal the account
-  // menu reaches; the shell owns an instance so the item works on every page.
-  const [inviteOpen, setInviteOpen] = useState(false);
 
   // Anyone rendering the shell has an account, including sessions that
   // predate the flag — so the landing page can greet them with "Log in".
@@ -118,8 +115,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
         onOpenFunds={() => setFundsOpen(true)}
         onOpenWithdraw={() => setWithdrawOpen(true)}
       />
-
-      <InviteFriendsModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
 
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
         <AccountModal onClose={() => setAccountOpen(false)} />

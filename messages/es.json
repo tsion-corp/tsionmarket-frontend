@@ -2884,7 +2884,18 @@
     "noInactive": "Nadie está pendiente de un primer depósito.",
     "listUnavailable": "{count, plural, one {# referido aparecerá aquí cuando haya nombres disponibles.} other {# referidos aparecerán aquí cuando haya nombres disponibles.}}",
     "eligibilityTitle": "Elegibilidad de referidos",
-    "eligibilityBody": "Tu amigo debe unirse a través de tu enlace de referido y hacer un primer depósito de al menos 1 $ para que el referido cuente."
+    "eligibilityBody": "Tu amigo debe unirse a través de tu enlace de referido y hacer un primer depósito de al menos 1 $ para que el referido cuente.",
+    "networkTitle": "Tu red",
+    "networkEmpty": "Todavía no ha entrado nadie por tu enlace. Compártelo y aparecerán aquí.",
+    "networkTotal": "En tu red",
+    "networkCounted": "Contados",
+    "networkGeneration": "Generación {n}",
+    "networkRowCounts": "{counted} de {total} contados",
+    "networkBranchEmpty": "Todavía no hay nadie en este nivel.",
+    "networkLoading": "Cargando…",
+    "networkMore": "Ver más",
+    "networkCountedTag": "Contado",
+    "networkPendingTag": "Todavía no"
   },
   "marquee": {
     "liveLabel": "En vivo",

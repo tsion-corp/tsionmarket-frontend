@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -7,7 +8,6 @@ import { useLinkWithPasskey, useLogout, usePrivy } from "@privy-io/react-auth";
 import { SquareAvatar } from "@/components/ui/square-avatar";
 import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { LanguageSelect } from "@/components/ui/language-select";
-import { InviteFriendsModal } from "@/features/referrals";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { deriveProfile } from "@/lib/user";
 import { toast } from "@/lib/toast";
@@ -60,7 +60,6 @@ function InviteIcon({ size = 20 }: { size?: number }) {
 
 export function AccountModal({ onClose }: AccountModalProps) {
   const t = useTranslations("account");
-  const [inviteOpen, setInviteOpen] = useState(false);
   const tLanguage = useTranslations("language");
   const { user } = usePrivy();
   const router = useRouter();
@@ -108,12 +107,12 @@ export function AccountModal({ onClose }: AccountModalProps) {
             {t("addPasskey")}
           </button>
         ) : null}
-        <button onClick={() => setInviteOpen(true)} className={`${item} text-white`}>
+        <Link href="/referrals" onClick={onClose} className={`${item} text-white`}>
           <span className="text-accent">
             <InviteIcon />
           </span>
           {t("inviteFriends")}
-        </button>
+        </Link>
         <button onClick={onClose} className={`${item} text-white`}>
           <HelpIcon size={20} />
           {t("helpSupport")}
@@ -123,7 +122,6 @@ export function AccountModal({ onClose }: AccountModalProps) {
           {t("signOut")}
         </button>
       </div>
-      <InviteFriendsModal open={inviteOpen} onClose={() => setInviteOpen(false)} />
     </div>
   );
 }

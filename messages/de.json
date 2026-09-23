@@ -2884,7 +2884,18 @@
     "noInactive": "Niemand wartet auf eine erste Einzahlung.",
     "listUnavailable": "{count, plural, one {# Empfehlung erscheint hier, sobald Namen verfügbar sind.} other {# Empfehlungen erscheinen hier, sobald Namen verfügbar sind.}}",
     "eligibilityTitle": "Voraussetzungen für Empfehlungen",
-    "eligibilityBody": "Dein Freund muss über deinen Empfehlungslink beitreten und eine erste Einzahlung von mindestens 1 $ vornehmen, damit die Empfehlung zählt."
+    "eligibilityBody": "Dein Freund muss über deinen Empfehlungslink beitreten und eine erste Einzahlung von mindestens 1 $ vornehmen, damit die Empfehlung zählt.",
+    "networkTitle": "Dein Netzwerk",
+    "networkEmpty": "Noch ist niemand über deinen Link gekommen. Teile ihn, dann erscheinen sie hier.",
+    "networkTotal": "In deinem Netzwerk",
+    "networkCounted": "Gezählt",
+    "networkGeneration": "Generation {n}",
+    "networkRowCounts": "{counted} von {total} gezählt",
+    "networkBranchEmpty": "Auf dieser Ebene noch niemand.",
+    "networkLoading": "Wird geladen…",
+    "networkMore": "Mehr anzeigen",
+    "networkCountedTag": "Gezählt",
+    "networkPendingTag": "Noch nicht"
   },
   "marquee": {
     "liveLabel": "Live",

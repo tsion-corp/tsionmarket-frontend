@@ -131,6 +131,64 @@ export function getMyReferralStats(): Promise<ReferralStats> {
   return kash.authedGet("/referrals/me");
 }
 
+/**
+ * A generation of the caller's network: how many people it holds and how many
+ * of those have counted (joined through a link AND deposited).
+ */
+export interface GenerationCount {
+  generation: number;
+  total: number;
+  counted: number;
+}
+
+/** The caller's own network, as `/referrals/me/network` answers it. */
+export interface ReferralNetwork {
+  wallet: string;
+  username: string | null;
+  joinedAt: string | null;
+  qualified: boolean;
+  downline: { total: number; counted: number };
+  generations: GenerationCount[];
+}
+
+/** One person in the caller's downline. */
+export interface NetworkPerson {
+  wallet: string;
+  username: string | null;
+  claimedAt: string | null;
+  qualified: boolean;
+}
+
+export interface NetworkPage {
+  people: NetworkPerson[];
+  nextCursor: string | null;
+}
+
+/** The empty network, for a wallet the engine has no node for. */
+export const EMPTY_NETWORK: ReferralNetwork = {
+  wallet: "",
+  username: null,
+  joinedAt: null,
+  qualified: false,
+  downline: { total: 0, counted: 0 },
+  generations: [],
+};
+
+export function getMyReferralNetwork(): Promise<ReferralNetwork> {
+  return kash.authedGet("/referrals/me/network");
+}
+
+export function getMyDownline(generation: number, cursor?: string | null): Promise<NetworkPage> {
+  const params = new URLSearchParams({ generation: String(generation) });
+  if (cursor) params.set("cursor", cursor);
+  return kash.authedGet(`/referrals/me/downline?${params.toString()}`);
+}
+
+/** The name a row shows: their handle, or their truncated wallet. */
+export function personHandle(person: NetworkPerson): string {
+  return person.username ? `@${person.username}` : truncateAddress(person.wallet);
+}
+
 export function putUsername(username: string): Promise<{ wallet: string; username: string }> {
   return kash.put("/profiles/me/username", { username });
 }
