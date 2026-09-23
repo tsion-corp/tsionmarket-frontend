@@ -49,7 +49,7 @@ describe("Market Square card", () => {
     );
     expect(screen.getByText("Base season, who wins")).toBeInTheDocument();
     expect(screen.getByText("Live with Ada")).toBeInTheDocument();
-    const join = link(/Join live/);
+    const join = link(/Join gistroom/);
     expect(join).toHaveAttribute("href", "/square/gist-rooms/r1");
     expect(join).not.toHaveAttribute("target");
     expect(screen.getAllByRole("link")).toHaveLength(1);

@@ -10,7 +10,7 @@ scenario-impact: none
 Market Square is served at `/square` as a Next.js multi-zone: `next.config.ts`
 rewrites `/square` and `/square/*` to its deployment. Every link into it was
 still built as an absolute `https://square.tsionark.com/...`, opened in a new
-tab. So a reader tapping "Join live" left tsionark.com for a sub-domain, in a
+tab. So a reader tapping "Join gistroom" left tsionark.com for a sub-domain, in a
 second tab, to read something this app already serves.
 
 `marketSquareHref()` now returns the zone path. It is the one place every
