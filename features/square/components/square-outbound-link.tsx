@@ -3,13 +3,20 @@
 import { IconVoiceMode } from "@/features/square/components/square-home-icons";
 
 /**
- * A "do more" control on the Square page: a pill that opens the Square's own
- * deployment on exactly the room, person, house or post the card shows.
+ * A "do more" control on the Square page: a pill that opens the Square on
+ * exactly the room, person, house or post the card shows.
  *
- * Always a new tab with an opener-less window, because the destination is a
- * sibling deployment rather than a route here. Renders nothing without an
- * address: a pill that goes nowhere is worse than no pill, the rule every
- * cross-product link in this app follows.
+ * The SAME TAB. The name says outbound and it is not: the Square is served
+ * under /square on this origin as a multi-zone, so these pills stay on
+ * tsionark.com and hand the reader to the Square's own code with their session
+ * intact. They used to open square.tsionark.com in a second tab, which both
+ * changed the sub-domain and left the app behind in the tab they came from.
+ *
+ * A plain anchor rather than a `next/link`: the zone is another app, and this
+ * router has no route there to transition to (lib/square-zone).
+ *
+ * Renders nothing without an address: a pill that goes nowhere is worse than
+ * no pill, the rule every cross-product link in this app follows.
  *
  * Three looks, the three the Square's Home draws:
  *   · create: the purple ramp Home puts on its one action per card, with the
@@ -48,8 +55,6 @@ export function SquareOutboundLink({
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
       aria-label={ariaLabel}
       style={variant === "create" ? { background: SQUARE_RAMP } : undefined}
       className={`${shared} ${look} ${className}`}

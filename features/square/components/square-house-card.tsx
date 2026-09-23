@@ -123,8 +123,6 @@ export function SquareHouseCard({ house }: { house: MarketSquareHouse }) {
         {href ? (
           <a
             href={href}
-            target="_blank"
-            rel="noopener noreferrer"
             className="ws-pressable absolute flex items-center font-medium text-white transition-opacity hover:opacity-90"
             style={{
               left: u(276.8),

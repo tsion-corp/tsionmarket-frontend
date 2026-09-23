@@ -106,8 +106,6 @@ function GlyphLink({
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
       aria-label={label}
       className={cn(
         "flex h-6 w-6 shrink-0 items-center justify-center text-[#d4d4d8] transition-colors",
@@ -124,12 +122,7 @@ function TappableLink({ path, value }: { path: string; value: string }) {
   const href = marketSquareHref(path);
   if (!href) return <span>{value}</span>;
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-[#c27aff] hover:underline"
-    >
+    <a href={href} className="text-[#c27aff] hover:underline">
       {value}
     </a>
   );
@@ -229,8 +222,6 @@ export function SquareFeedPostCard({
                 {authorHref ? (
                   <a
                     href={authorHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="truncate text-[14.8px] leading-[14.1px] font-bold text-white hover:underline"
                   >
                     {authorName}
@@ -251,8 +242,6 @@ export function SquareFeedPostCard({
             {href ? (
               <a
                 href={href}
-                target="_blank"
-                rel="noopener noreferrer"
                 aria-label={t("openPost")}
                 className="hover:text-white/80 hover:underline"
               >
@@ -271,8 +260,6 @@ export function SquareFeedPostCard({
             {href ? (
               <a
                 href={href}
-                target="_blank"
-                rel="noopener noreferrer"
                 aria-label={t("tip")}
                 title={t("tip")}
                 className="ws-pressable flex h-[33.26px] w-[33.26px] shrink-0 items-center justify-center rounded-full border border-white/20 text-[#d4d4d8] transition-colors hover:bg-white/10 hover:text-white"
@@ -283,8 +270,6 @@ export function SquareFeedPostCard({
             {authorHref ? (
               <a
                 href={authorHref}
-                target="_blank"
-                rel="noopener noreferrer"
                 aria-label={t("winkAt", { name: authorName })}
                 title={t("wink")}
                 className="ws-pressable flex h-[33.26px] w-[33.26px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(195deg,#9f65fd_0%,#7e3beb_100%)] text-white transition-colors"
@@ -442,8 +427,6 @@ export function SquareFeedPostCard({
             {href ? (
               <a
                 href={href}
-                target="_blank"
-                rel="noopener noreferrer"
                 aria-label={t("moreOptions")}
                 className="text-grey-100 flex h-[38.37px] w-[38.37px] items-center justify-center rounded-full bg-[linear-gradient(135deg,#111111_0%,#171717_55%,#1c1c1c_100%)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09),inset_-1px_-1px_2px_rgba(255,255,255,0.10)] transition-colors hover:text-[#9f65fd]"
               >

@@ -288,12 +288,7 @@ function ComposerBody({
         <p className="text-grey-300 mt-3 text-[13px]">
           {t("posted")}{" "}
           {postedHref ? (
-            <a
-              href={postedHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white underline"
-            >
+            <a href={postedHref} className="text-white underline">
               {t("viewPost")}
             </a>
           ) : null}

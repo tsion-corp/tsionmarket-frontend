@@ -217,8 +217,6 @@ export function SquareLivePromo() {
           {squareHref ? (
             <a
               href={squareHref}
-              target="_blank"
-              rel="noopener noreferrer"
               aria-label="Join Space"
               className="absolute z-10 cursor-pointer"
               style={{ left: "67.8%", top: "46.5%", width: "28.1%", height: "19.9%" }}
@@ -317,8 +315,6 @@ export function SquarePeoplePromo() {
           <div className="flex flex-1 flex-col items-center text-center">
             <a
               href={squareLinks.profile(profile.username) ?? undefined}
-              target="_blank"
-              rel="noopener noreferrer"
               className="transition-[filter] hover:brightness-110"
             >
               <SquareAvatar

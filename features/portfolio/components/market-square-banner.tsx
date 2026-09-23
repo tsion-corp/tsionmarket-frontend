@@ -67,8 +67,6 @@ export function MarketSquareBanner({ href, className }: { href: string; classNam
   return (
     <a
       href={href}
-      target="_blank"
-      rel="noopener noreferrer"
       aria-label={t("squareAria")}
       ref={ref}
       className={cn("ws-pressable relative block w-full overflow-hidden", className)}

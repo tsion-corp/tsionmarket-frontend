@@ -33,12 +33,7 @@ export function SquareHomeSearch({ query, meId }: { query: string; meId?: string
   return (
     <div className="flex flex-col gap-6 pb-16" aria-live="polite">
       {codeHref ? (
-        <a
-          href={codeHref}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="ws-card ws-pressable flex items-center gap-3 p-4"
-        >
+        <a href={codeHref} className="ws-card ws-pressable flex items-center gap-3 p-4">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(90deg,#9F65FD_0%,#5B05E6_100%)] text-[15px] font-bold text-white">
             #
           </span>
@@ -203,7 +198,7 @@ function ResultLink({
     : "ws-pressable flex items-center gap-3 px-1 py-3";
   if (!href) return <div className={className}>{children}</div>;
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+    <a href={href} className={className}>
       {children}
     </a>
   );

@@ -126,12 +126,7 @@ function SquareLink({ path, value }: { path: string; value: string }) {
   const href = marketSquareHref(path);
   if (!href) return <span>{value}</span>;
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-accent hover:underline"
-    >
+    <a href={href} className="text-accent hover:underline">
       {value}
     </a>
   );
@@ -215,8 +210,6 @@ export function SquarePostCard({
         {href ? (
           <a
             href={href}
-            target="_blank"
-            rel="noopener noreferrer"
             className="text-grey-600 hover:text-grey-300 shrink-0 p-1 transition-colors"
             aria-label={t("openPost")}
           >
@@ -314,8 +307,6 @@ export function SquarePostCard({
       {post.preview ? (
         <a
           href={href ?? undefined}
-          target="_blank"
-          rel="noopener noreferrer"
           className="border-grey-800 bg-grey-900 hover:border-grey-700 mt-3 flex items-center gap-3 rounded-xl border p-3 transition-colors"
         >
           {post.preview.imageUrl ? (
@@ -344,8 +335,6 @@ export function SquarePostCard({
       {poster ? (
         <a
           href={href ?? undefined}
-          target="_blank"
-          rel="noopener noreferrer"
           className="border-grey-800 relative mt-3 block overflow-hidden rounded-xl border bg-black/40"
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- author-supplied host is unknown */}

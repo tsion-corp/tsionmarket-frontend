@@ -94,10 +94,15 @@ export function SquareCard({ room, avatars, onHold }: SquareCardProps) {
       action={
         live
           ? {
+              // NOT `external`. The room is at /square, which this app rewrites
+              // to the Square's own deployment as a multi-zone, so it is the
+              // same origin: a new tab would drop the reader out of the app
+              // they are already in. DiscoveryCta makes a zone path a full page
+              // load in the same tab, which is what hands them over with their
+              // session intact.
               href: room.href as string,
               label: t("squareJoin"),
-              icon: <ArrowOut />,
-              external: true,
+              icon: <Chevron />,
             }
           : { href: SQUARE_PAGE, label: t("squareOpen"), icon: <Chevron /> }
       }

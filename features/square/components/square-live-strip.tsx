@@ -54,13 +54,7 @@ export function SquareLiveStrip({ streams }: { streams: MarketSquareFeedStream[]
           "border-grey-800 bg-grey-900 hover:border-grey-700 flex w-[212px] shrink-0 " +
           "snap-start items-center gap-2 rounded-full border px-3 py-2 transition-colors";
         return href ? (
-          <a
-            key={stream.id}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={className}
-          >
+          <a key={stream.id} href={href} className={className}>
             {content}
           </a>
         ) : (

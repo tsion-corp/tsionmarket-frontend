@@ -38,16 +38,16 @@ function renderBanner(href = SQUARE) {
 }
 
 describe("MarketSquareBanner", () => {
-  it("opens the square's own deployment in a new tab, safely", () => {
+  it("opens the square in the same tab, on this origin", () => {
     // The square is a sibling deployment rather than a route here, so this is a
     // plain anchor. rel is not optional on a target=_blank link.
     renderBanner();
     const link = screen.getByRole("link");
 
     expect(link).toHaveAttribute("href", SQUARE);
-    expect(link).toHaveAttribute("target", "_blank");
-    expect(link).toHaveAttribute("rel", expect.stringContaining("noopener"));
-    expect(link).toHaveAttribute("rel", expect.stringContaining("noreferrer"));
+    // The square is served under /square on this origin, so the banner hands
+    // the reader over rather than opening the site again in a second tab.
+    expect(link).not.toHaveAttribute("target");
   });
 
   it("carries an accessible name, so the banner is not an unlabelled link", () => {

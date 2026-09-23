@@ -115,7 +115,7 @@ function AuthorLink({ username, children }: { username: string; children: React.
   const href = marketSquareHref(`u/${username}`);
   if (!href) return <>{children}</>;
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="hover:underline">
+    <a href={href} className="hover:underline">
       {children}
     </a>
   );

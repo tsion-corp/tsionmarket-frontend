@@ -18,10 +18,14 @@ afterEach(() => {
 });
 
 describe("marketSquareHref", () => {
-  it("links to the production square when the deployment says nothing", async () => {
-    const { marketSquareHref, PRODUCTION_MARKET_SQUARE_URL } = await loadWith({ url: null });
-    expect(marketSquareHref()).toBe("https://square.tsionark.com");
-    expect(marketSquareHref("live")).toBe(`${PRODUCTION_MARKET_SQUARE_URL}/live`);
+  // The Square is served at /square as a multi-zone, so every way in is a path
+  // on THIS origin. It used to be an absolute URL on square.tsionark.com,
+  // which sent the reader to another sub-domain to read something the app
+  // already serves.
+  it("keeps the reader on this origin, whatever deployment backs the square", async () => {
+    const { marketSquareHref } = await loadWith({ url: null });
+    expect(marketSquareHref()).toBe("/square");
+    expect(marketSquareHref("live")).toBe("/square/live");
   });
 
   it("returns null when the deployment switches its Market Square off by URL, so no dead link renders", async () => {
@@ -30,10 +34,12 @@ describe("marketSquareHref", () => {
     expect(marketSquareHref("live")).toBeNull();
   });
 
-  it("joins a path onto the configured deployment", async () => {
+  // The configured URL still decides WHETHER there is a square (and backs the
+  // zone rewrite in next.config), but it is no longer the link's base.
+  it("joins a path onto the zone, not onto the configured deployment", async () => {
     const { marketSquareHref } = await loadWith({ url: "https://square.example/" });
-    expect(marketSquareHref()).toBe("https://square.example");
-    expect(marketSquareHref("/live")).toBe("https://square.example/live");
+    expect(marketSquareHref()).toBe("/square");
+    expect(marketSquareHref("/live")).toBe("/square/live");
   });
 });
 

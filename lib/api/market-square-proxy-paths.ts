@@ -128,6 +128,13 @@ function allowed(patterns: RegExp[], joined: string): boolean {
  */
 const PUBLIC_GET_PATHS = [
   /^feed$/u,
+  // The live rooms and one room's own row. Both answer anybody upstream — a
+  // private room is 404ed there for a non-member, and the list filters by
+  // membership — so gating them here only turned the dashboard's rooms card
+  // into a 401 for a signed-out reader. The token still rides along when there
+  // is one, so a member keeps seeing their private rooms.
+  /^streams$/u,
+  /^streams\/[^/]+$/u,
   /^topics$/u,
   /^hashtags\/trending$/u,
   /^profiles$/u,

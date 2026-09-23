@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { squarePath } from "@/lib/square/links";
+import { GIST_ROOM_CATEGORY, squarePath, squareRoomPath } from "@/lib/square/links";
 
 /**
  * These pin the Market Square app's ACTUAL routes (its `app/` folders):
@@ -62,5 +62,36 @@ describe("squarePath for the Square page", () => {
   it("points a room code and a product at the Square's own routes", () => {
     expect(squarePath.roomCode("abc2345bc")).toBe("code/abc2345bc");
     expect(squarePath.product("gold-tee")).toBe("store/gold-tee");
+  });
+});
+
+/**
+ * Which SCREEN a live stream is watched on.
+ *
+ * A gist room and a broadcast are both streams and both carry a stream id, but
+ * the Square draws them with different pages — `app/gist-rooms/[id]` and
+ * `app/live/[id]`. Sending a gist room to the broadcast route was how "Join
+ * live" landed people on the wrong screen.
+ */
+describe("squareRoomPath", () => {
+  it("sends a gist room to gist-rooms/, on this origin", () => {
+    expect(squareRoomPath("st_1", GIST_ROOM_CATEGORY)).toBe("/square/gist-rooms/st_1");
+  });
+
+  it("sends anything else to live/", () => {
+    expect(squareRoomPath("st_1", "music")).toBe("/square/live/st_1");
+  });
+
+  // The category is absent until the room's own row lands, and a broadcast is
+  // the safer guess: it is the screen every stream had before gist rooms
+  // existed, and it renders a room rather than 404ing.
+  it("falls back to the broadcast screen when the category is not known yet", () => {
+    expect(squareRoomPath("st_1", null)).toBe("/square/live/st_1");
+  });
+
+  it("never leaves this origin", () => {
+    for (const category of [GIST_ROOM_CATEGORY, "music", null]) {
+      expect(squareRoomPath("st_1", category)).not.toContain("square.tsionark.com");
+    }
   });
 });

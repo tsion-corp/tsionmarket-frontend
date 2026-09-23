@@ -251,8 +251,9 @@ function headings(): string[] {
 
 const outbound = (link: HTMLElement, href: string) => {
   expect(link).toHaveAttribute("href", href);
-  expect(link).toHaveAttribute("target", "_blank");
-  expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  // Same tab: /square is this origin, so leaving for it is a full page load
+  // into the zone, not a second tab on the site the reader is already using.
+  expect(link).not.toHaveAttribute("target");
 };
 
 describe("SquareHome", () => {

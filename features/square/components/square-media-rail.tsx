@@ -117,8 +117,6 @@ export function SquareMediaRail({
             <a
               key={`${item.url}-${index}`}
               href={href}
-              target="_blank"
-              rel="noopener noreferrer"
               aria-label={
                 video
                   ? t("videoOf", { index: index + 1, count: items.length })

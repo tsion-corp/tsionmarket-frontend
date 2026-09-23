@@ -1,3 +1,5 @@
+import { SQUARE_ZONE_PATH } from "@/lib/square-zone";
+
 /**
  * Market Square — the ecosystem's social and discovery surface.
  *
@@ -95,9 +97,25 @@ export const SQUARE_SECTIONS_HIDDEN: boolean = !IN_APP_SQUARE_SHOWN || MARKET_SQ
 export const MARKET_SQUARE_TAKEN_DOWN: boolean =
   process.env.NEXT_PUBLIC_MARKET_SQUARE_LIVE === "false";
 
+/**
+ * A way into the Square, as a path on THIS origin.
+ *
+ * The Square is served at /square as a Next.js multi-zone: `next.config.ts`
+ * rewrites /square and /square/* to its own deployment. So a link into it is
+ * `/square/...`, not `https://square.tsionark.com/...` — the reader stays on
+ * tsionark.com, keeps the app's session, and never sees a second sub-domain.
+ *
+ * MARKET_SQUARE_URL still decides WHETHER there is a square at all, and still
+ * backs the rewrite, but it is no longer the base of the link. Null when the
+ * square is switched off, so a caller renders nothing rather than a dead link.
+ *
+ * The result is a path, so it must never go into a `next/link`: this app has
+ * no route under /square to transition to. Plain anchors only — see
+ * lib/square-zone.
+ */
 export function marketSquareHref(path = ""): string | null {
   if (MARKET_SQUARE_URL === "") return null;
-  const base = MARKET_SQUARE_URL.replace(/\/+$/, "");
-  if (path === "") return base;
-  return `${base}/${path.replace(/^\/+/, "")}`;
+  const clean = path.replace(/^\/+/, "");
+  if (clean === "") return SQUARE_ZONE_PATH;
+  return `${SQUARE_ZONE_PATH}/${clean}`;
 }

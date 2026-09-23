@@ -30,7 +30,11 @@ const link = (name: RegExp) => screen.getByRole("link", { name });
 describe("Market Square card", () => {
   const home = "https://square.example";
 
-  it("opens the live room in a new tab, because joining is the Square's", () => {
+  // The Square is a multi-zone under /square on this origin, so joining a room
+  // keeps the reader in the app they are already in. It used to open
+  // square.tsionark.com in a new tab, which took them to another sub-domain
+  // and left the app behind in the tab they came from.
+  it("joins the room in the same tab, on this origin", () => {
     renderWithIntl(
       <SquareCard
         room={{
@@ -38,7 +42,7 @@ describe("Market Square card", () => {
           title: "Base season, who wins",
           host: "Ada",
           avatars: ["https://cdn.example/ada.png"],
-          href: `${home}/live/r1`,
+          href: "/square/gist-rooms/r1",
         }}
         avatars={["https://cdn.example/ada.png"]}
       />
@@ -46,9 +50,8 @@ describe("Market Square card", () => {
     expect(screen.getByText("Base season, who wins")).toBeInTheDocument();
     expect(screen.getByText("Live with Ada")).toBeInTheDocument();
     const join = link(/Join live/);
-    expect(join).toHaveAttribute("href", `${home}/live/r1`);
-    expect(join).toHaveAttribute("target", "_blank");
-    expect(join).toHaveAttribute("rel", "noopener noreferrer");
+    expect(join).toHaveAttribute("href", "/square/gist-rooms/r1");
+    expect(join).not.toHaveAttribute("target");
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 

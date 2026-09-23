@@ -21,7 +21,7 @@ export function SquareHomeBanner() {
   if (!href) return null;
 
   const action = (className: string) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+    <a href={href} className={className}>
       {t("bannerAction")}
     </a>
   );

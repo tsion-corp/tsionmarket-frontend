@@ -174,8 +174,6 @@ export function SquarePalCard({
       {href && interactive ? (
         <a
           href={href}
-          target="_blank"
-          rel="noopener noreferrer"
           aria-label={name}
           className="absolute block overflow-hidden"
           style={photoStyle}
@@ -208,8 +206,6 @@ export function SquarePalCard({
         {href ? (
           <a
             href={interactive ? href : undefined}
-            target="_blank"
-            rel="noopener noreferrer"
             tabIndex={interactive ? undefined : -1}
             aria-label={t("winkAt", { name })}
             className="ws-pressable relative flex shrink-0 items-center justify-center overflow-hidden rounded-full transition-opacity hover:opacity-90"

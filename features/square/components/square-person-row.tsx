@@ -93,12 +93,7 @@ export function SquarePersonRow({
   return (
     <div className="flex items-center gap-2 px-4 py-3 sm:gap-[9px]">
       {href ? (
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex min-w-0 flex-1 items-center gap-[9px]"
-        >
+        <a href={href} className="flex min-w-0 flex-1 items-center gap-[9px]">
           {identity}
         </a>
       ) : (
@@ -107,8 +102,6 @@ export function SquarePersonRow({
       {!isMe && href ? (
         <a
           href={href}
-          target="_blank"
-          rel="noopener noreferrer"
           aria-label={t("winkAt", { name })}
           className="ws-pressable flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/20 text-[#d4d4d8] transition-colors hover:bg-white/10 hover:text-[#fafafa]"
         >

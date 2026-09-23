@@ -110,11 +110,11 @@ describe("conversation row", () => {
     expect(screen.queryByRole("link", { name: /Join Now/ })).toBeNull();
   });
 
-  it("sends the heading to Market Square in a new tab", () => {
+  it("sends the heading to Market Square, in the same tab", () => {
     render(<ConversationRow />, { wrapper });
     const heading = screen.getByRole("link", { name: enMessages.discovery.conversationTitle });
     expect(heading).toHaveAttribute("href", "https://square.example");
-    expect(heading).toHaveAttribute("target", "_blank");
+    expect(heading).not.toHaveAttribute("target");
   });
 
   // Two of the square's cards only OPEN the square, so they open its page in

@@ -48,7 +48,7 @@ export function ConversationRow() {
   if (MARKET_SQUARE_HIDDEN || squareHome === null) return null;
 
   return (
-    <DiscoveryRow title={t("conversationTitle")} href={squareHome} external>
+    <DiscoveryRow title={t("conversationTitle")} href={squareHome}>
       <Carousel label={t("conversationCarousel")} gapPx={20} trimPx={50}>
         <SquareCard room={conversation} avatars={hosts} onHold={hold} />
         <GoLiveCard homeHref={squareHome} onHold={hold} />

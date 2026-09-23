@@ -33,6 +33,16 @@ export const squarePath = {
   pals: (): string => "pals",
   /** app/gist-rooms: every room, where "Top GistRooms" and "Coming Soon" view more. */
   gistRooms: (): string => "gist-rooms",
+  /**
+   * app/gist-rooms/[id]: ONE room.
+   *
+   * The id is a STREAM id, not a house id, whatever the Square's own parameter
+   * is called — its page hands it straight to `useStream`. A gist room and a
+   * broadcast are both streams; they differ by `category`, and they are drawn
+   * by different screens, so the category is what picks between this and
+   * `live`. See `squareRoomPath`.
+   */
+  gistRoom: (id: string): string => `gist-rooms/${encodeURIComponent(id)}`,
   /** app/houses: the whole directory, where "Popular Houses" views more. */
   houses: (): string => "houses",
   /** app/feed: the whole timeline, where "Post For You" views more. */
@@ -45,10 +55,14 @@ export const squarePath = {
   product: (slug: string): string => `store/${encodeURIComponent(slug)}`,
 } as const;
 
+/** The category upstream gives an audio room, as opposed to a broadcast. */
+export const GIST_ROOM_CATEGORY = "house";
+
 export const squareLinks = {
   home: (): string | null => marketSquareHref(),
   post: (id: string): string | null => marketSquareHref(squarePath.post(id)),
   live: (id: string): string | null => marketSquareHref(squarePath.live(id)),
+  gistRoom: (id: string): string | null => marketSquareHref(squarePath.gistRoom(id)),
   profile: (username: string): string | null => marketSquareHref(squarePath.profile(username)),
   notifications: (): string | null => marketSquareHref(squarePath.notifications()),
   house: (id: string): string | null => marketSquareHref(squarePath.house(id)),
@@ -60,3 +74,16 @@ export const squareLinks = {
   roomCode: (code: string): string | null => marketSquareHref(squarePath.roomCode(code)),
   product: (slug: string): string | null => marketSquareHref(squarePath.product(slug)),
 } as const;
+
+/**
+ * Where one live stream is watched.
+ *
+ * A gist room is the audio room screen, everything else the broadcast screen,
+ * and upstream marks the first with `category: "house"`. Both take a STREAM
+ * id, whatever the Square's own route parameter is called.
+ *
+ * Null where the square is switched off, like every link above it.
+ */
+export function squareRoomPath(id: string, category: string | null): string | null {
+  return category === GIST_ROOM_CATEGORY ? squareLinks.gistRoom(id) : squareLinks.live(id);
+}

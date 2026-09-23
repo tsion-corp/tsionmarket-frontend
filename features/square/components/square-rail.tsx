@@ -58,8 +58,6 @@ export function SquareRail({ streams }: { streams: MarketSquareFeedStream[] }) {
                   {href ? (
                     <a
                       href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="hover:bg-grey-800/70 -mx-2 flex items-center gap-2.5 rounded-xl px-2 py-2 transition-colors"
                     >
                       {row}
@@ -80,8 +78,6 @@ export function SquareRail({ streams }: { streams: MarketSquareFeedStream[] }) {
           <p className="text-grey-500 mt-1 text-[12px] leading-[18px]">{t("railBlurb")}</p>
           <a
             href={squareHref}
-            target="_blank"
-            rel="noopener noreferrer"
             className="bg-accent text-ink mt-3 inline-flex h-9 items-center rounded-full px-4 text-[12.5px] font-semibold transition-[filter] hover:brightness-110"
           >
             {t("openSquare")}
