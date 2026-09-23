@@ -6,6 +6,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useAppNavigate } from "./use-app-navigate";
 import * as scrollModule from "@/lib/scroll";
+import { setNavigationGuard } from "@/lib/navigation-guard";
 
 const pushMock = vi.fn();
 let currentPathname = "/portfolio";
@@ -21,6 +22,7 @@ describe("useAppNavigate", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     currentPathname = "/portfolio";
+    setNavigationGuard(null);
   });
 
   it("navigates to registered section routes", () => {
@@ -60,5 +62,45 @@ describe("useAppNavigate", () => {
     const { result } = renderHook(() => useAppNavigate());
     result.current("unknown-invalid-section");
     expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  // A live Last Man round asks before it is left. The desktop sidebar is a row
+  // of buttons, not links, so nothing catches that click: this hook is the one
+  // place every section button routes through, and the question belongs here.
+  describe("the navigation guard", () => {
+    it("holds the navigation when a screen takes it over", () => {
+      const guard = vi.fn(() => true);
+      setNavigationGuard(guard);
+      const { result } = renderHook(() => useAppNavigate());
+      result.current("spot");
+      expect(guard).toHaveBeenCalledWith("/spot");
+      expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it("navigates when the guard declines it", () => {
+      setNavigationGuard(() => false);
+      const { result } = renderHook(() => useAppNavigate());
+      result.current("spot");
+      expect(pushMock).toHaveBeenCalledWith("/spot");
+    });
+
+    it("hands the guard the target including its prefill query", () => {
+      const guard = vi.fn(() => true);
+      setNavigationGuard(guard);
+      const { result } = renderHook(() => useAppNavigate());
+      result.current("spot", { mode: "buy", amount: "100", symbol: "ETH" });
+      expect(guard).toHaveBeenCalledWith(expect.stringContaining("/spot?trade="));
+      expect(pushMock).not.toHaveBeenCalled();
+    });
+
+    it("holds an anchor section push too", () => {
+      currentPathname = "/spot";
+      const guard = vi.fn(() => true);
+      setNavigationGuard(guard);
+      const { result } = renderHook(() => useAppNavigate());
+      result.current("prediction");
+      expect(guard).toHaveBeenCalled();
+      expect(pushMock).not.toHaveBeenCalled();
+    });
   });
 });

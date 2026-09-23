@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -116,6 +116,10 @@ function subscribe(listener: () => void): () => void {
 }
 
 const getSnapshot = () => state;
+/** The pop-out's current state, for callers outside the React tree. */
+export function miniWindowSnapshot(): MiniWindowState {
+  return state;
+}
 const getServerSnapshot = () => state;
 
 function useMiniWindow(): MiniWindowState {
@@ -148,7 +152,7 @@ function copyStylesInto(target: Window): void {
 async function openDocumentPip(): Promise<void> {
   const api = (window as Window & { documentPictureInPicture?: DocumentPictureInPictureApi })
     .documentPictureInPicture;
-  if (!api) return;
+  if (!api) throw new Error("this browser has no document picture-in-picture");
   const win = await api.requestWindow({ width: 300, height: 310 });
   copyStylesInto(win);
   win.document.body.style.background = "#101013";
@@ -184,7 +188,7 @@ function teardownVideoSurface(): void {
 const VIDEO_OPEN_TIMEOUT_MS = 3_000;
 
 async function openVideoPip(): Promise<void> {
-  if (!surfaces) return;
+  if (!surfaces) throw new Error("the video surfaces are not mounted");
   const { canvas, video } = surfaces;
   // A previous session may still be winding down; finish leaving before
   // asking again, or the request races the exit and loses.
@@ -277,7 +281,7 @@ function stopKeepAliveAudio(): void {
   keepAlive = null;
 }
 
-function closeMiniWindow(): void {
+export function closeMiniWindow(): void {
   state.pipWindow?.close();
   if (document.pictureInPictureElement) {
     // The leavepictureinpicture handler tears the stream down.
@@ -299,7 +303,9 @@ function closeMiniWindow(): void {
 export function openMiniWindow(tier: PipTier | null, onFail?: () => void): void {
   if (tier === "document") {
     void openDocumentPip().catch(() => {
-      setState({ pipWindow: null });
+      // A refused window used to leave the player with nothing. The overlay is
+      // the floor: worse than a floating window, far better than silence.
+      setState({ pipWindow: null, overlayActive: true });
       onFail?.();
     });
   } else if (tier === "video") {
@@ -318,13 +324,12 @@ export function openMiniWindow(tier: PipTier | null, onFail?: () => void): void 
 // video surfaces. Mounted in providers, so it outlives every page.
 
 export function MiniTimerHost() {
-  const tier = useSyncExternalStore(subscribe, detectTier, () => null);
   const { pipWindow, videoActive, overlayActive } = useMiniWindow();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
-  // Register the video-tier surfaces so the launcher's click handler can
-  // reach them synchronously within the user gesture.
+  // Register the video-tier surfaces so the answer's click handler can reach
+  // them synchronously within the user gesture.
   useEffect(() => {
     if (canvasRef.current && videoRef.current) {
       surfaces = { canvas: canvasRef.current, video: videoRef.current };
@@ -332,20 +337,19 @@ export function MiniTimerHost() {
     return () => {
       surfaces = null;
     };
-  }, [tier]);
+  }, []);
 
   const open = pipWindow !== null || videoActive || overlayActive;
 
   return (
     <>
-      {tier === "video" ? (
-        // Offscreen surfaces feeding the floating video. Kept mounted so the
-        // stream survives navigation; invisible in the page itself.
-        <div aria-hidden className="pointer-events-none fixed h-0 w-0 overflow-hidden">
-          <canvas ref={canvasRef} width={320} height={180} />
-          <video ref={videoRef} muted playsInline />
-        </div>
-      ) : null}
+      {/* Offscreen surfaces feeding the floating video. Always mounted: they
+          cost nothing at zero size, and gating them on the tier meant a
+          viewport that turned coarse after load had nothing to stream. */}
+      <div aria-hidden className="pointer-events-none fixed h-0 w-0 overflow-hidden">
+        <canvas ref={canvasRef} width={320} height={180} />
+        <video ref={videoRef} muted playsInline />
+      </div>
       {/* Game data (queries, socket) is only subscribed to while the pop-out
           is actually open; the rest of the time the host is inert. */}
       {open ? (

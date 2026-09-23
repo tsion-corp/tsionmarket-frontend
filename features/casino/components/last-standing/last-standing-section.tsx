@@ -1034,9 +1034,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
           <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
             {t("title")}
           </h2>
-          <p className="mt-1.5 max-w-[54ch] text-[13.5px] font-normal text-white/55">
-            {t("intro")}
-          </p>
         </div>
         <span
           className={`ws-glass inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold text-white/75 ${
