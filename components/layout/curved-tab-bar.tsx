@@ -2,6 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
+import { guardNavigation } from "@/lib/navigation-guard";
 import { ClockIcon } from "@/components/ui/icons";
 import type { SectionId } from "@/lib/sections";
 import type { NavItem } from "@/components/layout/nav-items";
@@ -179,11 +180,24 @@ interface CurvedTabBarProps {
  * tabs reshuffles the icons THROUGH the centre rather than sliding an indicator
  * to them. Mobile only.
  */
+/** Where a tab goes, for the guard to be asked about. */
+function destinationOf(tab: Tab): string {
+  if (tab.key === "portfolio") return "/portfolio";
+  if (tab.key === "market") return "/market";
+  if (tab.key === "square") return "/square";
+  if (tab.key === "casino") return "/casino";
+  return "/activity";
+}
+
 export function CurvedTabBar({ items, activeSection, onNavigate }: CurvedTabBarProps) {
   const router = useRouter();
   const reduce = useReducedMotion();
 
   const onTap = (tab: Tab) => {
+    // A screen may need to be asked before it is left. These tabs navigate
+    // programmatically, so there is no click for a listener to catch and the
+    // question has to be asked here.
+    if (guardNavigation(destinationOf(tab))) return;
     if (tab.key === "portfolio") onNavigate("portfolio");
     else if (tab.key === "market") router.push("/market");
     // The Square seat opens /square in this tab, exactly as the desktop rail's

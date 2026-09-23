@@ -578,7 +578,8 @@
     "how": "Comment ça marche",
     "faq": "FAQ",
     "login": "Se connecter",
-    "getStarted": "Commencer"
+    "getStarted": "Commencer",
+    "getApp": "Obtenir l'app"
   },
   "hero": {
     "title": "Maîtrisez votre <accent>argent,</accent><break></break> accédez aux marchés mondiaux.",

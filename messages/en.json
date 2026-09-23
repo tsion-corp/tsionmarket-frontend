@@ -578,7 +578,8 @@
     "how": "How it works",
     "faq": "FAQ",
     "login": "Log in",
-    "getStarted": "Get started"
+    "getStarted": "Get started",
+    "getApp": "Get app"
   },
   "hero": {
     "title": "Control your <accent>money,</accent><break></break> and access global markets.",

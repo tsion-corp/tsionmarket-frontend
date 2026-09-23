@@ -14,7 +14,6 @@ import { WinnersList } from "@/features/casino/components/last-standing/winners-
 import { estimateWinnerPayout, isSameAddress } from "@/features/casino/lib/last-standing/split";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
 import {
-  MiniTimerLauncher,
   detectTier,
   openMiniWindow,
   formatCountdown,
@@ -1131,7 +1130,9 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
               </div>
               <div className="flex items-center gap-2">
                 <ShareGameButton gameId={gameId} />
-                <MiniTimerLauncher />
+                {/* No pop-out button: the pop-out is offered on the way out
+                    now, where it is actually wanted, and a second way in only
+                    made the header busier. */}
                 <MusicToggle />
               </div>
             </div>
@@ -1322,8 +1323,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                 so the invite sits with the game. On a laptop the same card
                 heads the side rail instead, where the QR is in view without
                 scrolling. */}
-            <ShareGame gameId={gameId} className="mt-4 min-[980px]:hidden" />
-
             {/* Play CTA — the primary action, silver whether you're playing or
                 being nudged to add money. The add-money state carries a coin and
                 blinks to pull the eye. */}
@@ -1435,7 +1434,10 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                 <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
                   {t("liquidityLabel")}
                 </div>
-                <div className="mt-2 flex flex-wrap items-stretch gap-2">
+                {/* Stacked on a phone. Sharing a row left the input too
+                    narrow to read the amount back, which is the one thing it
+                    exists to show. */}
+                <div className="mt-2 flex flex-col items-stretch gap-2 sm:flex-row">
                   <label
                     className={`flex min-w-0 flex-1 items-center gap-2 rounded-[12px] border bg-black/35 px-3.5 transition-colors ${
                       liquidityBelowMin || liquidityOverBalance
@@ -1459,7 +1461,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                     type="button"
                     onClick={() => void onAddLiquidity()}
                     disabled={!liquidityReady}
-                    className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 shrink-0 cursor-pointer rounded-[12px] border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+                    className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 w-full shrink-0 cursor-pointer rounded-[12px] border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                   >
                     {wagering
                       ? t("ctaPlacing")
@@ -1481,6 +1483,13 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                 </div>
               </div>
             )}
+
+            {/* On a phone the invite card sits after the play controls: the
+                clock and the two ways to put money in are what somebody opens
+                this screen for, and a QR above them pushed all of it under the
+                fold. On a laptop the same card heads the side rail, where it is
+                in view without scrolling. */}
+            <ShareGame gameId={gameId} className="mt-4 min-[980px]:hidden" />
 
             {/* Balance. Add money only shows when the play CTA isn't already
                 saying it. */}

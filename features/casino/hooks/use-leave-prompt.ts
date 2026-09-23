@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { setNavigationGuard } from "@/lib/navigation-guard";
 
 /**
  * Catches a click that would take the player out of the arena, so they can be
@@ -21,6 +22,18 @@ export function useLeavePrompt(active: boolean) {
   // Set while we replay a click we previously held, so the listener lets that
   // one through instead of catching it again.
   const releasing = useRef(false);
+
+  // The phone's tab bar calls router.push rather than rendering links, so a
+  // click listener never sees it. Registering here is what makes those tabs
+  // ask too, and it is the same question with the same answer.
+  useEffect(() => {
+    if (!active) return;
+    return setNavigationGuard((href) => {
+      if (href === window.location.pathname) return false;
+      setPending(href);
+      return true;
+    });
+  }, [active]);
 
   useEffect(() => {
     if (!active) return;

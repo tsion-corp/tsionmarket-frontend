@@ -289,14 +289,6 @@ function closeMiniWindow(): void {
   setState({ pipWindow: null, videoActive: false, overlayActive: false });
 }
 
-// ---------------------------------------------------------------------------
-// The button, rendered inside the arena. Pure trigger: the floating window it
-// opens lives in MiniTimerHost and survives this button unmounting.
-
-const HINT_STORAGE_KEY = "ws-last-standing-mini-hint";
-const hintSeen = () =>
-  typeof window === "undefined" || localStorage.getItem(HINT_STORAGE_KEY) === "1";
-
 /**
  * Raises the pop-out on the best tier this browser allows.
  *
@@ -319,79 +311,6 @@ export function openMiniWindow(tier: PipTier | null, onFail?: () => void): void 
   } else {
     setState({ overlayActive: true });
   }
-}
-
-export function MiniTimerLauncher() {
-  const t = useTranslations("casino.lastStanding");
-  const tier = useSyncExternalStore(subscribe, detectTier, () => null);
-  const { pipWindow, videoActive, overlayActive } = useMiniWindow();
-  const open = pipWindow !== null || videoActive || overlayActive;
-
-  // One-time hint: nobody discovers picture-in-picture from a pill label
-  // alone, and without expectation-setting the fullscreen behaviour reads as
-  // a bug. Shown until the button is used once or the hint is dismissed.
-  const seen = useSyncExternalStore(subscribe, hintSeen, () => true);
-  const [hintDismissed, setHintDismissed] = useState(false);
-  const dismissHint = () => {
-    localStorage.setItem(HINT_STORAGE_KEY, "1");
-    setHintDismissed(true);
-  };
-
-  const toggle = useCallback(() => {
-    localStorage.setItem(HINT_STORAGE_KEY, "1");
-    setHintDismissed(true);
-    if (open) {
-      closeMiniWindow();
-      return;
-    }
-    // Ask inside the click that opens the pop-out: no Chromium window can
-    // float over another app's fullscreen Space on macOS, and the
-    // critical-clock notification is what reaches the player there.
-    if (typeof Notification !== "undefined" && Notification.permission === "default") {
-      void Notification.requestPermission();
-    }
-    openMiniWindow(tier, () => toast.error(t("miniFailed")));
-  }, [open, tier, t]);
-
-  if (tier === null) return null;
-
-  // On a phone the hint is pinned to the viewport (a bottom snackbar), not to
-  // this button: the button can sit anywhere across the card, and a popover
-  // hanging off its right edge clips at the screen edge no matter how its
-  // width is capped. From sm: up there is room, so it anchors under the
-  // button like a normal popover.
-  const showHint = !seen && !hintDismissed && !open;
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={toggle}
-        aria-pressed={open}
-        className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 text-[11.5px] font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-      >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6h-2V5H5v14h6v2H5a2 2 0 0 1-2-2V5Zm10 8a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-6Z" />
-        </svg>
-        {open ? t("miniClose") : t("miniOpen")}
-      </button>
-      {showHint ? (
-        <div className="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 rounded-[12px] border border-white/12 bg-[#1a1a1f] p-3 shadow-[0_12px_32px_rgba(0,0,0,0.5)] sm:absolute sm:inset-x-auto sm:top-full sm:right-0 sm:bottom-auto sm:mt-2 sm:w-[min(248px,calc(100vw-3rem))]">
-          <div className="text-[12px] leading-[1.5] font-medium text-white/85">
-            {t("miniHintTitle")}
-          </div>
-          <p className="mt-1 text-[11.5px] leading-[1.5] text-white/55">{t("miniHintBody")}</p>
-          <button
-            type="button"
-            onClick={dismissHint}
-            className="mt-2 cursor-pointer text-[11.5px] font-semibold text-white/70 hover:text-white"
-          >
-            {t("miniHintDismiss")}
-          </button>
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------

@@ -578,7 +578,8 @@
     "how": "Cómo funciona",
     "faq": "FAQ",
     "login": "Iniciar sesión",
-    "getStarted": "Empezar"
+    "getStarted": "Empezar",
+    "getApp": "Obtener la app"
   },
   "hero": {
     "title": "Controla tu <accent>dinero</accent><break></break> y accede a los mercados globales.",
