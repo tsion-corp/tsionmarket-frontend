@@ -13,8 +13,8 @@ charts step on it, and the reasons are below.
 
 ## Delivery
 
-- Events go through `/api/relay` on our own domain to Mixpanel's EU host
-  (project 4051122 is EU-resident), on neutral paths, so ad blockers stop
+- Events go through `/api/relay` on our own domain to Mixpanel's US host
+  (project 4051122 is US-resident), on neutral paths, so ad blockers stop
   dropping them. The relay forwards only our project's token and the visitor's
   public IP, so locations stay correct.
 - Every event carries `environment` (`production`, `preview`, `development`).
@@ -77,5 +77,5 @@ charts step on it, and the reasons are below.
 ## Configuration
 
 - `NEXT_PUBLIC_MIXPANEL_TOKEN` is unchanged. No new variables.
-- The privacy policy now describes named events, the relay and EU storage.
+- The privacy policy now describes named events, the relay and US storage.
   Legal should review the wording.

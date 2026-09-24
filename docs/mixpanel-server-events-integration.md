@@ -164,7 +164,7 @@ CREATE INDEX analytics_outbox_pending ON analytics_outbox (next_attempt_at) WHER
 
 - Runs as its own process, cron job or queue consumer, never inside an API request.
 - Claims rows with `FOR UPDATE SKIP LOCKED` (or the queue's equivalent) so several instances are safe.
-- Sends in batches to Mixpanel's **Import API**: `POST https://api.mixpanel.com/import?strict=1&project_id=<id>` (or `api-eu.mixpanel.com` if the project has EU residency), authenticated with a **service account** (HTTP Basic, `username:secret`), gzip body.
+- Sends in batches to Mixpanel's **Import API**: `POST https://api.mixpanel.com/import?strict=1&project_id=<id>` (the US host, which is the region project 4051122 is stored in), authenticated with a **service account** (HTTP Basic, `username:secret`), gzip body.
 - Each event on the wire:
   ```json
   {
@@ -414,8 +414,9 @@ Required tests before any PR:
 ## Mixpanel API facts to verify against current Mixpanel docs before coding
 
 - Import API: `POST https://api.mixpanel.com/import?strict=1&project_id=<id>`
-  (`api-eu.mixpanel.com` for EU residency), service account Basic auth, gzip supported,
-  batch and payload limits per request, rate limits.
+  (the US host; a project stored in another region has its own, and Mixpanel
+  rejects events sent to the wrong one), service account Basic auth, gzip
+  supported, batch and payload limits per request, rate limits.
 - `$insert_id` max length and allowed characters; how far back `time` may be.
 - Engage API for `$set`, `$set_once`, `$add`, `$union` profile operations.
 - Simplified ID Merge behaviour for server events that carry only `distinct_id`.

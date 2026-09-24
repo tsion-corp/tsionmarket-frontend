@@ -45,6 +45,6 @@ Mixpanel is also not the place to count accounts, money or revenue. Those come f
 ## What was decided
 
 - The work goes on the branch `feat/mixpanel-integration_carniel`, which follows the live version of the app.
-- Our Mixpanel project stores its data in the EU, so events are sent to Mixpanel's EU servers.
+- Our Mixpanel project stores its data in the United States, so events are sent to Mixpanel's US servers.
 - There is one Mixpanel project. Reports that should count real people filter on `environment = production`.
 - Deposit and withdrawal counting is fixed in the browser now. The backend team will take it over later.

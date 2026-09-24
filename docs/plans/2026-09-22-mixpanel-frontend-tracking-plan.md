@@ -98,7 +98,7 @@ Read `node_modules/next/dist/docs/` for route handlers and `instrumentation-clie
 
 - `app/api/relay/[...path]/route.ts`, with the upstream host and allowlist in `lib/server/mixpanel-relay.ts` (route handlers import from `lib/server/`, never a feature).
 - `lib/analytics/environment.ts`; `lib/analytics/mixpanel.ts` sets `api_host` and registers `environment` at boot; `lib/analytics/watchtower.ts` uses the shared constant.
-- `.env.example`: document the EU relay and the single token.
+- `.env.example`: document the relay and the single token.
 - `proxy.ts`: allow `/api/relay` through maintenance mode, the way `/api/monitoring` should be; `proxy.test.ts` covers it.
 
 **Verify on the preview:** events visible in Mixpanel Live View from a Brave window; a user's city is theirs, not the server region.

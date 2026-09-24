@@ -55,7 +55,7 @@ afterEach(() => {
 });
 
 describe("POST /api/relay/[...path]", () => {
-  it("forwards a track batch to Mixpanel's EU host with the query and body unchanged", async () => {
+  it("forwards a track batch to Mixpanel's ingest host with the query and body unchanged", async () => {
     const { POST } = await load();
     const body = sdkBody(trackBatch());
 
@@ -66,7 +66,7 @@ describe("POST /api/relay/[...path]", () => {
     expect(await res.text()).toBe("1");
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0];
-    expect(String(url)).toBe("https://api-eu.mixpanel.com/track/?ip=1&_=1758500000000");
+    expect(String(url)).toBe("https://api.mixpanel.com/track/?ip=1&_=1758500000000");
     expect(init.method).toBe("POST");
     expect(init.body).toBe(body);
   });
@@ -78,7 +78,7 @@ describe("POST /api/relay/[...path]", () => {
     const res = await POST(request("p", body) as never, ctx("p"));
 
     expect(res.status).toBe(200);
-    expect(String(fetchMock.mock.calls[0][0])).toContain("https://api-eu.mixpanel.com/engage/");
+    expect(String(fetchMock.mock.calls[0][0])).toContain("https://api.mixpanel.com/engage/");
   });
 
   it("forwards the visitor's public IP, so Mixpanel places them and not our server", async () => {

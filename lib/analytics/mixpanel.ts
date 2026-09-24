@@ -103,7 +103,8 @@ export function analyticsReady(): Promise<void> {
 async function bootMixpanel(): Promise<void> {
   const { default: loaded } = await import("mixpanel-browser");
   loaded.init(TOKEN as string, {
-    // Through our own origin to the EU host, past ad blockers. See ./relay.
+    // Through our own origin to Mixpanel's ingest host, past ad blockers.
+    // See ./relay.
     // The SDK replaces api_routes whole rather than merging it, so the routes
     // it would otherwise take from its defaults are named too. Recording and
     // feature flags are off in this app, so those two are never called; the

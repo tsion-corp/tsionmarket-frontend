@@ -52,7 +52,7 @@ Accounts, funded users, volume and revenue are counted from Privy and the ledger
 
 A route handler, `app/api/relay/[...path]/route.ts`, forwards Mixpanel's browser requests. It follows `app/api/monitoring/route.ts`:
 
-- **Allowlisted:** only `track`, `engage` and `groups` paths are forwarded; anything else is 404. It only ever calls Mixpanel's EU ingestion host, `api-eu.mixpanel.com`, set in one constant. Project 4051122 has EU data residency; the SDK's default host today is the US one (`api-js.mixpanel.com`), so this also moves ingestion to the region the project lives in.
+- **Allowlisted:** only `track`, `engage` and `groups` paths are forwarded; anything else is 404. It only ever calls Mixpanel's ingestion host, `api.mixpanel.com`, set in one constant. The host has to match the region the project is stored in, because Mixpanel rejects a project's events at the wrong region's host.
 - **Not an open relay:** the payload's `token` must equal `NEXT_PUBLIC_MIXPANEL_TOKEN`, or it is refused with 403.
 - **Location preserved:** the client's IP from the platform header is forwarded, so Mixpanel still geolocates the user rather than the server region.
 - **Status passed through,** including 429 and `Retry-After`, so the SDK's own backoff still works. Upstream refusals are logged server-side with the status, never swallowed.
@@ -194,6 +194,6 @@ Layering is unchanged: `app/api/relay` depends on `lib/analytics` (server-safe c
 ## Decisions recorded at approval (22 September 2026)
 
 1. **Branch.** Implemented on `feat/mixpanel-integration_carniel`, which tracks `origin/main`.
-2. **Residency.** Project 4051122 is in the EU. The relay forwards to `api-eu.mixpanel.com`.
+2. **Residency.** Project 4051122 is in the US. The relay forwards to `api.mixpanel.com`. Changed from the EU host on 2026-09-23; see the release note.
 3. **Projects.** No separate test projects. Environments are separated by the `environment` property (D2).
 4. **Interim watchers (D8).** Approved: fix deposit and withdrawal counting in the browser now. The backend replaces them later, per the server brief.
