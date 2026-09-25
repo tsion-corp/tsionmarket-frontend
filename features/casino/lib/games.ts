@@ -49,8 +49,9 @@ export interface CasinoGame {
 }
 
 export const CASINO_GAMES: CasinoGame[] = [
-  // The order the team set on 2026-09-11: Last Man, Chess, ArkBall, Checkers.
-  // Last Man takes the hero slot, four of the six columns.
+  // The order the team set on 2026-09-25: Last Man, Arkjet, Pilot Chicken,
+  // Chess, ArkBall, Checkers. Last Man takes the hero slot, four of the six
+  // columns.
   {
     id: "last-standing",
     name: "The Last Man",
@@ -64,8 +65,35 @@ export const CASINO_GAMES: CasinoGame[] = [
     note: "Outlast everyone, winner takes the pot",
     comingSoon: false,
   },
-  // Beside Last Man in the first row: "tall" is the two-column slot that
-  // pairs with the hero.
+  // Arkjet and Pilot Chicken follow the hero. Their artwork is branded, so
+  // the tile keeps its colour.
+  {
+    id: "arkjet",
+    name: "Arkjet",
+    category: "New",
+    size: "tall",
+    glyph: "✈",
+    image: "/casino/arkjet/hero.webp",
+    preserveImageColor: true,
+    isNew: true,
+    href: "/casino/arkjet",
+    note: "Cash out before the multiplier crashes",
+    comingSoon: false,
+  },
+  {
+    id: "chicken",
+    name: "Pilot Chicken",
+    category: "New",
+    size: "tall",
+    glyph: "C",
+    image: "/casino/chicken/ark-chicken.png",
+    preserveImageColor: true,
+    isNew: true,
+    href: "/casino/chicken",
+    note: "Cross each lane and cash out before the crash",
+    comingSoon: false,
+  },
+  // "tall" is the two-column slot, so the first row is the hero plus one.
   {
     id: "chess",
     name: "Chess",
@@ -103,35 +131,6 @@ export const CASINO_GAMES: CasinoGame[] = [
     href: "/casino/checkers",
     isNew: true,
     note: "Fast staked matches",
-    comingSoon: false,
-  },
-  // Arkjet and Pilot Chicken, back on staging on 2026-09-11 after the 2.0
-  // port dropped them; they follow Checkers. Their artwork is branded, so
-  // the tile keeps its colour.
-  {
-    id: "arkjet",
-    name: "Arkjet",
-    category: "New",
-    size: "tall",
-    glyph: "✈",
-    image: "/casino/arkjet/hero.webp",
-    preserveImageColor: true,
-    isNew: true,
-    href: "/casino/arkjet",
-    note: "Cash out before the multiplier crashes",
-    comingSoon: false,
-  },
-  {
-    id: "chicken",
-    name: "Pilot Chicken",
-    category: "New",
-    size: "tall",
-    glyph: "C",
-    image: "/casino/chicken/ark-chicken.png",
-    preserveImageColor: true,
-    isNew: true,
-    href: "/casino/chicken",
-    note: "Cross each lane and cash out before the crash",
     comingSoon: false,
   },
   {

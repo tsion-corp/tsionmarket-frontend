@@ -334,14 +334,16 @@ export function DashboardPage() {
           to a frame on a phone. The conversation row handles a hidden square
           itself: its card goes and its heading falls back to chess. */}
       <div className="flex flex-col gap-6 md:hidden">
+        {/* The Arkade's own shelf, one card per game. It leads the shelves,
+            directly under the balance cards and the promo strip, whatever was
+            picked at onboarding: it is what the platform is putting in front
+            of everyone, so it is not something an interest can push down. */}
+        <div className="px-4">
+          <ArkadeRow />
+        </div>
         {rwaLeads ? <div className="px-4">{realAssets}</div> : null}
         <div className="px-4">
           <ConversationRow />
-        </div>
-        {/* The Arkade's own shelf, one card per game. It used to share the
-            band above with Square's rooms. */}
-        <div className="px-4">
-          <ArkadeRow />
         </div>
         {/* "Stay Ahead of Token Moves" — the desktop token-moves discovery
             card, now on the phone too, in the phone's gutter. */}
@@ -374,6 +376,11 @@ export function DashboardPage() {
           Conversation, the Arkade, Find the next 100X, then Prediction
           starts. */}
       <div className="mx-auto hidden w-full max-w-[1520px] flex-col gap-11 px-4 pb-2 sm:px-6 md:flex lg:px-8">
+        {/* The Arkade's own shelf, one card per game. It leads the shelves,
+            directly under the balance cards and the promo strip, whatever was
+            picked at onboarding: it is what the platform is putting in front
+            of everyone, so it is not something an interest can push down. */}
+        <ArkadeRow />
         {rwaLeads ? realAssets : null}
         <TokenMovesRow
           tokens={tokenSpots}
@@ -381,9 +388,6 @@ export function DashboardPage() {
           onBuy={discoveryTrade.onBuyToken}
         />
         <ConversationRow />
-        {/* The Arkade's own shelf, one card per game. It shared the band above
-            with Square's rooms until the two were split. */}
-        <ArkadeRow />
         <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
         {rwaLeads ? null : realAssets}
       </div>

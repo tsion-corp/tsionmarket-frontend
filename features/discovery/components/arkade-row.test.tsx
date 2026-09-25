@@ -71,11 +71,11 @@ describe("Arkade row", () => {
       // The Last Man card is the event's poster, so what stands where the
       // other cards put a headline is its wordmark.
       `${enMessages.discovery.lastManMarathonLead} ${enMessages.discovery.lastManMarathonTitle}`,
+      enMessages.discovery.arkjetHeadline,
+      enMessages.discovery.chickenHeadline,
       enMessages.discovery.chessHeadline,
       enMessages.discovery.arkballHeadline,
       enMessages.discovery.checkersIdleHeadline,
-      enMessages.discovery.arkjetHeadline,
-      enMessages.discovery.chickenHeadline,
     ]);
   });
 

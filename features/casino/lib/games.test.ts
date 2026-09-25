@@ -5,12 +5,14 @@ import { CASINO_GAMES, filterGames, type TileSize } from "@/features/casino/lib/
 const SPAN: Record<TileSize, number> = { hero: 4, tall: 2, medium: 2, wide: 3 };
 
 describe("casino game catalogue", () => {
-  // The order the team set on 2026-09-11: Last Man, Chess, ArkBall, Checkers.
-  // Last Man takes the hero slot and Chess the two-column slot beside it, so
-  // the first row still fills the six columns; ArkBall and Checkers follow.
-  it("leads with Last Man, then Chess, ArkBall and Checkers", () => {
-    expect(CASINO_GAMES.slice(0, 4).map((g) => g.id)).toEqual([
+  // The order the team set on 2026-09-25: Last Man, Arkjet, Pilot Chicken,
+  // Chess, ArkBall, Checkers. Last Man takes the hero slot and Arkjet the
+  // two-column slot beside it, so the first row still fills the six columns.
+  it("leads with Last Man, then Arkjet, Pilot Chicken, Chess, ArkBall and Checkers", () => {
+    expect(CASINO_GAMES.slice(0, 6).map((g) => g.id)).toEqual([
       "last-standing",
+      "arkjet",
+      "chicken",
       "chess",
       "arkball",
       "checkers",
@@ -20,18 +22,15 @@ describe("casino game catalogue", () => {
     expect(SPAN[first.size] + SPAN[second.size]).toBe(6);
   });
 
-  // Back on staging on 2026-09-11: the two crash games sit right after
-  // Checkers, playable, with their branded art kept in colour.
-  it("places Arkjet and Pilot Chicken after Checkers", () => {
-    const checkers = CASINO_GAMES.findIndex((game) => game.id === "checkers");
-    expect(CASINO_GAMES[checkers + 1]).toMatchObject({
-      id: "arkjet",
+  // The two crash games keep everything the 2026-09-11 return gave them; only
+  // where they sit has moved.
+  it("keeps Arkjet and Pilot Chicken playable with their branded art in colour", () => {
+    expect(CASINO_GAMES.find((game) => game.id === "arkjet")).toMatchObject({
       href: "/casino/arkjet",
       preserveImageColor: true,
       comingSoon: false,
     });
-    expect(CASINO_GAMES[checkers + 2]).toMatchObject({
-      id: "chicken",
+    expect(CASINO_GAMES.find((game) => game.id === "chicken")).toMatchObject({
       href: "/casino/chicken",
       preserveImageColor: true,
       comingSoon: false,
@@ -40,8 +39,10 @@ describe("casino game catalogue", () => {
 
   it("keeps that order under the All games filter", () => {
     const shown = filterGames(CASINO_GAMES, "All games", "");
-    expect(shown.slice(0, 4).map((g) => g.id)).toEqual([
+    expect(shown.slice(0, 6).map((g) => g.id)).toEqual([
       "last-standing",
+      "arkjet",
+      "chicken",
       "chess",
       "arkball",
       "checkers",

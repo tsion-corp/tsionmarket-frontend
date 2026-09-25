@@ -62,11 +62,11 @@ export function ArkadeRow() {
     >
       <Carousel label={t("arkadeCarousel")} gapPx={20} trimPx={50}>
         <LastManCard round={round} remainingMs={remainingMs} onHold={hold} />
+        <ArkjetCard onHold={hold} />
+        <PilotChickenCard onHold={hold} />
         <ChessCard onHold={hold} />
         <ArkBallCard onHold={hold} />
         <CheckersCard liveCount={checkersLive} onHold={hold} />
-        <ArkjetCard onHold={hold} />
-        <PilotChickenCard onHold={hold} />
       </Carousel>
     </DiscoveryRow>
   );
