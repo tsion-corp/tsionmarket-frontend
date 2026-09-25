@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import enMessages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import type { MemeToken, SwapDetail } from "@/lib/meme/api";
 
 // The phone memecoin screen: the coin being traded, both sides of the ticket,

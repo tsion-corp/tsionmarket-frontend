@@ -2,12 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
+import { MODAL_PANEL_CLASS } from "@/features/trade/components/meme-sort-menu";
 import { MemeScreenerFilters } from "@/features/trade/components/meme-screener-filters";
 import { EMPTY_FILTERS, type ScreenerFilters, type ScreenerPresetId } from "@/lib/meme/screener";
 
 // The screener's Filters control (ADR-2026-09-15-meme-trending-screener §3):
 // quick picks, then seven min/max rows held as a local draft. Nothing reaches
-// the screener until Apply, so typing never costs a request.
+// the screener until Apply, so typing never costs a request. It opens in a
+// modal on the desk and on the phone alike.
 
 function renderFilters({
   filters = EMPTY_FILTERS,
@@ -45,6 +47,13 @@ function openPanel() {
   return { trigger, panel: screen.getByRole("dialog", { name: "Filter coins" }) };
 }
 
+/** The shell's backdrop: the element the marked panel sits in. */
+function backdrop() {
+  const el = document.querySelector(`.${MODAL_PANEL_CLASS}`)?.parentElement;
+  if (!el) throw new Error("the modal has no backdrop");
+  return el;
+}
+
 function field(name: string) {
   return screen.getByRole("textbox", { name });
 }
@@ -71,8 +80,9 @@ describe("MemeScreenerFilters", () => {
     renderFilters({
       filters: { bounds: { marketCap: { max: "1000000" }, age: { min: "5" } }, sort: null },
     });
-    const { trigger } = openPanel();
+    const { trigger, panel } = openPanel();
     expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", panel.id);
     expect(field("Market cap (USD) Max")).toHaveValue("1000000");
     expect(field("Market cap (USD) Min")).toHaveValue("");
     expect(field("Age (minutes) Min")).toHaveValue("5");
@@ -214,28 +224,56 @@ describe("MemeScreenerFilters", () => {
     expect(field("Volume (USD) Max")).toHaveValue("900");
   });
 
-  it("closes on a press outside, and not on one inside", async () => {
+  it("closes on a press on the backdrop, and not on one inside the dialog", async () => {
     renderFilters();
-    const { panel } = openPanel();
-    fireEvent.mouseDown(field("Price (USD) Min"));
+    const { trigger, panel } = openPanel();
+    fireEvent.click(field("Price (USD) Min"));
     expect(panel).toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Outside" }));
+    fireEvent.click(backdrop());
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
   });
 
-  it("scrolls inside a 340px popover on the desk", () => {
+  it("closes on the shell's close button with focus back on the trigger", async () => {
+    const { onApply } = renderFilters();
+    const { trigger } = openPanel();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(onApply).not.toHaveBeenCalled();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("opens the dialog outside the toolbar and takes focus itself, on the desk as on the phone", () => {
     renderFilters();
-    const { panel } = openPanel();
-    expect(panel.className).toContain("w-[340px]");
-    expect(panel.className).toContain("max-h-[min(70vh,560px)]");
-    expect(panel.querySelector(".overflow-y-auto")).not.toBeNull();
+    const { trigger, panel } = openPanel();
+    // Portalled, so the seven rows are never clipped by the toolbar row.
+    expect(trigger.parentElement).not.toContainElement(panel);
+    expect(panel).toHaveAttribute("aria-modal", "true");
+    expect(panel).toHaveFocus();
   });
 
-  it("opens as a bottom sheet on the phone and applies from it", async () => {
+  it("keeps Tab inside the dialog rather than letting it reach the page behind", () => {
+    renderFilters();
+    openPanel();
+    const dismiss = screen.getByRole("button", { name: "Close" });
+    const apply = screen.getByRole("button", { name: "Apply" });
+
+    // Apply is the last stop in the dialog, so Tab from it wraps to the top.
+    apply.focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(dismiss).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(apply).toHaveFocus();
+
+    screen.getByRole("button", { name: "Outside" }).focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(dismiss).toHaveFocus();
+  });
+
+  it("opens the same modal on the phone and applies from it", async () => {
     const { onApply } = renderFilters({ variant: "phone" });
     const { trigger, panel } = openPanel();
     expect(trigger.parentElement).not.toContainElement(panel);
-    expect(panel).toHaveAttribute("aria-modal", "true");
     type("Market cap (USD) Max", "1m");
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(onApply).toHaveBeenCalledWith({ marketCap: { max: "1000000" } });

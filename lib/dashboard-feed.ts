@@ -105,9 +105,6 @@ export interface LiveEvent {
 export function liveEventsFrom(live: DashboardLive | null, nowSeconds: number): LiveEvent[] {
   if (!live) return [];
   return [
-    // Last Man is chipped again: the vault service settles v5 and this app
-    // now opens games on v5 in USDC, which is what the 2026-09-15 hide was
-    // waiting on.
     ...live.rounds
       .filter((round) => round.endTime > nowSeconds)
       .map<LiveEvent>((round) => ({
@@ -121,14 +118,10 @@ export function liveEventsFrom(live: DashboardLive | null, nowSeconds: number): 
       kind: "chess",
       href: `/casino/chess/watch?match=${encodeURIComponent(m.id)}`,
     })),
-    // Checkers matches are deliberately not chipped: the game is not offered
-    // on production, so a chip would advertise a table the hub does not list.
-    // The feed still carries the matches, so restoring the game is restoring
-    // this block.
-    // ...live.checkers.map<LiveEvent>((m) => ({
-    //   key: `checkers-${m.id}`,
-    //   kind: "checkers",
-    //   href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
-    // })),
+    ...live.checkers.map<LiveEvent>((m) => ({
+      key: `checkers-${m.id}`,
+      kind: "checkers",
+      href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
+    })),
   ];
 }

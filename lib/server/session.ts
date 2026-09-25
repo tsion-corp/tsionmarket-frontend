@@ -4,7 +4,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { User } from "@privy-io/node";
 import {
-  ACCESS_TOKEN_COOKIE,
+  accessTokenFromCookie,
   loadVerifiedUser,
   verifyAccessToken,
   type AccessClaims,
@@ -26,21 +26,10 @@ import type { ServerSession } from "@/lib/session";
 // client-supplied shortcut that the request path accepts under a check; a
 // Server Component has no need of it, since the verified user id is enough.
 export const getSessionClaims = cache(async (): Promise<AccessClaims | null> => {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
+  const jar = await cookies();
+  const token = accessTokenFromCookie((name) => jar.get(name)?.value);
   if (!token) return null;
   return verifyAccessToken(token);
-});
-
-// The session's raw access token, for the one case that needs to speak to
-// another service AS the user: the portfolio read asks the trade service which
-// memecoins this person holds. Verified first, so a forged or expired cookie
-// is never forwarded anywhere. It is the same token the browser sends as a
-// bearer on its own calls.
-export const getSessionBearer = cache(async (): Promise<string | null> => {
-  const token = (await cookies()).get(ACCESS_TOKEN_COOKIE)?.value;
-  if (!token) return null;
-  const claims = await verifyAccessToken(token);
-  return claims ? `Bearer ${token}` : null;
 });
 
 // The full Privy user behind the session, or null when there is none. Shares

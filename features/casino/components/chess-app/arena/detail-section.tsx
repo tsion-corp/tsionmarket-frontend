@@ -1,9 +1,9 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import {
   ArenaClock,
@@ -353,7 +353,8 @@ export function ArenaDetailSection({
   showCreatedShare?: boolean;
 }) {
   const router = useRouter();
-  const { login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const login = () => router.push("/auth");
   const wallet = useCasinoWallet();
   const arena = useArenaTournament(arenaId);
   const redirectedPairing = useRef<string | null>(null);

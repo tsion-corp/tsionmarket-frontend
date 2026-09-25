@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { MemeRiskConsent } from "@/features/trade/components/meme-risk-consent";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 
 // The confirmation the contract asks for before a quote on a LOW_LIQUIDITY
 // token. What it must say is the service's own warning, not our paraphrase,

@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   ariaSortFor,
+  columnFigure,
   memeColumns,
   metricColumnFor,
   nextSortFor,
   type MemeColumn,
 } from "@/features/trade/components/meme-table-columns";
+import { memeToken } from "@/lib/meme/fixture";
 
 const column = (id: MemeColumn["id"], sortsBy: MemeColumn["sortsBy"]): MemeColumn => ({
   id,
@@ -35,6 +37,61 @@ describe("the desk table's columns", () => {
     expect(metricColumnFor("marketCap")).toBeNull();
     expect(metricColumnFor("liquidity")).toBe("liquidity");
     expect(metricColumnFor(null)).toBeNull();
+  });
+});
+
+describe("the figure a column draws", () => {
+  const NOW = Date.parse("2026-09-16T12:00:00.000Z");
+  const token = memeToken({
+    symbol: "PEPE",
+    priceUsd: "0.00000001234",
+    marketCapUsd: "3491589227.12",
+    liquidityUsd: "84200",
+    pairCreatedAt: new Date(NOW - 90 * 60_000).toISOString(),
+    activity: {
+      "1h": {
+        volumeUsd: "12400000",
+        transactions: 1284339,
+        traders: 4200,
+        priceChangePercent: "12345.67",
+      },
+    },
+  });
+
+  it("names each fixed column's figure and where it came from", () => {
+    expect(columnFigure(column("asset", null), token, "1h", NOW)).toEqual({ kind: "identity" });
+    expect(columnFigure(column("price", "price"), token, "1h", NOW)).toEqual({
+      kind: "price",
+      value: "0.00000001234",
+    });
+    expect(columnFigure(column("marketCap", "marketCap"), token, "1h", NOW)).toEqual({
+      kind: "usd",
+      value: "3491589227.12",
+    });
+  });
+
+  // The change column has no screener bound of its own; it reads the window
+  // the strip above it is showing.
+  it("reads the change from the selected window", () => {
+    expect(columnFigure(column("change", null), token, "1h", NOW)).toEqual({
+      kind: "percent",
+      value: "12345.67",
+    });
+  });
+
+  it("hands the metric column its own sorted metric", () => {
+    expect(columnFigure(column("metric", "liquidity"), token, "1h", NOW)).toEqual({
+      kind: "usd",
+      value: "84200",
+    });
+    expect(columnFigure(column("metric", "transactions"), token, "1h", NOW)).toEqual({
+      kind: "count",
+      value: 1284339,
+    });
+    expect(columnFigure(column("metric", "age"), token, "1h", NOW)).toEqual({
+      kind: "age",
+      minutes: 90,
+    });
   });
 });
 

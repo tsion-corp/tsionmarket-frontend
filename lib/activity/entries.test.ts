@@ -220,3 +220,30 @@ describe("gameForKind", () => {
     expect(gameForKind("swapped")).toBeNull();
   });
 });
+
+describe("the old account's rows", () => {
+  const base = {
+    network: "base-mainnet",
+    symbol: "USDC",
+    amount: 5,
+    timestamp: 1,
+    counterparty: null,
+    logo: null,
+  };
+
+  // A stored snapshot and a live sweep are one timeline; the rows that came
+  // from the old wallet say so, because the address on them is not the
+  // reader's current one.
+  it("carry the old-account mark through a movement and a trade", () => {
+    const entries = buildActivityEntries([
+      { ...base, id: "a", hash: "0x1", direction: "in", legacy: true },
+      { ...base, id: "b", hash: "0x2", direction: "out", legacy: true },
+      { ...base, id: "c", hash: "0x2", direction: "in", symbol: "ETH", amount: 0.1, legacy: true },
+      { ...base, id: "d", hash: "0x3", direction: "in" },
+    ]);
+    const byHash = new Map(entries.map((e) => [e.hash, e]));
+    expect(byHash.get("0x1")?.legacy).toBe(true);
+    expect(byHash.get("0x2")?.legacy).toBe(true);
+    expect(byHash.get("0x3")?.legacy).toBeUndefined();
+  });
+});

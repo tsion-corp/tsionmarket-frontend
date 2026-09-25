@@ -67,6 +67,24 @@ const nextConfig: NextConfig = {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
     NEXT_PUBLIC_CHESS_ASSET_BASE_URL: chessAssetBaseUrl,
   },
+  // The push service worker, and nothing else. A worker is fetched by the
+  // browser outside the app's own asset pipeline, so it gets neither a
+  // content hash in its name nor the immutable caching that comes with one.
+  // Without these two headers a browser can keep serving a worker from a
+  // previous deploy indefinitely: the Cache-Control forces a fresh fetch on
+  // every update check, and the Content-Type is what makes a browser willing
+  // to register the file as a script at all.
+  async headers() {
+    return [
+      {
+        source: "/push-service-worker.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+        ],
+      },
+    ];
+  },
   // Powerball became ArkBall. Shared links and bookmarks to the old slug still
   // land on the game.
   async redirects() {
@@ -127,6 +145,13 @@ const nextConfig: NextConfig = {
       "@farcaster/mini-app-solana": false,
     };
     return config;
+  },
+  // The legacy directory is read with a constructed path, which the tracer
+  // cannot follow — without this the file is simply absent from the serverless
+  // bundle and every lookup silently answers "unknown". Only matters when
+  // LEGACY_DIRECTORY_URL is unset and the bundled file is the source.
+  outputFileTracingIncludes: {
+    "/api/migration/legacy-account": ["./config/legacy-directory.csv"],
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,

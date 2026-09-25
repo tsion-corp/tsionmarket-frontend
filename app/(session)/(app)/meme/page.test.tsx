@@ -1,9 +1,11 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import { TradeApiError, type MemeToken, type SwapPreview } from "@/lib/meme/api";
+import type { DiscoveryView } from "@/lib/meme/catalog";
 
 // The desk is the whole memecoin route on a desktop, so this covers the wiring
 // the route owns: which coin the rail is trading, which side the ticket is on,
@@ -32,27 +34,48 @@ const search = vi.hoisted(() => ({
   searching: false,
   active: false,
   error: null as unknown,
+  // Most of this suite drives the search hook by hand. The search cases at the
+  // foot set this and get the real hook instead, running over the catalogue the
+  // desk hands it, which is the only way to prove that wiring exists.
+  real: false,
+  catalogues: [] as (MemeToken[] | undefined)[],
 }));
 // The desk re-reads the selected coin before trading on it, as the sheet does.
 const fresh = vi.hoisted(() => ({
   token: null as MemeToken | null,
   identities: [] as ({ address: string; chainId: number } | null)[],
 }));
-vi.mock("@/features/trade/hooks/use-meme-tokens", () => ({
-  useMemeCatalog: (opts?: { view?: string }) => {
-    views.catalog.push(opts?.view);
-    return opts?.view === "all" && catalog.allTokens
-      ? { ...catalog, tokens: catalog.allTokens }
-      : catalog;
-  },
-  useMemeSearch: (_raw: string, view?: string) => {
-    views.search.push(view);
-    return search;
-  },
-  useMemeToken: (identity: { address: string; chainId: number } | null) => {
-    fresh.identities.push(identity);
-    return { token: fresh.token, isLoading: false, unavailable: null };
-  },
+vi.mock("@/features/trade/hooks/use-meme-tokens", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/features/trade/hooks/use-meme-tokens")>();
+  return {
+    ...real,
+    useMemeCatalog: (opts?: { view?: string }) => {
+      views.catalog.push(opts?.view);
+      return opts?.view === "all" && catalog.allTokens
+        ? { ...catalog, tokens: catalog.allTokens }
+        : catalog;
+    },
+    // The real hook runs either way, so this is never a hook called
+    // conditionally; which of the two answers the desk sees is the flag.
+    useMemeSearch: (raw: string, view?: DiscoveryView, catalogue?: MemeToken[]) => {
+      views.search.push(view);
+      search.catalogues.push(catalogue);
+      const live = real.useMemeSearch(raw, view, catalogue);
+      return search.real ? live : search;
+    },
+    useMemeToken: (identity: { address: string; chainId: number } | null) => {
+      fresh.identities.push(identity);
+      return { token: fresh.token, isLoading: false, unavailable: null };
+    },
+  };
+});
+
+// The desk never calls the service in this suite: the search cases below are
+// about what the cached catalogue answers, so the provider returns nothing.
+const searchTokens = vi.hoisted(() => vi.fn(async () => [] as MemeToken[]));
+vi.mock("@/lib/meme/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/meme/api")>()),
+  searchTokens,
 }));
 
 // The screener controller. Inactive by default, so the desk reads the
@@ -77,6 +100,8 @@ const screener = vi.hoisted(() => ({
   timeframe: "24h" as "5m" | "1h" | "6h" | "12h" | "24h",
   sort: null as { by: "volume" | "price"; order: "asc" | "desc" } | null,
   trending: [] as MemeToken[],
+  refreshTrending: vi.fn(),
+  trendingRefreshing: false,
   calls: [] as unknown[],
 }));
 vi.mock("@/features/trade/hooks/use-meme-screener", () => ({
@@ -96,6 +121,8 @@ vi.mock("@/features/trade/hooks/use-meme-screener", () => ({
       clearAll: vi.fn(),
       listQuery: screener.resetKey,
       list: screenerList,
+      refreshTrending: screener.refreshTrending,
+      trendingRefreshing: screener.trendingRefreshing,
       trending: {
         tokens: screener.trending,
         pageTokens: screener.trending,
@@ -198,10 +225,15 @@ const bbb = memeToken({
 });
 
 function renderDesk() {
+  // The search hook is the real one here, so the desk needs a query client even
+  // when no test lets it reach the service.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      <MemePage />
-    </NextIntlClientProvider>
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <MemePage />
+      </NextIntlClientProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -262,11 +294,16 @@ beforeEach(() => {
   search.active = false;
   search.results = [];
   search.error = null;
+  search.real = false;
+  search.catalogues = [];
+  searchTokens.mockClear();
   screener.active = false;
   screener.resetKey = "";
   screener.timeframe = "24h";
   screener.sort = null;
   screener.trending = [];
+  screener.refreshTrending.mockClear();
+  screener.trendingRefreshing = false;
   screener.calls = [];
   screenerList.tokens = [];
   screenerList.total = null;
@@ -424,8 +461,9 @@ describe("the memecoin desk", () => {
 // both halves of the ticket, the fee is the preview's, a lapsed quote is
 // blanked, the coin is re-read before trading, and a LOW_LIQUIDITY coin is
 // confirmed before any preview goes out.
-// Slice 4: the desk reads the paged catalogue behind a Curated / All switch,
-// counts it against the server's total and loads the next page on demand.
+// Slice 4: the desk reads the catalogue behind a Curated / All switch and
+// pulls the next page itself. It does not report how much has loaded: the
+// catalogue is cached whole, so a loaded-so-far count says nothing.
 describe("the memecoin desk's catalogue", () => {
   const switchGroup = () => screen.getByRole("group", { name: "Which memecoins to list" });
 
@@ -442,13 +480,14 @@ describe("the memecoin desk's catalogue", () => {
     expect(views.search.at(-1)).toBe("curated");
   });
 
-  it("counts the loaded rows against the server's total and shows the view's size", () => {
+  it("never reports how much of the catalogue has loaded", () => {
     catalog.total = 11_502;
     catalog.loaded = 500;
     catalog.shownCount = 156;
     renderDesk();
-    expect(screen.getByText("500 of 11,502")).toBeInTheDocument();
-    expect(screen.getByText("156 shown")).toBeInTheDocument();
+    expect(screen.queryByText("500 of 11,502")).toBeNull();
+    expect(screen.queryByText("156 shown")).toBeNull();
+    expect(document.querySelector('[data-region="catalog-status"]')).toBeNull();
   });
 
   // The catalogue runs to thousands of coins. Rather than stopping at a "Load
@@ -506,12 +545,36 @@ describe("the memecoin desk's catalogue", () => {
     expect(screen.queryByText("More pages")).toBeNull();
   });
 
+  // The catalogue the service holds runs past a hundred thousand coins, which
+  // at ten rows a page is ten thousand pages. The bar has to cover all of them
+  // without drawing ten thousand buttons, and both ends have to stay reachable.
+  it("pages the whole catalogue without a row of ten thousand buttons", () => {
+    catalog.tokens = Array.from({ length: 100_000 }, (_, i) =>
+      memeToken({ symbol: `C${String(i).padStart(6, "0")}`, address: `0x${i.toString(16)}` })
+    );
+    catalog.total = 100_000;
+    catalog.loaded = 100_000;
+    catalog.hasMore = false;
+    renderDesk();
+
+    expect(screen.getByText("Page 1 of 10,000")).toBeInTheDocument();
+    // Seven slots: 1, the current page's neighbourhood, a gap, and the last.
+    const numbered = screen.getAllByRole("button", { name: /^Page [\d,]+$/ });
+    expect(numbered.map((b) => b.textContent)).toEqual(["1", "2", "3", "4", "10000"]);
+    // Only the page showing is rendered as rows, however long the list is.
+    expect(screen.getAllByRole("button", { name: /coin/ })).toHaveLength(10);
+
+    fireEvent.click(screen.getByRole("button", { name: "Page 10000" }));
+    expect(screen.getByText("Page 10,000 of 10,000")).toBeInTheDocument();
+    // The hundred-thousandth coin, on the last page, reached in one press.
+    expect(screen.getByText("C099999")).toBeInTheDocument();
+  });
+
   it("stops at the last page once the pages cover the total", () => {
     catalog.total = 2;
     catalog.loaded = 2;
     catalog.hasMore = false;
     renderDesk();
-    expect(screen.getByText("2 of 2")).toBeInTheDocument();
     expect(catalog.loadMore).not.toHaveBeenCalled();
     expect(screen.queryByText("More pages")).toBeNull();
     expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
@@ -620,6 +683,23 @@ describe("the memecoin desk's screener", () => {
     expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 3 });
   });
 
+  // Trending's refresh reloads the page. The desk holds two cached reads, the
+  // board and the catalogue, and refetching one would leave the other stale
+  // under the same reader, so the route hands the strip no refetch at all.
+  // This presses the control, which reaches window.location.reload and makes
+  // jsdom log "Not implemented: navigation"; that log is the proof the real
+  // path ran. What the reload itself does is covered in the strip's own suite.
+  it("reloads the page from Trending's refresh rather than reading the board again", () => {
+    renderDesk();
+    const strip = document.querySelector('[data-region="trending"]') as HTMLElement;
+    const refresh = within(strip).getByRole("button", { name: "Refresh trending" });
+    fireEvent.click(refresh);
+    expect(screener.refreshTrending).not.toHaveBeenCalled();
+    // Held down and spinning until the document is replaced, so the press does
+    // not read as one that did nothing.
+    expect(within(strip).getByRole("button", { name: "Refreshing trending" })).toBeDisabled();
+  });
+
   it("draws Trending and the toolbar in the left column, beside the rail", () => {
     renderDesk();
     const column = document.querySelector('[data-region="left-column"]') as HTMLElement;
@@ -629,16 +709,12 @@ describe("the memecoin desk's screener", () => {
     expect(column).not.toContainElement(screen.getByRole("button", { name: "Buy AAA" }));
   });
 
-  it("lists the screener's coins while filters apply, and counts and loads those", () => {
-    catalog.total = 11_502;
+  it("lists the screener's coins while filters apply, and pages those", () => {
     catalog.loaded = 500;
-    catalog.shownCount = 156;
     catalog.hasMore = true;
     screener.active = true;
     screenerList.tokens = [ccc];
-    screenerList.total = 57;
     screenerList.loaded = 40;
-    screenerList.shownCount = 12;
     screenerList.hasMore = true;
     renderDesk();
 
@@ -646,9 +722,6 @@ describe("the memecoin desk's screener", () => {
     expect(screen.queryByRole("button", { name: /AAA coin/ })).toBeNull();
     // With no coin picked, the rail trades the first row of the live list.
     expect(screen.getByRole("button", { name: "Buy CCC" })).toBeInTheDocument();
-    expect(screen.getByText("40 of 57")).toBeInTheDocument();
-    expect(screen.getByText("12 shown")).toBeInTheDocument();
-    expect(screen.queryByText("500 of 11,502")).toBeNull();
     expect(screen.getByText("More pages")).toBeInTheDocument();
     expect(screenerList.loadMore).toHaveBeenCalled();
     expect(catalog.loadMore).not.toHaveBeenCalled();
@@ -706,7 +779,7 @@ describe("the memecoin desk's screener", () => {
     renderDesk();
     expect(screen.getByRole("button", { name: /AAA coin/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /CCC coin/ })).toBeNull();
-    expect(screen.queryByText("40 of 57")).toBeNull();
+    expect(screen.queryByText("More pages")).toBeNull();
     expect(screenerList.loadMore).not.toHaveBeenCalled();
   });
 
@@ -758,5 +831,87 @@ describe("the memecoin desk's screener", () => {
         name: messages.memeScreener.topGainer,
       })
     ).toBeNull();
+  });
+});
+
+// The search box is wired to the cached catalogue, not only to the provider.
+// The service matches a name or a symbol; a reader has a contract address, a
+// market cap or a launch time, and those are answered here from the rows the
+// desk already holds.
+describe("searching the desk", () => {
+  const MINT = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+  const sol = memeToken({
+    symbol: "SOLCOIN",
+    chainId: 101,
+    address: MINT,
+    marketCapUsd: "1530000",
+    pairCreatedAt: minutesAgo(3 * 1440 + 1),
+  });
+  const bse = memeToken({
+    symbol: "BSECOIN",
+    chainId: 8453,
+    address: "0xFeEdFaCe00000000000000000000000000001111",
+    marketCapUsd: "880000",
+    pairCreatedAt: minutesAgo(400),
+  });
+
+  beforeEach(() => {
+    search.real = true;
+    catalog.tokens = [sol, bse];
+  });
+
+  function type(text: string) {
+    fireEvent.change(screen.getByLabelText(messages.meme.searchAllLabel), {
+      target: { value: text },
+    });
+  }
+
+  // Both fixtures end in COIN, so this counts list rows without matching the
+  // ticket's own "Buy SOLCOIN" button.
+  const rows = () => screen.queryAllByRole("button", { name: /COIN coin/ });
+
+  const only = (symbol: string) => {
+    expect(rows()).toHaveLength(1);
+    expect(screen.getByRole("button", { name: new RegExp(`${symbol} coin`) })).toBeInTheDocument();
+  };
+
+  it("hands the search hook the cached catalogue", () => {
+    renderDesk();
+    expect(search.catalogues.at(-1)).toBe(catalog.tokens);
+  });
+
+  it("shows the whole catalogue while nothing is typed", () => {
+    renderDesk();
+    expect(rows()).toHaveLength(2);
+    // And typing, then clearing, puts the list back rather than emptying it.
+    type("SOLCOIN");
+    expect(rows()).toHaveLength(1);
+    type("");
+    expect(rows()).toHaveLength(2);
+  });
+
+  it("finds a coin by its contract address", () => {
+    renderDesk();
+    type(MINT.slice(0, 12));
+    only("SOLCOIN");
+    // The service is not asked about a Solana mint the catalogue already holds
+    // until the debounce, and the row is on screen well before that.
+    expect(searchTokens).not.toHaveBeenCalled();
+  });
+
+  it("finds a coin by its market cap", () => {
+    renderDesk();
+    type("$1.5M");
+    only("SOLCOIN");
+  });
+
+  it("finds a coin by its age", () => {
+    renderDesk();
+    type("3d");
+    only("SOLCOIN");
+    type("6h");
+    only("BSECOIN");
   });
 });

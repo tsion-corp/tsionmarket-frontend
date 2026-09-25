@@ -6,11 +6,15 @@ import { createElement, type ReactNode } from "react";
 
 vi.mock("server-only", () => ({}));
 
-const privy = vi.hoisted(() => ({ user: {}, ready: true, authenticated: true }));
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => privy }));
-vi.mock("@/lib/user", () => ({
-  getWalletAddress: (_u: unknown, chain: string) => (chain === "solana" ? "SoL1" : "0xEvm"),
+const session = vi.hoisted(() => ({
+  ready: true,
+  authenticated: true,
+  evmAddress: "0xEvm",
+  solanaAddress: "SoL1",
+  profile: { name: "", email: "", avatarSeed: "x" },
+  logout: async () => {},
 }));
+vi.mock("@/hooks/use-auth-session", () => ({ useAuthSession: () => session }));
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));

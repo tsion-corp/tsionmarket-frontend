@@ -1,6 +1,6 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchChessProductAccess,
@@ -19,7 +19,7 @@ export const CHESS_PRODUCT_KEYS = {
 
 export function useChessProducts() {
   const queryClient = useQueryClient();
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated } = useAuthSession();
   const wallet = useCasinoWallet();
   const player = wallet.address;
 

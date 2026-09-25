@@ -1,8 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import Link from "next/link";
 import { useDeferredValue, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { PredictionCategoryButton } from "@/features/prediction/components/prediction-category-drawer";
 import { useSportsbookSearch } from "../hooks/use-sportsbook";
@@ -36,7 +37,9 @@ export function SportsbookTopNav({
   categoriesOpen: boolean;
   onOpenCategories: () => void;
 }) {
-  const { authenticated, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const searchQuery = useSportsbookSearch(deferredSearch);

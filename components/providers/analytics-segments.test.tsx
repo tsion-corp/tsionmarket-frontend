@@ -12,8 +12,16 @@ const analytics = vi.hoisted(() => ({
   tagClaritySession: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => privy.state,
+// The segments read the session through the Decane-backed seam; `privy.state`
+// still drives ready/authenticated so the cases below keep their meaning.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    evmAddress: null,
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+    ...privy.state,
+  }),
 }));
 
 vi.mock("@/lib/analytics/mixpanel", () => ({

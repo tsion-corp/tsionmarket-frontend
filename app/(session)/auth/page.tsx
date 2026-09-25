@@ -2,57 +2,89 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSocialAuth, useSocialWallet } from "decane-connect-kit";
 import { useTranslations } from "next-intl";
 import { Wordmark } from "@/components/ui/wordmark";
+import { BRAND } from "@/lib/brand";
 import { markKnownUser } from "@/lib/known-user";
 import { returnPathFrom } from "@/lib/return-to";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { SocialButtons } from "@/components/auth/social-buttons";
 import { EmailForm } from "@/components/auth/email-form";
-import { PasskeyButton } from "@/components/auth/passkey-button";
-import { ConsentChecks, useConsent } from "@/components/auth/consent-checks";
-import { recordConsent } from "@/lib/consent";
-import { PasskeyEnroll } from "@/components/auth/passkey-enroll";
+import { UnlockPanel, useUnlockOffer } from "@/components/auth/unlock-panel";
+import { clearLastAuthMethod, promotePending } from "@/lib/last-auth-method";
+import { clearDisplayProfile, useDisplayProfile } from "@/lib/display-profile";
+import { PasskeyStep } from "@/components/auth/passkey-step";
+import { useDevicePasskey } from "@/hooks/use-device-passkey";
+import { usePasskeyNudgeDue } from "@/lib/passkey-nudge";
 import { VisualPanel } from "@/components/auth/visual-panel";
-import { useEnsureWallets } from "@/hooks/use-ensure-wallets";
-import { hasEmbeddedWallet } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { track } from "@/lib/analytics/mixpanel";
 
-// The flow the page walks through. Step 1 is signing in (the wallet
-// provisioning a first-time account needs is derived, not stored). Step 2
-// offers a passkey to any account that does not hold one yet — a first-time
-// signup on the way to the interest page, a returning user on the way to the
-// dashboard. An account with a passkey skips it every time.
-type Phase = "signin" | "passkey";
-
-function StepMarker({ step, label }: { step: number; label: string }) {
-  return (
-    <div className="mb-3 flex items-center justify-center gap-2.5 md:justify-start">
-      <span className="flex items-center gap-1.5" aria-hidden>
-        {[1, 2].map((n) => (
-          <span
-            key={n}
-            className={`h-1.5 rounded-full transition-all ${
-              n === step ? "bg-accent w-6" : "w-1.5 bg-white/20"
-            }`}
-          />
-        ))}
-      </span>
-      <span className="text-[11.5px] font-medium tracking-[0.04em] text-white/45 uppercase">
-        {label}
-      </span>
-    </div>
-  );
-}
+// How long the redirect waits on the "can this device hold a passkey?" check
+// before giving up and routing anyway.
+const PASSKEY_CHECK_GRACE_MS = 1_500;
 
 export default function AuthPage() {
   const t = useTranslations("auth");
-  const { ready, authenticated, user } = usePrivy();
-  const ensureWallets = useEnsureWallets();
+  const { ready, authenticated } = useAuthSession();
+  const { isNewUser, phase } = useSocialAuth();
   const router = useRouter();
   const handled = useRef(false);
-  const [phase, setPhase] = useState<Phase>("signin");
+  const searchParams = useSearchParams();
+  // Where they were headed before sign-in took over, when it is ours to go to.
+  const returnTo = returnPathFrom(searchParams?.toString() ?? "");
+
+  // What this browser can offer a returning visitor in place of the full
+  // method list — a passkey unlock, or a one-tap repeat of their last method.
+  // "Use a different account" falls back to the list for the rest of the visit,
+  // and is the one place the remembered account is forgotten: sign-out keeps
+  // it on purpose, so the way back in is one tap, and this is how someone who
+  // is not that user says so.
+  const { offer, checking } = useUnlockOffer();
+  const remembered = useDisplayProfile() !== null;
+  const wallet = useSocialWallet();
+  const [useAnother, setUseAnother] = useState(false);
+  const useAnotherAccount = () => {
+    clearDisplayProfile();
+    clearLastAuthMethod();
+    // The kit also remembers WHO signed out, so it can offer that account's own
+    // passkey or password back even with several accounts enrolled on this
+    // browser. "Use a different account" must drop that too, or the previous
+    // account keeps being offered.
+    wallet.forgetLastUser();
+    setUseAnother(true);
+  };
+
+  // A device on a PIN gets one chance to become a passkey device before it is
+  // sent on. canAdd is null until the check resolves, so the redirect waits on
+  // it — but never for long: a check that stalls must not strand a completed
+  // sign-in on the auth screen.
+  const { canAdd, needsReauth } = useDevicePasskey();
+  const [stepDone, setStepDone] = useState(false);
+  const [checkTimedOut, setCheckTimedOut] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setCheckTimedOut(true), PASSKEY_CHECK_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const nudgeDue = usePasskeyNudgeDue();
+
+  // Right after a sign-out the kit re-checks the passkey and the password
+  // asynchronously, and the offer reads as null until they answer. For a
+  // visitor we remember, hold the method list back for that moment rather
+  // than flash it and then swap it for the unlock panel. A first-time visitor
+  // has nothing to wait for and gets the list at once. Bounded by the same
+  // grace as the passkey check, so a stalled read never strands the screen.
+  const settling = checking && remembered && !useAnother && !checkTimedOut;
+
+  const signedIn = ready && authenticated && !stepDone;
+  const passkeyCheckPending = signedIn && canAdd === null && !checkTimedOut;
+  // needsReauth means the kit is too old for an in-place upgrade, and its
+  // fallback is a sign-out — never something to do to a sign-in that just
+  // succeeded.
+  const offerPasskey = signedIn && canAdd === true && !needsReauth && nudgeDue;
+  const holdRedirect = passkeyCheckPending || offerPasskey;
 
   // The top of the funnel: the sign-in screen was reached by someone signing
   // in. Reported once per mount, before any method is chosen, so the drop-off
@@ -69,49 +101,28 @@ export default function AuthPage() {
     track("auth_started", { intent: "login" });
   }, [ready, authenticated]);
 
-  // Where step 2 hands off to: a first-timer continues onboarding at the
-  // interest page, a returning user goes back to the portfolio.
-  const [destination, setDestination] = useState("/portfolio");
-  const searchParams = useSearchParams();
-  // Where they were headed before sign-in took over, when it is ours to go to.
-  const returnTo = returnPathFrom(searchParams?.toString() ?? "");
-
-  // Runs after any login completes (OAuth redirect return, email code,
-  // passkey) and for already-signed-in visitors. One gate decides step 2:
-  // does this account hold a passkey yet? Whoever lacks one is offered it —
-  // first-time signups right after their wallets are provisioned, and
-  // returning users who skipped it before. Whoever has one never sees it,
-  // which also covers signing IN with a passkey: it would ask for the thing
-  // they just used.
+  // Runs after any sign-in completes and for already-signed-in visitors.
+  // Decane provisions the wallets during sign-in itself (no separate creation
+  // step), so all that is left is routing: a first-time signup continues
+  // onboarding at the interest page, a returning user goes to the dashboard.
   useEffect(() => {
-    if (!ready || !authenticated || !user || handled.current) return;
+    if (!ready || !authenticated || handled.current) return;
+    if (holdRedirect) return; // one screen first — see PasskeyStep
     handled.current = true;
     markKnownUser();
-    // What they agreed to on this device, recorded on the account they just
-    // signed in to. Best effort and off the critical path.
-    void recordConsent(user.id);
-    const firstTime = !hasEmbeddedWallet(user, "ethereum");
+    // A method only becomes the remembered one once it has actually produced a
+    // session, so an abandoned attempt never sets the shortcut.
+    promotePending();
     // A link they followed wins over the default landing, first-timer or not:
     // someone handed a game at an event should reach the game, and onboarding
     // is still one tap away afterwards.
-    const after = returnTo ?? (firstTime ? "/interests" : "/portfolio");
-    const hasPasskey = user.linkedAccounts.some((account) => account.type === "passkey");
-    void ensureWallets(user).then(() => {
-      if (hasPasskey) {
-        router.replace(after);
-      } else {
-        setDestination(after);
-        setPhase("passkey");
-      }
-    });
-  }, [ready, authenticated, user, ensureWallets, router, returnTo]);
+    router.replace(returnTo ?? (isNewUser ? "/interests" : "/dashboard"));
+  }, [ready, authenticated, isNewUser, router, holdRedirect, returnTo]);
 
-  const busy = ready && authenticated && phase !== "passkey";
-  // Every sign in method waits on the terms being accepted.
-  const agreed = useConsent().terms;
-  // Derived, not stored: while busy, a user without an embedded wallet is a
-  // first-timer whose account is being set up; everyone else is signing in.
-  const creating = busy && !!user && !hasEmbeddedWallet(user, "ethereum");
+  // Key generation runs inside the sign-in ("creating"); reopening a session
+  // for a returning user is "unlocking". Both read as busy.
+  const busy = (phase !== null || (ready && authenticated)) && !offerPasskey;
+  const creating = phase === "creating";
 
   return (
     <div className="grid min-h-screen grid-cols-1 bg-black lg:grid-cols-[1fr_1.05fr]">
@@ -121,81 +132,80 @@ export default function AuthPage() {
         </div>
 
         <div className="mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-start pt-8 pb-9 md:justify-center md:py-12">
-          {phase === "passkey" ? (
-            <>
-              <StepMarker step={2} label={t("stepOf", { step: 2, steps: 2 })} />
-              <h1 className="ws-display text-center text-[28px] leading-none tracking-[-0.03em] md:text-left md:text-[clamp(34px,4vw,48px)]">
-                {t("passkeyStepHeading")}
-              </h1>
-              <p className="mx-auto mt-4 max-w-[38ch] text-center text-[14px] leading-[1.5] text-white/72 md:mx-0 md:text-left md:text-[15.5px] md:leading-[1.55]">
-                {t("passkeyStepTagline")}
-              </p>
-              <PasskeyEnroll onDone={() => router.replace(destination)} />
-            </>
+          {/* The welcome lockup and the tagline are the desktop column's
+              furniture. The mobile design names the task and goes straight to
+              the sign-in methods. */}
+          <h1 className="ws-display text-center text-[28px] leading-tight tracking-[-0.02em] md:hidden">
+            {(offer || settling) && !useAnother ? t("unlockTitle") : t("createAccountTitle")}
+          </h1>
+          <h1 className="ws-display hidden text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em] md:block">
+            {t("welcome")}
+            <MarketLogo className="mt-[0.22em] block h-[0.7em] w-auto" />
+          </h1>
+          <p className="mt-4 hidden max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72 md:block">
+            {t("tagline")}
+          </p>
+
+          {offerPasskey ? (
+            <PasskeyStep onDone={() => setStepDone(true)} />
+          ) : busy ? (
+            <div className="mt-[34px] flex items-center gap-3 rounded-[14px] border border-white/14 bg-white/6 p-4">
+              <MarketLogo className="h-[15px] w-auto shrink-0" />
+              <span className="text-sm text-white/80">
+                {creating ? t("creatingAccount") : t("signingIn")}
+              </span>
+            </div>
+          ) : settling ? (
+            <div className="mt-7 min-h-[132px] md:mt-[34px]" aria-busy="true" />
+          ) : offer && !useAnother ? (
+            <div className="mt-7 md:mt-[34px]">
+              <UnlockPanel offer={offer} onUseAnother={useAnotherAccount} />
+            </div>
           ) : (
             <>
-              {/* The step marker, the welcome lockup and the tagline are the
-                  desktop column's furniture. The mobile design names the task
-                  and goes straight to the sign-in methods. */}
-              <div className="hidden md:block">
-                <StepMarker step={1} label={t("stepOf", { step: 1, steps: 2 })} />
+              {/* The design puts this label above the social buttons, so a
+                  phone reads title, methods, then the email field. */}
+              <div className="mt-7 mb-4 flex items-center gap-3.5 md:hidden">
+                <span className="h-px flex-1 bg-white/10" />
+                <span className="text-[12px] whitespace-nowrap text-white/45">
+                  {t("orContinueWith")}
+                </span>
+                <span className="h-px flex-1 bg-white/10" />
               </div>
-              <h1 className="ws-display text-center text-[28px] leading-tight tracking-[-0.02em] md:hidden">
-                {t("createAccountTitle")}
-              </h1>
-              <h1 className="ws-display hidden text-[clamp(38px,4.6vw,56px)] leading-none tracking-[-0.03em] md:block">
-                {t("welcome")}
-                <MarketLogo className="mt-[0.22em] block h-[0.7em] w-auto" />
-              </h1>
-              <p className="mt-4 hidden max-w-[38ch] text-[15.5px] leading-[1.55] text-white/72 md:block">
-                {t("tagline")}
-              </p>
 
-              {busy ? (
-                <div className="mt-[34px] flex items-center gap-3 rounded-[14px] border border-white/14 bg-white/6 p-4">
-                  <MarketLogo className="h-[15px] w-auto shrink-0" />
-                  <span className="text-sm text-white/80">
-                    {creating ? t("creatingAccount") : t("signingIn")}
-                  </span>
-                </div>
-              ) : (
-                <>
-                  {/* The design puts this label above the social buttons, so a
-                      phone reads title, methods, then the email field. */}
-                  <div className="mt-7 mb-4 flex items-center gap-3.5 md:hidden">
-                    <span className="h-px flex-1 bg-white/10" />
-                    <span className="text-[12px] whitespace-nowrap text-white/45">
-                      {t("orContinueWith")}
-                    </span>
-                    <span className="h-px flex-1 bg-white/10" />
-                  </div>
+              <div className="md:mt-[34px]">
+                <SocialButtons />
+              </div>
 
-                  <div className="md:mt-[34px]">
-                    <SocialButtons disabled={!agreed} />
-                  </div>
+              <div className="my-[22px] hidden items-center gap-3.5 md:flex">
+                <span className="h-px flex-1 bg-white/10" />
+                <span className="text-xs tracking-[0.04em] text-white/40">{t("or")}</span>
+                <span className="h-px flex-1 bg-white/10" />
+              </div>
 
-                  <div className="my-[22px] hidden items-center gap-3.5 md:flex">
-                    <span className="h-px flex-1 bg-white/10" />
-                    <span className="text-xs tracking-[0.04em] text-white/40">{t("or")}</span>
-                    <span className="h-px flex-1 bg-white/10" />
-                  </div>
-
-                  <div className="mt-5 md:mt-0">
-                    <EmailForm disabled={!agreed} />
-                  </div>
-
-                  <PasskeyButton disabled={!agreed} />
-                </>
-              )}
+              <div className="mt-5 md:mt-0">
+                <EmailForm />
+              </div>
             </>
           )}
         </div>
 
-        {/* The two questions every method above waits on: the terms, which
-            are required, and product email, which is not. Below the methods
-            where the old "by continuing you agree" line stood; the disabled
-            buttons and the line under the boxes say what is missing. */}
-        {phase === "passkey" || busy ? null : <ConsentChecks />}
+        <p className="mx-auto max-w-[420px] text-center text-xs leading-normal text-white/35">
+          {t.rich("agree", {
+            brand: BRAND,
+            terms: (chunks) => (
+              <a href="#" className="text-white/60 underline">
+                {chunks}
+              </a>
+            ),
+            privacy: (chunks) => (
+              <a href="#" className="text-white/60 underline">
+                {chunks}
+              </a>
+            ),
+          })}
+          .
+        </p>
       </div>
 
       <VisualPanel />

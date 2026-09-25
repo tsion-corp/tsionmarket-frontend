@@ -2,7 +2,7 @@ import { act, fireEvent, render } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import { TradeApiError } from "@/lib/meme/api";
 
 const WALLET = "0xabc0000000000000000000000000000000000001";
@@ -68,8 +68,18 @@ vi.mock("@/hooks/use-portfolio", () => ({
 vi.mock("@/hooks/use-withdraw", () => ({ useReroutedWithdraw: () => ({ withdraw: vi.fn() }) }));
 vi.mock("@privy-io/react-auth", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@privy-io/react-auth")>()),
-  usePrivy: () => ({ user: { id: "did:privy:u1" } }),
   getAccessToken: vi.fn(async () => "token"),
+}));
+// The sheet reads the signed-in account through the Decane-backed session seam.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: WALLET,
+    solanaAddress: null,
+    profile: { name: "u1", email: "", avatarSeed: "did:privy:u1" },
+    logout: vi.fn(),
+  }),
 }));
 vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 

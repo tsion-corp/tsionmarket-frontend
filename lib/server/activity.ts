@@ -69,6 +69,10 @@ export interface ActivityItem {
   // the action (a KASH buy, a wager, a prediction buy) instead of showing a
   // bare "Withdrew"/"Deposited". Absent for plain sends and receives.
   action?: ActionKind;
+  // From the OLD account's wallet, kept from a snapshot taken at the upgrade
+  // rather than read live (see app/api/migration/legacy-activity). The row
+  // says so, because the address on it is not the one the reader has now.
+  legacy?: boolean;
 }
 
 /**

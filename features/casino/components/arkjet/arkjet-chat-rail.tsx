@@ -1,4 +1,6 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import {
   useEffect,
@@ -8,7 +10,6 @@ import {
   type KeyboardEvent,
   type UIEvent,
 } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { Avatar } from "@/components/ui/avatar";
 import { useArkjetChat } from "@/features/casino/hooks/use-arkjet-chat";
 import { useCasinoPresence } from "@/features/casino/hooks/use-casino-presence";
@@ -186,7 +187,9 @@ function ChatMessage({
 }
 
 export function ArkjetChatRail({ onClose }: { onClose: () => void }) {
-  const { ready, authenticated, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const chat = useArkjetChat(ready && authenticated);
   const presence = useCasinoPresence();
   const displayedOnlineCount = presence.data?.arkjet?.playersOnline ?? chat.onlineCount;

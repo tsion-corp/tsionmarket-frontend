@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { useSignTransaction } from "@privy-io/react-auth/solana";
-import type { ConnectedStandardSolanaWallet } from "@privy-io/react-auth/solana";
+import { useSocialWallet } from "decane-connect-kit";
+import { ensureUnlocked } from "@/lib/decane";
 import {
   prepareSponsoredSolanaTransaction,
   sponsorAndSubmitSolanaTransaction,
@@ -12,7 +12,6 @@ export interface SponsoredSolanaSendInput {
   // The transaction to send, base64 or wire bytes, built with any fee payer:
   // prepare reseats the sponsor before the user signs.
   transaction: string | Uint8Array;
-  wallet: ConnectedStandardSolanaWallet;
   prefundRent?: boolean;
 }
 
@@ -22,12 +21,13 @@ export interface SponsoredSolanaSendInput {
 // adds its signature and submits. Resolves to the on-chain signature; callers
 // confirm it with confirmSolanaSignature as before.
 export function useSponsoredSolanaSend() {
-  const { signTransaction } = useSignTransaction();
+  const wallet = useSocialWallet();
 
   return useCallback(
-    async ({ transaction, wallet, prefundRent }: SponsoredSolanaSendInput): Promise<string> => {
+    async ({ transaction, prefundRent }: SponsoredSolanaSendInput): Promise<string> => {
       const prepared = await prepareSponsoredSolanaTransaction(transaction, { prefundRent });
-      const { signedTransaction } = await signTransaction({ transaction: prepared, wallet });
+      await ensureUnlocked(wallet);
+      const signedTransaction = await wallet.signSolanaTransaction(prepared);
       // Prepare already put the sponsor in both the fee-payer and any token
       // account rent-payer seats. Asking submit to prefund again transfers a
       // duplicate rent reserve into the user's wallet.
@@ -37,6 +37,6 @@ export function useSponsoredSolanaSend() {
       }
       return result.submittedSignature;
     },
-    [signTransaction]
+    [wallet]
   );
 }

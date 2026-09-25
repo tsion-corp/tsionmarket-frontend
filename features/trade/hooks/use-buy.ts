@@ -1,19 +1,11 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useSendUsdc } from "@/hooks/use-withdraw";
-import { getWalletAddress } from "@/lib/user";
-import { SETTLE_CHAINS, SOLANA_CHAIN_ID, type WalletChainType } from "@/lib/deposit";
+import { SETTLE_CHAINS, SOLANA_CHAIN_ID } from "@/lib/deposit";
 import type { BuyRoute } from "@/lib/buy";
 import { fetchBuyQuote } from "@/lib/buy-quote";
-
-// The bought token settles to the user's own wallet on the destination chain.
-// Solana destinations settle to the Solana embedded wallet, every other chain to
-// the EVM one.
-function recipientChainType(destinationChainId: number): WalletChainType {
-  return destinationChainId === SOLANA_CHAIN_ID ? "solana" : "ethereum";
-}
 
 export interface BuyExecuteInput {
   route: BuyRoute;
@@ -33,13 +25,16 @@ export interface BuyExecuteResult {
 // settles the bought token to the recipient on the destination chain. Returns
 // the requestId to poll status against (see useDepositStatus).
 export function useBuy() {
-  const { user } = usePrivy();
+  const { evmAddress, solanaAddress } = useAuthSession();
   const { sendUsdc } = useSendUsdc();
 
   return useMutation<BuyExecuteResult, Error, BuyExecuteInput>({
     mutationFn: async ({ route, amount, slippageBps }) => {
-      const recipient = getWalletAddress(user, recipientChainType(route.destinationChainId));
-      const refundTo = getWalletAddress(user, "ethereum");
+      // The bought token settles to the user's own wallet on the destination
+      // chain: Solana destinations settle to the Solana wallet, every other
+      // chain to the EVM one.
+      const recipient = route.destinationChainId === SOLANA_CHAIN_ID ? solanaAddress : evmAddress;
+      const refundTo = evmAddress;
       if (!recipient) throw new Error("Connect a wallet for the destination first.");
       if (!refundTo) throw new Error("No Base wallet is connected.");
 

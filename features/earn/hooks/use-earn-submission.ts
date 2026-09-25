@@ -21,7 +21,7 @@ export const SUBMISSION_KEYS = {
 export function useMySubmissions() {
   const query = useQuery({
     queryKey: SUBMISSION_KEYS.all,
-    queryFn: fetchMySubmissions,
+    queryFn: () => fetchMySubmissions(),
   });
 
   return {

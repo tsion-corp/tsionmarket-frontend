@@ -1,7 +1,8 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ARKJET_KEYS } from "@/features/casino/hooks/use-arkjet";
 import { pollUnlessFailing } from "@/lib/query-poll";
@@ -64,10 +65,12 @@ async function socketFirst<T>(socketAction: () => Promise<T>, httpAction: () => 
 }
 
 export function useChicken() {
-  const { ready, authenticated, user, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const queryClient = useQueryClient();
   const [terminalResult, setTerminalResult] = useState<ChickenSession | null>(null);
-  const hasSession = ready && authenticated && Boolean(user?.id);
+  const hasSession = ready && authenticated && Boolean(evmAddress);
   const rules = useQuery({
     queryKey: KEYS.rules,
     queryFn: fetchChickenRules,
@@ -86,13 +89,14 @@ export function useChicken() {
     refetchOnWindowFocus: false,
   });
   const balance = useQuery({
-    queryKey: [...KEYS.balance, user?.id ?? null],
+    queryKey: [...KEYS.balance, evmAddress ?? null],
     queryFn: fetchArkjetBalance,
     enabled: hasSession,
     refetchInterval: pollUnlessFailing(30_000),
     staleTime: 30_000,
     retry: false,
   });
+  const playerId = balance.data?.playerId ?? null;
   const history = useQuery({
     queryKey: KEYS.history,
     queryFn: () => fetchChickenHistory(12),
@@ -134,8 +138,11 @@ export function useChicken() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (!hasSession || !user?.id) return;
-    return subscribeChickenTopic(user.id, (frame) => {
+    // The server's id for this player, from the balance it already returns —
+    // see use-arkjet for why a client-derived id is wrong for players whose
+    // rows are still stored under their old Privy DID.
+    if (!hasSession || !playerId) return;
+    return subscribeChickenTopic(playerId, (frame) => {
       if (frame.type === CHICKEN_SOCKET_CLOSED.type || frame.type === CHICKEN_SOCKET_RESYNC.type) {
         void synchronize();
         return;
@@ -148,7 +155,7 @@ export function useChicken() {
       }
       settle(session);
     });
-  }, [hasSession, queryClient, settle, synchronize, user?.id]);
+  }, [hasSession, playerId, queryClient, settle, synchronize]);
 
   const runAction = (
     kind: "step" | "cashout",

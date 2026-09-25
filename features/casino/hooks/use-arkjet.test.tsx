@@ -19,7 +19,9 @@ const api = vi.hoisted(() => ({
 const auth = vi.hoisted(() => ({
   ready: true,
   authenticated: true,
-  user: { id: "user-1" },
+  evmAddress: "0x00000000000000000000000000000000000000aA",
+  solanaAddress: null,
+  profile: { name: "u1", email: "", avatarSeed: "u1" },
   login: vi.fn(),
 }));
 const live = vi.hoisted(() => ({
@@ -39,9 +41,13 @@ vi.mock("@/features/casino/lib/arkjet/live-socket", () => ({
   sendArkjetCommand: live.sendArkjetCommand,
   subscribeArkjetTopics: live.subscribeArkjetTopics,
 }));
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => auth,
+// The hooks read the Decane session (useAuthSession), not Privy — the whole
+// point of this branch. `auth.evmAddress` stands where `auth.user.id` did:
+// it is the identity the queries are keyed on.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => auth,
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 import { ARKJET_KEYS, useArkjet } from "./use-arkjet";
 
@@ -53,7 +59,7 @@ const round = { roundId: "round-1", status: "COMMITTED" };
 
 beforeEach(() => {
   vi.useFakeTimers();
-  auth.user = { id: "user-1" };
+  auth.evmAddress = "0x00000000000000000000000000000000000000aA";
   auth.authenticated = true;
   client = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
   for (const mock of Object.values(api)) mock.mockReset();
@@ -86,7 +92,9 @@ describe("Arkjet request cadence", () => {
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(result.current.balance?.available).toBe("0.5");
     api.fetchArkjetBalance.mockImplementation(() => new Promise(() => {}));
-    auth.user = { id: "user-2" };
+    // A different account: its balance must not be read from the first
+    // account's cache.
+    auth.evmAddress = "0x00000000000000000000000000000000000000bB";
     rerender();
     expect(result.current.balance).toBeNull();
   });

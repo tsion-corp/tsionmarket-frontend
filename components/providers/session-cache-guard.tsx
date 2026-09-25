@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useQueryClient } from "@tanstack/react-query";
 import { RQ_PERSIST_KEY } from "@/lib/query-persist";
 
@@ -28,7 +28,7 @@ import { RQ_PERSIST_KEY } from "@/lib/query-persist";
 // persister writes on a throttle, and a flush that lands after the removal
 // must find nothing to write back.
 export function SessionCacheGuard() {
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated } = useAuthSession();
   const queryClient = useQueryClient();
 
   useEffect(() => {

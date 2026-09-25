@@ -1,8 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePrivy } from "@privy-io/react-auth";
 import { useSessionWallet } from "@/components/providers/server-session";
 import { useMatchMarket, usePlaceBet } from "@/features/casino/hooks/use-casino-betting";
 import { useChessCashier } from "@/features/casino/hooks/use-chess-cashier";
@@ -77,7 +78,9 @@ function BetForm({
   mobile?: boolean;
   onComplete?: () => void;
 }) {
-  const { login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const viewer = useSessionWallet("ethereum");
   const cashier = useChessCashier();
   const portfolio = usePortfolio({ scope: "base" });

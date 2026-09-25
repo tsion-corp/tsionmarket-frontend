@@ -2,11 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy, useSignMessage, useWallets } from "@privy-io/react-auth";
-import {
-  useSignMessage as useSolanaSignMessage,
-  useWallets as useSolanaWallets,
-} from "@privy-io/react-auth/solana";
+import { useSocialWallet } from "decane-connect-kit";
 import { useEvmSendWithReceipt } from "@/hooks/use-evm-send";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
@@ -15,7 +11,8 @@ import { swapTradeAmounts, type TradeAmounts } from "@/lib/analytics/trade-amoun
 import { formatUsdcAtomic } from "@/lib/meme/format";
 import { memePortfolioKeys } from "@/lib/meme/portfolio";
 import { isSubmittedEvmOperationError } from "@/lib/trade/sponsor";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import { ensureUnlocked } from "@/lib/decane";
 import {
   TradeApiError,
   createSolanaWalletChallenge,
@@ -35,7 +32,6 @@ import {
   type SwapStatus,
 } from "@/lib/meme/api";
 import { SOLANA_CHAIN_ID, networkOf } from "@/lib/meme/chain";
-import { signatureToBase58 } from "@/lib/meme/solana-signature";
 import { track } from "@/lib/analytics/mixpanel";
 import { reportTradeRecordingMismatch } from "@/lib/analytics/watchtower";
 
@@ -125,7 +121,29 @@ export type TradePhase =
   | "pending"
   | "failed";
 
-const LINKED_KEY = "wsws.meme-linked.v1";
+// v3. v2 keyed entries on the wallet alone, on the mistaken belief that only
+// Privy had a user id. Decane's token carries `uid`, and that is exactly the
+// subject the trade service stamps into the challenge and matches in
+// assertOwnership — so a wallet-only key claims "linked" without saying to
+// whom, and a second identity on the same device skips the link it needs.
+const LINKED_KEY = "wsws.meme-linked.v3";
+
+// The subject the trade service links a wallet to: the Decane token's `uid`.
+// Read for the cache key only — the server verifies the token itself and this
+// never trusts the contents.
+function decaneUserId(token: string | null): string | null {
+  if (!token) return null;
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return null;
+    const json = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/"))) as {
+      uid?: unknown;
+    };
+    return typeof json.uid === "string" ? json.uid : null;
+  } catch {
+    return null;
+  }
+}
 // The service's verification usually lands within a few seconds of the
 // receipt: look early, then back off so a slow one is not asked every four
 // seconds for as long as it takes.
@@ -207,17 +225,12 @@ function markLinked(key: string) {
 }
 
 export function useMemeTrade() {
-  const { user } = usePrivy();
-  const { signMessage } = useSignMessage();
-  const { wallets: evmWallets } = useWallets();
-  const { signMessage: signSolanaMessage } = useSolanaSignMessage();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { evmAddress: wallet, solanaAddress: solanaWallet } = useAuthSession();
+  const socialWallet = useSocialWallet();
   const evmSend = useEvmSendWithReceipt();
   const { applyReceipt } = usePortfolio();
   const sendSponsoredSolana = useSponsoredSolanaSend();
   const queryClient = useQueryClient();
-  const wallet = getWalletAddress(user, "ethereum");
-  const solanaWallet = getWalletAddress(user, "solana");
 
   const walletFor = useCallback(
     (chainId: number): string | null => (chainId === SOLANA_CHAIN_ID ? solanaWallet : wallet),
@@ -259,42 +272,44 @@ export function useMemeTrade() {
   // ownership mismatch clears the cache and relinks once.
   const ensureLinked = useCallback(
     async (chainId: number, { force = false }: { force?: boolean } = {}) => {
-      if (!user) throw new Error("Sign in first.");
+      if (!wallet) throw new Error("Sign in first.");
+      // No subject means no safe way to say who a cached entry belongs to, so
+      // the link is simply re-run rather than trusted.
+      const subject = decaneUserId(socialWallet.getAccessToken?.() ?? null);
       if (chainId === SOLANA_CHAIN_ID) {
         // The Solana sibling: the same challenge shape, signed as raw bytes
         // by the embedded Solana wallet, and sent back as base58. The address
         // is never lowercased, on the wire or in the cache key.
         if (!solanaWallet) throw new Error("Sign in first.");
-        const key = `${user.id}:solana:${solanaWallet}`;
-        if (force) forgetLinked(key);
-        else if (linkedCache().has(key)) return;
-        const signer = solanaWallets.find((w) => w.address === solanaWallet);
-        if (!signer) throw new Error("Your Solana wallet is still connecting. Try again.");
+        const key = subject ? `${subject}:solana:${solanaWallet}` : null;
+        if (key && force) forgetLinked(key);
+        else if (key && linkedCache().has(key)) return;
         setPhase("linking");
         const challenge = await createSolanaWalletChallenge(solanaWallet);
-        const { signature } = await signSolanaMessage({
-          message: new TextEncoder().encode(challenge.message),
-          wallet: signer,
-        });
-        await verifySolanaWallet(challenge.challengeId, signatureToBase58(signature));
-        markLinked(key);
+        await ensureUnlocked(socialWallet);
+        // Decane returns the Solana signature already base58-encoded, which is
+        // the wire form verifySolanaWallet expects.
+        const signature = await socialWallet.signMessage("solana:mainnet", challenge.message);
+        await verifySolanaWallet(challenge.challengeId, signature);
+        if (key) markLinked(key);
         return;
       }
       if (!wallet) throw new Error("Sign in first.");
       // The address is known before the signer for it is up, so check the
       // signer exists rather than spending a challenge it cannot sign.
-      const signer = evmWallets.find((w) => w.walletClientType === "privy");
-      if (!signer) throw new Error("Your wallet is still connecting. Try again.");
-      const key = `${user.id}:${wallet.toLowerCase()}`;
-      if (force) forgetLinked(key);
-      else if (linkedCache().has(key)) return;
+      if (!socialWallet.isConnected) throw new Error("Your wallet is still connecting. Try again.");
+      const key = subject ? `${subject}:${wallet.toLowerCase()}` : null;
+      if (key && force) forgetLinked(key);
+      else if (key && linkedCache().has(key)) return;
       setPhase("linking");
       const challenge = await createWalletChallenge(wallet);
-      const { signature } = await signMessage({ message: challenge.message }, { address: wallet });
+      await ensureUnlocked(socialWallet);
+      // Meme trades run on Base, so the ownership proof signs there too.
+      const signature = await socialWallet.signMessage("evm:8453", challenge.message);
       await verifyWallet(challenge.challengeId, signature);
-      markLinked(key);
+      if (key) markLinked(key);
     },
-    [wallet, solanaWallet, solanaWallets, evmWallets, user, signMessage, signSolanaMessage]
+    [wallet, solanaWallet, socialWallet]
   );
 
   // Standalone linking for the preview path: the backend requires the wallet
@@ -347,8 +362,6 @@ export function useMemeTrade() {
   // execute in order and no balance-delta proof yet; CONFIRMED is the word.
   const tradeSolana = useCallback(
     async (body: SwapRequest, onSubmitted?: (swapId: string) => void): Promise<TradeResult> => {
-      const signer = solanaWallets.find((w) => w.address === body.walletAddress);
-      if (!signer) throw new Error("Your Solana wallet is still connecting. Try again.");
       const runQuote = () => quoteWithProviderRetry((key) => quoteSolanaSwap(body, key));
 
       await ensureLinked(SOLANA_CHAIN_ID);
@@ -357,7 +370,7 @@ export function useMemeTrade() {
       try {
         quote = await runQuote();
       } catch (e) {
-        if (e instanceof TradeApiError && e.code === "WALLET_OWNERSHIP_MISMATCH" && user) {
+        if (e instanceof TradeApiError && e.code === "WALLET_OWNERSHIP_MISMATCH" && wallet) {
           await ensureLinked(SOLANA_CHAIN_ID, { force: true });
           setPhase("quoting");
           quote = await runQuote();
@@ -378,10 +391,17 @@ export function useMemeTrade() {
       setPhase("signing");
       // The sponsor reseats itself as fee payer BEFORE the user signs, and
       // nothing touches the transaction after; that order is the contract.
+      //
+      // prefundRent also reseats the rent payer named INSIDE an associated
+      // token account creation, which the fee-payer seat does not cover. A
+      // swap that opens an account the taker does not have yet — the output
+      // mint, or wrapped SOL — otherwise bills that rent to the taker's own
+      // wallet. Selling a token is exactly when that wallet is empty of SOL,
+      // which is the case sponsorship exists for, so it is always on here.
+      // Same rule the withdraw, migration and RWA paths already follow.
       const signature = await sendSponsoredSolana({
         transaction: quote.unsignedTransactionBase64,
-        wallet: signer,
-        prefundRent: false,
+        prefundRent: true,
       });
       await registerSolanaSubmission(quote.swapId, body.walletAddress, signature);
       setSettled({ txHash: signature, chainId: SOLANA_CHAIN_ID });
@@ -413,7 +433,7 @@ export function useMemeTrade() {
       }
       throw new TradeApiError(status, "The trade didn't complete.", 200);
     },
-    [solanaWallets, ensureLinked, user, sendSponsoredSolana, refreshServicePortfolio]
+    [ensureLinked, wallet, sendSponsoredSolana, refreshServicePortfolio]
   );
 
   const trade = useCallback(
@@ -446,7 +466,7 @@ export function useMemeTrade() {
           quote = await runQuote();
         } catch (e) {
           // A stale linked-cache entry: relink once, then quote again.
-          if (e instanceof TradeApiError && e.code === "WALLET_OWNERSHIP_MISMATCH" && user) {
+          if (e instanceof TradeApiError && e.code === "WALLET_OWNERSHIP_MISMATCH" && wallet) {
             await ensureLinked(chainId, { force: true });
             setPhase("quoting");
             quote = await runQuote();
@@ -626,7 +646,7 @@ export function useMemeTrade() {
     },
     [
       walletFor,
-      user,
+      wallet,
       ensureLinked,
       evmSend,
       applyReceipt,

@@ -1,16 +1,16 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useQuery } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { getOrCreateWallet } from "@/features/trade/lib/hyperliquid-api";
-import { getWalletAddress } from "@/lib/user";
 
 // Resolves the internal walletId every Hyperliquid prepare/submit call needs,
 // for the signed-in user's embedded EVM wallet. Get-or-create is idempotent
 // server-side, so this can run on every mount without creating duplicates.
 export function useHyperliquidWallet() {
-  const { user, authenticated } = usePrivy();
-  const address = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const address = evmAddress;
 
   const query = useQuery({
     queryKey: ["hl-wallet", address],

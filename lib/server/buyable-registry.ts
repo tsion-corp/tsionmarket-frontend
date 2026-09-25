@@ -189,3 +189,86 @@ export async function fetchBuyableRegistry(): Promise<{
   await addTradeCatalog(out, meme);
   return { buyable: out, meme };
 }
+
+// ── Held tokens the paged catalogue never reached ────────────────────────────
+//
+// The allowlist above is the top of a RANKED list: a token the wallet holds
+// but that sits past the pages read (staging ranks a coin with no 24h volume
+// around row 7,800 of 19,000) is invisible to the portfolio, and so to the
+// migration sweep. Seen live: the same wallet showed $1.96 of Base memecoins
+// on production and nothing on staging.
+//
+// The legacy-wallet read therefore asks the catalogue about each held Base
+// token BY ADDRESS. The lookup resolves any real ERC-20 contract (it 404s
+// only for a non-contract), so "known" is not the bar — a token is admitted
+// when the platform would let the user SELL it and quotes a price for it.
+// Spam and honeypots have neither. Bounded: at most CONFIRM_MAX addresses per
+// read (an old wallet that traded memecoins carries a hundred-odd airdrops
+// beside them), each answer cached for ten minutes either way, so a repeat
+// read costs nothing.
+const CONFIRM_MAX = 200;
+const CONFIRM_TTL_MS = 600_000;
+const CONFIRM_TIMEOUT_MS = 5_000;
+const CONFIRM_CONCURRENCY = 10;
+
+const confirmCache = new Map<string, { at: number; value: MemeTokenInfo | null }>();
+
+interface RawTokenLookup {
+  address?: string;
+  logoUrl?: string | null;
+  priceUsd?: string | null;
+  sellEnabled?: boolean;
+}
+
+async function lookupBaseToken(address: string): Promise<MemeTokenInfo | null> {
+  const hit = confirmCache.get(address);
+  if (hit && Date.now() - hit.at < CONFIRM_TTL_MS) return hit.value;
+  let value: MemeTokenInfo | null = null;
+  try {
+    const res = await fetch(`${TRADE_BASE}/tokens/${address}?chain=base`, {
+      signal: AbortSignal.timeout(CONFIRM_TIMEOUT_MS),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const body = (await res.json()) as { data?: RawTokenLookup };
+      const row = body.data;
+      const price = catalogPrice(row?.priceUsd);
+      if (row?.sellEnabled === true && price !== null && price > 0) {
+        value = { logo: row.logoUrl ?? null, priceUsd: price };
+      }
+    }
+  } catch {
+    // Unreachable or slow: not admitted this read, and not remembered as a
+    // "no" either — the next read asks again.
+    return null;
+  }
+  confirmCache.set(address, { at: Date.now(), value });
+  return value;
+}
+
+/**
+ * Which of `addresses` (lowercased Base contracts) the platform can sell and
+ * price. Returned in the MemeRegistry shape so the portfolio values and
+ * decorates them exactly like a catalogue-listed coin.
+ */
+export async function confirmBaseTokens(
+  addresses: readonly string[],
+  // How many addresses this caller may spend. The migration reads a wallet a
+  // handful of times ever and wants the long tail; the portfolio reads every
+  // wallet on the app's slow clock and wants the bill bounded, so it asks for
+  // less. Either way the answers are cached per address, so the second caller
+  // of the same wallet pays almost nothing.
+  max: number = CONFIRM_MAX
+): Promise<Map<string, MemeTokenInfo>> {
+  const out = new Map<string, MemeTokenInfo>();
+  if (!TRADE_BASE) return out;
+  const queue = [...new Set(addresses)].slice(0, max);
+  const workers = Array.from({ length: Math.min(CONFIRM_CONCURRENCY, queue.length) }, async () => {
+    for (let next = queue.shift(); next !== undefined; next = queue.shift()) {
+      const confirmed = await lookupBaseToken(next);
+      if (confirmed) out.set(next, confirmed);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}

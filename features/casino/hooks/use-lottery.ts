@@ -1,7 +1,7 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
 import {
   createLotteryQuickPick,
@@ -14,7 +14,6 @@ import {
 } from "@/features/casino/lib/api/lottery";
 import { useLotteryFunding } from "./use-lottery-funding";
 import { errorCode } from "@/lib/api/envelope";
-import { getWalletAddress } from "@/lib/user";
 import { lotterySelectionKey } from "@/features/casino/lib/lottery";
 import { LotteryFundingError } from "@/features/casino/lib/lottery-funding";
 
@@ -40,8 +39,9 @@ export interface LotteryPurchaseRequest {
 export function useLottery() {
   const t = useTranslations("casino.arkball");
   const queryClient = useQueryClient();
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const wallet = evmAddress;
   const privateReadsEnabled = ready && authenticated && !!wallet;
 
   const config = useQuery({

@@ -41,7 +41,7 @@ describe("chess private reads", () => {
     expect(api.apiFetch).toHaveBeenCalledWith(
       "/api/chess/cashier/players/0xabc/balance",
       {},
-      { requireAuth: true }
+      { requireAuth: true, identity: "current" }
     );
     expect(global.fetch).not.toHaveBeenCalled();
   });
@@ -54,7 +54,7 @@ describe("chess private reads", () => {
     expect(api.apiFetch).toHaveBeenCalledWith(
       "/api/chess/betting/markets/match-1/bets?bettor=0xabc",
       {},
-      { requireAuth: true }
+      { requireAuth: true, identity: "current" }
     );
     expect(global.fetch).not.toHaveBeenCalled();
   });

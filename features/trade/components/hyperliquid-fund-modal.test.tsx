@@ -20,9 +20,17 @@ vi.mock("@/features/trade/hooks/use-cctp-deposit-fee", () => ({
   useCctpDepositFee: () => fee,
 }));
 
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => ({ user: {} }) }));
-vi.mock("@/lib/user", () => ({
-  getWalletAddress: () => "0x00000000000000000000000000000000000000aA",
+// The modal reads its wallet from the Decane session, not Privy. Mocking the
+// hook (rather than wrapping in <DecaneKit>) keeps this a component test.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0x00000000000000000000000000000000000000aA",
+    solanaAddress: null,
+    profile: { name: "u1", email: "", avatarSeed: "u1" },
+    logout: vi.fn(),
+  }),
 }));
 
 const portfolio = vi.hoisted(() => ({

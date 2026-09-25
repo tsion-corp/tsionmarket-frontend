@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
-import { useSignTypedData, type SignTypedDataParams } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
+import type { EIP1193Provider } from "viem";
 import {
   signL1Action,
   signUserSignedAction,
@@ -30,9 +31,10 @@ const HYPERLIQUID_IS_TESTNET = process.env.NEXT_PUBLIC_HYPERLIQUID_IS_TESTNET ==
 
 /**
  * Signs Hyperliquid actions with the user's own ARK embedded wallet, client-side,
- * silently (Privy's `showWalletUIs: false` — no popup, same mechanism
- * `features/portfolio/hooks/use-kash-permit.ts` already uses for a plain EIP-712
- * permit). There is no backend-held key anywhere in this flow — the backend
+ * silently (Decane's embedded EVM provider signs an EIP-712 payload with no
+ * popup, same mechanism `features/portfolio/hooks/use-kash-permit.ts` already
+ * uses for a plain EIP-712 permit). There is no backend-held key anywhere in
+ * this flow — the backend
  * independently recovers the signer from what this hook returns and rejects a
  * mismatch (see apps/perp/src/signing/README.md).
  *
@@ -42,30 +44,51 @@ const HYPERLIQUID_IS_TESTNET = process.env.NEXT_PUBLIC_HYPERLIQUID_IS_TESTNET ==
  * so this wraps the SDK rather than reimplementing it, mirroring how the
  * backend used to sign before signing moved client-side.
  */
-export function useHyperliquidSigner(address: string | undefined) {
-  const { signTypedData } = useSignTypedData();
+// The EIP-712 domain type row eth_signTypedData_v4 requires. @nktkas passes
+// viem-style typed data whose `types` omits EIP712Domain (viem injects it
+// internally); the raw provider call does not, so we add it back when absent.
+const EIP712_DOMAIN_TYPE = [
+  { name: "name", type: "string" },
+  { name: "version", type: "string" },
+  { name: "chainId", type: "uint256" },
+  { name: "verifyingContract", type: "address" },
+];
 
-  // Privy's useSignTypedData() takes the exact same {domain, types, primaryType,
-  // message} shape as viem's AbstractViemLocalAccount — this wallet is
-  // literally the SDK's documented Privy integration point (see
-  // AbstractViemLocalAccount's own doc comment in the SDK's source).
+export function useHyperliquidSigner(address: string | undefined) {
+  const { getEthereumProvider } = useSocialWallet();
+
+  // @nktkas's AbstractViemLocalAccount.signTypedData takes viem's
+  // {domain, types, primaryType, message} shape. Decane replaces Privy's
+  // useSignTypedData: we sign that payload with the embedded EVM wallet's own
+  // EIP-1193 provider via eth_signTypedData_v4 — the same drop-to-provider
+  // pattern the sportsbook order signer uses.
   const wallet = useCallback((): AbstractViemLocalAccount => {
     if (!address) {
       throw new Error("Connect a wallet before signing this action.");
     }
     return {
       address: address as `0x${string}`,
-      // Both shapes are {domain, types, primaryType, message} at runtime;
-      // the cast is only for a readonly-array variance mismatch between the
-      // two packages' otherwise-identical type declarations.
       signTypedData: async (params) => {
-        const { signature } = await signTypedData(params as unknown as SignTypedDataParams, {
-          address,
-        });
-        return signature as `0x${string}`;
+        const p = params as unknown as {
+          domain: Record<string, unknown>;
+          types: Record<string, unknown>;
+          primaryType: string;
+          message: Record<string, unknown>;
+        };
+        const provider = (await getEthereumProvider()) as unknown as EIP1193Provider;
+        const typedData = {
+          domain: p.domain,
+          types: p.types.EIP712Domain ? p.types : { EIP712Domain: EIP712_DOMAIN_TYPE, ...p.types },
+          primaryType: p.primaryType,
+          message: p.message,
+        };
+        return (await provider.request({
+          method: "eth_signTypedData_v4",
+          params: [address as `0x${string}`, JSON.stringify(typedData)],
+        })) as `0x${string}`;
       },
     };
-  }, [address, signTypedData]);
+  }, [address, getEthereumProvider]);
 
   const signL1 = useCallback(
     async (action: HlL1Action, nonce: number): Promise<HlSignature> => {

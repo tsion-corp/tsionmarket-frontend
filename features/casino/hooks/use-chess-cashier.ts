@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import {
   cashierLockBuckets,
   cashierTotalUsdc,
@@ -17,8 +17,8 @@ import {
   USDC_DECIMALS,
   type CashierWithdrawal,
 } from "@/features/casino/lib/api/cashier";
-import { useSessionWallet } from "@/components/providers/server-session";
 import { useSendToken } from "@/hooks/use-withdraw";
+
 import { toBaseUnits } from "@/lib/trade/math";
 import { track } from "@/lib/analytics/mixpanel";
 
@@ -71,8 +71,9 @@ export interface ChessDepositOutcome {
 // mount; it touches no wallet SDK, so it is safe on screens that never move
 // money.
 export function useChessCashierStatus() {
-  const { ready, authenticated } = usePrivy();
-  const wallet = useSessionWallet("ethereum");
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const wallet = evmAddress;
 
   const config = useQuery({
     queryKey: CASHIER_KEYS.config,

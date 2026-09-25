@@ -56,6 +56,9 @@ const squareRoboto = Roboto({
 // which is what made the old icon unreadable.
 export const metadata: Metadata = {
   title: "Ark",
+  // app/manifest.ts is emitted at this path. The link is what lets iOS offer
+  // "Add to Home Screen", which is the only way Web Push exists there.
+  manifest: "/manifest.webmanifest",
   description:
     "The onchain superapp for global markets. Own stocks, gold, crypto and real-world assets from one self-custody account, funded in Naira.",
   // Proves ownership of the domain to Google Search Console. Next renders this

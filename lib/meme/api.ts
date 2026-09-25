@@ -44,6 +44,7 @@ import {
   withRiskDefaults,
   type DiscoveryView,
   type Paged,
+  type ShownPage,
 } from "@/lib/meme/catalog";
 import { SOLANA_CHAIN_ID, chainSlug, type MemeChainSlug } from "@/lib/meme/chain";
 import { TradeShapeError } from "@/lib/meme/trade-shape-error";
@@ -78,7 +79,15 @@ export class TradeApiError extends Error {
   code: string;
   status: number;
   requestId: string | null;
-  constructor(code: string, message: string, status: number, requestId: string | null = null) {
+  /** What Retry-After asked for, in milliseconds, when the gateway sent one. */
+  retryAfterMs: number | null;
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    requestId: string | null = null,
+    retryAfterMs: number | null = null
+  ) {
     super(message);
     // A stable discriminant for lib/errors.ts, which must not import this
     // client module to recognise a trade failure.
@@ -86,7 +95,37 @@ export class TradeApiError extends Error {
     this.code = code;
     this.status = status;
     this.requestId = requestId;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+// A rate limit is recognised by the status, not by the code or the message.
+// The gateway's limiter answers with whatever envelope it has to hand, and
+// when the body is not JSON at all the relay mints SERVICE_UNAVAILABLE over
+// it, so a code or a message match misses the case that matters most.
+export function isRateLimited(error: unknown): boolean {
+  return error instanceof TradeApiError && error.status === 429;
+}
+
+// Retry-After, per RFC 9110: either delta-seconds or an HTTP date. Returns the
+// wait in milliseconds, never negative, or null when the header is absent or
+// unreadable. A date already in the past means no wait, not a negative one.
+//
+// The trade relay does not forward this header today
+// (app/api/trade/[...path]/route.ts copies only content-type, cache-control
+// and x-request-id), so this reads null in production for now. It is read here
+// anyway so the walk honours the gateway the moment the relay passes it on.
+export function parseRetryAfter(value: string | null, now: number = Date.now()): number | null {
+  if (value === null) return null;
+  const header = value.trim();
+  if (header === "") return null;
+  if (/^\d+$/.test(header)) return Number(header) * 1_000;
+  // Anything else numeric is not delta-seconds and not a date. "-5" in
+  // particular is neither, and Date.parse reads it as a year.
+  if (/^[+-]?[\d.]+$/.test(header)) return null;
+  const at = Date.parse(header);
+  if (Number.isNaN(at)) return null;
+  return Math.max(0, at - now);
 }
 
 interface Envelope {
@@ -128,7 +167,8 @@ async function request<K extends ParserName>(
       body?.error?.code ?? "SERVICE_UNAVAILABLE",
       body?.error?.message ?? "Trading is unavailable right now.",
       res.status,
-      typeof body?.error?.requestId === "string" ? body.error.requestId : null
+      typeof body?.error?.requestId === "string" ? body.error.requestId : null,
+      parseRetryAfter(res.headers.get("retry-after"))
     );
   }
   const parse = await loadParser(parser);
@@ -169,6 +209,13 @@ function post<K extends ParserName>(
   );
 }
 
+// What every trending read asks for. The contract's maximum on the route is
+// 500; the service answers 100 and reports meta.limit 100, which is the ~100
+// rows the backend lead quotes. Asking for the ceiling rather than letting the
+// service apply its default is what makes that a measurement instead of an
+// assumption, and it collects the rest if the ceiling is ever raised.
+export const TRENDING_BOARD_LIMIT = CATALOG_PAGE_LIMIT;
+
 // Enough Base rows to fill several pages of eight after USDC is dropped.
 const TRENDING_FALLBACK_LIMIT = 40;
 // Fewer Base rows than this and the trending rail is not worth showing on its
@@ -179,36 +226,99 @@ const TRENDING_MIN_ROWS = 8;
 // so the fallback lands while the loading placeholders are still on screen.
 const TRENDING_TIMEOUT_MS = 4_000;
 
+// Why a trending read is not the service's ranking.
+//
+// `rate-limited` the gateway refused the read; the answer is to wait.
+// `unavailable` the ranking failed or answered with nothing at all.
+// `no-rated-rows` the ranking answered, and the view kept too few of its rows.
+//
+// That last one is not hypothetical. Measured against the gateway on
+// 2026-09-16, GET /tokens/trending answers with 100 Base rows and every single
+// one of them carries riskLevel UNKNOWN. The Curated view lists only LOW and
+// MEDIUM, so it removes all 100 and the rail falls back every time. Until the
+// service assesses risk on the trending route, a Curated rail is a 40-row page
+// of the catalogue wearing a "Trending" heading, and it now says so.
+export type TrendingDegradation = "rate-limited" | "unavailable" | "no-rated-rows";
+
+export interface TrendingFeed extends ShownPage<MemeToken> {
+  /** Which list these rows came from. */
+  source: "trending" | "catalog";
+  /** How many rows the ranking returned, before the view judged them. */
+  rankedCount: number;
+  /** Null when these rows are the ranking itself. */
+  degraded: TrendingDegradation | null;
+}
+
 // The discovery feed and the persisted catalog are separate upstreams on the
 // trade service, so trending can be down while the catalog is healthy. When
 // that happens, fall back rather than showing an empty guided view beside a
 // working pro table. A catalog page is not ranked by trend, but real tradable
-// coins beat an "unavailable" panel. If the catalog is down too, that error
-// surfaces and the view shows its unavailable state.
-export async function fetchTrendingTokens(): Promise<Paged<MemeToken>> {
-  let trending: Paged<MemeToken> | null = null;
+// coins beat an "unavailable" panel.
+//
+// The fallback no longer pretends to be trending. It used to swallow the
+// failure whole (`catch { trending = null }`) and hand back a bare page, so a
+// rail showing 40 arbitrary Base coins was indistinguishable from a rail
+// showing the real ranking. The reason now travels with the rows, and a
+// failure on both sources is thrown rather than turned into an empty list.
+// The default is "all", and that is a decision the maintainer took on
+// 2026-09-17 with the numbers in front of them, not an oversight.
+//
+// /tokens/trending carries no risk assessment: every row comes back
+// riskLevel UNKNOWN, which "curated" rejects outright, so the rail kept zero of
+// 100 rows and fell through to 40 arbitrary Base coins on every single load.
+// It had not shown a trending coin since the curated view was applied.
+//
+// "all" turns off every guard, not only the risk filter. Measured against the
+// live feed the day this changed: of 100 trending rows, 83 hold less than the
+// $10,000 liquidity floor curated enforces. Thin liquidity on a memecoin is an
+// exit problem, so this rail can promote a coin that is hard to sell. That cost
+// was put to the maintainer explicitly, alongside the alternative of relaxing
+// the risk filter alone (17 rows, floors intact), and "all" is what they chose.
+//
+// The catalogue, the grids, the phone list and the screener's own list are
+// untouched and still run "curated". This is the rail only.
+export async function fetchTrendingTokens(view: DiscoveryView = "all"): Promise<TrendingFeed> {
+  let ranked: Paged<MemeToken> | null = null;
+  let degraded: TrendingDegradation | null = null;
   try {
-    // Curated by name, not by default: these cards sit on the dashboard with
-    // no view switch beside them, so an unrated coin never arrives unasked.
-    trending = tradableHere(
-      await request("/tokens/trending", "parseTokenPage", {
-        signal: AbortSignal.timeout(TRENDING_TIMEOUT_MS),
-      }),
-      "curated"
-    );
-  } catch {
-    trending = null;
+    // Ask for the contract's maximum. The service clamps it to 100 today
+    // (meta.limit came back 100 for limit=500 on 2026-09-16), so asking for
+    // the ceiling costs nothing now and collects the rest if it is ever
+    // raised. Trending cannot be paged: `page` is ignored, so this one
+    // request is the whole board.
+    ranked = await request(`/tokens/trending?limit=${TRENDING_BOARD_LIMIT}`, "parseTokenPage", {
+      signal: AbortSignal.timeout(TRENDING_TIMEOUT_MS),
+    });
+  } catch (error) {
+    // Not swallowed: the reason is carried out with the result so the rail can
+    // say which list it is showing, and a rate limit is named because the
+    // answer to it is to wait rather than to press refresh.
+    degraded = isRateLimited(error) ? "rate-limited" : "unavailable";
   }
-  // Trending ignores ?chain and is mostly Solana, so once the boundary has
-  // dropped those it can be three cards. The rail should not show three cards
-  // beside a full pro table, so "thin" takes the same fallback as "down".
-  if (trending && trending.items.length >= TRENDING_MIN_ROWS) return trending;
+  if (ranked !== null) {
+    const shown = tradableHere(ranked, view);
+    // Trending ignores ?chain and its rows carry no risk assessment, so once
+    // the view has judged them it can be three cards. The rail should not show
+    // three cards beside a full pro table, so "thin" takes the same fallback
+    // as "down".
+    if (shown.items.length >= TRENDING_MIN_ROWS) {
+      return { ...shown, source: "trending", rankedCount: ranked.items.length, degraded: null };
+    }
+    degraded = ranked.items.length === 0 ? "unavailable" : "no-rated-rows";
+  }
   // chain=base matches the "Trending on Base" heading and keeps every address
-  // in the EVM form the token detail routes expect.
-  return tradableHere(
+  // in the EVM form the token detail routes expect. A failure here is thrown:
+  // both sources are down, and the view has an unavailable state for that.
+  const fallback = tradableHere(
     await request(`/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`, "parseTokenPage"),
-    "curated"
+    view
   );
+  return {
+    ...fallback,
+    source: "catalog",
+    rankedCount: ranked?.items.length ?? 0,
+    degraded,
+  };
 }
 
 // One page of the catalogue at the contract's maximum of 500, parsed but not
@@ -239,8 +349,6 @@ export function fetchScreenerPage(page: number, query: string): Promise<Paged<Me
 // trendingQuery's bounds. Unlike fetchTrendingTokens it has no catalogue
 // fallback and no timeout of its own. A failure reaches the hook as an error,
 // and the strip shows its retry state rather than a list that is not trending.
-export const TRENDING_BOARD_LIMIT = 100;
-
 export function fetchTrendingBoard(
   query: string,
   limit = TRENDING_BOARD_LIMIT

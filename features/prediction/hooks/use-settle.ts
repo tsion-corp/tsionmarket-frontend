@@ -1,306 +1,53 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { encodeFunctionData, erc20Abi } from "viem";
 import { friendlyError } from "@/lib/errors";
 import { usePolymarketSession } from "@/features/prediction/hooks/use-polymarket-session";
-import { refreshCollateralUsd } from "@/features/prediction/lib/polymarket/collateral";
-import { savePendingPredictionCashout } from "@/features/prediction/lib/pending-cashout";
-import { executeGaslessCalls } from "@/features/prediction/lib/polymarket/secure-client";
-import { useEvmSend } from "@/hooks/use-evm-send";
-import { usePortfolio } from "@/hooks/use-portfolio";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { useSendToken } from "@/hooks/use-withdraw";
-import { getWalletAddress } from "@/lib/user";
-import { CONTRACTS, POLYGON_CHAIN_ID } from "@/lib/polymarket/config";
-import { SETTLE_CHAINS } from "@/lib/deposit";
-import { fetchSellQuote } from "@/lib/sell";
-import { publicClientForChain, type ChainReadClient } from "@/lib/trade/receipt";
+import { settleCollateral, SettleError, type SettlePhase } from "@/lib/polymarket/settle";
 
-// Turns pUSD (Polymarket collateral, on Polygon) into USDC on Base, in the
-// user's own wallet. Polymarket's offramp only exists on Polygon, so the path is
-// pUSD -> USDC.e (offramp) -> USDC on Base (Dextopus bridge; it accepts USDC.e
-// directly, so no on-Polygon swap is needed). The unwrap runs inside the
-// Polymarket Deposit Wallet through its relayer. Alchemy sponsors the embedded
-// wallet's ERC-20 sends, so users do not need POL.
-//
-// It is balance-driven and resumable: it offramps whatever pUSD the account
-// holds, then bridges whatever USDC.e the wallet holds. A run that failed after
-// unwrapping (funds sitting as USDC.e) is recovered by simply running again.
+export type { SettlePhase } from "@/lib/polymarket/settle";
 
-// CollateralOfframp.unwrap(asset, to, amount): burns pUSD, sends USDC.e to `to`.
-const OFFRAMP_ABI = [
-  {
-    type: "function",
-    name: "unwrap",
-    stateMutability: "nonpayable",
-    inputs: [
-      { name: "_asset", type: "address" },
-      { name: "_to", type: "address" },
-      { name: "_amount", type: "uint256" },
-    ],
-    outputs: [],
-  },
-] as const;
-
-export type SettlePhase = "idle" | "transferring" | "unwrapping" | "quoting" | "bridging";
-
-export interface SettleToBaseResult {
-  requestId: string;
-  originTxHash: string;
-  estimatedBaseUsd: number;
-}
-
-// A user-facing settle error whose message is shown verbatim.
-export class SettleError extends Error {}
-
-const RELAYER_COOLDOWN_MS = 60_000;
-let relayerCooldownUntil = 0;
-let activeSettlement: Promise<SettleToBaseResult> | null = null;
-
-function isRelayerRateLimit(error: unknown): boolean {
-  let current: unknown = error;
-  for (let depth = 0; depth < 4 && current; depth += 1) {
-    if (current instanceof Error) {
-      if (
-        current.name === "RateLimitError" ||
-        /relayer.*rate limit|rate limit.*relayer|too many requests/iu.test(current.message)
-      ) {
-        return true;
-      }
-      current = current.cause;
-      continue;
-    }
-    break;
-  }
-  return false;
-}
-
-function rateLimitMessage(): string {
-  const seconds = Math.max(1, Math.ceil((relayerCooldownUntil - Date.now()) / 1_000));
-  return `Polymarket's cashout service is rate limited. Your pUSD is safe. Try again in ${seconds} seconds.`;
-}
-
-function readErc20(client: ChainReadClient, token: string, owner: string): Promise<bigint> {
-  return client.readContract({
-    address: token as `0x${string}`,
-    abi: erc20Abi,
-    functionName: "balanceOf",
-    args: [owner as `0x${string}`],
-  });
-}
-
-const BALANCE_TIMEOUT_MS = 30_000;
-const BALANCE_POLL_MS = 750;
-
-async function waitForErc20Balance(
-  client: ChainReadClient,
-  token: string,
-  owner: string,
-  atLeast: bigint,
-  label: string
-): Promise<bigint> {
-  const deadline = Date.now() + BALANCE_TIMEOUT_MS;
-  let balance = 0n;
-  while (Date.now() < deadline) {
-    balance = await readErc20(client, token, owner);
-    if (balance >= atLeast) return balance;
-    await new Promise((resolve) => setTimeout(resolve, BALANCE_POLL_MS));
-  }
-  throw new SettleError(`${label} is still confirming. Your funds are safe; try Cashout again.`);
-}
-
+// Cashes the signed-in user's Polymarket collateral out to USDC on Base in
+// their own wallet. The mechanics live in lib/polymarket/settle so the
+// migration flow can run the same path from the old wallet to the new one.
 export function useSettleToBase() {
-  const { user } = usePrivy();
+  const { evmAddress } = useAuthSession();
+  const sendBatch = useEvmSendBatch();
   const { ensureReady } = usePolymarketSession();
-  const sendEvm = useEvmSend();
   const { sendToken } = useSendToken();
-  const { refetchFresh } = usePortfolio();
   const [phase, setPhase] = useState<SettlePhase>("idle");
   const [error, setError] = useState<string | null>(null);
 
-  const runSettlement = useCallback(async (): Promise<SettleToBaseResult> => {
+  const settleToBase = useCallback(async (): Promise<void> => {
     setError(null);
-    setPhase("transferring");
-    let failedPhase: Exclude<SettlePhase, "idle"> = "transferring";
-    const advance = (next: Exclude<SettlePhase, "idle">) => {
-      failedPhase = next;
-      setPhase(next);
-    };
+    setPhase("unwrapping");
     try {
-      const eoa = getWalletAddress(user, "ethereum");
+      const eoa = evmAddress;
       if (!eoa) throw new SettleError("No wallet connected.");
-
-      const polygon = publicClientForChain(POLYGON_CHAIN_ID);
-
       const client = await ensureReady();
-      const depositWallet = client.account.wallet;
-
-      // A previous version moved pUSD into the EOA before unwrapping. Recover
-      // that balance first, then perform the supported approve + unwrap batch
-      // directly from the Deposit Wallet.
-      let [depositPusd, walletPusd] = await Promise.all([
-        readErc20(polygon, CONTRACTS.pusd, depositWallet),
-        readErc20(polygon, CONTRACTS.pusd, eoa),
-      ]);
-      if (walletPusd > 0n && depositWallet.toLowerCase() !== eoa.toLowerCase()) {
-        advance("transferring");
-        await sendEvm({
-          to: CONTRACTS.pusd,
-          data: encodeFunctionData({
-            abi: erc20Abi,
-            functionName: "transfer",
-            args: [depositWallet as `0x${string}`, walletPusd],
-          }),
-          chainId: POLYGON_CHAIN_ID,
-          address: eoa,
-        });
-        depositPusd = await waitForErc20Balance(
-          polygon,
-          CONTRACTS.pusd,
-          depositWallet,
-          depositPusd + walletPusd,
-          "The sponsored pUSD recovery"
-        );
-        walletPusd = 0n;
-      }
-
-      if (walletPusd > 0n) {
-        throw new SettleError("This Polymarket account type cannot cash out pUSD yet.");
-      }
-
-      if (depositPusd > 0n) {
-        advance("unwrapping");
-        const startingUsdce = await readErc20(polygon, CONTRACTS.usdcE, eoa);
-        const conversion = await executeGaslessCalls(
-          client,
-          [
-            {
-              to: CONTRACTS.pusd,
-              data: encodeFunctionData({
-                abi: erc20Abi,
-                functionName: "approve",
-                args: [CONTRACTS.collateralOfframp as `0x${string}`, depositPusd],
-              }),
-            },
-            {
-              to: CONTRACTS.collateralOfframp,
-              data: encodeFunctionData({
-                abi: OFFRAMP_ABI,
-                functionName: "unwrap",
-                args: [CONTRACTS.usdcE as `0x${string}`, eoa as `0x${string}`, depositPusd],
-              }),
-            },
-          ],
-          `Cash out ${depositPusd} pUSD to USDC.e`
-        );
-        await conversion.wait();
-        await refreshCollateralUsd(client).catch(() => 0);
-        await waitForErc20Balance(
-          polygon,
-          CONTRACTS.usdcE,
-          eoa,
-          startingUsdce + depositPusd,
-          "The Polymarket pUSD conversion"
-        );
-      }
-
-      // 2) Bridge all the USDC.e the wallet holds to USDC on Base (Dextopus takes
-      // USDC.e directly, so no on-Polygon swap). Read the real balance so we send
-      // exactly what's there.
-      advance("bridging");
-      const usdce = await readErc20(polygon, CONTRACTS.usdcE, eoa);
-      if (usdce <= 0n) throw new SettleError("There's nothing to cash out right now.");
-
-      advance("quoting");
-      const quote = await fetchSellQuote({
-        network: "polygon-mainnet",
-        asset: CONTRACTS.usdcE,
-        amount: usdce,
+      await settleCollateral({
+        client,
+        eoa,
         recipient: eoa,
-        refundTo: eoa,
-        slippageBps: 100,
+        sendBatch: (calls, chainId) => sendBatch(calls, chainId, eoa),
+        sendToken,
+        onPhase: setPhase,
       });
-      advance("bridging");
-      const pending = {
-        requestId: quote.requestId,
-        wallet: eoa,
-        expectedBaseUsdcRaw: quote.estimatedOutput.toString(),
-        createdAt: Date.now(),
-      };
-      // Persist before the sponsored send. If the browser loses the response
-      // after broadcast, the background tracker can still reconcile this exact
-      // Dextopus request instead of asking the user to send the funds twice.
-      savePendingPredictionCashout(pending);
-      let originTxHash: string;
-      try {
-        originTxHash = await sendToken({
-          network: "polygon-mainnet",
-          tokenAddress: CONTRACTS.usdcE,
-          decimals: SETTLE_CHAINS.polygon.decimals,
-          to: quote.depositAddress,
-          amount: usdce,
-        });
-      } catch (cause) {
-        throw new SettleError(
-          "The Base transfer was interrupted after it started. Do not resend it; status tracking will continue automatically.",
-          { cause }
-        );
-      }
-      savePendingPredictionCashout({ ...pending, originTxHash });
-      // The USDC.e just left Polygon; Base is read when the bridge lands.
-      void refetchFresh(["polygon-mainnet"]);
-      return {
-        requestId: quote.requestId,
-        originTxHash,
-        estimatedBaseUsd: Number(quote.estimatedOutput) / 10 ** SETTLE_CHAINS.base.decimals,
-      };
     } catch (e) {
-      console.error("Prediction cashout settlement failed", { phase: failedPhase, error: e });
-      const rateLimited = isRelayerRateLimit(e);
-      if (rateLimited) relayerCooldownUntil = Date.now() + RELAYER_COOLDOWN_MS;
-      const normalized = rateLimited
-        ? rateLimitMessage()
-        : e instanceof SettleError
-          ? e.message
-          : friendlyError(e, "Couldn't cash out. Try again.");
-      const phaseMessage: Record<Exclude<SettlePhase, "idle">, string> = {
-        transferring:
-          "Your market sale is safe, but pUSD could not be returned to the Polymarket wallet. Use Move to Base to retry.",
-        unwrapping:
-          "Your market sale is safe, but Polymarket could not convert the pUSD yet. Use Move to Base to retry.",
-        quoting:
-          "Your USDC.e is safe on Polygon, but no Base cashout route is available yet. Use Move to Base to retry.",
-        bridging:
-          "Your USDC.e is safe on Polygon, but the Base transfer did not start. Use Move to Base to retry.",
-      };
-      const message = normalized.startsWith("The network rejected this transaction")
-        ? phaseMessage[failedPhase]
-        : normalized;
-      setError(message);
-      throw e instanceof SettleError ? e : new SettleError(message, { cause: e });
+      setError(
+        e instanceof SettleError ? e.message : friendlyError(e, "Couldn't cash out. Try again.")
+      );
+      throw e;
     } finally {
       setPhase("idle");
     }
-  }, [user, ensureReady, sendEvm, sendToken, refetchFresh]);
-
-  const settleToBase = useCallback((): Promise<SettleToBaseResult> => {
-    // State updates do not disable a button until React renders again. Keep a
-    // module-level lock so rapid clicks and multiple mounted cashout panels can
-    // never submit the same balance-driven settlement more than once.
-    if (activeSettlement) return activeSettlement;
-    if (Date.now() < relayerCooldownUntil) {
-      const cooldownError = new SettleError(rateLimitMessage());
-      setError(cooldownError.message);
-      return Promise.reject(cooldownError);
-    }
-
-    const request = runSettlement().finally(() => {
-      if (activeSettlement === request) activeSettlement = null;
-    });
-    activeSettlement = request;
-    return request;
-  }, [runSettlement]);
+  }, [evmAddress, sendBatch, ensureReady, sendToken]);
 
   return { settleToBase, phase, error };
 }
+
+// Re-exported so the positions controller can narrow on it.
+export { SettleError } from "@/lib/polymarket/settle";

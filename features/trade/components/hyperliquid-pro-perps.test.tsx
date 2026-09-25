@@ -150,6 +150,29 @@ vi.mock("@/features/trade/hooks/use-cctp-deposit-fee", () => ({
 vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({ refetchFresh: vi.fn(), tokens: [] }),
 }));
+// The fund modal beside the ticket reads the signed-in wallet through the
+// Decane-backed session seam and sends through the kit's wallet; neither is
+// exercised here, so both are stubbed as a signed-in account.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0x0000000000000000000000000000000000000001",
+    solanaAddress: null,
+    profile: { name: "Trader", email: "", avatarSeed: "trader" },
+    logout: vi.fn(),
+  }),
+}));
+vi.mock("decane-connect-kit", () => ({
+  useSocialWallet: () => ({
+    getEthereumProvider: vi.fn(),
+    signMessage: vi.fn(),
+    signTypedData: vi.fn(),
+    getAccessToken: vi.fn(),
+    isUnlocked: true,
+  }),
+  useSocialAuth: () => ({ canUsePasskey: false }),
+}));
 const analytics = vi.hoisted(() => ({ track: vi.fn() }));
 vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 

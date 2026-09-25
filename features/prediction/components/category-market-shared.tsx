@@ -1,8 +1,9 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { usePrivy } from "@privy-io/react-auth";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { PredictionCategoryButton } from "./prediction-category-drawer";
 import type { PredictionCategory } from "../categories";
@@ -64,7 +65,9 @@ export function CategoryTopNav({
   categoriesOpen: boolean;
   category: PredictionCategory;
 }) {
-  const { authenticated, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   return (
     <div className="sticky top-0 z-[100] bg-[#171717] px-3 py-2 md:px-5">
       <div className="flex min-h-10 items-center gap-2 md:gap-4">

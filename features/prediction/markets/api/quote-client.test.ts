@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { WalletType } from "@polymarket/client";
-import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
+import type { SecureClient } from "@/lib/polymarket/secure-client";
 import { buildComboBuyQuoteBody } from "./quote-client";
 
 const wallet = "0x2222222222222222222222222222222222222222";

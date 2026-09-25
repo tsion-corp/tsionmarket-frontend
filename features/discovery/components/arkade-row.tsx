@@ -3,11 +3,10 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Carousel } from "@/components/ui/carousel";
-// CheckersCard is still exported by that module; it is not imported here
-// because production does not offer Checkers. See the shelf below.
 import {
   ArkBallCard,
   ArkjetCard,
+  CheckersCard,
   ChessCard,
   LastManCard,
   PilotChickenCard,
@@ -52,6 +51,7 @@ export function ArkadeRow() {
   const feed = useDashboardFeed().data;
   const round = richestRound(feed?.live?.rounds, feed ? feed.asOf / 1000 : 0);
   const remainingMs = useCountdown(round ? round.endTime * 1000 : null);
+  const checkersLive = feed?.live?.checkers.length ?? 0;
 
   return (
     <DiscoveryRow
@@ -64,13 +64,9 @@ export function ArkadeRow() {
         <LastManCard round={round} remainingMs={remainingMs} onHold={hold} />
         <ChessCard onHold={hold} />
         <ArkBallCard onHold={hold} />
+        <CheckersCard liveCount={checkersLive} onHold={hold} />
         <ArkjetCard onHold={hold} />
         <PilotChickenCard onHold={hold} />
-        {/* Checkers is not offered on production. The shelf follows the Arkade
-            catalogue, so it goes from here too; see CASINO_GAMES in
-            features/casino/lib/games.ts for why, and restore the card with its
-            catalogue entry. */}
-        {/* <CheckersCard liveCount={feed?.live?.checkers.length ?? 0} onHold={hold} /> */}
       </Carousel>
     </DiscoveryRow>
   );

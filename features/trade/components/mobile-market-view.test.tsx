@@ -1,10 +1,12 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import baseMessages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import messages from "@/messages/en.json";
+import { memeToken } from "@/lib/meme/fixture";
 import type { SpotMarket } from "@/features/trade/hooks/use-spot-markets";
 import type { MemeToken } from "@/lib/meme/api";
+import type { DiscoveryView } from "@/lib/meme/catalog";
 import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import type { ScreenerFilters } from "@/lib/meme/screener";
 import type { MemeTimeframe } from "@/lib/meme/types";
@@ -12,7 +14,6 @@ import type { MemeTimeframe } from "@/lib/meme/types";
 // The chrome's six keys ship in the `markets` namespace now, so the suite reads
 // the real catalogue rather than a local stand-in. That is the point: a stub
 // here would keep passing if a key were ever dropped from messages/*.json.
-const messages = baseMessages;
 
 const spot = vi.hoisted(() => ({
   markets: [] as SpotMarket[],
@@ -23,8 +24,9 @@ vi.mock("@/features/trade/hooks/use-spot-markets", () => ({
   useSpotMarkets: () => spot,
 }));
 
-// The Memecoins tab lists the paged catalogue (slice 4), behind the same
-// Curated / All switch and "Load more" as the desk and the grid.
+// The Memecoins tab lists the catalogue (slice 4), behind the same Curated /
+// All switch as the desk and the grid. Like them it never says how much of the
+// catalogue has loaded: it is cached whole, so the count had nothing to say.
 const memes = vi.hoisted(() => ({
   tokens: [] as MemeToken[],
   // What the All view keeps, when a test gives the two views different rows.
@@ -34,6 +36,12 @@ const memes = vi.hoisted(() => ({
   shownCount: 0,
   hasMore: false,
   isLoadingMore: false,
+  // The walk behind the rows: the catalogue arrives 500 coins a server page.
+  progress: {
+    status: "complete" as "walking" | "rate-limited" | "stalled" | "complete",
+    // The walk's own restart. Nothing else can clear a stall.
+    retry: vi.fn(),
+  },
   loadMore: vi.fn(),
   isLoading: false,
   isFetching: false,
@@ -45,17 +53,40 @@ const memeSearch = vi.hoisted(() => ({
   searching: false,
   active: false,
   error: null as unknown,
+  // Most of this suite drives the search hook by hand. The search cases at the
+  // foot set this and get the real hook instead, running over the catalogue the
+  // tab hands it, which is the only way to prove that wiring exists.
+  real: false,
+  catalogues: [] as (MemeToken[] | undefined)[],
 }));
 const memeViews = vi.hoisted(() => ({ catalog: [] as unknown[], search: [] as unknown[] }));
-vi.mock("@/features/trade/hooks/use-meme-tokens", () => ({
-  useMemeCatalog: (opts?: { view?: string }) => {
-    memeViews.catalog.push(opts?.view);
-    return opts?.view === "all" && memes.allTokens ? { ...memes, tokens: memes.allTokens } : memes;
-  },
-  useMemeSearch: (_raw: string, view?: string) => {
-    memeViews.search.push(view);
-    return memeSearch;
-  },
+vi.mock("@/features/trade/hooks/use-meme-tokens", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/features/trade/hooks/use-meme-tokens")>();
+  return {
+    ...real,
+    useMemeCatalog: (opts?: { view?: string }) => {
+      memeViews.catalog.push(opts?.view);
+      return opts?.view === "all" && memes.allTokens
+        ? { ...memes, tokens: memes.allTokens }
+        : memes;
+    },
+    // The real hook runs either way, so this is never a hook called
+    // conditionally; which of the two answers the tab sees is the flag.
+    useMemeSearch: (raw: string, view?: DiscoveryView, catalogue?: MemeToken[]) => {
+      memeViews.search.push(view);
+      memeSearch.catalogues.push(catalogue);
+      const live = real.useMemeSearch(raw, view, catalogue);
+      return memeSearch.real ? live : memeSearch;
+    },
+  };
+});
+
+// The phone never calls the service in this suite: the search cases below are
+// about what the cached catalogue answers, so the provider returns nothing.
+const searchTokens = vi.hoisted(() => vi.fn(async () => [] as MemeToken[]));
+vi.mock("@/lib/meme/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/meme/api")>()),
+  searchTokens,
 }));
 
 // The Memecoins tab's Trending strip and screener read one controller
@@ -76,6 +107,8 @@ function inactiveScreener() {
     clearBound: vi.fn(),
     clearAll: vi.fn(),
     listQuery: "",
+    refreshTrending: vi.fn(),
+    trendingRefreshing: false,
     list: {
       tokens: [] as MemeToken[],
       total: null as number | null,
@@ -89,6 +122,10 @@ function inactiveScreener() {
       isFetching: false,
       error: null as unknown,
       refetch: vi.fn(),
+      progress: {
+        status: "complete" as "walking" | "rate-limited" | "stalled" | "complete",
+        retry: vi.fn(),
+      },
     },
     trending: {
       tokens: [] as MemeToken[],
@@ -273,17 +310,35 @@ function market(over: Partial<SpotMarket> = {}): SpotMarket {
   } as SpotMarket;
 }
 
+// The stalled bar's copy, not yet in messages/en.json: the locale catalogues
+// are edited as one set in their own change. Drop this once they carry
+// common.moreStalled, common.moreWaiting and common.moreResume.
+const catalogue = {
+  ...messages,
+  common: {
+    ...messages.common,
+    moreStalled: "The list is incomplete",
+    moreWaiting: "Paused, continuing shortly",
+    moreResume: "Load the rest",
+  },
+};
+
 function renderView() {
   const onOpenDetail = vi.fn();
   const onOpenBuy = vi.fn();
+  // The search hook is the real one here, so the tab needs a query client even
+  // when no test lets it reach the service.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const view = () => (
-    <NextIntlClientProvider locale="en" messages={messages}>
-      <MobileMarketView
-        onOpenDetail={onOpenDetail}
-        onOpenBuy={onOpenBuy}
-        rwaSlot={<div data-testid="rwa-panel" />}
-      />
-    </NextIntlClientProvider>
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={catalogue}>
+        <MobileMarketView
+          onOpenDetail={onOpenDetail}
+          onOpenBuy={onOpenBuy}
+          rwaSlot={<div data-testid="rwa-panel" />}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>
   );
   const { rerender } = render(view());
   // Renders again with whatever the mocks hold now, as a hook's new value would.
@@ -336,12 +391,17 @@ beforeEach(() => {
   memes.shownCount = 0;
   memes.hasMore = false;
   memes.isLoadingMore = false;
+  memes.progress.status = "complete";
+  memes.progress.retry.mockClear();
   memes.loadMore.mockClear();
   memes.isLoading = false;
   memes.error = null;
   memeSearch.active = false;
   memeSearch.results = [];
   memeSearch.error = null;
+  memeSearch.real = false;
+  memeSearch.catalogues = [];
+  searchTokens.mockClear();
   memeViews.catalog = [];
   memeViews.search = [];
   screener.state = inactiveScreener();
@@ -371,8 +431,6 @@ describe("MobileMarketView chrome", () => {
       .getAllByRole("tab")
       .map((t) => t.textContent?.trim());
     expect(found).toEqual(tabNames);
-    expect(found).not.toContain("Leverage");
-    expect(found).not.toContain("Prediction");
   });
 
   it("marks only the active tab selected and keeps it the sole tab stop", () => {
@@ -390,8 +448,6 @@ describe("MobileMarketView chrome", () => {
     expect(tabs()[SPOT]).toHaveAttribute("tabindex", "-1");
   });
 
-  // The desk itself is untouched and /perps still serves it; this strip just
-  // has no tab that reaches it, so it is never mounted here.
   it("never mounts the perps desk, because the Leverage tab is not offered", () => {
     renderView();
     expect(screen.queryByRole("tab", { name: "Leverage" })).toBeNull();
@@ -403,9 +459,9 @@ describe("MobileMarketView chrome", () => {
     }
   });
 
-  // An old "Own the Market" link still carries ?tab=perps. It names a tab
-  // this build does not offer, so it opens Spot rather than a tab with
-  // nothing behind it.
+  // An old "Own the Market" link still carries ?tab=perps. It names a tab this
+  // build does not offer, so it opens Spot rather than a tab with nothing
+  // behind it.
   it("falls back to Spot when the link names a tab that is not offered", () => {
     search.query = "tab=perps";
     try {
@@ -437,8 +493,8 @@ describe("MobileMarketView chrome", () => {
     fireEvent.keyDown(tabs()[RWA], { key: "Home" });
     expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
 
-    // Wrapping backwards from the first tab lands on the last offered tab.
-    // It used to open Prediction's own route, which this build does not offer.
+    // Wrapping backwards from the first tab lands on the last OFFERED tab. It
+    // used to open Prediction's own route, which this build does not offer.
     fireEvent.keyDown(tabs()[SPOT], { key: "ArrowLeft" });
     expect(tabs()[RWA]).toHaveAttribute("aria-selected", "true");
     expect(router.push).not.toHaveBeenCalledWith("/prediction");
@@ -619,23 +675,27 @@ describe("MobileMarketView chrome", () => {
   });
 });
 
-// Prediction is not offered on production: the gateway's `prediction` service
-// answers 502 there, so the strip neither deals the tab nor sends anyone to
-// the route behind it.
-describe("MobileMarketView, with Prediction not offered", () => {
-  it("deals no Prediction tab and never routes to it", () => {
+// Prediction has one responsive product shell. The Market strip remains an
+// entry point, but no longer mounts the retired phone-only market cards.
+describe("MobileMarketView, routing to Prediction", () => {
+  // Prediction is in HIDDEN_TABS, so there is no tab to open its route from.
+  // The route itself still exists; nothing in this view leads to it.
+  it("offers no Prediction tab to route from", () => {
     renderView();
     expect(screen.queryByRole("tab", { name: "Prediction" })).toBeNull();
-    for (const tab of tabs()) fireEvent.click(tab);
     expect(router.push).not.toHaveBeenCalledWith("/prediction");
   });
 
-  it("opens Spot for a legacy ?tab=prediction link rather than redirecting", () => {
+  // A legacy ?tab=prediction URL used to be repaired by redirecting to
+  // /prediction. Now that the tab is not offered it falls back to Spot like
+  // any other unoffered tab — the reader lands somewhere that works instead of
+  // being sent to a section this build does not serve.
+  it("opens Spot for a legacy prediction query URL, and redirects nowhere", () => {
     search.query = "tab=prediction";
     try {
       renderView();
-      expect(router.replace).not.toHaveBeenCalledWith("/prediction");
       expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
+      expect(router.replace).not.toHaveBeenCalledWith("/prediction");
     } finally {
       search.query = "";
     }
@@ -751,6 +811,69 @@ describe("MobileMarketView, list pagination", () => {
     fireEvent.change(field, { target: { value: "MEME0" } });
     fireEvent.change(field, { target: { value: "" } });
     expect(liveStatus()).toHaveTextContent("Page 1 of 2");
+  });
+
+  // The catalogue is walked 500 coins a server page and runs past a hundred
+  // thousand. The pager is built from the rows in hand, so it has to grow with
+  // them and say, while it is growing, that the count is not the whole list.
+  it("grows the memecoin page count as the catalogue fills", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    const { rerender } = renderView();
+    fireEvent.click(tabs()[MEMES]);
+    expect(liveStatus()).toHaveTextContent("Page 1 of 2");
+
+    memes.tokens = memeTokens(25);
+    rerender();
+    expect(liveStatus()).toHaveTextContent("Page 1 of 4");
+  });
+
+  it("says the memecoin list is still filling rather than letting it look whole", () => {
+    // Five coins fit one page, so without this the bar would be hidden
+    // altogether over a catalogue that is 0.005% loaded.
+    memes.tokens = memeTokens(5);
+    memes.hasMore = true;
+    memes.progress.status = "walking";
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+
+    const list = memeMarketList();
+    // The bar is up even though the rows in hand fit one page, and it says why.
+    expect(within(list).getByRole("button", { name: "Next" })).toBeInTheDocument();
+    expect(within(list).getByText("Loading more…")).toBeInTheDocument();
+  });
+
+  it("drops the hint once the walk is done", () => {
+    memes.tokens = memeTokens(9);
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+    expect(screen.queryByText("Loading more…")).toBeNull();
+    expect(screen.queryByText("More pages")).toBeNull();
+  });
+
+  // A stalled walk is not a loading one. The count is still not final, and the
+  // bar now says outright that the list is short rather than claiming rows are
+  // on their way when none are.
+  it("stops claiming rows are arriving once the walk has stalled", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    memes.progress.status = "stalled";
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+    expect(screen.queryByText("Loading more…")).toBeNull();
+    expect(screen.queryByText("More pages")).toBeNull();
+    expect(screen.getByText("The list is incomplete")).toBeInTheDocument();
+  });
+
+  it("says nothing about the catalogue behind a search's own results", () => {
+    memes.tokens = [];
+    memes.hasMore = true;
+    memes.progress.status = "walking";
+    memeSearch.active = true;
+    memeSearch.results = memeTokens(3);
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+    expect(screen.queryByText("Loading more…")).toBeNull();
   });
 });
 
@@ -930,7 +1053,7 @@ describe("MobileMarketView, the memecoin catalogue", () => {
     expect(memeViews.search.at(-1)).toBe("curated");
   });
 
-  it("counts the loaded rows against the server's total, and loads the next page", () => {
+  it("lists the catalogue without reporting how much of it has loaded", () => {
     memes.tokens = memeTokens(3);
     memes.total = 11_502;
     memes.loaded = 500;
@@ -938,13 +1061,14 @@ describe("MobileMarketView, the memecoin catalogue", () => {
     memes.hasMore = true;
     renderView();
     fireEvent.click(tabs()[MEMES]);
-    expect(within(memeMarketList()).getByText("500 of 11,502")).toBeInTheDocument();
-    expect(within(memeMarketList()).getByText("156 shown")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
-    expect(memes.loadMore).toHaveBeenCalledOnce();
+    expect(within(memeMarketList()).queryByText("500 of 11,502")).toBeNull();
+    expect(within(memeMarketList()).queryByText("156 shown")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    expect(memeMarketList().querySelector('[data-region="catalog-status"]')).toBeNull();
+    expect(memes.loadMore).not.toHaveBeenCalled();
   });
 
-  it("lists search results in place of the catalogue, without its count", () => {
+  it("lists search results in place of the catalogue", () => {
     memes.tokens = [memeToken({ symbol: "ONPAGE", name: "On page" })];
     memes.total = 11_502;
     memes.loaded = 500;
@@ -1082,14 +1206,14 @@ describe("MobileMarketView, the memecoin Trending strip and screener", () => {
   it("asks the controller for the phone's trending page in the tab's view", () => {
     renderView();
     fireEvent.click(tabs()[MEMES]);
-    expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 4, enabled: true });
+    expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 3, enabled: true });
 
     fireEvent.click(
       within(screen.getByRole("group", { name: "Which memecoins to list" })).getByRole("button", {
         name: "All",
       })
     );
-    expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 4, enabled: true });
+    expect(screener.calls.at(-1)).toEqual({ view: "all", trendingPageSize: 3, enabled: true });
   });
 
   it("keeps the screener from asking for data while another tab is open", () => {
@@ -1129,28 +1253,46 @@ describe("MobileMarketView, the memecoin Trending strip and screener", () => {
   it("shows the trending page's cards, ranked on from earlier pages", () => {
     const coins = memeTokens(7);
     state().trending.tokens = coins;
-    // Page 2 of a four-a-page phone grid: the fifth coin onwards.
-    state().trending.pageTokens = coins.slice(4);
+    // Page 2 of a three-a-page phone grid: the fourth coin onwards.
+    state().trending.pageTokens = coins.slice(3, 6);
     state().trending.page = 2;
-    state().trending.pages = 2;
+    state().trending.pages = 3;
     renderView();
     fireEvent.click(tabs()[MEMES]);
 
     const strip = region("trending");
     if (strip === null) throw new Error("The strip is missing.");
-    expect(within(strip).getByRole("button", { name: /^MEME4, rank 5,/ })).toBeInTheDocument();
-    expect(within(strip).getByRole("button", { name: /^MEME6, rank 7,/ })).toBeInTheDocument();
+    expect(within(strip).getByRole("button", { name: /^MEME3, rank 4,/ })).toBeInTheDocument();
+    expect(within(strip).getByRole("button", { name: /^MEME5, rank 6,/ })).toBeInTheDocument();
     expect(within(strip).queryByRole("button", { name: /^MEME0,/ })).toBeNull();
 
     fireEvent.click(within(strip).getByRole("button", { name: "Previous trending page" }));
     expect(state().trending.setPage).toHaveBeenCalledWith(1);
   });
 
+  // Trending's refresh reloads the page. The phone holds the same two cached
+  // reads the desk does, the board and the catalogue, so refreshing one would
+  // leave the other stale; the view hands the strip no refetch at all. The
+  // press reaches window.location.reload, which makes jsdom log "Not
+  // implemented: navigation": that log is the proof the real path ran. The
+  // reload itself is covered in the strip's own suite.
+  it("reloads the page from Trending's refresh rather than reading the board again", () => {
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+    const strip = region("trending");
+    if (strip === null) throw new Error("The strip is missing.");
+    fireEvent.click(within(strip).getByRole("button", { name: "Refresh trending" }));
+    expect(state().refreshTrending).not.toHaveBeenCalled();
+    // Held down and spinning until the document is replaced, so the press does
+    // not read as one that did nothing.
+    expect(within(strip).getByRole("button", { name: "Refreshing trending" })).toBeDisabled();
+  });
+
   it("draws the strip's skeletons while trending loads", () => {
     state().trending.isLoading = true;
     renderView();
     fireEvent.click(tabs()[MEMES]);
-    expect(document.querySelectorAll('[data-skeleton="trending-card"]')).toHaveLength(4);
+    expect(document.querySelectorAll('[data-skeleton="trending-card"]')).toHaveLength(3);
   });
 
   it("opens the meme ticket for a tapped trending card, as a row does", () => {
@@ -1166,7 +1308,7 @@ describe("MobileMarketView, the memecoin Trending strip and screener", () => {
     expect(memeMarketList()).not.toBeVisible();
   });
 
-  it("lists the screener's rows and counts while it is active", () => {
+  it("lists the screener's rows while it is active", () => {
     memes.tokens = [memeToken({ symbol: "CATALOG", name: "Catalogue" })];
     memes.total = 11_502;
     memes.loaded = 500;
@@ -1185,11 +1327,9 @@ describe("MobileMarketView, the memecoin Trending strip and screener", () => {
 
     expect(screen.getByText("SCREENED")).toBeInTheDocument();
     expect(screen.queryByText("CATALOG")).toBeNull();
-    expect(within(memeMarketList()).getByText("40 of 40")).toBeInTheDocument();
-    expect(within(memeMarketList()).getByText("38 shown")).toBeInTheDocument();
-    expect(screen.queryByText("500 of 11,502")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
-    expect(s.list.loadMore).toHaveBeenCalledOnce();
+    expect(memeMarketList().querySelector('[data-region="catalog-status"]')).toBeNull();
+    expect(screen.queryByRole("button", { name: "Load more" })).toBeNull();
+    expect(s.list.loadMore).not.toHaveBeenCalled();
     expect(memes.loadMore).not.toHaveBeenCalled();
   });
 
@@ -1399,5 +1539,156 @@ describe("MobileMarketView, the memecoin Trending strip and screener", () => {
     s.trending.pageTokens = [fresher];
     rerender();
     expect(memeTicketProps.last?.token).toBe(fresher);
+  });
+});
+
+// The phone's search box is wired to the cached catalogue, as the desk's is.
+// The service matches a name or a symbol; a reader has a contract address, a
+// market cap or a launch time, and those are answered from the rows the tab
+// already holds.
+describe("MobileMarketView, searching the Memecoins tab", () => {
+  const MINT = "DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263";
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+
+  const sol = memeToken({
+    symbol: "SOLCOIN",
+    name: "Sol coin",
+    chainId: SOLANA_CHAIN_ID,
+    address: MINT,
+    marketCapUsd: "1530000",
+    pairCreatedAt: minutesAgo(3 * 1440 + 1),
+  });
+  const bse = memeToken({
+    symbol: "BSECOIN",
+    name: "Base coin",
+    chainId: 8453,
+    address: "0xFeEdFaCe00000000000000000000000000001111",
+    marketCapUsd: "880000",
+    pairCreatedAt: minutesAgo(400),
+  });
+
+  function openTab() {
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+  }
+
+  function type(text: string) {
+    fireEvent.change(screen.getByLabelText(MEME_SEARCH), { target: { value: text } });
+  }
+
+  const listedSymbols = () =>
+    [sol.symbol, bse.symbol].filter(
+      (symbol) => within(memeMarketList()).queryByText(symbol as string) !== null
+    );
+
+  beforeEach(() => {
+    memeSearch.real = true;
+    memes.tokens = [sol, bse];
+  });
+
+  it("hands the search hook the cached catalogue", () => {
+    openTab();
+    expect(memeSearch.catalogues.at(-1)).toBe(memes.tokens);
+  });
+
+  it("shows the whole catalogue while nothing is typed", () => {
+    openTab();
+    expect(listedSymbols()).toEqual(["SOLCOIN", "BSECOIN"]);
+    // And typing, then clearing, puts the list back rather than emptying it.
+    type("SOLCOIN");
+    expect(listedSymbols()).toEqual(["SOLCOIN"]);
+    type("");
+    expect(listedSymbols()).toEqual(["SOLCOIN", "BSECOIN"]);
+  });
+
+  it("finds a coin by its contract address", () => {
+    openTab();
+    type(MINT.slice(0, 12));
+    expect(listedSymbols()).toEqual(["SOLCOIN"]);
+    // Well inside the debounce, so the cache answered and the service was not
+    // asked at all.
+    expect(searchTokens).not.toHaveBeenCalled();
+  });
+
+  it("finds a coin by its market cap", () => {
+    openTab();
+    type("$1.5M");
+    expect(listedSymbols()).toEqual(["SOLCOIN"]);
+  });
+
+  it("finds a coin by its age", () => {
+    openTab();
+    type("3d");
+    expect(listedSymbols()).toEqual(["SOLCOIN"]);
+    type("6h");
+    expect(listedSymbols()).toEqual(["BSECOIN"]);
+  });
+});
+
+// The walk gives up after a run of refusals and nothing restarted it, so the
+// tab held part of the catalogue, said nothing, and read as a finished list.
+// This is the way out of that state, and the only one the reader has.
+describe("MobileMarketView when the catalogue walk has given up", () => {
+  function openMemes() {
+    renderView();
+    fireEvent.click(tabs()[MEMES]);
+    return memeMarketList();
+  }
+
+  it("offers the way on, and pressing it restarts the walk", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    memes.progress.status = "stalled";
+    const list = openMemes();
+    fireEvent.click(within(list).getByRole("button", { name: "Load the rest" }));
+    expect(memes.progress.retry).toHaveBeenCalledOnce();
+  });
+
+  // The rule on this surface: it never says how much of the catalogue is held.
+  // Being honest that the list is short does not need a figure.
+  it("says the list is short without reporting a count", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    memes.progress.status = "stalled";
+    const list = openMemes();
+    expect(within(list).getByText("The list is incomplete").textContent).not.toMatch(/\d/);
+    expect(list.querySelector('[data-region="catalog-status"]')).toBeNull();
+  });
+
+  it("is absent while the walk is still going", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    memes.progress.status = "walking";
+    const list = openMemes();
+    expect(within(list).queryByRole("button", { name: "Load the rest" })).toBeNull();
+  });
+
+  // Rate limited waits it out and resumes itself, so the bar says so and asks
+  // for nothing: a press here would be wasted.
+  it("is absent while the walk is only rate limited, which says it will resume", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    memes.progress.status = "rate-limited";
+    const list = openMemes();
+    expect(within(list).queryByRole("button", { name: "Load the rest" })).toBeNull();
+    expect(within(list).getByText("Paused, continuing shortly")).toBeInTheDocument();
+  });
+
+  it("is absent once the catalogue is whole", () => {
+    memes.tokens = memeTokens(25);
+    const list = openMemes();
+    expect(within(list).queryByRole("button", { name: "Load the rest" })).toBeNull();
+  });
+
+  // A search is its own finished list. The catalogue behind it may be stalled,
+  // but these rows are not the ones missing anything.
+  it("is absent over a search's own results", () => {
+    memes.tokens = memeTokens(9);
+    memes.hasMore = true;
+    memes.progress.status = "stalled";
+    memeSearch.active = true;
+    memeSearch.results = memeTokens(9);
+    const list = openMemes();
+    expect(within(list).queryByRole("button", { name: "Load the rest" })).toBeNull();
   });
 });

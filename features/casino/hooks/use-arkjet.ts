@@ -1,7 +1,8 @@
 "use client";
-
 import { useCallback, useEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
+
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { pollUnlessFailing } from "@/lib/query-poll";
 import {
@@ -57,10 +58,12 @@ const READ_OPTIONS = {
 } as const;
 
 export function useArkjet() {
-  const { ready, authenticated, user, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const queryClient = useQueryClient();
   const [socketReady, setSocketReady] = useState(false);
-  const hasSession = ready && authenticated && Boolean(user?.id);
+  const hasSession = ready && authenticated && Boolean(evmAddress);
   const current = useQuery({
     ...READ_OPTIONS,
     queryKey: ARKJET_KEYS.current,
@@ -107,7 +110,7 @@ export function useArkjet() {
   });
   const balance = useQuery({
     ...READ_OPTIONS,
-    queryKey: [...ARKJET_KEYS.balance, user?.id ?? null],
+    queryKey: [...ARKJET_KEYS.balance, evmAddress ?? null],
     queryFn: fetchArkjetBalance,
     enabled: hasSession,
     refetchInterval: socketReady ? false : pollUnlessFailing(30_000),
@@ -115,7 +118,7 @@ export function useArkjet() {
   });
   const bets = useQuery({
     ...READ_OPTIONS,
-    queryKey: [...ARKJET_KEYS.bets, user?.id ?? null],
+    queryKey: [...ARKJET_KEYS.bets, evmAddress ?? null],
     queryFn: fetchArkjetCurrentBets,
     enabled: hasSession,
     refetchInterval: socketReady
@@ -171,7 +174,7 @@ export function useArkjet() {
       }
       void queryClient.cancelQueries({ queryKey: ARKJET_KEYS.bets });
       queryClient.setQueryData<ArkjetBetList>(
-        [...ARKJET_KEYS.bets, user?.id ?? null],
+        [...ARKJET_KEYS.bets, evmAddress ?? null],
         (existing) => {
           const items = existing?.items ?? [];
           if (bet.status !== "ACCEPTED") {
@@ -184,7 +187,7 @@ export function useArkjet() {
       );
       void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.balance });
     },
-    [queryClient, user?.id]
+    [queryClient, evmAddress]
   );
 
   const synchronize = useCallback(async () => {
@@ -201,13 +204,27 @@ export function useArkjet() {
       queryClient.setQueryData(ARKJET_KEYS.activity, activityResult.value);
     }
     if (betsResult.status === "fulfilled" && betsResult.value) {
-      queryClient.setQueryData([...ARKJET_KEYS.bets, user?.id ?? null], betsResult.value);
+      queryClient.setQueryData([...ARKJET_KEYS.bets, evmAddress ?? null], betsResult.value);
     }
     if (balanceResult.status === "fulfilled" && balanceResult.value) {
-      queryClient.setQueryData([...ARKJET_KEYS.balance, user?.id ?? null], balanceResult.value);
+      queryClient.setQueryData([...ARKJET_KEYS.balance, evmAddress ?? null], balanceResult.value);
     }
-  }, [hasSession, queryClient, user?.id]);
+  }, [hasSession, queryClient, evmAddress]);
 
+  /*
+    THE TOPIC IS THE SERVER'S ID, NOT OURS.
+
+    Arkjet publishes a player's own bets on `arkjet:user:<id>`, where <id> is
+    what the server stores the player under — and during the move from Privy
+    that is deliberately NOT always the Decane id: a player whose rows have not
+    been re-keyed yet is still stored, and published to, under their old Privy
+    DID. Any id derived on this side is therefore right for some players and
+    silently wrong for others, who would simply stop receiving their own bets.
+
+    The balance response carries `playerId`, which is exactly the stored id and
+    moves when the rows are re-keyed. So the topic follows it, and waits for it.
+  */
+  const playerId = balance.data?.playerId ?? null;
   useEffect(() => {
     let pendingActivity: ArkjetSimulatedActivityFeed | null = null;
     let activityFlushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -223,7 +240,7 @@ export function useArkjet() {
       pendingActivity = snapshot;
       activityFlushTimer ??= setTimeout(flushActivity, 100);
     };
-    const unsubscribe = subscribeArkjetTopics(hasSession ? (user?.id ?? null) : null, (frame) => {
+    const unsubscribe = subscribeArkjetTopics(hasSession ? playerId : null, (frame) => {
       if (frame.type === ARKJET_SOCKET_READY.type) {
         setSocketReady(true);
         return;
@@ -266,7 +283,7 @@ export function useArkjet() {
       unsubscribe();
       if (activityFlushTimer) clearTimeout(activityFlushTimer);
     };
-  }, [applyBet, hasSession, queryClient, synchronize, user?.id]);
+  }, [applyBet, hasSession, queryClient, synchronize, playerId]);
 
   const shouldFallBackToHttp = (error: unknown): boolean => {
     if (!error || typeof error !== "object" || !("code" in error)) return false;

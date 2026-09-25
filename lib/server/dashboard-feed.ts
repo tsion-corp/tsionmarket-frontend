@@ -19,6 +19,7 @@ import {
   type SpotBriefRow,
 } from "@/lib/dashboard-feed";
 import { tradableHere, type Paged } from "@/lib/meme/catalog";
+import { parseTokenPage } from "@/lib/meme/parse";
 import type { MemeToken } from "@/lib/meme/types";
 import {
   composePerpBrief,
@@ -139,41 +140,60 @@ async function perpsSection(): Promise<PerpBriefRow[]> {
   return composePerpBrief(assets, contexts, fallback, DASHBOARD_FEED_ROWS);
 }
 
+// One token list from the trade service, through the same boundary the
+// browser client uses: the envelope is unwrapped, then the data is judged by
+// the contract schema and mapped into MemeToken by lib/meme/parse. Nothing
+// here casts upstream JSON to a domain type. Going through the shared parser
+// is also what applies its guard on impossible price changes, so the dashboard
+// cannot show a figure the meme desk itself would refuse; the threshold lives
+// there once (MAX_REAL_CHANGE_PERCENT) rather than being restated here.
+//
+// A body that does not match throws TradeShapeError, which is a failure of
+// this read like any other: the caller falls back, or the section ends up
+// null, which is what a cast to a shape the response did not have did anyway.
+async function memeTokenPage(path: string, timeoutMs?: number): Promise<Paged<MemeToken>> {
+  const data = await envelopeData<unknown>(await getJson(`${TRADE_BASE}/${path}`, 15, timeoutMs));
+  return parseTokenPage(data);
+}
+
 async function memesSection(): Promise<MemeBriefRow[]> {
-  const trending = async () =>
-    envelopeData<Paged<MemeToken>>(
-      await getJson(`${TRADE_BASE}/tokens/trending`, 15, TRENDING_TIMEOUT_MS)
-    );
-  const catalog = async () =>
-    envelopeData<Paged<MemeToken>>(
-      await getJson(`${TRADE_BASE}/tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`, 15)
-    );
+  const trending = () => memeTokenPage("tokens/trending", TRENDING_TIMEOUT_MS);
+  const catalog = () => memeTokenPage(`tokens?page=1&limit=${TRENDING_FALLBACK_LIMIT}&chain=base`);
   // Trending is mostly Solana and ignores ?chain, so after the boundary it
   // can be thin or empty without ever erroring. The brief then fills from the
   // Base catalogue, as the page's own shortlist does; "nothing to show"
   // beside a page full of coins is the one thing it must not say.
   // The brief is curated whatever view a list on the meme desk is switched to
   // (ADR-2026-09-14-memecoins-trade-contract, slice 4).
-  let page = tradableHere(await trending().catch(catalog), "curated");
+  let page = tradableHere(
+    await trending().catch((error: unknown) => {
+      console.warn("[dashboard-feed] memes: trending unavailable, reading the catalogue:", error);
+      return catalog();
+    }),
+    "curated"
+  );
   if (page.items.length < DASHBOARD_FEED_ROWS) {
     // The catalogue failing must not throw away a thin trending list; the
     // fuller of the two wins.
     const fallback = await catalog()
       .then((fallbackPage) => tradableHere(fallbackPage, "curated"))
-      .catch(() => null);
+      .catch((error: unknown) => {
+        console.warn("[dashboard-feed] memes: catalogue unavailable:", error);
+        return null;
+      });
     if (fallback && fallback.items.length > page.items.length) page = fallback;
   }
-  return page.items.slice(0, DASHBOARD_FEED_ROWS).map((t) => {
-    const change = t.priceChange24hPercent == null ? NaN : Number(t.priceChange24hPercent);
-    return {
-      address: t.address,
-      symbol: t.symbol,
-      name: t.name,
-      logoUrl: t.logoUrl,
-      priceUsd: t.priceUsd,
-      change24h: Number.isFinite(change) ? change : null,
-    };
-  });
+  return page.items.slice(0, DASHBOARD_FEED_ROWS).map((t) => ({
+    address: t.address,
+    symbol: t.symbol,
+    name: t.name,
+    logoUrl: t.logoUrl,
+    priceUsd: t.priceUsd,
+    // Null is "no 24h change for this coin", which the brief already renders
+    // as an absent change. The parser refused anything it could not read as a
+    // real move, so what survives here is a number the brief can show.
+    change24h: t.priceChange24hPercent === null ? null : Number(t.priceChange24hPercent),
+  }));
 }
 
 async function rwaSection(): Promise<RwaBriefRow[]> {

@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CATALOG_PAGE_INTERVAL_MS,
   CATALOG_PAGE_LIMIT,
+  CATALOG_RATE_LIMIT_BASE_MS,
+  CATALOG_RATE_LIMIT_MAX_MS,
+  catalogBackoffMs,
+  catalogPageCount,
   DEFAULT_DISCOVERY_VIEW,
   DISCOVERY_POLICY,
   MIN_DISCOVERY_LIQUIDITY_USD,
@@ -12,9 +17,12 @@ import {
   isTokenizedEquity,
   isWrappedMajor,
   tradableHere,
+  withRiskDefaults,
+  type TokenWithOptionalRisk,
 } from "@/lib/meme/catalog";
 import { BASE_CHAIN_ID, SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import type { MemeToken } from "@/lib/meme/types";
+import { memeToken } from "@/lib/meme/fixture";
 
 const CBBTC = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
 
@@ -506,5 +514,82 @@ describe("mergeCatalogPages", () => {
       },
     ]);
     expect(merged.items).toHaveLength(4);
+  });
+});
+
+// The catalogue is 144,002 rows on 2026-09-16, 289 pages of 500. Walking it
+// flat out is what the gateway's limiter reads as an attack, so the walk is
+// paced and a rate-limited page waits rather than killing the walk.
+describe("catalogPageCount", () => {
+  it("counts the pages the server's meta implies", () => {
+    expect(catalogPageCount({ page: 1, limit: 500, total: 144_002 })).toBe(289);
+    expect(catalogPageCount({ page: 1, limit: 500, total: 500 })).toBe(1);
+    expect(catalogPageCount({ page: 1, limit: 500, total: 501 })).toBe(2);
+    expect(catalogPageCount({ page: 1, limit: 500, total: 0 })).toBe(0);
+  });
+
+  it("reads a limit of zero as no pages rather than dividing by it", () => {
+    expect(catalogPageCount({ page: 1, limit: 0, total: 100 })).toBe(0);
+  });
+});
+
+describe("catalogBackoffMs", () => {
+  it("doubles from the base and stops at the cap", () => {
+    expect(catalogBackoffMs(1, null)).toBe(CATALOG_RATE_LIMIT_BASE_MS);
+    expect(catalogBackoffMs(2, null)).toBe(CATALOG_RATE_LIMIT_BASE_MS * 2);
+    expect(catalogBackoffMs(3, null)).toBe(CATALOG_RATE_LIMIT_BASE_MS * 4);
+    expect(catalogBackoffMs(9, null)).toBe(CATALOG_RATE_LIMIT_MAX_MS);
+  });
+
+  it("waits as long as the gateway asked when it sent a Retry-After", () => {
+    expect(catalogBackoffMs(1, 90_000)).toBe(90_000);
+    // Shorter than our own pace is still honoured, but never below the pace:
+    // answering a limiter faster than we walk the healthy pages is pointless.
+    expect(catalogBackoffMs(1, 200)).toBe(CATALOG_PAGE_INTERVAL_MS);
+    // And never longer than the cap, whatever the header claimed.
+    expect(catalogBackoffMs(1, 60 * 60_000)).toBe(CATALOG_RATE_LIMIT_MAX_MS);
+  });
+
+  it("ignores a Retry-After that is not a usable number", () => {
+    expect(catalogBackoffMs(2, null)).toBe(CATALOG_RATE_LIMIT_BASE_MS * 2);
+    expect(catalogBackoffMs(2, Number.NaN)).toBe(CATALOG_RATE_LIMIT_BASE_MS * 2);
+    expect(catalogBackoffMs(2, -5)).toBe(CATALOG_RATE_LIMIT_BASE_MS * 2);
+  });
+});
+
+describe("the pace the walk keeps", () => {
+  // 289 pages at one every five seconds is 12 requests a minute from a tab.
+  // ADR-2026-09-15 records the limit that took the service down as 100 a
+  // minute shared by every user; the gateway's own RateLimit-Policy header
+  // advertises 9000 per 60s. Twelve is a small share of the smaller figure.
+  it("is one page every five seconds, a walk of about 24 minutes", () => {
+    expect(CATALOG_PAGE_INTERVAL_MS).toBe(5_000);
+    const perMinute = 60_000 / CATALOG_PAGE_INTERVAL_MS;
+    expect(perMinute).toBeLessThanOrEqual(12);
+    const pages = catalogPageCount({ page: 1, limit: CATALOG_PAGE_LIMIT, total: 144_002 });
+    expect(Math.round((pages * CATALOG_PAGE_INTERVAL_MS) / 60_000)).toBe(24);
+  });
+});
+
+describe("withRiskDefaults does not copy a token that needs nothing", () => {
+  // tradableHere maps this over the whole merged catalogue, 144,002 rows, and
+  // re-runs on every page the walk lands. Every one of those rows has already
+  // been through withRiskDefaults at the parse boundary, so a copy filled
+  // nothing in and held a second full set of token objects.
+  it("hands a complete token back unchanged, and identical", () => {
+    const complete = memeToken({ sellEnabled: false });
+    expect(withRiskDefaults(complete)).toBe(complete);
+  });
+
+  it("still fills in a row whose risk block is missing", () => {
+    const complete = memeToken({ sellEnabled: false });
+    const bare: TokenWithOptionalRisk = { ...complete };
+    delete bare.riskLevel;
+    delete bare.warnings;
+    const filled = withRiskDefaults(bare);
+    expect(filled).not.toBe(bare);
+    expect(filled.riskLevel).toBe("UNKNOWN");
+    expect(filled.warnings).toEqual([]);
+    expect(filled.sellEnabled).toBe(false);
   });
 });

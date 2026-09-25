@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { NetworkList } from "@/features/funds/components/network-list";
 import { AssetIcon } from "@/components/ui/asset-icon";
@@ -13,7 +13,7 @@ import { filterChains, filterTokens } from "@/features/funds/lib/search";
 import { track } from "@/lib/analytics/mixpanel";
 import { useDepositChains, useDepositTokens, useStaticDepositAddress } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { getWalletAddress } from "@/lib/user";
+
 import { isRefundOptional, originFamily, refundChainType } from "@/lib/deposit-catalog";
 import {
   depositMinimumUsd,
@@ -367,19 +367,21 @@ function DepositAddressView({
   onBack: () => void;
 }) {
   const t = useTranslations("fundsFlow");
-  const { user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const { refetchFresh } = usePortfolio();
 
-  const settlementAddress = getWalletAddress(user, settle.chainType);
+  const settlementAddress = addressFor(settle.chainType);
   const family = originFamily(chain.chainId);
   const refType = family ? refundChainType(family) : null;
-  const refundTo = refType ? getWalletAddress(user, refType) : null;
+  const refundTo = refType ? addressFor(refType) : null;
   const refundReady = family != null && (refundTo != null || isRefundOptional(family));
 
   const req: StaticAddressRequest | null =
-    user?.id && settlementAddress && refundReady
+    evmAddress && settlementAddress && refundReady
       ? {
-          userId: user.id,
+          userId:
+            evmAddress /* REVIEW(decane-migration): was Privy user.id; Decane keys per-wallet */,
           originChainId: chain.chainId,
           originAsset: token.address,
           settlementChainId: settle.chainId,

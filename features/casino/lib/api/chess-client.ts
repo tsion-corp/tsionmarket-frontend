@@ -6,6 +6,7 @@
 // players by.
 
 import { createServiceClient, type QueryParams } from "@/lib/api/service";
+import type { AuthIdentity } from "@/lib/auth-token";
 
 const chess = createServiceClient("/api/chess", "Chess is unavailable right now.");
 
@@ -14,16 +15,21 @@ const chess = createServiceClient("/api/chess", "Chess is unavailable right now.
 export function chessGet<T>(
   path: string,
   params?: QueryParams,
-  opts: { requireAuth?: boolean } = {}
+  opts: { requireAuth?: boolean; identity?: AuthIdentity } = {}
 ): Promise<T> {
-  return opts.requireAuth ? chess.authedGet<T>(path, params) : chess.get<T>(path, params);
+  const client = chess.as(opts.identity ?? "current");
+  return opts.requireAuth ? client.authedGet<T>(path, params) : client.get<T>(path, params);
 }
 
 // The body always exists on this service, even for an action as simple as
 // resigning, because the player has to be named. The proxy overwrites that name
 // with the verified one before it goes upstream.
-export function chessPost<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {
-  return chess.post<T>(path, body);
+export function chessPost<T>(
+  path: string,
+  body: Record<string, unknown> = {},
+  opts: { identity?: AuthIdentity } = {}
+): Promise<T> {
+  return chess.as(opts.identity ?? "current").post<T>(path, body);
 }
 
 export function chessPut<T>(path: string, body: Record<string, unknown> = {}): Promise<T> {

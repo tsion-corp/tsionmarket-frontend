@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { fetchDepositStatus } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSolanaToBase } from "@/hooks/use-solana-to-base";
 import { depositProgress, settlementFor } from "@/lib/deposit";
 import { toast } from "@/lib/toast";
-import { getWalletAddress } from "@/lib/user";
 import { fetchConfirmedSolanaBalance } from "@/lib/trade/solana-balance";
 import {
   clearPendingRwaSettlement,
@@ -63,8 +61,7 @@ export function useSettlementReconciler({
   completePurchase,
   messages,
 }: SettlementReconcilerOptions): void {
-  const { user } = usePrivy();
-  const { wallets: solanaWallets } = useSolanaWallets();
+  const { solanaAddress } = useAuthSession();
   const settleSolanaToBase = useSolanaToBase();
   const { refetchFresh } = usePortfolio();
   const executingRef = useRef(new Set<string>());
@@ -94,9 +91,10 @@ export function useSettlementReconciler({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingKey]);
 
-  const solanaTaker = getWalletAddress(user, "solana");
-  const solanaWalletReady =
-    solanaTaker !== null && solanaWallets.some((wallet) => wallet.address === solanaTaker);
+  const solanaTaker = solanaAddress;
+  // With Decane the session's address IS the wallet: there is no separate
+  // wallet object to wait for, so a known address means the signer is ready.
+  const solanaWalletReady = solanaTaker !== null;
 
   useEffect(() => {
     if (pending.length === 0) return;

@@ -6,7 +6,7 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { AsyncLoading } from "@/components/ui/async-state";
 import { useFundListing } from "@/features/earn/hooks/use-earn-sponsor-listings";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
-import { useWallets } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { fetchEscrowQuote } from "@/features/earn/lib/api/sponsor-dashboard";
 import { buildDepositCalls } from "@/features/earn/lib/escrow";
 import { friendlyError } from "@/lib/errors";
@@ -28,10 +28,10 @@ interface FundListingSheetProps {
 export function FundListingSheet({ open, onClose, listingId, onFunded }: FundListingSheetProps) {
   const fund = useFundListing();
   const sendBatch = useEvmSendBatch();
-  const { wallets } = useWallets();
+  const { evmAddress } = useAuthSession();
   // The embedded wallet this deposit is sent from. Passed on so a first-time
   // funder's account has an address the service can verify the deposit against.
-  const walletAddress = wallets.find((w) => w.walletClientType === "privy")?.address;
+  const walletAddress = evmAddress ?? undefined;
 
   // Fetched only while the sheet is open, and never cached: the amount and the
   // refund deadline are both derived from now, so a stale quote would be

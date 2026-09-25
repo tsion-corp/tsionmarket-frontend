@@ -2,11 +2,17 @@ import "server-only";
 import { wsapiRwaRequest } from "@/lib/server/wsapi";
 import { fetchRwaPrices } from "@/lib/server/rwa-prices";
 
-// RWA chain id -> Alchemy network id, for the chains the portfolio queries.
+// RWA chain id -> Alchemy network id. Every chain the RWA desk can BUY on
+// must be here: a chain missing from this map drops its RWA tokens from the
+// portfolio allowlist, so a holding bought there is invisible in the balance
+// and never discovered by the migration sweep. Ethereum carries most of the
+// catalogue (USDY, OUSG, PAXG, XAUt, ONDO…) and was missing for months.
 const RWA_CHAIN_TO_NETWORK: Record<string, string> = {
+  ethereum: "eth-mainnet",
   base: "base-mainnet",
   arbitrum: "arb-mainnet",
   polygon: "polygon-mainnet",
+  bsc: "bnb-mainnet",
   solana: "solana-mainnet",
 };
 

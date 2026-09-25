@@ -57,6 +57,7 @@ describe("getSessionClaims", () => {
     privy.verify.mockResolvedValue(claims);
 
     expect(await getSessionClaims()).toEqual({
+      provider: "privy",
       userId: "user_cookie",
       sessionId: "session_9",
       issuedAt: 1,

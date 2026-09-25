@@ -1,7 +1,6 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import {
   getLpPositions,
   getMyMarkets,
@@ -9,7 +8,7 @@ import {
   getPositionsForMarket,
 } from "@/features/prediction/lib/api";
 import { readPendingWithdrawals } from "@/features/prediction/lib/chain-reads";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 // Portfolio reads for the connected wallet: open positions and LP positions from
 // the indexer, the markets the wallet created, and the claimable balance from the
@@ -18,8 +17,7 @@ import { getWalletAddress } from "@/lib/user";
 // Markets the connected wallet created (by on-chain creator), so they can resolve
 // their own markets even before the indexer backfills the creator field.
 export function useMyMarkets() {
-  const { user } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { evmAddress: wallet } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "my-markets", wallet],
     queryFn: () => getMyMarkets(wallet as string),
@@ -30,8 +28,7 @@ export function useMyMarkets() {
 }
 
 export function usePositions() {
-  const { user } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { evmAddress: wallet } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "positions", wallet],
     queryFn: () => getPositions(wallet as string),
@@ -44,8 +41,7 @@ export function usePositions() {
 // The connected wallet's positions in ONE market (both sides), for the detail
 // page's positions panel. Disabled until a wallet + market id are known.
 export function useMarketPositions(marketId: string | null) {
-  const { user } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { evmAddress: wallet } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "market-positions", marketId, wallet],
     queryFn: () => getPositionsForMarket(marketId as string, wallet as string),
@@ -56,8 +52,7 @@ export function useMarketPositions(marketId: string | null) {
 }
 
 export function useLpPositions() {
-  const { user } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { evmAddress: wallet } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "lp", wallet],
     queryFn: () => getLpPositions(wallet as string),
@@ -68,8 +63,7 @@ export function useLpPositions() {
 }
 
 export function usePendingWithdrawals() {
-  const { user } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { evmAddress: wallet } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "withdrawable", wallet],
     queryFn: () => readPendingWithdrawals(wallet as string),

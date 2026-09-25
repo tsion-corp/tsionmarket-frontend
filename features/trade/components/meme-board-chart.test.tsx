@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 
 // The phone board's chart takes its colour from the coin's 24h change. A change
 // the service did not publish is not a gain: the chart is handed no direction.

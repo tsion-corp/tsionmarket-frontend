@@ -1,9 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { createServiceClient } from "@/lib/api/service";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { usePortfolio } from "@/hooks/use-portfolio";
 
 // Same gateway proxy features/trade/lib/hyperliquid-api.ts talks to — a
@@ -40,8 +39,7 @@ async function fetchPerpsBalance(address: string): Promise<number> {
 // only a rare pendingWithdrawals fallback-credit) — showing a real games
 // balance here needs a new per-user endpoint on that service first.
 export function useGlobalBalance() {
-  const { user, ready, authenticated } = usePrivy();
-  const address = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress: address } = useAuthSession();
   const spot = usePortfolio();
 
   const enabled = ready && authenticated && Boolean(address);

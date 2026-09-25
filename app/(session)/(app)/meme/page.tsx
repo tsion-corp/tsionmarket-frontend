@@ -39,7 +39,7 @@ import { useCoingeckoId } from "@/hooks/use-coingecko-id";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useMarketHandoff } from "@/hooks/use-market-handoff";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { MemeCatalogMore, MemeViewSwitch } from "@/features/trade/components/meme-catalog-controls";
+import { MemeViewSwitch } from "@/features/trade/components/meme-catalog-controls";
 import { MemeScreenerToolbar } from "@/features/trade/components/meme-screener-toolbar";
 import {
   MemeTrendingStrip,
@@ -442,11 +442,16 @@ function MemeDesk() {
   // view; the phone's grid reads the same pages, so both share one cache entry.
   const [view, setView] = useState<DiscoveryView>(DEFAULT_DISCOVERY_VIEW);
   const catalog = useMemeCatalog({ view });
-  const search = useMemeSearch(query, view);
+  // The cached catalogue goes into the search, not just the query: an address,
+  // a market cap or an age is answered from the rows already held, and the
+  // service is still asked for the coins those rows do not cover. A search
+  // reaches the whole catalogue rather than the screener's cut of it, which is
+  // why this is `catalog` and not `source` below.
+  const search = useMemeSearch(query, view, catalog.tokens);
   // Trending and the market screener. While filters or a sort apply, the
   // screener's filtered list stands in for the catalogue everywhere the list
-  // reads it: rows, paging, the count and the lookahead. A search still takes
-  // priority over both.
+  // reads it: rows, paging and the lookahead. A search still takes priority
+  // over both.
   const screener = useMemeScreener({ view, trendingPageSize: TRENDING_DESK_PAGE_SIZE });
   const source = screener.active ? screener.list : catalog;
   const portfolio = usePortfolio();
@@ -496,10 +501,10 @@ function MemeDesk() {
     [screener.trending.tokens, screener.timeframe]
   );
 
-  // No "Load more": the next server page is fetched in the background while
-  // the reader is within a few pages of the end of what has loaded, so the
-  // numbered bar always has pages ahead to show. A search is its own complete
-  // list, so the catalogue is left alone while one is showing.
+  // Nothing asks the reader to fetch: the next server page is pulled in the
+  // background while the reader is within a few pages of the end of what has
+  // loaded, so the numbered bar always has pages ahead to show. A search is its
+  // own complete list, so the catalogue is left alone while one is showing.
   const catalogPaging = !search.active;
   const lookahead = useCatalogLookahead({
     enabled: catalogPaging,
@@ -740,23 +745,6 @@ function MemeDesk() {
         sortOrder={screener.filters.sort?.order ?? "desc"}
         onSortChange={screener.setSort}
         topGainers={topGainers}
-        listStatus={
-          // The count describes the catalogue; a search replaces it, so it
-          // steps aside while one is showing. Pages load ahead on their own, so
-          // the strip only offers a retry, for a page that failed.
-          search.active ? null : (
-            <MemeCatalogMore
-              loaded={source.loaded}
-              total={source.total}
-              shownCount={source.shownCount}
-              hasMore={source.hasMore}
-              loadingMore={source.isLoadingMore}
-              failed={source.loadMoreFailed}
-              onLoadMore={lookahead.requestMore}
-              autoLoads
-            />
-          )
-        }
         pairLabel={selected ? pairLabelFor(selected) : undefined}
         side={side}
         onSideChange={changeSide}

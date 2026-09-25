@@ -2,7 +2,8 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useWallets } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
+import { ensureUnlocked } from "@/lib/decane";
 import type { EIP1193Provider } from "viem";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -121,18 +122,21 @@ export function useKashDeskSellQuote(kashAmount: string, enabled: boolean) {
  * client cannot get the permit-domain subtleties wrong; it only signs.
  */
 function useTypedDataSigner() {
-  const { wallets } = useWallets();
+  const wallet = useSocialWallet();
   return useCallback(
     async (owner: string, typedData: Parameters<typeof withDomainType>[0]): Promise<string> => {
-      const wallet = wallets.find((w) => w.address.toLowerCase() === owner.toLowerCase());
-      if (!wallet) throw new Error("Signing wallet is not connected.");
-      const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
+      const evm = wallet.addresses?.evm;
+      if (!evm || evm.toLowerCase() !== owner.toLowerCase()) {
+        throw new Error("Signing wallet is not connected.");
+      }
+      await ensureUnlocked(wallet);
+      const provider = wallet.getEthereumProvider() as unknown as EIP1193Provider;
       return (await provider.request({
         method: "eth_signTypedData_v4",
         params: [owner as `0x${string}`, JSON.stringify(withDomainType(typedData))],
       })) as string;
     },
-    [wallets]
+    [wallet]
   );
 }
 

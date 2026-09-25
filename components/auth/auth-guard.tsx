@@ -2,33 +2,32 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams, useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useIdleLogout } from "@/hooks/use-idle-logout";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { toast } from "@/lib/toast";
 import { authUrlFor } from "@/lib/return-to";
 
 // Sign the user out after this long with no interaction, so a funded session
-// left open on an unattended device doesn't stay open. Twelve hours: two
-// signed people out in the middle of ordinary use.
-const IDLE_TIMEOUT_HOURS = 12;
+// left open on an unattended device doesn't stay open.
+const IDLE_TIMEOUT_HOURS = 2;
 const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_HOURS * 60 * 60 * 1000;
 
 interface AuthGuardProps {
   children: React.ReactNode;
   /**
    * True when the server verified the session cookie for this render. The
-   * page then shows at once instead of waiting for Privy's browser SDK to
-   * start, which is the moment the server-rendered balance is already in the
-   * cache but nothing could show it. Privy remains the authority: if it
+   * page then shows at once instead of waiting for the wallet SDK to start,
+   * which is the moment the server-rendered balance is already in the cache
+   * but nothing could show it. The client session remains the authority: if it
    * settles on signed out, the redirect below still fires.
    */
   serverVerified?: boolean;
 }
 
 export function AuthGuard({ children, serverVerified = false }: AuthGuardProps) {
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated } = useAuthSession();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -52,7 +51,7 @@ export function AuthGuard({ children, serverVerified = false }: AuthGuardProps) 
   );
 
   // Not yet known in the browser, and the server did not vouch either: hold
-  // the page back. Once Privy has answered, only a signed-in session renders.
+  // the page back. Once the session has answered, only a signed-in one renders.
   const holdBack = ready ? !authenticated : !serverVerified;
   if (holdBack) {
     return (

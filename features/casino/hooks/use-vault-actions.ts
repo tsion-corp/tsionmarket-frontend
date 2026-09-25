@@ -1,9 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useCallback, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { decodeEventLog } from "viem";
-import { getWalletAddress } from "@/lib/user";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { KING_OF_NIGHT_V5_ABI } from "@/lib/vault/king-of-night-v5-abi";
@@ -46,7 +45,7 @@ function gameIdFromReceipt(logs: readonly { data: string; topics: string[] }[]):
  * confirmation so the caller's refetch reflects the result.
  */
 export function useVaultActions() {
-  const { user } = usePrivy();
+  const { evmAddress } = useAuthSession();
   // Every action is one atomic sponsored user operation. An ERC-20 stake needs
   // an allowance before the vault can pull it, and sending the two in sequence
   // against a 60-second clock leaves a window where the game settles in between
@@ -59,10 +58,10 @@ export function useVaultActions() {
   const [settling, setSettling] = useState(false);
 
   const owner = useCallback((): `0x${string}` => {
-    const address = getWalletAddress(user, "ethereum");
+    const address = evmAddress;
     if (!address) throw new Error("No EVM wallet is connected.");
     return address as `0x${string}`;
-  }, [user]);
+  }, [evmAddress]);
 
   /**
    * Opens a game at `stake` base units of the game asset (USDC, 6 decimals).

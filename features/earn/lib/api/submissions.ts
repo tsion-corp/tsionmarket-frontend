@@ -3,7 +3,8 @@
 // The talent side of a listing: whether this user already entered, what they
 // sent, and entering.
 
-import { earnAuthedGet, earnPost } from "@/features/earn/lib/api/client";
+import { earnAs, earnAuthedGet, earnPost } from "@/features/earn/lib/api/client";
+import type { AuthIdentity } from "@/lib/auth-token";
 import {
   toMySubmissions,
   toSubmission,
@@ -46,9 +47,13 @@ export async function fetchMySubmission(listingId: string): Promise<Submission |
 // Everything the caller has entered, newest first. The only view that answers
 // "what have I applied for, and how did it go" without already knowing which
 // listing to look at.
-export async function fetchMySubmissions(): Promise<MySubmission[]> {
+export async function fetchMySubmissions(
+  identity: AuthIdentity = "current"
+): Promise<MySubmission[]> {
   if (USE_FIXTURES) return FIXTURE_MY_SUBMISSIONS;
-  return toMySubmissions(await earnAuthedGet<MySubmissionWire[] | null>("/submission/mine"));
+  return toMySubmissions(
+    await earnAs(identity).authedGet<MySubmissionWire[] | null>("/submission/mine")
+  );
 }
 
 export interface ClaimInfo {
@@ -64,9 +69,12 @@ export interface ClaimInfo {
 
 // Where a winner's reward is held and how much is left to collect. Read from
 // the contract, since nothing here tracks what has already been withdrawn.
-export async function fetchClaimInfo(listingId: string): Promise<ClaimInfo> {
+export async function fetchClaimInfo(
+  listingId: string,
+  identity: AuthIdentity = "current"
+): Promise<ClaimInfo> {
   if (USE_FIXTURES) return { claimable: false };
-  return earnAuthedGet<ClaimInfo>("/submission/claim", { listingId });
+  return earnAs(identity).authedGet<ClaimInfo>("/submission/claim", { listingId });
 }
 
 export async function createSubmission(input: CreateSubmissionInput): Promise<Submission | null> {

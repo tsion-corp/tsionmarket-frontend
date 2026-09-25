@@ -148,14 +148,35 @@ async function send(calls = [{ to: WALLET, data: "0x" as const, value: 0n }]) {
     accessToken: "token",
     calls,
   });
-  await vi.runAllTimersAsync();
-  return pending;
+  // Drain repeatedly rather than once. The receipt poll's sleep is scheduled
+  // behind several awaited fetches, so a single drain can run before that timer
+  // exists — leaving the call waiting on a fake clock nobody advances again.
+  // Alone that ordering held; under a loaded suite it did not, and the test
+  // failed on vitest's timeout rather than on anything it asserts.
+  let settled = false;
+  const done = pending.then(
+    (v) => {
+      settled = true;
+      return v;
+    },
+    (e) => {
+      settled = true;
+      throw e;
+    }
+  );
+  for (let i = 0; i < 20 && !settled; i += 1) await vi.runAllTimersAsync();
+  return done;
 }
 
 const methodsAt = (calls: Recorded[], path: string) =>
   calls.filter((c) => c.url.includes(path)).map((c) => c.method);
 
-describe("sendSponsoredEvmCalls round trips", () => {
+// Each case drives a whole sponsored send — several mocked round trips and a
+// fake-clock receipt poll drained to settlement. That is comfortably under a
+// second alone, and past vitest's 5s default on a loaded machine, where it
+// failed on the clock rather than on an assertion. The work is the test's, not
+// a hang: the ceiling is raised rather than the coverage cut.
+describe("sendSponsoredEvmCalls round trips", { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();

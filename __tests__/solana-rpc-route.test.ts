@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
-const auth = vi.hoisted(() => ({ verifyRequest: vi.fn(), getRequestUser: vi.fn() }));
+const auth = vi.hoisted(() => ({ verifyRequest: vi.fn(), getRequestIdentity: vi.fn() }));
 vi.mock("@/lib/server/auth", () => auth);
 
 const { POST } = await import("@/app/api/solana-rpc/route");

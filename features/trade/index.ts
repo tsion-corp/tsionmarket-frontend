@@ -5,3 +5,4 @@ export { PerpsSection } from "./components/perps-section";
 export { PerpsBackLink } from "./components/perps-back-link";
 export { PerpsMenuDrawer } from "./components/perps-menu-drawer";
 export { HyperliquidTradeTerminal } from "./components/hyperliquid-trade-terminal";
+export { perpsMigrationAdapter } from "./lib/migration-adapter";

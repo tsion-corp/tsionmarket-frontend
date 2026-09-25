@@ -1,10 +1,9 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
-import { usePrivy } from "@privy-io/react-auth";
 import { BELL_POLL_MS, useActivity } from "@/features/activity/hooks/use-activity";
 import { useDepositAnalytics } from "@/features/activity/hooks/use-deposit-analytics";
 import { useDepositBalanceRefresh } from "@/features/activity/hooks/use-deposit-balance-refresh";
-import { getWalletAddress } from "@/lib/user";
 
 // Watches settled deposits and reports them, rendering nothing.
 //
@@ -19,13 +18,14 @@ import { getWalletAddress } from "@/lib/user";
 // Naira credit arrives as Base USDC and is otherwise indistinguishable from a
 // chain deposit.
 export function DepositAnalytics() {
-  const { user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   // Same query key as the notification bell. React Query drives a shared key
   // at its shortest observer interval, so asking at the default 60s here
   // silently cancelled the bell's five minute throttle for every dashboard.
   // This only needs to NOTICE an arrival, not watch for one.
   const { items } = useActivity({ pollMs: BELL_POLL_MS });
-  const wallet = getWalletAddress(user, "ethereum") ?? "";
+  const wallet = evmAddress ?? "";
   useDepositAnalytics(items, wallet);
   // A settled deposit is a balance change the cache-first portfolio would
   // otherwise miss until the next transaction; the same arrival refreshes it.

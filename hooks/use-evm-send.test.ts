@@ -8,24 +8,26 @@ const { sendSponsoredEvmCallsWithReceipt, sendTransaction, signAuthorization } =
     transactionHash: "0xsponsoredhash",
     logs: [],
   })),
-  sendTransaction: vi.fn(async () => ({ hash: "0xnormalhash" })),
+  // The kit's sendTransaction resolves the hash itself (Privy's used to wrap
+  // it in `{ hash }`).
+  sendTransaction: vi.fn(async () => "0xnormalhash"),
   signAuthorization: vi.fn(),
 }));
 
 vi.mock("@/lib/trade/sponsor", () => ({ sendSponsoredEvmCallsWithReceipt }));
-vi.mock("@privy-io/react-auth", () => ({
-  useSendTransaction: () => ({ sendTransaction }),
-  useSign7702Authorization: () => ({ signAuthorization }),
-  useWallets: () => ({
-    wallets: [
-      {
-        walletClientType: "privy",
-        address: "0xUser",
-        getEthereumProvider: async () => ({}),
-      },
-    ],
+// The hook sends through the kit's embedded wallet (replacing Privy's
+// useWallets / useSendTransaction / useSign7702Authorization).
+vi.mock("decane-connect-kit", () => ({
+  useSocialWallet: () => ({
+    addresses: { evm: "0xUser" },
+    // ensureUnlocked runs before every send; an unlocked session sends at once.
+    isUnlocked: true,
+    unlock: vi.fn(async () => {}),
+    getAccessToken: () => "access-token",
+    getEthereumProvider: () => ({}),
+    sendTransaction,
+    signAuthorization,
   }),
-  getAccessToken: async () => "access-token",
 }));
 
 import { useEvmSend } from "@/hooks/use-evm-send";
@@ -151,9 +153,10 @@ describe("useEvmSend routing", () => {
   it("passes the gas-limit hint through on the unsupported-chain path", async () => {
     const { result } = renderHook(() => useEvmSend());
     await result.current({ to: "0xrouter", chainId: ZKSYNC, gasLimit: 21000n });
+    // The kit takes one request object with a CAIP-style chain, where Privy's
+    // sendTransaction took (tx, options).
     expect(sendTransaction).toHaveBeenCalledWith(
-      expect.objectContaining({ gasLimit: 21000n, chainId: ZKSYNC }),
-      undefined
+      expect.objectContaining({ gasLimit: 21000n, chain: `evm:${ZKSYNC}` })
     );
   });
 });

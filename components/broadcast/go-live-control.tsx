@@ -16,8 +16,7 @@
 
 import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
-import { deriveProfile } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { arkBroadcastTarget } from "@/components/broadcast/ark-target";
 import { useBroadcastSession } from "@/components/broadcast/broadcast-session";
 import { ShareFlow } from "@/components/broadcast/share-flow";
@@ -48,10 +47,10 @@ function LiveIcon({ size = 20 }: { size?: number }) {
 export function GoLiveControl({ variant }: { variant: "tab" | "rail" | "tile" }) {
   const session = useBroadcastSession();
   const pathname = usePathname() ?? "/";
-  const { user } = usePrivy();
+  const { profile } = useAuthSession();
   const [sharing, setSharing] = useState(false);
 
-  const target = arkBroadcastTarget(pathname, deriveProfile(user).name);
+  const target = arkBroadcastTarget(pathname, profile.name);
   const live = session.live;
 
   /**

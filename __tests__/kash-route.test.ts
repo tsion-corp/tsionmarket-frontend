@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 const auth = vi.hoisted(() => ({
   verifyRequest: vi.fn(),
   getRequestUser: vi.fn(),
+  getRequestIdentity: vi.fn(),
 }));
 vi.mock("@/lib/server/auth", () => auth);
 
@@ -34,12 +35,18 @@ async function loadRoute() {
 function signIn(address: string) {
   auth.verifyRequest.mockResolvedValue({ userId: "user-1" });
   auth.getRequestUser.mockResolvedValue(walletUser(address));
+  auth.getRequestIdentity.mockResolvedValue({
+    userId: "did:x",
+    evmAddress: address,
+    solanaAddress: null,
+  });
 }
 
 describe("kash proxy route", () => {
   beforeEach(() => {
     auth.verifyRequest.mockReset();
     auth.getRequestUser.mockReset();
+    auth.getRequestIdentity.mockReset();
     global.fetch = vi.fn(
       async () =>
         new Response(JSON.stringify({ success: true, data: {} }), {

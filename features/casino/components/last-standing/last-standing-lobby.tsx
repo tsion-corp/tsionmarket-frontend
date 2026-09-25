@@ -2,8 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
-import { deriveProfile, getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { Tabs, type Tab } from "@/components/ui/tabs";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -34,9 +33,7 @@ type LobbyTab = "game" | "leaderboard" | "how";
 // player shares.
 export function LastStandingLobby() {
   const t = useTranslations("casino.lastStanding");
-  const { user } = usePrivy();
-  const address = getWalletAddress(user, "ethereum");
-  const profile = deriveProfile(user);
+  const { evmAddress: address, profile } = useAuthSession();
   const [tab, setTab] = useState<LobbyTab>("game");
   const {
     games: allGames,

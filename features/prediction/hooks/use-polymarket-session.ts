@@ -2,19 +2,17 @@
 
 import { useCallback, useState } from "react";
 import { friendlyError } from "@/lib/errors";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
 import { deployDepositWallet, isWalletDeployed } from "@polymarket/client/actions";
 import type { EIP1193Provider } from "viem";
-import { getWalletAddress } from "@/lib/user";
-import {
-  buildSecureClient,
-  type SecureClient,
-} from "@/features/prediction/lib/polymarket/secure-client";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import { ensureUnlocked } from "@/lib/decane";
+import { buildSecureClient, type SecureClient } from "@/lib/polymarket/secure-client";
 
 export type SessionStatus = "idle" | "connecting" | "deploying" | "approving" | "ready" | "error";
 
 // Shared across every hook instance so the Deposit Wallet is derived, deployed,
-// and approved exactly once per user — betting and funding reuse one client.
+// and approved exactly once per user: betting and funding reuse one client.
 let sharedClient: SecureClient | null = null;
 let sharedAddress: string | null = null;
 let building: Promise<SecureClient> | null = null;
@@ -23,13 +21,13 @@ let building: Promise<SecureClient> | null = null;
 // user. First use derives + deploys the Deposit Wallet (gasless via the builder
 // relayer) and sets trading approvals, then caches the ready client process-wide.
 export function usePolymarketSession() {
-  const { user } = usePrivy();
-  const { wallets } = useWallets();
+  const { evmAddress } = useAuthSession();
+  const wallet = useSocialWallet();
   const [status, setStatus] = useState<SessionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 
   const ensureReady = useCallback(async (): Promise<SecureClient> => {
-    const address = getWalletAddress(user, "ethereum");
+    const address = evmAddress;
     if (!address) throw new Error("No wallet connected");
 
     // Reset if the signed-in wallet changed.
@@ -42,11 +40,11 @@ export function usePolymarketSession() {
 
     setError(null);
     building = (async () => {
-      const wallet = wallets.find((w) => w.address.toLowerCase() === address.toLowerCase());
-      if (!wallet) throw new Error("Wallet is not ready. Try again.");
-
       setStatus("connecting");
-      const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
+      // Onboarding signs through the provider (deploy + approvals), so the
+      // Decane session must be unlocked before the client is built.
+      await ensureUnlocked(wallet);
+      const provider = wallet.getEthereumProvider() as unknown as EIP1193Provider;
       const client = await buildSecureClient(address, provider);
 
       if (!(await isWalletDeployed(client))) {
@@ -73,7 +71,7 @@ export function usePolymarketSession() {
     } finally {
       building = null;
     }
-  }, [user, wallets]);
+  }, [evmAddress, wallet]);
 
   return { ensureReady, status, error, ready: status === "ready" };
 }

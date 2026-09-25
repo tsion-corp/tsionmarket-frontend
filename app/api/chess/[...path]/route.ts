@@ -1,10 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { Buffer } from "node:buffer";
-import { ACCESS_TOKEN_COOKIE, getRequestUser, verifyRequest } from "@/lib/server/auth";
+import {
+  accessTokenFromCookie,
+  getRequestIdentity,
+  getRequestUser,
+  verifyRequest,
+} from "@/lib/server/auth";
 import {
   chessDisplayNameOfUser,
   chessReadNeedsSession,
-  walletOfUser,
   withChessCountry,
   withChessReadIdentity,
   withChessIdentity,
@@ -111,7 +115,7 @@ function noWallet() {
 
 function forwardAuthHeaders(req: NextRequest, headers: Record<string, string>): void {
   const authorization = req.headers.get("authorization");
-  const accessToken = req.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  const accessToken = accessTokenFromCookie((name) => req.cookies.get(name)?.value);
   const identityToken =
     req.headers.get("privy-id-token") ?? req.cookies.get("privy-id-token")?.value;
 
@@ -232,10 +236,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   const needsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
   const claims = needsSession ? await verifyRequest(req) : null;
   if (needsSession && !claims) return unauthorized();
-  const user = needsSession ? await getRequestUser(req, claims) : null;
-  const wallet = needsSession ? walletOfUser(user) : null;
+  const user =
+    needsSession && claims?.provider === "privy" ? await getRequestUser(req, claims) : null;
+  // Provider-agnostic wallet: Decane resolves through its address endpoint,
+  // Privy through the user object. The old Privy-only path returned null for a
+  // Decane session and failed the wallet check against the caller's own wallet.
+  const wallet = needsSession
+    ? ((await getRequestIdentity(req, claims))?.evmAddress ?? null)
+    : null;
   const displayName = needsSession ? chessDisplayNameOfUser(user) : null;
-  if (needsSession && !user) return walletUnavailable();
+  // Only a Privy session has a user object to miss: for Decane, `user` is
+  // null by design and supplies nothing but the display name. Requiring it
+  // here 401'd every migrated player after their token had verified.
+  if (needsSession && claims?.provider === "privy" && !user) return walletUnavailable();
   if (needsSession && !wallet) return noWallet();
   const forwardedSearch = wallet
     ? withChessReadIdentity(joined, req.nextUrl.searchParams, wallet)
@@ -276,9 +289,12 @@ async function authedWrite(
   const claims = await verifyRequest(req);
   if (!claims) return unauthorized();
 
-  const user = await getRequestUser(req, claims);
-  if (!user) return walletUnavailable();
-  const wallet = walletOfUser(user);
+  const user = claims?.provider === "privy" ? await getRequestUser(req, claims) : null;
+  // Only a Privy session has a user object to miss: for Decane, `user` is
+  // null by design and supplies nothing but the display name. Requiring it
+  // here 401'd every migrated player after their token had verified.
+  if (claims?.provider === "privy" && !user) return walletUnavailable();
+  const wallet = (await getRequestIdentity(req, claims))?.evmAddress ?? null;
   if (!wallet) return noWallet();
 
   const raw = await req.text();

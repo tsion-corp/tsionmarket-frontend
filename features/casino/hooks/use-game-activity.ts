@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
-import { getWalletAddress } from "@/lib/user";
+
 import { fetchPlayerMatches as fetchChessMatches } from "@/features/casino/lib/api/chess";
 import { fetchPlayerMatches as fetchDraughtsMatches } from "@/features/casino/lib/api/draughts";
 import { fetchLotteryTickets } from "@/features/casino/lib/api/lottery";
@@ -20,8 +20,9 @@ const POLL_MS = 60_000;
 const EMPTY: ActivityEntry[] = [];
 
 export function useGameActivity() {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const wallet = evmAddress;
   const enabled = ready && authenticated && Boolean(wallet);
 
   const query = useQuery<ActivityEntry[]>({

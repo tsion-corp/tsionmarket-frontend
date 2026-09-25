@@ -8,8 +8,15 @@ const EVM = "0x6Fe0c92D880678F86a7d213695757ed58B09877F";
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ ready: true, authenticated: true, user: null }),
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: null,
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+  }),
 }));
 vi.mock("@/components/providers/server-session", () => ({
   useSessionWallet: (chain: string) => (chain === "ethereum" ? EVM : null),

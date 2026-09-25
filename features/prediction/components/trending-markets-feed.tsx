@@ -11,8 +11,6 @@ import { CategoryEventRow } from "./category-event-row";
 import { CategoryBetSidebar } from "./category-market-shared";
 import { HorizontalNavRail } from "./horizontal-nav-rail";
 import { PredictionCategoryNav, type PredictionFeedFilter } from "./prediction-category-nav";
-import { PredictionPositions } from "./prediction-positions";
-import { usePolymarketPositionsController } from "../hooks/use-polymarket-positions-controller";
 
 interface DiscoveryTopic {
   slug: string;
@@ -134,10 +132,6 @@ export function DiscoveryMarketsFeed({
   const access = usePolymarketAccess();
   const slip = useHouseSlip();
   const [activeTopic, setActiveTopic] = useState("");
-  // "Your positions", above the list. The controller holds no query and polls
-  // nothing: it is plain state plus a refresh callback, so mounting it here
-  // costs the prediction service no request until somebody presses Load.
-  const positionsCtl = usePolymarketPositionsController();
   const [desktopBetOpen, setDesktopBetOpen] = useState(false);
   const [mobileBetOpen, setMobileBetOpen] = useState(false);
   const viewableEvents = catalog.events.filter((event) =>
@@ -171,14 +165,6 @@ export function DiscoveryMarketsFeed({
           label={label}
           onTopicChange={setActiveTopic}
         />
-
-        {/* Above the market list rather than under it: somebody who opened
-            this page to check an open bet, claim a win or cash out should not
-            have to scroll a feed to find it. The panel is its own card, so it
-            takes the section's gutter rather than the list's full-bleed rows. */}
-        <div className="mx-auto w-full max-w-[1350px] px-4 pb-7 sm:pb-9 lg:px-6">
-          <PredictionPositions controller={positionsCtl} />
-        </div>
 
         <section aria-label={`${label} markets`} className="mx-auto w-full max-w-[1350px] pb-16">
           {catalog.loading ? (

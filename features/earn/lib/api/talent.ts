@@ -7,7 +7,8 @@
 // the app sets it, so this is the only path from "signed in" to "able to enter
 // a bounty".
 
-import { earnAuthedGet, earnPost } from "@/features/earn/lib/api/client";
+import { earnAs, earnAuthedGet } from "@/features/earn/lib/api/client";
+import type { AuthIdentity } from "@/lib/auth-token";
 import { toTalentProfile, type TalentProfileWire } from "@/features/earn/lib/api/wire";
 import { FIXTURE_TALENT_PROFILE, USE_FIXTURES } from "@/features/earn/lib/api/fixtures";
 import type { TalentProfile, TalentProfileInput } from "@/features/earn/lib/api/types";
@@ -25,8 +26,11 @@ export async function fetchTalentProfile(): Promise<TalentProfile | null> {
 }
 
 export async function completeTalentProfile(
-  input: TalentProfileInput
+  input: TalentProfileInput,
+  identity: AuthIdentity = "current"
 ): Promise<TalentProfile | null> {
   if (USE_FIXTURES) return FIXTURE_TALENT_PROFILE;
-  return toTalentProfile(await earnPost<TalentProfileWire>("/user/complete-profile", input));
+  return toTalentProfile(
+    await earnAs(identity).post<TalentProfileWire>("/user/complete-profile", input)
+  );
 }

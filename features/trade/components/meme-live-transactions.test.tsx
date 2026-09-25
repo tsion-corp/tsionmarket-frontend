@@ -7,7 +7,7 @@ import {
   LiveTransactions,
   coinTransactions,
 } from "@/features/trade/components/meme-live-transactions";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import type { SwapDetail } from "@/lib/meme/api";
 import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 

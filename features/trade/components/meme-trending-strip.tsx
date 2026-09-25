@@ -1,9 +1,9 @@
 "use client";
 
-import { useId, type CSSProperties } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import { useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { ChevronLeftIcon, FlameIcon } from "@/components/ui/icons";
+import { ChevronLeftIcon, FlameIcon, RefreshIcon } from "@/components/ui/icons";
 import {
   MemeTrendingCard,
   MemeTrendingCardSkeleton,
@@ -18,14 +18,20 @@ import type { MemeTimeframe, MemeToken } from "@/lib/meme/types";
 // ranked, a page at a time (ADR-2026-09-15-meme-trending-screener, section 3).
 // Presentational: the controller hook owns the query, the page and the heat.
 
-// Three across on the desk. Four made each card narrow enough that a long
-// change figure was cut mid-number, which is how "+2323839..." reached the
-// screen; three gives the figure room to finish.
+// Three a page. Trending is a shortlist of what is moving, and three cards sit
+// across a desk's left column at a readable width instead of being squeezed or
+// wrapped to a second row on all but the widest windows.
 export const TRENDING_DESK_PAGE_SIZE = 3;
-// Four on a phone as well, which the grid draws two by two. A side-scroller
-// held five but cut the card at the screen's edge, and a card sliced down the
-// middle reads as broken rather than as an invitation to swipe.
-export const TRENDING_PHONE_PAGE_SIZE = 4;
+// Three on a phone as well, so both surfaces rank the same coins on a page and
+// a reader moving between them sees the same shortlist. A side-scroller held
+// five but cut the card at the screen's edge, and a card sliced down the middle
+// reads as broken rather than as an invitation to swipe.
+export const TRENDING_PHONE_PAGE_SIZE = 3;
+
+// The container width that fits a page across in one row: three cards at their
+// 156px floor with two 8px gaps between them. Under it the grid drops to two
+// columns and lays the third card across the foot.
+export const TRENDING_ROW_MIN_PX = TRENDING_MIN_CARD_PX * 3 + 8 * 2;
 
 export { TRENDING_MIN_CARD_PX };
 
@@ -35,20 +41,24 @@ export { TRENDING_MIN_CARD_PX };
 // repaginate the table under the reader. 20px of padding, a 28px header, an 8px
 // gap, and 114px for cards that need 107px (a 28px coin line, the 18px change,
 // the 14px what-if line, the 7px heat bar, three 6px gaps and the card's own
-// padding and border). A column too narrow for four cards wraps them onto a
+// padding and border). A column too narrow for three cards wraps them onto a
 // second row and the strip grows with them, which is a change in width, not a
 // change in state, so the table is not repaginated under anyone.
 export const TRENDING_DESK_HEIGHT = 172;
 
-// One card a cell, as many whole cards across as the box can hold, on both
-// surfaces. Four cards fit a desk's left column in one row; at about 1024px,
-// where that column is near 480px, and on a phone, they wrap two by two
-// instead of being crushed or sliced.
+// One card a cell, on both surfaces, and never a row with a hole in it. A page
+// is three cards, so the arrangement is only ever one of three:
+//   484px and up: three across, one row.
+//   320px to 484px: two across, the third laid across the foot. This is a
+//     phone, and the desk's left column at around 1024px.
+//   under 320px: one card a row, because two at 156px no longer fit.
+// The queries read the box the cards sit in, not the window, because the desk's
+// left column and a phone's list are different widths at the same viewport.
 // Written out, not built from TRENDING_MIN_CARD_PX: Tailwind reads class names
 // out of the source as plain text, so a class assembled at runtime is never
 // generated. A test keeps the two in step.
-const DESK_GRID =
-  "grid auto-rows-fr gap-2 [grid-template-columns:repeat(auto-fit,minmax(156px,1fr))]";
+const TRENDING_GRID =
+  "grid auto-rows-fr grid-cols-1 gap-2 @min-[320px]:grid-cols-2 @min-[484px]:grid-cols-3 @min-[320px]:@max-[484px]:[&>*:nth-child(3)]:col-span-2";
 
 // A phone card's height, held in a variable so a skeleton stands exactly as
 // tall as the card it stands in for and the list below does not jump when
@@ -60,10 +70,22 @@ const PAGE_SIZE: Record<TrendingVariant, number> = {
   phone: TRENDING_PHONE_PAGE_SIZE,
 };
 
-// Pager's buttons, one step smaller, so the strip's pager cannot be mistaken
-// for the table's numbered one.
-const PAGER_BUTTON =
-  "grid h-7 w-7 cursor-pointer place-items-center rounded-full border border-white/12 bg-white/5 text-white/60 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-white/60";
+// The header's round icon buttons, one step smaller than the table's, so the
+// strip's pager cannot be mistaken for the table's numbered one. Refresh sits
+// beside the pager and shares the shape: the header speaks one control
+// language. Colour and cursor are left to each state below rather than set
+// here, because two utilities for the same property in one class list are
+// settled by the stylesheet's order, not by the order they are written in.
+const ICON_BUTTON =
+  "grid h-7 w-7 place-items-center rounded-full border border-white/12 bg-white/5 transition-colors";
+
+const ICON_BUTTON_IDLE = "cursor-pointer text-white/60 hover:bg-white/10 hover:text-white";
+
+const PAGER_BUTTON = `${ICON_BUTTON} ${ICON_BUTTON_IDLE} disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-white/5 disabled:hover:text-white/60`;
+
+// Refresh in flight. Disabled but not faded: a greyed-out control reads as "not
+// available", and what the reader needs to see is "working".
+const REFRESH_BUSY = "cursor-wait text-white";
 
 // The board's retry pill.
 const RETRY_PILL =
@@ -88,6 +110,22 @@ export interface MemeTrendingStripProps {
   onRetry: () => void;
   selectedKey: string | null;
   onSelect: (token: MemeToken) => void;
+  /**
+   * Reloads the page. Injected so a test can watch it: jsdom refuses to let
+   * `window.location.reload` be replaced, so a strip that called it inline
+   * would have an untestable control. Defaults to `reloadPage`.
+   */
+  reload?: () => void;
+}
+
+/**
+ * The refresh control's default action.
+ *
+ * `target` exists only so this can be proved without navigating jsdom; nothing
+ * in the app passes it.
+ */
+export function reloadPage(target: Pick<Location, "reload"> = window.location) {
+  target.reload();
 }
 
 function TrendingPager({
@@ -123,6 +161,49 @@ function TrendingPager({
   );
 }
 
+/**
+ * The header's refresh control, on both surfaces.
+ *
+ * It reloads the page rather than refetching the board. Trending and the
+ * catalogue are both read once per page load and then held for the tab, so a
+ * reload is the one action that refreshes everything the reader is looking at
+ * instead of one query out of two.
+ *
+ * The press is one-way: nothing comes back to clear `reloading`, so the
+ * spinner and the held-down button stand until the document is replaced. That
+ * is the point. A control that snapped back to idle in the half second before
+ * the page went away would read as a press that did nothing.
+ */
+function TrendingRefresh({ reload }: { reload: () => void }) {
+  const t = useTranslations("memeScreener");
+  const [reloading, setReloading] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        setReloading(true);
+        reload();
+      }}
+      // Held down from the first press, so an impatient reader cannot fire a
+      // second reload into the one already under way.
+      disabled={reloading}
+      aria-busy={reloading}
+      // The name says which of the two states the button is in, for a reader
+      // who cannot see the spin.
+      aria-label={reloading ? t("trendingRefreshing") : t("trendingRefresh")}
+      data-control="trending-refresh"
+      className={`${ICON_BUTTON} ${reloading ? REFRESH_BUSY : ICON_BUTTON_IDLE}`}
+    >
+      <RefreshIcon
+        size={13}
+        // The spin carries the in-flight state. Reduced motion drops it and
+        // leaves the held-down button and aria-busy saying the same thing.
+        className={reloading ? "animate-spin motion-reduce:animate-none" : undefined}
+      />
+    </button>
+  );
+}
+
 export function MemeTrendingStrip({
   variant,
   tokens,
@@ -138,6 +219,7 @@ export function MemeTrendingStrip({
   onRetry,
   selectedKey,
   onSelect,
+  reload = reloadPage,
 }: MemeTrendingStripProps) {
   const t = useTranslations("memeScreener");
   const tMeme = useTranslations("meme");
@@ -158,7 +240,7 @@ export function MemeTrendingStrip({
     <div
       aria-hidden="true"
       data-skeleton="trending-row"
-      className={desk ? `${DESK_GRID} h-full` : DESK_GRID}
+      className={desk ? `${TRENDING_GRID} h-full` : TRENDING_GRID}
     >
       {Array.from({ length: PAGE_SIZE[variant] }, (_, i) => (
         <MemeTrendingCardSkeleton key={i} variant={variant} />
@@ -177,7 +259,7 @@ export function MemeTrendingStrip({
     <div
       key={page}
       data-region="trending-scroller"
-      className={desk ? `${DESK_GRID} h-full` : DESK_GRID}
+      className={desk ? `${TRENDING_GRID} h-full` : TRENDING_GRID}
     >
       {tokens.map((token, i) => {
         const key = catalogKey(token);
@@ -234,10 +316,18 @@ export function MemeTrendingStrip({
               : t("trendingSubtitle", { timeframe: t(timeframeLabelKey(timeframe)) })}
           </span>
         </div>
-        {desk ? pager : null}
+        {/* Refresh sits at the header's right on both surfaces, next to the
+            pager where the desk shows one. `shrink-0` so a long subtitle
+            truncates against it rather than pushing it off a phone. */}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <TrendingRefresh reload={reload} />
+          {desk ? pager : null}
+        </div>
       </div>
 
-      <div className={desk ? "min-h-0 flex-1" : undefined}>{body}</div>
+      {/* The cards read this box's width, not the window's, to choose their
+          arrangement. See TRENDING_GRID. */}
+      <div className={desk ? "@container min-h-0 flex-1" : "@container"}>{body}</div>
 
       {!desk && pager ? <div className="flex justify-center">{pager}</div> : null}
     </section>

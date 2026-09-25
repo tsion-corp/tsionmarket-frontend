@@ -1,7 +1,8 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useSendToken } from "@/hooks/use-withdraw";
@@ -143,7 +144,9 @@ function EmptySlip() {
 }
 
 function MyHouseBets({ enabled }: { enabled: boolean }) {
-  const { authenticated, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const [selectedTicket, setSelectedTicket] = useState<HouseTicket | null>(null);
   const query = useQuery({
     queryKey: ["house-prediction-tickets"],
@@ -259,7 +262,9 @@ function AccumulatorSlip({
   onAccepted: () => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const { authenticated, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const { sendToken } = useSendToken();
   const queryClient = useQueryClient();
   const [stake, setStake] = useState("0.10");

@@ -122,6 +122,8 @@ function healthyUpstreams() {
             symbol: "MEME",
             name: "Meme",
             logoUrl: null,
+            decimals: 18,
+            liquidityUsd: "100000",
             priceUsd: "0.01",
             priceChange24hPercent: "12.5",
             riskLevel: "LOW",
@@ -135,6 +137,8 @@ function healthyUpstreams() {
             symbol: "ETHMEME",
             name: "Ethereum Meme",
             logoUrl: null,
+            decimals: 18,
+            liquidityUsd: "100000",
             priceUsd: "0.03",
             priceChange24hPercent: "1",
             riskLevel: "LOW",
@@ -145,6 +149,8 @@ function healthyUpstreams() {
             symbol: "SOLMEME",
             name: "Solana Meme",
             logoUrl: null,
+            decimals: 18,
+            liquidityUsd: "100000",
             priceUsd: "0.02",
             priceChange24hPercent: "3",
             riskLevel: "LOW",
@@ -155,6 +161,8 @@ function healthyUpstreams() {
             symbol: "USDC",
             name: "USDC",
             logoUrl: null,
+            decimals: 18,
+            liquidityUsd: "100000",
             priceUsd: "1",
             priceChange24hPercent: "0",
             riskLevel: "LOW",
@@ -174,6 +182,8 @@ function healthyUpstreams() {
             symbol: "CATALOG",
             name: "Catalog Only",
             logoUrl: null,
+            decimals: 18,
+            liquidityUsd: "100000",
             priceUsd: "0.05",
             priceChange24hPercent: "1",
             riskLevel: "LOW",
@@ -234,6 +244,51 @@ function healthyUpstreams() {
       });
     }
     return new Response("not found", { status: 404 });
+  });
+}
+
+// A trending row as the trade service sends one, with every field the
+// contract names. The brief parses the page through the same boundary the
+// meme desk uses, so a row that omits a required field is not a thin brief,
+// it is a body the parser rejects.
+interface TrendingRow {
+  chainId: number;
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  logoUrl: string | null;
+  priceUsd: string;
+  liquidityUsd: string;
+  priceChange24hPercent: string;
+  riskLevel: string;
+}
+
+function memeRow(fields: Partial<TrendingRow>): TrendingRow {
+  return {
+    chainId: 8453,
+    address: "0xRow",
+    symbol: "ROW",
+    name: "Row",
+    decimals: 18,
+    logoUrl: null,
+    priceUsd: "0.01",
+    liquidityUsd: "100000",
+    priceChange24hPercent: "1",
+    riskLevel: "LOW",
+    ...fields,
+  };
+}
+
+// Answer /tokens/trending with these rows, leaving every other upstream as
+// healthyUpstreams left it.
+function serveTrending(rows: TrendingRow[]) {
+  const base = upstream.fetch.getMockImplementation()!;
+  upstream.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+    if (url.startsWith("https://trade.test/tokens/trending")) {
+      return ok({ items: rows, meta: { page: 1, limit: 8, total: rows.length } });
+    }
+    return base(url, init);
   });
 }
 
@@ -353,6 +408,8 @@ describe("buildDashboardFeed", () => {
               symbol: "SOLONLY",
               name: "Solana Only",
               logoUrl: null,
+              decimals: 18,
+              liquidityUsd: "100000",
               priceUsd: "0.02",
               priceChange24hPercent: "3",
               riskLevel: "LOW",
@@ -371,6 +428,8 @@ describe("buildDashboardFeed", () => {
               symbol: "BASECAT",
               name: "Base Cat",
               logoUrl: null,
+              decimals: 18,
+              liquidityUsd: "100000",
               priceUsd: "0.01",
               priceChange24hPercent: "5",
               riskLevel: "LOW",
@@ -401,6 +460,7 @@ describe("buildDashboardFeed", () => {
               symbol: "THIN",
               name: "Thin Risky",
               logoUrl: null,
+              decimals: 18,
               priceUsd: "0.01",
               priceChange24hPercent: "40",
               liquidityUsd: "4000",
@@ -414,6 +474,8 @@ describe("buildDashboardFeed", () => {
               symbol: "MEME",
               name: "Meme",
               logoUrl: null,
+              decimals: 18,
+              liquidityUsd: "100000",
               priceUsd: "0.01",
               priceChange24hPercent: "12.5",
               riskLevel: "LOW",
@@ -427,6 +489,120 @@ describe("buildDashboardFeed", () => {
     const feed = await buildDashboardFeed();
     expect(feed.memes?.map((m) => m.symbol)).not.toContain("THIN");
     expect(feed.memes?.map((m) => m.symbol)).toContain("MEME");
+  });
+
+  // On 2026-09-16 the trade service reported a 24h change of 2.8e19 percent,
+  // a division by a missing baseline price upstream, and the strip drew
+  // "$100 -> $22,478,541,914,774,794". The brief reads its page through the
+  // same parser the meme desk does, so the figure is refused here too: the
+  // change is unavailable, never zero and never the number as sent.
+  it("refuses an impossible price change on the memecoin brief", async () => {
+    healthyUpstreams();
+    serveTrending([
+      memeRow({
+        address: "0xBlowUp",
+        symbol: "BLOWUP",
+        name: "Blow Up",
+        priceChange24hPercent: "28000000000000000000",
+      }),
+    ]);
+
+    const feed = await buildDashboardFeed();
+
+    expect(feed.memes).toEqual([
+      {
+        address: "0xBlowUp",
+        symbol: "BLOWUP",
+        name: "Blow Up",
+        logoUrl: null,
+        priceUsd: "0.01",
+        change24h: null,
+      },
+    ]);
+  });
+
+  // The guard sits far above any honest move. A memecoin that really did run
+  // a hundredfold in a day is a market move, and the brief still shows it.
+  it("shows a large but real move on the memecoin brief", async () => {
+    healthyUpstreams();
+    serveTrending([
+      memeRow({
+        address: "0xRunner",
+        symbol: "RUNNER",
+        name: "Runner",
+        priceChange24hPercent: "9950.5",
+      }),
+    ]);
+
+    const feed = await buildDashboardFeed();
+
+    expect(feed.memes?.map((m) => [m.symbol, m.change24h])).toEqual([["RUNNER", 9950.5]]);
+  });
+
+  // A refused change means "no 24h change for this coin", which the brief
+  // already renders. It must not cost the coin its place: the dashboard shows
+  // the same coins in the same order as before the guard, one of them without
+  // a change beside it.
+  it("keeps a coin whose change was refused in the memecoin brief", async () => {
+    healthyUpstreams();
+    serveTrending([
+      memeRow({
+        address: "0xBlowUp",
+        symbol: "BLOWUP",
+        name: "Blow Up",
+        priceChange24hPercent: "28000000000000000000",
+      }),
+      memeRow({
+        address: "0xSteady",
+        symbol: "STEADY",
+        name: "Steady",
+        priceChange24hPercent: "4.25",
+      }),
+    ]);
+
+    const feed = await buildDashboardFeed();
+
+    expect(feed.memes?.map((m) => [m.symbol, m.change24h])).toEqual([
+      ["BLOWUP", null],
+      ["STEADY", 4.25],
+    ]);
+  });
+
+  // The page is a domain type or it is nothing. A trending body that no
+  // longer matches the contract falls through to the Base catalogue, as a
+  // failed request does, rather than carrying unjudged JSON to the brief.
+  it("falls back to the catalogue when the trending body breaks its contract", async () => {
+    healthyUpstreams();
+    const base = upstream.fetch.getMockImplementation()!;
+    upstream.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://trade.test/tokens/trending")) {
+        return ok({ items: [{ chainId: 8453, address: "0xNoFields" }], meta: null });
+      }
+      return base(url, init);
+    });
+
+    const feed = await buildDashboardFeed();
+
+    expect(feed.memes?.map((m) => m.symbol)).toEqual(["CATALOG"]);
+  });
+
+  // Both reads breaking their contract leaves the section absent, the same as
+  // both being down. The dashboard still composes.
+  it("marks the memecoin brief unavailable when neither body matches the contract", async () => {
+    healthyUpstreams();
+    const base = upstream.fetch.getMockImplementation()!;
+    upstream.fetch.mockImplementation(async (url: string, init?: RequestInit) => {
+      if (url.startsWith("https://trade.test/tokens")) {
+        return ok({ items: [{ chainId: 8453, address: "0xNoFields" }], meta: null });
+      }
+      return base(url, init);
+    });
+
+    const feed = await buildDashboardFeed();
+
+    expect(feed.memes).toBeNull();
+    expect(feed.spot).not.toBeNull();
+    expect(feed.rwa).not.toBeNull();
   });
 
   it("prices the perps brief from the app's own feed when only the marks are down", async () => {

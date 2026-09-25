@@ -31,12 +31,29 @@ export const PERSISTED_PREFIXES = new Set([
   "prediction-combo-filters",
   "prediction-combo-events",
   "prediction-combo-event",
-  // The memecoin lists: the trade service's discovery provider goes down in
-  // bursts, taking every listing route with it. A persisted snapshot keeps
-  // real coins on screen through one of those bursts instead of an
-  // "unavailable" panel, and the refetch behind it corrects prices at once.
+  // The memecoin reads that are still worth painting from disk: a token
+  // detail, a search, the swap feed. The catalogue and the trending board are
+  // excluded below.
   "meme",
 ]);
+
+// Memecoin queries that stay in memory only. Both are now cached for a long
+// time on purpose: the catalogue holds every row for the life of the tab
+// (staleTime Infinity) and trending refetches once every ten minutes. Restoring
+// either from localStorage on a reload would hand that long freshness window a
+// snapshot from the last visit, so the reload would paint old coins and then
+// not refetch. Dropping them from the snapshot is what makes a reload a real
+// read. See useMemeCatalog and useTrendingBoard.
+//
+// Both of them do keep a copy in sessionStorage, which is a different mechanism
+// and not a way around this. The trending board's copy is handed to its query
+// as initialData, which is safe because the copy is discarded at five minutes
+// and the query goes stale at ten, so a seeded board still refetches on its own.
+// The catalogue's copy is never handed to its query at all, because that query
+// never goes stale: it is rendered while the query holds nothing, and page 1 is
+// still asked for on every page load. See
+// features/trade/hooks/use-meme-catalog-session.
+const UNPERSISTED_MEME_QUERIES = new Set(["catalog", "trending"]);
 
 export const RQ_PERSIST_KEY = "wsws.rq-cache.v1";
 export const RQ_PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
@@ -56,5 +73,7 @@ export const RQ_PERSIST_BUSTER = "wsws-2026-08-16";
 export const PERSISTED_GC_TIME = RQ_PERSIST_MAX_AGE;
 
 export function isPersistedKey(key: readonly unknown[]): boolean {
-  return PERSISTED_PREFIXES.has(String(key[0]));
+  if (!PERSISTED_PREFIXES.has(String(key[0]))) return false;
+  if (String(key[0]) === "meme" && UNPERSISTED_MEME_QUERIES.has(String(key[1]))) return false;
+  return true;
 }

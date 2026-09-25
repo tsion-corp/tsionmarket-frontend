@@ -177,11 +177,45 @@ describe("formatMetric", () => {
     expect(formatMetric({ kind: "usd", value: null }, t)).toBe("—");
   });
 
-  it("groups counts and never turns null into 0", () => {
+  // The figures that overflowed the desk table's 96px metric column and its
+  // 121px market cap column. Eight characters is the widest any of them gets.
+  it("compacts a market cap no column could hold", () => {
+    const t = screenerT();
+    expect(formatMetric({ kind: "usd", value: "3491589227.1234567890123" }, t)).toBe("$3.49B");
+  });
+
+  it("says a figure under a cent is under a cent rather than zero", () => {
+    const t = screenerT();
+    // A memecoin price and a thin pool's liquidity. "$0" would read as no
+    // money at all, and the contract keeps zero for a real zero.
+    expect(formatMetric({ kind: "usd", value: "0.00000000121495281918" }, t)).toBe("<$0.01");
+    expect(formatMetric({ kind: "usd", value: "0.004" }, t)).toBe("<$0.01");
+    expect(formatMetric({ kind: "usd", value: "0" }, t)).toBe("$0");
+  });
+
+  it("groups counts, compacts from a million, and never turns null into 0", () => {
     const t = screenerT();
     expect(formatMetric({ kind: "count", value: 12345 }, t)).toBe("12,345");
+    expect(formatMetric({ kind: "count", value: 123456 }, t)).toBe("123,456");
+    // 1,284,339 transactions is nine characters written out.
+    expect(formatMetric({ kind: "count", value: 1284339 }, t)).toBe("1.28M");
     expect(formatMetric({ kind: "count", value: 0 }, t)).toBe("0");
     expect(formatMetric({ kind: "count", value: null }, t)).toBe("—");
+  });
+
+  it("keeps every metric figure inside the column it is drawn in", () => {
+    const t = screenerT();
+    const figures = [
+      { kind: "usd", value: "3491589227.1234567890123" },
+      { kind: "usd", value: "0.00000000121495281918" },
+      { kind: "usd", value: null },
+      { kind: "count", value: 1284339 },
+      { kind: "count", value: 123456 },
+      { kind: "age", minutes: 525600 },
+    ] as const;
+    for (const figure of figures) {
+      expect(formatMetric(figure, t).length).toBeLessThanOrEqual(8);
+    }
   });
 
   it("reads age in minutes, then hours, then days", () => {

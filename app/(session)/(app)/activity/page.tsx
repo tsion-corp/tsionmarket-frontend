@@ -1,6 +1,6 @@
 "use client";
 
-import { ActivityView } from "@/features/activity";
+import { ActivityFeedView } from "@/features/activity";
 import { useGameActivity } from "@/features/casino/hooks/use-game-activity";
 
 // Transaction history as its own page, like Earn and Prediction. The auth guard
@@ -12,5 +12,5 @@ import { useGameActivity } from "@/features/casino/hooks/use-game-activity";
 // re-renders this page only; the shell around it lives in the layout.
 export default function ActivityPage() {
   const games = useGameActivity();
-  return <ActivityView gameEntries={games.items} />;
+  return <ActivityFeedView gameEntries={games.items} />;
 }

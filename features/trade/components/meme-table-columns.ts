@@ -1,4 +1,6 @@
-import type { ScreenerMetric } from "@/lib/meme/screener";
+import { changeFor } from "@/lib/meme/momentum";
+import { metricValue, type ScreenerMetric } from "@/lib/meme/screener";
+import type { MemeTimeframe, MemeToken } from "@/lib/meme/types";
 
 // The desk table's columns, described once.
 //
@@ -65,6 +67,51 @@ export function memeColumns(metricColumn: ScreenerMetric | null): MemeColumn[] {
  */
 export function metricColumnFor(sortMetric: ScreenerMetric | null): ScreenerMetric | null {
   return sortMetric !== null && !SHOWN_METRICS.has(sortMetric) ? sortMetric : null;
+}
+
+/**
+ * The figure a column draws, in the shape lib/meme/screener's `metricValue`
+ * already uses, widened by the two kinds only the fixed columns have.
+ *
+ * Naming them here is what keeps the table and the Trending cards compacting
+ * the same figures the same way: "usd" goes to `compactUsd`, "count" to
+ * `compactCount`, "percent" to `compactPercentPoints`, and "price" keeps
+ * `priceLabel`, which is the one figure that has to stay exact rather than
+ * short (a memecoin price of 0.0000000123 is not "$0.00").
+ */
+export type MemeFigure =
+  | { kind: "identity" }
+  | { kind: "price"; value: string | null }
+  | { kind: "percent"; value: string | null }
+  | ReturnType<typeof metricValue>;
+
+/**
+ * What `column` shows for `token`. The heading and the cell already come from
+ * one description; so does the figure, so a column cannot be sorted by one
+ * thing and drawn from another.
+ */
+export function columnFigure(
+  column: MemeColumn,
+  token: MemeToken,
+  timeframe: MemeTimeframe,
+  now: number
+): MemeFigure {
+  switch (column.id) {
+    case "asset":
+      return { kind: "identity" };
+    case "price":
+      return { kind: "price", value: token.priceUsd };
+    case "change":
+      return { kind: "percent", value: changeFor(token, timeframe) };
+    case "marketCap":
+      return { kind: "usd", value: token.marketCapUsd };
+    case "metric":
+      // memeColumns only ever appends this column with a metric to sort by.
+      // The guard is for a column built by hand, and keeps the switch total.
+      return column.sortsBy === null
+        ? { kind: "identity" }
+        : metricValue(token, column.sortsBy, timeframe, now);
+  }
 }
 
 /**

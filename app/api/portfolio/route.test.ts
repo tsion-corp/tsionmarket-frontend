@@ -11,11 +11,8 @@ vi.mock("@/lib/server/alchemy", async (importOriginal) => ({
   fetchPortfolio,
 }));
 
-function makeReq(query: string, authorization: string | null = null): NextRequest {
-  return {
-    nextUrl: new URL(`http://app.test/api/portfolio?${query}`),
-    headers: new Headers(authorization ? { authorization } : {}),
-  } as unknown as NextRequest;
+function makeReq(query: string): NextRequest {
+  return { nextUrl: new URL(`http://app.test/api/portfolio?${query}`) } as unknown as NextRequest;
 }
 
 const EVM = "0x1111111111111111111111111111111111111111";
@@ -33,7 +30,7 @@ describe("GET /api/portfolio fresh scope", () => {
   it("passes no scope for an ordinary poll", async () => {
     const { GET } = await import("./route");
     await GET(makeReq(`evm=${EVM}`));
-    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, null, null);
+    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, null);
   });
 
   it("isolates the Base-only scope from Solana and other fresh networks", async () => {
@@ -43,7 +40,7 @@ describe("GET /api/portfolio fresh scope", () => {
         `evm=${EVM}&solana=So11111111111111111111111111111111111111112&scope=base&fresh=base-mainnet,solana-mainnet`
       )
     );
-    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, ["base-mainnet"], null, "base");
+    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, ["base-mainnet"], "base");
   });
 
   it("rejects an unknown portfolio scope", async () => {
@@ -56,24 +53,19 @@ describe("GET /api/portfolio fresh scope", () => {
   it("passes the named networks for a scoped fresh read", async () => {
     const { GET } = await import("./route");
     await GET(makeReq(`evm=${EVM}&fresh=base-mainnet,solana-mainnet`));
-    expect(fetchPortfolio).toHaveBeenCalledWith(
-      EVM,
-      undefined,
-      ["base-mainnet", "solana-mainnet"],
-      null
-    );
+    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, ["base-mainnet", "solana-mainnet"]);
   });
 
   it("drops a network it does not know and keeps the rest", async () => {
     const { GET } = await import("./route");
     await GET(makeReq(`evm=${EVM}&fresh=base-mainnet,made-up`));
-    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, ["base-mainnet"], null);
+    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, ["base-mainnet"]);
   });
 
   it("keeps fresh=1 as the full sweep", async () => {
     const { GET } = await import("./route");
     await GET(makeReq(`evm=${EVM}&fresh=1`));
-    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, "all", null);
+    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, "all");
   });
 
   it("refuses an unauthenticated caller before reading anything", async () => {
@@ -82,23 +74,5 @@ describe("GET /api/portfolio fresh scope", () => {
     const res = await GET(makeReq(`evm=${EVM}&fresh=1`));
     expect(res.status).toBe(401);
     expect(fetchPortfolio).not.toHaveBeenCalled();
-  });
-});
-
-// The memecoins a user bought are recognised as holdings only because the
-// trade service is asked, as that user, what they hold. The bearer is the only
-// thing that makes that call theirs, so losing it here silently returns the
-// portfolio to naming coins from the public catalogue's first page.
-describe("GET /api/portfolio trade identity", () => {
-  beforeEach(() => {
-    verifyRequest.mockResolvedValue({ userId: "user" });
-    fetchPortfolio.mockClear();
-  });
-  afterEach(() => vi.clearAllMocks());
-
-  it("forwards the caller's bearer to the portfolio read", async () => {
-    const { GET } = await import("./route");
-    await GET(makeReq(`evm=${EVM}`, "Bearer privy-token"));
-    expect(fetchPortfolio).toHaveBeenCalledWith(EVM, undefined, null, "Bearer privy-token");
   });
 });

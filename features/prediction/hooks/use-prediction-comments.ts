@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
 import { useQueryClient } from "@tanstack/react-query";
 import type { EIP1193Provider } from "viem";
 import { likeComment, postComment } from "@/features/prediction/lib/api";
 import { commentMessage, likeMessage } from "@/features/prediction/lib/comment-signing";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import { ensureUnlocked } from "@/lib/decane";
 
 // Signature-verified comment writes. The backend has no auth and holds no key,
 // so the user's embedded wallet SIGNS a deterministic message (EIP-191
@@ -21,7 +22,7 @@ async function personalSign(
   message: string
 ): Promise<string> {
   // EIP-191 personal_sign: params are [message, address]. viem's provider
-  // request typing is broad; the ws-gateway/Privy embedded wallet supports it.
+  // request typing is broad; the Decane embedded wallet's provider supports it.
   return (await provider.request({
     method: "personal_sign",
     params: [message as `0x${string}`, address as `0x${string}`],
@@ -29,22 +30,21 @@ async function personalSign(
 }
 
 export function usePredictionComments(target: Scope) {
-  const { user } = usePrivy();
-  const { wallets } = useWallets();
+  const { evmAddress: wallet } = useAuthSession();
+  const socialWallet = useSocialWallet();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
-
-  const wallet = getWalletAddress(user, "ethereum");
 
   const getProvider = useCallback(async (): Promise<{
     provider: EIP1193Provider;
     address: string;
   }> => {
-    const w = wallets.find((x) => x.walletClientType === "privy");
-    if (!w) throw new Error("Connect a wallet to comment.");
-    const provider = (await w.getEthereumProvider()) as unknown as EIP1193Provider;
-    return { provider, address: w.address };
-  }, [wallets]);
+    if (!wallet) throw new Error("Connect a wallet to comment.");
+    // personal_sign goes through the provider, so the session must be unlocked.
+    await ensureUnlocked(socialWallet);
+    const provider = socialWallet.getEthereumProvider() as unknown as EIP1193Provider;
+    return { provider, address: wallet };
+  }, [socialWallet, wallet]);
 
   const invalidate = useCallback(() => {
     void queryClient.invalidateQueries({

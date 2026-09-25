@@ -101,6 +101,8 @@ export interface ActivityEntry {
   counterAmount?: number;
   counterparty: string | null;
   logo: string | null;
+  // Happened on the old account's wallet, before the upgrade.
+  legacy?: boolean;
 }
 
 // Contracts that are a route, not a destination. Money sent into one is the
@@ -167,6 +169,7 @@ function movement(item: ActivityItem): ActivityEntry {
     direction: item.direction,
     counterparty: item.action ? null : item.counterparty,
     logo: item.logo,
+    ...(item.legacy ? { legacy: true } : {}),
   };
 }
 
@@ -190,6 +193,7 @@ function trade(outgoing: ActivityItem, incoming: ActivityItem): ActivityEntry {
     counterAmount: counter.amount,
     counterparty: null,
     logo: subject.logo,
+    ...(outgoing.legacy || incoming.legacy ? { legacy: true } : {}),
   };
 }
 

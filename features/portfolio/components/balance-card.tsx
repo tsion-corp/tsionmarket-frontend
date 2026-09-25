@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type ReactNode } from "react";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { Responsive } from "@/components/ui/responsive";
@@ -9,14 +9,22 @@ import { BalanceCardMobile } from "@/features/portfolio/components/balance-card-
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePendingBankDeposit } from "@/hooks/use-ramping";
 import { useGlobalBalance } from "@/hooks/use-global-balance";
-import { readyToSpendUsd } from "@/features/portfolio/lib/breakdown";
-import { OFFRAMP_MIN_USDC } from "@/lib/ramping/orders";
+import { useSpendableCash } from "@/features/portfolio/hooks/use-spendable-cash";
+import { isWithdrawHeld } from "@/features/portfolio/lib/ready-to-spend";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 
 interface BalanceCardProps {
   onOpenFunds: () => void;
   onOpenWithdraw: () => void;
   onTakeTour: () => void;
+  /** See BalanceCardViewProps.updateBalanceSlot. */
+  updateBalanceSlot?: ReactNode;
+  /**
+   * Hide the figure because the money is still in the old wallet. Decided by
+   * the route (useMaskBalance) for the same reason the slot is: it is another
+   * feature's rule. Comes off as soon as a sweep lands anything.
+   */
+  maskForMigration?: boolean;
 }
 
 // Owns the data and the rules; the two screens below it only draw. The phone
@@ -24,7 +32,13 @@ interface BalanceCardProps {
 // fighting itself, so each is its own component and this picks between them
 // with CSS. Both are presentational, so mounting both runs no effect twice and
 // costs no extra request.
-export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: BalanceCardProps) {
+export function BalanceCard({
+  onOpenFunds,
+  onOpenWithdraw,
+  onTakeTour,
+  updateBalanceSlot,
+  maskForMigration = false,
+}: BalanceCardProps) {
   const { tokens, loading, refreshing, error, refetch, refetchFresh } = usePortfolio();
   // The headline figure spans everything the wallet holds today (spot +
   // perps); readyToSpend below stays spot-only on purpose, see its own
@@ -39,7 +53,19 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: Balance
 
   // What a purchase can actually draw on. A portfolio can be worth a lot and
   // still have nothing spendable, which the total alone never shows.
-  const readyToSpend = readyToSpendUsd(tokens);
+  //
+  // This one figure, and only this one, reads the user-management balance
+  // endpoint: exact base units of the stablecoins this app can sign for, on
+  // Base, where everything here settles. The total above, the token list and
+  // the breakdown all stay on usePortfolio, which spans six chains and perps
+  // and is the only source that can price them
+  // (ADR-2026-09-23-user-balance-endpoint).
+  //
+  // There is deliberately NO fallback to readyToSpendUsd(tokens) when this is
+  // unavailable. Two sources for one number is how the two quietly disagree,
+  // and a float sum standing in during an outage would hide the outage behind
+  // a figure nobody could tell apart from the real one.
+  const { readyToSpend } = useSpendableCash();
 
   // Manual refresh: bypass the short server cache, but only for networks the
   // wallet actually holds — never a fresh sweep of every known chain
@@ -54,8 +80,10 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: Balance
   // The settling-deposit hold only applies while there is nothing withdrawable.
   // It exists to stop hammering the button for money that has not landed yet;
   // a user whose spendable cash already clears the withdrawal minimum can
-  // legitimately withdraw and keeps the button.
-  const withdrawHeld = depositPending && readyToSpend < OFFRAMP_MIN_USDC;
+  // legitimately withdraw and keeps the button — and a user whose spendable
+  // cash is not known keeps it too, because "we don't know" is not "you have
+  // nothing". See isWithdrawHeld.
+  const withdrawHeld = isWithdrawHeld(depositPending, readyToSpend);
 
   // Distinguish "we couldn't load it" from "you have nothing": a failed request
   // that left a cached balance behind keeps showing the balance.
@@ -70,13 +98,17 @@ export function BalanceCard({ onOpenFunds, onOpenWithdraw, onTakeTour }: Balance
     errored,
     depositPending,
     withdrawHeld,
-    hidden,
+    // One masking path, not two: the migration hides the figure through the
+    // same switch as the user's own eye toggle, so formatMasked and every
+    // screen that reads `hidden` need no special case.
+    hidden: hidden || maskForMigration,
     onToggleHidden: toggle,
     formatMasked: (amount) => mask(money.format(amount)),
     onOpenFunds,
     onOpenWithdraw,
     onRefresh,
     onTakeTour,
+    updateBalanceSlot,
   };
 
   // The walkthrough spotlights whichever breakpoint's card is visible: each

@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ProgressBar } from "@/components/ui/progress-bar";
-import { compactUsd } from "@/lib/meme/format";
+import { compactCount, compactUsd } from "@/lib/meme/format";
 import { changeBarPercent, exactDecimal, type Momentum } from "@/lib/meme/momentum";
 import type { metricValue } from "@/lib/meme/screener";
 import type { MemeTimeframe } from "@/lib/meme/types";
@@ -27,9 +27,15 @@ export function TimeframeLabel({ timeframe }: { timeframe: MemeTimeframe }) {
 }
 
 /**
- * A change as the cards print it, "+12.34%" or "-4.50%", rounded half up on
+ * A change written out in full, "+12.34%" or "-12345.67%", rounded half up on
  * the decimal string so the label never depends on how a float rounds. Null
  * for a missing or unreadable change.
+ *
+ * This one deliberately does not compact. It is the figure the accessible
+ * names carry (the Trending card's label, the table's change cell) while the
+ * visible text is `compactPercentPoints`, so a screen reader still hears every
+ * digit of a five-figure move. Compacting here would silently take those
+ * digits away from the only place they are left.
  */
 export function signedPercent(change: string | null): string | null {
   const value = exactDecimal(change);
@@ -169,18 +175,22 @@ export function ChangeBar({
   );
 }
 
-const COUNT_FORMAT = new Intl.NumberFormat("en-US");
-
 /**
- * The figure a sort metric's column shows: money compact, counts grouped, age
- * in the largest whole unit. A missing figure is always "—", never 0.
+ * The figure a sort metric's column shows: money compact, counts grouped then
+ * compact, age in the largest whole unit. A missing figure is always "—",
+ * never 0.
+ *
+ * Both figures go through lib/meme/format, which is also what the Trending
+ * cards draw with, so a market cap reads the same in the strip and the column.
+ * A count used to be written out in full here, and 1,284,339 transactions is
+ * wider than the 96px the metric column gets.
  */
 export function formatMetric(value: ReturnType<typeof metricValue>, t: ScreenerTranslator): string {
   switch (value.kind) {
     case "usd":
       return compactUsd(value.value);
     case "count":
-      return value.value === null ? "—" : COUNT_FORMAT.format(value.value);
+      return compactCount(value.value);
     case "age": {
       const { minutes } = value;
       if (minutes === null) return "—";

@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { SelectField, TextAreaField, TextField } from "@/features/earn/components/form-field";
 import { ImageUploadField } from "@/features/earn/components/image-upload-field";
-import { useWallets } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useCompleteTalentProfile } from "@/features/earn/hooks/use-earn-talent";
 import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import {
@@ -81,11 +81,11 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
   const formRef = useRef<HTMLFormElement>(null);
   useScrollToFirstError(formRef, errors);
   const complete = useCompleteTalentProfile();
-  const { wallets } = useWallets();
+  const { evmAddress } = useAuthSession();
   // Captured rather than typed. This is where a reward is paid, so a hand-typed
   // address is a way to lose money to a typo; the connected wallet is already
   // the right answer.
-  const walletAddress = wallets.find((w) => w.walletClientType === "privy")?.address;
+  const walletAddress = evmAddress ?? undefined;
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setState((prev) => ({ ...prev, [key]: value }));

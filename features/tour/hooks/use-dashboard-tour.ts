@@ -151,13 +151,18 @@ const START_DELAY_MS = 1400;
  * Runs the walkthrough once, on the user's first dashboard visit, or when
  * the topbar's replay button requested it before routing here.
  */
-export function useDashboardTour(): void {
+export function useDashboardTour(options: { suppressed?: boolean } = {}): void {
   const t = useTranslations("tour");
+  const suppressed = options.suppressed ?? false;
 
   useEffect(() => {
+    // Something is covering the screen (the migration gate). Do not open the
+    // tour on top of it, and do not consume a queued replay yet — when the
+    // block clears this effect re-runs and the tour starts then.
+    if (suppressed) return;
     const replay = consumeTourReplay();
     if (!replay && hasSeenDashboardTour()) return;
     const id = window.setTimeout(() => void startDashboardTour(t), START_DELAY_MS);
     return () => window.clearTimeout(id);
-  }, [t]);
+  }, [t, suppressed]);
 }

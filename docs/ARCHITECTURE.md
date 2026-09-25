@@ -119,7 +119,17 @@ component -> hook (TanStack Query) -> lib client -> app/api/<service> -> gateway
 
 - A component never calls `fetch` directly and never holds a base URL.
 - Every upstream call goes through a route handler in `app/api/`. The handler
-  holds the secret, allowlists the path, and verifies the Privy session.
+  holds the secret, allowlists the path, and verifies the caller's session
+  through `verifyRequest` in `lib/server/auth.ts`.
+- Auth has one client seam and one server seam. Client: `useAuthSession`
+  (`hooks/use-auth-session.ts`, Decane-backed) for identity and addresses, and
+  `lib/auth-token.ts` for the bearer token `apiFetch` attaches. Server:
+  `verifyRequest` accepts tokens from both issuers during the migration window
+  (Decane, with Privy as fallback) and `getRequestIdentity` resolves the
+  caller's wallet addresses. Privy itself is mounted only by
+  `components/providers/legacy-privy-provider.tsx` on the two legacy surfaces
+  that still sign with the old wallets (the Update Balance migration button
+  and `/prediction/reclaim`); nothing else may import `@privy-io/*`.
 - Every service URL derives from `WSAPI_BASE_URL` via `wsapiService("<service>")`.
   Per-service environment variables exist only as local overrides.
 - One transport. `createServiceClient(basePath, fallbackMessage)` in

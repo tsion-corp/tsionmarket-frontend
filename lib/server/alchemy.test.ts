@@ -122,6 +122,11 @@ describe("fetchPortfolio upstreams", () => {
     vi.doMock("@/lib/server/rwa-registry", () => ({ fetchRwaRegistry: async () => ({}) }));
     vi.doMock("@/lib/server/buyable-registry", () => ({
       fetchBuyableRegistry: async () => ({ buyable: {}, meme: {} }),
+      // Discovery asks the catalogue about each held contract by address.
+      // Without this the call throws, and a throwing discovery is never
+      // cached — which is how a "once per wallet" read turns into one per
+      // poll without a single assertion noticing.
+      confirmBaseTokens: async () => new Map(),
     }));
   });
   afterEach(async () => {
@@ -133,14 +138,18 @@ describe("fetchPortfolio upstreams", () => {
     vi.unstubAllGlobals();
   });
 
-  function stubFetch() {
+  // `bodies`, when passed, collects each request's payload alongside its URL —
+  // the Portfolio API is one endpoint for both the Solana leg and the EVM
+  // discovery, so only the body says which one a call was.
+  function stubFetch(bodies?: { url: string; body: string }[]) {
     const seen: string[] = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url =
           typeof input === "string" ? input : ((input as URL).href ?? (input as Request).url);
         seen.push(url);
+        if (bodies && typeof init?.body === "string") bodies.push({ url, body: init.body });
         const ok = (body: unknown) =>
           new Response(JSON.stringify(body), {
             status: 200,
@@ -166,45 +175,51 @@ describe("fetchPortfolio upstreams", () => {
     return seen;
   }
 
-  // The link that makes a bought memecoin visible: without this call the
-  // allowlist only knows the public catalogue's first page, which on
-  // 2026-09-15 was 67 Base coins out of a 121,383-token catalogue.
-  it("asks the trade service which coins this caller holds", async () => {
+  // EVM BALANCES never come from the Portfolio API — it pages through every
+  // airdrop a wallet ever received, and this read runs every 30 seconds. It is
+  // used for one thing only: discovering which contracts the wallet holds that
+  // the ranked catalogue never reached, on its own ten-minute clock. So one
+  // call per wallet, and none at all on the polls behind it.
+  it("reads EVM balances from the chain, and the Portfolio API only to discover holdings", async () => {
     const seen = stubFetch();
     const { fetchPortfolio } = await import("./alchemy");
-    await fetchPortfolio(WALLET, undefined, null, "Bearer privy-token");
-    expect(seen.some((u) => u.includes("/portfolio?page=1"))).toBe(true);
-  });
 
-  // Signed out, or on a poll that carries no bearer, the trade service is not
-  // called at all rather than called as nobody.
-  it("asks nothing of the trade service without a bearer", async () => {
-    const seen = stubFetch();
-    const { fetchPortfolio } = await import("./alchemy");
     await fetchPortfolio(WALLET, undefined);
-    expect(seen.some((u) => u.includes("/portfolio?page=1"))).toBe(false);
-  });
 
-  it("never calls the Portfolio API for an EVM wallet", async () => {
-    const seen = stubFetch();
-    const { fetchPortfolio } = await import("./alchemy");
-    await fetchPortfolio(WALLET, undefined);
-    expect(seen.some((u) => u.includes("assets/tokens/by-address"))).toBe(false);
-    // Every EVM network was read, none of them through the Portfolio API.
     expect(seen.filter((u) => u.includes("rpc.zerodev.app")).length).toBe(EVM_NETWORKS.length);
+    expect(seen.filter((u) => u.includes("assets/tokens/by-address")).length).toBe(1);
+  });
+
+  it("does not repeat discovery on the polls behind it", async () => {
+    const seen = stubFetch();
+    const { fetchPortfolio } = await import("./alchemy");
+    await fetchPortfolio(WALLET, undefined);
+    const warm = seen.length;
+
+    // `fresh` re-reads the balances; discovery is on its own clock and must
+    // not be dragged along with them.
+    await fetchPortfolio(WALLET, undefined, "all");
+
+    expect(seen.slice(warm).some((u) => u.includes("assets/tokens/by-address"))).toBe(false);
   });
 
   it("reads only Base and skips Solana for the Base-only portfolio", async () => {
-    const seen = stubFetch();
+    const bodies: { url: string; body: string }[] = [];
+    const seen = stubFetch(bodies);
     const { fetchPortfolio } = await import("./alchemy");
     const SOLANA = "So1anaWa11etAddress111111111111111111111111";
 
-    await fetchPortfolio(WALLET, SOLANA, null, null, "base");
+    await fetchPortfolio(WALLET, SOLANA, null, "base");
 
     const chainReads = seen.filter((u) => u.includes("rpc.zerodev.app"));
     expect(chainReads).toHaveLength(1);
     expect(chainReads[0]).toContain("/chain/8453");
-    expect(seen.some((u) => u.includes("assets/tokens/by-address"))).toBe(false);
+    // One Portfolio API call, and it is the Base discovery — not the Solana
+    // leg, which this scope has no business reading.
+    const byAddress = bodies.filter((b) => b.url.includes("assets/tokens/by-address"));
+    expect(byAddress).toHaveLength(1);
+    expect(byAddress[0].body).toContain("base-mainnet");
+    expect(byAddress[0].body).not.toContain(SOLANA);
   });
 
   // A trade on Base must not re-read the 27 other networks or re-page the

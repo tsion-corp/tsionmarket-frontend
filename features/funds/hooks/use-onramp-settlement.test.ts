@@ -15,8 +15,17 @@ const WALLET = "0xaaaa000000000000000000000000000000000001";
 
 const track = vi.hoisted(() => vi.fn());
 const useRampOrder = vi.hoisted(() => vi.fn());
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => ({ user: null }) }));
-vi.mock("@/lib/user", () => ({ getWalletAddress: () => WALLET }));
+// The hook reads the wallet through the Decane-backed session seam.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: WALLET,
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+  }),
+}));
 vi.mock("@/hooks/use-ramping", () => ({ useRampOrder }));
 vi.mock("@/lib/analytics/mixpanel", () => ({ track }));
 

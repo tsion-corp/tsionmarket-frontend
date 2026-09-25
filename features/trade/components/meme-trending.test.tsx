@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import type { MemeToken } from "@/lib/meme/api";
 
 const feed = vi.hoisted(() => ({

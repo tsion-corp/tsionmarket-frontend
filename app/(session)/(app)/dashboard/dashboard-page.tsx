@@ -6,6 +6,10 @@ import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 import { useAppChrome, useReportActiveSection } from "@/components/layout/app-chrome";
 import { PortfolioView } from "@/features/portfolio";
+// Deep import, not the @/features/migrate barrel: that barrel re-exports the
+// sweep button, which mounts the whole Privy SDK. This hook is light — a
+// localStorage read, the migration status, and one cached lookup.
+import { useMaskBalance } from "@/features/migrate/hooks/use-offer-migration";
 import { SectionOverview } from "@/components/ui/section-overview";
 import { SpotOverview } from "@/features/trade/components/spot-overview";
 import { PerpsOverview } from "@/features/trade/components/perps-overview";
@@ -39,6 +43,7 @@ import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
 import { startDashboardTour, useDashboardTour } from "@/features/tour";
+import { useMigrationGateActive } from "@/features/migrate/lib/gate-state";
 // This page reads the square's SECTIONS switch, not the rail's. The rail links
 // out to the square's own deployment and follows MARKET_SQUARE_HIDDEN; what
 // renders here is the square's content, which is off on its own switch.
@@ -118,9 +123,6 @@ const INTERLEAVED_SQUARE: readonly ("live" | "posts" | "people" | undefined)[] =
 // scroll-spy anchor: every other nav entry is now a route of its own.
 const SCROLL_SECTIONS: readonly SectionId[] = ["portfolio"];
 
-// The briefs stay mounted at once, so memoize them: with a stable row count
-// they skip re-rendering when the page re-renders for a modal open/close. Each
-// still re-renders on its own data.
 const Portfolio = memo(PortfolioView);
 const Spot = memo(SpotOverview);
 const Perps = memo(PerpsOverview);
@@ -142,6 +144,16 @@ export function DashboardPage() {
   const tOverview = useTranslations("overview");
   const tRemit = useTranslations("remitBanner");
   const { nav } = useAppChrome();
+  // Hide the headline figure while the user's money is still in the old
+  // wallet, and show the sweep beside it. Decided here rather than in the
+  // portfolio feature: the rule belongs to the migration, and features never
+  // import each other. Comes off the moment a sweep lands anything.
+  // Whether this user has anything to move. The button checks it too and
+  // renders null when false — but next/dynamic fetches a chunk as soon as its
+  // host mounts, so an ungated host downloads the Privy SDK for every visitor
+  // to render nothing. Gated here, only the users being offered the sweep pay
+  // for it.
+  const maskForMigration = useMaskBalance();
   // Which section sits under the header is scroll state, not a route fact, so
   // the rail is told from here while this page is mounted.
   const activeSection = useScrollSpy(SCROLL_SECTIONS);
@@ -203,7 +215,9 @@ export function DashboardPage() {
     // Otherwise the tab changes off-screen and the tap reads as doing nothing.
     document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
   }, []);
-  useDashboardTour();
+  // Hold the product tour until the migration gate is finished — it is a
+  // full-screen overlay and the tour must not open on top of it.
+  useDashboardTour({ suppressed: useMigrationGateActive() });
 
   // The balance card carries the walkthrough's replay button in the phone
   // design. The steps live on this page, so starting it here is a direct call;
@@ -304,6 +318,7 @@ export function DashboardPage() {
           onOpenWithdraw={modals.openWithdraw}
           onTakeTour={takeTour}
           crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
+          maskForMigration={maskForMigration}
           onOpenDetail={modals.openDetail}
           onOpenBuy={modals.openBuy}
           onOpenSell={modals.openSell}

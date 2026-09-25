@@ -1,21 +1,7 @@
-import { fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
-import { NextIntlClientProvider } from "next-intl";
-import enMessages from "@/messages/en.json";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveryMarketEvent, DiscoveryMarketSummary } from "../markets/api";
 import { CategoryMarketsShell } from "./politics-markets-shell";
-
-// The panel reads its labels from the real catalogue, so every render — and
-// every rerender — needs the provider around it.
-function render(ui: React.ReactElement) {
-  const wrap = (node: React.ReactElement) => (
-    <NextIntlClientProvider locale="en" messages={enMessages}>
-      {node}
-    </NextIntlClientProvider>
-  );
-  const view = rtlRender(wrap(ui));
-  return { ...view, rerender: (next: React.ReactElement) => view.rerender(wrap(next)) };
-}
 
 const mocks = vi.hoisted(() => ({ catalog: vi.fn() }));
 
@@ -24,6 +10,22 @@ vi.mock("../markets/hooks/use-discovery-markets", () => ({
 }));
 vi.mock("../hooks/use-polymarket-access", () => ({
   usePolymarketAccess: () => ({ allowed: true }),
+}));
+// Signed out, through the Decane-backed session seam; "login" is now a route
+// to /auth, so the router is stubbed rather than a Privy login callback.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: false,
+    evmAddress: null,
+    solanaAddress: null,
+    profile: { name: "Account", email: "", avatarSeed: "worldstreet" },
+    logout: vi.fn(),
+  }),
+}));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 vi.mock("../house-slip-store", () => ({
   useHouseSlip: () => ({
@@ -36,42 +38,6 @@ vi.mock("../house-slip-store", () => ({
 }));
 vi.mock("./category-bet-sidebar", () => ({
   CategoryBetSidebar: () => null,
-}));
-
-// The positions panel now sits above the list on every discovery feed. It
-// reaches the wallet layer, which has its own suites, so it is stood in here:
-// these suites are about the market list, not the money path.
-vi.mock("../hooks/use-polymarket-positions-controller", () => ({
-  usePolymarketPositionsController: () => ({
-    positions: {
-      positions: [],
-      available: null,
-      cashable: null,
-      loading: false,
-      loaded: false,
-      error: null,
-      refresh: vi.fn(),
-    },
-    slip: null,
-    setSlip: vi.fn(),
-    onRedeem: vi.fn(),
-    onSellPosition: vi.fn(),
-    onCashOut: vi.fn(),
-    redeemingId: null,
-    claiming: false,
-    selling: false,
-    cashingOut: false,
-    claimedConditionIds: [],
-  }),
-}));
-vi.mock("@/components/ui/currency-select", () => ({
-  useMoney: () => ({
-    format: (usd: number) => `$${usd}`,
-    formatExact: (usd: number) => `$${usd}.00`,
-    ready: true,
-    currency: { code: "USD", symbol: "$" },
-    setCurrency: vi.fn(),
-  }),
 }));
 
 export function market(id: string, title: string): DiscoveryMarketSummary {

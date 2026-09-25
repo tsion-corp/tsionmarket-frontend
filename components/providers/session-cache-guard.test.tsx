@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render } from "@testing-library/react";
 import { RQ_PERSIST_KEY } from "@/lib/query-persist";
 
-const privy = vi.hoisted(() => ({
+const session = vi.hoisted(() => ({
   state: { ready: false, authenticated: false },
 }));
 
@@ -10,8 +10,8 @@ const query = vi.hoisted(() => ({
   clear: vi.fn(),
 }));
 
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => privy.state,
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => session.state,
 }));
 
 vi.mock("@tanstack/react-query", () => ({
@@ -21,7 +21,7 @@ vi.mock("@tanstack/react-query", () => ({
 import { SessionCacheGuard } from "@/components/providers/session-cache-guard";
 
 function setSession(ready: boolean, authenticated: boolean) {
-  privy.state = { ready, authenticated };
+  session.state = { ready, authenticated };
 }
 
 describe("SessionCacheGuard", () => {

@@ -1,7 +1,7 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useQueryClient, type Query } from "@tanstack/react-query";
 import { setProfile, setSuper } from "@/lib/analytics/mixpanel";
 import { tagClaritySession } from "@/lib/analytics/clarity";
@@ -58,7 +58,7 @@ function register(totalUsd: number): void {
  * Renders nothing.
  */
 export function AnalyticsSegments(): null {
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
   const queryClient = useQueryClient();
 
   useEffect(() => {

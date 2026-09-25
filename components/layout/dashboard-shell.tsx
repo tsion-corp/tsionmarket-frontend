@@ -32,7 +32,6 @@ const WithdrawModal = dynamic(
   () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
   { ssr: false, loading: () => <ModalLoading /> }
 );
-
 interface DashboardShellProps {
   nav: NavItem[];
   activeSection: SectionId;
@@ -97,7 +96,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
 
         {children}
       </main>
-
       {/* One sentence for the whole app when the server is unreachable — see
           the note in the component for why it is not one per panel. */}
       <ConnectionBanner />

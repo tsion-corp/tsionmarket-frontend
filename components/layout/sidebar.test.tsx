@@ -26,13 +26,22 @@ vi.mock("next-intl", () => ({
 // The signed-in account the rail reads. Each test sets the shape it needs, so
 // the mock hands back whatever this holds at render time.
 let privyUser: User | null = null;
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ user: privyUser }),
-  useLogout: () => ({ logout: vi.fn() }),
-  useLinkWithPasskey: () => ({ linkWithPasskey: vi.fn() }),
-  getAccessToken: vi.fn(),
-  getIdentityToken: vi.fn(),
-}));
+// The rail reads the session through the Decane-backed seam. The cases still
+// describe the account as a Privy-shaped user, so derive the seam's profile
+// and address from it with the same helpers the app used to.
+vi.mock("@/hooks/use-auth-session", async () => {
+  const { deriveProfile, getWalletAddress } = await import("@/lib/user");
+  return {
+    useAuthSession: () => ({
+      ready: true,
+      authenticated: privyUser !== null,
+      evmAddress: privyUser ? getWalletAddress(privyUser, "ethereum") : null,
+      solanaAddress: privyUser ? getWalletAddress(privyUser, "solana") : null,
+      profile: deriveProfile(privyUser),
+      logout: vi.fn(),
+    }),
+  };
+});
 vi.mock("@/components/broadcast/go-live-control", () => ({
   GoLiveControl: () => <button type="button">Go Live</button>,
 }));
@@ -102,7 +111,10 @@ function renderSidebar() {
 // The account face reads the player's square profile. These cover the rail
 // and its chrome, not where the picture comes from, so the read is stubbed
 // out: null is the ordinary answer and leaves the seeded artwork in place.
-vi.mock("@/hooks/use-square-avatar", () => ({ useSquareAvatar: () => null }));
+vi.mock("@/hooks/use-square-avatar", () => ({
+  useSquareAvatar: () => null,
+  useSquareSeed: () => "seed",
+}));
 
 describe("Sidebar", () => {
   beforeEach(() => {

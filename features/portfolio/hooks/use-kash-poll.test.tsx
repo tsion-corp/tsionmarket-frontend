@@ -24,12 +24,25 @@ vi.mock("@/features/portfolio/lib/kash", async (importOriginal) => {
 
 const WALLET = "0x1111111111111111111111111111111111111111";
 vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ user: {}, ready: true, authenticated: true }),
   // lib/privy-token.ts binds both of these at module load.
   getAccessToken: () => Promise.resolve("test-token"),
   getIdentityToken: () => Promise.resolve("test-id-token"),
 }));
-vi.mock("@/lib/user", () => ({ getWalletAddress: () => WALLET }));
+// The kash hooks read the wallet through the Decane-backed session seam and
+// sign claims with the kit's wallet.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: WALLET,
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+  }),
+}));
+vi.mock("decane-connect-kit", () => ({
+  useSocialWallet: () => ({ signMessage: vi.fn(), getAccessToken: vi.fn() }),
+}));
 
 function visibility(state: "visible" | "hidden") {
   Object.defineProperty(document, "visibilityState", { value: state, configurable: true });

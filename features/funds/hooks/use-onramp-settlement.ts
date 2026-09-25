@@ -1,10 +1,10 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useRampOrder } from "@/hooks/use-ramping";
 import { track } from "@/lib/analytics/mixpanel";
-import { getWalletAddress } from "@/lib/user";
+
 import type { OnrampOrder } from "@/lib/ramping/orders";
 import {
   closeOnrampWatch,
@@ -32,8 +32,9 @@ const PRUNE_MS = 60_000;
  * to lose every deposit where the user paid and walked away.
  */
 export function useOnrampSettlement(): void {
-  const { user } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum")?.toLowerCase() ?? "";
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const wallet = evmAddress?.toLowerCase() ?? "";
 
   const watches = useSyncExternalStore(subscribeOnrampWatches, onrampWatches, serverOnrampWatches);
 

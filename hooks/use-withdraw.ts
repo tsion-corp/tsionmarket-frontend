@@ -1,29 +1,10 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
-import {
-  address,
-  appendTransactionMessageInstructions,
-  compileTransaction,
-  createNoopSigner,
-  createTransactionMessage,
-  getTransactionEncoder,
-  pipe,
-  setTransactionMessageFeePayerSigner,
-  setTransactionMessageLifetimeUsingBlockhash,
-} from "@solana/kit";
-import {
-  TOKEN_PROGRAM_ADDRESS,
-  findAssociatedTokenPda,
-  getCreateAssociatedTokenIdempotentInstruction,
-  getTransferCheckedInstruction,
-} from "@solana-program/token";
-import { getTransferSolInstruction } from "@solana-program/system";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useCreateQuote, type DextopusPurpose } from "@/hooks/use-deposit";
 import { useEvmSend } from "@/hooks/use-evm-send";
-import { getWalletAddress } from "@/lib/user";
+import { buildSolanaSolTransfer, buildSolanaTokenTransfer } from "@/lib/trade/solana-transfer";
 import {
   BASE_CHAIN_ID,
   encodeErc20Transfer,
@@ -32,7 +13,6 @@ import {
   type WalletChainType,
 } from "@/lib/deposit";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
-import { createAppSolanaRpc } from "@/lib/solana-rpc";
 
 export interface SendUsdcParams {
   chainType: WalletChainType;
@@ -42,97 +22,19 @@ export interface SendUsdcParams {
   settle?: SettleChain;
 }
 
-// Token-2022, the successor token program some newer mints (e.g. PYUSD) run
-// on. Mints owned by it derive different ATAs and need the transfer executed
-// by this program instead of the classic Token program.
-const TOKEN_2022_PROGRAM_ADDRESS = address("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
-
-// A mint account's owner is the token program that manages it. Deriving ATAs
-// or building a transfer with the wrong program targets accounts that don't
-// exist, so every SPL transfer resolves the program from the mint first.
-async function getMintTokenProgram(
-  rpc: ReturnType<typeof createAppSolanaRpc>,
-  mint: ReturnType<typeof address>
-) {
-  const { value } = await rpc.getAccountInfo(mint, { encoding: "base64" }).send();
-  if (!value) throw new Error("This token's mint account was not found on Solana");
-  const owner = value.owner;
-  if (owner !== TOKEN_PROGRAM_ADDRESS && owner !== TOKEN_2022_PROGRAM_ADDRESS) {
-    throw new Error("Sending this token isn't supported yet");
-  }
-  return owner;
-}
-
-async function buildSolanaTokenTransfer(
-  from: string,
-  to: string,
-  amount: bigint,
-  mintAddress: string,
-  decimals: number
-): Promise<Uint8Array> {
-  const rpc = createAppSolanaRpc();
-  const mint = address(mintAddress);
-  const owner = address(from);
-  const destinationOwner = address(to);
-  const signer = createNoopSigner(owner);
-
-  const tokenProgram = await getMintTokenProgram(rpc, mint);
-  const [source] = await findAssociatedTokenPda({
-    owner,
-    mint,
-    tokenProgram,
-  });
-  const [destination] = await findAssociatedTokenPda({
-    owner: destinationOwner,
-    mint,
-    tokenProgram,
-  });
-
-  const createDestination = getCreateAssociatedTokenIdempotentInstruction({
-    payer: signer,
-    ata: destination,
-    owner: destinationOwner,
-    mint,
-    tokenProgram,
-  });
-  const transfer = getTransferCheckedInstruction(
-    {
-      source,
-      mint,
-      destination,
-      authority: signer,
-      amount,
-      decimals,
-    },
-    { programAddress: tokenProgram }
-  );
-
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-  const message = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(signer, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstructions([createDestination, transfer], m)
-  );
-
-  const compiled = compileTransaction(message);
-  return getTransactionEncoder().encode(compiled) as Uint8Array;
-}
-
 // Sends USDC from the user's embedded wallet. EVM settles USDC on Base as an
 // ERC-20 transfer; Solana settles USDC via an SPL transfer. Returns the tx hash.
 export function useSendUsdc() {
-  const { user } = usePrivy();
+  const { evmAddress, solanaAddress } = useAuthSession();
   const evmSend = useEvmSend();
   const sendSponsored = useSponsoredSolanaSend();
-  const { wallets: solanaWallets } = useSolanaWallets();
   const [sending, setSending] = useState(false);
 
   const sendUsdc = useCallback(
     async ({ chainType, to, amount, settle }: SendUsdcParams): Promise<string> => {
       setSending(true);
       try {
-        const from = getWalletAddress(user, chainType);
+        const from = chainType === "ethereum" ? evmAddress : solanaAddress;
         if (!from) throw new Error(`No ${chainType} wallet found`);
 
         if (chainType === "ethereum") {
@@ -147,8 +49,6 @@ export function useSendUsdc() {
           return hash;
         }
 
-        const wallet = solanaWallets.find((w) => w.address === from);
-        if (!wallet) throw new Error("Solana wallet is not ready");
         const solana = settlementFor("solana");
         const transaction = await buildSolanaTokenTransfer(
           from,
@@ -157,12 +57,12 @@ export function useSendUsdc() {
           settle?.usdc ?? solana.asset,
           settle?.decimals ?? solana.decimals
         );
-        return await sendSponsored({ transaction, wallet, prefundRent: true });
+        return await sendSponsored({ transaction, prefundRent: true });
       } finally {
         setSending(false);
       }
     },
-    [user, evmSend, sendSponsored, solanaWallets]
+    [evmAddress, solanaAddress, evmSend, sendSponsored]
   );
 
   return { sendUsdc, sending };
@@ -209,25 +109,6 @@ const EVM_CHAIN_ID: Record<string, number> = {
   "mythos-mainnet": 42018,
 };
 
-// Native SOL transfer via the system program, for sending SOL itself.
-async function buildSolanaSolTransfer(
-  from: string,
-  to: string,
-  amount: bigint
-): Promise<Uint8Array> {
-  const rpc = createAppSolanaRpc();
-  const source = createNoopSigner(address(from));
-  const transfer = getTransferSolInstruction({ source, destination: address(to), amount });
-  const { value: latestBlockhash } = await rpc.getLatestBlockhash().send();
-  const message = pipe(
-    createTransactionMessage({ version: 0 }),
-    (m) => setTransactionMessageFeePayerSigner(source, m),
-    (m) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, m),
-    (m) => appendTransactionMessageInstructions([transfer], m)
-  );
-  return getTransactionEncoder().encode(compileTransaction(message)) as Uint8Array;
-}
-
 export interface SendTokenParams {
   // Alchemy network id of the token's chain.
   network: string;
@@ -241,10 +122,9 @@ export interface SendTokenParams {
 // Sends any held token to an external address on its own chain: native or ERC-20
 // on EVM, native SOL or SPL on Solana. Self-custody — the embedded wallet signs.
 export function useSendToken() {
-  const { user } = usePrivy();
+  const { evmAddress, solanaAddress } = useAuthSession();
   const evmSend = useEvmSend();
   const sendSponsored = useSponsoredSolanaSend();
-  const { wallets: solanaWallets } = useSolanaWallets();
   const [sending, setSending] = useState(false);
 
   const sendToken = useCallback(
@@ -252,9 +132,8 @@ export function useSendToken() {
       setSending(true);
       try {
         const isSolana = network === "solana-mainnet";
-        const chainType: WalletChainType = isSolana ? "solana" : "ethereum";
-        const from = getWalletAddress(user, chainType);
-        if (!from) throw new Error(`No ${chainType} wallet found`);
+        const from = isSolana ? solanaAddress : evmAddress;
+        if (!from) throw new Error(`No ${isSolana ? "solana" : "ethereum"} wallet found`);
 
         if (!isSolana) {
           const chainId = EVM_CHAIN_ID[network];
@@ -271,22 +150,19 @@ export function useSendToken() {
           return hash;
         }
 
-        const wallet = solanaWallets.find((w) => w.address === from);
-        if (!wallet) throw new Error("Solana wallet is not ready");
         const transaction =
           tokenAddress === null
             ? await buildSolanaSolTransfer(from, to, amount)
             : await buildSolanaTokenTransfer(from, to, amount, tokenAddress, decimals);
         return await sendSponsored({
           transaction,
-          wallet,
           prefundRent: tokenAddress !== null,
         });
       } finally {
         setSending(false);
       }
     },
-    [user, evmSend, sendSponsored, solanaWallets]
+    [evmAddress, solanaAddress, evmSend, sendSponsored]
   );
 
   return { sendToken, sending };

@@ -5,8 +5,26 @@ const privy = vi.hoisted(() => ({
   state: { user: null as unknown, ready: false, authenticated: false },
 }));
 
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => privy.state,
+// The wallet hook reads the session through the Decane-backed seam. The cases
+// below still describe the browser session as a Privy-shaped `user` with
+// linked accounts, so translate that shape into the seam's addresses here.
+function linkedWallet(chain: "ethereum" | "solana"): string | null {
+  const user = privy.state.user as {
+    linkedAccounts?: { type: string; chainType?: string; address?: string }[];
+  } | null;
+  const account = user?.linkedAccounts?.find((a) => a.type === "wallet" && a.chainType === chain);
+  return account?.address ?? null;
+}
+
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: privy.state.ready,
+    authenticated: privy.state.authenticated,
+    evmAddress: privy.state.authenticated ? linkedWallet("ethereum") : null,
+    solanaAddress: privy.state.authenticated ? linkedWallet("solana") : null,
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+  }),
 }));
 
 import { ServerSessionProvider, useSessionWallet } from "@/components/providers/server-session";

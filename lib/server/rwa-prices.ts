@@ -227,6 +227,7 @@ const CHAIN_TO_ALCHEMY: Record<string, string> = {
   ethereum: "eth-mainnet",
   arbitrum: "arb-mainnet",
   polygon: "polygon-mainnet",
+  bsc: "bnb-mainnet",
 };
 
 const CHAIN_TO_GECKOTERMINAL: Record<string, string> = {
@@ -234,6 +235,7 @@ const CHAIN_TO_GECKOTERMINAL: Record<string, string> = {
   ethereum: "eth",
   arbitrum: "arbitrum",
   polygon: "polygon_pos",
+  bsc: "bsc",
 };
 
 // Market stats per requested asset id. Assets nothing could be resolved for are

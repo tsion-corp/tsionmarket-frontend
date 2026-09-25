@@ -7,12 +7,13 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 
-const { verifyRequest, getRequestUser, wsapiPerpRequest } = vi.hoisted(() => ({
+const { verifyRequest, getRequestUser, getRequestIdentity, wsapiPerpRequest } = vi.hoisted(() => ({
   verifyRequest: vi.fn(),
   getRequestUser: vi.fn(),
+  getRequestIdentity: vi.fn(),
   wsapiPerpRequest: vi.fn(),
 }));
-vi.mock("@/lib/server/auth", () => ({ verifyRequest, getRequestUser }));
+vi.mock("@/lib/server/auth", () => ({ verifyRequest, getRequestUser, getRequestIdentity }));
 vi.mock("@/lib/server/chess-identity", () => ({
   walletOfUser: (user: { wallet?: string } | null) => user?.wallet ?? null,
 }));
@@ -46,6 +47,9 @@ function upstreamAnswer(body: unknown, status = 200) {
 beforeEach(() => {
   verifyRequest.mockReset().mockResolvedValue({ userId: "did:x" });
   getRequestUser.mockReset().mockResolvedValue({ wallet: WALLET });
+  getRequestIdentity
+    .mockReset()
+    .mockResolvedValue({ userId: "did:x", evmAddress: WALLET, solanaAddress: null });
   wsapiPerpRequest.mockReset().mockResolvedValue(upstreamAnswer({ success: true, data: [] }));
 });
 

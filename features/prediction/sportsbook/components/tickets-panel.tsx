@@ -1,6 +1,7 @@
 "use client";
+import { useRouter } from "next/navigation";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
-import { usePrivy } from "@privy-io/react-auth";
 import { usePrices } from "@/hooks/use-prices";
 import type { SportsbookOrder } from "../api";
 import {
@@ -16,7 +17,9 @@ const POSITIVE = new Set(["won", "redeemable", "redeemed"]);
 const NEGATIVE = new Set(["lost", "rejected", "failed"]);
 
 export function TicketsPanel({ onOpen }: { onOpen: (ticketId: string) => void }) {
-  const { authenticated, login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const router = useRouter();
+  const login = () => router.push("/auth");
   const ethPriceUsd = usePrices(["ETH"]).ETH ?? 0;
   const history = useSportsbookOrderHistory(authenticated);
 

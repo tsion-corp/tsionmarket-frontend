@@ -24,7 +24,8 @@ import type { MemeTimeframe } from "@/lib/meme/types";
 // The screener toolbar (ADR-2026-09-15-meme-trending-screener §3): timeframe
 // pills, Sort, Filters, a chip per applied bound or sort, and the hints. On the
 // desk it is one row of fixed height, so the list under it can fit its rows
-// against a height that never changes. On the phone it wraps.
+// against a height that never changes. On the phone it wraps. Sort and Filters
+// each open a modal, on both surfaces.
 
 /** Pixels. The chips scroll sideways inside this row rather than adding a second one. */
 export const SCREENER_TOOLBAR_DESK_HEIGHT = 36;
@@ -158,13 +159,15 @@ export function MemeScreenerToolbar(props: MemeScreenerToolbarProps) {
   }
 
   // A removed chip takes its button with it, so focus moves to a neighbour, or
-  // to Filters when none is left, instead of falling back to the page.
+  // to Filters when none is left, instead of falling back to the page. Filters
+  // is found by its own marker: both it and Sort open a dialog now, and Sort
+  // comes first in the row.
   const focusAfterRemoval = (index: number | null) => {
     const root = rootRef.current;
     if (!root) return;
     const removes = Array.from(root.querySelectorAll<HTMLElement>("[data-chip-remove]"));
     const next = index === null ? undefined : (removes[index + 1] ?? removes[index - 1]);
-    (next ?? root.querySelector<HTMLElement>('[aria-haspopup="dialog"]'))?.focus();
+    (next ?? root.querySelector<HTMLElement>("[data-screener-filters]"))?.focus();
   };
 
   const scopedBound = SCREENER_METRICS.some((metric) => {

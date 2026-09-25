@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import type { TradePhase } from "@/features/trade/hooks/use-meme-trade";
 import type { MemeToken, SwapPreview } from "@/lib/meme/api";
 
@@ -85,11 +85,19 @@ const routeUsdc = vi.hoisted(() =>
 );
 vi.mock("@/hooks/use-withdraw", () => ({ useReroutedWithdraw: () => ({ withdraw: routeUsdc }) }));
 
-vi.mock("@privy-io/react-auth", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@privy-io/react-auth")>()),
-  usePrivy: () => ({ user: { id: "u1" } }),
+// The sheet reads the signed-in account through the Decane-backed session seam.
+// Both chains resolve to the same placeholder, as the old chain-agnostic
+// getWalletAddress stub did: the Solana pre-move below needs a Solana wallet.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0xwallet",
+    solanaAddress: "0xwallet",
+    profile: { name: "u1", email: "", avatarSeed: "u1" },
+    logout: vi.fn(),
+  }),
 }));
-vi.mock("@/lib/user", () => ({ getWalletAddress: () => "0xwallet" }));
 
 const toastCalls = vi.hoisted(() => ({
   loading: vi.fn(() => "toast-1"),
@@ -438,8 +446,12 @@ describe("the outcome is the service's word, not the receipt's", () => {
     tradeHook.requestId = "req-1";
     rerender();
     expect(screen.getByTestId("meme-phase-title")).toHaveTextContent("Delivered on-chain");
-    expect(screen.getByRole("dialog")).toHaveTextContent(/still recording this trade/i);
-    expect(screen.getByRole("dialog")).toHaveTextContent("swap-1 · req-1");
+    // The amount is the news; the eyebrow already carries the recording state,
+    // so the body no longer repeats it.
+    expect(screen.getByRole("dialog")).toHaveTextContent("4.0651 PEPE is in your wallet");
+    expect(screen.getByRole("dialog")).toHaveTextContent(/appear in your transactions/i);
+    // The reference support asks for, as fine print rather than mid-sentence.
+    expect(screen.getByTestId("meme-trade-ref")).toHaveTextContent("swap-1 · req-1");
     expect(screen.getByRole("dialog")).not.toHaveTextContent(/trade confirmed/i);
     expect(screen.getByRole("button", { name: messages.meme.done })).toBeEnabled();
   });
@@ -486,8 +498,8 @@ describe("the outcome is the service's word, not the receipt's", () => {
   });
 });
 
-describe("a trade service failure reads as our copy with the reference", () => {
-  it("shows the mapped copy and the requestId, never the upstream wording", () => {
+describe("a trade service failure reads as our copy, and only that", () => {
+  it("shows the mapped copy alone: no upstream wording, no request id", () => {
     tradeHook.phase = "failed";
     tradeHook.error = Object.assign(new Error("route table miss in 0x"), {
       name: "TradeApiError",
@@ -498,8 +510,11 @@ describe("a trade service failure reads as our copy with the reference", () => {
     renderSheet();
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(messages.tradeErrors.noSwapRoute);
-    expect(alert).toHaveTextContent("Ref: req-x1");
+    // The service's own wording is written for its logs.
     expect(alert).not.toHaveTextContent("route table miss");
+    // And the request id is a support token, not something to read: it reaches
+    // support through Watchtower, not through the middle of this sentence.
+    expect(alert).not.toHaveTextContent("req-x1");
   });
 });
 

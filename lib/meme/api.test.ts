@@ -11,6 +11,9 @@ import {
   fetchSwapStatus,
   fetchToken,
   fetchTrendingBoard,
+  fetchTrendingTokens,
+  isRateLimited,
+  parseRetryAfter,
   searchTokens,
   isValidTradeAmount,
   newIdempotencyKey,
@@ -19,6 +22,7 @@ import {
 } from "@/lib/meme/api";
 import type { MemeToken } from "@/lib/meme/api";
 import { LIVE_TOKEN_PAGE } from "@/lib/api/schemas/trade.fixtures";
+import { memeToken } from "@/lib/meme/fixture";
 
 describe("newIdempotencyKey", () => {
   it("returns a v4 UUID", () => {
@@ -264,11 +268,11 @@ describe("screener reads", () => {
     expect(requestedPath()).toBe("/api/trade/tokens?page=1&limit=500");
   });
 
-  it("asks trending for 100 rows by default, with the query appended", async () => {
+  it("asks trending for the contract's maximum by default, with the query appended", async () => {
     answerPage();
     await fetchTrendingBoard("minLiquidityUsd=10000");
-    expect(TRENDING_BOARD_LIMIT).toBe(100);
-    expect(requestedPath()).toBe("/api/trade/tokens/trending?limit=100&minLiquidityUsd=10000");
+    expect(TRENDING_BOARD_LIMIT).toBe(500);
+    expect(requestedPath()).toBe("/api/trade/tokens/trending?limit=500&minLiquidityUsd=10000");
   });
 
   it("asks trending without a trailing separator when the query is empty", async () => {
@@ -321,5 +325,228 @@ describe("screener reads", () => {
     expect(screener).toBeInstanceOf(TradeApiError);
     expect((screener as TradeApiError).requestId).toBe("req-trend-1");
     expect(apiFetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// The gateway rate-limits /v1 and every user of the app shares the Next.js
+// server's IP, so a 429 is a normal outcome, not an exceptional one. It has to
+// be recognisable on the error and it has to carry however long the gateway
+// asked us to wait. The relay does not forward Retry-After today; reading it
+// here means the walk honours it the moment it does.
+describe("a rate-limited request", () => {
+  afterEach(() => apiFetchMock.mockReset());
+
+  function answer(status: number, body: unknown, headers: Record<string, string> = {}) {
+    apiFetchMock.mockResolvedValue(
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json", ...headers },
+      })
+    );
+  }
+
+  it("is recognised by its status, whatever code the gateway put in the body", async () => {
+    answer(429, { success: false, error: { code: "SERVICE_UNAVAILABLE", message: "slow down" } });
+    const thrown = await fetchSwapStatus("swap-1").catch((e: unknown) => e);
+    expect(thrown).toBeInstanceOf(TradeApiError);
+    expect((thrown as TradeApiError).status).toBe(429);
+    expect(isRateLimited(thrown)).toBe(true);
+  });
+
+  it("is not confused with the other failures", () => {
+    expect(isRateLimited(new TradeApiError("PROVIDER_ERROR", "rpc down", 502))).toBe(false);
+    expect(isRateLimited(new Error("offline"))).toBe(false);
+    expect(isRateLimited(null)).toBe(false);
+  });
+
+  it("carries the seconds the gateway asked us to wait", async () => {
+    answer(
+      429,
+      { success: false, error: { code: "RATE_LIMITED", message: "slow down" } },
+      {
+        "retry-after": "45",
+      }
+    );
+    const thrown = await fetchSwapStatus("swap-1").catch((e: unknown) => e);
+    expect((thrown as TradeApiError).retryAfterMs).toBe(45_000);
+  });
+
+  it("carries no wait when the gateway sent no header", async () => {
+    answer(429, { success: false, error: { code: "RATE_LIMITED", message: "slow down" } });
+    const thrown = await fetchSwapStatus("swap-1").catch((e: unknown) => e);
+    expect((thrown as TradeApiError).retryAfterMs).toBeNull();
+  });
+});
+
+describe("parseRetryAfter", () => {
+  const now = Date.UTC(2026, 8, 16, 23, 0, 0);
+
+  it("reads delta seconds", () => {
+    expect(parseRetryAfter("30", now)).toBe(30_000);
+    expect(parseRetryAfter("0", now)).toBe(0);
+  });
+
+  it("reads an HTTP date as the time left until it", () => {
+    expect(parseRetryAfter("Wed, 16 Sep 2026 23:01:00 GMT", now)).toBe(60_000);
+  });
+
+  it("reads a date already past as no wait at all, never a negative one", () => {
+    expect(parseRetryAfter("Wed, 16 Sep 2026 22:59:00 GMT", now)).toBe(0);
+  });
+
+  it("returns null for a missing or unreadable header", () => {
+    expect(parseRetryAfter(null, now)).toBeNull();
+    expect(parseRetryAfter("", now)).toBeNull();
+    expect(parseRetryAfter("soon", now)).toBeNull();
+    expect(parseRetryAfter("-5", now)).toBeNull();
+  });
+});
+
+// Measured against the live gateway on 2026-09-16: /tokens/trending?limit=500
+// answers with meta.limit 100 and 100 items, every one of them riskLevel
+// UNKNOWN. The Curated view lists only LOW and MEDIUM, so it removes all 100,
+// and the rail has been showing a 40-row page of the Base catalogue ever since
+// - silently, because the old code swallowed every failure and returned the
+// fallback as though it were the trending list.
+describe("fetchTrendingTokens is honest about which list it returned", () => {
+  afterEach(() => apiFetchMock.mockReset());
+
+  function envelope(items: MemeToken[], limit: number) {
+    return {
+      success: true,
+      data: { items, meta: { page: 1, limit, total: items.length } },
+    };
+  }
+  function reply(body: unknown, status = 200, headers: Record<string, string> = {}) {
+    return new Response(JSON.stringify(body), {
+      status,
+      headers: { "content-type": "application/json", ...headers },
+    });
+  }
+  const rated = (n: number) =>
+    memeToken({ symbol: `R${n}`, address: `0x${String(n).padStart(40, "1")}` });
+  const unrated = (n: number) =>
+    memeToken({
+      symbol: `U${n}`,
+      address: `0x${String(n).padStart(40, "2")}`,
+      riskLevel: "UNKNOWN",
+    });
+  const paths = () => apiFetchMock.mock.calls.map((c) => String(c[0]));
+
+  it("asks trending for the contract's maximum, not the service's default 100", async () => {
+    apiFetchMock.mockResolvedValue(
+      reply(
+        envelope(
+          Array.from({ length: 20 }, (_, i) => rated(i)),
+          500
+        )
+      )
+    );
+    await fetchTrendingTokens();
+    expect(paths()[0]).toBe("/api/trade/tokens/trending?limit=500");
+  });
+
+  it("returns the ranking itself, undegraded, when the view keeps enough of it", async () => {
+    apiFetchMock.mockResolvedValue(
+      reply(
+        envelope(
+          Array.from({ length: 20 }, (_, i) => rated(i)),
+          500
+        )
+      )
+    );
+    const feed = await fetchTrendingTokens();
+    expect(feed.source).toBe("trending");
+    expect(feed.degraded).toBeNull();
+    expect(feed.items).toHaveLength(20);
+    expect(feed.rankedCount).toBe(20);
+    expect(paths()).toHaveLength(1);
+  });
+
+  it("shows an unrated ranking rather than falling back, since the rail is not curated", async () => {
+    // This used to assert the opposite, and the opposite was the bug: every
+    // trending row comes back riskLevel UNKNOWN, "curated" kept none of them,
+    // and the rail served 40 arbitrary Base coins under a Trending heading on
+    // every single load. The rail runs "all" now, so an unrated ranking is the
+    // ranking. Decided by the maintainer on 2026-09-17.
+    apiFetchMock.mockResolvedValueOnce(
+      reply(
+        envelope(
+          Array.from({ length: 100 }, (_, i) => unrated(i)),
+          500
+        )
+      )
+    );
+    const feed = await fetchTrendingTokens();
+    expect(feed.source).toBe("trending");
+    expect(feed.degraded).toBeNull();
+    expect(feed.items).toHaveLength(100);
+    // One request: the catalogue fallback is never reached.
+    expect(paths()).toHaveLength(1);
+  });
+
+  it("still falls back when the ranking itself is too thin to fill the rail", async () => {
+    // The fallback has not gone away, it just is not reached by risk any more.
+    // Fewer than TRENDING_MIN_ROWS rows is still a rail that would sit beside a
+    // full table showing almost nothing.
+    apiFetchMock
+      .mockResolvedValueOnce(
+        reply(
+          envelope(
+            Array.from({ length: 2 }, (_, i) => unrated(i)),
+            500
+          )
+        )
+      )
+      .mockResolvedValueOnce(
+        reply(
+          envelope(
+            Array.from({ length: 40 }, (_, i) => rated(i)),
+            40
+          )
+        )
+      );
+    const feed = await fetchTrendingTokens();
+    expect(feed.source).toBe("catalog");
+    expect(feed.rankedCount).toBe(2);
+    expect(feed.degraded).toBe("no-rated-rows");
+    expect(paths()[1]).toBe("/api/trade/tokens?page=1&limit=40&chain=base");
+  });
+
+  it("names a rate limit as one, because the answer to it is to wait", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce(
+        reply({ success: false, error: { code: "SERVICE_UNAVAILABLE", message: "slow" } }, 429)
+      )
+      .mockResolvedValueOnce(reply(envelope([rated(1)], 40)));
+    const feed = await fetchTrendingTokens();
+    expect(feed.degraded).toBe("rate-limited");
+    expect(feed.source).toBe("catalog");
+  });
+
+  it("keeps every ranked row when the caller asks for the All view", async () => {
+    apiFetchMock.mockResolvedValue(
+      reply(
+        envelope(
+          Array.from({ length: 100 }, (_, i) => unrated(i)),
+          500
+        )
+      )
+    );
+    const feed = await fetchTrendingTokens("all");
+    expect(feed.source).toBe("trending");
+    expect(feed.items).toHaveLength(100);
+    expect(feed.degraded).toBeNull();
+  });
+
+  it("throws when the fallback fails too, rather than returning an empty list", async () => {
+    apiFetchMock
+      .mockResolvedValueOnce(
+        reply({ success: false, error: { code: "SERVICE_UNAVAILABLE", message: "slow" } }, 429)
+      )
+      .mockResolvedValueOnce(
+        reply({ success: false, error: { code: "SERVICE_UNAVAILABLE", message: "slow" } }, 429)
+      );
+    await expect(fetchTrendingTokens()).rejects.toBeInstanceOf(TradeApiError);
   });
 });

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { getWalletAddress } from "@/lib/user";
-import { useEvmSendBatch } from "@/hooks/use-evm-send";
+import { useLegacyEvmSendBatch } from "@/features/migrate";
 import { publicClientForChain } from "@/lib/trade/receipt";
 import { awaitReceipt } from "@/lib/trade/receipt";
 import {
@@ -26,7 +26,7 @@ type Phase = "idle" | "loading" | "claiming" | "done" | "error";
 
 export default function ReclaimPage() {
   const { ready, authenticated, login, user } = usePrivy();
-  const sendBatch = useEvmSendBatch();
+  const sendBatch = useLegacyEvmSendBatch();
   const wallet = getWalletAddress(user, "ethereum");
 
   const [state, setState] = useState<LegacyClaimState | null>(null);

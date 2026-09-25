@@ -9,7 +9,7 @@ import { ImageUploadField } from "@/features/earn/components/image-upload-field"
 import { useCreateSubmission } from "@/features/earn/hooks/use-earn-submission";
 import { useTalentProfile } from "@/features/earn/hooks/use-earn-talent";
 import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
-import { useWallets } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
@@ -55,10 +55,10 @@ export function SubmitSheet({
     if (open) track("earn_application_started", { listing_id: listingId });
   }, [open, listingId]);
   const { profile, needsProfile, isLoading: profileLoading } = useTalentProfile();
-  const { wallets } = useWallets();
+  const { evmAddress } = useAuthSession();
   // Recorded with the entry so a winner can be paid without having opened the
   // profile form. Waiting for that left winners unpayable.
-  const walletAddress = wallets.find((w) => w.walletClientType === "privy")?.address;
+  const walletAddress = evmAddress ?? undefined;
   const [link, setLink] = useState("");
   const [otherInfo, setOtherInfo] = useState("");
   const [telegram, setTelegram] = useState("");

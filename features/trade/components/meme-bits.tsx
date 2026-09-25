@@ -2,7 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
+import { signedPercent } from "@/features/trade/components/meme-gamified-bits";
 import { subscriptZeros } from "@/lib/format";
+import { compactPercentPoints } from "@/lib/meme/format";
 import { tokenBg } from "@/lib/trade/assets";
 import {
   visibleWarnings,
@@ -38,13 +40,31 @@ export function RiskBadge({ level }: { level: TokenRiskLevel | null | undefined 
   );
 }
 
+/**
+ * A signed change as every memecoin surface draws it: the compact figure on
+ * screen, the full one for a screen reader when the two differ.
+ *
+ * The change column is 110px wide on the desk and narrower on a phone, and a
+ * first day's "+12345.67%" runs straight out of it, so the visible text is
+ * `compactPercentPoints` ("+12.35K%"), the same helper the Trending cards use.
+ * Below a thousand points nothing is dropped and there is one node to read,
+ * which is why the sr-only twin only appears when something was compacted.
+ */
 export function PctChange({ value }: { value: string | null }) {
-  const n = value === null ? NaN : Number(value);
-  if (!Number.isFinite(n)) return <span className="text-white/40">—</span>;
+  const shown = compactPercentPoints(value);
+  if (shown === null) return <span className="text-white/40">—</span>;
+  const full = signedPercent(value);
+  const compacted = full !== null && full !== shown;
   return (
-    <span className={`tnum ${n >= 0 ? "text-up" : "text-down"}`}>
-      {n >= 0 ? "+" : ""}
-      {n.toFixed(2)}%
+    <span className={`tnum ${shown.startsWith("-") ? "text-down" : "text-up"}`}>
+      {compacted ? (
+        <>
+          <span aria-hidden="true">{shown}</span>
+          <span className="sr-only">{full}</span>
+        </>
+      ) : (
+        shown
+      )}
     </span>
   );
 }

@@ -7,7 +7,6 @@ import {
   useMarkNotificationsRead,
   useNotifications,
 } from "@/features/earn/hooks/use-earn-notifications";
-import { usePushNotifications } from "@/hooks/use-push-notifications";
 import type { EarnNotification } from "@/features/earn/lib/api/types";
 
 // How long ago, in the roughest terms that are still useful. A notification is
@@ -81,8 +80,6 @@ export function NotificationBell() {
             </ul>
           )}
         </div>
-
-        <PushPrompt />
       </SidePanel>
     </>
   );
@@ -134,29 +131,5 @@ function NotificationRow({ item, onOpen }: { item: EarnNotification; onOpen: () 
     <Link href={`/earn/listing/${item.listingSlug}`} onClick={onOpen} className={className}>
       {body}
     </Link>
-  );
-}
-
-// Offers browser notifications, and only while there is a decision to make:
-// once granted or refused there is nothing useful to say, and a permanent
-// banner asking for permission is the thing people learn to ignore.
-function PushPrompt() {
-  const { canAsk, enable, isEnabling } = usePushNotifications();
-  if (!canAsk) return null;
-
-  return (
-    <div className="flex items-center justify-between gap-3 border-t border-white/8 px-4 py-3">
-      <span className="font-sans text-[11.5px] font-normal text-white/45">
-        Get these even when this tab is closed.
-      </span>
-      <button
-        type="button"
-        onClick={() => void enable()}
-        disabled={isEnabling}
-        className="ws-inset shrink-0 cursor-pointer rounded-full px-3 py-1.5 font-sans text-[11.5px] font-semibold text-white transition-colors hover:border-white/30 disabled:opacity-40"
-      >
-        {isEnabling ? "Enabling…" : "Enable"}
-      </button>
-    </div>
   );
 }

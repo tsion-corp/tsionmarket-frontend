@@ -2,16 +2,18 @@ import "server-only";
 import { alchemyFetch } from "@/lib/server/alchemy-keys";
 import { cached } from "@/lib/server/response-cache";
 import { fetchRwaRegistry, type RwaTokenInfo } from "@/lib/server/rwa-registry";
+import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
 import {
+  confirmBaseTokens,
   fetchBuyableRegistry,
   type BuyableRegistry,
   type MemeRegistry,
+  type MemeTokenInfo,
 } from "@/lib/server/buyable-registry";
 import { displaySymbol } from "@/lib/buy";
 import { CONTRACTS, isPolymarketCollateral } from "@/lib/polymarket/config";
 import { HOT_NETWORKS, readEvmPortfolioTokens } from "@/lib/server/portfolio-holdings";
 import { freshFor, type FreshScope } from "@/lib/portfolio/fresh-scope";
-import { fetchMemePositions } from "@/lib/server/meme-positions";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -60,7 +62,128 @@ export const EVM_NETWORKS = [
 ];
 export const SOLANA_NETWORK = "solana-mainnet";
 const BASE_PORTFOLIO_NETWORKS = ["base-mainnet"] as const;
-export type PortfolioScope = "all" | "base";
+// "legacy" is the migration's read of the OLD wallet: the EVM side comes from
+// Alchemy's Portfolio API (every token the wallet holds, not just the
+// allowlist's contracts), and a held Base token the paged catalogue never
+// reached is admitted when the platform can sell and price it (see
+// confirmBaseTokens). Only the sponsored networks, since only those can be
+// swept. Costlier per call than "all" — the old wallet is read a handful of
+// times per user, ever, not every 30 seconds.
+export type PortfolioScope = "all" | "base" | "legacy";
+const LEGACY_EVM_NETWORKS = EVM_NETWORKS.filter(isSponsoredEvmNetwork);
+// A balance below this is a rounding remnant we never ask the catalogue about
+// (the same floor as DUST_MIN_BALANCE in features/migrate/lib/plan.ts).
+const LEGACY_MIN_BALANCE = 1e-6;
+
+// ── Discovering what a wallet actually holds ─────────────────────────────────
+//
+// The balance read only asks about contracts on the allowlist, and the
+// allowlist's memecoin half is the TOP of a volume-ranked catalogue, walked
+// page by page until a page times out. So whether you can see a token you own
+// depends on where it ranked when the pages were walked: measured on staging,
+// USWR sat at rank 35 one hour and ~7,839 the next, and a holding worth $0.96
+// simply vanished from the portfolio in between.
+//
+// So the wallet is enumerated directly, and every held contract the allowlist
+// does not already cover is confirmed with the catalogue by ADDRESS, where
+// rank cannot reach it. That read is far heavier than a balance read (it pages
+// through every airdrop the wallet has ever received), so it runs on its own
+// slow clock and the fast balance polls reuse its answer.
+const DISCOVERY_TTL_MS = 600_000;
+// A cold discovery must not hold up the balances behind it: it enumerates
+// every airdrop a wallet ever received, and the balance reads it delays have
+// their own deadline — made to wait, they drop networks and the portfolio
+// comes back EMPTIER than it would have without discovery at all. So the
+// request waits only long enough for an answer that is essentially ready, and
+// otherwise leaves the walk running in the background to fill the cache for
+// the next poll (30s later). One refresh late beats a blank portfolio now.
+const DISCOVERY_BUDGET_MS = 1_200;
+
+// Base is the only chain the trade catalogue covers, so it is the only chain
+// where an unlisted holding can be confirmed.
+const DISCOVERY_NETWORK = "base-mainnet";
+// Unknown contracts one discovery may ask the catalogue about. Every wallet
+// in the app runs this, so it is deliberately below the migration's own cap:
+// a wallet carrying hundreds of airdrops resolves its largest holdings and
+// leaves the rest to later passes, rather than firing hundreds of lookups.
+const DISCOVERY_MAX_LOOKUPS = 60;
+
+async function discoverHeldBaseTokens(
+  wallet: string,
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
+): Promise<Map<string, MemeTokenInfo>> {
+  const read = await fetchTokensByAddressPaged([
+    { address: wallet, networks: [DISCOVERY_NETWORK] },
+  ]);
+  const unknown = read.tokens.filter((t) => {
+    if (t.network !== DISCOVERY_NETWORK || !t.tokenAddress) return false;
+    const address = t.tokenAddress.toLowerCase();
+    if (isAllowedHolding(t.network, address, false, rwa, buyable)) return false;
+    const decimals = t.tokenMetadata?.decimals ?? 18;
+    return toNumber(toRawUnits(t.tokenBalance), decimals) >= LEGACY_MIN_BALANCE;
+  });
+  // Largest balance first, so a capped pass spends its lookups on the
+  // holdings most likely to matter rather than on whatever Alchemy listed
+  // first. Balance, not value: Alchemy prices almost none of these (that is
+  // what the catalogue is for), so value would sort them all at zero.
+  const byBalance = unknown
+    .map((t) => ({
+      address: t.tokenAddress!.toLowerCase(),
+      balance: toNumber(toRawUnits(t.tokenBalance), t.tokenMetadata?.decimals ?? 18),
+    }))
+    .sort((a, b) => b.balance - a.balance);
+  return confirmBaseTokens(
+    byBalance.map((t) => t.address),
+    DISCOVERY_MAX_LOOKUPS
+  );
+}
+
+/**
+ * Contracts this wallet holds that the allowlist does not already know, as
+ * the catalogue describes them. Cached per wallet on the slow clock, and
+ * abandoned (not failed) when it cannot answer inside the budget: an empty
+ * answer costs the user a rank-dependent token for one more refresh, where
+ * waiting costs them the whole portfolio.
+ */
+async function heldBeyondAllowlist(
+  wallet: string,
+  rwa: RwaRegistry,
+  buyable: BuyableRegistry
+): Promise<Map<string, MemeTokenInfo>> {
+  // Not awaited past the budget: the walk carries on and writes the cache
+  // whatever this request does with it.
+  const discovery = cached(
+    `portfolio:held:${wallet.toLowerCase()}`,
+    () => discoverHeldBaseTokens(wallet, rwa, buyable),
+    DISCOVERY_TTL_MS
+  ).catch((error) => {
+    console.error("Discovering held tokens failed", error);
+    return new Map<string, MemeTokenInfo>();
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const budget = new Promise<Map<string, MemeTokenInfo>>((resolve) => {
+    timer = setTimeout(() => resolve(new Map()), DISCOVERY_BUDGET_MS);
+    timer.unref?.();
+  });
+  return Promise.race([discovery, budget]).finally(() => clearTimeout(timer));
+}
+
+// Folds discovered contracts into the registries the read and the normaliser
+// both consult, so a confirmed holding is fetched, priced and labelled
+// exactly like a catalogue-listed one.
+function admit(
+  confirmed: ReadonlyMap<string, MemeTokenInfo>,
+  registries: { buyable: BuyableRegistry; meme: MemeRegistry }
+): void {
+  if (confirmed.size === 0) return;
+  const buyable = (registries.buyable[DISCOVERY_NETWORK] ??= new Set());
+  const meme = (registries.meme[DISCOVERY_NETWORK] ??= new Map());
+  for (const [address, info] of confirmed) {
+    buyable.add(address);
+    if (!meme.has(address)) meme.set(address, info);
+  }
+}
 
 // How a holding is classified for display: a native coin (ETH/POL/SOL), a
 // stablecoin (USDC/USDT), a real-world asset (from the RWA registry), or any
@@ -513,6 +636,15 @@ const MAX_PAGES = 10;
 async function fetchTokensByAddress(
   addresses: { address: string; networks: string[] }[]
 ): Promise<AlchemyToken[]> {
+  return (await fetchTokensByAddressPaged(addresses)).tokens;
+}
+
+// Same read, but says when the page budget ran out before the wallet did:
+// a holding can sit on any page, so a truncated read is a floor, not the
+// balance, and the caller must not present it as complete.
+async function fetchTokensByAddressPaged(
+  addresses: { address: string; networks: string[] }[]
+): Promise<{ tokens: AlchemyToken[]; truncated: boolean }> {
   const out: AlchemyToken[] = [];
   let pageKey: string | undefined;
   for (let page = 0; page < MAX_PAGES; page++) {
@@ -533,59 +665,30 @@ async function fetchTokensByAddress(
     pageKey = data?.data?.pageKey ?? undefined;
     if (!pageKey) break;
   }
-  return out;
+  return { tokens: out, truncated: pageKey !== undefined };
 }
 
 // `fresh` names the networks a caller must see re-read from the chain
 // because it just changed them; every other network answers from its own
 // cache. "all" is the legacy sweep (ADR-2026-09-09-portfolio-refresh-scope).
-/**
- * Folds the caller's own trade positions into the shared registries.
- *
- * The shared ones are global and cached across users; these are one user's and
- * must never be written back into them, so both sides are copied. A coin in
- * both keeps the catalogue's entry, since that is the one the price and logo
- * were already resolved from.
- */
-function withOwnPositions(
-  shared: { buyable: BuyableRegistry; meme: MemeRegistry },
-  own: { buyable: BuyableRegistry; meme: MemeRegistry }
-): { buyable: BuyableRegistry; meme: MemeRegistry } {
-  const buyable: BuyableRegistry = {};
-  for (const [network, addresses] of Object.entries(shared.buyable)) {
-    buyable[network] = new Set(addresses);
-  }
-  for (const [network, addresses] of Object.entries(own.buyable)) {
-    const into = (buyable[network] ??= new Set());
-    for (const address of addresses) into.add(address);
-  }
-
-  const meme: MemeRegistry = {};
-  for (const [network, rows] of Object.entries(own.meme)) {
-    meme[network] = new Map(rows);
-  }
-  for (const [network, rows] of Object.entries(shared.meme)) {
-    const into = (meme[network] ??= new Map());
-    for (const [address, info] of rows) into.set(address, info);
-  }
-  return { buyable, meme };
-}
-
 export async function fetchPortfolio(
   evm?: string,
   solana?: string,
   fresh: FreshScope | null = null,
-  // The caller's bearer, so the complete portfolio can include coins bought
-  // outside the catalogue. Null for an unauthenticated read, which simply
-  // gets the shared registries.
-  bearer: string | null = null,
   scope: PortfolioScope = "all"
 ): Promise<Portfolio> {
-  const includeSolana = scope === "all" && Boolean(solana);
+  const includeSolana = scope !== "base" && Boolean(solana);
   if (!evm && !includeSolana) return { totalUsd: 0, tokens: [] };
-  const evmNetworks = scope === "base" ? BASE_PORTFOLIO_NETWORKS : EVM_NETWORKS;
+  const evmNetworks =
+    scope === "base"
+      ? BASE_PORTFOLIO_NETWORKS
+      : scope === "legacy"
+        ? LEGACY_EVM_NETWORKS
+        : EVM_NETWORKS;
   const cacheKey =
-    scope === "base" ? `portfolio:base:${evm ?? ""}` : `portfolio:${evm ?? ""}:${solana ?? ""}`;
+    scope === "base"
+      ? `portfolio:base:${evm ?? ""}`
+      : `portfolio:${scope === "legacy" ? "legacy:" : ""}${evm ?? ""}:${solana ?? ""}`;
   const skipCache = fresh !== null;
   return cached(
     cacheKey,
@@ -599,27 +702,34 @@ export async function fetchPortfolio(
         // Dynamic catalogs are part of the complete portfolio. Chess only
         // needs Base gas and its fixed funding assets, so its fast path does
         // not wait on these unrelated services.
-        //
-        // The caller's own positions are read alongside the shared
-        // registries: the catalogue page cannot name a coin bought outside
-        // it, and this is what makes it a holding the owner can see. See
-        // lib/server/meme-positions. It rides the same scope gate, because
-        // the funding path has no use for it either.
-        const [registryRwa, shared, own] = await Promise.all([
-          fetchRwaRegistry(),
-          fetchBuyableRegistry(),
-          fetchMemePositions(bearer),
-        ]);
-        rwa = registryRwa;
-        registries = withOwnPositions(shared, own);
+        [rwa, registries] = await Promise.all([fetchRwaRegistry(), fetchBuyableRegistry()]);
       }
 
       // EVM balances come from the chain through the read pool (see
       // lib/server/portfolio-holdings); Solana still uses the Portfolio API
       // until its own change.
+      // What the wallet holds beyond the allowlist, resolved BEFORE the read
+      // below asks for contracts — the balance read only fetches what the
+      // allowlist names, so a contract admitted afterwards would have no
+      // balance to show. The legacy scope enumerates the wallet itself and
+      // admits from that, so it does not need this.
+      if (evm && scope !== "legacy" && evmNetworks.includes(DISCOVERY_NETWORK)) {
+        admit(await heldBeyondAllowlist(evm, rwa, registries.buyable), registries);
+      }
+
       const requests: Promise<AlchemyToken[]>[] = [];
       let missing: string[] = [];
-      if (evm) {
+      if (evm && scope === "legacy") {
+        // The whole wallet, so a token outside the allowlist's contract list
+        // is still seen. `fresh` is always set by the migration callers, so
+        // this is not cached separately from the portfolio entry itself.
+        requests.push(
+          fetchTokensByAddressPaged([{ address: evm, networks: [...evmNetworks] }]).then((read) => {
+            if (read.truncated) missing = [...missing, ...evmNetworks];
+            return read.tokens;
+          })
+        );
+      } else if (evm) {
         requests.push(
           readEvmPortfolioTokens(
             evm,
@@ -674,6 +784,33 @@ export async function fetchPortfolio(
       const tokensFromBatches = batchResults
         .filter((r): r is PromiseFulfilledResult<AlchemyToken[]> => r.status === "fulfilled")
         .flatMap((r) => r.value);
+      if (scope === "legacy") {
+        // Held Base tokens the paged catalogue never reached: ask about each by
+        // address, and treat the ones the platform can sell exactly like a
+        // listed coin. Alchemy prices almost none of these (verified live: 82
+        // held memecoins, not one with a price), so the catalogue's own price
+        // is the only one there is — which is also what decides whether the
+        // holding clears the sweep floor. Spam that the platform cannot sell
+        // comes back empty and is remembered as such for ten minutes.
+        const unknown = tokensFromBatches.filter((t) => {
+          if (t.network !== "base-mainnet" || !t.tokenAddress) return false;
+          const address = t.tokenAddress.toLowerCase();
+          if (isAllowedHolding(t.network, address, false, rwa, registries.buyable)) return false;
+          const decimals = t.tokenMetadata?.decimals ?? 18;
+          return toNumber(toRawUnits(t.tokenBalance), decimals) >= LEGACY_MIN_BALANCE;
+        });
+        const confirmed = await confirmBaseTokens(
+          unknown.map((t) => t.tokenAddress!.toLowerCase())
+        );
+        if (confirmed.size > 0) {
+          const buyable = (registries.buyable["base-mainnet"] ??= new Set());
+          const meme = (registries.meme["base-mainnet"] ??= new Map());
+          for (const [address, info] of confirmed) {
+            buyable.add(address);
+            if (!meme.has(address)) meme.set(address, info);
+          }
+        }
+      }
       const held = normalize(tokensFromBatches, rwa, registries.buyable, registries.meme);
       // Only baseline the chains the user actually has a wallet on.
       const networks = [...(evm ? evmNetworks : []), ...(includeSolana ? [SOLANA_NETWORK] : [])];

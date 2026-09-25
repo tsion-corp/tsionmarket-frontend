@@ -25,6 +25,7 @@ const MESSAGES: Record<string, Record<string, string>> = {
     network: "Network",
     positionValue: "Position value",
     buyMore: "Buy more",
+    managePrediction: "Manage in Prediction",
     sell: "Sell",
     kindCoin: "Coin",
     kindStablecoin: "Stablecoin",

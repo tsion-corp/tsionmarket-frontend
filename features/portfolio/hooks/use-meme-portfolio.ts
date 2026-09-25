@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQuery, type QueryKey } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useSectionActive } from "@/components/ui/section-visibility";
 import { nextCatalogPage, type Paged } from "@/lib/meme/catalog";
 import {
@@ -17,23 +17,27 @@ import {
   type PortfolioPosition,
   type TradeActivity,
 } from "@/lib/meme/portfolio";
-import { pollUnlessFailing } from "@/lib/query-poll";
+import { memePollUnlessFailing } from "@/lib/meme/poll";
 
 // The trade service's portfolio on the portfolio screen.
 //
-// Each query refreshes every minute, and only while the portfolio section is
-// on screen (useSectionActive): `subscribed`, not `enabled`, so scrolling away
-// keeps the last figures and scrolling back resumes without a skeleton. A swap
-// reaching CONFIRMED invalidates all of them at once from the trade hook,
-// through the key prefix in lib/meme/portfolio, so neither feature imports
-// the other. Nothing is asked before the user is signed in: every route needs
-// the bearer.
+// Each query refreshes every minute while the trade service answers and less
+// often while it does not (memePollUnlessFailing), and only while the portfolio
+// section is on screen (useSectionActive): `subscribed`, not `enabled`, so
+// scrolling away keeps the last figures and scrolling back resumes without a
+// skeleton. A swap reaching CONFIRMED invalidates all of them at once from the
+// trade hook, through the key prefix in lib/meme/portfolio, so neither feature
+// imports the other. Nothing is asked before the user is signed in: every route
+// needs the bearer.
 
 export const MEME_PORTFOLIO_POLL_MS = 60_000;
 const STALE_MS = 30_000;
 
 function useSignedIn(): boolean {
-  const { ready, authenticated } = usePrivy();
+  // Through the Decane-backed session seam. Privy is not a provider on these
+  // routes any more (ADR-0009), so the old hook would throw here rather than
+  // read as signed out.
+  const { ready, authenticated } = useAuthSession();
   return ready && authenticated;
 }
 
@@ -45,7 +49,7 @@ export function useMemePortfolioSummary() {
     queryFn: fetchPortfolioSummary,
     enabled: signedIn,
     subscribed: active,
-    refetchInterval: pollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
+    refetchInterval: memePollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
     staleTime: STALE_MS,
   });
   return {
@@ -88,7 +92,7 @@ function usePagedList<T>(
     getNextPageParam: (last) => nextCatalogPage(last.meta),
     enabled: signedIn,
     subscribed: active,
-    refetchInterval: pollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
+    refetchInterval: memePollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
     staleTime: STALE_MS,
   });
 
@@ -174,7 +178,7 @@ export function useMemePosition(chain: PortfolioChain | null, address: string | 
     },
     enabled: signedIn && chain !== null && address !== null,
     subscribed: active,
-    refetchInterval: pollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
+    refetchInterval: memePollUnlessFailing(MEME_PORTFOLIO_POLL_MS),
     staleTime: STALE_MS,
   });
   return {

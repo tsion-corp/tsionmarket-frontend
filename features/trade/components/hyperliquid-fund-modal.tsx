@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -15,7 +15,6 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import { friendlyError } from "@/lib/errors";
 import { formatDecimalString } from "@/lib/trade/amount";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
-import { getWalletAddress } from "@/lib/user";
 
 interface HyperliquidFundModalProps {
   open: boolean;
@@ -70,8 +69,7 @@ export function HyperliquidFundModal({
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>({ name: "form" });
   const [error, setError] = useState<string | null>(null);
-  const { user } = usePrivy();
-  const walletAddress = getWalletAddress(user, "ethereum");
+  const { evmAddress: walletAddress } = useAuthSession();
   const portfolio = usePortfolio();
   const { userPaysFee, maxFeeFor } = useCctpDepositFee(open);
 

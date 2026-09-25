@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { ChevronLeftIcon } from "@/components/ui/icons";
 
@@ -72,6 +72,11 @@ export function NumberedPagination({
   loadingMore = false,
 }: NumberedPaginationProps) {
   const t = useTranslations("common");
+  // Grouped, as in ListPagination: the catalogue runs to five figures of pages
+  // and "Page 5,000 of 10,000" is the only readable way to say where you are.
+  // The numbered buttons keep their bare figures; a grouped face would widen
+  // every chip in the row for the sake of the two at its ends.
+  const format = useFormatter();
   if (pages <= 1 && !more) return null;
 
   const atStart = page <= 1;
@@ -86,7 +91,7 @@ export function NumberedPagination({
       {/* The numbers say where the reader is to the eye; this says it to a
           screen reader whenever the page changes. */}
       <p aria-live="polite" className="sr-only">
-        {t("pageOf", { page, pages })}
+        {t("pageOf", { page: format.number(page), pages: format.number(pages) })}
       </p>
 
       <button

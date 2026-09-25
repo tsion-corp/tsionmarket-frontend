@@ -198,7 +198,7 @@ describe("the paged catalogue", () => {
 
   // The "Find the next 100X" card and the phone's trending shelf read this.
   // They stay curated whatever view a list has been switched to.
-  it("keeps trending curated", async () => {
+  it("keeps a high risk, thin liquidity coin, because the rail is not curated", async () => {
     const thin = {
       ...base(99),
       riskLevel: "HIGH",
@@ -211,9 +211,15 @@ describe("the paged catalogue", () => {
         meta: { page: 1, limit: 500, total: 9 },
       })
     );
+    // The rail runs the "all" view: trending rows carry no risk assessment, so
+    // "curated" kept none of them and the strip fell back to arbitrary Base
+    // coins on every load. Turning the risk filter off also turns off the
+    // liquidity and volume floors, which is why this thin row now appears. That
+    // cost was put to the maintainer with the numbers and accepted on
+    // 2026-09-17. See fetchTrendingTokens in lib/meme/api.ts.
     const page = await fetchTrendingTokens();
-    expect(page.items.map((t) => t.address)).not.toContain(thin.address);
-    expect(page.items).toHaveLength(8);
+    expect(page.items.map((t) => t.address)).toContain(thin.address);
+    expect(page.items).toHaveLength(9);
   });
 });
 

@@ -7,7 +7,9 @@ import { createElement, type ReactNode } from "react";
 vi.mock("server-only", () => ({}));
 
 const privy = vi.hoisted(() => ({ ready: true, authenticated: true }));
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => privy }));
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({ ...privy, evmAddress: "0xabc0000000000000000000000000000000000001" }),
+}));
 
 const fetchSquareMe = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/market-square", () => ({ fetchSquareMe }));

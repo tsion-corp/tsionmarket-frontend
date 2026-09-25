@@ -3,7 +3,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 
 const { logout } = vi.hoisted(() => ({ logout: vi.fn(async () => {}) }));
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => ({ logout }) }));
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0xUser",
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "0xUser" },
+    logout,
+  }),
+}));
 
 import { useIdleLogout } from "@/hooks/use-idle-logout";
 

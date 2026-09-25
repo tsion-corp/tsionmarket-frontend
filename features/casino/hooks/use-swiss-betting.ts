@@ -1,6 +1,6 @@
 "use client";
 
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
@@ -20,7 +20,7 @@ export const SWISS_BETTING_KEYS = {
 
 export function useSwissMarket(swissId: string) {
   const queryClient = useQueryClient();
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated } = useAuthSession();
   const wallet = useCasinoWallet();
   const bettor = wallet.address;
 

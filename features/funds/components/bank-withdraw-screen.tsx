@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { useModalScreen } from "@/components/ui/modal-shell";
 import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
@@ -18,7 +18,6 @@ import {
 } from "@/hooks/use-ramping";
 import { friendlyError } from "@/lib/errors";
 import { FormFeedback, asError, asNotice, type Feedback } from "@/components/ui/form-feedback";
-import { getWalletAddress } from "@/lib/user";
 import { openOfframpWatch } from "@/lib/ramping/offramp-watch";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SETTLE_CHAINS } from "@/lib/deposit";
@@ -149,10 +148,11 @@ function BankAvatar({
 // Naira figure shown comes from the order once the rail reports it.
 export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const t = useTranslations("bankWithdraw");
-  const { user } = usePrivy();
+  const { authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const { tokens, refetch: refetchPortfolio } = usePortfolio();
   const { sendToken } = useSendToken();
-  const walletAddress = getWalletAddress(user, "ethereum");
+  const walletAddress = evmAddress;
 
   const rates = useRampingRates();
   const banks = useRampingBanks(true);

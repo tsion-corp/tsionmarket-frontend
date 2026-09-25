@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { useHyperliquidWallet } from "@/features/trade/hooks/use-hyperliquid-wallet";
 import {
   useHyperliquidAssets,
@@ -19,7 +19,7 @@ import { perpsBalanceQueryKey } from "@/hooks/use-global-balance";
 // funding, market data, positions/orders, and the write actions — one call
 // instead of each view independently wiring the same eight hooks.
 export function useHyperliquidTrading() {
-  const { authenticated } = usePrivy();
+  const { authenticated } = useAuthSession();
   const queryClient = useQueryClient();
   const { walletId, address, loading: walletLoading, error: walletError } = useHyperliquidWallet();
   const { assets, loading: assetsLoading } = useHyperliquidAssets();

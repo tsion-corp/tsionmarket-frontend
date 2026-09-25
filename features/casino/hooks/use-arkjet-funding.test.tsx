@@ -4,9 +4,16 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ config: vi.fn() }));
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ user: null, ready: true, authenticated: false }),
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: false,
+    evmAddress: null,
+    solanaAddress: null,
+    profile: null,
+  }),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@/hooks/use-withdraw", () => ({ useSendToken: () => ({ sendToken: vi.fn() }) }));
 vi.mock("@/features/casino/hooks/use-arkjet", () => ({
   ARKJET_KEYS: { funding: ["arkjet", "funding"], balance: ["arkjet", "balance"] },

@@ -43,15 +43,7 @@ export function PredictionBetForm({
   const t = useTranslations("prediction");
   const money = useMoney();
   const { accepted, accept } = usePredictionConsent();
-  const {
-    placeBet,
-    phase,
-    error,
-    sessionStatus,
-    predictionBalanceUsd,
-    usdcTotal,
-    portfolioLoading,
-  } = useBet();
+  const { placeBet, phase, error, sessionStatus, usdcTotal, portfolioLoading } = useBet();
   const [amount, setAmount] = useState(String(PREDICTION_MIN_STAKE_USD));
 
   const amountUsd = Number(amount);
@@ -215,9 +207,7 @@ export function PredictionBetForm({
                 <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">
                   <div className="text-white/40">Available for tickets</div>
                   <div className="tnum mt-0.5 font-semibold text-white/80">
-                    {predictionBalanceUsd === null
-                      ? "Checked on placement"
-                      : `${predictionBalanceUsd.toFixed(2)} pUSD`}
+                    {portfolioLoading ? "Checked on placement" : `${usdcTotal.toFixed(2)} pUSD`}
                   </div>
                 </div>
                 <div className="rounded-xl border border-white/8 bg-white/3 px-3 py-2.5">

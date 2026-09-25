@@ -6,14 +6,30 @@ import { renderHook } from "@testing-library/react";
 // standing in for a real wallet signature — this test proves the SDK's real
 // msgpack + keccak256 hashing and EIP-712 wrapping run correctly end to end;
 // only the actual cryptographic signing (which needs a real private key) is
-// faked, at the lowest possible point (Privy's own signTypedData call).
+// faked, at the lowest possible point: the embedded wallet's EIP-1193
+// `eth_signTypedData_v4` request, which is what the Decane-backed signer now
+// drops to (replacing Privy's useSignTypedData).
 const FAKE_SIGNATURE = `0x${"1".repeat(64)}${"2".repeat(64)}1b`;
 
-const signTypedData = vi.fn().mockResolvedValue({ signature: FAKE_SIGNATURE });
+const request = vi.fn().mockResolvedValue(FAKE_SIGNATURE);
 
-vi.mock("@privy-io/react-auth", () => ({
-  useSignTypedData: () => ({ signTypedData }),
+vi.mock("decane-connect-kit", () => ({
+  useSocialWallet: () => ({
+    getEthereumProvider: async () => ({ request }),
+  }),
 }));
+
+// The signer serialises the typed data for the provider; read it back so the
+// assertions below keep speaking in terms of domain / primaryType / message.
+function signedTypedData(call = 0) {
+  const [address, json] = request.mock.calls[call]![0].params as [string, string];
+  return { address, ...(JSON.parse(json) as Record<string, unknown>) } as {
+    address: string;
+    domain: { name: string; chainId?: number };
+    primaryType: string;
+    message: unknown;
+  };
+}
 
 import { useHyperliquidSigner } from "@/features/trade/lib/hyperliquid-signer";
 import type {
@@ -25,7 +41,7 @@ import type {
 const ADDRESS = "0x000000000000000000000000000000000000aA";
 
 beforeEach(() => {
-  signTypedData.mockClear();
+  request.mockClear();
 });
 
 describe("useHyperliquidSigner", () => {
@@ -36,17 +52,16 @@ describe("useHyperliquidSigner", () => {
     const signature = await result.current.signL1(action, 1_700_000_000_000);
 
     expect(signature).toEqual({ r: `0x${"1".repeat(64)}`, s: `0x${"2".repeat(64)}`, v: 27 });
-    expect(signTypedData).toHaveBeenCalledTimes(1);
-    const [params, options] = signTypedData.mock.calls[0] as [
-      { domain: { name: string; chainId: number }; primaryType: string },
-      { address: string },
-    ];
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]![0].method).toBe("eth_signTypedData_v4");
+    const params = signedTypedData();
     // Hyperliquid's phantom-agent wrapper: a fixed domain unrelated to any
     // real chain, and the message carries the real action's hash, not the
     // action itself.
     expect(params.domain).toMatchObject({ name: "Exchange", chainId: 1337 });
     expect(params.primaryType).toBe("Agent");
-    expect(options).toEqual({ address: ADDRESS });
+    // Signed as the connected wallet, never anything else.
+    expect(params.address).toBe(ADDRESS);
   });
 
   it("signWithdrawal signs a withdraw3 action against the HyperliquidSignTransaction domain", async () => {
@@ -63,9 +78,7 @@ describe("useHyperliquidSigner", () => {
     const signature = await result.current.signWithdrawal(action);
 
     expect(signature).toEqual({ r: `0x${"1".repeat(64)}`, s: `0x${"2".repeat(64)}`, v: 27 });
-    const [params] = signTypedData.mock.calls[0] as [
-      { domain: { name: string }; message: unknown },
-    ];
+    const params = signedTypedData();
     expect(params.domain.name).toBe("HyperliquidSignTransaction");
     // The SDK filters the message down to only the fields Withdraw3Types
     // declares — `type` and `signatureChainId` are metadata for our own API
@@ -92,9 +105,7 @@ describe("useHyperliquidSigner", () => {
     const signature = await result.current.signBuilderFeeApproval(action);
 
     expect(signature).toEqual({ r: `0x${"1".repeat(64)}`, s: `0x${"2".repeat(64)}`, v: 27 });
-    const [params] = signTypedData.mock.calls[0] as [
-      { domain: { name: string }; message: unknown },
-    ];
+    const params = signedTypedData();
     expect(params.domain.name).toBe("HyperliquidSignTransaction");
     expect(params.message).toEqual({
       hyperliquidChain: action.hyperliquidChain,
@@ -110,6 +121,6 @@ describe("useHyperliquidSigner", () => {
     await expect(result.current.signL1({ type: "cancel", cancels: [] }, 1)).rejects.toThrow(
       "Connect a wallet"
     );
-    expect(signTypedData).not.toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalled();
   });
 });

@@ -1,15 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { SquareAvatar } from "@/components/ui/square-avatar";
-import { useSquareAvatar } from "@/hooks/use-square-avatar";
+import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
 import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
-import { deriveProfile } from "@/lib/user";
+import { truncateAddress } from "@/lib/format";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
 import { SQUARE_ZONE_PATH } from "@/lib/square-zone";
@@ -30,12 +30,9 @@ interface SidebarProps {
 // choice, on the backdrop, on Escape, or on its own close button. One
 // component for both, so the nav can never differ between the two.
 export function Sidebar({ items, activeSection, onNavigate, open, onClose }: SidebarProps) {
-  const { user } = usePrivy();
-  const profile = deriveProfile(user);
+  const { profile, evmAddress: address } = useAuthSession();
   const squareAvatar = useSquareAvatar();
-  // The footer's second line is the wallet, not the email: the topbar shows
-  // the same address on the same screen, and an email is blank for anyone who
-  // signed in with a wallet or a phone number.
+  const squareSeed = useSquareSeed();
   const t = useTranslations("topbar");
   // The square is a product with its own catalog namespace, so the rail reads
   // its name from there rather than repeating the string. The rail's word is
@@ -203,7 +200,7 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
             onClick={() => setAccountPopoverOpen((v) => !v)}
             className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/8 px-2 py-2.5 text-left transition-colors hover:bg-white/4"
           >
-            <SquareAvatar src={squareAvatar} seed={user?.id ?? ""} name={profile.name} size={32} />
+            <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={32} />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-sans text-[13px] font-medium text-white">
                 {profile.name}

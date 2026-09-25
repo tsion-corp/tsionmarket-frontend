@@ -155,7 +155,13 @@ export interface BroadcastSessionActions {
   setMuted: (muted: boolean) => Promise<void>;
   resumeScreenShare: () => Promise<void>;
   setBlurSensitive: (blur: boolean) => void;
-  /** Reported by PrivyModalWatch; see the note there on why it lives outside. */
+  /**
+   * Legacy seam: a sensitive-wallet-dialog signal an external watcher can feed
+   * in. The Privy modal watcher that used to drive it is gone with the Decane
+   * migration; nothing feeds it today and the DOM/route guard below covers the
+   * sensitive-screen video pause. Kept so the wiring is ready if a Decane
+   * dialog watcher is added.
+   */
   setPrivyModalOpen: (open: boolean) => void;
   dismissError: () => void;
   /** Reset a terminal phase back to idle so the control offers a fresh start. */
@@ -220,9 +226,9 @@ export function BroadcastSessionProvider({ children }: { children: React.ReactNo
   const [connection, setConnection] = useState<"connected" | "reconnecting">("connected");
   const [reconnectingSince, setReconnectingSince] = useState<number | null>(null);
   const [domSuspend, setDomSuspend] = useState<SuspendReason | null>(null);
-  // Reported by PrivyModalWatch, which owns the dependency on Privy so the
-  // session does not. Null-safe by construction: a tree with no watcher simply
-  // leaves this false and falls back to the DOM check below.
+  // A sensitive-dialog signal an external watcher may feed in. Post-Decane no
+  // watcher is mounted, so this stays false and the session falls back to the
+  // DOM check below — which is the sole sensitive-screen guard now.
   const [privyModalOpen, setPrivyModalOpen] = useState(false);
   const [blurSensitive, setBlurSensitiveState] = useState(true);
   const [error, setError] = useState<string | null>(null);

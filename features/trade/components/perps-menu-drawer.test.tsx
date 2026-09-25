@@ -27,11 +27,20 @@ vi.mock("next-intl", () => ({
     MESSAGES[namespace]?.[key] ?? `${namespace}.${key}`,
 }));
 vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ user: null }),
-  useLogout: () => ({ logout: vi.fn() }),
-  useLinkWithPasskey: () => ({ linkWithPasskey: vi.fn() }),
   getAccessToken: vi.fn(),
   getIdentityToken: vi.fn(),
+}));
+// The rail reads the session through the Decane-backed seam; no account is
+// signed in here, matching the `user: null` the Privy stub used to hand back.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: false,
+    evmAddress: null,
+    solanaAddress: null,
+    profile: { name: "Account", email: "", avatarSeed: "worldstreet" },
+    logout: vi.fn(),
+  }),
 }));
 vi.mock("@/components/broadcast/go-live-control", () => ({
   GoLiveControl: () => <button type="button">Go Live</button>,
@@ -79,7 +88,10 @@ function hamburger() {
 // The account face reads the player's square profile. These cover the rail
 // and its chrome, not where the picture comes from, so the read is stubbed
 // out: null is the ordinary answer and leaves the seeded artwork in place.
-vi.mock("@/hooks/use-square-avatar", () => ({ useSquareAvatar: () => null }));
+vi.mock("@/hooks/use-square-avatar", () => ({
+  useSquareAvatar: () => null,
+  useSquareSeed: () => "seed",
+}));
 
 describe("PerpsMenuDrawer", () => {
   beforeEach(() => {
@@ -106,10 +118,10 @@ describe("PerpsMenuDrawer", () => {
     expect(rail?.contains(document.activeElement)).toBe(true);
   });
 
-  // sectionForPathname derives the highlight from /perps, and Perpetuals is
-  // in HIDDEN_NAV_SECTIONS on this branch, so the section the reader is in
-  // has no entry to light. The desk is still reachable and its drawer still
-  // works; it just does not point back at itself.
+  // The perps screen's own section is Perpetuals, which this build no longer
+  // offers — so the rail lights nothing rather than lighting an entry that is
+  // not there. sectionForPathname still derives the section from /perps;
+  // buildNav simply has no entry to mark.
   it("lights no entry when the page's own section is not offered", () => {
     render(<PerpsScreen />);
     fireEvent.click(hamburger());

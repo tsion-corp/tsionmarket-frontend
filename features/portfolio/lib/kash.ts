@@ -14,8 +14,12 @@
 // money. Keep amounts as strings end to end and only parse for display math.
 
 import { createServiceClient } from "@/lib/api/service";
+import type { AuthIdentity } from "@/lib/auth-token";
 
 const kash = createServiceClient("/api/kash", "Kash is unavailable right now.");
+// The same transport signing as a chosen identity — used by the migration
+// sweep to read/act on the OLD (legacy) wallet. Defaults to the current user.
+const kashAs = (identity?: AuthIdentity) => (identity ? kash.as(identity) : kash);
 
 export interface KashStatus {
   price: { kashPriceUsd: string; source: string };
@@ -191,13 +195,17 @@ export const claimSettlementMessage = (wallet: string, timestamp: number) =>
  * backend recovers the signer before settling — otherwise anyone could name
  * an arbitrary wallet in the body and force its claim.
  */
-export const postKashClaim = (wallet: string, signature: string, timestamp: number) =>
-  kash.post<KashClaim>("/settlements/claim", { wallet, signature, timestamp });
+export const postKashClaim = (
+  wallet: string,
+  signature: string,
+  timestamp: number,
+  identity?: AuthIdentity
+) => kashAs(identity).post<KashClaim>("/settlements/claim", { wallet, signature, timestamp });
 
 export const getKashStatus = () => kash.get<KashStatus>("/status");
 
-export const getKashAccount = (wallet: string) =>
-  kash.authedGet<KashAccount>(`/accounts/${wallet}`);
+export const getKashAccount = (wallet: string, identity?: AuthIdentity) =>
+  kashAs(identity).authedGet<KashAccount>(`/accounts/${wallet}`);
 
 export const getKashLedger = (wallet: string, limit = 20) =>
   kash.authedGet<KashLedgerEntry[]>(`/accounts/${wallet}/ledger`, { limit });
@@ -205,8 +213,8 @@ export const getKashLedger = (wallet: string, limit = 20) =>
 export const getKashSubscriptionTiers = () =>
   kash.get<KashSubscriptionTier[]>("/subscriptions/tiers");
 
-export const getKashSubscription = (wallet: string) =>
-  kash.authedGet<KashSubscription>(`/subscriptions/${wallet}`);
+export const getKashSubscription = (wallet: string, identity?: AuthIdentity) =>
+  kashAs(identity).authedGet<KashSubscription>(`/subscriptions/${wallet}`);
 
 export const postKashSubscribe = (wallet: string, tier: number, paymentTxHash?: string) =>
   kash.post<KashSubscription>("/subscriptions", { wallet, tier, paymentTxHash });

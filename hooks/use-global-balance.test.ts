@@ -6,10 +6,17 @@ import { createElement, type ReactNode } from "react";
 
 vi.mock("server-only", () => ({}));
 
-const privy = vi.hoisted(() => ({ user: {}, ready: true, authenticated: true }));
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => privy }));
-vi.mock("@/lib/user", () => ({
-  getWalletAddress: (_u: unknown, chain: string) => (chain === "solana" ? "SoL1" : "0xEvm"),
+// The session, through the Decane-backed seam: `privy` still drives
+// ready/authenticated so the cases below keep their meaning.
+const privy = vi.hoisted(() => ({ ready: true, authenticated: true }));
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    evmAddress: "0xEvm",
+    solanaAddress: "SoL1",
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+    ...privy,
+  }),
 }));
 
 const apiFetch = vi.hoisted(() => vi.fn());

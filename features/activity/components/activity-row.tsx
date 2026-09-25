@@ -225,6 +225,7 @@ export function ActivityRow({ item, priceUsd }: { item: ActivityEntry; priceUsd:
             <div className="truncate text-xs font-normal text-white/50">
               {clockTime(item.timestamp)} ·{" "}
               {network === "Bitcoin" ? network : (NETWORK_LABEL[network] ?? network)}
+              {item.legacy ? ` · ${t("oldAccount")}` : ""}
               {item.counterparty
                 ? ` · ${incoming ? t("from") : t("to")} ${truncateAddress(item.counterparty)}`
                 : ""}

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { recordAuthMethod } from "@/lib/analytics/auth-method";
 
 // Who Mixpanel thinks the person is. Three things go wrong without care here:
 // a signup sent before the wallet exists is anonymous and lands on nobody; a
@@ -9,17 +10,24 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const CHECKSUMMED = "0xAbCdEf0123456789aBcDeF0123456789AbCdEf01";
 
-const privy = vi.hoisted(() => ({
+const session = vi.hoisted(() => ({
   ready: true,
   authenticated: false,
-  user: null as unknown,
-  onComplete: null as null | ((args: Record<string, unknown>) => void),
+  evmAddress: null as string | null,
+  isNewUser: false,
 }));
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ ready: privy.ready, authenticated: privy.authenticated, user: privy.user }),
-  useLogin: ({ onComplete }: { onComplete: (args: Record<string, unknown>) => void }) => {
-    privy.onComplete = onComplete;
-  },
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: session.ready,
+    authenticated: session.authenticated,
+    evmAddress: session.evmAddress,
+    solanaAddress: null,
+    profile: { name: "Ada", email: "a@b.co", avatarSeed: "ada" },
+    logout: vi.fn(),
+  }),
+}));
+vi.mock("decane-connect-kit", () => ({
+  useSocialAuth: () => ({ isNewUser: session.isNewUser }),
 }));
 
 // One ordered log across every analytics call, so the tests can say which
@@ -41,35 +49,27 @@ vi.mock("@/lib/analytics/clarity", () => ({
 
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 
-function userWithWallet(address: string | null) {
-  return {
-    id: "did:privy:u1",
-    email: { address: "a@b.co" },
-    linkedAccounts: address
-      ? [{ type: "wallet", walletClientType: "privy", chainType: "ethereum", address }]
-      : [],
-  };
-}
-
 beforeEach(() => {
   calls.length = 0;
   vi.clearAllMocks();
-  privy.ready = true;
-  privy.authenticated = false;
-  privy.user = null;
+  session.ready = true;
+  session.authenticated = false;
+  session.evmAddress = null;
+  session.isNewUser = false;
 });
 
 describe("AnalyticsIdentity", () => {
   it("sends a new account's signup only once it has been identified", () => {
-    // Privy finishes the login before the embedded wallet exists.
-    privy.authenticated = true;
-    privy.user = userWithWallet(null);
+    // The sign-in completes (the auth component records its method) before
+    // the embedded wallet exists.
+    recordAuthMethod("google");
+    session.authenticated = true;
+    session.isNewUser = true;
     const view = renderHook(() => AnalyticsIdentity());
-    privy.onComplete!({ isNewUser: true, loginMethod: "google", wasAlreadyAuthenticated: false });
     expect(calls).not.toContain("track:signup_completed");
 
     // The wallet arrives on a later render.
-    privy.user = userWithWallet(CHECKSUMMED);
+    session.evmAddress = CHECKSUMMED;
     view.rerender();
 
     expect(calls.indexOf(`identify:${CHECKSUMMED}`)).toBeGreaterThanOrEqual(0);
@@ -80,19 +80,29 @@ describe("AnalyticsIdentity", () => {
   });
 
   it("sends a login straight away when the account is already identified", () => {
-    privy.authenticated = true;
-    privy.user = userWithWallet(CHECKSUMMED);
+    recordAuthMethod("email");
+    session.authenticated = true;
+    session.evmAddress = CHECKSUMMED;
     renderHook(() => AnalyticsIdentity());
-    privy.onComplete!({ isNewUser: false, loginMethod: "email", wasAlreadyAuthenticated: false });
 
     expect(analytics.track).toHaveBeenCalledWith("login_completed", { method: "email" });
   });
 
-  it("identifies by the address as Privy gives it, and adds it lowercase for joins", () => {
+  it("sends no login for a session that merely hydrated", () => {
+    // Nothing recorded a method: this is a returning visitor, not a sign-in.
+    session.authenticated = true;
+    session.evmAddress = CHECKSUMMED;
+    renderHook(() => AnalyticsIdentity());
+
+    expect(analytics.identifyUser).toHaveBeenCalledTimes(1);
+    expect(analytics.track).not.toHaveBeenCalled();
+  });
+
+  it("identifies by the address as the session gives it, and adds it lowercase for joins", () => {
     // Every existing Mixpanel profile is keyed by the checksummed address, so
     // changing the id would split each person in two.
-    privy.authenticated = true;
-    privy.user = userWithWallet(CHECKSUMMED);
+    session.authenticated = true;
+    session.evmAddress = CHECKSUMMED;
     renderHook(() => AnalyticsIdentity());
 
     expect(analytics.identifyUser).toHaveBeenCalledWith(CHECKSUMMED, expect.anything());
@@ -108,8 +118,8 @@ describe("AnalyticsIdentity", () => {
     expect(analytics.resetStaleIdentity).toHaveBeenCalledTimes(1);
   });
 
-  it("does nothing about identity until Privy knows whether there is a session", () => {
-    privy.ready = false;
+  it("does nothing about identity until the session knows whether it is signed in", () => {
+    session.ready = false;
     renderHook(() => AnalyticsIdentity());
     expect(analytics.resetStaleIdentity).not.toHaveBeenCalled();
     expect(analytics.identifyUser).not.toHaveBeenCalled();

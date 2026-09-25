@@ -2,9 +2,13 @@ import { act, renderHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import type { MemeToken } from "@/lib/meme/types";
-import type { Paged } from "@/lib/meme/catalog";
+import {
+  CATALOG_PAGE_INTERVAL_MS,
+  CATALOG_RATE_LIMIT_BASE_MS,
+  type Paged,
+} from "@/lib/meme/catalog";
 import { SCREENER_PRESETS, type ScreenerFilters } from "@/lib/meme/screener";
 import { createSessionCache } from "@/lib/session-cache";
 
@@ -24,7 +28,6 @@ import { TradeApiError } from "@/lib/meme/api";
 import { isPersistedKey } from "@/lib/query-persist";
 import {
   SCREENER_SESSION_MAX_AGE_MS,
-  SCREENER_STALE_MS,
   TRENDING_REFRESH_MS,
   __setScreenerSessionStorageForTests,
   useMemeScreener,
@@ -54,8 +57,16 @@ class MemoryStorage implements Storage {
   }
 }
 
+// The trending route cannot be paged, so the board is asked for at the
+// contract's maximum and paged on the client.
+const BOARD_LIMIT = 500;
+
 const NOW = Date.parse("2026-09-15T12:00:00Z");
 const NAMESPACE = "wsws.meme-screener";
+// Kept in step with SESSION_VERSION in the hook. It went to 2 when a "list:"
+// entry stopped holding the query's whole InfiniteData and started holding one
+// page.
+const VERSION = 2;
 
 let storage: MemoryStorage;
 
@@ -77,6 +88,11 @@ async function advance(ms: number) {
   });
 }
 const settle = () => advance(1);
+// The walk is paced: a page lands, and the next is asked for one interval
+// later. Ten intervals covers every list these tests serve.
+async function walked(pages = 10) {
+  for (let i = 0; i < pages; i += 1) await advance(CATALOG_PAGE_INTERVAL_MS + 10);
+}
 
 function row(n: number, extra: Partial<MemeToken> = {}): MemeToken {
   return memeToken({ symbol: `C${n}`, address: `0x${String(n).padStart(40, "0")}`, ...extra });
@@ -90,7 +106,7 @@ function page(items: MemeToken[], meta: Partial<Paged<MemeToken>["meta"]> = {}) 
 function storeEntry(key: string, data: unknown, ageMs: number) {
   createSessionCache({
     namespace: NAMESPACE,
-    version: 1,
+    version: VERSION,
     maxEntries: 12,
     storage,
     now: () => Date.now() - ageMs,
@@ -121,10 +137,9 @@ describe("the screener's query keys", () => {
     expect(isPersistedKey(["meme-screener", "trending", ""])).toBe(false);
   });
 
-  it("uses a minute of freshness, five minutes of session age and a two minute poll", () => {
-    expect(SCREENER_STALE_MS).toBe(60_000);
+  it("refreshes trending every ten minutes and keeps five minutes of session age", () => {
     expect(SCREENER_SESSION_MAX_AGE_MS).toBe(300_000);
-    expect(TRENDING_REFRESH_MS).toBe(120_000);
+    expect(TRENDING_REFRESH_MS).toBe(600_000);
   });
 });
 
@@ -133,46 +148,67 @@ describe("useTrendingBoard", () => {
     api.fetchTrendingBoard.mockImplementation(async () => page([row(1), row(2)]));
     const { client, wrapper } = setup();
     const { result, rerender } = renderHook(
-      ({ query }: { query: string }) => useTrendingBoard({ query, view: "curated" }),
+      ({ query }: { query: string }) => useTrendingBoard({ query }),
       { wrapper, initialProps: { query: "" } }
     );
     await settle();
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
-    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("");
+    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("", BOARD_LIMIT);
     expect(result.current.tokens).toHaveLength(2);
     expect(client.getQueryData(["meme-screener", "trending", ""])).toBeDefined();
 
     rerender({ query: "minLiquidityUsd=10000" });
     await settle();
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(2);
-    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minLiquidityUsd=10000");
+    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minLiquidityUsd=10000", BOARD_LIMIT);
 
     // Back to a query already held, and a second surface on the same one.
     rerender({ query: "" });
-    renderHook(() => useTrendingBoard({ query: "", view: "all" }), { wrapper });
+    renderHook(() => useTrendingBoard({ query: "" }), { wrapper });
     await settle();
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(2);
   });
 
-  it("applies the view over what it holds, without asking again", async () => {
+  it("shows the whole ranking, whichever view the reader has chosen", async () => {
+    // The strip takes no view. Trending rows carry no risk assessment, so under
+    // "curated" it kept nothing and the rail was empty whatever the toggle
+    // said. A HIGH risk row is kept here on purpose: that is the cost the
+    // maintainer accepted on 2026-09-17 to have a rail that shows the real
+    // ranking. See fetchTrendingTokens in lib/meme/api.ts.
     api.fetchTrendingBoard.mockResolvedValue(page([row(1), row(2, { riskLevel: "HIGH" })]));
     const { wrapper } = setup();
-    const { result, rerender } = renderHook(
-      ({ view }: { view: "curated" | "all" }) => useTrendingBoard({ query: "", view }),
-      { wrapper, initialProps: { view: "curated" } }
-    );
-    await settle();
-    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C1"]);
-    rerender({ view: "all" });
+    const { result } = renderHook(() => useTrendingBoard({ query: "" }), { wrapper });
     await settle();
     expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C1", "C2"]);
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
   });
 
-  it("polls every two minutes", async () => {
+  it("asks for the whole board in one request, at the contract's maximum", async () => {
     api.fetchTrendingBoard.mockResolvedValue(page([row(1)]));
     const { wrapper } = setup();
-    renderHook(() => useTrendingBoard({ query: "", view: "all" }), { wrapper });
+    renderHook(() => useTrendingBoard({ query: "" }), { wrapper });
+    await settle();
+    expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
+    expect(api.fetchTrendingBoard).toHaveBeenCalledWith("", BOARD_LIMIT);
+  });
+
+  // The incident this replaced: a thirty second poll on a route the gateway
+  // rate-limits at 100 requests a minute per IP, shared by every user.
+  it("does not poll on a short interval", async () => {
+    api.fetchTrendingBoard.mockResolvedValue(page([row(1)]));
+    const { wrapper } = setup();
+    renderHook(() => useTrendingBoard({ query: "" }), { wrapper });
+    await settle();
+    for (const ms of [30_000, 60_000, 120_000]) {
+      await advance(ms);
+      expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it("reads again once ten minutes have passed, and not a tick before", async () => {
+    api.fetchTrendingBoard.mockResolvedValue(page([row(1)]));
+    const { wrapper } = setup();
+    renderHook(() => useTrendingBoard({ query: "" }), { wrapper });
     await settle();
     await advance(TRENDING_REFRESH_MS - 10);
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
@@ -180,11 +216,37 @@ describe("useTrendingBoard", () => {
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(2);
   });
 
+  it("refetches on demand however fresh the board is, and says while it is in flight", async () => {
+    api.fetchTrendingBoard.mockResolvedValue(page([row(1)]));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useTrendingBoard({ query: "" }), { wrapper });
+    await settle();
+    expect(result.current.isRefreshing).toBe(false);
+
+    let release: (value: Paged<MemeToken>) => void = () => undefined;
+    api.fetchTrendingBoard.mockImplementationOnce(
+      () =>
+        new Promise<Paged<MemeToken>>((resolve) => {
+          release = resolve;
+        })
+    );
+    act(() => result.current.refetch());
+    await settle();
+    expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(2);
+    expect(result.current.isRefreshing).toBe(true);
+    await act(async () => {
+      release(page([row(2)]));
+    });
+    await settle();
+    expect(result.current.isRefreshing).toBe(false);
+    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C2"]);
+  });
+
   it("surfaces a failure as an error with no tokens", async () => {
     const failure = new TradeApiError("PROVIDER_ERROR", "down", 502, "req-1");
     api.fetchTrendingBoard.mockRejectedValue(failure);
     const { wrapper } = setup();
-    const { result } = renderHook(() => useTrendingBoard({ query: "", view: "all" }), {
+    const { result } = renderHook(() => useTrendingBoard({ query: "" }), {
       wrapper,
     });
     await settle();
@@ -197,10 +259,10 @@ describe("useTrendingBoard", () => {
   it("writes a successful result back to sessionStorage under the namespace", async () => {
     api.fetchTrendingBoard.mockResolvedValue(page([row(1), row(2)]));
     const { wrapper } = setup();
-    renderHook(() => useTrendingBoard({ query: "minPriceUsd=1", view: "curated" }), { wrapper });
+    renderHook(() => useTrendingBoard({ query: "minPriceUsd=1" }), { wrapper });
     await settle();
     const entry = stored("trending:minPriceUsd=1");
-    expect(entry?.v).toBe(1);
+    expect(entry?.v).toBe(VERSION);
     expect(entry?.savedAt).toBe(NOW);
     expect((entry?.data as Paged<MemeToken>).items.map((t) => t.symbol)).toEqual(["C1", "C2"]);
   });
@@ -209,7 +271,7 @@ describe("useTrendingBoard", () => {
     it("paints an entry under a minute old without asking", async () => {
       storeEntry("trending:", page([row(7)]), 30_000);
       const { wrapper } = setup();
-      const { result } = renderHook(() => useTrendingBoard({ query: "", view: "all" }), {
+      const { result } = renderHook(() => useTrendingBoard({ query: "" }), {
         wrapper,
       });
       expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C7"]);
@@ -220,25 +282,26 @@ describe("useTrendingBoard", () => {
       expect(stored("trending:")?.savedAt).toBe(NOW - 30_000);
     });
 
-    it("paints an entry over a minute old and refreshes it behind", async () => {
+    // An entry inside the session window is inside the ten minute freshness
+    // window too, so it is painted and left alone. It used to be refreshed
+    // behind, which made every reload of the desk a trending request.
+    it("paints an entry a minute and a half old without asking", async () => {
       storeEntry("trending:", page([row(7)]), 90_000);
-      api.fetchTrendingBoard.mockResolvedValue(page([row(8)]));
       const { wrapper } = setup();
-      const { result } = renderHook(() => useTrendingBoard({ query: "", view: "all" }), {
+      const { result } = renderHook(() => useTrendingBoard({ query: "" }), {
         wrapper,
       });
       expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C7"]);
       await settle();
-      expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
-      expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C8"]);
-      expect(stored("trending:")?.savedAt).toBe(NOW);
+      expect(api.fetchTrendingBoard).not.toHaveBeenCalled();
+      expect(stored("trending:")?.savedAt).toBe(NOW - 90_000);
     });
 
     it("ignores an entry over five minutes old", async () => {
       storeEntry("trending:", page([row(7)]), SCREENER_SESSION_MAX_AGE_MS + 1);
       api.fetchTrendingBoard.mockResolvedValue(page([row(8)]));
       const { wrapper } = setup();
-      const { result } = renderHook(() => useTrendingBoard({ query: "", view: "all" }), {
+      const { result } = renderHook(() => useTrendingBoard({ query: "" }), {
         wrapper,
       });
       expect(result.current.tokens).toEqual([]);
@@ -254,7 +317,7 @@ describe("useTrendingBoard", () => {
       const frames: (string | null)[][] = [];
       const { result } = renderHook(
         () => {
-          const board = useTrendingBoard({ query: "", view: "all" });
+          const board = useTrendingBoard({ query: "" });
           frames.push(board.tokens.map((t) => t.symbol));
           return board;
         },
@@ -282,30 +345,65 @@ describe("useScreenerCatalog", () => {
     expect(result.current.total).toBeNull();
   });
 
-  it("walks the filtered pages with the same query, and hands back the catalogue's shape", async () => {
-    api.fetchScreenerPage.mockImplementation(async (n: number) =>
-      page([row(n)], { page: n, limit: 1, total: 2 })
-    );
+  it("walks every filtered page with the same query, without being asked", async () => {
+    // A page takes a moment to arrive, as one does: the walk asks for the next
+    // only once the last has landed, and the session copy is rewritten each
+    // time, which an instant mock would hide behind one timestamp.
+    api.fetchScreenerPage.mockImplementation(async (n: number) => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      return page([row(n)], { page: n, limit: 1, total: 2 });
+    });
     const { wrapper } = setup();
     const query = "maxMarketCapUsd=1000000";
     const { result } = renderHook(() => useScreenerCatalog({ query, view: "all", enabled: true }), {
       wrapper,
     });
     expect(result.current.isLoading).toBe(true);
-    await settle();
-    expect(api.fetchScreenerPage).toHaveBeenLastCalledWith(1, query);
-    expect(result.current).toMatchObject({ total: 2, loaded: 1, shownCount: 1, hasMore: true });
-    await act(async () => {
-      result.current.loadMore();
+    await walked();
+    expect(api.fetchScreenerPage.mock.calls).toEqual([
+      [1, query],
+      [2, query],
+    ]);
+    expect(result.current).toMatchObject({
+      total: 2,
+      loaded: 2,
+      shownCount: 2,
+      hasMore: false,
+      loadMoreFailed: false,
     });
-    await settle();
-    expect(api.fetchScreenerPage).toHaveBeenLastCalledWith(2, query);
-    expect(result.current).toMatchObject({ loaded: 2, hasMore: false, loadMoreFailed: false });
     expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C1", "C2"]);
-    // Both pages are kept for the session.
-    const entry = stored(`list:${query}`)?.data as { pages: unknown[]; pageParams: number[] };
-    expect(entry.pageParams).toEqual([1, 2]);
-    expect(entry.pages).toHaveLength(2);
+    // Only the first page is kept for the session, and only that one. The
+    // walked list runs to 289 pages of 500 rows, so storing what the query
+    // holds would put megabytes into an origin quota of about five.
+    const entry = stored(`list:${query}`)?.data as Paged<MemeToken>;
+    expect(entry.items.map((t) => t.symbol)).toEqual(["C1"]);
+    expect(entry.meta.page).toBe(1);
+
+    // And then nothing: no interval, and no refetch when the surface remounts.
+    await advance(TRENDING_REFRESH_MS * 2);
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(2);
+    renderHook(() => useScreenerCatalog({ query, view: "all", enabled: true }), { wrapper });
+    await walked();
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops the walk on a failed page rather than asking again on every render", async () => {
+    const failure = new TradeApiError("SERVICE_UNAVAILABLE", "down", 503);
+    api.fetchScreenerPage
+      .mockImplementationOnce(async () => page([row(1)], { page: 1, limit: 1, total: 3 }))
+      .mockRejectedValue(failure);
+    const { wrapper } = setup();
+    const query = "minLiquidityUsd=10000";
+    const { result } = renderHook(() => useScreenerCatalog({ query, view: "all", enabled: true }), {
+      wrapper,
+    });
+    await walked();
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(2);
+    expect(result.current.loadMoreFailed).toBe(true);
+    // The page that did land stays on screen.
+    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C1"]);
+    await advance(TRENDING_REFRESH_MS);
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(2);
   });
 
   it("applies the view over what it holds, without asking again", async () => {
@@ -338,17 +436,109 @@ describe("useScreenerCatalog", () => {
     expect(result.current.isLoading).toBe(false);
   });
 
-  it("paints the stored pages of a recent session without asking", async () => {
+  it("paces the filtered walk exactly like the catalogue's", async () => {
+    api.fetchScreenerPage.mockImplementation(async (n: number) => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      return page([row(n)], { page: n, limit: 1, total: 3 });
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(
+      () => useScreenerCatalog({ query: "sortBy=age&sortOrder=asc", view: "all", enabled: true }),
+      { wrapper }
+    );
+    await settle();
+    await settle();
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(1);
+    await advance(CATALOG_PAGE_INTERVAL_MS - 10);
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(1);
+    await advance(10);
+    await settle();
+    expect(api.fetchScreenerPage).toHaveBeenCalledTimes(2);
+    await settle();
+    expect(result.current.progress).toMatchObject({ status: "walking", loaded: 2, pageCount: 3 });
+  });
+
+  it("backs off a rate-limited page and finishes the list afterwards", async () => {
+    const limited = { on: true };
+    api.fetchScreenerPage.mockImplementation(async (n: number) => {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      if (n === 2 && limited.on) {
+        throw new TradeApiError("SERVICE_UNAVAILABLE", "slow down", 429);
+      }
+      return page([row(n)], { page: n, limit: 1, total: 2 });
+    });
+    const { wrapper } = setup();
+    const { result } = renderHook(
+      () => useScreenerCatalog({ query: "minLiquidityUsd=10000", view: "all", enabled: true }),
+      { wrapper }
+    );
+    await walked(1);
+    expect(result.current.progress.status).toBe("rate-limited");
+    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C1"]);
+    limited.on = false;
+    await advance(CATALOG_RATE_LIMIT_BASE_MS);
+    await walked(2);
+    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C1", "C2"]);
+    expect(result.current.progress.status).toBe("complete");
+  });
+
+  // The guarantee the localStorage snapshot was given up for. This list never
+  // goes stale, so a stored page handed over as initialData would leave a
+  // reload painting a five minute old list and reading nothing at all.
+  it("paints a recent session's stored page and still reads the service", async () => {
     const query = "minLiquidityUsd=100000";
-    storeEntry(`list:${query}`, { pages: [page([row(3), row(4)])], pageParams: [1] }, 10_000);
+    storeEntry(`list:${query}`, page([row(3), row(4)]), 10_000);
+    api.fetchScreenerPage.mockResolvedValue(page([row(5)]));
     const { wrapper } = setup();
     const { result } = renderHook(() => useScreenerCatalog({ query, view: "all", enabled: true }), {
       wrapper,
     });
+    // Rows on the first frame, so the surface shows a list rather than a
+    // skeleton while its own read is in flight.
     expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C3", "C4"]);
     expect(result.current.isLoading).toBe(false);
+
     await settle();
-    expect(api.fetchScreenerPage).not.toHaveBeenCalled();
+    expect(api.fetchScreenerPage).toHaveBeenCalledWith(1, query);
+    // And the service's answer replaces the stored rows, rather than sitting
+    // behind them.
+    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C5"]);
+  });
+
+  it("shows the stored page when the first page fails, instead of an empty list", async () => {
+    const query = "minLiquidityUsd=100000";
+    storeEntry(`list:${query}`, page([row(3), row(4)]), 10_000);
+    const failure = new TradeApiError("SERVICE_UNAVAILABLE", "down", 503);
+    api.fetchScreenerPage.mockRejectedValue(failure);
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useScreenerCatalog({ query, view: "all", enabled: true }), {
+      wrapper,
+    });
+    await settle();
+
+    expect(result.current.tokens.map((t) => t.symbol)).toEqual(["C3", "C4"]);
+    expect(result.current.isLoading).toBe(false);
+    // The failure is still reported: the rows are shown under a line saying the
+    // prices are stale, not passed off as healthy.
+    expect(result.current.error).toBe(failure);
+    // And the stored page is not written back over itself, so its age stays
+    // honest through the outage.
+    expect(stored(`list:${query}`)?.savedAt).toBe(NOW - 10_000);
+  });
+
+  it("ignores a stored page over five minutes old", async () => {
+    const query = "minLiquidityUsd=100000";
+    storeEntry(`list:${query}`, page([row(3)]), SCREENER_SESSION_MAX_AGE_MS + 1);
+    api.fetchScreenerPage.mockRejectedValue(new TradeApiError("SERVICE_UNAVAILABLE", "down", 503));
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useScreenerCatalog({ query, view: "all", enabled: true }), {
+      wrapper,
+    });
+    await settle();
+
+    expect(result.current.tokens).toEqual([]);
+    expect(result.current.error).toBeTruthy();
+    expect(stored(`list:${query}`)).toBeNull();
   });
 });
 
@@ -376,7 +566,7 @@ describe("useMemeScreener", () => {
     });
     expect(result.current.filters).toEqual({ bounds: {}, sort: null });
     expect(api.fetchScreenerPage).not.toHaveBeenCalled();
-    expect(api.fetchTrendingBoard).toHaveBeenCalledWith("");
+    expect(api.fetchTrendingBoard).toHaveBeenCalledWith("", BOARD_LIMIT);
     expect(result.current.list.isLoading).toBe(false);
     expect(result.current.trending.filtered).toBe(false);
   });
@@ -398,7 +588,7 @@ describe("useMemeScreener", () => {
 
     rerender({ enabled: true });
     await settle();
-    expect(api.fetchTrendingBoard).toHaveBeenCalledWith("minLiquidityUsd=10000");
+    expect(api.fetchTrendingBoard).toHaveBeenCalledWith("minLiquidityUsd=10000", BOARD_LIMIT);
     expect(api.fetchScreenerPage).toHaveBeenCalledWith(1, "minLiquidityUsd=10000");
   });
 
@@ -421,7 +611,7 @@ describe("useMemeScreener", () => {
     await settle();
     // The sort survives an apply, and trending gets the bounds but never the sort.
     expect(result.current.filters.sort).toEqual({ by: "volume", order: "desc" });
-    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minLiquidityUsd=10000");
+    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minLiquidityUsd=10000", BOARD_LIMIT);
     expect(api.fetchScreenerPage).toHaveBeenLastCalledWith(
       1,
       "minLiquidityUsd=10000&sortBy=volume&sortOrder=desc&timeframe=24h"
@@ -456,7 +646,10 @@ describe("useMemeScreener", () => {
     act(() => result.current.setTimeframe("1h"));
     await settle();
     expect(api.fetchScreenerPage).toHaveBeenLastCalledWith(1, "minVolumeUsd=5000&timeframe=1h");
-    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minVolumeUsd=5000&timeframe=1h");
+    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith(
+      "minVolumeUsd=5000&timeframe=1h",
+      BOARD_LIMIT
+    );
     expect(result.current.resetKey).not.toBe(resetKey);
   });
 
@@ -473,8 +666,11 @@ describe("useMemeScreener", () => {
     expect(result.current.trending.tokens).toHaveLength(2);
     rerender({ view: "curated" });
     await settle();
+    // The list follows the reader's choice. The strip does not: it always shows
+    // the whole ranking, because trending rows are unrated and "curated" would
+    // empty it. Two different answers from one toggle, on purpose.
     expect(result.current.list.tokens).toHaveLength(1);
-    expect(result.current.trending.tokens).toHaveLength(1);
+    expect(result.current.trending.tokens).toHaveLength(2);
     expect(api.fetchScreenerPage).toHaveBeenCalledTimes(1);
     expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
   });
@@ -602,7 +798,7 @@ describe("useMemeScreener", () => {
     // A bound changes it: back to page 1, even though the new board is as long.
     act(() => result.current.apply({ liquidity: { min: "1" } }));
     await settle();
-    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minLiquidityUsd=1");
+    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("minLiquidityUsd=1", BOARD_LIMIT);
     expect(result.current.trending).toMatchObject({ page: 1, pages: 3 });
     expect(result.current.trending.pageTokens.map((t) => t.symbol)[0]).toBe("C1");
   });
@@ -618,6 +814,22 @@ describe("useMemeScreener", () => {
     await settle();
     expect(result.current.trending).toMatchObject({ page: 2, pages: 2 });
     expect(result.current.trending.pageTokens.map((t) => t.symbol)).toEqual(["C6"]);
+  });
+
+  it("exposes the refresh contract the trending strip's button is built on", async () => {
+    serveBoth();
+    const { result } = mount(5);
+    await settle();
+    expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(1);
+    expect(result.current.trendingRefreshing).toBe(false);
+
+    // Fresh data, and the press still reads: that is what a refresh means.
+    act(() => result.current.refreshTrending());
+    await settle();
+    expect(api.fetchTrendingBoard).toHaveBeenCalledTimes(2);
+    expect(api.fetchTrendingBoard).toHaveBeenLastCalledWith("", BOARD_LIMIT);
+    // A press does not disturb the list.
+    expect(api.fetchScreenerPage).not.toHaveBeenCalled();
   });
 
   it("reports one page and no tokens while trending has nothing", async () => {

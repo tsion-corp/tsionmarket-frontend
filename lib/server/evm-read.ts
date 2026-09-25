@@ -116,6 +116,38 @@ function unservedError(envelopes: RpcEnvelope[]): RpcEnvelope["error"] | null {
   return null;
 }
 
+/**
+ * A connection that died between requests, rather than a request that failed.
+ *
+ * Node's fetch pools HTTP/2 sessions and ZeroDev's RPC serves over HTTP/2. When
+ * the far end closes an idle session (GOAWAY, idle timeout) the pooled session
+ * is destroyed, but the next request still reaches for it and fails at once
+ * with ERR_HTTP2_INVALID_SESSION — "The session has been destroyed". Measured
+ * on a dev session before this retry: 36 of 87 reads returned 502 while the
+ * upstream was perfectly healthy and only the socket was stale.
+ *
+ * Safe to retry precisely because the request never left: nothing was sent, so
+ * nothing can have been applied twice. Deliberately narrow — a timeout, or any
+ * answer the upstream actually gave, is not this and is not retried.
+ */
+function isDeadConnection(error: unknown): boolean {
+  const seen = new Set<unknown>();
+  for (let e: unknown = error; e && !seen.has(e); e = (e as { cause?: unknown }).cause) {
+    seen.add(e);
+    const code = (e as { code?: string }).code;
+    if (
+      code === "ERR_HTTP2_INVALID_SESSION" ||
+      code === "ERR_HTTP2_GOAWAY_SESSION" ||
+      code === "ECONNRESET" ||
+      code === "EPIPE" ||
+      code === "UND_ERR_SOCKET"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
 async function fromZeroDev(
   chainId: number,
   batch: ReturnType<typeof toBatch>
@@ -124,15 +156,25 @@ async function fromZeroDev(
   const now = Date.now();
   if (!url || zeroDevBackoffUntil > now || (zeroDevSkipUntil.get(chainId) ?? 0) > now) return null;
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
+  const send = (): Promise<Response> =>
+    fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(batch),
       signal: AbortSignal.timeout(ZERODEV_TIMEOUT_MS),
       cache: "no-store",
     });
+
+  let response: Response;
+  try {
+    // One retry, and only for a dead pooled connection. These are reads, so
+    // replaying one costs a round trip and nothing else.
+    try {
+      response = await send();
+    } catch (error) {
+      if (!isDeadConnection(error)) throw error;
+      response = await send();
+    }
   } catch (error) {
     console.warn(`evm-read: ZeroDev unreachable for chain ${chainId}; using Alchemy`, error);
     return null;

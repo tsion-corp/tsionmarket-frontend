@@ -8,8 +8,10 @@ import {
   TRADE_ACTIVITY,
 } from "@/lib/api/schemas/trade.fixtures";
 
+// The hook reads the session through the Decane-backed seam now; the fixture
+// keeps its shape so the sign-in cases below are unchanged.
 const privy = vi.hoisted(() => ({ ready: true, authenticated: true }));
-vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => privy }));
+vi.mock("@/hooks/use-auth-session", () => ({ useAuthSession: () => privy }));
 
 // The section's on-screen flag, driven by hand: the real one comes from an
 // IntersectionObserver, which jsdom does not have.
@@ -140,6 +142,24 @@ describe("useMemePortfolioSummary polling", () => {
     await act(() => vi.advanceTimersByTimeAsync(59_000));
     expect(api.fetchPortfolioSummary).toHaveBeenCalledTimes(1);
     await act(() => vi.advanceTimersByTimeAsync(1_000));
+    expect(api.fetchPortfolioSummary).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks less often once the service stops answering", async () => {
+    api.fetchPortfolioSummary.mockRejectedValue(new Error("Can't reach the server right now"));
+    const { result } = renderHook(() => useMemePortfolioSummary(), { wrapper });
+    await flush();
+    expect(api.fetchPortfolioSummary).toHaveBeenCalledTimes(1);
+    expect(result.current.error).toBeTruthy();
+
+    // The healthy minute passes with nothing asked: a service that has stopped
+    // answering is not asked at the rate a healthy one is.
+    await act(() => vi.advanceTimersByTimeAsync(MEME_PORTFOLIO_POLL_MS));
+    expect(api.fetchPortfolioSummary).toHaveBeenCalledTimes(1);
+
+    // It backs off rather than stopping, so a service that recovers is noticed
+    // without the user reloading the page.
+    await act(() => vi.advanceTimersByTimeAsync(MEME_PORTFOLIO_POLL_MS));
     expect(api.fetchPortfolioSummary).toHaveBeenCalledTimes(2);
   });
 

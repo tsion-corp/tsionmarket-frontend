@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getRequestUser, verifyRequest } from "@/lib/server/auth";
-import { walletOfUser } from "@/lib/server/chess-identity";
+import { getRequestIdentity, verifyRequest } from "@/lib/server/auth";
 import { isAllowedPerpPath, perpRevalidate, wsapiPerpRequest } from "@/lib/server/wsapi";
 
 // Server-side proxy for the perp gateway (Hyperliquid perpetuals, the Ark
@@ -36,7 +35,10 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
     // them on a valid session above.
     if (body != null && typeof body === "object" && "trader" in body) {
       const claimed = (body as { trader?: unknown }).trader;
-      const wallet = walletOfUser(await getRequestUser(req, claims));
+      // Provider-agnostic: resolves through Decane for a Decane session and
+      // through Privy for a Privy one. The old Privy-only lookup returned null
+      // for a Decane caller and rejected their own wallet as somebody else's.
+      const wallet = (await getRequestIdentity(req, claims))?.evmAddress ?? null;
       if (
         typeof claimed !== "string" ||
         !wallet ||
@@ -64,7 +66,7 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
       : null;
   if (addressMatch) {
     const claims = await verifyRequest(req);
-    const wallet = claims ? walletOfUser(await getRequestUser(req, claims)) : null;
+    const wallet = claims ? ((await getRequestIdentity(req, claims))?.evmAddress ?? null) : null;
     if (!wallet || addressMatch[1]!.toLowerCase() !== wallet.toLowerCase()) {
       return NextResponse.json(
         { success: false, error: { code: "NOT_FOUND", message: "Not found" } },

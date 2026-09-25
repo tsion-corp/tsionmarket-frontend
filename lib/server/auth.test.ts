@@ -56,6 +56,7 @@ describe("server auth helpers", () => {
 
     expect(privy.verifyAccessToken).toHaveBeenCalledWith("access-token");
     expect(claims).toEqual({
+      provider: "privy" as const,
       userId: "user_1",
       sessionId: "session_1",
       issuedAt: 10,
@@ -67,6 +68,7 @@ describe("server auth helpers", () => {
     privy.getByToken.mockResolvedValue({ id: "user_claim" });
 
     const user = await getRequestUser(makeReq({ "privy-id-token": "id-token" }), {
+      provider: "privy" as const,
       userId: "user_claim",
       sessionId: "session_1",
       issuedAt: 1,
@@ -85,6 +87,7 @@ describe("server auth helpers", () => {
     privy.getById.mockResolvedValue({ id: "user_claim" });
 
     const user = await getRequestUser(makeReq({ "privy-id-token": "stolen-token" }), {
+      provider: "privy" as const,
       userId: "user_claim",
       sessionId: "session_mismatch",
       issuedAt: 1,
@@ -99,6 +102,7 @@ describe("server auth helpers", () => {
     privy.getByToken.mockResolvedValue({ id: "user_victim" });
     privy.getById.mockResolvedValue({ id: "user_claim" });
     const claims = {
+      provider: "privy" as const,
       userId: "user_claim",
       sessionId: "session_poison",
       issuedAt: 1,
@@ -115,6 +119,7 @@ describe("server auth helpers", () => {
     privy.getById.mockResolvedValue({ id: "user_claim" });
 
     const user = await getRequestUser(makeReq(), {
+      provider: "privy" as const,
       userId: "user_claim",
       sessionId: "session_2",
       issuedAt: 1,
@@ -129,6 +134,7 @@ describe("server auth helpers", () => {
   it("reuses the resolved user for repeated requests in one verified session", async () => {
     privy.getByToken.mockResolvedValue({ id: "user_cached" });
     const claims = {
+      provider: "privy" as const,
       userId: "user_cached",
       sessionId: "session_cached",
       issuedAt: 1,

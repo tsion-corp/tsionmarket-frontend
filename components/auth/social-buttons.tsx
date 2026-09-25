@@ -1,11 +1,25 @@
 "use client";
 
-import { useLoginWithOAuth, type OAuthProviderType } from "@privy-io/react-auth";
+import { useState } from "react";
+import { useSocialAuth } from "decane-connect-kit";
 import { useTranslations } from "next-intl";
-import { toast } from "@/lib/toast";
+import { recordAuthMethod } from "@/lib/analytics/auth-method";
 import { track } from "@/lib/analytics/mixpanel";
 import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import type { AuthMethod } from "@/lib/analytics/events";
+import { rememberPending, type LastAuthMethod } from "@/lib/last-auth-method";
+import { toast } from "@/lib/toast";
+
+// The X wordmark. Inline rather than hosted: a sign-in button that waits on a
+// third party's CDN is one that sometimes renders empty. currentColor so it
+// follows the button's text.
+function XLogo({ size = 17 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
 function GoogleLogo() {
   return (
@@ -34,63 +48,122 @@ function GoogleLogo() {
   );
 }
 
-function XLogo() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="#fff">
-      <path d="M18.9 2h3.3l-7.2 8.3L23.5 22h-6.6l-5.2-6.8L5.8 22H2.5l7.7-8.8L1.5 2h6.8l4.7 6.2L18.9 2Zm-1.2 18h1.8L7.1 3.9H5.2L17.7 20Z" />
-    </svg>
-  );
-}
-
 const BUTTON =
-  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-full border border-white/14 bg-white/6 px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60";
+  "flex w-full cursor-pointer items-center justify-center gap-[11px] rounded-full border border-white/14 bg-white/6 px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-medium text-white transition-colors hover:border-white/28 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60";
 
-interface SocialButtonsProps {
-  /** Held back until the terms are accepted; the page says why. */
-  disabled?: boolean;
-}
-
-export function SocialButtons({ disabled = false }: SocialButtonsProps) {
+export function SocialButtons() {
   const t = useTranslations("auth");
-  const { initOAuth, loading } = useLoginWithOAuth();
+  const {
+    signInWithGoogle,
+    googleLoading,
+    signInWithKingsChat,
+    kingschatLoading,
+    signInWithX,
+    xLoading,
+    canUsePasskey,
+    signInWithPasskey,
+  } = useSocialAuth();
+  const [passkeyBusy, setPasskeyBusy] = useState(false);
 
-  const signIn = async (provider: OAuthProviderType) => {
-    // Twitter is "x" in the catalog. Only the providers this screen offers
-    // reach here, so the cast is over a closed set.
-    const method = (provider === "twitter" ? "x" : provider) as AuthMethod;
+  // One report per door. The chosen method is recorded for the identity
+  // provider (lib/analytics/auth-method) AND announced as the selection; a
+  // failure is reported as a login, because this screen is one form for both
+  // and whether the account would have been new is not knowable before it
+  // exists.
+  // The doors on this screen are all methods the last-auth memory knows;
+  // AuthMethod is wider (apple, wallet) and those never reach here.
+  const choose = (method: LastAuthMethod) => {
+    recordAuthMethod(method);
+    rememberPending(method);
     track("auth_method_selected", { method });
+  };
+  const failed = (method: AuthMethod, err: unknown) =>
+    track("login_failed", { method, ...reasonFor(AUTH_FAILURE, err) });
+
+  const signIn = async () => {
     try {
-      await initOAuth({ provider });
+      choose("google");
+      await signInWithGoogle();
     } catch (err) {
-      console.error("OAuth login failed:", err);
-      // Reported as a login: this screen is one form for both, and whether the
-      // account would have been new is not knowable before it exists.
-      track("login_failed", { method, ...reasonFor(AUTH_FAILURE, err) });
+      console.error("Google login failed:", err);
+      failed("google", err);
       toast.error(t("oauthError"));
+    }
+  };
+
+  // One biometric prompt instead of a Google round trip, offered when this
+  // device already holds a passkey-wrapped share for the remembered user, the
+  // common case after a closed tab dropped the session.
+  const passkeySignIn = async () => {
+    setPasskeyBusy(true);
+    try {
+      choose("passkey");
+      await signInWithPasskey();
+    } catch (err) {
+      console.error("Passkey sign-in failed:", err);
+      failed("passkey", err);
+      toast.error(t("passkeyError"));
+    } finally {
+      setPasskeyBusy(false);
+    }
+  };
+
+  // KingsChat opens a consent popup that resolves in place (unlike Google's
+  // full-page redirect), so the click handler awaits it and surfaces failures
+  // as a toast. The kit invokes the popup synchronously, so no work precedes it.
+  // X is a full-page redirect like Google, not a popup like KingsChat: the
+  // browser leaves and the promise never resolves, so there is nothing to
+  // clear on the way out.
+  const xSignIn = async () => {
+    try {
+      choose("x");
+      await signInWithX();
+    } catch (err) {
+      console.error("X login failed:", err);
+      failed("x", err);
+      toast.error(t("oauthError"));
+    }
+  };
+
+  const kingschatSignIn = async () => {
+    try {
+      choose("kingschat");
+      await signInWithKingsChat();
+    } catch (err) {
+      const name = (err as { name?: string })?.name;
+      // A user closing the KingsChat popup is a cancellation, not an error.
+      if (name !== "UserCancelledError") {
+        console.error("KingsChat login failed:", err);
+        failed("kingschat", err);
+        toast.error(t("oauthError"));
+      }
     }
   };
 
   return (
     <div className="flex flex-col gap-[11px]">
-      <button className={BUTTON} disabled={loading || disabled} onClick={() => signIn("google")}>
+      {canUsePasskey ? (
+        <button className={BUTTON} disabled={passkeyBusy} onClick={passkeySignIn}>
+          {passkeyBusy ? t("passkeyWaiting") : t("passkeySignIn")}
+        </button>
+      ) : null}
+      <button className={BUTTON} disabled={googleLoading} onClick={signIn}>
         <GoogleLogo />
         {t("continueGoogle")}
       </button>
-      <button className={BUTTON} disabled={loading || disabled} onClick={() => signIn("twitter")}>
+      <button className={BUTTON} disabled={xLoading} onClick={xSignIn}>
         <XLogo />
         {t("continueX")}
       </button>
-      {/* Not wired yet — announced ahead of the integration, so it renders
-          disabled with the tag rather than firing an OAuth flow that has no
-          provider behind it. */}
-      <button
-        className={`${BUTTON} cursor-default opacity-60 hover:border-white/14 hover:bg-white/6`}
-        disabled
-        aria-disabled
-      >
-        {t("continueKingschat")}
-        <span className="ml-1 rounded-full border border-white/15 bg-white/8 px-2 py-0.5 text-[10.5px] font-semibold tracking-[0.06em] text-white/55 uppercase">
-          {t("comingSoon")}
+      {/* KingsChat is built but not open to users yet. Shown rather than
+          hidden, so the method people are waiting for is visibly on the way,
+          and disabled so nobody starts a flow that cannot finish. The handler
+          stays wired — a disabled button never fires it — so turning this back
+          on is deleting `disabled` and the badge, nothing more. */}
+      <button className={BUTTON} disabled aria-disabled="true" onClick={kingschatSignIn}>
+        {kingschatLoading ? t("kingschatWaiting") : t("continueKingschat")}
+        <span className="rounded-full bg-white/12 px-2 py-0.5 text-[11.5px] font-semibold text-white/70">
+          {t("kingschatSoon")}
         </span>
       </button>
     </div>

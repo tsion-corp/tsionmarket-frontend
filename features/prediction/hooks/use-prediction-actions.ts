@@ -3,13 +3,12 @@
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { encodeFunctionData } from "viem";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useEvmSend, useEvmSendBatch, type EvmBatchCall } from "@/hooks/use-evm-send";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { track } from "@/lib/analytics/mixpanel";
 import { encodeApprove } from "@/lib/trade/erc20";
-import { getWalletAddress } from "@/lib/user";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { PREDICTION_ABI } from "@/features/prediction/lib/abi";
@@ -103,13 +102,11 @@ export interface CreateMarketInput {
 
 export function usePredictionActions() {
   const t = useTranslations("prediction");
-  const { user } = usePrivy();
+  const { evmAddress: wallet } = useAuthSession();
   const sendBatch = useEvmSendBatch();
   const send = useEvmSend();
   const queryClient = useQueryClient();
   const [phase, setPhase] = useState<PredictionPhase>("idle");
-
-  const wallet = getWalletAddress(user, "ethereum");
 
   // Refetch everything the action could have changed. Broad by design: a trade
   // moves reserves, positions, trades, and the chart at once.

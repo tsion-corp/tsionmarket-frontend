@@ -12,6 +12,7 @@ import {
   signedPercent,
   timeframeLabelKey,
 } from "@/features/trade/components/meme-gamified-bits";
+import { compactPercentPoints } from "@/lib/meme/format";
 import { changeFor, momentumOf } from "@/lib/meme/momentum";
 import type { MemeTimeframe, MemeToken } from "@/lib/meme/types";
 
@@ -57,6 +58,10 @@ export function MemeTrendingCard({
   const t = useTranslations("memeScreener");
   const change = changeFor(token, timeframe);
   const signed = signedPercent(change);
+  // The card is 156px at its narrowest and draws the change at 18px, where a
+  // first hour's "+12345.67%" runs off the end of it. The compact figure is
+  // what shows; the label below keeps the exact one for a screen reader.
+  const shown = compactPercentPoints(change);
   const windowLabel = t(timeframeLabelKey(timeframe));
   const symbol = token.symbol ?? "?";
 
@@ -101,15 +106,15 @@ export function MemeTrendingCard({
       </span>
 
       <span className="flex min-w-0 items-center justify-between gap-2">
-        {signed === null ? (
+        {shown === null ? (
           <span className="ws-display text-[18px] leading-[18px] text-white/40">—</span>
         ) : (
           <span
             className={`ws-display tnum truncate text-[18px] leading-[18px] ${
-              signed.startsWith("-") ? "text-down" : "text-up"
+              shown.startsWith("-") ? "text-down" : "text-up"
             }`}
           >
-            {signed}
+            {shown}
           </span>
         )}
         <MomentumTag momentum={momentumOf(change)} />

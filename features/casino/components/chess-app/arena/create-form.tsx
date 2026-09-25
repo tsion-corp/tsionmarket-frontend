@@ -1,9 +1,9 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { CasinoError } from "@/features/casino/components/casino-state";
 import { loadLichessStyle } from "@/features/casino/components/chess-app/lichess-round";
 import { useCreateArena } from "@/features/casino/hooks/use-casino-arena";
@@ -176,7 +176,8 @@ function CheckGroup({
 
 export function ArenaCreateForm() {
   const router = useRouter();
-  const { login } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const login = () => router.push("/auth");
   const wallet = useCasinoWallet();
   const create = useCreateArena();
   const [assetError, setAssetError] = useState<Error | null>(null);

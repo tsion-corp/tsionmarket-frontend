@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import {
   friendTimeControl,
@@ -297,7 +297,7 @@ export function rewriteChessFrameLinks(
 
 export function ChessLobbyFrame({ source }: { source: string }) {
   const router = useRouter();
-  const { logout } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile, logout } = useAuthSession();
   const wallet = useCasinoWallet();
   const frameRef = useRef<HTMLIFrameElement>(null);
   const authRedirectingRef = useRef(false);

@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { fetchSellQuote } from "@/lib/sell";
 import { fetchConfirmedSolanaBalance, SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 export interface SolanaToBaseInput {
   asset: string | null;
@@ -27,7 +26,7 @@ export interface SolanaToBaseResult {
 // targets Base USDC. An ambiguous failure is never rerouted to another
 // provider, which prevents duplicate cross-chain settlement attempts.
 export function useSolanaToBase() {
-  const { user } = usePrivy();
+  const { evmAddress, solanaAddress } = useAuthSession();
   const { sendToken } = useSendToken();
 
   return useCallback(
@@ -38,8 +37,8 @@ export function useSolanaToBase() {
       slippageBps,
       maxRequested = false,
     }: SolanaToBaseInput): Promise<SolanaToBaseResult> => {
-      const recipient = getWalletAddress(user, "ethereum");
-      const refundTo = getWalletAddress(user, "solana");
+      const recipient = evmAddress;
+      const refundTo = solanaAddress;
       if (!recipient) throw new Error("No Base wallet is connected.");
       if (!refundTo) throw new Error("No Solana wallet is connected.");
 
@@ -70,6 +69,6 @@ export function useSolanaToBase() {
         estimatedOutput: quote.estimatedOutput,
       };
     },
-    [user, sendToken]
+    [evmAddress, solanaAddress, sendToken]
   );
 }

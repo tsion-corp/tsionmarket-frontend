@@ -41,6 +41,14 @@
   /* Kash yellow. Rings the round carousel controls on focus and edges the
      Kash card's actions, as the Market design draws them. */
   --color-kash: #ffd62f;
+  /* The upgrade modal's gold, kept apart from Kash's so neither drifts when the
+     other is tuned. `upgrade` fills — the action, the progress, the border
+     light. `upgrade-soft` is the paler one, for gold TEXT on the dark sheet and
+     the action's hover, where full-strength gold glares. */
+  --color-upgrade: #ffd62f;
+  --color-upgrade-soft: #faeaa7;
+  /* "In Progress" over the bar: the design's amber, distinct from the bar's gold. */
+  --color-upgrade-progress: #f7a92f;
   /* Small directional glyphs. Neutral grey, was green. */
   --color-arrow: #8a8a8f;
   --color-panel: #0a0a0a;
@@ -860,6 +868,15 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
 /* Product tour (driver.js): the popover restyled to the app's dark sheet.
    Applied through popoverClass, so the library's own defaults never leak
    into the page. */
+/* The tour sits UNDER the modals. driver.js stacks its overlay and popover at
+   the top of everything (1e9), which put the walkthrough on top of the upgrade
+   gate that was holding the app shut. Above the chrome (the sidebar is 110),
+   below the sheets (the gate is 440). */
+.driver-overlay,
+.driver-popover {
+  z-index: 400 !important;
+}
+
 .driver-popover.ws-tour {
   background: #131316;
   color: #fff;
@@ -1152,6 +1169,43 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
 @media (prefers-reduced-motion: reduce) {
   .ws-beam::before {
     animation: none;
+  }
+}
+
+/* The upgrade modal's border light: the house beam above, in Kash gold
+   instead of white — one colour, no blend. It is reserved for
+   the one surface that is an announcement ("New economy unveiling"), so it
+   stays a signal rather than becoming decoration the eye learns to ignore.
+   Brighter and a touch quicker than the monochrome beam, because it is the
+   only moving thing on a surface that otherwise holds still. */
+.ws-beam-upgrade::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--ws-beam-angle),
+    transparent 0%,
+    rgba(254, 218, 75, 0.95) 12%,
+    transparent 26%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  animation: ws-beam-spin 5s linear infinite;
+}
+
+/* Without motion it keeps its colour and loses only the travel: a steady
+   gold ring, so the reduced-motion reader still gets the moment. */
+@media (prefers-reduced-motion: reduce) {
+  .ws-beam-upgrade::before {
+    animation: none;
+    background: rgba(254, 218, 75, 0.6);
   }
 }
 

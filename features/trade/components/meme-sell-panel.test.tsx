@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import {
   MemeSellPanel,
   type MemeSellPanelProps,

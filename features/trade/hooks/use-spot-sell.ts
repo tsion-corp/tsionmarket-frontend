@@ -1,14 +1,14 @@
 "use client";
 
+import { useAuthSession } from "@/hooks/use-auth-session";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { BASE_CHAIN_ID, chainIdOfNetwork } from "@/lib/meme/chain";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { networkForChainId } from "@/lib/trade-share";
-import { usePrivy } from "@privy-io/react-auth";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { getWalletAddress } from "@/lib/user";
 import { useSell } from "@/features/trade/hooks/use-sell";
 import { tradeRef, useMemeTrade } from "@/features/trade/hooks/use-meme-trade";
 import { swapRouteForSymbol } from "@/lib/spot-swap";
@@ -102,8 +102,8 @@ export function useSpotSell({
       : null;
   }, [holding]);
 
-  const { user } = usePrivy();
-  const feePayer = getWalletAddress(user, "ethereum") ?? undefined;
+  const session = useAuthSession();
+  const feePayer = session.evmAddress ?? undefined;
   const network = holding?.network ?? null;
   const nativeSym = network ? nativeSymbol(network) : null;
 

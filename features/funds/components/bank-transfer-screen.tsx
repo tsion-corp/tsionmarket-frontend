@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { useModalScreen } from "@/components/ui/modal-shell";
 import { BankIcon, CheckIcon, CopyIcon } from "@/components/ui/icons";
@@ -19,7 +19,7 @@ import { track } from "@/lib/analytics/mixpanel";
 import { DEPOSIT_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { friendlyError } from "@/lib/errors";
 import { errorCode } from "@/lib/api/envelope";
-import { getWalletAddress } from "@/lib/user";
+
 import {
   idempotencyKey,
   isValidOnrampNgn,
@@ -102,12 +102,13 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   useModalScreen({ back: onBack, fullScreen: true });
 
   const t = useTranslations("bankTransfer");
-  const { user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const { refetch } = usePortfolio();
   const { data: rates } = useRampingRates();
   const rate = rates?.onrampRate ?? null;
 
-  const walletAddress = getWalletAddress(user, "ethereum");
+  const walletAddress = evmAddress;
 
   const [amountNgn, setAmountNgn] = useState("");
   // After the user says they have paid, we show a brief confirming state and

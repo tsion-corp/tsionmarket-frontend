@@ -101,6 +101,20 @@ describe("NumberedPagination", () => {
     expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
   });
 
+  // A hundred thousand coins ten a row is ten thousand pages. The window keeps
+  // the bar seven slots wide whatever the count, so the row never grows and
+  // both ends of the list stay one press away.
+  it("stays seven slots wide at ten thousand pages, with both ends in reach", () => {
+    const { onPage } = renderBar({ page: 5000, pages: 10000 });
+    const numbered = screen.getAllByRole("button", { name: /^Page [\d,]+$/ });
+    expect(numbered).toHaveLength(5);
+    expect(numbered.map((b) => b.textContent)).toEqual(["1", "4999", "5000", "5001", "10000"]);
+    expect(screen.getAllByText("…")).toHaveLength(2);
+    expect(screen.getByText("Page 5,000 of 10,000")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Page 10000" }));
+    expect(onPage).toHaveBeenLastCalledWith(10000);
+  });
+
   it("hides itself on a single page with nothing more to come", () => {
     renderBar({ page: 1, pages: 1 });
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();

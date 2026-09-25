@@ -36,7 +36,7 @@ import { ListPagination } from "@/components/ui/list-pagination";
 import { SearchField } from "@/components/ui/search-field";
 import { useSpotMarkets, type SpotMarket } from "@/features/trade/hooks/use-spot-markets";
 import { useMemeCatalog, useMemeSearch } from "@/features/trade/hooks/use-meme-tokens";
-import { MemeCatalogMore, MemeViewSwitch } from "@/features/trade/components/meme-catalog-controls";
+import { MemeViewSwitch } from "@/features/trade/components/meme-catalog-controls";
 import { ChangeBar, formatMetric } from "@/features/trade/components/meme-gamified-bits";
 import { MemeScreenerToolbar } from "@/features/trade/components/meme-screener-toolbar";
 import { METRIC_KEYS } from "@/features/trade/components/meme-sort-menu";
@@ -203,11 +203,30 @@ function PagedRows<T>({
   items,
   pageSize,
   renderRow,
+  more = false,
+  loadingMore = false,
+  stalled = false,
+  waiting = false,
+  onResume,
 }: {
   items: T[];
   pageSize: number;
   /** Also handed the visible page, for a row that is judged against its neighbours. */
   renderRow: (item: T, pageItems: T[]) => ReactNode;
+  /**
+   * The list behind `items` is still filling. The page count is over the rows
+   * in hand, so it grows as more land; this is what stops the bar reading as a
+   * final count while it does.
+   */
+  more?: boolean;
+  /** Of those rows, a batch is in flight right now. */
+  loadingMore?: boolean;
+  /** Filling stopped short of the whole list and will not start again alone. */
+  stalled?: boolean;
+  /** Filling is paused and will carry on by itself. */
+  waiting?: boolean;
+  /** Restarts a stalled fill. Drawn as a button in the pager only when given. */
+  onResume?: () => void;
 }) {
   const tCommon = useTranslations("common");
   const paged = usePaged(items, pageSize);
@@ -225,6 +244,11 @@ function PagedRows<T>({
         page={paged.page + 1}
         pages={paged.pageCount}
         onPage={(target) => (target > paged.page + 1 ? paged.goNext() : paged.goPrev())}
+        more={more}
+        loadingMore={loadingMore}
+        stalled={stalled}
+        waiting={waiting}
+        onResume={onResume}
       />
     </>
   );
@@ -400,9 +424,9 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
 
   // The Memecoins tab lists the catalogue, a server page of 500 at a time
   // behind the same Curated / All switch as the desk and the grid
-  // (ADR-2026-09-14-memecoins-trade-contract, slice 4). A search of two
-  // characters or more replaces the list with the service's results, in the
-  // same view.
+  // (ADR-2026-09-14-memecoins-trade-contract, slice 4). A search replaces the
+  // list with its own results, in the same view: the cached rows matched here
+  // from the first character, plus the service's answer from the second.
   //
   // It also carries the desk's Trending strip and market screener
   // (ADR-2026-09-15-meme-trending-screener, 1.1). While filters or a sort
@@ -410,7 +434,12 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
   // wins over both, as on the desk.
   const [memeView, setMemeView] = useState<DiscoveryView>(DEFAULT_DISCOVERY_VIEW);
   const memeCatalog = useMemeCatalog({ view: memeView });
-  const memeSearch = useMemeSearch(memeQuery, memeView);
+  // Same two-source search as the desk: the cached catalogue answers an
+  // address, a figure or an age here in the browser, and the service is still
+  // asked about the coins the catalogue does not hold. It is handed the whole
+  // catalogue rather than the screener's cut, because a search wins over the
+  // filters.
+  const memeSearch = useMemeSearch(memeQuery, memeView, memeCatalog.tokens);
   // The view renders every tab's hooks, so the screener only asks for data
   // while its tab is open. Spot readers never pay for a trending poll.
   const screener = useMemeScreener({
@@ -658,8 +687,9 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
     return q ? markets.filter((m) => `${m.symbol} ${m.name}`.toLowerCase().includes(q)) : markets;
   }, [markets, spotQuery]);
 
-  // The service searches the whole catalogue, not the rows loaded so far, so
-  // the list is either the catalogue or the search results, never a filter.
+  // A search builds its own list, from the cached catalogue and the service
+  // together, so the list is either the catalogue or that result, never a
+  // filter laid over the rows on screen.
   const memeRows = memes;
 
   // While a tab is handing off to its desktop screen, render nothing rather than
@@ -940,6 +970,27 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
                     }
                     items={memeRows}
                     pageSize={memePageSize}
+                    // The catalogue runs past a hundred thousand coins and
+                    // arrives a server page at a time, so the bar below pages
+                    // over whatever is in hand and grows with it. Without this
+                    // a list 3% loaded would read as a complete three pages.
+                    // A search is its own finished list, so it says nothing.
+                    more={!memeSearch.active && memeList.hasMore}
+                    // The walk's own status, not isLoadingMore: the walk paces
+                    // itself between server pages, and a flag that went false
+                    // in each gap would flicker the hint on and off all the way
+                    // through. It also tells the truth when the walk has
+                    // stalled or been rate limited, where nothing is arriving.
+                    loadingMore={!memeSearch.active && memeList.progress.status === "walking"}
+                    // The walk gives up after a run of refusals and nothing
+                    // restarts it, so the reader was left holding part of the
+                    // catalogue with the bar gone quiet and the list reading as
+                    // finished. This is the way back.
+                    stalled={!memeSearch.active && memeList.progress.status === "stalled"}
+                    // A 429 is a pause, not a stop: the walk resumes itself at
+                    // progress.resumesAt, so it says so and offers no button.
+                    waiting={!memeSearch.active && memeList.progress.status === "rate-limited"}
+                    onResume={memeList.progress.retry}
                     renderRow={(token, pageItems) => {
                       const key = catalogKey(token);
                       const change = changeFor(token, memeTimeframe);
@@ -1009,21 +1060,6 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
                     }}
                   />
                 )}
-                {/* The count and "Load more" describe the list the rows came
-                    from, the catalogue or the screener's; a search replaces
-                    both, so they step aside while one is showing. */}
-                {!memeSearch.active && !memeLoading ? (
-                  <MemeCatalogMore
-                    className="px-1 pt-3"
-                    loaded={memeList.loaded}
-                    total={memeList.total}
-                    shownCount={memeList.shownCount}
-                    hasMore={memeList.hasMore}
-                    loadingMore={memeList.isLoadingMore}
-                    failed={memeList.loadMoreFailed}
-                    onLoadMore={memeList.loadMore}
-                  />
-                ) : null}
                 {!memeLoading && (memeError || memeRows.length === 0) ? (
                   <p className="mt-8 text-center text-[13px] font-normal text-white/45">
                     {memeError

@@ -24,6 +24,54 @@ export interface ShownPage<T> extends Paged<T> {
 // The contract's maximum page size on /tokens.
 export const CATALOG_PAGE_LIMIT = 500;
 
+// How long the walk waits between catalogue pages.
+//
+// The catalogue is not small. Measured against the gateway on 2026-09-16,
+// GET /tokens reports meta.total = 144,002, which is 289 pages of 500. Firing
+// 289 requests as fast as they round-trip is what the gateway's limiter reads
+// as an attack, and it is what took the memecoin service down once already
+// (ADR-2026-09-15-meme-trending-screener, "Cost and rate limits": 100 requests
+// a minute on /v1, shared by every user of the app because they all come from
+// the Next.js server's IP). The gateway's own headers currently advertise a
+// larger budget, RateLimit-Policy: q=9000; w=60, but the pace is set against
+// the smaller figure because it is the one we have been punished by.
+//
+// One page every five seconds is 12 requests a minute from one tab: an eighth
+// of the 100, and it still leaves room on the same IP for the ten minute
+// trending timer, the token detail reads and the swap traffic. The whole walk
+// then takes about 24 minutes, which is the point: the list is complete over
+// time and the reader watches the pagination grow, instead of the app spending
+// its entire budget in the first ten seconds and being cut off.
+export const CATALOG_PAGE_INTERVAL_MS = 5_000;
+
+// What a page rejected with HTTP 429 waits before it is asked for again, and
+// how many times. 30 s, 60 s, 120 s, 240 s, 300 s: twelve and a half minutes
+// of patience before the walk declares itself stalled and waits to be asked.
+export const CATALOG_RATE_LIMIT_BASE_MS = 30_000;
+export const CATALOG_RATE_LIMIT_MAX_MS = 5 * 60_000;
+export const CATALOG_RATE_LIMIT_ATTEMPTS = 5;
+
+// How long to wait before attempting a rate-limited page again. `attempt` is
+// 1 for the first wait after a rejection. `retryAfterMs` is what the gateway
+// asked for in its Retry-After header, if it sent one: the server knows when
+// its window resets and we do not, so its answer wins over the schedule. It is
+// still clamped, never below our own pace and never above the cap, so a
+// mistaken or hostile header cannot stall the walk for an hour.
+export function catalogBackoffMs(attempt: number, retryAfterMs: number | null): number {
+  if (retryAfterMs !== null && Number.isFinite(retryAfterMs) && retryAfterMs >= 0) {
+    return Math.min(Math.max(retryAfterMs, CATALOG_PAGE_INTERVAL_MS), CATALOG_RATE_LIMIT_MAX_MS);
+  }
+  const scheduled = CATALOG_RATE_LIMIT_BASE_MS * 2 ** Math.max(0, attempt - 1);
+  return Math.min(scheduled, CATALOG_RATE_LIMIT_MAX_MS);
+}
+
+// How many pages the server's own meta says the list has. What a progress
+// readout divides the pages in hand by.
+export function catalogPageCount(meta: Paged<unknown>["meta"]): number {
+  if (meta.limit <= 0) return 0;
+  return Math.ceil(meta.total / meta.limit);
+}
+
 // "Continue requesting pages until page * limit >= total." The next page, or
 // undefined once the pages so far cover the total.
 export function nextCatalogPage(meta: Paged<unknown>["meta"]): number | undefined {
@@ -148,7 +196,27 @@ export type TokenWithOptionalRisk = Omit<
 > &
   Partial<Pick<MemeToken, "riskLevel" | "warnings" | "buyEnabled" | "sellEnabled">>;
 
+// True when the four fields are all present, so the token already is a
+// MemeToken and nothing has to be filled in.
+function hasRiskBlock(token: TokenWithOptionalRisk): token is MemeToken {
+  return (
+    token.riskLevel !== undefined &&
+    token.warnings !== undefined &&
+    token.buyEnabled !== undefined &&
+    token.sellEnabled !== undefined
+  );
+}
+
 export function withRiskDefaults(token: TokenWithOptionalRisk): MemeToken {
+  // A complete token is handed back as it is, not copied. Every row that
+  // reaches the discovery views has already been through this at the parse
+  // boundary (toMemeToken in lib/meme/parse), so the copy filled nothing in
+  // and only cost memory: tradableHere runs over the whole merged catalogue,
+  // which is 144,002 rows, and it re-runs every time a page lands. Copying
+  // there held a second full set of token objects, roughly 140 MB of heap on
+  // top of the pages themselves, and spent 144,002 object spreads per page of
+  // the walk to produce rows identical to the ones it was given.
+  if (hasRiskBlock(token)) return token;
   return {
     ...token,
     riskLevel: token.riskLevel ?? "UNKNOWN",
@@ -319,20 +387,28 @@ export function tradableHere(
 
 // True when a row has something for the Trending strip to show: a price, or a
 // 24h change, or both. A row with neither is an empty shell.
+//
+// The change is read the way changeFor reads it for 24h, the flat field
+// included, because that flat field is what the card draws when the service
+// sends no activity block (the catalogue rows the board falls back to are
+// often exactly that). changeFor itself is not called here: lib/meme/momentum
+// imports this module, so importing it back would make the two a cycle.
 function rankable(token: MemeToken): boolean {
-  return token.priceUsd !== null || (token.activity?.["24h"]?.priceChangePercent ?? null) !== null;
+  if ((token.priceUsd ?? null) !== null) return true;
+  const change = token.activity?.["24h"]?.priceChangePercent ?? token.priceChange24hPercent ?? null;
+  return change !== null;
 }
 
 /**
- * The Trending strip's rows: `tradableHere`, minus the rows there is nothing to
- * rank.
+ * The Trending strip's rows: `tradableHere`, minus the rows there is nothing
+ * to rank.
  *
  * The strip's heading promises the hottest coins over a window. On 2026-09-16
  * the trade service answered /tokens/trending with 40 rows of which 35 carried
- * no price and no 24h change, and the top three cards on production rendered as
- * a name over two dashes. A row with neither figure cannot be one of the
- * hottest coins, whichever position the service returned it in, so the strip
- * falls through to the next row that has one.
+ * no price and no 24h change, and the top cards on production rendered as a
+ * name over two dashes. A row with neither figure cannot be one of the hottest
+ * coins, whichever position the service returned it in, so the strip falls
+ * through to the next row that has one.
  *
  * Only the strip uses this. The catalogue still lists a token with no price
  * yet: there it is an entry in a directory, not a claim about performance.

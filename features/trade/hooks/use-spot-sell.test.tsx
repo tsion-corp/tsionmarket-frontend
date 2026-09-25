@@ -36,6 +36,15 @@ const sellMutation = vi.hoisted(() => ({
   isPending: false,
 }));
 vi.mock("@/features/trade/hooks/use-sell", () => ({ useSell: () => sellMutation }));
+// The fee payer is the signed-in wallet; the hook reads it from the session.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0xabc0000000000000000000000000000000000001",
+    solanaAddress: null,
+  }),
+}));
 
 const memeTradeHook = vi.hoisted(() => ({
   trade: vi.fn(async (): Promise<TradeResult> => ({

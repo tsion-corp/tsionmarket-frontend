@@ -1,11 +1,15 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { queryKeys } from "@/lib/query-keys";
-import { fetchUserActivity, type UserActivity } from "@/lib/api/services/activity";
-import { getWalletAddress } from "@/lib/user";
+import {
+  fetchLegacyActivity,
+  fetchUserActivity,
+  type UserActivity,
+} from "@/lib/api/services/activity";
+
 import { buildActivityEntries, type ActivityEntry } from "@/lib/activity/entries";
 import type { ActivityItem } from "@/lib/server/activity";
 
@@ -31,9 +35,10 @@ const EMPTY: ActivityItem[] = [];
 const EMPTY_ENTRIES: ActivityEntry[] = [];
 
 export function useActivity({ pollMs = POLL_MS }: { pollMs?: number } = {}) {
-  const { user, ready, authenticated } = usePrivy();
-  const evm = getWalletAddress(user, "ethereum");
-  const solana = getWalletAddress(user, "solana");
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const evm = evmAddress;
+  const solana = solanaAddress;
   const enabled = ready && authenticated && Boolean(evm || solana);
 
   const query = useQuery<UserActivity>({
@@ -49,13 +54,25 @@ export function useActivity({ pollMs = POLL_MS }: { pollMs?: number } = {}) {
       !(error instanceof Error && error.message.toLowerCase().includes("too many")) && count < 2,
   });
 
+  // The OLD account's history, kept from a snapshot at the upgrade rather
+  // than swept from the chain: static once the sweep is done, so read once and
+  // held for the session. Null for an account that never had one.
+  const legacy = useQuery({
+    queryKey: [...queryKeys.activity.all, "legacy", evm ?? null],
+    enabled: ready && authenticated && Boolean(evm),
+    queryFn: fetchLegacyActivity,
+    staleTime: Infinity,
+    retry: false,
+  });
+  const legacyItems = legacy.data?.items ?? EMPTY;
   // Consumers want actions, not transfers: a purchase is one event even though
-  // it moved two assets.
+  // it moved two assets. Live and old are one timeline; the builder groups by
+  // chain and hash, so a transfer both wallets saw is one row, not two.
   const raw = query.data?.items ?? EMPTY;
-  const items = useMemo(
-    () => (raw.length === 0 ? EMPTY_ENTRIES : buildActivityEntries(raw)),
-    [raw]
-  );
+  const items = useMemo(() => {
+    if (raw.length === 0 && legacyItems.length === 0) return EMPTY_ENTRIES;
+    return buildActivityEntries([...raw, ...legacyItems]);
+  }, [raw, legacyItems]);
 
   return {
     items,

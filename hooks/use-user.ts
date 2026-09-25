@@ -1,17 +1,17 @@
 "use client";
 
-import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
 import { queryKeys } from "@/lib/query-keys";
-import { deriveProfile, getWalletAddress, isWalletDelegated } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
+import type { Profile } from "@/lib/user";
 import { fetchCurrentUser, type AuthMeResponse } from "@/lib/api/services/user";
 
 export interface UserSessionData {
-  /** The raw Privy user object */
-  user: ReturnType<typeof usePrivy>["user"];
+  /** Kept for shape compatibility; Decane has no Privy user object. */
+  user: null;
   /** Derived profile information (display name, email, avatarSeed) */
-  profile: ReturnType<typeof deriveProfile>;
+  profile: Profile;
   /** The user's primary embedded Ethereum wallet address */
   evmAddress: string | null;
   /** The user's primary embedded Solana wallet address */
@@ -42,9 +42,12 @@ export interface UserSessionData {
  * network requests or manually deriving wallet addresses and profiles.
  */
 export function useUser(): UserSessionData {
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  // Decane has no "delegation": an unlocked session can sign natively. Consumers
+  // that gated signing on Privy delegation gate on this instead.
+  const { isUnlocked } = useSocialWallet();
 
-  const enabled = ready && authenticated && !!user;
+  const enabled = ready && authenticated;
 
   const {
     data: verifiedSession,
@@ -60,30 +63,14 @@ export function useUser(): UserSessionData {
     retry: 1,
   });
 
-  const evmAddress = useMemo(() => getWalletAddress(user, "ethereum"), [user]);
-  const solanaAddress = useMemo(() => getWalletAddress(user, "solana"), [user]);
-  const profile = useMemo(() => deriveProfile(user), [user]);
-
-  const isEvmDelegated = useMemo(() => {
-    if (!user) return false;
-    return isWalletDelegated(user, "ethereum");
-  }, [user]);
-
-  const isSolanaDelegated = useMemo(() => {
-    if (!user) return false;
-    return isWalletDelegated(user, "solana");
-  }, [user]);
-
-  const isDelegated = isEvmDelegated || isSolanaDelegated;
-
   return {
-    user,
+    user: null,
     profile,
     evmAddress,
     solanaAddress,
-    isEvmDelegated,
-    isSolanaDelegated,
-    isDelegated,
+    isEvmDelegated: isUnlocked,
+    isSolanaDelegated: isUnlocked,
+    isDelegated: isUnlocked,
     verifiedSession: verifiedSession ?? null,
     isAuthenticated: authenticated,
     isLoading: !ready || (enabled && isQueryLoading),

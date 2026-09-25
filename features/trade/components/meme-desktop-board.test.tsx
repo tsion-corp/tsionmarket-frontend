@@ -3,7 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { catalogKey } from "@/lib/meme/catalog";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import {
   MEME_LIST_PAGE_SIZE,
   MEME_LIST_ROW_HEIGHT,
@@ -66,35 +66,12 @@ describe("MemeDesktopBoard rows", () => {
   });
 });
 
-// Slice 4: the route hands the board the Curated / All switch and the
-// catalogue's count and "Load more". The board stays presentational; it only
-// decides where they sit.
+// Slice 4: the route hands the board the Curated / All switch. The board stays
+// presentational; it only decides where it sits.
 describe("MemeDesktopBoard catalogue controls", () => {
   it("draws the view switch beside the search", () => {
     renderBoard({ listControls: <div>switch slot</div> });
     expect(screen.getByText("switch slot").closest('[data-region="list-controls"]')).not.toBeNull();
-  });
-
-  it("draws the catalogue status in the list's footer, above the pager", () => {
-    renderBoard({
-      listStatus: <div>count slot</div>,
-      page: 1,
-      pageCount: 3,
-      onPageChange: vi.fn(),
-    });
-    const footer = screen.getByText("count slot").closest('[data-region="list-footer"]');
-    expect(footer).not.toBeNull();
-    expect(footer).toContainElement(screen.getByRole("button", { name: /Next/ }));
-  });
-
-  it("keeps the catalogue status when the list fits on one page", () => {
-    renderBoard({
-      listStatus: <div>count slot</div>,
-      page: 1,
-      pageCount: 1,
-      onPageChange: vi.fn(),
-    });
-    expect(screen.getByText("count slot")).toBeInTheDocument();
   });
 });
 
@@ -901,5 +878,95 @@ describe("MemeDesktopBoard headings", () => {
     renderBoard();
 
     expect(screen.queryByRole("button", { name: /mkt cap/i })).toBeNull();
+  });
+});
+
+// Slice: long figures are approximated so no cell runs past its column. Every
+// figure below is one that overflowed on the desk before the table was wired
+// to lib/meme/format (the cards already were).
+describe("MemeDesktopBoard long figures", () => {
+  const slots = { trending: <div>trending slot</div>, screener: <div>screener slot</div> };
+
+  const whale = memeToken({
+    symbol: "WHALE",
+    priceUsd: "0.00000000121495281918",
+    marketCapUsd: "3491589227.1234567890123",
+    priceChange24hPercent: "12345.6789",
+    liquidityUsd: "0.004",
+    activity: {
+      "24h": {
+        volumeUsd: "8200000000",
+        transactions: 1284339,
+        traders: 98765,
+        priceChangePercent: "12345.6789",
+      },
+    },
+  });
+
+  const row = () => screen.getByRole("button", { name: /WHALE coin/ });
+
+  it("approximates a market cap in the billions", () => {
+    renderBoard({ tokens: [whale], selected: null });
+    expect(row().children[3]).toHaveTextContent(/^\$3\.49B$/);
+  });
+
+  it("never prints a sub-cent price as $0", () => {
+    renderBoard({ tokens: [whale], selected: null });
+    const price = row().children[1].textContent ?? "";
+    expect(price).not.toBe("$0");
+    expect(price).not.toBe("$0.00");
+    // priceLabel counts the zero run rather than spelling it out.
+    expect(price).toBe("$0.0\u20881215");
+  });
+
+  it("approximates a five-figure change and keeps the exact one for a screen reader", () => {
+    renderBoard({ tokens: [whale], selected: null });
+    const change = row().children[2];
+    expect(change.querySelector('[aria-hidden="true"]')).toHaveTextContent("+12.35K%");
+    expect(change).toHaveTextContent("+12345.68%");
+  });
+
+  it("approximates a seven-figure transaction count", () => {
+    renderBoard({ ...slots, tokens: [whale], selected: null, sortMetric: "transactions" });
+    expect(row().children[4]).toHaveTextContent(/^1\.28M$/);
+  });
+
+  it("never prints a thin pool's liquidity as $0", () => {
+    renderBoard({ ...slots, tokens: [whale], selected: null, sortMetric: "liquidity" });
+    expect(row().children[4]).toHaveTextContent(/^<\$0\.01$/);
+  });
+
+  it("still draws a dash for a figure the service did not publish", () => {
+    const bare = memeToken({ symbol: "BARE", marketCapUsd: null, priceChange24hPercent: null });
+    renderBoard({ tokens: [bare], selected: null });
+    const bareRow = screen.getByRole("button", { name: /BARE coin/ });
+    expect(bareRow.children[3]).toHaveTextContent(/^\u2014$/);
+    expect(bareRow.children[2]).toHaveTextContent(/^\u2014$/);
+  });
+
+  it("keeps every figure cell short enough for its column", () => {
+    renderBoard({ ...slots, tokens: [whale], selected: null, sortMetric: "volume" });
+    // Ten is priceLabel's own bound and the widest cell on the row; the money,
+    // count and change cells all stop at eight. The asset cell is a name, not
+    // a figure, so it is not measured. The change cell carries the exact
+    // figure for a screen reader, so its visible half is the one measured.
+    const cells = Array.from(row().children).slice(1);
+    for (const cell of cells) {
+      const hidden = cell.querySelector('[aria-hidden="true"]');
+      const shown = (hidden ?? cell).textContent ?? "";
+      expect(shown.trim().length).toBeLessThanOrEqual(10);
+    }
+  });
+});
+
+// The box searches the catalogue on more than a name, so it says so rather
+// than borrowing the spot market's "Search tokens".
+describe("MemeDesktopBoard search box", () => {
+  it("tells the reader everything the search matches", () => {
+    renderBoard();
+    expect(screen.getByLabelText("Search all memecoins")).toHaveAttribute(
+      "placeholder",
+      "Search by name, symbol, address, market cap, price or age"
+    );
   });
 });

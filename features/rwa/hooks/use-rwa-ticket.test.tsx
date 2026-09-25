@@ -29,10 +29,25 @@ vi.mock("@/hooks/use-portfolio", () => ({ usePortfolio: () => portfolio }));
 const wallets = vi.hoisted(() => ({
   user: null as unknown,
 }));
-vi.mock("@privy-io/react-auth", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@privy-io/react-auth")>()),
-  usePrivy: () => ({ user: wallets.user }),
-}));
+// The hook reads the session through the Decane-backed seam. The cases still
+// describe the account as a Privy-shaped user, so derive the seam's addresses
+// and profile from it with the same helpers the app used to.
+vi.mock("@/hooks/use-auth-session", async () => {
+  const { deriveProfile, getWalletAddress } = await import("@/lib/user");
+  return {
+    useAuthSession: () => {
+      const user = wallets.user as User | null;
+      return {
+        ready: true,
+        authenticated: user !== null,
+        evmAddress: user ? getWalletAddress(user, "ethereum") : null,
+        solanaAddress: user ? getWalletAddress(user, "solana") : null,
+        profile: deriveProfile(user),
+        logout: vi.fn(),
+      };
+    },
+  };
+});
 
 const rwaApi = vi.hoisted(() => ({
   quoteAsync: vi.fn(),

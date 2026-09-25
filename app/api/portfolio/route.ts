@@ -22,10 +22,13 @@ export async function GET(req: NextRequest) {
   const evm = req.nextUrl.searchParams.get("evm") ?? undefined;
   const solana = req.nextUrl.searchParams.get("solana") ?? undefined;
   const requestedScope = req.nextUrl.searchParams.get("scope");
-  if (requestedScope && requestedScope !== "base") {
+  if (requestedScope && requestedScope !== "base" && requestedScope !== "legacy") {
     return NextResponse.json({ error: "Invalid portfolio scope" }, { status: 400 });
   }
   const baseOnly = requestedScope === "base";
+  // The migration's read of the OLD wallet: the whole wallet, not just the
+  // allowlist's contracts — see PortfolioScope.
+  const legacy = requestedScope === "legacy";
   // A caller that just traded needs to observe its own effect on the
   // networks it named; the short shared cache would otherwise hand back the
   // pre-trade snapshot. `fresh=1` still means every network.
@@ -35,14 +38,11 @@ export async function GET(req: NextRequest) {
   );
 
   try {
-    // The caller's bearer goes on to the trade service so the memecoins they
-    // bought are recognised as holdings. Without it the allowlist only knows
-    // the public catalogue's first page. The base-only funding read does not
-    // ask for it: it wants gas and the fixed funding assets, nothing the
-    // caller bought.
     const portfolio = baseOnly
-      ? await fetchPortfolio(evm, undefined, fresh, null, "base")
-      : await fetchPortfolio(evm, solana, fresh, req.headers.get("authorization"));
+      ? await fetchPortfolio(evm, undefined, fresh, "base")
+      : legacy
+        ? await fetchPortfolio(evm, solana, fresh, "legacy")
+        : await fetchPortfolio(evm, solana, fresh);
     return NextResponse.json(portfolio, {
       headers: {
         // `private`, never `s-maxage`: this is one wallet's data, and a

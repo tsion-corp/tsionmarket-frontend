@@ -5,7 +5,7 @@ import {
   COMBO_QUOTE_PROVIDER_PATH,
   createPolymarketAccountHeaders,
 } from "@/features/prediction/lib/polymarket/account-auth";
-import type { SecureClient } from "@/features/prediction/lib/polymarket/secure-client";
+import type { SecureClient } from "@/lib/polymarket/secure-client";
 import { predictionCombos } from "./service";
 import type { ComboQuote, RequestComboBuyQuoteInput } from "./types";
 

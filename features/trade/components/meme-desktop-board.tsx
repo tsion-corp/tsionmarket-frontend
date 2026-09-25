@@ -15,15 +15,15 @@ import { createColumnHelper, getCoreRowModel, useReactTable } from "@tanstack/re
 import { METRIC_KEYS } from "@/features/trade/components/meme-sort-menu";
 import {
   ariaSortFor,
+  columnFigure,
   memeColumns,
   metricColumnFor,
   nextSortFor,
 } from "@/features/trade/components/meme-table-columns";
 import { useFittedRowCount } from "@/hooks/use-fitted-row-count";
-import { compactUsd, type MemeToken } from "@/lib/meme/api";
+import type { MemeToken } from "@/lib/meme/api";
 import { catalogKey } from "@/lib/meme/catalog";
-import { changeFor } from "@/lib/meme/momentum";
-import { metricValue, type ScreenerMetric } from "@/lib/meme/screener";
+import type { ScreenerMetric } from "@/lib/meme/screener";
 import type { MemeTimeframe } from "@/lib/meme/types";
 
 // The 2.0 desktop memecoin board: the catalogue on the left, the coin being
@@ -91,11 +91,6 @@ export interface MemeDesktopBoardProps {
    * route's Curated / All switch.
    */
   listControls?: ReactNode;
-  /**
-   * The catalogue's status, drawn in the list's footer above the pager: the
-   * route's "500 of 11,502" count, and a retry when a page failed to load.
-   */
-  listStatus?: ReactNode;
   /** The token list's footer action ("Manage tokens" in the design). */
   listFooter?: ReactNode;
   /** 1-based page the caller has sliced `tokens` to. */
@@ -347,7 +342,6 @@ export function MemeDesktopBoard({
   ticket,
   activity,
   listControls,
-  listStatus,
   listFooter,
   page = 1,
   pageCount = 1,
@@ -459,7 +453,9 @@ export function MemeDesktopBoard({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             aria-label={t("searchAllLabel")}
-            placeholder={tMarkets("searchPlaceholder")}
+            // The box searches the whole catalogue on more than a name, so it
+            // says so. The spot market's "Search tokens" undersold it.
+            placeholder={t("searchPlaceholder")}
             className="min-w-0 flex-1 bg-transparent font-sans text-[13px] font-normal text-white outline-none"
           />
         </label>
@@ -657,7 +653,6 @@ export function MemeDesktopBoard({
                   rowsOnScreen.map((token: MemeToken) => {
                     const picked =
                       selected?.address === token.address && selected?.chainId === token.chainId;
-                    const change = changeFor(token, timeframe);
                     const gainer = topGainers?.has(catalogKey(token)) ?? false;
                     const symbol = (
                       <span className="truncate font-serif text-[13.4px] font-medium text-white">
@@ -674,58 +669,87 @@ export function MemeDesktopBoard({
                           picked ? "bg-white/6" : "hover:bg-white/4"
                         }`}
                       >
-                        <span className="flex min-w-0 items-center gap-[11px]">
-                          <MemeCoin token={token} size={33} />
-                          <span className="flex min-w-0 flex-col gap-[2px]">
-                            {gainer ? (
-                              <span className="flex min-w-0 items-center gap-[4px]">
-                                {symbol}
+                        {/* One cell per column, from the same description the
+                            header row reads, and every figure from
+                            columnFigure. A column cannot be headed by one
+                            metric and drawn from another, and the money and
+                            count cells compact through lib/meme/format like
+                            the Trending cards do. */}
+                        {memeColumns(metricColumn).map((column) => {
+                          const figure = columnFigure(column, token, timeframe, now ?? clock);
+                          switch (figure.kind) {
+                            case "identity":
+                              return (
                                 <span
-                                  role="img"
-                                  aria-label={tScreener("topGainer")}
-                                  className="shrink-0 text-[11px] leading-none"
+                                  key={column.id}
+                                  className="flex min-w-0 items-center gap-[11px]"
                                 >
-                                  🔥
+                                  <MemeCoin token={token} size={33} />
+                                  <span className="flex min-w-0 flex-col gap-[2px]">
+                                    {gainer ? (
+                                      <span className="flex min-w-0 items-center gap-[4px]">
+                                        {symbol}
+                                        <span
+                                          role="img"
+                                          aria-label={tScreener("topGainer")}
+                                          className="shrink-0 text-[11px] leading-none"
+                                        >
+                                          🔥
+                                        </span>
+                                      </span>
+                                    ) : (
+                                      symbol
+                                    )}
+                                    <span className="truncate font-sans text-[11px] font-normal text-white/50">
+                                      {token.name ?? "—"}
+                                    </span>
+                                  </span>
                                 </span>
-                              </span>
-                            ) : (
-                              symbol
-                            )}
-                            <span className="truncate font-sans text-[11px] font-normal text-white/50">
-                              {token.name ?? "—"}
-                            </span>
-                          </span>
-                        </span>
-                        <span className="tnum truncate text-right font-sans text-[12.9px] font-semibold text-white">
-                          {priceLabel(token.priceUsd)}
-                        </span>
-                        {slotted ? (
-                          // The bar's 2px box is kept when there is no change to
-                          // draw, so a dash sits level with the figures beside it.
-                          <span className="flex min-w-0 flex-col items-end gap-[4px] text-right font-sans text-[12.5px] font-semibold">
-                            <span className="max-w-full truncate">
-                              <PctChange value={change} />
-                            </span>
-                            <span className="block h-[2px] w-full max-w-[56px]">
-                              <ChangeBar change={change} />
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="truncate text-right font-sans text-[12.5px] font-semibold">
-                            <PctChange value={change} />
-                          </span>
-                        )}
-                        <span className="tnum truncate text-right font-serif text-[11px] font-medium text-white/50">
-                          {compactUsd(token.marketCapUsd)}
-                        </span>
-                        {metricColumn !== null ? (
-                          <span className="tnum truncate text-right font-serif text-[11px] font-medium text-white/50">
-                            {formatMetric(
-                              metricValue(token, metricColumn, timeframe, now ?? clock),
-                              tScreener
-                            )}
-                          </span>
-                        ) : null}
+                              );
+                            case "price":
+                              return (
+                                <span
+                                  key={column.id}
+                                  className="tnum truncate text-right font-sans text-[12.9px] font-semibold text-white"
+                                >
+                                  {priceLabel(figure.value)}
+                                </span>
+                              );
+                            case "percent":
+                              return slotted ? (
+                                // The bar's 2px box is kept when there is no
+                                // change to draw, so a dash sits level with the
+                                // figures beside it.
+                                <span
+                                  key={column.id}
+                                  className="flex min-w-0 flex-col items-end gap-[4px] text-right font-sans text-[12.5px] font-semibold"
+                                >
+                                  <span className="max-w-full truncate">
+                                    <PctChange value={figure.value} />
+                                  </span>
+                                  <span className="block h-[2px] w-full max-w-[56px]">
+                                    <ChangeBar change={figure.value} />
+                                  </span>
+                                </span>
+                              ) : (
+                                <span
+                                  key={column.id}
+                                  className="truncate text-right font-sans text-[12.5px] font-semibold"
+                                >
+                                  <PctChange value={figure.value} />
+                                </span>
+                              );
+                            default:
+                              return (
+                                <span
+                                  key={column.id}
+                                  className="tnum truncate text-right font-serif text-[11px] font-medium text-white/50"
+                                >
+                                  {formatMetric(figure, tScreener)}
+                                </span>
+                              );
+                          }
+                        })}
                       </button>
                     );
                   })
@@ -748,14 +772,7 @@ export function MemeDesktopBoard({
               // `mt-auto` is the second guarantee that it sits on the floor of
               // the panel: the rows block above already takes the spare height,
               // and this holds the bar down if a later state ever stops it.
-              //
-              // The catalogue's status rides above the bar, inside the same
-              // footer, so the rows block above measures around both and the
-              // count never pushes a row out of the frame.
               <div data-region="list-footer" className="mt-auto shrink-0">
-                {listStatus ? (
-                  <div className="border-rule border-t px-[15px] py-2">{listStatus}</div>
-                ) : null}
                 <NumberedPagination
                   page={page}
                   pages={pageCount}
@@ -764,16 +781,11 @@ export function MemeDesktopBoard({
                   loadingMore={pageLoadingMore}
                 />
               </div>
-            ) : listFooter || listStatus ? (
+            ) : listFooter ? (
               <div data-region="list-footer" className="mt-auto shrink-0">
-                {listStatus ? (
-                  <div className="border-rule border-t px-[15px] py-2">{listStatus}</div>
-                ) : null}
-                {listFooter ? (
-                  <div className="border-rule text-grey-100 border-t p-[13px] text-center font-serif text-[12px] font-medium">
-                    {listFooter}
-                  </div>
-                ) : null}
+                <div className="border-rule text-grey-100 border-t p-[13px] text-center font-serif text-[12px] font-medium">
+                  {listFooter}
+                </div>
               </div>
             ) : null}
           </section>

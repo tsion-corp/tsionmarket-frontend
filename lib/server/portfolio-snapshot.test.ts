@@ -4,7 +4,6 @@ vi.mock("server-only", () => ({}));
 
 const session = vi.hoisted(() => ({
   user: null as unknown,
-  bearer: null as string | null,
 }));
 
 const alchemy = vi.hoisted(() => ({
@@ -13,7 +12,6 @@ const alchemy = vi.hoisted(() => ({
 
 vi.mock("@/lib/server/session", () => ({
   getSessionUser: () => Promise.resolve(session.user),
-  getSessionBearer: () => Promise.resolve(session.bearer),
 }));
 
 vi.mock("@/lib/server/alchemy", () => ({
@@ -34,7 +32,6 @@ describe("dehydratedPortfolio", () => {
   beforeEach(() => {
     alchemy.fetchPortfolio.mockReset();
     session.user = null;
-    session.bearer = null;
   });
 
   it("returns nothing without a session, and never touches Alchemy", async () => {
@@ -54,7 +51,7 @@ describe("dehydratedPortfolio", () => {
 
     const state = await dehydratedPortfolio();
 
-    expect(alchemy.fetchPortfolio).toHaveBeenCalledWith("0xabc", "SoL1", null, null);
+    expect(alchemy.fetchPortfolio).toHaveBeenCalledWith("0xabc", "SoL1");
     expect(state?.queries).toHaveLength(1);
     expect(state?.queries[0].queryKey).toEqual(["portfolio", "0xabc", "SoL1"]);
     expect(state?.queries[0].state.data).toEqual({ totalUsd: 42, tokens: [] });
@@ -66,7 +63,7 @@ describe("dehydratedPortfolio", () => {
 
     const state = await dehydratedPortfolio();
 
-    expect(alchemy.fetchPortfolio).toHaveBeenCalledWith("0xabc", undefined, null, null);
+    expect(alchemy.fetchPortfolio).toHaveBeenCalledWith("0xabc", undefined);
     expect(state?.queries[0].queryKey).toEqual(["portfolio", "0xabc", null]);
   });
 
@@ -77,27 +74,5 @@ describe("dehydratedPortfolio", () => {
     const state = await dehydratedPortfolio();
 
     expect(state?.queries ?? []).toHaveLength(0);
-  });
-});
-
-// The snapshot populates the shared portfolio cache. Built without the
-// session's bearer it would hold a memecoin-less answer, and the browser's own
-// authenticated read would be served that for the length of the cache window:
-// the coins would appear only after the snapshot expired.
-describe("dehydratedPortfolio identity", () => {
-  beforeEach(() => {
-    alchemy.fetchPortfolio.mockReset();
-    session.user = signedIn;
-    session.bearer = "Bearer privy-token";
-  });
-
-  it("reads the portfolio as the session, not anonymously", async () => {
-    await dehydratedPortfolio();
-    expect(alchemy.fetchPortfolio).toHaveBeenCalledWith(
-      "0xabc",
-      "SoL1",
-      null,
-      "Bearer privy-token"
-    );
   });
 });

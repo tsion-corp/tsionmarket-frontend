@@ -2,9 +2,8 @@
 
 import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { useTranslations } from "next-intl";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import {
@@ -22,8 +21,7 @@ import { clearRefCode, readRefCode } from "@/features/referrals/lib/ref-cookie";
 const STATS_POLL_MS = 30 * 1000;
 
 export function useReferralStats(enabled: boolean) {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress: wallet } = useAuthSession();
 
   return useQuery({
     queryKey: ["referrals", "me", wallet],
@@ -64,7 +62,7 @@ export function useSetUsername() {
 // that the code no longer exists. Transient failures keep the cookie so the
 // next visit retries.
 export function useClaimReferralFromLink() {
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated } = useAuthSession();
   const queryClient = useQueryClient();
   const t = useTranslations("referral");
   const fired = useRef(false);

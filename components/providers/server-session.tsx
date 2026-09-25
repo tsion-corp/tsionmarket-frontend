@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { createContext, useContext } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { getWalletAddress } from "@/lib/user";
+
 import type { ServerSession } from "@/lib/session";
 
 const ServerSessionContext = createContext<ServerSession | null>(null);
@@ -39,9 +39,10 @@ export function useServerSession(): ServerSession | null {
 // A Solana address is left exactly as it came: base58 carries meaning in its
 // case, so a folded one names a different account, or none.
 export function useSessionWallet(chain: "ethereum" | "solana"): string | null {
-  const { ready, user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const server = useServerSession();
-  const address = ready ? getWalletAddress(user, chain) : (server?.wallets[chain] ?? null);
+  const address = ready ? addressFor(chain) : (server?.wallets[chain] ?? null);
   if (!address) return null;
   return chain === "ethereum" ? address.toLowerCase() : address;
 }

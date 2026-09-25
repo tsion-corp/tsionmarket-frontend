@@ -25,7 +25,18 @@ vi.mock("next/navigation", () => ({
 vi.mock("@privy-io/react-auth", () => ({
   getAccessToken: vi.fn(() => Promise.resolve("access-token")),
   getIdentityToken: vi.fn(() => Promise.resolve("identity-token")),
-  usePrivy: () => auth,
+}));
+
+// The frame reads the session through the app's Decane-backed seam.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: null,
+    solanaAddress: null,
+    profile: { name: "Player", email: "", avatarSeed: "seed" },
+    logout: auth.logout,
+  }),
 }));
 
 vi.mock("@/components/auth/auth-guard", () => ({

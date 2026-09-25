@@ -1,6 +1,14 @@
 "use client";
 
 import { apiFetch } from "@/lib/api";
+import type { AuthIdentity } from "@/lib/auth-token";
+
+// Which identity authenticates to the sponsor. The migration flow signs with
+// the OLD Privy wallet and the gas-sponsor service still verifies Privy
+// tokens, so those calls name "legacy"; everything else is the app identity.
+export interface SponsorRequestOptions {
+  identity?: AuthIdentity;
+}
 
 export interface SponsoredSolanaTransactionResult {
   serializedTransaction: string;
@@ -56,7 +64,7 @@ const RETRY_DELAY_MS = 900;
 // sign. Sponsoring and submitting happen in sponsorAndSubmitSolanaTransaction.
 export async function prepareSponsoredSolanaTransaction(
   transaction: string | Uint8Array,
-  opts: { prefundRent?: boolean } = {}
+  opts: { prefundRent?: boolean } & SponsorRequestOptions = {}
 ): Promise<Uint8Array> {
   const serializedTransaction =
     typeof transaction === "string" ? transaction : bytesToBase64(transaction);
@@ -71,7 +79,7 @@ export async function prepareSponsoredSolanaTransaction(
           ...(opts.prefundRent ? { prefundRent: true } : {}),
         }),
       },
-      { requireAuth: true }
+      { requireAuth: true, identity: opts.identity }
     );
 
   let res: Response;
@@ -96,7 +104,8 @@ export async function prepareSponsoredSolanaTransaction(
 }
 
 async function requestSolanaSponsorship(
-  transaction: string | Uint8Array
+  transaction: string | Uint8Array,
+  opts: SponsorRequestOptions
 ): Promise<SponsoredSolanaTransactionResult> {
   const serializedTransaction =
     typeof transaction === "string" ? transaction : bytesToBase64(transaction);
@@ -108,7 +117,7 @@ async function requestSolanaSponsorship(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ serializedTransaction }),
       },
-      { requireAuth: true }
+      { requireAuth: true, identity: opts.identity }
     );
 
   let res: Response;
@@ -135,7 +144,8 @@ async function requestSolanaSponsorship(
 // Step two: the user-signed transaction goes to the sponsor, which adds its
 // fee-payer signature and submits. The result carries submittedSignature.
 export async function sponsorAndSubmitSolanaTransaction(
-  transaction: string | Uint8Array
+  transaction: string | Uint8Array,
+  opts: SponsorRequestOptions = {}
 ): Promise<SponsoredSolanaTransactionResult> {
-  return requestSolanaSponsorship(transaction);
+  return requestSolanaSponsorship(transaction, opts);
 }

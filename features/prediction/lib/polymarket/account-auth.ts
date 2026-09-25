@@ -1,6 +1,6 @@
 "use client";
 
-import type { SecureClient } from "./secure-client";
+import type { SecureClient } from "@/lib/polymarket/secure-client";
 
 export const COMBO_QUOTE_PROVIDER_PATH = "/v1/builder/rfq/requests";
 

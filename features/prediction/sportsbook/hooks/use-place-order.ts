@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import {
   encodeFunctionData,
   erc20Abi,
@@ -13,7 +14,6 @@ import {
 } from "viem";
 import { useEvmSendBatch, type EvmBatchCall } from "@/hooks/use-evm-send";
 import { publicClientForChain } from "@/lib/trade/receipt";
-import { getWalletAddress } from "@/lib/user";
 import {
   prepareOrder,
   sportsbookKeys,
@@ -56,22 +56,20 @@ function withDomainType(typedData: Eip712TypedData): Eip712TypedData {
 
 export function usePlaceSportsbookOrder() {
   const [phase, setPhase] = useState<PlaceOrderPhase>("idle");
-  const { user } = usePrivy();
-  const { wallets } = useWallets();
+  const { evmAddress } = useAuthSession();
+  const { getEthereumProvider } = useSocialWallet();
   const sendEvmBatch = useEvmSendBatch();
   const queryClient = useQueryClient();
 
   const sign = useCallback(
     async (owner: string, typedData: Eip712TypedData): Promise<string> => {
-      const wallet = wallets.find(({ address }) => address.toLowerCase() === owner.toLowerCase());
-      if (!wallet) throw new Error("Your embedded wallet is not connected.");
-      const provider = (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
+      const provider = (await getEthereumProvider()) as unknown as EIP1193Provider;
       return (await provider.request({
         method: "eth_signTypedData_v4",
         params: [owner as Address, JSON.stringify(withDomainType(typedData))],
       })) as string;
     },
-    [wallets]
+    [getEthereumProvider]
   );
 
   const mutation = useMutation({
@@ -82,7 +80,7 @@ export function usePlaceSportsbookOrder() {
       selections: SlipSelection[];
       stakeUsdc: string;
     }) => {
-      const ownerWallet = getWalletAddress(user, "ethereum");
+      const ownerWallet = evmAddress;
       const usdcAmount = decimalToAtomic(stakeUsdc, 6);
       if (!ownerWallet) throw new Error("Your Base wallet is not connected.");
       if (!usdcAmount || usdcAmount <= 0n) throw new Error("Enter a valid USDC stake.");
@@ -222,12 +220,12 @@ export function usePlaceSportsbookOrder() {
 
 export function useRedeemSportsbookOrder() {
   const [phase, setPhase] = useState<RedemptionPhase>("idle");
-  const { user } = usePrivy();
+  const { evmAddress } = useAuthSession();
   const sendEvmBatch = useEvmSendBatch();
   const queryClient = useQueryClient();
   const mutation = useMutation({
     mutationFn: async (ticketId: string) => {
-      const ownerWallet = getWalletAddress(user, "ethereum");
+      const ownerWallet = evmAddress;
       if (!ownerWallet) throw new Error("Your Base wallet is not connected.");
       const owner = ownerWallet as Address;
       const { prepareRedemption, submitRedemption } = await import("../api");

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback } from "react";
-import { useWallets } from "@privy-io/react-auth/solana";
 import { awaitReceipt, isReceiptChain, publicClientForChain } from "@/lib/trade/receipt";
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
@@ -26,7 +25,6 @@ const EVM_CHAIN_ID: Partial<Record<RwaChain, number>> = {
 export function useExecuteRwa() {
   const evmSend = useEvmSend();
   const sendSponsored = useSponsoredSolanaSend();
-  const { wallets: solanaWallets } = useWallets();
 
   return useCallback(
     async (
@@ -60,12 +58,9 @@ export function useExecuteRwa() {
         }
 
         if (action.chain === "solana") {
-          const wallet = solanaWallets[0];
-          if (!wallet) throw new Error("No Solana wallet is connected.");
           if (!step.tx.base64) throw new Error("The transaction is missing.");
           lastSolanaSig = await sendSponsored({
             transaction: step.tx.base64,
-            wallet,
             prefundRent: true,
           });
         } else {
@@ -96,6 +91,6 @@ export function useExecuteRwa() {
         await confirmSolanaSignature(lastSolanaSig);
       }
     },
-    [evmSend, sendSponsored, solanaWallets]
+    [evmSend, sendSponsored]
   );
 }

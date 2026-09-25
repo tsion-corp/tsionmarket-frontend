@@ -1,10 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy, useSignMessage } from "@privy-io/react-auth";
+import { useSocialWallet } from "decane-connect-kit";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { queryKeys } from "@/lib/query-keys";
 import { PERSISTED_GC_TIME } from "@/lib/query-persist";
-import { getWalletAddress } from "@/lib/user";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { markKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
@@ -43,8 +43,7 @@ export function useKashStatus() {
 // The caller's Kash account, keyed on their embedded EVM wallet. Disabled until
 // the wallet exists, so signed-out visitors never fire an authed call.
 export function useKashAccount() {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress: wallet } = useAuthSession();
 
   const query = useQuery({
     queryKey: queryKeys.kash.account(wallet),
@@ -87,8 +86,7 @@ export function useKashSubscriptionTiers(enabled: boolean) {
 // The caller's subscription tier. Drives the tier chip on the card, so it
 // loads with the account rather than waiting for the upgrade sheet to open.
 export function useKashSubscription() {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress: wallet } = useAuthSession();
 
   return useQuery({
     queryKey: ["kash", "subscription", wallet],
@@ -105,8 +103,7 @@ export function useKashSubscription() {
 // window reuses the cached list instead of re-fetching on every open, and
 // the user's own actions still bust the cache the moment they happen.
 export function useKashLedger(enabled: boolean) {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress: wallet } = useAuthSession();
 
   return useQuery({
     queryKey: ["kash", "ledger", wallet],
@@ -208,14 +205,13 @@ export function useKashSubscribe() {
  */
 export function useKashClaim() {
   const invalidate = useInvalidateKash();
-  const { signMessage } = useSignMessage();
+  const { signMessage } = useSocialWallet();
   return useMutation({
     mutationFn: async ({ wallet }: { wallet: string }) => {
       const timestamp = Date.now();
-      const { signature } = await signMessage(
-        { message: claimSettlementMessage(wallet, timestamp) },
-        { address: wallet }
-      );
+      // Decane's signMessage(chain, message) returns the signature directly
+      // (EIP-191 personal_sign), replacing Privy's useSignMessage.
+      const signature = await signMessage("evm:8453", claimSettlementMessage(wallet, timestamp));
       return postKashClaim(wallet, signature, timestamp);
     },
     onSuccess: invalidate,

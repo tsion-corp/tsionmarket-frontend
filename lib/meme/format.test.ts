@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   PLATFORM_FEE_SYMBOL,
   changeDirection,
+  compactCount,
+  compactPercentPoints,
   compactUsd,
   formatUsdcAtomic,
   marketDataAge,
@@ -42,6 +44,91 @@ describe("compactUsd", () => {
   it("compacts a published figure", () => {
     expect(compactUsd("1887590")).toBe("$1.89M");
     expect(compactUsd("56699")).toBe("$56.7K");
+  });
+
+  // The figures that used to run out of their cells. cbBTC's market cap is
+  // twenty-two characters written out and six compacted; the cap column is
+  // 121px wide, so the long form pushed the row's last column off the panel.
+  it("keeps a long figure inside its cell", () => {
+    expect(compactUsd("3491589227.1234567890123")).toBe("$3.49B");
+    expect(compactUsd("103240000000")).toBe("$103.24B");
+    expect(compactUsd("1000000000000000")).toBe("$1,000T");
+  });
+
+  it("writes a figure under a thousand out in full", () => {
+    expect(compactUsd("123.456")).toBe("$123.46");
+    expect(compactUsd("999.994")).toBe("$999.99");
+    expect(compactUsd("0.42")).toBe("$0.42");
+  });
+
+  // The bug this replaces: Number() plus Intl's compact notation rendered a
+  // live price of 1.21495281918e-9 as "$0", which the contract forbids. A
+  // figure below a cent is small, not absent and not zero.
+  it("never shows a figure that is not zero as zero", () => {
+    expect(compactUsd("0.004")).toBe("<$0.01");
+    expect(compactUsd("1.21495281918e-9")).toBe("<$0.01");
+    expect(compactUsd("0.01")).toBe("$0.01");
+  });
+
+  it("keeps the sign on a negative figure", () => {
+    expect(compactUsd("-1887590")).toBe("-$1.89M");
+    expect(compactUsd("-0.004")).toBe(">-$0.01");
+  });
+
+  // Rounding to the suffix is money arithmetic, so it runs on the digits the
+  // service sent rather than on what a float can hold. Every digit here is
+  // past the 17 a double keeps.
+  it("rounds from the string, not from a float", () => {
+    expect(compactUsd("1234567890123.456789")).toBe("$1.23T");
+    expect(compactUsd("1885000")).toBe("$1.89M");
+    expect(compactUsd("1884999.999")).toBe("$1.88M");
+  });
+});
+
+describe("compactCount", () => {
+  it("renders a missing count as a dash and a real zero as zero", () => {
+    expect(compactCount(null)).toBe("—");
+    expect(compactCount(undefined)).toBe("—");
+    expect(compactCount(0)).toBe("0");
+  });
+
+  // A count means something to the unit, so it is grouped until it stops
+  // fitting. "123,456" is no wider than the "123.46K" that would replace it.
+  it("groups a count below a million", () => {
+    expect(compactCount(842)).toBe("842");
+    expect(compactCount(123456)).toBe("123,456");
+    expect(compactCount(999999)).toBe("999,999");
+  });
+
+  // 1,284,339 transactions is nine characters in a 96px column.
+  it("compacts a count from a million up", () => {
+    expect(compactCount(1284339)).toBe("1.28M");
+    expect(compactCount(1000000)).toBe("1M");
+    expect(compactCount(2400000000)).toBe("2.4B");
+  });
+});
+
+// Changes arrive as points ("12.5" is +12.5%), so nothing here converts them.
+describe("compactPercentPoints", () => {
+  it("is null for a change the service did not publish", () => {
+    expect(compactPercentPoints(null)).toBeNull();
+    expect(compactPercentPoints("")).toBeNull();
+    expect(compactPercentPoints("n/a")).toBeNull();
+  });
+
+  it("keeps both decimals and an explicit sign for an ordinary move", () => {
+    expect(compactPercentPoints("12.5")).toBe("+12.50%");
+    expect(compactPercentPoints("-4.2")).toBe("-4.20%");
+    expect(compactPercentPoints("0")).toBe("+0.00%");
+    expect(compactPercentPoints("999.994")).toBe("+999.99%");
+  });
+
+  // A card 156px wide cannot draw "+12345.67%" at 18px, which is what a fresh
+  // launch's first hour looks like.
+  it("compacts a move past a thousand points", () => {
+    expect(compactPercentPoints("12345.67")).toBe("+12.35K%");
+    expect(compactPercentPoints("-45000")).toBe("-45K%");
+    expect(compactPercentPoints("2400000")).toBe("+2.4M%");
   });
 });
 

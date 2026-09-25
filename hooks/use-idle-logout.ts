@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 // Interaction that counts as "the user is here" and resets the idle timer.
 const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scroll"] as const;
@@ -12,7 +12,7 @@ const ACTIVITY_EVENTS = ["mousemove", "mousedown", "keydown", "touchstart", "scr
 // keeps it dormant until the session is actually authenticated. `onIdle` runs
 // just before logout (e.g. to surface a "signed out for security" message).
 export function useIdleLogout(timeoutMs: number, enabled: boolean, onIdle?: () => void): void {
-  const { logout } = usePrivy();
+  const { logout } = useAuthSession();
 
   // Keep the latest logout/onIdle in a ref, updated in an effect (not during
   // render), so the listener effect below doesn't re-bind every render.

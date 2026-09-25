@@ -2,7 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import { catalogKey } from "@/lib/meme/catalog";
 
 // The real motion library runs in jsdom; only the reduced-motion reading is
@@ -17,8 +17,10 @@ const {
   MemeTrendingStrip,
   TRENDING_DESK_HEIGHT,
   TRENDING_MIN_CARD_PX,
+  TRENDING_ROW_MIN_PX,
   TRENDING_DESK_PAGE_SIZE,
   TRENDING_PHONE_PAGE_SIZE,
+  reloadPage,
 } = await import("@/features/trade/components/meme-trending-strip");
 type StripProps = Parameters<typeof MemeTrendingStrip>[0];
 
@@ -65,6 +67,7 @@ function renderStrip(overrides: Partial<StripProps> = {}) {
     onRetry: vi.fn(),
     selectedKey: null,
     onSelect: vi.fn(),
+    reload: vi.fn(),
     ...overrides,
   };
   const view = render(
@@ -90,13 +93,16 @@ beforeEach(() => {
 });
 
 describe("MemeTrendingStrip sizes", () => {
-  // Three on the desk since 2026-09-16: at four, a card was narrow enough to
-  // cut a long change figure mid-number. The phone keeps four, which its grid
-  // draws two by two.
-  it("pages three cards on the desk and four on a phone, over a 172px floor", () => {
+  it("pages three cards on both surfaces, over a 172px floor", () => {
     expect(TRENDING_DESK_PAGE_SIZE).toBe(3);
-    expect(TRENDING_PHONE_PAGE_SIZE).toBe(4);
+    expect(TRENDING_PHONE_PAGE_SIZE).toBe(3);
     expect(TRENDING_DESK_HEIGHT).toBe(172);
+  });
+
+  it("holds a page to one row once the box fits three cards at their floor", () => {
+    // Three 156px cards and the two 8px gaps between them.
+    expect(TRENDING_ROW_MIN_PX).toBe(484);
+    expect(TRENDING_ROW_MIN_PX).toBe(TRENDING_MIN_CARD_PX * 3 + 16);
   });
 });
 
@@ -140,9 +146,10 @@ describe("MemeTrendingStrip cards", () => {
   });
 
   it("continues the ranks across pages from the offset", () => {
-    renderStrip({ rankOffset: 4, page: 2 });
-    expect(within(card("PEPE")).getByText("#5")).toBeInTheDocument();
-    expect(card("BONK")).toHaveAccessibleName(/rank 7/);
+    // The offset a surface hands down for page two of a three-a-page strip.
+    renderStrip({ rankOffset: TRENDING_DESK_PAGE_SIZE, page: 2 });
+    expect(within(card("PEPE")).getByText("#4")).toBeInTheDocument();
+    expect(card("BONK")).toHaveAccessibleName(/rank 6/);
   });
 
   it("names a card by symbol, rank, signed change and window, never by the coin's name", () => {
@@ -185,6 +192,21 @@ describe("MemeTrendingStrip header and pager", () => {
     expect(screen.getByRole("button", { name: "Next trending page" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Previous trending page" }));
     expect(last.props.onPageChange).toHaveBeenCalledWith(2);
+  });
+
+  // ~100 trending coins three a page is about 34 pages. The pager steps rather
+  // than numbering, so the count it carries costs it nothing: two buttons and a
+  // label, at 3 pages or at 34.
+  it("stays two buttons and a label over a hundred coins' worth of pages", () => {
+    const { container } = renderStrip({ page: 17, pages: 34 });
+    expect(screen.getByText("17 / 34")).toBeInTheDocument();
+    const header = container.querySelector<HTMLElement>('[data-region="trending"] .h-7');
+    const buttons = within(header as HTMLElement).getAllByRole("button");
+    // Refresh, Prev, Next, and no numbered page button behind them.
+    expect(buttons).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: /^Page \d/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Previous trending page" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Next trending page" })).toBeEnabled();
   });
 
   it("hides the pager when everything fits on one page", () => {
@@ -236,33 +258,112 @@ describe("MemeTrendingStrip states", () => {
     expect(root(container).style.height).toBe("");
   });
 
-  // At 1024px the left column is about 480px wide. Four cards across it leave
-  // 110px each, which crushes the rank, the coin and the change into a column.
-  // The grid fits as many whole cards as the room allows and wraps the rest,
-  // so a narrow column shows two by two and a wide one a single row of four.
+  // A page is three cards, and the box they sit in is not the same width on
+  // the two surfaces at the same viewport: a desk's left column is about 480px
+  // at 1024px, a phone's list about 360px. So the arrangement is chosen from
+  // the box's own width. Three across once three fit at their 156px floor,
+  // two with the third across the foot below that, and one a row under 320px,
+  // where two no longer fit. No arrangement leaves a hole in a row.
   // Tailwind only generates a class it can read in the source, so these are
   // written out in the components. If a constant moves and the class does not,
   // the strip silently loses its sizing in the browser while jsdom sees a class
-  // that was never built. These two tests fail instead.
-  it("keeps the written-out grid class in step with the minimum card width", () => {
+  // that was never built. These tests fail instead.
+  it("keeps the written-out grid classes in step with the card and row widths", () => {
     const { container } = renderStrip();
     const scroller = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
-    expect(scroller?.className).toContain("minmax(156px,1fr)");
     expect(TRENDING_MIN_CARD_PX).toBe(156);
+    expect(scroller?.className).toContain(`@min-[${TRENDING_ROW_MIN_PX}px]:grid-cols-3`);
+    expect(scroller?.className).toContain(`@min-[${TRENDING_MIN_CARD_PX * 2 + 8}px]:grid-cols-2`);
   });
 
-  it("fits the desk cards to the room instead of always four across", () => {
+  it("draws three across at width, and never four", () => {
     const { container } = renderStrip();
     const scroller = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
     expect(scroller).toHaveClass("grid");
     expect(scroller).not.toHaveClass("grid-cols-4");
-    expect(scroller?.className).toContain(`minmax(${TRENDING_MIN_CARD_PX}px,1fr)`);
+    expect(scroller?.className).toContain("@min-[484px]:grid-cols-3");
+  });
+
+  it("lays the third card across the foot where only two fit, so no row has a hole", () => {
+    const { container } = renderStrip();
+    const scroller = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
+    expect(scroller?.className).toContain(
+      "@min-[320px]:@max-[484px]:[&>*:nth-child(3)]:col-span-2"
+    );
+    // One card a row under 320px instead, where the span would push a card
+    // past the box's edge.
+    expect(scroller).toHaveClass("grid-cols-1");
+  });
+
+  it("measures the box the cards sit in, not the window", () => {
+    const { container } = renderStrip();
+    const scroller = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
+    // Without a container on an ancestor the queries would answer against the
+    // viewport, and a phone would draw the desk's three across.
+    expect(scroller?.parentElement).toHaveClass("@container");
   });
 
   it("lays the loading cards out on the same grid as the real ones", () => {
     const { container } = renderStrip({ tokens: [], isLoading: true });
     const skeletons = container.querySelector<HTMLElement>('[data-skeleton="trending-row"]');
-    expect(skeletons?.className).toContain(`minmax(${TRENDING_MIN_CARD_PX}px,1fr)`);
+    expect(skeletons?.className).toContain(`@min-[${TRENDING_ROW_MIN_PX}px]:grid-cols-3`);
+    expect(skeletons?.parentElement).toHaveClass("@container");
+  });
+});
+
+// Trending and the catalogue are both read once per page load and then held
+// for the tab, so refreshing one query would leave the other stale under the
+// same reader. Refresh reloads the page instead: one press, everything on
+// screen read again.
+describe("MemeTrendingStrip refresh", () => {
+  it("reloads the page on a press", () => {
+    const reload = vi.fn();
+    renderStrip({ reload });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh trending" }));
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds the control down after the press so a second reload cannot fire", () => {
+    const reload = vi.fn();
+    renderStrip({ reload });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh trending" }));
+    // The page is on its way out, so the name, the spin and the held-down
+    // state all stay put rather than snapping back to idle.
+    const button = screen.getByRole("button", { name: "Refreshing trending" });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-busy", "true");
+    expect(button.querySelector("svg")).toHaveClass("animate-spin");
+    fireEvent.click(button);
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  // The default the strip uses when no surface injects one. jsdom refuses to
+  // let window.location.reload be replaced, which is why the strip takes the
+  // reload as a prop at all; this covers the one line behind that default.
+  it("reloads through the browser by default", () => {
+    const target = { reload: vi.fn() };
+    reloadPage(target);
+    expect(target.reload).toHaveBeenCalledTimes(1);
+  });
+
+  it.each<[string, Partial<StripProps>]>([
+    ["data", {}],
+    ["loading", { tokens: [], isLoading: true }],
+    ["error", { tokens: [], error: new Error("502") }],
+    ["empty", { tokens: [], pages: 1 }],
+  ])("offers refresh in the %s state", (_state, overrides) => {
+    renderStrip(overrides);
+    expect(screen.getByRole("button", { name: "Refresh trending" })).toBeEnabled();
+  });
+
+  it("keeps refresh in the header on a phone, above the cards and their pager", () => {
+    const { container } = renderStrip({ variant: "phone" });
+    const grid = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
+    const button = screen.getByRole("button", { name: "Refresh trending" });
+    expect(grid?.compareDocumentPosition(button)).toBe(Node.DOCUMENT_POSITION_PRECEDING);
+    // Beside the title rather than after it, so a long subtitle truncates
+    // against the button instead of pushing it off the screen.
+    expect(button.parentElement).toHaveClass("shrink-0");
   });
 });
 
@@ -289,7 +390,7 @@ describe("MemeTrendingStrip on a phone", () => {
   it("lays whole cards on a grid, never a sliced one, with the pager under them", () => {
     const { container } = renderStrip({ variant: "phone" });
     const grid = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
-    expect(grid?.className).toContain(`minmax(${TRENDING_MIN_CARD_PX}px,1fr)`);
+    expect(grid?.className).toContain(`@min-[${TRENDING_ROW_MIN_PX}px]:grid-cols-3`);
     expect(grid).not.toHaveClass("snap-x");
     expect(grid).not.toHaveClass("overflow-x-auto");
     expect(card("PEPE")).toHaveClass("min-w-0");
@@ -299,8 +400,11 @@ describe("MemeTrendingStrip on a phone", () => {
     expect(grid?.compareDocumentPosition(pager)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
-  it("pages four cards on a phone, so the grid is two by two", () => {
-    expect(TRENDING_PHONE_PAGE_SIZE).toBe(4);
+  it("pages three cards on a phone, so the narrow grid is two and one across the foot", () => {
+    const { container } = renderStrip({ variant: "phone" });
+    expect(TRENDING_PHONE_PAGE_SIZE).toBe(3);
+    const grid = container.querySelector<HTMLElement>('[data-region="trending-scroller"]');
+    expect(grid?.className).toContain("@min-[320px]:@max-[484px]:[&>*:nth-child(3)]:col-span-2");
   });
 
   it("shows a skeleton for every card of the page, on the same grid", () => {
@@ -309,7 +413,7 @@ describe("MemeTrendingStrip on a phone", () => {
       TRENDING_PHONE_PAGE_SIZE
     );
     const skeletons = container.querySelector<HTMLElement>('[data-skeleton="trending-row"]');
-    expect(skeletons?.className).toContain(`minmax(${TRENDING_MIN_CARD_PX}px,1fr)`);
+    expect(skeletons?.className).toContain(`@min-[${TRENDING_ROW_MIN_PX}px]:grid-cols-3`);
     // As tall as a real card, so the list under it does not jump when
     // trending lands.
     const skeleton = container.querySelector<HTMLElement>('[data-skeleton="trending-card"]');

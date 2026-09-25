@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
 import { DepositStatus } from "@/components/ui/deposit-status";
 import { QrScanSheet } from "@/features/funds/components/qr-scan-sheet";
 import { useSendToken } from "@/hooks/use-withdraw";
@@ -21,7 +21,7 @@ import {
   type WithdrawQuoteInput,
 } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { getWalletAddress } from "@/lib/user";
+
 import {
   quoteFee,
   SETTLE_CHAINS,
@@ -169,7 +169,8 @@ interface CryptoWithdrawScreenProps {
 // hood, auto-refunding to the wallet if it can't complete.
 export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   const t = useTranslations("fundsFlow");
-  const { user } = usePrivy();
+  const { authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const { tokens } = usePortfolio();
   const { sendToken } = useSendToken();
   const allChains = useDepositChains();
@@ -222,7 +223,7 @@ export function CryptoWithdrawScreen({ onBack }: CryptoWithdrawScreenProps) {
   );
   const balance = usdcHolding?.balance ?? 0;
   // Dextopus validates the refund address against the ORIGIN chain family.
-  const refundTo = getWalletAddress(user, source.chainType);
+  const refundTo = addressFor(source.chainType);
 
   // Where the USDC can go, per Dextopus's solver for USDC on the chosen source.
   const destinations = useWithdrawDestinations({

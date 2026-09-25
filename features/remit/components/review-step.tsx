@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { FlagIcon } from "@/components/ui/flag-icon";
 import { useFx } from "@/hooks/use-fx";
@@ -14,7 +14,6 @@ import {
 import { useSendToken } from "@/hooks/use-withdraw";
 import { formatAmount } from "@/lib/trade/math";
 import { friendlyError } from "@/lib/errors";
-import { getWalletAddress } from "@/lib/user";
 import { maskNumber } from "@/features/remit/lib/cross-border";
 import {
   OFFRAMP_ORIGIN,
@@ -77,7 +76,7 @@ function StatusCard({ status }: { status: RampPublicStatus }) {
 // rather than losing anything.
 export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
   const t = useTranslations("remit");
-  const { user } = usePrivy();
+  const { evmAddress } = useAuthSession();
   const { rate } = useFx();
   const { sendToken } = useSendToken();
   const create = useCreateOfframp();
@@ -111,7 +110,7 @@ export function ReviewStep({ form, onBack, onDone }: ReviewStepProps) {
     ? `${network ? network.name : t("method_mobile_money")} ${maskNumber(accountNumber)}`
     : `${bank?.name ?? ""} ${maskNumber(accountNumber)}`;
 
-  const refundTo = getWalletAddress(user, "ethereum");
+  const refundTo = evmAddress;
   const status = order.data?.publicStatus ?? null;
   const terminal = status !== null && isTerminalRampStatus(status);
   const sent = phase === "tracking";

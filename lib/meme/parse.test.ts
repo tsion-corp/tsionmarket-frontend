@@ -291,4 +291,64 @@ describe("impossible price changes", () => {
   it("drops a change that is not a number at all", () => {
     expect(changeOf("NaN").activity?.["24h"]?.priceChangePercent).toBeNull();
   });
+
+  // The ceiling itself is a real reading, in both directions. Only past it does
+  // the figure stop being a market move.
+  it("keeps the value on the ceiling and drops the one just past it", () => {
+    expect(changeOf("1000000").activity?.["24h"]?.priceChangePercent).toBe("1000000");
+    expect(changeOf("-1000000").activity?.["24h"]?.priceChangePercent).toBe("-1000000");
+    expect(changeOf("1000000.1").activity?.["24h"]?.priceChangePercent).toBeNull();
+    expect(changeOf("-1000000.1").activity?.["24h"]?.priceChangePercent).toBeNull();
+    // The service writes a large figure in exponent form as often as in full.
+    expect(changeOf("2.8e19").activity?.["24h"]?.priceChangePercent).toBeNull();
+  });
+
+  // The service computes every window the same way, so an impossible reading
+  // can land on any of them, and each is judged on its own.
+  it("judges every window, not only 24h", () => {
+    const [token] = parseTokenPage({
+      items: [
+        {
+          ...LIVE_LIST_TOKEN,
+          activity: {
+            "5m": { priceChangePercent: "2.8e19" },
+            "1h": { priceChangePercent: "-7e12" },
+            "6h": { priceChangePercent: "31.5" },
+          },
+        },
+      ],
+      meta: LIVE_TOKEN_PAGE.meta,
+    }).items;
+
+    expect(token.activity?.["5m"]?.priceChangePercent).toBeNull();
+    expect(token.activity?.["1h"]?.priceChangePercent).toBeNull();
+    expect(token.activity?.["6h"]?.priceChangePercent).toBe("31.5");
+  });
+
+  // The flat field carries the same measurement and most of the desk renders it
+  // directly, so an unguarded one would put the nonsense back on the screen.
+  // changeFor() also falls back to it when the 24h window has no change.
+  it("drops an impossible flat 24h change on list, search and detail rows", () => {
+    const [listed] = parseTokenPage({
+      items: [{ ...LIVE_LIST_TOKEN, priceChange24hPercent: "22478541914774794240" }],
+      meta: LIVE_TOKEN_PAGE.meta,
+    }).items;
+    expect(listed.priceChange24hPercent).toBeNull();
+    // The price beside it is untouched: only the change was unusable.
+    expect(listed.priceUsd).toBe(LIVE_LIST_TOKEN.priceUsd);
+
+    const [found] = parseTokenSearch([{ ...LIVE_SEARCH_ROW, priceChange24hPercent: "2.8e19" }]);
+    expect(found.priceChange24hPercent).toBeNull();
+
+    const detail = parseTokenView({ ...LIVE_TOKEN_DETAIL, priceChange24hPercent: "2.8e19" });
+    expect(detail.priceChange24hPercent).toBeNull();
+  });
+
+  it("keeps a real flat 24h change", () => {
+    const [listed] = parseTokenPage({
+      items: [{ ...LIVE_LIST_TOKEN, priceChange24hPercent: "-12.5" }],
+      meta: LIVE_TOKEN_PAGE.meta,
+    }).items;
+    expect(listed.priceChange24hPercent).toBe("-12.5");
+  });
 });

@@ -11,8 +11,15 @@ const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523
 
 const apiFetch = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", () => ({ apiFetch }));
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ ready: true, authenticated: true, user: null }),
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: null,
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "" },
+    logout: vi.fn(),
+  }),
 }));
 const session = vi.hoisted(() => ({ evm: null as string | null }));
 vi.mock("@/components/providers/server-session", () => ({

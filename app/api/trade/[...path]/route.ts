@@ -131,6 +131,13 @@ async function forward(req: NextRequest, method: "GET" | "POST") {
     };
     const requestId = res.ok ? null : upstreamRequestId(parsed);
     if (requestId) responseHeaders[REQUEST_ID_HEADER] = requestId;
+    // Retry-After has to survive the relay or a 429 loses the only thing that
+    // says when to come back. The catalogue walk reads it to schedule its next
+    // page; without it the client falls back to a fixed backoff and either
+    // waits longer than the gateway asked or returns too soon and is refused
+    // again. Copied only when upstream sent one, so nothing is invented.
+    const retryAfter = res.headers.get("retry-after");
+    if (retryAfter) responseHeaders["retry-after"] = retryAfter;
     return new NextResponse(text, { status: res.status, headers: responseHeaders });
   } catch (error) {
     console.error("Trade proxy failed:", joined, error);

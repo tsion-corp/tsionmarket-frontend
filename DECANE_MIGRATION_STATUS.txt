@@ -1,0 +1,142 @@
+================================================================================
+DECANE MIGRATION — RE-DO ON STAGING — STATUS & HANDOVER
+================================================================================
+Branch:  feat/decane-migration-v2   (off origin/staging @ dbb83152)
+Reference (stale, do-not-merge): feat/returning-user-unlock @ 96a9e7b8
+                                 (forked from main f3d56656 on 2026-09-10)
+Baseline: staging is king (staging = main + 134 commits; still the Privy app).
+
+WHY THIS EXISTS
+The full Privy→Decane frontend migration lives only on feat/returning-user-unlock,
+which forked before staging moved 134 commits ahead. Merging it back conflicts
+across auth. So we are RE-APPLYING the migration fresh onto staging, using that
+branch as the reference implementation.
+
+--------------------------------------------------------------------------------
+DONE (committed)
+--------------------------------------------------------------------------------
+1. 85b5f93b — mechanical port of 129 non-colliding migration files from the
+   reference (files staging never touched) + polymarket renames + deletions
+   (passkey-button, passkey-enroll, use-ensure-wallets).
+2. 735855da — entry points wired to Decane:
+   - app/(session)/providers.tsx  → DecaneKit (kept staging's cross-tab query
+     broadcast; FLAGGED PredictionCashoutTracker — post-fork Privy feature,
+     omitted pending Decane adaptation, see TODO in that file).
+   - components/auth/{auth-guard,email-form,social-buttons,auth-guard.test}.tsx
+     and app/(session)/auth/page.tsx → reference Decane versions.
+   - package.json → added decane-connect-kit ^2.18.0, decane-node ^1.1.1
+     (matched the reference's versions deliberately; do NOT bump without
+     checking API drift). pnpm install done.
+   - removed orphaned hooks/use-ensure-wallets.test.ts.
+
+Dev server runs on :3000. The app currently behaves as the Privy app on most
+feature routes because the feature-internal collisions below are NOT reconciled;
+the AUTH entry is Decane.
+
+--------------------------------------------------------------------------------
+REMAINING — this is a MULTI-DAY job, not finished
+--------------------------------------------------------------------------------
+
+A. 76 COLLISION FILES still holding staging's version (both staging and the
+   migration changed them). Reconcile each: take staging's newer logic, re-layer
+   the migration's Decane conversion (useSocialWallet / useAuthSession / lib/server
+   auth) on top. Full list: scratchpad/remaining.txt. By area:
+     features/portfolio (components+hooks+lib)   ~9
+     features/casino (hooks+last-standing+chess) ~11
+     features/prediction (hooks+lib)             ~6
+     features/funds/components                    4
+     features/trade (hooks+lib)                   ~4
+     lib, hooks, lib/server, lib/api, lib/perp    ~15
+     components/{layout,providers,ui}             ~6
+     messages/*.json (i18n — merge keys)          5
+     __tests__ + *.test.*                         several
+     pnpm-lock.yaml, next.config.ts               2
+
+   Current `npx tsc --noEmit`: ~52 errors, clustered in the venue
+   migration-adapters (trade/portfolio/casino), prediction/Polymarket hooks
+   (use-bet, use-settle, use-polymarket-*), and lib/trade (solana-sponsor,
+   receipt). Let the compiler drive the order.
+
+B. POST-FORK PRIVY FEATURES — net-new, NOT in the reference migration at all.
+   Staging added these on Privy after the fork; each needs fresh Decane
+   conversion (they will not typecheck/run correctly on Decane as-is):
+     - features/trade/*  HYPERLIQUID integration: hyperliquid-signer.ts,
+       use-hyperliquid-trading.ts, use-hyperliquid-wallet.ts, hyperliquid-fund-modal,
+       meme-trade-sheet (uses usePrivy directly).
+     - features/rwa/hooks/use-rwa-ticket.ts
+     - features/activity/{components/deposit-analytics,hooks/use-activity}
+     - features/casino/components/chess-app/* (chess-profile-balance,
+       lichess-spectator-betting, chess-lobby-frame) and arkjet/arkjet-chat-rail
+     - features/casino/components/last-standing/* (also collisions)
+   Find all: grep -rl "usePrivy\|@privy-io/react-auth" features components hooks app
+     (exclude legacy/migrate/reclaim/privy-modal-watch — those KEEP Privy for the sweep).
+
+--------------------------------------------------------------------------------
+HOW TO RESUME
+--------------------------------------------------------------------------------
+- Reference version of any file:  git show feat/returning-user-unlock:<path>
+- What the migration did to a file: git diff <base> feat/returning-user-unlock -- <path>
+  where base = git merge-base origin/staging feat/returning-user-unlock  (f3d56656)
+- What staging did to it since fork: git diff <base> origin/staging -- <path>
+- Reconcile = staging's logic + the migration's Decane conversion. For pure-auth
+  files, the reference version wins outright. For feature files, 3-way merge.
+- Keep Privy ONLY on the sweep surfaces (LegacyPrivyProvider: update-balance-button,
+  move-old-money-sheet, prediction/reclaim). Everything else → Decane.
+
+--------------------------------------------------------------------------------
+VERIFICATION (per the plan)
+--------------------------------------------------------------------------------
+- npx tsc --noEmit → 0 errors is the gate for "builds".
+- pnpm build clean.
+- Decane sign-in end to end (google/email/kingschat), then exercise: a send
+  (trade/withdraw), signMessage (prediction comment / meme challenge),
+  signTypedData (kash permit), Polymarket onboarding.
+- The legacy sweep still works (Privy mounted only on its surfaces).
+- Existing staging suites green (esp. casino/portfolio, where staging did the
+  most new work).
+
+DO NOT deploy this branch until A + B are complete and verified — it is funds-
+handling auth code for 30k users.
+================================================================================
+
+================================================================================
+UPDATE 05:57 — TYPECHECK CLEAN, BUT NOT RUNNABLE YET
+================================================================================
+npx tsc --noEmit = 0 errors. The structural migration, auth, recovery, i18n,
+core auth libs, the EVM SIGNING SEAM (use-evm-send -> Decane), and the
+prediction markets merge are all done and typecheck.
+
+THE REMAINING BLOCKER (why the app still crashes at runtime):
+48 files still CALL Privy hooks (usePrivy/useWallets/useLogout/useSignMessage),
+but providers.tsx no longer mounts Privy app-wide (only on the sweep surfaces).
+Typecheck passes (Privy is still installed) but these crash at runtime with
+"Cannot read properties of undefined" — e.g. AccountPopover's useLogout.
+
+Privy STAYS for moving money (the sweep) — LegacyPrivyProvider on
+update-balance/move-old-money/reclaim. The 48 below are the DEFAULT app shell
+that must move to Decane.
+
+Split of the 48 (lists in scratchpad take-ref.txt / postfork.txt):
+
+  (A) 24 files the reference branch already converted to Decane — collisions
+      currently at staging's Privy version. Taking the reference versions
+      converts them BUT cascades (+39 errors) because staging's post-fork
+      features are coupled to their staging (Privy) API shapes. So it is NOT a
+      clean bulk swap — each needs its consumers reconciled. Includes the core:
+      sidebar, topbar, use-portfolio, use-auth-session, use-vault-actions,
+      funds screens, use-kash, meme-trade-sheet.
+
+  (B) 24 POST-FORK features not on the reference at all — need net-new Decane
+      conversion (usePrivy/useWallets -> useSocialWallet/useAuthSession):
+      account-popover (the current crash), the whole chess-app (arena, lobby,
+      profile-balance, spectator-betting, leaderboard), arkjet, the sportsbook
+      workspace (bet-slip, tickets, top-nav, use-place-order), hyperliquid
+      (trading, wallet, fund-modal), rwa-ticket, use-user, use-global-balance,
+      category-bet-sidebar, prediction-cashout-tracker.
+
+HONEST ESTIMATE: this is a coupled feature migration, ~1+ more days with the
+feature owners — NOT an overnight finish. Do NOT deploy: it typechecks but does
+not run.
+
+Unrelated local noise seen while testing: Alchemy 429 (dev key rate-limited)
+and backend services not running locally — neither is a migration issue.

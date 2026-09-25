@@ -1,36 +1,32 @@
 "use client";
 
 import { useState } from "react";
-import { useLoginWithEmail } from "@privy-io/react-auth";
+import { useSocialAuth } from "decane-connect-kit";
 import { useTranslations } from "next-intl";
 import { track } from "@/lib/analytics/mixpanel";
 import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { OtpInput } from "@/components/auth/otp-input";
+import { recordAuthMethod } from "@/lib/analytics/auth-method";
+import { rememberDisplayProfile } from "@/lib/display-profile";
+import { rememberPending } from "@/lib/last-auth-method";
 
 const PRIMARY =
   "ws-chrome flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-white px-4 py-4 font-sans md:rounded-[14px] md:p-3.5 text-[15px] font-semibold text-ink transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-60";
 const INPUT =
   "w-full rounded-full border border-white/14 bg-black/40 px-5 py-4 text-[15px] text-white outline-none focus:border-accent/50 md:rounded-[14px] md:px-4 md:py-3.5";
 
-interface EmailFormProps {
-  /** Held back until the terms are accepted; the page says why. */
-  disabled?: boolean;
-}
-
-export function EmailForm({ disabled = false }: EmailFormProps) {
+export function EmailForm() {
   const t = useTranslations("auth");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"email" | "code">("email");
   const [error, setError] = useState<string | null>(null);
-  const { sendCode, loginWithCode, state } = useLoginWithEmail();
+  const { sendEmailCode, confirmEmailCode, emailLoading } = useSocialAuth();
 
   // Both legs of the email flow report the same way; only the step differs.
   const reportFailure = (err: unknown) =>
     track("login_failed", { method: "email", ...reasonFor(AUTH_FAILURE, err) });
-
-  const busy = state.status === "sending-code" || state.status === "submitting-code";
 
   const submitEmail = async () => {
     if (!email.includes("@")) {
@@ -40,7 +36,7 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
     setError(null);
     track("auth_method_selected", { method: "email" });
     try {
-      await sendCode({ email });
+      await sendEmailCode(email);
       setStep("code");
     } catch (err) {
       console.error("Sending login code failed:", err);
@@ -52,7 +48,12 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
   const submitCode = async (value: string) => {
     setError(null);
     try {
-      await loginWithCode({ code: value });
+      recordAuthMethod("email");
+      rememberPending("email");
+      await confirmEmailCode(email, value);
+      // Email sign-in returns no profile from Decane, but we hold the one
+      // fact it proves: the address. Greetings use its local part.
+      rememberDisplayProfile({ email });
     } catch (err) {
       console.error("Code verification failed:", err);
       reportFailure(err);
@@ -74,13 +75,13 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
             email: () => <span className="font-medium text-white">{email}</span>,
           })}
         </p>
-        <OtpInput value={code} onChange={setCode} onComplete={submitCode} disabled={busy} />
+        <OtpInput value={code} onChange={setCode} onComplete={submitCode} disabled={emailLoading} />
         <button
           onClick={() => submitCode(code)}
-          disabled={busy || code.length !== 6}
+          disabled={emailLoading || code.length !== 6}
           className={PRIMARY}
         >
-          {busy ? t("checking") : t("verifyContinue")}
+          {emailLoading ? t("checking") : t("verifyContinue")}
           <ArrowRightIcon className="text-arrow" />
         </button>
         {error ? <p className="text-down text-[13px]">{error}</p> : null}
@@ -96,8 +97,8 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
             {t("differentEmail")}
           </button>
           <button
-            onClick={() => sendCode({ email })}
-            disabled={busy}
+            onClick={() => sendEmailCode(email)}
+            disabled={emailLoading}
             className="hover:text-accent cursor-pointer text-white/60"
           >
             {t("resendCode")}
@@ -122,14 +123,9 @@ export function EmailForm({ disabled = false }: EmailFormProps) {
         onKeyDown={(e) => e.key === "Enter" && submitEmail()}
         placeholder="you@email.com"
         className={INPUT}
-        disabled={disabled}
       />
-      <button
-        onClick={submitEmail}
-        disabled={busy || disabled}
-        className={`${PRIMARY} ${disabled ? "disabled:cursor-not-allowed" : ""}`}
-      >
-        {busy ? t("sendingCode") : t("continueEmail")}
+      <button onClick={submitEmail} disabled={emailLoading} className={PRIMARY}>
+        {emailLoading ? t("sendingCode") : t("continueEmail")}
         <ArrowRightIcon className="text-arrow" />
       </button>
       {error ? <p className="text-down text-[13px]">{error}</p> : null}

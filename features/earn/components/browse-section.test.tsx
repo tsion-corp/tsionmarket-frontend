@@ -74,6 +74,19 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+// The sheets read the wallet address off the auth session; there is no
+// DecaneKit provider in tests, so the seam is mocked with a signed-in session.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0xabc",
+    solanaAddress: null,
+    profile: { name: "", email: "", avatarSeed: "0xabc" },
+    logout: async () => {},
+  }),
+}));
+
 vi.mock("@/lib/toast", () => ({
   toast: {
     loading: vi.fn(() => "toast-id"),

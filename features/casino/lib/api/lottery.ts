@@ -1,6 +1,7 @@
 "use client";
 
 import { chessGet, chessPost } from "@/features/casino/lib/api/chess-client";
+import type { AuthIdentity } from "@/lib/auth-token";
 import type {
   LotteryCheck,
   LotteryConfig,
@@ -40,11 +41,15 @@ export function fetchLotteryResults(limit = 8): Promise<LotteryDraw[]> {
   return chessGet<LotteryDraw[]>("/lottery/draws/results", { limit });
 }
 
-export function fetchLotteryTickets(wallet: string, limit = 50): Promise<LotteryTicket[]> {
+export function fetchLotteryTickets(
+  wallet: string,
+  limit = 50,
+  identity: AuthIdentity = "current"
+): Promise<LotteryTicket[]> {
   return chessGet<LotteryTicket[]>(
     `/lottery/players/${encodeURIComponent(wallet)}/tickets`,
     { limit },
-    { requireAuth: true }
+    { requireAuth: true, identity }
   );
 }
 

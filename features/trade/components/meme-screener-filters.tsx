@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ModalShell } from "@/components/ui/modal-shell";
-import { useScreenerPanel } from "@/features/trade/components/meme-sort-menu";
+import { MODAL_PANEL_CLASS, useModalTrigger } from "@/features/trade/components/meme-sort-menu";
 import {
   EMPTY_FILTERS,
   SCREENER_METRICS,
@@ -20,8 +19,12 @@ import {
 
 // The screener's Filters control (ADR-2026-09-15-meme-trending-screener §3).
 // The inputs edit a local draft seeded from the applied filters each time the
-// panel opens. Nothing is reported until Apply, so typing never refetches, and
+// modal opens. Nothing is reported until Apply, so typing never refetches, and
 // closing any other way throws the draft away.
+//
+// One modal serves both surfaces. The desk used to get a popover anchored to
+// the button, which meant a second scroll region and a second set of sizes for
+// the same seven rows.
 
 const BOUND_KEYS: Record<ScreenerMetric, string> = {
   marketCap: "boundMarketCap",
@@ -91,18 +94,17 @@ export function MemeScreenerFilters({
   onPreset,
 }: MemeScreenerFiltersProps) {
   const t = useTranslations("memeScreener");
-  const reduce = useReducedMotion();
-  const { open, show: showPanel, close, triggerRef, wrapRef } = useScreenerPanel(variant);
+  const { open, show: showModal, close, triggerRef, panelRef } = useModalTrigger();
   const [draft, setDraft] = useState<ScreenerDraft>(() => draftFrom(filters));
-  const dialogRef = useRef<HTMLDivElement>(null);
   const baseId = useId();
+  const dialogId = useId();
   const phone = variant === "phone";
 
   // Focus goes to the dialog itself, so its title is read first and no chip
   // or field is changed by a stray key.
   useEffect(() => {
-    if (open) dialogRef.current?.focus();
-  }, [open]);
+    if (open) panelRef.current?.focus();
+  }, [open, panelRef]);
 
   const read = readDraft(draft);
   const errors = read.ok ? {} : read.errors;
@@ -110,7 +112,7 @@ export function MemeScreenerFilters({
 
   const show = () => {
     setDraft(draftFrom(filters));
-    showPanel();
+    showModal();
   };
 
   const submit = (e: FormEvent<HTMLFormElement>) => {
@@ -239,27 +241,23 @@ export function MemeScreenerFilters({
     </div>
   );
 
+  // Padded past the shell's close button so a long title never runs under it.
   const title = (
-    <div
-      id={`${baseId}-title`}
-      className={
-        phone
-          ? "ws-display mb-4 pr-10 text-[20px]"
-          : "font-sans text-[13.5px] font-semibold text-white"
-      }
-    >
+    <div id={`${baseId}-title`} className="ws-display mb-4 pr-10 text-[20px]">
       {t("filtersTitle")}
     </div>
   );
 
   return (
-    <div ref={wrapRef} className="relative shrink-0">
+    <div className="shrink-0">
       <button
         ref={triggerRef}
         type="button"
+        data-screener-filters
         onClick={() => (open ? close(false) : show())}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-controls={open ? dialogId : undefined}
         className={`flex h-[36px] cursor-pointer items-center gap-1.5 rounded-full border px-3 font-sans text-[12px] font-semibold transition-colors ${
           count > 0
             ? "border-white/30 bg-white/10 text-white"
@@ -281,47 +279,23 @@ export function MemeScreenerFilters({
         ) : null}
       </button>
 
-      {phone ? (
-        <ModalShell open={open} onClose={() => close(true)}>
-          <div
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby={`${baseId}-title`}
-            tabIndex={-1}
-            className="outline-none"
-          >
-            {title}
-            <form onSubmit={submit} noValidate>
-              {fields}
-              <div className="mt-5">{footer}</div>
-            </form>
-          </div>
-        </ModalShell>
-      ) : (
-        <AnimatePresence>
-          {open ? (
-            <motion.div
-              ref={dialogRef}
-              role="dialog"
-              aria-labelledby={`${baseId}-title`}
-              tabIndex={-1}
-              initial={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
-              animate={reduce ? { opacity: 1 } : { opacity: 1, scale: 1, y: 0 }}
-              exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.96, y: -4 }}
-              transition={{ duration: 0.15, ease: "easeOut" }}
-              className="bg-panel absolute left-0 z-30 mt-2 flex max-h-[min(70vh,560px)] w-[340px] flex-col rounded-[16px] border border-white/12 shadow-[0_18px_50px_rgba(0,0,0,0.55)] outline-none"
-            >
-              <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
-                <div className="px-4 pt-4 pb-3">{title}</div>
-                {/* Only the fields scroll, so the title and the actions stay in reach. */}
-                <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{fields}</div>
-                <div className="border-t border-white/8 p-4">{footer}</div>
-              </form>
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
-      )}
+      <ModalShell open={open} onClose={() => close(true)} panelClassName={MODAL_PANEL_CLASS}>
+        <div
+          ref={panelRef}
+          id={dialogId}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={`${baseId}-title`}
+          tabIndex={-1}
+          className="outline-none"
+        >
+          {title}
+          <form onSubmit={submit} noValidate>
+            {fields}
+            <div className="mt-5">{footer}</div>
+          </form>
+        </div>
+      </ModalShell>
     </div>
   );
 }

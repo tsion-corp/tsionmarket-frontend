@@ -2,7 +2,8 @@ import { act, render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { NextIntlClientProvider } from "next-intl";
 import enMessages from "@/messages/en.json";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+// Moved from features/trade/lib/meme-fixture on staging; the merge applied the rename.
+import { memeToken } from "@/lib/meme/fixture";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
 
 // The dynamic import in app-modals.tsx resolves this real module, so mocking

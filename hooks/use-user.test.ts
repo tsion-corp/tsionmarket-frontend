@@ -9,13 +9,35 @@ import type { User } from "@privy-io/react-auth";
 const mockUsePrivy = vi.fn();
 const mockUseQuery = vi.fn();
 
-vi.mock("@privy-io/react-auth", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@privy-io/react-auth")>();
+// useUser reads the session through the Decane-backed seam and takes signing
+// readiness from the kit's wallet (Decane has no Privy-style delegation). The
+// cases below still describe the account as a Privy-shaped user, so the seam
+// is derived from it with the same helpers the app used to, and "delegated"
+// maps onto "the session is unlocked" — true exactly when a user is signed in.
+vi.mock("@/hooks/use-auth-session", async () => {
+  const { deriveProfile, getWalletAddress } = await import("@/lib/user");
   return {
-    ...actual,
-    usePrivy: () => mockUsePrivy(),
+    useAuthSession: () => {
+      const { ready, authenticated, user } = mockUsePrivy() as {
+        ready: boolean;
+        authenticated: boolean;
+        user: User | null;
+      };
+      return {
+        ready,
+        authenticated,
+        evmAddress: user ? getWalletAddress(user, "ethereum") : null,
+        solanaAddress: user ? getWalletAddress(user, "solana") : null,
+        profile: deriveProfile(user),
+        logout: vi.fn(),
+      };
+    },
   };
 });
+
+vi.mock("decane-connect-kit", () => ({
+  useSocialWallet: () => ({ isUnlocked: Boolean((mockUsePrivy() as { user: unknown }).user) }),
+}));
 
 vi.mock("@tanstack/react-query", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@tanstack/react-query")>();

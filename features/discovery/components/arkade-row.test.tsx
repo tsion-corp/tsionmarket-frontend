@@ -65,11 +65,7 @@ function realSlideHeadlines(): string[] {
 }
 
 describe("Arkade row", () => {
-  // The shelf follows the Arkade catalogue, so Checkers is absent here exactly
-  // as it is from CASINO_GAMES. Its card is still exported and still tested on
-  // its own; it is simply not dealt on production. Arkjet and Pilot Chicken
-  // returned with the gateway's `arkjet` service on 2026-09-16.
-  it("deals one card per offered game, in the Arkade's own order", () => {
+  it("deals one card per game, in the Arkade's own order", () => {
     render(<ArkadeRow />, { wrapper });
     expect(realSlideHeadlines()).toEqual([
       // The Last Man card is the event's poster, so what stands where the
@@ -77,6 +73,7 @@ describe("Arkade row", () => {
       `${enMessages.discovery.lastManMarathonLead} ${enMessages.discovery.lastManMarathonTitle}`,
       enMessages.discovery.chessHeadline,
       enMessages.discovery.arkballHeadline,
+      enMessages.discovery.checkersIdleHeadline,
       enMessages.discovery.arkjetHeadline,
       enMessages.discovery.chickenHeadline,
     ]);
@@ -90,7 +87,7 @@ describe("Arkade row", () => {
     );
   });
 
-  it("puts the richest open round on the Last Man card", () => {
+  it("puts the richest open round on the Last Man card, and counts the live matches", () => {
     const soon = Math.floor(Date.now() / 1000) + 3600;
     useDashboardFeed.mockReturnValue({
       data: feed({
@@ -106,8 +103,6 @@ describe("Arkade row", () => {
     render(<ArkadeRow />, { wrapper });
     const joins = screen.getAllByRole("link", { name: /Join Now/ });
     for (const join of joins) expect(join).toHaveAttribute("href", "/casino/last-standing/9");
-    // The feed still reports live Checkers matches; the shelf does not deal
-    // the card that would count them.
-    expect(screen.queryByText("2 matches being played right now")).toBeNull();
+    expect(screen.getAllByText("2 matches being played right now").length).toBeGreaterThan(0);
   });
 });

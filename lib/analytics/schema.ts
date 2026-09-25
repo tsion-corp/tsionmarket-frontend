@@ -189,6 +189,25 @@ export const EVENT_SCHEMA: Record<AnalyticsEventName, EventSchema> = {
   auth_method_selected: [shape({ method: "string" })],
   signup_completed: [shape({ method: "string", "referral_code?": "string" })],
   signup_failed: [shape({ method: "string", reason: "string", "reason_detail?": "string" })],
+
+  // Privy -> Decane migration (ADR-0009)
+  migration_started: [shape({ entry: "string" })],
+  migration_linked: NOTHING,
+  migration_link_blocked: [shape({ code: "string" })],
+  migration_session_expired: NOTHING,
+  migration_gate_snoozed: [shape({ reason: "string", stage: "string" })],
+  migration_reviewed: [
+    shape({
+      holdings: "number",
+      opted_in: "number",
+      settle_later: "number",
+      value_usd: "number",
+    }),
+  ],
+  migration_step_completed: [shape({ venue: "string", kind: "string" })],
+  migration_step_failed: [shape({ venue: "string", kind: "string", retryable: "boolean" })],
+  migration_completed: [shape({ outcome: "string", moved_usd: "number" })],
+
   login_completed: [shape({ method: "string" })],
   login_failed: [shape({ method: "string", reason: "string", "reason_detail?": "string" })],
   passkey_added: NOTHING,

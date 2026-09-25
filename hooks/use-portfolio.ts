@@ -1,9 +1,9 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useCallback, useMemo, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
 import { apiFetch } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { useSessionWallet } from "@/components/providers/server-session";
@@ -96,7 +96,7 @@ function tokenRawBalance(
 export type PortfolioScope = "all" | "base";
 
 export function usePortfolio({ scope = "all" }: { scope?: PortfolioScope } = {}) {
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
   const queryClient = useQueryClient();
   // From the server's view of the session while Privy is still starting,
   // then from Privy. Building the key from Privy alone meant that, before it

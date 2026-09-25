@@ -203,3 +203,59 @@ describe("readEvm provider order", () => {
     expect(urlOf(vi.mocked(fetch).mock.calls[2])).toContain("mythos-mainnet.g.alchemy.com");
   });
 });
+
+describe("a dead pooled HTTP/2 connection", () => {
+  // Node's fetch pools HTTP/2 sessions to ZeroDev. A session the far end has
+  // already closed fails the NEXT request instantly with
+  // ERR_HTTP2_INVALID_SESSION, which read as the upstream being down and sent
+  // two reads in five to Alchemy instead. The request never left, so replaying
+  // it is free.
+  beforeEach(() => {
+    vi.resetModules();
+    vi.stubEnv("ZERODEV_PROJECT_ID", "test-project-id-123");
+    vi.stubEnv("ALCHEMY_API_KEY", "alchemy-key");
+    vi.stubGlobal("fetch", vi.fn());
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-07T12:00:00Z"));
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  function deadSession(): Error {
+    const cause = Object.assign(new Error("The session has been destroyed"), {
+      code: "ERR_HTTP2_INVALID_SESSION",
+    });
+    return Object.assign(new TypeError("fetch failed"), { cause });
+  }
+
+  it("retries once and stays on ZeroDev instead of falling through to Alchemy", async () => {
+    vi.mocked(fetch)
+      .mockRejectedValueOnce(deadSession())
+      .mockResolvedValueOnce(json(200, [{ jsonrpc: "2.0", id: 1, result: "0x10" }]));
+
+    const { readEvm } = await import("./evm-read");
+    await readEvm("base-mainnet", 8453, CALLS);
+
+    const calls = vi.mocked(fetch).mock.calls;
+    expect(calls).toHaveLength(2);
+    // Both went to ZeroDev: this is the retry, not a provider switch.
+    for (const call of calls) expect(urlOf(call)).toContain("rpc.zerodev.app");
+  });
+
+  it("does not retry a timeout — that request may well have been served", async () => {
+    vi.mocked(fetch)
+      .mockRejectedValueOnce(
+        Object.assign(new Error("The operation was aborted"), { name: "TimeoutError" })
+      )
+      .mockResolvedValueOnce(json(200, [{ jsonrpc: "2.0", id: 1, result: "0x10" }]));
+
+    const { readEvm } = await import("./evm-read");
+    await readEvm("base-mainnet", 8453, CALLS);
+
+    const zeroDev = vi.mocked(fetch).mock.calls.filter((c) => urlOf(c).includes("rpc.zerodev.app"));
+    expect(zeroDev).toHaveLength(1);
+  });
+});

@@ -66,11 +66,11 @@ function wholeCount(value: number | null | undefined): number | null {
 
 type ActivityRow = NonNullable<z.output<typeof tokenListItemSchema>["activity"]>;
 
-// The largest 24h move we will carry through as real. A memecoin can genuinely
-// run thousands of percent in a day, so this sits far above any honest move:
-// 1e6 percent is a ten-thousand-fold rise. Past it the number is not a market
-// move but a division by a missing or near-zero baseline price upstream, which
-// is how the trade service came to report 2.8e19 percent on 2026-09-16.
+// The largest move we will carry through as real. A memecoin can genuinely run
+// thousands of percent in a day, so this sits far above any honest move: 1e6
+// percent is a ten-thousand-fold rise. Past it the number is not a market move
+// but a division by a missing or near-zero baseline price upstream, which is
+// how the trade service came to report 2.8e19 percent on 2026-09-16.
 const MAX_REAL_CHANGE_PERCENT = 1e6;
 
 // A change we can show, or null. Null means "not available for this window",
@@ -129,7 +129,11 @@ function toMemeToken(row: z.output<typeof tokenListItemSchema>): MemeToken {
     priceUsd: row.priceUsd,
     liquidityUsd: row.liquidityUsd,
     volume24hUsd: row.volume24hUsd ?? null,
-    priceChange24hPercent: row.priceChange24hPercent ?? null,
+    // The flat field is the same 24h measurement as the window, and most of the
+    // desk reads it directly, so it gets the same guard. changeFor() also falls
+    // back to it when the 24h window carries no change, which would walk an
+    // impossible figure straight back onto the screen.
+    priceChange24hPercent: usableChange(row.priceChange24hPercent),
     marketCapUsd: row.marketCapUsd ?? null,
     fdvUsd: row.fdvUsd ?? null,
     pairAddress: row.pairAddress ?? null,

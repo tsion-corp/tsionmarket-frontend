@@ -112,7 +112,7 @@ const onTakeTour = vi.fn();
 function view(over: Partial<BalanceCardViewProps> = {}): BalanceCardViewProps {
   return {
     totalUsd: 1234,
-    readyToSpend: 100,
+    readyToSpend: { state: "known", usd: 100 },
     tokens: [],
     loading: false,
     refreshing: false,

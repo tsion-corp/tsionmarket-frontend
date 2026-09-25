@@ -27,7 +27,8 @@
     "format:check": "prettier --check .",
     "bundle:report": "node scripts/first-load.mjs",
     "bundle:check": "node scripts/first-load.mjs --check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "legacy:hash": "node scripts/hash-legacy-directory.mjs"
   },
   "dependencies": {
     "@badrap/result": "^0.3.1",
@@ -53,6 +54,8 @@
     "canvas-confetti": "^1.9.4",
     "chess.js": "^1.4.0",
     "clsx": "^2.1.1",
+    "decane-connect-kit": "^2.22.0",
+    "decane-node": "^1.1.1",
     "driver.js": "^1.8.0",
     "embla-carousel-react": "^8.6.0",
     "idb-keyval": "^6.2.1",

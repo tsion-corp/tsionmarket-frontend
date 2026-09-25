@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePrivy } from "@privy-io/react-auth";
 import { useBalanceVisibility } from "@/components/ui/balance-visibility";
 import { useMoney } from "@/components/ui/currency-select";
 import { LegacyChessBalance } from "@/features/casino/components/chess-app/legacy-chess-balance";
@@ -15,7 +15,7 @@ export function ChessHeaderActions({
   placement?: "header" | "overlay";
 }) {
   const pathname = usePathname();
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
 
   if (!ready || !authenticated || pathname === "/casino/chess/embed") return null;
 

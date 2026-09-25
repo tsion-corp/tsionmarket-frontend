@@ -2,12 +2,12 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-import { MemeSortMenu } from "@/features/trade/components/meme-sort-menu";
+import { MODAL_PANEL_CLASS, MemeSortMenu } from "@/features/trade/components/meme-sort-menu";
 import type { ScreenerSort } from "@/lib/meme/screener";
 
 // The screener's sort control (ADR-2026-09-15-meme-trending-screener §3): a
 // menu of "Default order" and the seven metrics, with a direction pair once a
-// sort is in force. A popover on the desk, a bottom sheet on the phone.
+// sort is in force. It opens in a modal on the desk and on the phone alike.
 
 function renderMenu(sort: ScreenerSort | null, variant: "desk" | "phone" = "desk") {
   const onSortChange = vi.fn();
@@ -23,14 +23,25 @@ function renderMenu(sort: ScreenerSort | null, variant: "desk" | "phone" = "desk
 function openMenu() {
   const trigger = screen.getByRole("button", { name: /^Sort/ });
   fireEvent.click(trigger);
-  return { trigger, menu: screen.getByRole("menu", { name: "Sort coins" }) };
+  return {
+    trigger,
+    dialog: screen.getByRole("dialog", { name: "Sort coins" }),
+    menu: screen.getByRole("menu", { name: "Sort coins" }),
+  };
+}
+
+/** The shell's backdrop: the element the marked panel sits in. */
+function backdrop() {
+  const panel = document.querySelector(`.${MODAL_PANEL_CLASS}`)?.parentElement;
+  if (!panel) throw new Error("the modal has no backdrop");
+  return panel;
 }
 
 describe("MemeSortMenu", () => {
   it("names the trigger Sort until a sort is applied, then names the sort", () => {
     renderMenu(null);
     const trigger = screen.getByRole("button", { name: "Sort" });
-    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-haspopup", "dialog");
     expect(trigger).toHaveAttribute("aria-expanded", "false");
   });
 
@@ -44,10 +55,20 @@ describe("MemeSortMenu", () => {
     expect(screen.getByRole("button", { name: "Sort Age, Newest first" })).toBeInTheDocument();
   });
 
+  it("opens a titled modal dialog outside the toolbar, on the desk as on the phone", () => {
+    renderMenu(null);
+    const { trigger, dialog, menu } = openMenu();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    expect(trigger).toHaveAttribute("aria-controls", dialog.id);
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(dialog).toContainElement(menu);
+    // Portalled, so nothing in the toolbar can clip or stack over it.
+    expect(trigger.parentElement).not.toContainElement(dialog);
+  });
+
   it("lists the default order and the seven metrics, with the current one checked and focused", () => {
     renderMenu(null);
-    const { trigger, menu } = openMenu();
-    expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const { menu } = openMenu();
     const items = within(menu).getAllByRole("menuitemradio");
     expect(items.map((item) => item.textContent)).toEqual([
       "Default order",
@@ -145,6 +166,26 @@ describe("MemeSortMenu", () => {
     expect(items[0]).toHaveFocus();
   });
 
+  it("keeps Tab inside the dialog rather than letting it reach the page behind", () => {
+    renderMenu(null);
+    const { menu } = openMenu();
+    // Two stops: the shell's close button, then the menu, which is one stop
+    // because every item but the current one sits at tabindex -1.
+    const current = within(menu).getByRole("menuitemradio", { name: "Default order" });
+    const dismiss = screen.getByRole("button", { name: "Close" });
+    expect(current).toHaveFocus();
+
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(dismiss).toHaveFocus();
+    fireEvent.keyDown(window, { key: "Tab", shiftKey: true });
+    expect(current).toHaveFocus();
+
+    // Focus parked outside the dialog is pulled back in on the next Tab.
+    screen.getByRole("button", { name: "Outside" }).focus();
+    fireEvent.keyDown(window, { key: "Tab" });
+    expect(dismiss).toHaveFocus();
+  });
+
   it("closes on Escape with focus back on the trigger", async () => {
     renderMenu(null);
     const { trigger } = openMenu();
@@ -153,27 +194,33 @@ describe("MemeSortMenu", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("closes on a press outside, leaving focus where the press put it", async () => {
+  it("closes on the shell's close button with focus back on the trigger", async () => {
     renderMenu(null);
-    openMenu();
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Outside" }));
+    const { trigger } = openMenu();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes on a press on the backdrop, with focus back on the trigger", async () => {
+    renderMenu(null);
+    const { trigger } = openMenu();
+    fireEvent.click(backdrop());
+    await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
+    expect(trigger).toHaveFocus();
   });
 
   it("stays open when the press lands inside the menu", () => {
     renderMenu(null);
     const { menu } = openMenu();
-    fireEvent.mouseDown(menu);
+    fireEvent.click(menu);
     expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
-  it("opens as a bottom sheet on the phone", async () => {
+  it("opens the same modal on the phone", async () => {
     const { onSortChange } = renderMenu(null, "phone");
-    const { trigger, menu } = openMenu();
-    const sheet = screen.getByRole("dialog", { name: "Sort coins" });
-    expect(sheet).toContainElement(menu);
-    // The sheet is portalled to the body, outside the trigger's wrapper.
-    expect(trigger.parentElement).not.toContainElement(sheet);
+    const { trigger, dialog, menu } = openMenu();
+    expect(trigger.parentElement).not.toContainElement(dialog);
 
     fireEvent.click(within(menu).getByRole("menuitemradio", { name: "Price" }));
     expect(onSortChange).toHaveBeenCalledWith({ by: "price", order: "desc" });
@@ -181,7 +228,7 @@ describe("MemeSortMenu", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("closes the phone sheet on Escape", async () => {
+  it("closes the phone modal on Escape", async () => {
     renderMenu(null, "phone");
     openMenu();
     fireEvent.keyDown(window, { key: "Escape" });

@@ -13,7 +13,7 @@ import type { MemeTimeframe } from "@/lib/meme/types";
 // The screener toolbar (ADR-2026-09-15-meme-trending-screener §3): the
 // timeframe pills, Sort, Filters, one chip per applied bound or sort, and the
 // two hints. One fixed 36px row on the desk; wrapped under the controls on the
-// phone.
+// phone. Sort and Filters each open a modal, on both surfaces.
 
 function renderToolbar({
   variant = "desk",
@@ -220,7 +220,16 @@ describe("MemeScreenerToolbar", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("lets the phone's timeframe pills scroll, wraps the chips, and opens sheets", async () => {
+  it("hands focus to Filters when the last chip goes, not to Sort", () => {
+    renderToolbar({
+      filters: { bounds: { price: { min: "1" } }, sort: { by: "price", order: "desc" } },
+      count: 2,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByRole("button", { name: "Filters 2 active" })).toHaveFocus();
+  });
+
+  it("lets the phone's timeframe pills scroll, wraps the chips, and opens modals", async () => {
     const { container, onSortChange } = renderToolbar({
       variant: "phone",
       filters: { bounds: { volume: { min: "50000" } }, sort: null },
@@ -236,9 +245,9 @@ describe("MemeScreenerToolbar", () => {
     expect(screen.getByText("Filters are paused while you search.")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sort" }));
-    const sheet = screen.getByRole("dialog", { name: "Sort coins" });
-    expect(el).not.toContainElement(sheet);
-    fireEvent.click(within(sheet).getByRole("menuitemradio", { name: "Traders" }));
+    const sortModal = screen.getByRole("dialog", { name: "Sort coins" });
+    expect(el).not.toContainElement(sortModal);
+    fireEvent.click(within(sortModal).getByRole("menuitemradio", { name: "Traders" }));
     expect(onSortChange).toHaveBeenCalledWith({ by: "traders", order: "desc" });
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
 

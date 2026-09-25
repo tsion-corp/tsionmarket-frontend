@@ -8,11 +8,14 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: query.useQuery,
   useQueryClient: vi.fn(),
 }));
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({
-    user: { id: "user-1" },
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
     ready: true,
     authenticated: true,
+    evmAddress: "0x0000000000000000000000000000000000000001",
+    solanaAddress: null,
+    profile: { name: "user-1", email: "", avatarSeed: "user-1" },
+    logout: vi.fn(),
   }),
 }));
 vi.mock("@/features/casino/lib/api/cashier", () => ({

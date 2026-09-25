@@ -20,10 +20,17 @@ const state = vi.hoisted(() => ({
   onDepositSent: undefined as ((txHash: string) => void) | undefined,
 }));
 
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ user: { id: "user-1" }, ready: true, authenticated: true }),
+// The hook reads the Decane session, not Privy. The same signed-in player with
+// the same wallet, expressed the way the session actually provides it.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: state.wallet,
+    solanaAddress: null,
+    profile: null,
+  }),
 }));
-vi.mock("@/lib/user", () => ({ getWalletAddress: () => state.wallet }));
 vi.mock("@/features/casino/lib/api/chess-client", () => ({
   chessGet: vi.fn(),
   chessPost: vi.fn(),

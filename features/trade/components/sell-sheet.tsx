@@ -1,5 +1,7 @@
 "use client";
 
+import { useAuthSession } from "@/hooks/use-auth-session";
+
 import { BASE_CHAIN_ID } from "@/lib/meme/chain";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { networkForChainId } from "@/lib/trade-share";
@@ -8,9 +10,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { Eyebrow } from "@/components/ui/eyebrow";
-import { usePrivy } from "@privy-io/react-auth";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { getWalletAddress } from "@/lib/user";
 import { useSell } from "@/features/trade/hooks/use-sell";
 import { savePendingRwaSettlement } from "@/lib/trade/pending-settlement";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
@@ -51,8 +51,8 @@ export function SellSheet({ payload, onClose, initialAmount = "" }: SellSheetPro
   const [maxRequested, setMaxRequested] = useState(false);
   const sell = useSell();
 
-  const { user } = usePrivy();
-  const feePayer = getWalletAddress(user, "ethereum") ?? undefined;
+  const session = useAuthSession();
+  const feePayer = session.evmAddress ?? undefined;
   const nativeSym = nativeSymbol(payload.network);
   const chainLabel = networkLabel(payload.network);
 

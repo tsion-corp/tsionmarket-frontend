@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import enMessages from "@/messages/en.json";
 import { TradeTicket } from "@/features/trade/components/meme-trade-ticket";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import type { BuyFunding } from "@/lib/meme/funding";
 import type { SwapPreview } from "@/lib/meme/api";

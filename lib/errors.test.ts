@@ -269,8 +269,9 @@ describe("supportDetail", () => {
 });
 
 // The trade service's failures arrive with a machine code and a requestId.
-// The code is what the copy is chosen by, in the reader's language, and the
-// requestId is what support asks for, so it rides along as "Ref:". The
+// The code is what the copy is chosen by, in the reader's language. The
+// requestId is a support token, not a sentence, so it stays out of the
+// message and reaches support through Watchtower and supportDetail. The
 // service's own message never reaches the screen: it is written for its
 // logs, and one day it will be a stack trace.
 describe("trade service errors", () => {
@@ -314,9 +315,14 @@ describe("trade service errors", () => {
     expect(tradeErrorKey(tradeError(code, "", 422, null))).toBe(key);
   });
 
-  it("appends the requestId as the support reference", () => {
+  it("keeps the requestId out of the message, and reachable beside it", () => {
     const e = tradeError("NO_SWAP_ROUTE", "no route", 422, "req-abc-1");
-    expect(friendlyError(e, "x", translate)).toBe("[noSwapRoute] Ref: req-abc-1");
+    // A UUID in the middle of a sentence is noise to everyone who is not
+    // support, so the message is the sentence alone.
+    expect(friendlyError(e, "x", translate)).toBe("[noSwapRoute]");
+    expect(friendlyError(e, "x", translate)).not.toContain("req-abc-1");
+    // Still readable for the surfaces that show it as fine print.
+    expect(supportDetail(e)).toBe("Ref: req-abc-1");
     expect(requestIdOf(e)).toBe("req-abc-1");
     expect(requestIdOf(new Error("plain"))).toBeNull();
   });
@@ -327,10 +333,10 @@ describe("trade service errors", () => {
     const e = tradeError("VALIDATION_ERROR", "amount must be positive", 400, "req-2");
     const message = friendlyError(e, "fallback", translate);
     expect(message).not.toContain("amount must be positive");
-    expect(message).toBe("[unknown] Ref: req-2");
+    expect(message).toBe("[unknown]");
     // And without a translator the fallback stands in for the copy; the
     // upstream text still does not leak.
-    expect(friendlyError(e, "fallback")).toBe("fallback Ref: req-2");
+    expect(friendlyError(e, "fallback")).toBe("fallback");
   });
 
   it("leaves errors from other services on the existing rules", () => {

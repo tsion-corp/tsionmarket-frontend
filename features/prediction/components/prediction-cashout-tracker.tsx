@@ -1,7 +1,7 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useSyncExternalStore } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { fetchDepositStatus } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
@@ -14,7 +14,6 @@ import {
   subscribePendingPredictionCashouts,
 } from "@/features/prediction/lib/pending-cashout";
 import { toast } from "@/lib/toast";
-import { getWalletAddress } from "@/lib/user";
 
 const ACTIVE_POLL_MS = 4_000;
 const PROVIDER_BACKOFF_MS = [30_000, 60_000, 120_000] as const;
@@ -22,9 +21,10 @@ const PROVIDER_BACKOFF_MS = [30_000, 60_000, 120_000] as const;
 // Reconciles Dextopus after the source USDC.e transfer. It is mounted above
 // pages so closing Cashout or refreshing cannot lose the Base delivery status.
 export function PredictionCashoutTracker() {
-  const { user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const { refetchFresh } = usePortfolio();
-  const wallet = getWalletAddress(user, "ethereum")?.toLowerCase() ?? null;
+  const wallet = evmAddress?.toLowerCase() ?? null;
   const pending = useSyncExternalStore(
     subscribePendingPredictionCashouts,
     pendingPredictionCashoutsSnapshot,

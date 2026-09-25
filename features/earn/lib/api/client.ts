@@ -9,6 +9,7 @@
 // proxy passes it upstream unchanged; public reads stay a plain cacheable fetch.
 
 import { createServiceClient } from "@/lib/api/service";
+import type { AuthIdentity } from "@/lib/auth-token";
 
 const earn = createServiceClient("/api/earn", "Earn is unavailable right now.");
 
@@ -18,3 +19,6 @@ export const earnGet = earn.get;
 // dashboard.
 export const earnAuthedGet = earn.authedGet;
 export const earnPost = earn.post;
+// The same transport as the named identity, for the migration flow's calls
+// that must act as the OLD account (earn verifies Privy tokens upstream).
+export const earnAs = (identity: AuthIdentity) => earn.as(identity);

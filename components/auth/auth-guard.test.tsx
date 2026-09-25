@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-const privy = vi.hoisted(() => ({
+const session = vi.hoisted(() => ({
   state: { ready: false, authenticated: false },
 }));
 
@@ -9,8 +9,8 @@ const router = vi.hoisted(() => ({
   replace: vi.fn(),
 }));
 
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => privy.state,
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => session.state,
 }));
 
 const route = { pathname: "/portfolio", search: "" };
@@ -24,12 +24,8 @@ vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-const idle = vi.hoisted(() => ({ calls: [] as [number, boolean][] }));
-
 vi.mock("@/hooks/use-idle-logout", () => ({
-  useIdleLogout: (timeoutMs: number, enabled: boolean) => {
-    idle.calls.push([timeoutMs, enabled]);
-  },
+  useIdleLogout: () => {},
 }));
 
 vi.mock("@/components/ui/market-logo", () => ({
@@ -49,8 +45,7 @@ function mount(serverVerified?: boolean) {
 describe("AuthGuard", () => {
   beforeEach(() => {
     router.replace.mockReset();
-    idle.calls.length = 0;
-    privy.state = { ready: false, authenticated: false };
+    session.state = { ready: false, authenticated: false };
   });
 
   it("holds the page back while Privy starts and the server did not vouch", () => {
@@ -67,7 +62,7 @@ describe("AuthGuard", () => {
   });
 
   it("keeps showing the page once Privy agrees", () => {
-    privy.state = { ready: true, authenticated: true };
+    session.state = { ready: true, authenticated: true };
     mount(true);
     expect(screen.getByTestId("page")).toBeInTheDocument();
   });
@@ -75,7 +70,7 @@ describe("AuthGuard", () => {
   it("still sends a signed-out browser to /auth, even if the server vouched", () => {
     // A cookie that verified but a browser whose Privy state says signed out:
     // Privy is the authority once it has answered.
-    privy.state = { ready: true, authenticated: false };
+    session.state = { ready: true, authenticated: false };
     mount(true);
     expect(screen.queryByTestId("page")).toBeNull();
     expect(router.replace).toHaveBeenCalledWith("/auth?next=%2Fportfolio");
@@ -90,7 +85,7 @@ describe("AuthGuard", () => {
   ])("carries %s through sign-in", (pathname, search, expected) => {
     route.pathname = pathname;
     route.search = search;
-    privy.state = { ready: true, authenticated: false };
+    session.state = { ready: true, authenticated: false };
     render(<AuthGuard>content</AuthGuard>);
     expect(router.replace).toHaveBeenCalledWith(expected);
     route.pathname = "/portfolio";
@@ -98,16 +93,8 @@ describe("AuthGuard", () => {
   });
 
   it("shows the page once Privy is ready and signed in, without the server", () => {
-    privy.state = { ready: true, authenticated: true };
+    session.state = { ready: true, authenticated: true };
     mount();
     expect(screen.getByTestId("page")).toBeInTheDocument();
-  });
-
-  // A funded session on a phone should survive a working day untouched; two
-  // hours signed people out mid-afternoon. Now twelve hours of inactivity.
-  it("signs an idle session out after 12 hours", () => {
-    privy.state = { ready: true, authenticated: true };
-    mount();
-    expect(idle.calls.at(-1)).toEqual([12 * 60 * 60 * 1000, true]);
   });
 });

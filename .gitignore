@@ -72,3 +72,8 @@ design_handoff_*/
 
 # ESLint cache, kept by CI between runs
 .eslintcache
+
+# The legacy directory is hashed and safe, but 5MB per revision is a real
+# cost in git history, and production reads it from LEGACY_DIRECTORY_URL.
+# Commit it only if you intend the bundled mode, which needs it in the repo.
+config/legacy-directory.csv

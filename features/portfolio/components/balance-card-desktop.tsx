@@ -29,6 +29,7 @@ export function BalanceCardDesktop({
   formatMasked,
   onOpenFunds,
   onOpenWithdraw,
+  updateBalanceSlot,
   onRefresh,
 }: BalanceCardViewProps) {
   const t = useTranslations("balance");
@@ -172,9 +173,28 @@ export function BalanceCardDesktop({
                 selected currency, so an empty spendable balance is stated
                 rather than silently missing. The side padding and the looser
                 leading are for the long locales: "disponible para gastar" runs
-                to a second line on a narrow column and needs room around it. */}
-            <div className="tnum mt-2 max-w-full px-3 text-center text-[13px] leading-[1.45] font-normal text-white/45">
-              {t("readyToSpend", { amount: formatMasked(readyToSpend) })}
+                to a second line on a narrow column and needs room around it.
+
+                Three states, not a figure and a fallback: a read on its way
+                gets the same pulse the total gets, and a read that failed says
+                so. Neither is ever drawn as a zero — "you have nothing" is a
+                claim about someone's money, and this is the row the withdraw
+                button is gated on. */}
+            <div
+              data-testid="ready-to-spend"
+              className="tnum mt-2 max-w-full px-3 text-center text-[13px] leading-[1.45] font-normal text-white/45"
+            >
+              {readyToSpend.state === "loading" ? (
+                <span className="block h-[12px] w-[130px] animate-pulse rounded-full bg-white/8" />
+              ) : readyToSpend.state === "known" ? (
+                t("readyToSpend", { amount: formatMasked(readyToSpend.usd) })
+              ) : (
+                // Its own key rather than the card's generic "Couldn't load",
+                // which sits a few lines above on the same card: borrowing it
+                // here would read as the whole balance having failed when only
+                // this one figure is unreadable.
+                t("readyToSpendUnknown")
+              )}
             </div>
           </>
         )}
@@ -210,6 +230,13 @@ export function BalanceCardDesktop({
             {t("withdraw")}
           </button>
         </div>
+        {/* Its own row, not a third pill in the one above: that row is sized
+            for two and a third wrapped it, leaving Add funds beside this and
+            Withdraw stranded on a line of its own. Full width also suits what
+            it says — the balance above is not the whole story yet. */}
+        {updateBalanceSlot ? (
+          <div className="mt-[12.23px] flex w-full max-w-[452px]">{updateBalanceSlot}</div>
+        ) : null}
 
         {depositPending ? (
           <div className="mt-3 flex max-w-[420px] items-start gap-2 px-2 text-[12.5px] leading-[1.5] font-normal text-white/55">

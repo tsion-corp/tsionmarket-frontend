@@ -1,7 +1,7 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useState, useSyncExternalStore } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   confirmArkjetDeposit,
@@ -12,7 +12,7 @@ import {
 import { ARKJET_KEYS } from "@/features/casino/hooks/use-arkjet";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { errorStatus, type GatewayApiError } from "@/lib/api/envelope";
-import { getWalletAddress } from "@/lib/user";
+
 import { toBaseUnits } from "@/lib/trade/math";
 import { validateArkjetFundingConfig } from "@/features/casino/lib/arkjet-funding";
 
@@ -127,8 +127,9 @@ function clearWithdrawalIdempotencyKey(wallet: string, amount: string): void {
 }
 
 export function useArkjetFunding() {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+  const wallet = evmAddress;
   const queryClient = useQueryClient();
   const { sendToken } = useSendToken();
   const [depositPhase, setDepositPhase] = useState<ArkjetDepositPhase>("idle");

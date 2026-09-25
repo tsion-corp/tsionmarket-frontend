@@ -1,4 +1,5 @@
 import { createPublicClient, http, type Chain } from "viem";
+import { authHeaders } from "@/lib/api";
 import { SPONSORED_EVM_CHAINS } from "@/lib/trade/sponsored-evm";
 
 // Read client per chain for confirming transactions. Reads must go through a
@@ -31,15 +32,38 @@ export function isReceiptChain(chainId: number): boolean {
   return chainId in READ_CHAINS;
 }
 
-// Reads go through the same-origin ZeroDev RPC proxy. Keeping one transport
+// Reads go through our own proxy on the paid Alchemy key first, with the public
+// node above as the fallback. `http()` with no URL would use the chain's default
+// public endpoint, which is shared and rate-limited, and this carries every
+// on-chain read in the app. viem's fallback transport moves to the backup the
+// moment the primary errors, so a proxy outage degrades to a slower public node
+// instead of stalling the flow.
+//
+// The proxy verifies the caller's session, and a Decane session sets no
+// cookie, so the bearer is attached per request through viem's fetch hook.
+// Browser-only by construction: every caller runs in a hook or an event
+// handler.
+const authedFetch: typeof fetch = async (input, init) => {
+  const headers = new Headers(init?.headers);
+  for (const [name, value] of Object.entries(await authHeaders("current"))) {
+    headers.set(name, value);
+  }
+  return fetch(input, { ...init, headers });
+};
+
+// Reads go through the same-origin proxy on the paid key. Keeping ONE transport
 // prevents a receipt poll from silently falling back to a public provider.
-// The proxy is same-origin, so the privy-token cookie authenticates it with no
-// header plumbing. Browser-only by construction: every caller runs in a hook or
-// an event handler.
+//
+// The proxy verifies the caller's session, and a Decane session sets no cookie,
+// so the bearer is attached per request through viem's fetch hook. Browser-only
+// by construction: every caller runs in a hook or an event handler.
 function createChainReadClient(entry: { chain: Chain; network: string }) {
   return createPublicClient({
     chain: entry.chain,
-    transport: http(`/api/evm-rpc/${entry.network}`, READ_TRANSPORT_CONFIG),
+    transport: http(`/api/evm-rpc/${entry.network}`, {
+      ...READ_TRANSPORT_CONFIG,
+      fetchFn: authedFetch,
+    }),
   });
 }
 

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ProgressBar } from "@/components/ui/progress-bar";
 import { Pager } from "@/components/ui/pager";
@@ -52,7 +52,6 @@ import { usdOf } from "@/features/casino/lib/last-standing/pricing";
 import { activityAmount } from "@/features/casino/lib/last-standing/activity-payout";
 import { usePrices } from "@/hooks/use-prices";
 import { usePaged } from "@/hooks/use-paged";
-import { getWalletAddress } from "@/lib/user";
 import { shouldBeginRoundEnd } from "@/features/casino/lib/last-standing/round-end";
 import { useLeavePrompt } from "@/features/casino/hooks/use-leave-prompt";
 import { KeepWatchingDialog } from "@/features/casino/components/last-standing/keep-watching-dialog";
@@ -197,7 +196,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const t = useTranslations("casino.lastStanding");
   const tBuySell = useTranslations("buySell");
   const tBuySellNotEnough = tBuySell("notEnoughBalance");
-  const { user } = usePrivy();
+  const { evmAddress: address } = useAuthSession();
   const money = useMoney();
   // The stake and the payout move the USDC balance, and the portfolio's own
   // receipt path cannot see them, so this hook is told the amounts and confirms
@@ -269,7 +268,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const [recentWinUsd, setRecentWinUsd] = useState<number | null>(null);
 
   const reduce = useReducedMotion();
-  const address = getWalletAddress(user, "ethereum");
 
   // Leaving the arena stops the track — background music must not follow the
   // user to the portfolio.

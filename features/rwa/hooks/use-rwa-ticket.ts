@@ -1,8 +1,8 @@
 "use client";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { usePrivy } from "@privy-io/react-auth";
 import { friendlyError } from "@/lib/errors";
 import { useDepositStatus } from "@/hooks/use-deposit";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
@@ -19,7 +19,7 @@ import {
   type RwaQuote,
   type RwaQuoteRequest,
 } from "@/features/rwa/lib/api";
-import { getWalletAddress } from "@/lib/user";
+
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { TRADE_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
@@ -195,7 +195,8 @@ export function useRwaTicket({
   onContinueInBackground,
 }: UseRwaTicketOptions): UseRwaTicketResult {
   const t = useTranslations("rwa");
-  const { user } = usePrivy();
+  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
   const portfolio = usePortfolio();
   const { refetchFresh } = portfolio;
   // USD lives on Base; the asset settles on its own chain.
@@ -559,7 +560,7 @@ export function useRwaTicket({
       return;
     }
 
-    const taker = getWalletAddress(user, asset.chain === "solana" ? "solana" : "ethereum");
+    const taker = addressFor(asset.chain === "solana" ? "solana" : "ethereum");
     if (!taker) {
       setNotice({ kind: "error", message: t("connectWallet") });
       return;
@@ -702,8 +703,8 @@ export function useRwaTicket({
         return;
       }
 
-      const baseWallet = getWalletAddress(user, "ethereum");
-      const solanaWallet = getWalletAddress(user, "solana");
+      const baseWallet = evmAddress;
+      const solanaWallet = solanaAddress;
       if (!baseWallet || !solanaWallet) {
         setNotice({ kind: "error", message: t("connectWallet") });
         return;

@@ -8,10 +8,7 @@ describe("liveEventsFrom", () => {
     expect(liveEventsFrom(null, NOW)).toEqual([]);
   });
 
-  // Last Man rounds lead the list, in feed order, with expired clocks dropped
-  // here rather than by the server: that is what lets the browser re-run this
-  // on a timer without asking again. Chess follows.
-  it("chips the rounds and matches the app can open", () => {
+  it("orders rounds as the feed did and drops the ones whose clock ran out", () => {
     const events = liveEventsFrom(
       {
         rounds: [
@@ -24,28 +21,15 @@ describe("liveEventsFrom", () => {
       },
       NOW
     );
-    expect(events.map((e) => e.key)).toEqual(["lastman-7", "lastman-5", "chess-c1"]);
-    expect(events[0].href).toBe("/casino/last-standing/7");
-    expect(events[0].pot).toBe("$300.00");
+    expect(events.map((e) => e.key)).toEqual([
+      "lastman-7",
+      "lastman-5",
+      "chess-c1",
+      "checkers-d 1",
+    ]);
+    expect(events[0]).toMatchObject({ href: "/casino/last-standing/7", pot: "$300.00" });
     expect(events[2].href).toBe("/casino/chess/watch?match=c1");
-  });
-});
-
-// The marquee must not advertise a game the hub does not list: Checkers is
-// not offered on production, so a chip linking to /casino/checkers/play would
-// be a way into a game with no tile.
-describe("live events with Checkers not offered", () => {
-  it("carries no Checkers chip even when the service reports live matches", () => {
-    const events = liveEventsFrom(
-      {
-        rounds: [],
-        chess: [{ id: "m1" }],
-        checkers: [{ id: "d1" }, { id: "d2" }],
-      } as unknown as Parameters<typeof liveEventsFrom>[0],
-      1
-    );
-
-    expect(events.some((event) => event.kind === "checkers")).toBe(false);
-    expect(events.map((event) => event.kind)).toEqual(["chess"]);
+    // Ids are URL-encoded into the watch link.
+    expect(events[3].href).toBe("/casino/checkers/play?match=d%201");
   });
 });

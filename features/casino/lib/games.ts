@@ -92,26 +92,22 @@ export const CASINO_GAMES: CasinoGame[] = [
     note: "Pick 5 white balls and 1 ArkBall",
     comingSoon: false,
   },
-
-  // Checkers is NOT offered on production (2026-09-16). A product decision,
-  // not a backend one: the gateway's chess service serves every
-  // /v1/chess/draughts/* endpoint on api.tsionark.com. Nothing is deleted, so
-  // restoring it is uncommenting this entry and its card in
-  // features/discovery/components/arkade-row.tsx.
-  // {
-  //   id: "checkers",
-  //   name: "Checkers",
-  //   category: "Skill",
-  //   size: "tall",
-  //   glyph: "⛃",
-  //   image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
-  //   tintRgb: "148 163 184",
-  //   href: "/casino/checkers",
-  //   isNew: true,
-  //   note: "Fast staked matches",
-  //   comingSoon: false,
-  // },
-
+  {
+    id: "checkers",
+    name: "Checkers",
+    category: "Skill",
+    size: "tall",
+    glyph: "⛃",
+    image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
+    tintRgb: "148 163 184",
+    href: "/casino/checkers",
+    isNew: true,
+    note: "Fast staked matches",
+    comingSoon: false,
+  },
+  // Arkjet and Pilot Chicken, back on staging on 2026-09-11 after the 2.0
+  // port dropped them; they follow Checkers. Their artwork is branded, so
+  // the tile keeps its colour.
   {
     id: "arkjet",
     name: "Arkjet",
@@ -125,7 +121,6 @@ export const CASINO_GAMES: CasinoGame[] = [
     note: "Cash out before the multiplier crashes",
     comingSoon: false,
   },
-
   {
     id: "chicken",
     name: "Pilot Chicken",

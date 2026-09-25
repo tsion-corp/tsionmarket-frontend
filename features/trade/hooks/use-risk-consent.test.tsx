@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { memeToken } from "@/features/trade/lib/meme-fixture";
+import { memeToken } from "@/lib/meme/fixture";
 import { consentKey, useRiskConsent } from "@/features/trade/hooks/use-risk-consent";
 import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 

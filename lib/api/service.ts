@@ -2,6 +2,7 @@
 
 import { apiFetch } from "@/lib/api";
 import { unwrap } from "@/lib/api/envelope";
+import type { AuthIdentity } from "@/lib/auth-token";
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
@@ -40,6 +41,10 @@ export interface ServiceClient {
   postRawJson<T>(path: string, body: string, headers?: HeadersInit): Promise<T>;
   put<T>(path: string, body?: unknown): Promise<T>;
   del<T>(path: string, body?: unknown): Promise<T>;
+  // The same service, authenticating as the named identity. Memoised, so a
+  // feature can hold `client.as("legacy")` next to its normal client — used by
+  // the migration to sign legacy calls with the OLD Privy identity.
+  as(identity: AuthIdentity): ServiceClient;
   /**
    * POST a FormData body.
    *
@@ -58,6 +63,9 @@ export interface ServiceClientOptions {
    * poor connection sets it so a stuck poll fails and the next one runs.
    */
   timeoutMs?: number;
+  // Which identity signs requests from this client: the app's (Decane) by
+  // default, or the OLD Privy identity for the migration's legacy calls.
+  identity?: AuthIdentity;
 }
 
 export function createServiceClient(
@@ -65,15 +73,20 @@ export function createServiceClient(
   fallbackMessage: string,
   options: ServiceClientOptions = {}
 ): ServiceClient {
+  const identity = options.identity ?? "current";
   const url = (path: string, params?: QueryParams) => `${basePath}${path}${buildQuery(params)}`;
   const readInit = (): RequestInit =>
     options.timeoutMs ? { signal: AbortSignal.timeout(options.timeoutMs) } : {};
 
-  // requireAuth turns a cold Privy token into a retryable error instead of a 401.
+  // requireAuth turns a cold token into a retryable error instead of a 401.
   const authed = <T>(path: string, init: RequestInit): Promise<T> =>
-    apiFetch(path, init, { requireAuth: true }).then((res) => unwrap<T>(res, fallbackMessage));
+    apiFetch(path, init, { requireAuth: true, identity }).then((res) =>
+      unwrap<T>(res, fallbackMessage)
+    );
 
-  return {
+  const variants = new Map<AuthIdentity, ServiceClient>();
+
+  const client: ServiceClient = {
     // Public reads send no credentials, so they stay cacheable, but they go
     // through the one transport so the circuit breaker sees them. On plain
     // fetch they did not: the lobby polls are among the loudest readers in the
@@ -92,8 +105,18 @@ export function createServiceClient(
       authed<T>(url(path), rawJsonBodyInit("POST", body, headers)),
     put: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("PUT", body)),
     del: <T>(path: string, body?: unknown) => authed<T>(url(path), bodyInit("DELETE", body)),
+    as(next) {
+      if (next === identity) return client;
+      let variant = variants.get(next);
+      if (!variant) {
+        variant = createServiceClient(basePath, fallbackMessage, { ...options, identity: next });
+        variants.set(next, variant);
+      }
+      return variant;
+    },
     // No `headers` on purpose — see the interface.
     postForm: <T>(path: string, form: FormData) =>
       authed<T>(url(path), { method: "POST", body: form }),
   };
+  return client;
 }

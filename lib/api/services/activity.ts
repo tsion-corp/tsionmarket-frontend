@@ -43,3 +43,17 @@ export async function fetchUserActivity(params: {
     unavailable: Array.isArray(body.unavailable) ? body.unavailable : [],
   };
 }
+
+/**
+ * The OLD account's activity, kept from a snapshot taken at the upgrade
+ * (app/api/migration/legacy-activity) rather than swept from the chain. Null
+ * when there is none — an account that never had an old one — or when the
+ * link service is not deployed here. Never a reason to fail the feed.
+ */
+export async function fetchLegacyActivity(): Promise<{ items: ActivityItem[] } | null> {
+  const res = await apiFetch("/api/migration/legacy-activity", {}, { requireAuth: true });
+  if (!res.ok) return null;
+  const body = (await res.json().catch(() => null)) as { data?: { items?: unknown } | null } | null;
+  const items = body?.data?.items;
+  return Array.isArray(items) ? { items: items as ActivityItem[] } : null;
+}

@@ -7,8 +7,21 @@ const mocks = vi.hoisted(() => ({
   getOrderByBookingCode: vi.fn(),
 }));
 
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ authenticated: true, login: vi.fn() }),
+// Signed in, through the Decane-backed session seam; "login" is now a route
+// to /auth, so the router is stubbed rather than a Privy login callback.
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ready: true,
+    authenticated: true,
+    evmAddress: "0x0000000000000000000000000000000000000001",
+    solanaAddress: null,
+    profile: { name: "Account", email: "", avatarSeed: "worldstreet" },
+    logout: vi.fn(),
+  }),
+}));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
 
 vi.mock("@/hooks/use-prices", () => ({

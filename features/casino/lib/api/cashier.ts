@@ -9,6 +9,7 @@
 // in exact base units, never floats.
 
 import { chessGet, chessPost } from "@/features/casino/lib/api/chess-client";
+import type { AuthIdentity } from "@/lib/auth-token";
 import type { GatewayApiError } from "@/lib/api/envelope";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 
@@ -75,11 +76,14 @@ export async function fetchCashierConfig(): Promise<CashierConfig> {
   return chessGet<CashierConfig>("/cashier/config");
 }
 
-export async function fetchChessBalance(wallet: string): Promise<CashierBalance> {
+export async function fetchChessBalance(
+  wallet: string,
+  identity?: AuthIdentity
+): Promise<CashierBalance> {
   return chessGet<CashierBalance>(
     `/cashier/players/${encodeURIComponent(wallet)}/balance`,
     undefined,
-    { requireAuth: true }
+    { requireAuth: true, identity }
   );
 }
 
@@ -93,9 +97,14 @@ export async function confirmChessDeposit(wallet: string, txHash: string): Promi
 
 export async function createChessWithdrawal(
   wallet: string,
-  amountUsdc: string
+  amountUsdc: string,
+  identity?: AuthIdentity
 ): Promise<CashierWithdrawal> {
-  return chessPost<CashierWithdrawal>("/cashier/withdrawals", { player: wallet, amountUsdc });
+  return chessPost<CashierWithdrawal>(
+    "/cashier/withdrawals",
+    { player: wallet, amountUsdc },
+    { identity }
+  );
 }
 
 // True when a cashier failure means "not set up on this deployment" rather
