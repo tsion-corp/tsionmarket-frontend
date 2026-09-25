@@ -118,30 +118,30 @@ describe("PerpsMenuDrawer", () => {
     expect(rail?.contains(document.activeElement)).toBe(true);
   });
 
-  // The perps screen's own section is Perpetuals, which this build no longer
-  // offers — so the rail lights nothing rather than lighting an entry that is
-  // not there. sectionForPathname still derives the section from /perps;
-  // buildNav simply has no entry to mark.
-  it("lights no entry when the page's own section is not offered", () => {
+  // The perps screen's own section is Perpetuals, and the build offers it
+  // again, so the rail lights that entry and only that one.
+  // sectionForPathname derives the section from /perps; buildNav now has an
+  // entry to mark.
+  it("lights the page's own section, and only that one", () => {
     render(<PerpsScreen />);
     fireEvent.click(hamburger());
     const rail = document.getElementById("app-sidebar") as HTMLElement;
     const lit = Array.from(rail.querySelectorAll("button")).filter((b) =>
       b.className.includes("bg-accent/14")
     );
-    expect(lit).toHaveLength(0);
+    expect(lit).toHaveLength(1);
+    expect(lit[0]).toHaveAccessibleName("Perpetuals");
   });
 
   // buildNav is the single reader of the nav switches, so the drawer offers
-  // exactly what the rail offers: Real assets since they returned on
-  // 2026-09-09, and neither Perpetuals nor Prediction. Prediction was offered
-  // on 2026-09-16 and withdrawn again on 2026-09-17 until it relaunches.
+  // exactly what the rail offers. HIDDEN_NAV_SECTIONS is empty as of
+  // 2026-09-25, so that is every section, Perpetuals included.
   it("offers the same sections as the rail", () => {
     render(<PerpsScreen />);
     fireEvent.click(hamburger());
     expect(screen.getByRole("button", { name: "Real assets" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Perpetuals" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Prediction" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Prediction" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Perpetuals" })).toBeInTheDocument();
   });
 
   it("closes and navigates when a section is chosen", () => {

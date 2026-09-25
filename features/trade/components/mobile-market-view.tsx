@@ -123,17 +123,21 @@ type TabId = (typeof TABS)[number]["id"];
 /**
  * Tabs this build does not offer.
  *
- * A visibility switch, like HIDDEN_NAV_SECTIONS in lib/sections.ts, and for
- * the same two reasons: Perpetuals is a product decision, and Prediction is
- * what production can serve — the gateway's `prediction` service answers 502
- * there. TABS above stays the full catalogue so TabId keeps naming every tab
- * and the handoff routes below still typecheck; only the strip the reader is
- * offered is filtered, and a ?tab= pointing at a hidden one falls back to
- * Spot rather than opening a tab with nothing behind it.
+ * A visibility switch, like HIDDEN_NAV_SECTIONS in lib/sections.ts, and it
+ * tracks it entry for entry. Prediction came off on 2026-09-16, went back on
+ * in #517, and came off again on 2026-09-25. Perpetuals came off on the same
+ * day, which empties the list: the desk was held back as a product decision
+ * while it was exercised on staging, and that decision is reversed.
  *
- * Empty this list to offer them again.
+ * TABS above stays the full catalogue so TabId keeps naming every tab and the
+ * handoff routes below still typecheck; only the strip the reader is offered
+ * is filtered, and a ?tab= pointing at a hidden one falls back to Spot rather
+ * than opening a tab with nothing behind it. That fallback is why this list
+ * can be emptied without touching anything else.
+ *
+ * Put an id back to hide a tab again.
  */
-const HIDDEN_TABS: readonly TabId[] = ["perps", "prediction"];
+const HIDDEN_TABS: readonly TabId[] = [];
 
 function isOfferedTab(id: string | null): id is TabId {
   return TABS.some((tab) => tab.id === id) && !HIDDEN_TABS.includes(id as TabId);

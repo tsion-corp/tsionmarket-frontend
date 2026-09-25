@@ -1,14 +1,11 @@
-import { redirect } from "next/navigation";
+"use client";
 
-// Prediction is not offered on production: the gateway's `prediction` service,
-// which the sportsbook and combo routes behind this page call, answers 502 on
-// api.tsionark.com. `prediction-market` is a different service and is live;
-// this page does not use it.
-//
-// The route is kept as a redirect rather than deleted so a shared link or a
-// bookmark lands somewhere real instead of on a page whose every request
-// fails. Restoring the section is restoring this file from git and taking
-// "prediction" out of HIDDEN_NAV_SECTIONS in lib/sections.ts.
-export default function PredictionMarketPage() {
-  redirect("/dashboard");
+import { use } from "react";
+import { MarketDetail } from "@/features/prediction";
+
+// One prediction market: chart, trade tape, execution and liquidity panels. The
+// auth guard and the app shell come from the (app) layout.
+export default function PredictionMarketPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  return <MarketDetail id={id} />;
 }

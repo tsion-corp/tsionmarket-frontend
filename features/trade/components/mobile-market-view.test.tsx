@@ -363,10 +363,11 @@ function renderView() {
   return { onOpenDetail, onOpenBuy, rerender: () => rerender(view()) };
 }
 
-// The strip this build offers. TABS in the view is still the full catalogue;
-// Leverage and Prediction are in HIDDEN_TABS, so they are not dealt.
-const tabNames = ["Spot", "Memecoins", "Real assets"];
-const [SPOT, MEMES, RWA] = [0, 1, 2];
+// The strip this build offers. HIDDEN_TABS is empty as of 2026-09-25, so the
+// strip is TABS in full and every seat is dealt in the view's own order.
+// Leverage sits second, which is why the indices below are not 0..3.
+const tabNames = ["Spot", "Leverage", "Memecoins", "Real assets", "Prediction"];
+const [SPOT, LEVERAGE, MEMES, RWA, PREDICTION] = [0, 1, 2, 3, 4];
 
 // Each tab names its own field, so a test says which list it is searching.
 // The Real assets and Prediction fields belong to those panels, not to this
@@ -466,26 +467,44 @@ describe("MobileMarketView chrome", () => {
     expect(tabs()[SPOT]).toHaveAttribute("tabindex", "-1");
   });
 
-  it("never mounts the perps desk, because the Leverage tab is not offered", () => {
+  // The desk is mounted only while its own tab is selected, so the market
+  // reads it makes are not made for a reader who never opens it. That is the
+  // half worth asserting: "it renders" would pass even if it rendered on every
+  // tab, which is the shape this guards against.
+  it("mounts the perps desk on the Leverage tab and nowhere else", () => {
     renderView();
-    expect(screen.queryByRole("tab", { name: "Leverage" })).toBeNull();
     expect(screen.queryByTestId("perps-desk")).toBeNull();
 
-    for (const tab of tabs()) {
-      fireEvent.click(tab);
+    fireEvent.click(tabs()[LEVERAGE]);
+    expect(screen.getByTestId("perps-desk")).toBeInTheDocument();
+
+    for (const index of [SPOT, MEMES, RWA]) {
+      fireEvent.click(tabs()[index]);
       expect(screen.queryByTestId("perps-desk")).toBeNull();
     }
   });
 
-  // An old "Own the Market" link still carries ?tab=perps. It names a tab this
-  // build does not offer, so it opens Spot rather than a tab with nothing
-  // behind it.
-  it("falls back to Spot when the link names a tab that is not offered", () => {
+  // An "Own the Market" link carries ?tab=perps, and the tab is offered again,
+  // so the link opens the desk instead of falling back to Spot.
+  it("opens the Leverage tab from a ?tab=perps link", () => {
     search.query = "tab=perps";
     try {
       renderView();
+      expect(tabs()[LEVERAGE]).toHaveAttribute("aria-selected", "true");
+      expect(screen.getByTestId("perps-desk")).toBeInTheDocument();
+    } finally {
+      search.query = "";
+    }
+  });
+
+  // The fallback itself still has to work, so it keeps a case of its own with
+  // a tab id that names nothing at all. Without this, emptying HIDDEN_TABS
+  // would have quietly removed the only test covering it.
+  it("falls back to Spot when the link names a tab that does not exist", () => {
+    search.query = "tab=nonsense";
+    try {
+      renderView();
       expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
-      expect(screen.queryByTestId("perps-desk")).toBeNull();
     } finally {
       search.query = "";
     }
@@ -502,27 +521,31 @@ describe("MobileMarketView chrome", () => {
 
   it("moves selection with arrow keys and Home/End, not with Tab", () => {
     renderView();
+    // One seat to the right of Spot is Leverage again, now that the strip is
+    // dealt in full.
     fireEvent.keyDown(tabs()[SPOT], { key: "ArrowRight" });
-    expect(tabs()[MEMES]).toHaveAttribute("aria-selected", "true");
+    expect(tabs()[LEVERAGE]).toHaveAttribute("aria-selected", "true");
 
-    fireEvent.keyDown(tabs()[MEMES], { key: "End" });
-    expect(tabs()[RWA]).toHaveAttribute("aria-selected", "true");
+    // End reaches Prediction, which is its own product route rather than a
+    // panel here: the strip hands off and the selection stays where it was.
+    fireEvent.keyDown(tabs()[LEVERAGE], { key: "End" });
+    expect(router.push).toHaveBeenCalledWith("/prediction");
+    expect(tabs()[LEVERAGE]).toHaveAttribute("aria-selected", "true");
 
-    fireEvent.keyDown(tabs()[RWA], { key: "Home" });
+    fireEvent.keyDown(tabs()[LEVERAGE], { key: "Home" });
     expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
 
-    // Wrapping backwards from the first tab lands on the last OFFERED tab. It
-    // used to open Prediction's own route, which this build does not offer.
+    // Wrapping backwards from the first tab opens Prediction's own route.
     fireEvent.keyDown(tabs()[SPOT], { key: "ArrowLeft" });
-    expect(tabs()[RWA]).toHaveAttribute("aria-selected", "true");
-    expect(router.push).not.toHaveBeenCalledWith("/prediction");
+    expect(router.push).toHaveBeenLastCalledWith("/prediction");
+    expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
   });
 
   // Gap 5: the strip scrolls, so a selected tab off-screen must be brought in.
   it("scrolls the newly selected tab into view", () => {
     renderView();
     const scrollIntoView = vi.fn();
-    const target = tabs()[RWA];
+    const target = tabs()[PREDICTION];
     target.scrollIntoView = scrollIntoView;
     fireEvent.keyDown(tabs()[SPOT], { key: "End" });
     expect(scrollIntoView).toHaveBeenCalled();
@@ -556,6 +579,9 @@ describe("MobileMarketView chrome", () => {
   it("draws no field of its own for the panels that search themselves", () => {
     renderView();
     fireEvent.click(tabs()[RWA]);
+    expect(screen.queryAllByRole("searchbox")).toHaveLength(0);
+
+    fireEvent.click(tabs()[PREDICTION]);
     expect(screen.queryAllByRole("searchbox")).toHaveLength(0);
   });
 
@@ -696,24 +722,18 @@ describe("MobileMarketView chrome", () => {
 // Prediction has one responsive product shell. The Market strip remains an
 // entry point, but no longer mounts the retired phone-only market cards.
 describe("MobileMarketView, routing to Prediction", () => {
-  // Prediction is in HIDDEN_TABS, so there is no tab to open its route from.
-  // The route itself still exists; nothing in this view leads to it.
-  it("offers no Prediction tab to route from", () => {
+  it("opens the standalone prediction route from the Prediction tab", () => {
     renderView();
-    expect(screen.queryByRole("tab", { name: "Prediction" })).toBeNull();
-    expect(router.push).not.toHaveBeenCalledWith("/prediction");
+    fireEvent.click(tabs()[PREDICTION]);
+    expect(router.push).toHaveBeenCalledWith("/prediction");
   });
 
-  // A legacy ?tab=prediction URL used to be repaired by redirecting to
-  // /prediction. Now that the tab is not offered it falls back to Spot like
-  // any other unoffered tab — the reader lands somewhere that works instead of
-  // being sent to a section this build does not serve.
-  it("opens Spot for a legacy prediction query URL, and redirects nowhere", () => {
+  it("repairs a legacy prediction query URL without rendering the old cards", () => {
     search.query = "tab=prediction";
     try {
       renderView();
-      expect(tabs()[SPOT]).toHaveAttribute("aria-selected", "true");
-      expect(router.replace).not.toHaveBeenCalledWith("/prediction");
+      expect(router.replace).toHaveBeenCalledWith("/prediction");
+      expect(screen.queryByRole("tabpanel")).not.toBeInTheDocument();
     } finally {
       search.query = "";
     }

@@ -64,17 +64,25 @@ const REORDERABLE: SectionId[] = [
  * Real assets returned on 2026-09-09 once the gateway's rwa and gas-sponsor
  * services were confirmed live in production.
  *
- * Perpetuals and Prediction are listed on 2026-09-16. Perps is a product
- * decision: the desk is exercised on staging and is not offered here yet.
- * Prediction is not a choice at all, it is what production can serve. The
- * gateway's `prediction` service answers 502 on api.tsionark.com, so the
- * sportsbook and combo routes behind /prediction have nothing to call. Note
- * that `prediction-market`, a different service, IS live; it is unaffected.
+ * Prediction and Perpetuals returned on 2026-09-25, and the list is empty for
+ * the first time. Prediction was withdrawn in #517 because the gateway's
+ * `prediction` service answered 502; it answers 200 now and serves the
+ * sportsbook, combo and Explore routes, so everything behind /prediction has
+ * something to call again. Perps was never a backend problem, only a product
+ * decision to exercise the desk on staging first; that decision is reversed.
  *
- * To offer a section again, take its id out of this list; nothing else
- * changes.
+ * Both were checked against api.tsionark.com before this change, not assumed:
+ * prediction's sports/filters, sports/combo-filters and markets/events all
+ * answer with live fixtures, and perp's ark/assets, ark/prices and
+ * ark/market-contexts all answer with live marks.
+ *
+ * `prediction-market`, the separate service behind user-created markets, is
+ * live but currently holds no markets. That is an empty list, not a failure,
+ * and the desk renders its empty state.
+ *
+ * To hide a section again, put its id back in this list; nothing else changes.
  */
-export const HIDDEN_NAV_SECTIONS: readonly SectionId[] = ["perps", "prediction"];
+export const HIDDEN_NAV_SECTIONS: readonly SectionId[] = [];
 
 // Sections that are their own page rather than an anchor.
 export const SECTION_ROUTES: Partial<Record<SectionId, string>> = {
