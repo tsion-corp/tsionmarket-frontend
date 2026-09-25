@@ -25,13 +25,19 @@ export function isProxiedVaultRead(joined: string): boolean {
 }
 
 /**
- * The one path the proxy forwards a POST to: handing the service a hash the
- * wallet just sent, so it can report back what the transaction did.
+ * The paths the proxy forwards a POST to.
+ *
+ * `transactions` hands the service a hash the wallet just sent, so it can
+ * report back what the transaction did. `games/metadata` names a game: it is
+ * authorised by the player's signature rather than a session, and the service
+ * confirms the signer really started that game before showing anything.
  *
  * Nothing else is writable through this proxy. The game's real writes are
  * transactions from the player's own wallet, which never pass through here,
  * and the admin surface is not ours to expose.
  */
+const WRITES = new Set(["transactions", "games/metadata"]);
+
 export function isProxiedVaultWrite(joined: string): boolean {
-  return joined === "transactions";
+  return WRITES.has(joined);
 }

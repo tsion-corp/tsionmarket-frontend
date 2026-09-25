@@ -1,61 +1,50 @@
 import { describe, expect, it } from "vitest";
-import { isProxiedVaultRead, isProxiedVaultWrite } from "@/lib/api/vault-proxy-paths";
+import { isProxiedVaultRead, isProxiedVaultWrite } from "./vault-proxy-paths";
 
-describe("isProxiedVaultRead", () => {
-  it("forwards the lobby, one game, the feeds, the config and a wallet's standing", () => {
-    for (const path of [
-      "games",
-      "games/421",
-      "game/winners",
-      "game/activities",
-      "config",
-      "players/0xb381bBC996fa0e326A4a81a881573fB501bD8AAE",
-    ]) {
-      expect(isProxiedVaultRead(path), path).toBe(true);
-    }
+const TX = `0x${"a".repeat(64)}`;
+
+describe("isProxiedVaultWrite", () => {
+  it("forwards the two writes the app makes", () => {
+    expect(isProxiedVaultWrite("transactions")).toBe(true);
+    expect(isProxiedVaultWrite("games/metadata")).toBe(true);
   });
 
-  it("refuses everything else", () => {
+  // The admin surface settles games and moves money. Nothing here may reach
+  // it, and a widened regex is the way that happens by accident.
+  it("forwards nothing else", () => {
     for (const path of [
-      "health",
-      "openapi.json",
-      "chain-games",
-      "games/abc",
-      // games/:id/activities used to be refused. v5 splits a game's own feed
-      // out of the global one and the app reads it, so it is allowed now and
-      // is covered in "v5 read and write paths" below.
-      "games/421/activities/extra",
-      "players/not-an-address",
-      "players/",
-      // Still refused: a transaction path has to carry a real 32-byte hash.
-      "transactions/0xabc",
+      "games",
+      "games/1",
+      "config",
+      "admin",
+      "admin/settle",
+      "games/metadata/1",
+      "games/1/metadata",
+      "metadata",
+      "",
     ]) {
-      expect(isProxiedVaultRead(path), path).toBe(false);
+      expect(isProxiedVaultWrite(path), `POST ${path} must not be forwarded`).toBe(false);
     }
   });
 });
 
-// v5's client contract adds two surfaces the allowlist did not know about:
-// a game's own activity feed, and handing the service a transaction hash so it
-// can tell us what that transaction turned out to be. Without the second we
-// are back to polling receipts and decoding GameStarted for our own gameId.
-describe("v5 read and write paths", () => {
-  it("forwards one game's activity feed", () => {
-    expect(isProxiedVaultRead("games/12/activities")).toBe(true);
-    expect(isProxiedVaultRead("games/12/activities/extra")).toBe(false);
-    expect(isProxiedVaultRead("games/abc/activities")).toBe(false);
+describe("isProxiedVaultRead", () => {
+  it("forwards the game reads", () => {
+    expect(isProxiedVaultRead("games")).toBe(true);
+    expect(isProxiedVaultRead("games/244")).toBe(true);
+    expect(isProxiedVaultRead("games/244/activities")).toBe(true);
+    expect(isProxiedVaultRead("config")).toBe(true);
+    expect(isProxiedVaultRead(`transactions/${TX}`)).toBe(true);
+    expect(isProxiedVaultRead(`players/0x${"1".repeat(40)}`)).toBe(true);
   });
 
-  it("forwards a transaction lookup by hash", () => {
-    expect(isProxiedVaultRead(`transactions/0x${"a".repeat(64)}`)).toBe(true);
-    expect(isProxiedVaultRead("transactions/not-a-hash")).toBe(false);
+  it("refuses a malformed hash or address rather than passing it upstream", () => {
+    expect(isProxiedVaultRead("transactions/nope")).toBe(false);
+    expect(isProxiedVaultRead("players/nope")).toBe(false);
   });
 
-  // Handing over a hash is the only write, and it is the only one: a POST to
-  // anything else is not ours to forward.
-  it("allows posting a hash and nothing else", () => {
-    expect(isProxiedVaultWrite("transactions")).toBe(true);
-    expect(isProxiedVaultWrite("games")).toBe(false);
-    expect(isProxiedVaultWrite("admin/tokens")).toBe(false);
+  it("does not expose the service's own health or docs", () => {
+    expect(isProxiedVaultRead("health")).toBe(false);
+    expect(isProxiedVaultRead("openapi.json")).toBe(false);
   });
 });

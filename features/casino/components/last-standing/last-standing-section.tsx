@@ -1131,6 +1131,20 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
           <div className="relative">
             {/* Wraps on a narrow phone: the label plus both pills do not fit
                 one line there, and forcing them to overlapped the pot below. */}
+            {/* The starter's name for this game, when it has one. Above the
+                prize pool because it says WHICH game you are looking at, and
+                only when present: the number is already in the page title, so
+                an unnamed game loses nothing by leaving this out. */}
+            {game?.title ? (
+              <div className="mb-2">
+                <h1 className="ws-display truncate text-[17px] tracking-[-0.01em]">{game.title}</h1>
+                {game.description ? (
+                  <p className="mt-0.5 line-clamp-2 text-[12.5px] leading-[1.45] font-normal text-white/50">
+                    {game.description}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
               <div className="text-accent/80 text-[11px] font-semibold tracking-[0.18em] uppercase">
                 {t("prizePool")}

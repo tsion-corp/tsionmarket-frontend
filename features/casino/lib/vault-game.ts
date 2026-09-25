@@ -41,11 +41,42 @@ export function isVaultGame(value: unknown): value is VaultGame {
   );
 }
 
+// The starter's name for a game, off the service's optional `metadata` object.
+//
+// A blank or non-string title is treated as absent rather than rendered: an
+// empty heading is worse than the number it replaced. The description is
+// dropped with it, because the title is the label and a description alone has
+// nothing to hang on.
+function readMetadata(value: unknown): { title?: string; description?: string } {
+  if (!value || typeof value !== "object") return {};
+  const meta = value as Record<string, unknown>;
+  const title = typeof meta.title === "string" ? meta.title.trim() : "";
+  if (title === "") return {};
+  const description = typeof meta.description === "string" ? meta.description.trim() : "";
+  return { title, ...(description === "" ? {} : { description }) };
+}
+
 // The well-formed rows of a list, whatever else it held. A malformed row is
 // dropped rather than rendered half-empty, and the caller says so.
+//
+// Metadata is read here rather than checked in isVaultGame: a game with a
+// broken name is still a game, and dropping the row would hide a live pot over
+// a label.
 export function onlyVaultGames(value: unknown): VaultGame[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isVaultGame);
+  return value.filter(isVaultGame).map((game) => ({
+    ...game,
+    ...readMetadata((game as unknown as Record<string, unknown>).metadata),
+  }));
+}
+
+/** What to call a game: its name, or its number when it has none. */
+export function gameTitle(
+  game: { gameId: number; title?: string },
+  fallback: (id: number) => string
+): string {
+  const title = game.title?.trim() ?? "";
+  return title === "" ? fallback(game.gameId) : title;
 }
 
 // The service records a winner or a starter as null when a log did not carry

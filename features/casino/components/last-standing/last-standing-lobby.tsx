@@ -31,6 +31,11 @@ type LobbyTab = "game" | "leaderboard" | "how";
 // The vault runs many games at once, so this is the screen the nav lands on; a game
 // itself lives at /casino/last-standing/[gameId], which is also the link a
 // player shares.
+// The gold-to-bark fill the Last Man wordmark is lettered in, the same pair the
+// Marathon poster on the dashboard uses, so the lobby and the card people
+// arrive through read as one identity.
+const LAST_MAN_INK = "bg-gradient-to-r from-[#ac6900] to-[#462b00] bg-clip-text text-transparent";
+
 export function LastStandingLobby() {
   const t = useTranslations("casino.lastStanding");
   const { evmAddress: address, profile } = useAuthSession();
@@ -112,80 +117,100 @@ export function LastStandingLobby() {
 
       {tab === "game" ? (
         <>
-          {/* The hero. The Arkade banner's warm gold over a deep ground, so the
-          game reads as part of that shelf rather than a plain page header. */}
-          <div className="relative mt-4 overflow-hidden rounded-[22px] border border-white/10">
-            <div
-              aria-hidden
-              className="absolute inset-0"
-              style={{
-                background:
-                  "radial-gradient(120% 140% at 8% 0%, #2a1c07 0%, #140f08 42%, #08070a 100%)",
-              }}
-            />
-            {/* Two lamps, warm at the top-left and cool at the far right, so the
-            card has a direction of light instead of a flat wash. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -top-28 -left-16 h-72 w-72 rounded-full blur-[90px]"
-              style={{ background: "rgba(255,225,120,0.28)" }}
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -right-20 -bottom-28 h-72 w-72 rounded-full blur-[100px]"
-              style={{ background: "rgba(120,170,255,0.16)" }}
-            />
-            {/* A fine rule grid, barely there, for texture under the type. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-[0.18]"
-              style={{
-                backgroundImage:
-                  "linear-gradient(to right, rgba(255,255,255,0.10) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.10) 1px, transparent 1px)",
-                backgroundSize: "54px 54px",
-                maskImage: "radial-gradient(90% 80% at 30% 0%, #000 0%, transparent 75%)",
-              }}
-            />
+          {/* The hero, in the Arkade's own Last Man world: the gold sky, the
+              clouds and the hourglass the Marathon poster on the dashboard is
+              drawn in (features/discovery/components/arkade-cards.tsx). The
+              lobby used to wear a dark card with pale gold type, which read as
+              a different product from the card people arrive through.
 
-            <div className="relative flex flex-col gap-4 px-5 py-5 sm:px-7 sm:py-6 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
-              <div className="min-w-0">
-                <span className="text-[10.5px] font-semibold tracking-[0.16em] text-[#ffe178]/80 uppercase">
-                  {t("eyebrow")}
-                </span>
-                <h1 className="mt-1.5 font-serif text-[30px] leading-[1.02] font-semibold tracking-[-0.01em] text-[#ffe178] sm:text-[36px]">
-                  {t("title")}
+              The art is the poster's, the content is the lobby's: this one has
+              to say whether anything is running and what it costs to join, so
+              the live state and the facts sit on the gold rather than a second
+              card underneath it. */}
+          <div className="relative mt-4 overflow-hidden rounded-[22px] bg-[linear-gradient(126.36deg,#ffd52d_36.667%,#f5c500_87.735%)]">
+            {/* The two cloud bands, in the order the poster paints them. Each
+                export is the whole card rather than a strip. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[url('/market/lastman-clouds-back.png')] bg-[length:100%_100%] bg-no-repeat"
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 bg-[url('/market/lastman-clouds-front.png')] bg-[length:100%_100%] bg-no-repeat"
+            />
+            {/* The hourglass, with a blurred copy screened over it for the glow
+                the poster puts around the glass. Hidden below sm: at a phone's
+                width it sits under the type instead of beside it. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 right-[-6%] hidden h-[230px] w-[230px] -translate-y-1/2 rotate-[13.21deg] sm:block"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/market/lastman-hourglass.png"
+                alt=""
+                width={500}
+                height={500}
+                className="h-full w-full object-contain"
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/market/lastman-hourglass.png"
+                alt=""
+                width={500}
+                height={500}
+                className="absolute inset-0 h-full w-full object-contain mix-blend-screen blur-[5.71px]"
+              />
+            </div>
+
+            <div className="relative z-[1] flex flex-col gap-5 px-5 py-6 sm:px-7 sm:py-7">
+              <div className="max-w-[30ch] min-w-0 sm:max-w-[34ch]">
+                {/* The wordmark, lettered in the poster's gold-to-bark ink so
+                    the two read as one identity. One name over two lines, so a
+                    reader hears "The Last Man" rather than two fragments. */}
+                <h1>
+                  <span
+                    className={`block -rotate-[1.72deg] font-serif text-[22px] leading-[1.05] font-semibold tracking-[-1.4px] sm:text-[30px] sm:tracking-[-2.2px] ${LAST_MAN_INK}`}
+                  >
+                    {t("heroLead")}
+                  </span>
+                  <span
+                    className={`ws-chewy mt-[2px] block text-[34px] leading-[1.05] tracking-[-0.53px] sm:text-[46px] ${LAST_MAN_INK}`}
+                  >
+                    {t("heroName")}
+                  </span>
                 </h1>
-                {/* Wide enough to stay on two lines. At 48ch it ran to three
-                    and the card grew a whole row taller for no extra meaning. */}
-                <p className="mt-2 max-w-[72ch] text-[13px] leading-[1.5] font-normal text-white/60">
+                {/* Ink rather than white: the ground is bright, and white text
+                    on this yellow fails contrast at every size. */}
+                <p className="mt-2.5 text-[13px] leading-[1.5] font-medium text-[#4a2f00]/85">
                   {t("howIntro")}
                 </p>
               </div>
 
-              {/* The numbers and the status share the right-hand side, which is
-                  what keeps the card to one band of height on a wide screen. */}
-              <div className="flex shrink-0 flex-wrap items-center gap-2 lg:justify-end">
-                {[
-                  { v: "60s", k: t("howFactTimer") },
-                  { v: defaultEntry ?? "—", k: t("howFactStake") },
-                  { v: "50%", k: t("splitWinner") },
-                ].map((chip) => (
+              {/* The facts and the live state. On the gold they are dark glass
+                  rather than the white-on-dark pills the old card used. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-2 rounded-full bg-[#2a1a00]/85 px-3 py-1.5 text-[11.5px] font-semibold text-[#ffd52d]">
                   <span
-                    key={chip.k}
-                    className="flex items-baseline gap-1.5 rounded-full border border-white/12 bg-white/[0.05] px-2.5 py-1 backdrop-blur-sm"
-                  >
-                    <span className="tnum text-[12.5px] font-semibold text-white">{chip.v}</span>
-                    <span className="text-[10.5px] font-normal text-white/50">{chip.k}</span>
-                  </span>
-                ))}
-                <span className="flex items-center gap-2 rounded-full border border-white/12 bg-black/40 px-3 py-1 text-[11.5px] font-medium text-white/75 backdrop-blur-sm">
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${games.length > 0 ? "bg-up animate-pulse" : "bg-white/25"}`}
+                    className={`size-1.5 rounded-full ${games.length > 0 ? "animate-pulse bg-[#7ee2a8]" : "bg-white/30"}`}
                   />
                   {games.length > 0
                     ? t("gamesCount", { count: games.length })
                     : t("lobbyEmptyTitle")}
                 </span>
+                {[
+                  { v: "60s", k: t("howFactTimer") },
+                  { v: defaultEntry ?? "\u2014", k: t("howFactStake") },
+                  { v: "50%", k: t("splitWinner") },
+                ].map((chip) => (
+                  <span
+                    key={chip.k}
+                    className="flex items-baseline gap-1.5 rounded-full border border-[#4a2f00]/20 bg-white/25 px-2.5 py-1.5 backdrop-blur-sm"
+                  >
+                    <span className="tnum text-[12.5px] font-bold text-[#3a2400]">{chip.v}</span>
+                    <span className="text-[10.5px] font-medium text-[#4a2f00]/70">{chip.k}</span>
+                  </span>
+                ))}
               </div>
             </div>
           </div>

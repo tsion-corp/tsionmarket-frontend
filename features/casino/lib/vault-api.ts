@@ -44,6 +44,13 @@ export interface TokenAmount {
 // the clock is derived from it rather than counted down from a snapshot.
 export interface VaultGame {
   gameId: number;
+  /**
+   * The starter's own name for the game, and an optional description. Both
+   * cosmetic, both absent on every game started before naming shipped, and
+   * both other people's text: rendered, never interpreted.
+   */
+  title?: string;
+  description?: string;
   starter: string;
   king: string;
   pot: TokenAmount;
@@ -248,6 +255,41 @@ export async function registerVaultTransaction(hash: string): Promise<void> {
     vaultLog("REST POST /transactions", { hash });
   } catch (error) {
     vaultLog("REST POST /transactions failed", { hash, error: String(error) });
+  }
+}
+
+/**
+ * Names a game. Keyed on the transaction hash, because the contract assigns
+ * the gameId only when the transaction mines.
+ *
+ * Cosmetic and non-fatal, like registerVaultTransaction above: the player has
+ * already paid and the game is already open, so a refused name leaves a game
+ * called "Game 246" rather than a game that failed. The failure is logged, not
+ * silenced.
+ */
+export async function submitGameMetadata(input: {
+  txHash: string;
+  title: string;
+  description?: string;
+  signature: string;
+  timestamp: number;
+}): Promise<boolean> {
+  try {
+    await vault.publicPost("/games/metadata", {
+      txHash: input.txHash,
+      title: input.title,
+      ...(input.description ? { description: input.description } : {}),
+      signature: input.signature,
+      timestamp: input.timestamp,
+    });
+    vaultLog("REST POST /games/metadata", { txHash: input.txHash });
+    return true;
+  } catch (error) {
+    vaultLog("REST POST /games/metadata failed", {
+      txHash: input.txHash,
+      error: String(error),
+    });
+    return false;
   }
 }
 

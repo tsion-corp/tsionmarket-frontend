@@ -44,6 +44,15 @@ function GameCardBase({ game, address, formatUsd }: GameCardProps) {
             </span>
           ) : null}
         </span>
+        {/* The starter's name for the game, when they gave it one. Rendered
+            only when present rather than falling back to "Game 244": the
+            number is already on the chip above, and reserving a line for a
+            title most games will not have would leave a gap on every row. */}
+        {game.title ? (
+          <span className="mt-1.5 block truncate text-[13.5px] font-semibold text-white">
+            {game.title}
+          </span>
+        ) : null}
         {/* The pot is what someone is deciding whether to join for, so it is
             labelled rather than left as a bare figure next to the entry price. */}
         <span className="mt-1.5 block text-[10.5px] font-normal tracking-[0.06em] text-white/35 uppercase">
