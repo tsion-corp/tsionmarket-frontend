@@ -9,7 +9,6 @@ import { TicketHistory } from "@/features/casino/components/arkball/ticket-histo
 import { useLottery } from "@/features/casino/hooks/use-lottery";
 import { useArkballReport } from "@/features/casino/hooks/use-arkball-report";
 import { useArkballShine } from "@/features/casino/hooks/use-arcade-shine";
-import { ShineToggle } from "@/components/shine/shine-toggle";
 import { formatLotteryUsdc } from "@/features/casino/lib/lottery";
 import { friendlyError } from "@/lib/errors";
 
@@ -93,8 +92,6 @@ export function ArkBallSection() {
             </div>
           </div>
         </section>
-
-        <ShineToggle service="arcade" />
 
         <DrawOverview current={current} latest={lottery.results[0] ?? null} />
 

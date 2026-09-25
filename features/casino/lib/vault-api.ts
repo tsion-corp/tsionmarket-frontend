@@ -273,12 +273,20 @@ export async function submitGameMetadata(input: {
   description?: string;
   signature: string;
   timestamp: number;
+  /**
+   * The address that signed. Required: the vault recovers an address from the
+   * signature and compares it to this one, because a wrong message recovers a
+   * DIFFERENT address rather than failing. Omitting it refused every
+   * submission as a mismatch, silently, since naming is fire and forget.
+   */
+  signer: string;
 }): Promise<boolean> {
   try {
     await vault.publicPost("/games/metadata", {
       txHash: input.txHash,
       title: input.title,
       ...(input.description ? { description: input.description } : {}),
+      signer: input.signer,
       signature: input.signature,
       timestamp: input.timestamp,
     });

@@ -143,7 +143,7 @@ export function LastStandingLobby() {
                 width it sits under the type instead of beside it. */}
             <div
               aria-hidden
-              className="pointer-events-none absolute top-1/2 right-[-6%] hidden h-[230px] w-[230px] -translate-y-1/2 rotate-[13.21deg] sm:block"
+              className="pointer-events-none absolute top-1/2 right-[-2%] hidden h-[170px] w-[170px] -translate-y-1/2 rotate-[13.21deg] sm:block"
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -163,29 +163,44 @@ export function LastStandingLobby() {
               />
             </div>
 
-            <div className="relative z-[1] flex flex-col gap-5 px-5 py-6 sm:px-7 sm:py-7">
-              <div className="max-w-[30ch] min-w-0 sm:max-w-[34ch]">
+            <div className="relative z-[1] flex flex-col gap-3.5 px-5 py-5 sm:px-7 sm:py-6">
+              <div className="max-w-[46ch] min-w-0">
                 {/* The wordmark, lettered in the poster's gold-to-bark ink so
-                    the two read as one identity. One name over two lines, so a
-                    reader hears "The Last Man" rather than two fragments. */}
-                <h1>
-                  <span
-                    className={`block -rotate-[1.72deg] font-serif text-[22px] leading-[1.05] font-semibold tracking-[-1.4px] sm:text-[30px] sm:tracking-[-2.2px] ${LAST_MAN_INK}`}
-                  >
-                    {t("heroLead")}
-                  </span>
-                  <span
-                    className={`ws-chewy mt-[2px] block text-[34px] leading-[1.05] tracking-[-0.53px] sm:text-[46px] ${LAST_MAN_INK}`}
-                  >
-                    {t("heroName")}
-                  </span>
+                    the two read as one identity. */}
+                <h1
+                  className={`ws-chewy text-[30px] leading-[1] tracking-[-0.53px] sm:text-[38px] ${LAST_MAN_INK}`}
+                >
+                  {t("heroName")}
                 </h1>
-                {/* Ink rather than white: the ground is bright, and white text
-                    on this yellow fails contrast at every size. */}
-                <p className="mt-2.5 text-[13px] leading-[1.5] font-medium text-[#4a2f00]/85">
-                  {t("howIntro")}
+                {/* The pitch that used to sit in a card of its own below. One
+                    banner rather than two stacked, which is what kept the top
+                    of the lobby to a screenful. Ink rather than white: the
+                    ground is bright and white fails contrast at every size. */}
+                <p className="mt-2 text-[14px] leading-[1.35] font-bold text-[#3a2400]">
+                  {lobbySlotFree ? t("starterPitchTitle") : t("starterPitchTitlePrivate")}
+                </p>
+                <p className="mt-1 text-[12.5px] leading-[1.45] font-medium text-[#4a2f00]/80">
+                  {lobbySlotFree ? t("starterPitchBody") : t("starterPitchBodyPrivate")}
                 </p>
               </div>
+
+              {/* The button on the gold: the card's own ink, so it reads as
+                  the one thing to press rather than a third pale pill among
+                  the facts. Hidden until the list has loaded, or a stale empty
+                  frame would promise a public game the slot forbids. */}
+              {LAST_MAN_START_LIVE && !gamesLoading && !gamesError ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setStartOpen(true)}
+                    className="ws-pressable cursor-pointer rounded-full bg-[#2a1a00] px-5 py-2.5 text-[13.5px] font-semibold text-[#ffd52d] transition-colors hover:bg-[#3a2400]"
+                  >
+                    {defaultEntry === null
+                      ? t("startTitle")
+                      : t("startCtaShort", { amount: defaultEntry })}
+                  </button>
+                </div>
+              ) : null}
 
               {/* The facts and the live state. On the gold they are dark glass
                   rather than the white-on-dark pills the old card used. */}
@@ -214,31 +229,6 @@ export function LastStandingLobby() {
               </div>
             </div>
           </div>
-
-          {/* Starting is always on offer now: only a PUBLIC game competes for
-              the lobby's single slot, so a taken slot changes what the button
-              opens rather than whether it exists. The list must have loaded
-              first, or a stale empty frame would promise a public game that
-              the slot forbids. */}
-          {LAST_MAN_START_LIVE && !gamesLoading && !gamesError ? (
-            <div className="ws-inset mt-5 px-4 py-4">
-              <div className="ws-display text-[17px] tracking-[-0.01em]">
-                {lobbySlotFree ? t("starterPitchTitle") : t("starterPitchTitlePrivate")}
-              </div>
-              <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/60">
-                {lobbySlotFree ? t("starterPitchBody") : t("starterPitchBodyPrivate")}
-              </p>
-              <button
-                type="button"
-                onClick={() => setStartOpen(true)}
-                className="bg-accent mt-3.5 cursor-pointer rounded-[12px] px-5 py-2.5 text-[13.5px] font-semibold text-black"
-              >
-                {defaultEntry === null
-                  ? t("startTitle")
-                  : t("startCtaShort", { amount: defaultEntry })}
-              </button>
-            </div>
-          ) : null}
 
           <div className="mt-7 flex items-center justify-between">
             <Eyebrow>{t("liveGames")}</Eyebrow>

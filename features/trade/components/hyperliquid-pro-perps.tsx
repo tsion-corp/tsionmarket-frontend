@@ -29,7 +29,6 @@ import {
 import { tradingViewSymbolForAsset } from "@/features/trade/lib/hyperliquid-tradingview";
 import { formatUsd, openFee, toBaseUnits } from "@/lib/trade/math";
 import { entryPriceFromUsdString, reportShine } from "@/lib/shine";
-import { ShineToggle } from "@/components/shine/shine-toggle";
 import { friendlyError } from "@/lib/errors";
 import { track } from "@/lib/analytics/mixpanel";
 import { PERP_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
@@ -684,7 +683,6 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
           they are trading on. This is the only perps interface in the app, so
           one placement here covers /perps, the deep-linked terminal and the
           phone Market tab. */}
-      <ShineToggle service="perps" className="mb-4" />
       <LeverageDesktopLayout
         // The design's ticket is a fixed 924px. Held as a floor rather than a
         // fixed height, because the order form grows with margin mode, TP/SL

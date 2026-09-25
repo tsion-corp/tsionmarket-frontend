@@ -91,6 +91,7 @@ export function useVaultActions() {
     async (hash: string, metadata: GameMetadataInput): Promise<void> => {
       if (metadataProblem(metadata) !== null) return;
       try {
+        const signer = owner();
         const normalized = normalizeMetadata(metadata);
         const timestamp = Date.now();
         await ensureUnlocked(socialWallet);
@@ -102,6 +103,7 @@ export function useVaultActions() {
           txHash: hash,
           title: normalized.title,
           description: normalized.description,
+          signer,
           signature,
           timestamp,
         });
@@ -109,7 +111,7 @@ export function useVaultActions() {
         vaultLog("naming the game failed", { hash, error: String(error) });
       }
     },
-    [socialWallet]
+    [owner, socialWallet]
   );
 
   /**

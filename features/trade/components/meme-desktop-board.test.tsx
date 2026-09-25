@@ -985,9 +985,12 @@ describe("MemeDesktopBoard search box", () => {
 // per-post confirmation, so the desk someone trades from is where the control
 // has to be. Placement is wiring, and wiring is what this file covers.
 describe("MemeDesktopBoard Shine", () => {
-  it("carries the memecoin Shine toggle on the desk", () => {
+  // Shine moved to the account menu on 2026-09-25: one switch panel for all
+  // seven services instead of a card on each page. This asserts the card has
+  // not come back, which is what stops them reappearing one page at a time.
+  it("does not carry a Shine card: Shine lives in the account menu", () => {
     renderBoard();
 
-    expect(screen.getByTestId("shine-toggle")).toHaveAttribute("data-service", "memecoin");
+    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 });

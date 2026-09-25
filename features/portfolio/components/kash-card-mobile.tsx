@@ -42,6 +42,8 @@ function ApproxEqualsGlyph({ className }: { className?: string }) {
 
 interface KashCardMobileProps {
   onBuy: () => void;
+  /** Opens the Send Kash modal: a wallet address and an amount. */
+  onSend: () => void;
   onConvert: () => void;
   onHistory: () => void;
 }
@@ -50,7 +52,7 @@ interface KashCardMobileProps {
 // 1:1565). The dark KashCard still serves `sm` and up; this stands in on a
 // phone. Same rewards data, same actions: the coin balance up top, the unit
 // price under it, and Buy / Convert along the bottom.
-export function KashCardMobile({ onBuy, onConvert, onHistory }: KashCardMobileProps) {
+export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCardMobileProps) {
   const t = useTranslations("kash");
   const { data: account, isError, walletMissing } = useKashAccount();
   const { data: status } = useKashStatus();
@@ -131,16 +133,23 @@ export function KashCardMobile({ onBuy, onConvert, onHistory }: KashCardMobilePr
           )}
         </div>
 
-        {/* Actions, above the cloud bank */}
-        <div className="grid grid-cols-2 gap-[1.9cqw]">
-          {/* Send is off the card for now. The modal and its wiring stay; only
-              the door is gone, so restoring it is this one pill. */}
+        {/* Actions, above the cloud bank. Three across on a phone rather than
+            two: a third row of pills would push the cloud bank off the card,
+            and the labels are one short word each. */}
+        <div className="grid grid-cols-3 gap-[1.9cqw]">
           <button
             onClick={onBuy}
             className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-white py-[14px] text-[15px] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
           >
             <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw]" />
             {t("buy")}
+          </button>
+          {/* Ink on the card's own gold, so Buy stays the one bright pill. */}
+          <button
+            onClick={onSend}
+            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-black/20 bg-black/[0.07] py-[14px] text-[15px] font-semibold text-black transition-transform active:scale-[0.98]"
+          >
+            {t("send")}
           </button>
           <button
             onClick={onConvert}

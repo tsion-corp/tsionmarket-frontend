@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { ShineToggle } from "@/components/shine/shine-toggle";
 import type { SportsbookEventKind, SportsbookGameState, SportsbookOrder } from "../api";
 import { useSportsbookCapabilities, useSportsbookNavigation } from "../hooks/use-sportsbook";
 import { updateSportsbookSlip, useSportsbookSlip } from "../slip-store";
@@ -103,13 +102,6 @@ export function SportsbookShell({
           eventKind={eventKind}
           onLeagueSearch={setLeagueSearch}
         />
-
-        {/* A placed ticket and a winning one are both posted by Shine with no
-            confirmation step, so the switch belongs at the top of the book
-            itself rather than behind a settings screen. */}
-        <div className="mx-auto w-full max-w-[1350px] px-4 pt-4 lg:px-6">
-          <ShineToggle service="sports" />
-        </div>
 
         <div className="mx-auto w-full max-w-[1350px] px-0 pb-10">
           {navigation.isLoading || !activeSport ? (

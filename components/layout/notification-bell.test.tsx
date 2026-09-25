@@ -40,6 +40,30 @@ const inbox = vi.hoisted(() => ({
 }));
 vi.mock("@/hooks/use-notification-inbox", () => ({ useNotificationInbox: () => inbox }));
 
+// The second store the bell reads: what the platform's own services publish,
+// a Last Man win among them.
+const service = vi.hoisted(() => ({
+  items: [] as {
+    id: string;
+    type: string;
+    title: string;
+    body: string;
+    url: string | null;
+    imageUrl: string | null;
+    readAt: string | null;
+    createdAt: string;
+  }[],
+  unreadCount: 0,
+  isLoading: false,
+  error: null as unknown,
+  markRead: vi.fn(async () => {}),
+  markAllRead: vi.fn(async () => {}),
+  refetch: vi.fn(),
+}));
+vi.mock("@/hooks/use-service-notifications", () => ({
+  useServiceNotifications: () => service,
+}));
+
 const push = vi.hoisted(() => ({
   state: "unsupported" as string,
   error: null as string | null,
@@ -97,6 +121,13 @@ describe("NotificationBell", () => {
     inbox.markAllRead.mockClear();
     inbox.loadMore.mockClear();
     inbox.refetch.mockClear();
+    service.items = [];
+    service.unreadCount = 0;
+    service.isLoading = false;
+    service.error = null;
+    service.markRead.mockClear();
+    service.markAllRead.mockClear();
+    service.refetch.mockClear();
     push.state = "unsupported";
     push.error = null;
     push.enable.mockClear();
@@ -263,13 +294,109 @@ describe("NotificationBell", () => {
     expect(inbox.loadMore).toHaveBeenCalledTimes(1);
   });
 
-  it("offers a retry when the inbox could not be read", () => {
+  // Two stores, so "could not read" has two shapes. Both retries refetch both:
+  // the reader does not know there are two, so neither should the button.
+  it("offers a retry, and refetches both stores, when neither could be read", () => {
     inbox.error = new Error("nope");
+    service.error = new Error("nope");
     render(<NotificationBell />);
     openBell();
     expect(screen.getByText("error")).toBeInTheDocument();
     fireEvent.click(screen.getByText("retry"));
     expect(inbox.refetch).toHaveBeenCalledTimes(1);
+    expect(service.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  // One store down is not an empty inbox. Saying nothing would present half of
+  // somebody's mail as all of it, which is how a missing payout notice looks
+  // exactly like no payout notice.
+  it("says so, and still shows what it has, when only one store failed", () => {
+    service.error = new Error("nope");
+    inbox.items = [notification({ id: "n1", title: "Season two is live" })];
+    render(<NotificationBell />);
+    openBell();
+    expect(screen.getByText("partial")).toBeInTheDocument();
+    expect(screen.getByText("Season two is live")).toBeInTheDocument();
+    expect(screen.queryByText("error")).toBeNull();
+  });
+
+  // The whole point of the second store: a Last Man win lands in the
+  // notification service, and the bell has always read user-management.
+  describe("the two stores, merged", () => {
+    const win = {
+      id: "s1",
+      type: "vault.game.won",
+      title: "You won",
+      body: "0.5 USDC",
+      url: "/casino/last-standing/244",
+      imageUrl: null,
+      readAt: null,
+      createdAt: "2026-09-25T11:00:00.000Z",
+    };
+
+    it("shows a vault win beside a team announcement, newest first", () => {
+      inbox.items = [
+        notification({
+          id: "n1",
+          title: "Season two is live",
+          createdAt: "2026-09-25T09:00:00.000Z",
+        }),
+      ];
+      service.items = [win];
+      render(<NotificationBell />);
+      openBell();
+
+      const titles = screen.getAllByText(/You won|Season two is live/).map((el) => el.textContent);
+      expect(titles).toEqual(["You won", "Season two is live"]);
+    });
+
+    it("counts both stores in the badge", () => {
+      inbox.unreadCount = 2;
+      service.unreadCount = 3;
+      render(<NotificationBell />);
+      expect(screen.getByText("5")).toBeInTheDocument();
+    });
+
+    // A read has to go back to the store that holds the row. Sending a vault
+    // read to user-management answers 404 and the badge never clears.
+    it("marks a vault win read against the notification service", () => {
+      service.items = [win];
+      render(<NotificationBell />);
+      openBell();
+      fireEvent.click(screen.getByText("You won"));
+      expect(service.markRead).toHaveBeenCalledWith("s1");
+      expect(inbox.markRead).not.toHaveBeenCalled();
+    });
+
+    it("marks an announcement read against user-management", () => {
+      inbox.items = [notification({ id: "n1", title: "Season two is live" })];
+      render(<NotificationBell />);
+      openBell();
+      fireEvent.click(screen.getByText("Season two is live"));
+      expect(inbox.markRead).toHaveBeenCalledWith(["n1"]);
+      expect(service.markRead).not.toHaveBeenCalled();
+    });
+
+    it("marks all read in both stores", () => {
+      inbox.unreadCount = 1;
+      service.unreadCount = 1;
+      render(<NotificationBell />);
+      openBell();
+      fireEvent.click(screen.getByText("markAllRead"));
+      expect(inbox.markAllRead).toHaveBeenCalledTimes(1);
+      expect(service.markAllRead).toHaveBeenCalledTimes(1);
+    });
+
+    // The service may publish a notification that leads nowhere; its url is
+    // nullable where user-management's is not.
+    it("does not navigate for a row with no destination", () => {
+      service.items = [{ ...win, url: null }];
+      render(<NotificationBell />);
+      openBell();
+      fireEvent.click(screen.getByText("You won"));
+      expect(routerPush).not.toHaveBeenCalled();
+      expect(service.markRead).not.toHaveBeenCalled();
+    });
   });
 
   it("offers the soft ask only when push can actually be turned on", () => {

@@ -308,15 +308,13 @@ describe("ArkadeDesktop", () => {
     expect(screen.queryByText("No games in this category yet.")).not.toBeInTheDocument();
   });
 
-  it("carries the arcade's Shine switch where it cannot be missed", () => {
-    // One switch governs every game in the arcade, and it is on by default.
-    // Putting it on the hub means the first place a person meets Shine is the
-    // page they play from, rather than a post that already exists.
+  // Shine moved to the account menu on 2026-09-25: one switch panel for all
+  // seven services instead of a card on each page. This asserts the card has
+  // not come back, which is what stops them reappearing one page at a time.
+  it("does not carry a Shine card: Shine lives in the account menu", () => {
+    // Shine moved to the account menu on 2026-09-25. Asserting its absence
+    // here is what stops a per-page card reappearing.
     renderWithIntl(<ArkadeDesktop />);
-    const shine = screen.getByRole("switch", {
-      name: enMessages.shine.toggleLabel,
-    });
-    expect(shine).toBeTruthy();
-    expect(shine.closest("section")?.textContent).toContain(enMessages.shine.keepsPosts);
+    expect(screen.queryByRole("switch", { name: enMessages.shine.toggleLabel })).toBeNull();
   });
 });

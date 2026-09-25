@@ -14,6 +14,7 @@ import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
 import { SQUARE_ZONE_PATH, openSquareZone } from "@/lib/square-zone";
 import { AccountPopover } from "@/components/layout/account-popover";
+import { ShineSheet } from "@/components/shine/shine-sheet";
 
 interface SidebarProps {
   items: NavItem[];
@@ -46,6 +47,10 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
   const squareShown = !MARKET_SQUARE_HIDDEN;
 
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
+  // Held here rather than inside the popover: the popover closes on an outside
+  // click, and the sheet would go with it the moment somebody reached for a
+  // switch inside it.
+  const [shineOpen, setShineOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   // While the drawer is open the page behind it does not scroll, and Escape
@@ -227,7 +232,9 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
           {/* Always mounted: AccountPopover plays its own exit animation off
               the `open` prop, and unmounting it here would skip straight past
               that closing frame. */}
+          <ShineSheet open={shineOpen} onClose={() => setShineOpen(false)} />
           <AccountPopover
+            onOpenShine={() => setShineOpen(true)}
             open={accountPopoverOpen}
             onClose={() => setAccountPopoverOpen(false)}
             triggerRef={profileButtonRef}

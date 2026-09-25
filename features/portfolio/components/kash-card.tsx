@@ -34,6 +34,8 @@ function ButtonIcon({ src, flip }: { src: string; flip?: "vertical" | "both" }) 
 
 interface KashCardProps {
   onBuy: () => void;
+  /** Opens the Send Kash modal: a wallet address and an amount. */
+  onSend: () => void;
   /** Settle accrued points into KSH now. Absent while there is nothing to claim. */
   onClaim?: () => void;
   claiming?: boolean;
@@ -50,6 +52,7 @@ interface KashCardProps {
 // a way a bare lock never does.
 export function KashCard({
   onBuy,
+  onSend,
   onClaim,
   claiming,
   onConvert,
@@ -265,14 +268,23 @@ export function KashCard({
           the row wraps instead of squeezing them. min-h rather than h so a
           wrapped row still cannot clip a label. */}
       <div className="mt-[24px] flex flex-wrap gap-[10.23px] sm:ml-[2.18px]">
-        {/* Send is off the card for now. The modal and its wiring stay; only
-            the door is gone, so restoring it is this one pill. */}
         <button
           onClick={onBuy}
           className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
         >
           <ButtonIcon src="/market/kash-icon-arrow-buy.svg" flip="both" />
           {t("buy")}
+        </button>
+        {/* Send sits between Buy and Convert: the three are what you can do
+            with a balance, in the order you would do them. Ink on the card's
+            own gold rather than a third fill, so Buy stays the one bright
+            pill and the row does not read as three equal shouts. */}
+        <button
+          onClick={onSend}
+          className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-black/25 bg-black/[0.07] px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
+        >
+          <ButtonIcon src="/market/kash-icon-arrow-buy.svg" />
+          {t("send")}
         </button>
         <button
           onClick={onConvert}

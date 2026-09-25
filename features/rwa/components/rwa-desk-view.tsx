@@ -15,7 +15,6 @@ import {
   useSideBySideDesk,
 } from "@/components/ui/desk-layout";
 import { SearchField } from "@/components/ui/search-field";
-import { ShineToggle } from "@/components/shine/shine-toggle";
 import { RwaAssetTable } from "@/features/rwa/components/rwa-asset-table";
 import { RwaTicket } from "@/features/rwa/components/rwa-ticket";
 import { useListedRwaAssets } from "@/features/rwa/hooks/use-rwa-assets";
@@ -124,7 +123,6 @@ export function RwaDeskView({ onAddFunds }: RwaDeskViewProps) {
         {/* Above the search field and the desk, because Shine posts a trade
             made here without asking each time: the place someone finds out
             about that has to be the page they are trading on. */}
-        <ShineToggle service="rwa" className="max-w-[560px]" />
 
         <SearchField
           value={query}

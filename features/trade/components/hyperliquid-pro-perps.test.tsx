@@ -829,9 +829,12 @@ describe("HyperliquidProPerps", () => {
 // confirmation. This is the app's only perps interface, so this one placement
 // is what puts the control in front of every perps trader.
 describe("HyperliquidProPerps Shine", () => {
-  it("carries the perps Shine toggle above the desk", () => {
+  // Shine moved to the account menu on 2026-09-25: one switch panel for all
+  // seven services instead of a card on each page. This asserts the card has
+  // not come back, which is what stops them reappearing one page at a time.
+  it("does not carry a Shine card: Shine lives in the account menu", () => {
     renderDesk();
 
-    expect(screen.getByTestId("shine-toggle")).toHaveAttribute("data-service", "perps");
+    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 });

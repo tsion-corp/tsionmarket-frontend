@@ -40,9 +40,12 @@ const account = (over: Partial<KashAccount> = {}): KashAccount =>
   }) as KashAccount;
 
 function renderCard() {
-  render(<KashCardMobile onBuy={() => {}} onConvert={() => {}} onHistory={() => {}} />, {
-    wrapper,
-  });
+  render(
+    <KashCardMobile onBuy={() => {}} onSend={() => {}} onConvert={() => {}} onHistory={() => {}} />,
+    {
+      wrapper,
+    }
+  );
 }
 
 // Send is off the card for now; Buy and Convert stay. The send modal and its
@@ -60,10 +63,16 @@ describe("KashCardMobile actions", () => {
     kashHooks.useKashStatus.mockReturnValue({ data: undefined });
   });
 
-  it("offers Buy and Convert but not Send", () => {
+  it("offers Buy, Send and Convert, in that order", () => {
     renderCard();
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+
+    const labels = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent?.trim())
+      .filter((label) => label === "Buy" || label === "Send" || label === "Convert");
+    expect(labels).toEqual(["Buy", "Send", "Convert"]);
   });
 });

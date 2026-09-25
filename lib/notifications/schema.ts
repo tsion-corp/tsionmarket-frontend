@@ -1,5 +1,10 @@
 import { z } from "zod";
-import type { InboxNotification, InboxPage } from "@/lib/notifications/types";
+import type {
+  InboxNotification,
+  InboxPage,
+  ServiceInboxPage,
+  ServiceNotification,
+} from "@/lib/notifications/types";
 
 // The client's parse of what the proxy returns. The proxy already judges the
 // upstream body against its own copy of these shapes
@@ -25,6 +30,27 @@ export const inboxNotificationSchema: z.ZodType<InboxNotification> = z.object({
 export const inboxPageSchema: z.ZodType<InboxPage> = z.object({
   items: z.array(inboxNotificationSchema),
   unreadCount: z.number().int(),
+  nextCursor: z.string().nullable(),
+});
+
+// The notification service's own shape. `url` is nullable there and a string
+// in user-management, which is exactly why the two are parsed separately
+// rather than through one lenient schema that would accept either and tell
+// the renderer nothing.
+export const serviceNotificationSchema: z.ZodType<ServiceNotification> = z.object({
+  id: z.string(),
+  type: z.string(),
+  title: z.string(),
+  body: z.string(),
+  url: z.string().nullable(),
+  imageUrl: z.string().nullable(),
+  readAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+
+export const serviceInboxPageSchema: z.ZodType<ServiceInboxPage> = z.object({
+  items: z.array(serviceNotificationSchema),
+  unread: z.number().int(),
   nextCursor: z.string().nullable(),
 });
 

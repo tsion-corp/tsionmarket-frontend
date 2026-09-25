@@ -20,7 +20,6 @@ import {
   metricColumnFor,
   nextSortFor,
 } from "@/features/trade/components/meme-table-columns";
-import { ShineToggle } from "@/components/shine/shine-toggle";
 import { useFittedRowCount } from "@/hooks/use-fitted-row-count";
 import type { MemeToken } from "@/lib/meme/api";
 import { catalogKey } from "@/lib/meme/catalog";
@@ -467,7 +466,6 @@ export function MemeDesktopBoard({
           It is on by default and posts a confirmed trade publicly without
           asking each time, so the desk someone is trading on is where they
           have to be able to see and change it. */}
-      <ShineToggle service="memecoin" />
 
       {/* The two columns sit side by side from lg. Below that they stack: the
           rail alone is 468px and the table asks for about 360px, so on a tablet

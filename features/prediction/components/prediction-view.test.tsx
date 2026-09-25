@@ -181,9 +181,12 @@ describe("PredictionView", () => {
     });
   });
 
-  it("carries the prediction Shine switch on the page", () => {
+  // Shine moved to the account menu on 2026-09-25: one switch panel for all
+  // seven services instead of a card on each page. This asserts the card has
+  // not come back, which is what stops them reappearing one page at a time.
+  it("does not carry a Shine card: Shine lives in the account menu", () => {
     render(<PredictionView />);
-    expect(screen.getByTestId("shine-toggle")).toHaveTextContent("prediction");
+    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 
   it("renders the Polymarket feed filters backed by discovery sorts", () => {

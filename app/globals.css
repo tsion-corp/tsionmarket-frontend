@@ -871,10 +871,19 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
 /* The tour sits UNDER the modals. driver.js stacks its overlay and popover at
    the top of everything (1e9), which put the walkthrough on top of the upgrade
    gate that was holding the app shut. Above the chrome (the sidebar is 110),
-   below the sheets (the gate is 440). */
-.driver-overlay,
-.driver-popover {
+   below the sheets (the gate is 440).
+
+   The two need DIFFERENT values. Pinning both to 400 left the winner to DOM
+   order, and driver.js appends its overlay after the popover, so the overlay
+   painted its 72% black over the card: the title, the body and the Back and
+   Next buttons all came out dimmed, which read as a disabled dialog. One step
+   apart, still under the 440 sheets. */
+.driver-overlay {
   z-index: 400 !important;
+}
+
+.driver-popover {
+  z-index: 401 !important;
 }
 
 .driver-popover.ws-tour {

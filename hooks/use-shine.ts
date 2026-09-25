@@ -95,6 +95,16 @@ async function readPreferences(): Promise<ShinePreferences> {
   return parsePreferences(await res.json());
 }
 
+async function writeShine(shine: Partial<ShinePreferences>): Promise<ShinePreferences> {
+  const res = await apiFetch(
+    PREFERENCES_ROUTE,
+    { method: "POST", headers: JSON_HEADERS, body: JSON.stringify({ shine }) },
+    { requireAuth: true }
+  );
+  if (!res.ok) throw new Error(`Could not save your Shine setting (${res.status})`);
+  return parsePreferences(await res.json());
+}
+
 async function writePreference(service: ShineService, on: boolean): Promise<ShinePreferences> {
   const res = await apiFetch(
     PREFERENCES_ROUTE,
@@ -138,8 +148,16 @@ export interface Shine {
    * a person's privacy. This — not `isOn` — is what the posting path asks.
    */
   mayPost(service: ShineService): boolean;
+  /** Whether every service is on. What the master switch draws. */
+  allOn: boolean;
   /** Writes one service. Flips at once, goes back and rejects if the save fails. */
   setShine(service: ShineService, on: boolean): Promise<void>;
+  /**
+   * Writes every service at once, in ONE request. Seven writes would be seven
+   * chances to half-apply and leave somebody believing they had turned Shine
+   * off everywhere when one service was still posting.
+   */
+  setAll(on: boolean): Promise<void>;
   refetch(): void;
 }
 
@@ -174,6 +192,32 @@ export function useShine(): Shine {
   const mayPost = useCallback(
     (service: ShineService) => userId !== null && preferences !== null && preferences[service],
     [preferences, userId]
+  );
+
+  // Only true once the record has arrived AND every service is on. An
+  // unresolved record is not "all on": the master switch would otherwise claim
+  // a settled state it has not read yet.
+  const allOn = preferences !== null && SHINE_SERVICES.every((service) => preferences[service]);
+
+  const setAll = useCallback(
+    async (on: boolean) => {
+      if (!userId) throw new Error("No signed-in account");
+      const previous = queryClient.getQueryData<ShinePreferences>(queryKey);
+      const next = Object.fromEntries(
+        SHINE_SERVICES.map((service) => [service, on])
+      ) as ShinePreferences;
+      if (previous) queryClient.setQueryData<ShinePreferences>(queryKey, next);
+      setIsSaving(true);
+      try {
+        queryClient.setQueryData<ShinePreferences>(queryKey, await writeShine(next));
+      } catch (cause) {
+        if (previous) queryClient.setQueryData<ShinePreferences>(queryKey, previous);
+        throw cause;
+      } finally {
+        setIsSaving(false);
+      }
+    },
+    [queryClient, queryKey, userId]
   );
 
   const setShine = useCallback(
@@ -211,7 +255,9 @@ export function useShine(): Shine {
     error: query.error,
     isOn,
     mayPost,
+    allOn,
     setShine,
+    setAll,
     refetch: () => {
       void refetch();
     },

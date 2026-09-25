@@ -118,10 +118,15 @@ describe("RwaPhoneList", () => {
     expect(box.firstElementChild).toContainElement(searchBox());
   });
 
-  it("carries the real-asset Shine switch at the head of the list", () => {
+  // Shine moved to the account menu on 2026-09-25: one switch panel for all
+  // seven services instead of a card on each page. This asserts the card has
+  // not come back, which is what stops them reappearing one page at a time.
+  it("does not carry a Shine card: Shine lives in the account menu", () => {
+    // Shine moved to the account menu on 2026-09-25. Asserting its absence
+    // here is what stops a per-page card reappearing.
     renderList();
     const box = screen.getByTestId("rwa-market-list");
-    expect(within(box).getByTestId("shine-toggle")).toHaveTextContent("rwa");
+    expect(within(box).queryByTestId("shine-toggle")).toBeNull();
   });
 
   it("filters the rows by what is typed into its own search field", () => {

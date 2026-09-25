@@ -27,7 +27,10 @@ vi.mock("./ticket-modal", () => ({ TicketModal: () => null }));
 import { SportsbookShell } from "./sportsbook-shell";
 
 describe("the sportsbook page", () => {
-  it("carries the sports Shine switch at the top of the book", () => {
+  // Shine moved to the account menu on 2026-09-25: one switch panel for all
+  // seven services instead of a card on each page. This asserts the card has
+  // not come back, which is what stops them reappearing one page at a time.
+  it("does not carry a Shine card: Shine lives in the account menu", () => {
     render(
       <SportsbookShell
         requestedSport="football"
@@ -38,6 +41,6 @@ describe("the sportsbook page", () => {
       />
     );
 
-    expect(screen.getByTestId("shine-toggle")).toHaveTextContent("sports");
+    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 });

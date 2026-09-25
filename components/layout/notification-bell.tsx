@@ -14,9 +14,10 @@ import {
   type ActivityEntry,
 } from "@/features/activity/hooks/use-activity";
 import { useNotificationInbox } from "@/hooks/use-notification-inbox";
+import { useServiceNotifications } from "@/hooks/use-service-notifications";
+import { mergeBellNotifications, type BellNotification } from "@/lib/notifications/merge";
 import { usePushSubscription, type PushState } from "@/hooks/use-push-subscription";
 import { notificationDestination } from "@/lib/notifications/destination";
-import type { InboxNotification } from "@/lib/notifications/types";
 import { tokenBg } from "@/lib/trade/assets";
 import { displayNetwork, displaySymbol } from "@/lib/buy";
 import { formatQty } from "@/lib/format";
@@ -96,11 +97,12 @@ function InboxRow({
   item,
   onSelect,
 }: {
-  item: InboxNotification;
-  onSelect: (item: InboxNotification) => void;
+  item: BellNotification;
+  onSelect: (item: BellNotification) => void;
 }) {
   const t = useTranslations("activity");
-  const followable = notificationDestination(item.url) !== null;
+  // A service row may carry no url at all, which is not a destination either.
+  const followable = item.url !== null && notificationDestination(item.url) !== null;
   const body = (
     <>
       <span
@@ -222,6 +224,10 @@ export function NotificationBell() {
   // how often the whole signed-in population sweeps its history.
   const { items, loading } = useActivity({ pollMs: BELL_POLL_MS });
   const inbox = useNotificationInbox();
+  // The second store: what the platform's own services publish, a Last Man win
+  // among them. Read on sign-in rather than on open, because that read is also
+  // what links this wallet to this person on the service side.
+  const service = useServiceNotifications();
   // Called here rather than inside the panel, because the silent refresh has
   // to run on load and not only when somebody opens the bell.
   const push = usePushSubscription();
@@ -259,8 +265,22 @@ export function NotificationBell() {
 
   const unread = unreadEntries(items, lastReadAt);
   const activityBadge = unreadBadge(unread.length);
-  const badge = unreadBadge(unread.length + inbox.unreadCount);
+  const badge = unreadBadge(unread.length + inbox.unreadCount + service.unreadCount);
   const unreadIds = new Set(unread.map((e) => e.id));
+  const rows = mergeBellNotifications(inbox.items, service.items);
+  // One store failing must not blank the other's rows: the panel only shows
+  // the error state when there is nothing left to show.
+  const bothFailed = Boolean(inbox.error) && Boolean(service.error);
+  const bothLoading = inbox.isLoading && service.isLoading;
+  // One store down is not an empty inbox. Saying nothing would present a
+  // partial list as the whole of somebody's mail, which is how a missing
+  // payout notice looks exactly like no payout notice.
+  const partlyFailed = !bothFailed && (Boolean(inbox.error) || Boolean(service.error));
+
+  const retryBoth = () => {
+    inbox.refetch();
+    service.refetch();
+  };
   const preview = items.slice(0, PREVIEW_COUNT);
 
   // Opening is the acknowledgement. The dots stay for this view so the user can
@@ -274,16 +294,28 @@ export function NotificationBell() {
 
   // The optimistic update has already moved the row, so a failure has to say
   // so: silently rolling back would look like the click did nothing.
-  const markNotifications = (ids: string[] | null) => {
+  // Read state is per store: marking a vault win read has to go to the
+  // notification service, and an announcement to user-management. Sending
+  // either to the wrong one answers 404 and leaves the badge stuck.
+  const markOne = (item: BellNotification) => {
     setMarkFailed(false);
-    const done = ids === null ? inbox.markAllRead() : inbox.markRead(ids);
+    const done = item.source === "service" ? service.markRead(item.id) : inbox.markRead([item.id]);
     void done.catch(() => setMarkFailed(true));
   };
 
-  const openNotification = (item: InboxNotification) => {
-    const destination = notificationDestination(item.url);
+  // "Mark all read" means both, and one store failing must not hide that the
+  // other succeeded.
+  const markAll = () => {
+    setMarkFailed(false);
+    void Promise.allSettled([inbox.markAllRead(), service.markAllRead()]).then((results) => {
+      if (results.some((r) => r.status === "rejected")) setMarkFailed(true);
+    });
+  };
+
+  const openNotification = (item: BellNotification) => {
+    const destination = item.url === null ? null : notificationDestination(item.url);
     if (!destination) return;
-    if (!item.readAt) markNotifications([item.id]);
+    if (!item.readAt) markOne(item);
     close();
     if (destination.kind === "internal") {
       router.push(destination.path);
@@ -345,10 +377,10 @@ export function NotificationBell() {
 
             <div className="flex items-center justify-between px-2.5 pt-2 pb-1.5">
               <span className={SECTION_LABEL}>{n("title")}</span>
-              {inbox.unreadCount > 0 ? (
+              {inbox.unreadCount + service.unreadCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => markNotifications(null)}
+                  onClick={markAll}
                   className="cursor-pointer text-[11px] font-medium text-white/55 transition-colors hover:text-white"
                 >
                   {n("markAllRead")}
@@ -360,30 +392,45 @@ export function NotificationBell() {
               <p className="px-2.5 pb-1.5 text-[11.5px] font-normal text-white/45">{n("error")}</p>
             ) : null}
 
-            {inbox.error ? (
+            {partlyFailed ? (
+              <p className="flex items-center gap-1.5 px-2.5 pb-1.5 text-[11.5px] font-normal text-white/45">
+                {n("partial")}
+                <button
+                  type="button"
+                  onClick={retryBoth}
+                  className="text-accent cursor-pointer font-medium"
+                >
+                  {n("retry")}
+                </button>
+              </p>
+            ) : null}
+
+            {/* One list from two stores. Each keeps its own read state; the
+                merge is display only (lib/notifications/merge.ts). */}
+            {bothFailed ? (
               <div className={PANEL_NOTE}>
                 <span className="block">{n("error")}</span>
                 <button
                   type="button"
-                  onClick={inbox.refetch}
+                  onClick={retryBoth}
                   className="text-accent mt-1 cursor-pointer text-[12.5px] font-medium"
                 >
                   {n("retry")}
                 </button>
               </div>
-            ) : inbox.isLoading ? (
+            ) : bothLoading ? (
               // A skeleton rather than a word, so the panel keeps its shape
               // while the first page lands.
               <div aria-hidden className="space-y-1.5 px-2.5 py-2">
                 <div className="h-8 animate-pulse rounded-[10px] bg-white/6" />
                 <div className="h-8 animate-pulse rounded-[10px] bg-white/6" />
               </div>
-            ) : inbox.items.length === 0 ? (
+            ) : rows.length === 0 ? (
               <div className={PANEL_NOTE}>{n("empty")}</div>
             ) : (
               <>
-                {inbox.items.map((item) => (
-                  <InboxRow key={item.id} item={item} onSelect={openNotification} />
+                {rows.map((item) => (
+                  <InboxRow key={item.key} item={item} onSelect={openNotification} />
                 ))}
                 {inbox.hasMore ? (
                   <button

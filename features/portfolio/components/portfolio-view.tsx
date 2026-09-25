@@ -346,6 +346,7 @@ export function PortfolioView({
           />
           <KashCardMobile
             onBuy={() => setKashModal("buy")}
+            onSend={() => setKashModal("send")}
             onConvert={() => setKashModal("convert")}
             onHistory={() => setKashModal("history")}
           />
@@ -384,6 +385,7 @@ export function PortfolioView({
         />
         <KashCard
           onBuy={() => setKashModal("buy")}
+          onSend={() => setKashModal("send")}
           onClaim={
             kashWallet
               ? () =>
