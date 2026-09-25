@@ -52,12 +52,20 @@ describe("identitiesMismatch", () => {
 
   // Different providers on the two sides is legitimate — "the same Google, X,
   // email or passkey you used before" — and there is nothing to compare.
-  it("cannot judge across providers, or before the old sign-in", () => {
-    expect(identitiesMismatch(id({ email: "korode@gmail.com" }), id({ xId: "1001" }))).toBe(false);
-    expect(identitiesMismatch(id({ xId: "1001" }), id({ email: "demitchy@gmail.com" }))).toBe(
-      false
-    );
+  // An old account reached by a different provider is somebody's, but nothing
+  // says it is this person's: a Google sign-in here and an X sign-in there
+  // have nothing in common to match on, so they are not let through.
+  it("blocks an old account reached by a provider the new sign-in has nothing in common with", () => {
+    expect(identitiesMismatch(id({ email: "korode@gmail.com" }), id({ xId: "1001" }))).toBe(true);
+    expect(identitiesMismatch(id({ xId: "1001" }), id({ email: "demitchy@gmail.com" }))).toBe(true);
+    expect(
+      identitiesMismatch(id({ xHandle: "korex" }), id({ xId: "1001", xHandle: "someoneelse" }))
+    ).toBe(true);
+  });
+
+  it("cannot judge before the old sign-in, or with no profile on the new side", () => {
     expect(identitiesMismatch(id({ email: "korode@gmail.com" }), id({}))).toBe(false);
+    expect(identitiesMismatch(id({}), id({ xId: "1001" }))).toBe(false);
     expect(identitiesMismatch(id({}), id({}))).toBe(false);
   });
 

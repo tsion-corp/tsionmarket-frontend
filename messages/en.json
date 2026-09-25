@@ -3646,6 +3646,7 @@
       "invalidMarket": "This market was voided.",
       "noLiquidity": "Nobody is buying this right now. Hold it to resolution.",
       "closedMarket": "This market is closed right now. Try during trading hours.",
+      "belowMinimum": "Too small to withdraw: the venue’s withdrawal fee is more than what is left.",
       "onramp": "Something is still on its way to your old account."
     },
     "signInKnown": "Your old account still has items to carry across. Sign in to it to finish the upgrade.",

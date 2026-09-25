@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getRequestIdentity, verifyRequest } from "@/lib/server/auth";
 import { isAllowedPerpPath, perpRevalidate, wsapiPerpRequest } from "@/lib/server/wsapi";
+import { linkedLegacyEvmAddress } from "@/lib/server/migration";
 
 // Server-side proxy for the perp gateway (Hyperliquid perpetuals, the Ark
 // service). Reads are public market data; the prepare/submit pairs are POSTs
@@ -67,7 +68,17 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
   if (addressMatch) {
     const claims = await verifyRequest(req);
     const wallet = claims ? ((await getRequestIdentity(req, claims))?.evmAddress ?? null) : null;
-    if (!wallet || addressMatch[1]!.toLowerCase() !== wallet.toLowerCase()) {
+    const asked = addressMatch[1]!.toLowerCase();
+    const own = wallet !== null && asked === wallet.toLowerCase();
+    // The old wallet this session is linked to is the same person's: the
+    // upgrade reads its positions and margin before flattening it. Asked of
+    // the migration service only when the address is not the session's own,
+    // and only for a signed-in session.
+    const linked =
+      !own && wallet !== null
+        ? (await linkedLegacyEvmAddress(req))?.toLowerCase() === asked
+        : false;
+    if (!own && !linked) {
       return NextResponse.json(
         { success: false, error: { code: "NOT_FOUND", message: "Not found" } },
         { status: 404 }

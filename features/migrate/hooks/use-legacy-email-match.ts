@@ -40,12 +40,29 @@ const norm = (s: string) => s.trim().toLowerCase();
 const handle = (s: string) => norm(s).replace(/^@/, "");
 
 /** The pure rule: true only when a shared kind of identifier is known on both sides and differs. */
+function known(identity: Identity): boolean {
+  return Boolean(identity.email || identity.xId || identity.xHandle);
+}
+
+// Two sides match when ANY identifier both carry agrees: the same email, the
+// same X user id, or the same X handle. They mismatch when both sides are
+// known and nothing agrees — including an old account reached by X when the
+// new one signed in by Google, or by a different X account. Before this, a
+// pair with nothing in common could not be judged and was let through, which
+// linked somebody else's old account to this one whenever the provider
+// differed. Nothing known on a side (no old sign-in yet, no profile) is still
+// not a mismatch: there is nothing to compare, and the sign-in itself is the
+// next step.
 export function identitiesMismatch(expected: Identity, actual: Identity): boolean {
-  if (expected.email && actual.email) return norm(expected.email) !== norm(actual.email);
+  if (!known(expected) || !known(actual)) return false;
+  if (expected.email && actual.email && norm(expected.email) === norm(actual.email)) return false;
+  // An X user id is definitive: two different ids are two accounts, however
+  // alike their handles — a handle can be dropped and picked up by somebody
+  // else. The handle only vouches when an id is missing on either side.
   if (expected.xId && actual.xId) return expected.xId.trim() !== actual.xId.trim();
-  if (expected.xHandle && actual.xHandle)
-    return handle(expected.xHandle) !== handle(actual.xHandle);
-  return false;
+  if (expected.xHandle && actual.xHandle && handle(expected.xHandle) === handle(actual.xHandle))
+    return false;
+  return true;
 }
 
 /** How to name a side to the user: the email, else the handle. */

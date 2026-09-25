@@ -1,7 +1,12 @@
 import "server-only";
 
+import { createHash } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
-import { verifyPrivyAccessToken, type AccessClaims } from "@/lib/server/auth";
+import {
+  accessTokenFromCookie,
+  verifyPrivyAccessToken,
+  type AccessClaims,
+} from "@/lib/server/auth";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // The gateway's migration service: links a Decane account to the Privy
@@ -88,4 +93,59 @@ export async function forwardMigration(
       { status: 502 }
     );
   }
+}
+
+// ── The old wallet a session is linked to ────────────────────────────────────
+//
+// Address-keyed proxies (the perp proxy above all) pin a path's address to the
+// wallet the session owns. That is right for every read but one: the upgrade
+// reads the OLD wallet's positions, margin and Arbitrum balance, which belong
+// to the same person by the link the migration service holds. This asks that
+// service — the one authority on the link — and caches the answer briefly, so
+// a page that polls the old account does not ask it on every tick.
+//
+// Keyed on a hash of the token, never the token: the map is process-wide and
+// a token must not sit in memory beyond the request that carried it.
+
+const LEGACY_LINK_TTL_MS = 60_000;
+const LEGACY_LINK_MAX_ENTRIES = 1_000;
+const legacyLinks = new Map<string, { evm: string | null; expiresAt: number }>();
+
+function bearerOf(req: NextRequest): string | null {
+  const header = req.headers.get("authorization");
+  if (header?.startsWith("Bearer ")) return header.slice("Bearer ".length);
+  return accessTokenFromCookie((name) => req.cookies.get(name)?.value);
+}
+
+/** The EVM address of the old account linked to this session, or null. */
+export async function linkedLegacyEvmAddress(req: NextRequest): Promise<string | null> {
+  if (!migrationServiceEnabled()) return null;
+  const token = bearerOf(req);
+  if (!token) return null;
+  const key = createHash("sha256").update(token).digest("hex");
+  const cached = legacyLinks.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.evm;
+
+  let evm: string | null = null;
+  try {
+    const res = await forwardMigration("/status", {
+      method: "GET",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      const body = (await res.json().catch(() => null)) as {
+        data?: { legacy?: { evm?: unknown } | null };
+      } | null;
+      const value = body?.data?.legacy?.evm;
+      evm = typeof value === "string" && value !== "" ? value : null;
+    }
+  } catch {
+    // Unreachable service: no link known, which is the safe answer.
+  }
+  if (legacyLinks.size >= LEGACY_LINK_MAX_ENTRIES) {
+    const oldest = legacyLinks.keys().next().value;
+    if (oldest !== undefined) legacyLinks.delete(oldest);
+  }
+  legacyLinks.set(key, { evm, expiresAt: Date.now() + LEGACY_LINK_TTL_MS });
+  return evm;
 }

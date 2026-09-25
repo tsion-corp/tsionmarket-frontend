@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useMemo } from "react";
 import { useSocialWallet } from "decane-connect-kit";
 import type { EIP1193Provider } from "viem";
 import {
@@ -30,19 +30,21 @@ import type {
 const HYPERLIQUID_IS_TESTNET = process.env.NEXT_PUBLIC_HYPERLIQUID_IS_TESTNET === "true";
 
 /**
- * Signs Hyperliquid actions with the user's own ARK embedded wallet, client-side,
- * silently (Decane's embedded EVM provider signs an EIP-712 payload with no
- * popup, same mechanism `features/portfolio/hooks/use-kash-permit.ts` already
- * uses for a plain EIP-712 permit). There is no backend-held key anywhere in
- * this flow — the backend
- * independently recovers the signer from what this hook returns and rejects a
- * mismatch (see apps/perp/src/signing/README.md).
+ * Signs Hyperliquid actions with the user's own wallet, client-side, silently
+ * (an embedded EVM provider signs an EIP-712 payload with no popup, same
+ * mechanism `features/portfolio/hooks/use-kash-permit.ts` already uses for a
+ * plain EIP-712 permit). There is no backend-held key anywhere in this flow —
+ * the backend independently recovers the signer from what this returns and
+ * rejects a mismatch (see apps/perp/src/signing/README.md).
  *
  * `@nktkas/hyperliquid`'s `signL1Action`/`signUserSignedAction` do the actual
  * msgpack + keccak256 hashing Hyperliquid's phantom-agent scheme requires —
  * hand-rolling that hash is exactly what Hyperliquid's own docs warn against,
- * so this wraps the SDK rather than reimplementing it, mirroring how the
- * backend used to sign before signing moved client-side.
+ * so this wraps the SDK rather than reimplementing it.
+ *
+ * A factory rather than only a hook: the migration signs for the OLD account
+ * with the legacy provider, outside any React tree that holds the current
+ * session, and needs exactly the same signatures.
  */
 // The EIP-712 domain type row eth_signTypedData_v4 requires. @nktkas passes
 // viem-style typed data whose `types` omits EIP712Domain (viem injects it
@@ -54,15 +56,29 @@ const EIP712_DOMAIN_TYPE = [
   { name: "verifyingContract", type: "address" },
 ];
 
-export function useHyperliquidSigner(address: string | undefined) {
-  const { getEthereumProvider } = useSocialWallet();
+export interface HyperliquidSigner {
+  signL1(action: HlL1Action, nonce: number): Promise<HlSignature>;
+  signWithdrawal(action: HlWithdraw3Action): Promise<HlSignature>;
+  signDexTransfer(action: HlSendAssetAction): Promise<HlSignature>;
+  signBuilderFeeApproval(action: HlApproveBuilderFeeAction): Promise<HlSignature>;
+  signSetAbstractionMode(action: HlSetAbstractionAction): Promise<HlSignature>;
+}
 
+type UserSignedAction = Record<string, unknown> & { signatureChainId: `0x${string}` };
+
+export function createHyperliquidSigner({
+  address,
+  getEthereumProvider,
+}: {
+  address: string | undefined;
+  /** The wallet's own EIP-1193 provider; sync or async, it is awaited. */
+  getEthereumProvider: () => unknown;
+}): HyperliquidSigner {
   // @nktkas's AbstractViemLocalAccount.signTypedData takes viem's
-  // {domain, types, primaryType, message} shape. Decane replaces Privy's
-  // useSignTypedData: we sign that payload with the embedded EVM wallet's own
-  // EIP-1193 provider via eth_signTypedData_v4 — the same drop-to-provider
-  // pattern the sportsbook order signer uses.
-  const wallet = useCallback((): AbstractViemLocalAccount => {
+  // {domain, types, primaryType, message} shape. We sign that payload with
+  // the wallet's own EIP-1193 provider via eth_signTypedData_v4 — the same
+  // drop-to-provider pattern the sportsbook order signer uses.
+  const wallet = (): AbstractViemLocalAccount => {
     if (!address) {
       throw new Error("Connect a wallet before signing this action.");
     }
@@ -75,7 +91,7 @@ export function useHyperliquidSigner(address: string | undefined) {
           primaryType: string;
           message: Record<string, unknown>;
         };
-        const provider = (await getEthereumProvider()) as unknown as EIP1193Provider;
+        const provider = (await getEthereumProvider()) as EIP1193Provider;
         const typedData = {
           domain: p.domain,
           types: p.types.EIP712Domain ? p.types : { EIP712Domain: EIP712_DOMAIN_TYPE, ...p.types },
@@ -88,66 +104,33 @@ export function useHyperliquidSigner(address: string | undefined) {
         })) as `0x${string}`;
       },
     };
-  }, [address, getEthereumProvider]);
+  };
 
-  const signL1 = useCallback(
-    async (action: HlL1Action, nonce: number): Promise<HlSignature> => {
-      return signL1Action({ wallet: wallet(), action, nonce, isTestnet: HYPERLIQUID_IS_TESTNET });
-    },
-    [wallet]
-  );
-
-  const signWithdrawal = useCallback(
-    async (action: HlWithdraw3Action): Promise<HlSignature> => {
-      // Same variance mismatch as above: HlWithdraw3Action has no explicit
-      // index signature, which the SDK's generic constraint wants.
-      return signUserSignedAction({
+  const userSigned =
+    <A>(types: Parameters<typeof signUserSignedAction>[0]["types"]) =>
+    async (action: A): Promise<HlSignature> =>
+      signUserSignedAction({
         wallet: wallet(),
-        action: action as unknown as Record<string, unknown> & { signatureChainId: `0x${string}` },
-        types: Withdraw3Types,
+        action: action as unknown as UserSignedAction,
+        types,
       });
-    },
-    [wallet]
-  );
-
-  const signDexTransfer = useCallback(
-    async (action: HlSendAssetAction): Promise<HlSignature> => {
-      return signUserSignedAction({
-        wallet: wallet(),
-        action: action as unknown as Record<string, unknown> & { signatureChainId: `0x${string}` },
-        types: SendAssetTypes,
-      });
-    },
-    [wallet]
-  );
-
-  const signBuilderFeeApproval = useCallback(
-    async (action: HlApproveBuilderFeeAction): Promise<HlSignature> => {
-      return signUserSignedAction({
-        wallet: wallet(),
-        action: action as unknown as Record<string, unknown> & { signatureChainId: `0x${string}` },
-        types: ApproveBuilderFeeTypes,
-      });
-    },
-    [wallet]
-  );
-
-  const signSetAbstractionMode = useCallback(
-    async (action: HlSetAbstractionAction): Promise<HlSignature> => {
-      return signUserSignedAction({
-        wallet: wallet(),
-        action: action as unknown as Record<string, unknown> & { signatureChainId: `0x${string}` },
-        types: UserSetAbstractionTypes,
-      });
-    },
-    [wallet]
-  );
 
   return {
-    signL1,
-    signWithdrawal,
-    signDexTransfer,
-    signBuilderFeeApproval,
-    signSetAbstractionMode,
+    // Async so a missing address rejects rather than throwing mid-call.
+    signL1: async (action, nonce) =>
+      signL1Action({ wallet: wallet(), action, nonce, isTestnet: HYPERLIQUID_IS_TESTNET }),
+    signWithdrawal: userSigned<HlWithdraw3Action>(Withdraw3Types),
+    signDexTransfer: userSigned<HlSendAssetAction>(SendAssetTypes),
+    signBuilderFeeApproval: userSigned<HlApproveBuilderFeeAction>(ApproveBuilderFeeTypes),
+    signSetAbstractionMode: userSigned<HlSetAbstractionAction>(UserSetAbstractionTypes),
   };
+}
+
+/** The signer for the signed-in account's own embedded wallet. */
+export function useHyperliquidSigner(address: string | undefined): HyperliquidSigner {
+  const { getEthereumProvider } = useSocialWallet();
+  return useMemo(
+    () => createHyperliquidSigner({ address, getEthereumProvider }),
+    [address, getEthereumProvider]
+  );
 }

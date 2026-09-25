@@ -3646,6 +3646,7 @@
       "invalidMarket": "Ce marché a été annulé.",
       "noLiquidity": "Personne n'achète cela pour le moment. Gardez-le jusqu'à la résolution.",
       "closedMarket": "Ce marché est fermé en ce moment. Essayez pendant les heures de négociation.",
+      "belowMinimum": "Trop peu pour retirer : les frais de retrait de la plateforme dépassent ce qui reste.",
       "onramp": "Quelque chose est encore en route vers votre ancien compte."
     },
     "signInKnown": "Il reste des éléments à faire venir depuis votre ancien compte. Connectez-vous-y pour terminer la mise à niveau.",

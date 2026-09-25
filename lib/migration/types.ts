@@ -33,7 +33,13 @@ export type Settleability =
   | {
       state: "stranded";
       reason:
-        "unsponsoredNetwork" | "insolventMarket" | "invalidMarket" | "noLiquidity" | "closedMarket";
+        | "unsponsoredNetwork"
+        | "insolventMarket"
+        | "invalidMarket"
+        | "noLiquidity"
+        | "closedMarket"
+        // Less than the venue's own withdrawal fee: nothing would arrive.
+        | "belowMinimum";
     }
   | { state: "pending"; reason: "onramp" };
 

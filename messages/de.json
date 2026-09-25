@@ -3646,6 +3646,7 @@
       "invalidMarket": "Dieser Markt wurde annulliert.",
       "noLiquidity": "Dafür gibt es gerade keine Käufer. Halte es bis zur Auflösung.",
       "closedMarket": "Dieser Markt ist gerade geschlossen. Versuch es zu den Handelszeiten.",
+      "belowMinimum": "Zu wenig zum Auszahlen: Die Auszahlungsgebühr der Plattform ist höher als der Rest.",
       "onramp": "Es ist noch etwas zu deinem alten Konto unterwegs."
     },
     "signInKnown": "Auf deinem alten Konto liegt noch etwas, das mitkommen soll. Melde dich dort an, um das Upgrade abzuschließen.",
