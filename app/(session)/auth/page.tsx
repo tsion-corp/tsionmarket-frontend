@@ -45,6 +45,8 @@ export default function AuthPage() {
   const remembered = useDisplayProfile() !== null;
   const wallet = useSocialWallet();
   const [useAnother, setUseAnother] = useState(false);
+  // The passkey did not open a session: the full list, for the same person.
+  const [passkeyFailed, setPasskeyFailed] = useState(false);
   const useAnotherAccount = () => {
     clearDisplayProfile();
     clearLastAuthMethod();
@@ -157,12 +159,21 @@ export default function AuthPage() {
             </div>
           ) : settling ? (
             <div className="mt-7 min-h-[132px] md:mt-[34px]" aria-busy="true" />
-          ) : offer && !useAnother ? (
+          ) : offer && !useAnother && !passkeyFailed ? (
             <div className="mt-7 md:mt-[34px]">
-              <UnlockPanel offer={offer} onUseAnother={useAnotherAccount} />
+              <UnlockPanel
+                offer={offer}
+                onUseAnother={useAnotherAccount}
+                onPasskeyFailed={() => setPasskeyFailed(true)}
+              />
             </div>
           ) : (
             <>
+              {passkeyFailed ? (
+                <p className="mt-7 rounded-[14px] border border-white/14 bg-white/6 px-4 py-3 text-[13.5px] leading-normal text-white/72 md:mt-[34px]">
+                  {t("passkeyFallbackNote")}
+                </p>
+              ) : null}
               {/* The design puts this label above the social buttons, so a
                   phone reads title, methods, then the email field. */}
               <div className="mt-7 mb-4 flex items-center gap-3.5 md:hidden">

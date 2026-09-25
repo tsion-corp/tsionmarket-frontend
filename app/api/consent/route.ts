@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@privy-io/node";
-import { getRequestUser, verifyRequest } from "@/lib/server/auth";
+import { extractAccessToken, getRequestUser, verifyRequest } from "@/lib/server/auth";
+import {
+  DecanePreferencesError,
+  readDecanePreferences,
+  updateDecanePreferences,
+} from "@/lib/server/decane";
 import { getPrivyClient } from "@/lib/server/privy";
 import { isValidEmail, normalizeEmail } from "@/lib/waitlist";
 import { wsapiService } from "@/lib/wsapi-base";
@@ -8,13 +13,15 @@ import { wsapiService } from "@/lib/wsapi-base";
 // The record of what a person agreed to on the sign in page: the Terms of
 // Service and Privacy Policy, and whether they want product email.
 //
-// The record lives on the account itself, as custom metadata on the Privy
-// user. That is the store every other service already reads users from, so
-// the user-management service that sends campaigns can filter on
-// `marketing_opt_in` without a new table, and a terms acceptance is tied to
-// the account rather than to a browser. A marketing yes is also passed to
+// The record lives on the account itself: in the user's preferences record
+// on Decane for a Decane session, written with the caller's own token
+// (lib/server/decane.ts), or as custom metadata on the Privy user for a
+// session from the migration window. Either way a terms acceptance is tied
+// to the account rather than to a browser. A marketing yes is also passed to
 // the platform's subscriber list so the address is there for campaigns that
-// read that list instead.
+// read that list — for a Privy session only: Decane keeps no email (the
+// backend holds an HMAC and a masked identifier), so a Decane account's yes
+// is recorded and nothing is subscribed here.
 //
 // Only the signed in user can write their own record, and only these fields:
 // the route sets the keys itself from a validated body, so nothing a client
@@ -93,6 +100,28 @@ export async function POST(req: NextRequest) {
   const body = parseBody(await req.json().catch(() => null));
   if (!body) return NextResponse.json({ error: "Invalid consent record." }, { status: 400 });
 
+  if (claims.provider === "decane") {
+    const token = extractAccessToken(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    try {
+      await updateDecanePreferences(token, {
+        [CONSENT_KEYS.termsVersion]: body.termsVersion,
+        [CONSENT_KEYS.termsAcceptedAt]: body.acceptedAt,
+        [CONSENT_KEYS.marketingOptIn]: body.marketing,
+        [CONSENT_KEYS.consentUpdatedAt]: new Date().toISOString(),
+      });
+    } catch (error) {
+      return decaneFailure("record on", error);
+    }
+    return NextResponse.json({
+      ok: true,
+      termsVersion: body.termsVersion,
+      termsAcceptedAt: body.acceptedAt,
+      marketing: body.marketing,
+      subscribed: false,
+    });
+  }
+
   const user = await getRequestUser(req, claims);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -134,12 +163,34 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const claims = await verifyRequest(req);
   if (!claims) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await getRequestUser(req, claims);
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const meta = user.custom_metadata ?? {};
+
+  let meta: Record<string, unknown>;
+  if (claims.provider === "decane") {
+    const token = extractAccessToken(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    try {
+      meta = await readDecanePreferences(token);
+    } catch (error) {
+      return decaneFailure("read from", error);
+    }
+  } else {
+    const user = await getRequestUser(req, claims);
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    meta = user.custom_metadata ?? {};
+  }
   return NextResponse.json({
     termsVersion: meta[CONSENT_KEYS.termsVersion] ?? null,
     termsAcceptedAt: meta[CONSENT_KEYS.termsAcceptedAt] ?? null,
     marketing: meta[CONSENT_KEYS.marketingOptIn] === true,
   });
+}
+
+// A token Decane no longer accepts is the caller's problem to fix by signing
+// in again, and is answered as such; anything else is the store being down.
+function decaneFailure(verb: string, error: unknown) {
+  if (error instanceof DecanePreferencesError && error.status === 401) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  console.error(`[consent] could not ${verb} the account:`, error);
+  return NextResponse.json({ error: "Couldn't save that right now." }, { status: 502 });
 }

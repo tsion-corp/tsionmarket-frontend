@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
-import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const RECORDED = "0xC14733501F25680e6f53c48f7afBe4F946642aD1";
 const FIRST = "0xE7bBe330023C5Dd67bCF1bF0D062B3b1B1921dEB";
 
 const state = vi.hoisted(() => ({
   wallets: [] as Array<{ walletClientType: string; address: string }>,
+  solanaWallets: [] as Array<{ address: string }>,
   embedded: [] as Array<{ chainType: string; address: string }>,
   recordedEvm: null as string | null,
   recordedSol: null as string | null,
@@ -18,6 +19,9 @@ vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ ready: true, authenticated: true, user: { id: "did:privy:u" } }),
   useWallets: () => ({ wallets: state.wallets }),
 }));
+vi.mock("@privy-io/react-auth/solana", () => ({
+  useWallets: () => ({ wallets: state.solanaWallets }),
+}));
 vi.mock("@/features/migrate/hooks/use-migration-status", () => ({
   useMigrationStatus: () => ({
     data: { legacy: { evm: state.recordedEvm, solana: state.recordedSol } },
@@ -27,9 +31,7 @@ vi.mock("@/lib/user", () => ({
   // The account's own embedded wallets, and "first ethereum" as the fallback.
   getEmbeddedWallets: () => state.embedded,
   getWalletAddress: (_user: unknown, chain: string) =>
-    chain === "ethereum"
-      ? (state.embedded.find((w) => w.chainType === "ethereum")?.address ?? null)
-      : null,
+    state.embedded.find((w) => w.chainType === chain)?.address ?? null,
 }));
 vi.mock("@/features/migrate/hooks/use-legacy-send", () => ({
   useLegacyEvmSendBatch: () => vi.fn(),
@@ -46,11 +48,15 @@ vi.mock("@/features/migrate/hooks/use-legacy-email-match", () => ({
   }),
 }));
 
-import { useLegacySigner } from "@/features/migrate/hooks/use-legacy-signer";
+import {
+  SOLANA_WALLET_GRACE_MS,
+  useLegacySigner,
+} from "@/features/migrate/hooks/use-legacy-signer";
 
 beforeEach(() => {
   state.mismatch = false;
   state.wallets = [];
+  state.solanaWallets = [];
   state.embedded = [{ chainType: "ethereum", address: FIRST }];
   state.recordedEvm = null;
   state.recordedSol = null;
@@ -114,6 +120,7 @@ describe("useLegacySigner", () => {
     state.recordedSol = SOL_RECORDED;
     // No EVM this account; a signer still forms on the Solana side alone.
     state.wallets = [];
+    state.solanaWallets = [{ address: SOL_RECORDED }];
     const { result } = renderHook(() => useLegacySigner());
     expect(result.current?.addresses.solana).toBe(SOL_RECORDED);
   });
@@ -139,5 +146,63 @@ describe("useLegacySigner — the old account must match the Decane one", () => 
     state.mismatch = true;
     const { result } = renderHook(() => useLegacySigner());
     expect(result.current).toBeNull();
+  });
+});
+
+// Seen live on an account holding 25 SOL: the EVM wallet object arrived, the
+// automatic sweep fired on it, and the Solana wallet object had not — so the
+// SOL send failed "isn't ready on Solana" and counted as a miss.
+describe("useLegacySigner — the Solana wallet object", () => {
+  const SOL = "So1First1111111111111111111111111111111111";
+  beforeEach(() => {
+    vi.useFakeTimers();
+    state.embedded = [
+      { chainType: "ethereum", address: FIRST },
+      { chainType: "solana", address: SOL },
+    ];
+    state.wallets = [{ walletClientType: "privy", address: FIRST }];
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("waits for it when the account has a Solana address", () => {
+    const { result, rerender } = renderHook(() => useLegacySigner());
+    expect(result.current).toBeNull();
+
+    state.solanaWallets = [{ address: SOL }];
+    rerender();
+    expect(result.current?.addresses).toEqual({ evm: FIRST, solana: SOL });
+  });
+
+  it("gives up waiting after the grace, so EVM money still moves", () => {
+    const { result } = renderHook(() => useLegacySigner());
+    expect(result.current).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(SOLANA_WALLET_GRACE_MS);
+    });
+    expect(result.current?.addresses).toEqual({ evm: FIRST, solana: SOL });
+  });
+
+  it("does not wait at all for an account with no Solana wallet", () => {
+    state.embedded = [{ chainType: "ethereum", address: FIRST }];
+    const { result } = renderHook(() => useLegacySigner());
+    expect(result.current?.addresses).toEqual({ evm: FIRST, solana: null });
+  });
+});
+
+// The service stored every old wallet lower-cased, and a lower-cased Solana
+// address names no account. The recorded string picks WHICH wallet; the
+// wallet's own spelling is what the signer hands out.
+describe("useLegacySigner — the recorded address's casing", () => {
+  const SOL = "35DBqKFZ2Cys96jfCEfFEfF47qmw36ZbA6wrh3akoNfc";
+  it("hands out the wallet's own spelling, not the recorded lower-cased one", () => {
+    state.embedded = [
+      { chainType: "ethereum", address: FIRST },
+      { chainType: "solana", address: SOL },
+    ];
+    state.recordedSol = SOL.toLowerCase();
+    state.wallets = [{ walletClientType: "privy", address: FIRST }];
+    state.solanaWallets = [{ address: SOL }];
+    const { result } = renderHook(() => useLegacySigner());
+    expect(result.current?.addresses.solana).toBe(SOL);
   });
 });

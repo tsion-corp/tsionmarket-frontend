@@ -14,6 +14,7 @@ import { displaySymbol } from "@/lib/buy";
 import { CONTRACTS, isPolymarketCollateral } from "@/lib/polymarket/config";
 import { HOT_NETWORKS, readEvmPortfolioTokens } from "@/lib/server/portfolio-holdings";
 import { freshFor, type FreshScope } from "@/lib/portfolio/fresh-scope";
+import { fetchSolanaMintPrices } from "@/lib/server/solana-prices";
 
 // Alchemy Portfolio API. One call returns native + ERC-20 + SPL balances with
 // USD prices across every requested network. Key stays server-side.
@@ -808,6 +809,37 @@ export async function fetchPortfolio(
           for (const [address, info] of confirmed) {
             buyable.add(address);
             if (!meme.has(address)) meme.set(address, info);
+          }
+        }
+        // Solana has no catalogue to ask, and its allowlist is SOL, USDC and
+        // USDT — so every other mint the old wallet held was dropped right
+        // here, and the migration never saw a person's Solana tokens at all.
+        // A price is the gate instead: a mint with a price has a market, and
+        // a held balance of it is money the sweep can move (the Solana leg
+        // sends any SPL or Token-2022 mint, creating the destination account
+        // as it goes). Alchemy prices the majors; for the rest DefiLlama is
+        // asked (seen live: 5,600 PRCL with no Alchemy price). A mint neither
+        // can price is spam or too thin to value, and the sweep's value floor
+        // would drop it anyway.
+        const buyableSolana = (registries.buyable[SOLANA_NETWORK] ??= new Set());
+        const unpricedMints: string[] = [];
+        for (const t of tokensFromBatches) {
+          if (t.network !== SOLANA_NETWORK || !t.tokenAddress) continue;
+          const decimals = t.tokenMetadata?.decimals ?? 9;
+          if (toNumber(toRawUnits(t.tokenBalance), decimals) < LEGACY_MIN_BALANCE) continue;
+          const usd = t.tokenPrices?.find((p) => p.currency === "usd");
+          if (usd && parseFloat(usd.value) > 0) buyableSolana.add(t.tokenAddress.toLowerCase());
+          else unpricedMints.push(t.tokenAddress);
+        }
+        if (unpricedMints.length > 0) {
+          const second = await fetchSolanaMintPrices(unpricedMints);
+          const meme = (registries.meme[SOLANA_NETWORK] ??= new Map());
+          for (const [mint, priceUsd] of second) {
+            const lower = mint.toLowerCase();
+            buyableSolana.add(lower);
+            // The normaliser reads a catalogue price from here when Alchemy
+            // has none; the logo slot stays empty and Alchemy's is used.
+            if (!meme.has(lower)) meme.set(lower, { logo: null, priceUsd });
           }
         }
       }

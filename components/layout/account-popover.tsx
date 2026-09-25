@@ -14,6 +14,7 @@ import Link from "next/link";
 // which mounts the whole Privy SDK. The row itself is light; the sheet is not,
 // so only the sheet is deferred — and this popover is mounted on every route.
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
+import { WalletAddresses } from "@/components/layout/modals/wallet-addresses";
 import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { openSupportChat } from "@/lib/support-chat/open";
 import { toast } from "@/lib/toast";
@@ -154,6 +155,9 @@ export function AccountPopover({ open, onClose, triggerRef }: AccountPopoverProp
                 </div>
               </div>
             </div>
+
+            {/* Wallets */}
+            <WalletAddresses className="border-t border-white/8 pt-2.5 pb-1" />
 
             {/* Quick Actions */}
             <div className="mt-2.5 flex flex-col gap-1 border-t border-white/8 pt-2">

@@ -55,7 +55,7 @@
     "chess.js": "^1.4.0",
     "clsx": "^2.1.1",
     "decane-connect-kit": "^2.24.0",
-    "decane-node": "^1.1.1",
+    "decane-node": "^1.4.0",
     "driver.js": "^1.8.0",
     "embla-carousel-react": "^8.6.0",
     "idb-keyval": "^6.2.1",

@@ -1,6 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import type { User } from "@privy-io/node";
-import { getRequestUser, verifyRequest } from "@/lib/server/auth";
+import { extractAccessToken, getRequestUser, verifyRequest } from "@/lib/server/auth";
+import {
+  DecanePreferencesError,
+  readDecanePreferences,
+  updateDecanePreferences,
+} from "@/lib/server/decane";
 import { getPrivyClient } from "@/lib/server/privy";
 
 // Account-stored product preferences. Today that is Shine: seven independent
@@ -11,8 +16,14 @@ import { getPrivyClient } from "@/lib/server/privy";
 // belongs to the account, not to a browser. Sign-out clears no preference
 // key, so a device-local Shine would mean the next person to sign in on a
 // shared laptop inherits the previous person's answer — and has their first
-// trade auto-posted publicly on a setting they never saw. Custom metadata on
-// the Privy user removes that outright, and costs this one route.
+// trade auto-posted publicly on a setting they never saw.
+//
+// Where the record lives depends on who issued the session. A Decane session
+// stores it in the user's preferences record on Decane, written with the
+// caller's own token (lib/server/decane.ts); a Privy session, which exists
+// only for the migration window, keeps it in Privy custom metadata as before.
+// The keys are the same in both (`shine_<service>`), so a record carries over
+// unchanged if it is ever copied between the two.
 //
 // Only the signed in user can write their own record, and only these keys:
 // the route sets them itself from a validated body, so nothing a client sends
@@ -104,6 +115,23 @@ export async function POST(req: NextRequest) {
   const shine = parseBody(await req.json().catch(() => null));
   if (!shine) return NextResponse.json({ error: "Invalid preference." }, { status: 400 });
 
+  if (claims.provider === "decane") {
+    const token = extractAccessToken(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const patch: Record<string, boolean> = {};
+    for (const service of SHINE_SERVICES) {
+      const value = shine[service];
+      if (value !== undefined) patch[shineKey(service)] = value;
+    }
+    try {
+      // A merge: the consent keys and the other six Shine keys stay as they are.
+      const record = await updateDecanePreferences(token, patch);
+      return NextResponse.json({ shine: readShine(record) });
+    } catch (error) {
+      return decaneFailure("record on", error);
+    }
+  }
+
   const user = await getRequestUser(req, claims);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -134,7 +162,28 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   const claims = await verifyRequest(req);
   if (!claims) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (claims.provider === "decane") {
+    const token = extractAccessToken(req);
+    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    try {
+      return NextResponse.json({ shine: readShine(await readDecanePreferences(token)) });
+    } catch (error) {
+      return decaneFailure("read from", error);
+    }
+  }
+
   const user = await getRequestUser(req, claims);
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   return NextResponse.json({ shine: readShine(user.custom_metadata ?? {}) });
+}
+
+// A token Decane no longer accepts is the caller's problem to fix by signing
+// in again, and is answered as such; anything else is the store being down.
+function decaneFailure(verb: string, error: unknown) {
+  if (error instanceof DecanePreferencesError && error.status === 401) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  console.error(`[preferences] could not ${verb} the account:`, error);
+  return NextResponse.json({ error: "Couldn't save that right now." }, { status: 502 });
 }

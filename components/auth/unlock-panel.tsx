@@ -133,9 +133,17 @@ const PRIMARY =
 export function UnlockPanel({
   offer,
   onUseAnother,
+  onPasskeyFailed,
 }: {
   offer: UnlockOffer;
   onUseAnother: () => void;
+  /**
+   * The passkey did not open a session — refused, unavailable on this device,
+   * or the sheet was closed. The screen falls back to the full list of ways
+   * in (Google, email and the rest) for the SAME person; nothing is
+   * forgotten, unlike "use a different account".
+   */
+  onPasskeyFailed: () => void;
 }) {
   const t = useTranslations("auth");
   const profile = useDisplayProfile();
@@ -175,12 +183,13 @@ export function UnlockPanel({
       else if (offer.kind === "google") await signInWithGoogle();
       else await signInWithKingsChat();
     } catch (err) {
-      // A closed passkey sheet or KingsChat popup is a cancellation, not a
-      // failure, and the user is already looking at the way to retry.
+      // A closed KingsChat popup is a cancellation, not a failure, and the
+      // user is already looking at the way to retry.
       const errName = (err as { name?: string })?.name;
       // Backing out of the password dialog is a decision, not a failure.
       if (err instanceof UnlockPasswordCancelledError) return;
-      if (errName !== "UserCancelledError" && errName !== "NotAllowedError") {
+      const cancelled = errName === "UserCancelledError" || errName === "NotAllowedError";
+      if (!cancelled) {
         console.error(`Unlock via ${offer.kind} failed:`, err);
         toast.error(
           offer.kind === "passkey" || offer.kind === "password"
@@ -188,6 +197,12 @@ export function UnlockPanel({
             : t("oauthError")
         );
       }
+      // A passkey that did not open a session, for whatever reason, is not
+      // retried here: the person is sent on to their usual way in. A closed
+      // sheet goes the same way — the browser reports "not allowed" both for
+      // a dismissal and for a passkey this device does not hold, and the
+      // full list still has the passkey one tap away.
+      if (offer.kind === "passkey") onPasskeyFailed();
     } finally {
       setBusy(false);
     }

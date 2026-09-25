@@ -1,13 +1,38 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
-const { verifyRequest, getRequestUser, setCustomMetadata, fetch } = vi.hoisted(() => ({
+const {
+  verifyRequest,
+  getRequestUser,
+  setCustomMetadata,
+  fetch,
+  readDecanePreferences,
+  updateDecanePreferences,
+} = vi.hoisted(() => ({
   verifyRequest: vi.fn(),
   getRequestUser: vi.fn(),
   setCustomMetadata: vi.fn(),
   fetch: vi.fn(),
+  readDecanePreferences: vi.fn(),
+  updateDecanePreferences: vi.fn(),
 }));
-vi.mock("@/lib/server/auth", () => ({ verifyRequest, getRequestUser }));
+vi.mock("@/lib/server/auth", () => ({
+  verifyRequest,
+  getRequestUser,
+  extractAccessToken: () => "decane-jwt",
+}));
+vi.mock("@/lib/server/decane", () => ({
+  readDecanePreferences,
+  updateDecanePreferences,
+  DecanePreferencesError: class extends Error {
+    constructor(
+      message: string,
+      public readonly status: number
+    ) {
+      super(message);
+    }
+  },
+}));
 vi.mock("@/lib/server/privy", () => ({
   getPrivyClient: () => ({ users: () => ({ setCustomMetadata }) }),
 }));
@@ -160,5 +185,68 @@ describe("GET /api/consent", () => {
       termsAcceptedAt: null,
       marketing: false,
     });
+  });
+});
+
+describe("/api/consent on a Decane session", () => {
+  beforeEach(() => {
+    verifyRequest.mockResolvedValue({ provider: "decane", userId: "6f0e…" });
+    getRequestUser.mockResolvedValue(null);
+    fetch.mockResolvedValue(new Response("{}"));
+    vi.stubGlobal("fetch", fetch);
+  });
+  afterEach(() => {
+    vi.clearAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it("records the answers in the user's Decane preferences, and subscribes nobody", async () => {
+    updateDecanePreferences.mockResolvedValue({});
+    const { POST } = await import("./route");
+    const res = await POST(req(BODY));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      ok: true,
+      termsVersion: "2026-09-10",
+      termsAcceptedAt: "2026-09-10T12:00:00.000Z",
+      marketing: true,
+      subscribed: false,
+    });
+    expect(updateDecanePreferences).toHaveBeenCalledWith(
+      "decane-jwt",
+      expect.objectContaining({
+        terms_version: "2026-09-10",
+        terms_accepted_at: "2026-09-10T12:00:00.000Z",
+        marketing_opt_in: true,
+      })
+    );
+    // Decane holds no email to subscribe, and the Privy store is never touched.
+    expect(fetch).not.toHaveBeenCalled();
+    expect(setCustomMetadata).not.toHaveBeenCalled();
+    expect(getRequestUser).not.toHaveBeenCalled();
+  });
+
+  it("reads the record back from Decane", async () => {
+    readDecanePreferences.mockResolvedValue({
+      terms_version: "2026-09-10",
+      terms_accepted_at: "2026-09-10T12:00:00.000Z",
+      marketing_opt_in: true,
+      shine_perps: false,
+    });
+    const { GET } = await import("./route");
+    expect(await (await GET(req(null))).json()).toEqual({
+      termsVersion: "2026-09-10",
+      termsAcceptedAt: "2026-09-10T12:00:00.000Z",
+      marketing: true,
+    });
+  });
+
+  it("answers 502 when Decane cannot be written, 401 when the token is refused", async () => {
+    const { DecanePreferencesError } = await import("@/lib/server/decane");
+    updateDecanePreferences.mockRejectedValueOnce(new DecanePreferencesError("down", 0));
+    const { POST } = await import("./route");
+    expect((await POST(req(BODY))).status).toBe(502);
+    updateDecanePreferences.mockRejectedValueOnce(new DecanePreferencesError("revoked", 401));
+    expect((await POST(req(BODY))).status).toBe(401);
   });
 });

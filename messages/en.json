@@ -548,6 +548,7 @@
     "passkeyWaiting": "Waiting for your passkey…",
     "passkeySignIn": "Sign in with a passkey",
     "passkeyError": "Passkey sign-in didn't work. Use your usual sign-in instead.",
+    "passkeyFallbackNote": "Your passkey didn’t work here. Sign in with Google, email or your usual method instead.",
     "emailInvalid": "Enter a valid email address.",
     "emailSendFailed": "We couldn't send the code. Check the address and try again.",
     "codeMismatch": "That code didn't match. Check your inbox and try again.",

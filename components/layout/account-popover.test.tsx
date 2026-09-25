@@ -41,6 +41,9 @@ vi.mock("@/features/migrate/components/move-old-money-entry", () => ({
     <button onClick={onClick}>open-migration</button>
   ),
 }));
+vi.mock("@/components/layout/modals/wallet-addresses", () => ({
+  WalletAddresses: () => <div data-testid="wallet-addresses" />,
+}));
 vi.mock("@/components/layout/migration-adapters", () => ({
   MIGRATION_ADAPTERS: [],
 }));

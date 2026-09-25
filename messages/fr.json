@@ -548,6 +548,7 @@
     "passkeyWaiting": "En attente de votre passkey…",
     "passkeySignIn": "Se connecter avec une passkey",
     "passkeyError": "La connexion par passkey a échoué. Utilisez votre méthode habituelle.",
+    "passkeyFallbackNote": "Votre passkey n’a pas fonctionné ici. Connectez-vous avec Google, votre e-mail ou votre méthode habituelle.",
     "emailInvalid": "Saisissez une adresse e-mail valide.",
     "emailSendFailed": "Impossible d'envoyer le code. Vérifiez l'adresse et réessayez.",
     "codeMismatch": "Ce code ne correspond pas. Vérifiez votre boîte mail et réessayez.",

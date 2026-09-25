@@ -548,6 +548,7 @@
     "passkeyWaiting": "À espera da sua passkey…",
     "passkeySignIn": "Entrar com passkey",
     "passkeyError": "O início com passkey falhou. Use o seu método habitual.",
+    "passkeyFallbackNote": "A sua passkey não funcionou aqui. Inicie sessão com Google, e-mail ou o seu método habitual.",
     "emailInvalid": "Introduza um e-mail válido.",
     "emailSendFailed": "Não conseguimos enviar o código. Verifique o endereço e tente novamente.",
     "codeMismatch": "Esse código não corresponde. Verifique a sua caixa de entrada e tente novamente.",

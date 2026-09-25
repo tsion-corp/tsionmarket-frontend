@@ -77,7 +77,8 @@ function cacheRequestUser(key: string, user: User): void {
   requestUserCache.set(key, { user, expiresAt: Date.now() + REQUEST_USER_CACHE_TTL_MS });
 }
 
-function extractAccessToken(req: NextRequest): string | null {
+/** The caller's access token as sent: the bearer header, or the cookie the client bridge sets. */
+export function extractAccessToken(req: NextRequest): string | null {
   const header = req.headers.get("authorization");
   if (header?.startsWith("Bearer ")) return header.slice("Bearer ".length);
   return accessTokenFromCookie((name) => req.cookies.get(name)?.value);
