@@ -1,8 +1,8 @@
 "use client";
 
 import type { ChickenSession } from "@/features/casino/lib/api/arkjet";
+import { resolveAuthTokens } from "@/lib/auth-token";
 import { apiError } from "@/lib/api/envelope";
-import { resolveAuthTokens } from "@/lib/privy-token";
 
 const LOCAL_WS_URL = "ws://127.0.0.1:8100";
 // See the note in the chess socket: the deployment's own variable wins, and the
@@ -351,7 +351,7 @@ export async function sendChickenCommand<T>(command: Record<string, unknown>): P
     throw commandError("BAD_REQUEST", "A Chicken command ID is required.", 400);
   }
   const { accessToken, idToken } = await resolveAuthTokens();
-  if (!accessToken || !idToken) {
+  if (!accessToken) {
     throw commandError("UNAUTHORIZED", "Sign in again to play Chicken.", 401);
   }
   if (commandCapability === false) {
@@ -371,7 +371,7 @@ export async function sendChickenCommand<T>(command: Record<string, unknown>): P
       frame: {
         type: "chickenCommand",
         ackId,
-        auth: { accessToken, identityToken: idToken },
+        auth: { accessToken, ...(idToken ? { identityToken: idToken } : {}) },
         command,
       },
       deadline: Date.now() + COMMAND_DEADLINE_MS,

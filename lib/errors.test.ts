@@ -96,10 +96,13 @@ describe("friendlyError", () => {
     );
   });
 
-  it("explains chess cashier balance failures precisely", () => {
-    expect(friendlyError(apiError("CONFLICT", "insufficient available balance", 409))).toMatch(
-      /chess balance/i
+  it("keeps generic balance failures product-neutral", () => {
+    expect(friendlyError(apiError("CONFLICT", "insufficient available balance", 409))).toBe(
+      "Your available balance is too low for that. Add funds or choose a smaller amount."
     );
+  });
+
+  it("explains explicit chess balance failures precisely", () => {
     expect(
       friendlyError(apiError("PLAYER_BALANCE_INSUFFICIENT", "player balance insufficient", 409))
     ).toMatch(/deposit more usdc|smaller stake/i);

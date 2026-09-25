@@ -241,10 +241,10 @@ export function friendlyError(
   ) {
     return "You cancelled the request, so nothing was sent.";
   }
-  // The chess cashier has its own internal balance. Preserve that distinction
-  // so a withdrawal failure doesn't read like a wallet/allowance problem.
+  // Generic balance conflicts are shared by several games. Product-aware
+  // surfaces replace this with their own balance name.
   if (/insufficient available balance|player balance insufficient/.test(m)) {
-    return "You don't have enough in your chess balance for that. Deposit more USDC or choose a smaller amount.";
+    return "Your available balance is too low for that. Add funds or choose a smaller amount.";
   }
   if (/house reserve insufficient/.test(m)) {
     return "Stockfish staking is temporarily unavailable because the reward reserve is low. You can still play a free game.";

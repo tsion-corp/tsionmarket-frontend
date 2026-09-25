@@ -4,13 +4,13 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ArkjetBalance } from "@/features/casino/lib/api/arkjet";
 import { useArkjetFunding } from "@/features/casino/hooks/use-arkjet-funding";
+import { gameActionError } from "@/features/casino/lib/game-error";
 import {
   amountUnits,
   normalizeArkjetAmount,
   withdrawalUsdcEstimate,
 } from "@/features/casino/lib/arkjet-funding";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import styles from "./arkjet.module.css";
@@ -127,9 +127,12 @@ export function ArkjetCashier({
         setAwaitingCredit(true);
       }
     } catch (error) {
-      toast.error(friendlyError(error, `The ${productName} deposit could not be completed.`), {
-        id: toastId,
-      });
+      toast.error(
+        gameActionError(error, productName, `The ${productName} deposit could not be completed.`),
+        {
+          id: toastId,
+        }
+      );
     }
   };
 
@@ -147,9 +150,16 @@ export function ArkjetCashier({
       setAmount("");
       void portfolio.refetchFresh(SCOPE);
     } catch (error) {
-      toast.error(friendlyError(error, `The ${productName} withdrawal could not be completed.`), {
-        id: toastId,
-      });
+      toast.error(
+        gameActionError(
+          error,
+          productName,
+          `The ${productName} withdrawal could not be completed.`
+        ),
+        {
+          id: toastId,
+        }
+      );
     }
   };
 

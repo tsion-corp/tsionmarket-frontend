@@ -6,7 +6,7 @@ import type {
   ArkjetRound,
   CreateArkjetBetInput,
 } from "@/features/casino/lib/api/arkjet";
-import { friendlyError } from "@/lib/errors";
+import { gameActionError } from "@/features/casino/lib/game-error";
 import { toast } from "@/lib/toast";
 import { amountUnits, normalizeArkjetAmount, stepArkjetAmount } from "../../lib/arkjet-funding";
 import styles from "./arkjet.module.css";
@@ -23,17 +23,6 @@ function fixedMultiplier(value: string): string {
   if (!value.trim()) return value;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed.toFixed(2) : value;
-}
-
-function arkjetError(error: unknown, fallback: string): string {
-  const code =
-    error && typeof error === "object" && "code" in error
-      ? (error as { code?: unknown }).code
-      : null;
-  if (code === "PLAYER_BALANCE_INSUFFICIENT") {
-    return "Your Arkjet balance is too low for that ticket. Add funds or choose a smaller amount.";
-  }
-  return friendlyError(error, fallback);
 }
 
 interface ArkjetBetCardProps {
@@ -149,7 +138,9 @@ export function ArkjetBetCard({
         await onCancel(activeBet.betId);
         toast.success("Arkjet ticket cancelled.", { id: toastId });
       } catch (error) {
-        toast.error(arkjetError(error, "Could not cancel that Arkjet ticket."), { id: toastId });
+        toast.error(gameActionError(error, "Arkjet", "Could not cancel that Arkjet ticket."), {
+          id: toastId,
+        });
       }
       return;
     }
@@ -165,7 +156,9 @@ export function ArkjetBetCard({
           { id: toastId }
         );
       } catch (error) {
-        toast.error(arkjetError(error, "Could not cash out that Arkjet ticket."), { id: toastId });
+        toast.error(gameActionError(error, "Arkjet", "Could not cash out that Arkjet ticket."), {
+          id: toastId,
+        });
       }
       return;
     }
@@ -190,7 +183,9 @@ export function ArkjetBetCard({
       idempotency.current = null;
       toast.success(`Ticket for ${amount} ${currency} accepted.`, { id: toastId });
     } catch (error) {
-      toast.error(arkjetError(error, "Could not submit that Arkjet ticket."), { id: toastId });
+      toast.error(gameActionError(error, "Arkjet", "Could not submit that Arkjet ticket."), {
+        id: toastId,
+      });
     }
   }
 

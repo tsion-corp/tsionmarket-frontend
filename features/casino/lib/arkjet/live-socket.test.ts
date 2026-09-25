@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/privy-token", () => ({
+vi.mock("@/lib/auth-token", () => ({
   resolveAuthTokens: vi.fn().mockResolvedValue({
-    accessToken: "access-token",
-    idToken: "identity-token",
+    accessToken: "decane-access-token",
+    idToken: null,
   }),
 }));
 
@@ -78,7 +78,7 @@ describe("Arkjet live socket", () => {
     });
     await flush();
     const connection = FakeSocket.instances[0]!;
-    expect(connection.url).toContain("token=access-token");
+    expect(connection.url).toContain("token=decane-access-token");
     connection.open();
     connection.message({
       type: "welcome",
@@ -90,9 +90,10 @@ describe("Arkjet live socket", () => {
       .find((frame) => frame.type === "arkjetCommand");
     expect(command).toMatchObject({
       ackId: 1,
-      auth: { accessToken: "access-token", identityToken: "identity-token" },
+      auth: { accessToken: "decane-access-token" },
       command: { commandId: "command-1", action: "placeBet" },
     });
+    expect(command.auth).not.toHaveProperty("identityToken");
 
     connection.message({
       type: "arkjetCommandAck",

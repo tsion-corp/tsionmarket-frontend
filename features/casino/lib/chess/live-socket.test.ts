@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/privy-token", () => ({
+vi.mock("@/lib/auth-token", () => ({
   resolveAuthTokens: vi.fn().mockResolvedValue({
-    accessToken: "access-token",
-    idToken: "identity-token",
+    accessToken: "decane-access-token",
+    idToken: null,
   }),
 }));
 
@@ -183,9 +183,10 @@ describe("chess live socket replay", () => {
     expect(first).toMatchObject({
       type: "roundCommand",
       ackId: 1,
-      auth: { accessToken: "access-token", identityToken: "identity-token" },
+      auth: { accessToken: "decane-access-token" },
       command: { commandId: "command-1", matchId: "match-1" },
     });
+    expect(first.auth).not.toHaveProperty("identityToken");
 
     await vi.advanceTimersByTimeAsync(2_500);
     const attempts = connection.sent

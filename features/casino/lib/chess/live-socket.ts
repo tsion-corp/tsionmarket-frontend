@@ -1,7 +1,7 @@
 "use client";
 
+import { resolveAuthTokens } from "@/lib/auth-token";
 import { apiError } from "@/lib/api/envelope";
-import { resolveAuthTokens } from "@/lib/privy-token";
 
 // One socket per client, shared across every chess board on screen.
 //
@@ -529,7 +529,7 @@ export async function sendChessRoundCommand<T>(command: Record<string, unknown>)
     throw pendingCommandError("BAD_REQUEST", "A round command and match ID are required.", 400);
   }
   const { accessToken, idToken } = await resolveAuthTokens();
-  if (!accessToken || !idToken) {
+  if (!accessToken) {
     throw pendingCommandError("UNAUTHORIZED", "Sign in again to continue the game.", 401);
   }
   if (chessCommandCapability === false) {
@@ -556,7 +556,7 @@ export async function sendChessRoundCommand<T>(command: Record<string, unknown>)
       frame: {
         type: "roundCommand",
         ackId,
-        auth: { accessToken, identityToken: idToken },
+        auth: { accessToken, ...(idToken ? { identityToken: idToken } : {}) },
         command: socketCommand,
       },
       deadline: Date.now() + COMMAND_DEADLINE_MS,

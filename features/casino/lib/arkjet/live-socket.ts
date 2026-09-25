@@ -5,8 +5,8 @@ import type {
   ArkjetRound,
   ArkjetSimulatedActivityFeed,
 } from "@/features/casino/lib/api/arkjet";
+import { resolveAuthTokens } from "@/lib/auth-token";
 import { apiError } from "@/lib/api/envelope";
-import { resolveAuthTokens } from "@/lib/privy-token";
 
 const LOCAL_WS_URL = "ws://127.0.0.1:8100";
 // The live gateway, not the retired staging host, for a deployment that names
@@ -381,7 +381,7 @@ export async function sendArkjetCommand<T>(command: Record<string, unknown>): Pr
     throw commandError("BAD_REQUEST", "An Arkjet command ID is required.", 400);
   }
   const { accessToken, idToken } = await resolveAuthTokens();
-  if (!accessToken || !idToken) {
+  if (!accessToken) {
     throw commandError("UNAUTHORIZED", "Sign in again to play Arkjet.", 401);
   }
   if (commandCapability === false) {
@@ -405,7 +405,7 @@ export async function sendArkjetCommand<T>(command: Record<string, unknown>): Pr
       frame: {
         type: "arkjetCommand",
         ackId,
-        auth: { accessToken, identityToken: idToken },
+        auth: { accessToken, ...(idToken ? { identityToken: idToken } : {}) },
         command,
       },
       deadline: Date.now() + COMMAND_DEADLINE_MS,

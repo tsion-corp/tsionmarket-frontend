@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import type { ChickenDifficulty, ChickenSession } from "@/features/casino/lib/api/arkjet";
 import { useChicken } from "@/features/casino/hooks/use-chicken";
+import { gameActionError } from "@/features/casino/lib/game-error";
 import { amountUnits, normalizeArkjetAmount, stepArkjetAmount } from "../../lib/arkjet-funding";
 import { ArkjetCashier } from "../arkjet/arkjet-cashier";
 import { ChickenCharacter, type ChickenAnimation } from "./chicken-character";
@@ -303,7 +304,7 @@ export function ChickenSection() {
     } catch (error) {
       if (animationSequence.current !== sequence) return;
       setCrossingTraffic(null);
-      setNotice(error instanceof Error ? error.message : "Something went wrong");
+      setNotice(gameActionError(error, "Chicken Cross", "That crossing could not be completed."));
       setPhase(visualStep > 0 ? "waiting" : "ready");
     } finally {
       if (animationSequence.current === sequence) interactionLocked.current = false;
@@ -329,7 +330,7 @@ export function ChickenSection() {
       await resetVisual(sequence, "won");
     } catch (error) {
       if (animationSequence.current !== sequence) return;
-      setNotice(error instanceof Error ? error.message : "Something went wrong");
+      setNotice(gameActionError(error, "Chicken Cross", "That cashout could not be completed."));
       setPhase("waiting");
     } finally {
       if (animationSequence.current === sequence) interactionLocked.current = false;
