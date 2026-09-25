@@ -114,3 +114,60 @@ export function formatCompactUsd(value: number): string {
   const compact = COMPACT_USD.format(Math.abs(value));
   return value < 0 ? `-$${compact}` : `$${compact}`;
 }
+
+// A signed percent for display: "+25%", "-40%". Whole numbers stay clean; a
+// fractional result keeps one decimal so small moves aren't rounded to "0%".
+// The sign is explicit so a gain reads as a gain even at the display edge.
+export function formatSignedPercent(pct: number): string {
+  if (!Number.isFinite(pct)) return "—";
+  const digits = Math.abs(pct) >= 100 || Number.isInteger(pct) ? 0 : 1;
+  const sign = pct > 0 ? "+" : pct < 0 ? "-" : "";
+  return `${sign}${Math.abs(pct).toFixed(digits)}%`;
+}
+
+// What a take-profit or stop-loss would pay (or cost) if price reaches it.
+// A display-layer projection for the order ticket, so the trader sees the
+// stakes before committing — same number semantics as the rest of this file
+// (the real fill sizes and settles server-side). Direction-aware: a long
+// gains above entry and loses below, a short the reverse. `roePct` is the
+// return on the margin actually posted (leverage-amplified), which is the
+// figure traders watch, not the raw price move.
+export interface TriggerProjection {
+  /** Signed USD PnL on the position: positive is a gain, negative a loss. */
+  pnlUsd: number;
+  /** Signed return on posted margin, as a percent (pnlUsd / margin * 100). */
+  roePct: number;
+}
+
+export function projectTriggerPnl(params: {
+  side: "buy" | "sell";
+  entryPrice: number;
+  triggerPrice: number;
+  sizeBaseUnits: number;
+  marginUsd: number;
+}): TriggerProjection | null {
+  const { side, entryPrice, triggerPrice, sizeBaseUnits, marginUsd } = params;
+  if (!(entryPrice > 0) || !(triggerPrice > 0) || !(sizeBaseUnits > 0) || !(marginUsd > 0)) {
+    return null;
+  }
+  const perUnit = side === "buy" ? triggerPrice - entryPrice : entryPrice - triggerPrice;
+  const pnlUsd = perUnit * sizeBaseUnits;
+  return { pnlUsd, roePct: (pnlUsd / marginUsd) * 100 };
+}
+
+// Infer the intended direction of a bracket from where its legs sit relative to
+// entry, for an order ticket that has no side control (the side is chosen at the
+// click). A take profit above entry — or, absent one, a stop loss below entry —
+// is a long; the reverse is a short. Null when there is no entry price or no leg
+// to read the intent from. A crossed bracket still returns a side; the caller's
+// gain/loss guard is what discards a nonsensical projection.
+export function inferBracketSide(
+  entryPrice: number,
+  takeProfitPrice: number,
+  stopLossPrice: number
+): "buy" | "sell" | null {
+  if (!(entryPrice > 0)) return null;
+  if (takeProfitPrice > 0) return takeProfitPrice > entryPrice ? "buy" : "sell";
+  if (stopLossPrice > 0) return stopLossPrice < entryPrice ? "buy" : "sell";
+  return null;
+}

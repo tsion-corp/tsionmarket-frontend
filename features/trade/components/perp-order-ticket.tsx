@@ -158,11 +158,26 @@ export interface PerpTriggerField {
 // the two fields and the open state are a single feature: a half-supplied set
 // would draw a control that cannot work. Omit it entirely and the ticket has
 // no triggers at all, which is what a market that does not take them wants.
+// The projected outcome of the current bracket, pre-formatted by the composer
+// (this ticket does no arithmetic): what a take profit would pay and a stop
+// loss would cost if hit, each as a signed dollar figure and a return-on-margin
+// percent, plus the reward-to-risk ratio when both are set. Shown so the trader
+// sees the stakes before committing. Any field is null when there is nothing to
+// show for it (no size, or the leg sits on the wrong side of entry).
+export interface PerpTriggerProjectionView {
+  takeProfit: { amount: string; roe: string } | null;
+  stopLoss: { amount: string; roe: string } | null;
+  rewardRisk: string | null;
+}
+
 export interface PerpTriggersView {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   takeProfit: PerpTriggerField;
   stopLoss: PerpTriggerField;
+  // Display-ready projection for the current bracket, or null/absent when there
+  // is nothing to show. The ticket only renders it — the composer computes it.
+  projection?: PerpTriggerProjectionView | null;
 }
 
 // The venue's floor on order value. Hyperliquid rejects anything under $10
@@ -788,24 +803,64 @@ function TriggersDisclosure({
 
       <div id={panelId} hidden={!triggers.open}>
         {triggers.open ? (
-          <div className="grid grid-cols-2 gap-2">
-            <TriggerField
-              label={t("takeProfit")}
-              placeholder={t("none")}
-              field={triggers.takeProfit}
-              quoteSymbol={quoteSymbol}
-              disabled={disabled}
-            />
-            <TriggerField
-              label={t("stopLoss")}
-              placeholder={t("none")}
-              field={triggers.stopLoss}
-              quoteSymbol={quoteSymbol}
-              disabled={disabled}
-            />
+          <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
+              <TriggerField
+                label={t("takeProfit")}
+                placeholder={t("none")}
+                field={triggers.takeProfit}
+                quoteSymbol={quoteSymbol}
+                disabled={disabled}
+              />
+              <TriggerField
+                label={t("stopLoss")}
+                placeholder={t("none")}
+                field={triggers.stopLoss}
+                quoteSymbol={quoteSymbol}
+                disabled={disabled}
+              />
+            </div>
+            <TriggerProjection projection={triggers.projection ?? null} />
           </div>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+// The stakes of the bracket, once it is set: what the take profit pays and the
+// stop loss costs, plus the reward-to-risk ratio. Purely presentational — every
+// figure arrives pre-formatted from the composer. Renders nothing until at
+// least one leg is on the right side of entry.
+function TriggerProjection({ projection }: { projection: PerpTriggerProjectionView | null }) {
+  const t = useTranslations("perps");
+  if (!projection || (!projection.takeProfit && !projection.stopLoss)) return null;
+  return (
+    <div className="border-hairline bg-surface flex flex-col gap-2 rounded-2xl border-2 p-3">
+      {projection.takeProfit ? (
+        <div className="flex items-center justify-between text-[12.5px]">
+          <span className="text-[rgba(148,163,184,0.7)]">{t("ifTakeProfitHits")}</span>
+          <span className="tnum text-up font-semibold">
+            {projection.takeProfit.amount}{" "}
+            <span className="text-up/70 font-normal">({projection.takeProfit.roe})</span>
+          </span>
+        </div>
+      ) : null}
+      {projection.stopLoss ? (
+        <div className="flex items-center justify-between text-[12.5px]">
+          <span className="text-[rgba(148,163,184,0.7)]">{t("ifStopLossHits")}</span>
+          <span className="tnum text-down font-semibold">
+            {projection.stopLoss.amount}{" "}
+            <span className="text-down/70 font-normal">({projection.stopLoss.roe})</span>
+          </span>
+        </div>
+      ) : null}
+      {projection.rewardRisk ? (
+        <div className="flex items-center justify-between border-t border-white/8 pt-2 text-[11.5px] text-[rgba(148,163,184,0.6)]">
+          <span>{t("rewardRisk")}</span>
+          <span className="tnum">{projection.rewardRisk}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

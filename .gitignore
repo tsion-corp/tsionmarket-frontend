@@ -77,3 +77,8 @@ design_handoff_*/
 # cost in git history, and production reads it from LEGACY_DIRECTORY_URL.
 # Commit it only if you intend the bundled mode, which needs it in the repo.
 config/legacy-directory.csv
+
+# Local CCTP test harness (scratch, not for commit)
+cctp-run.mjs
+cctp-hypercore-run.mjs
+cctp-arb-to-base.mjs

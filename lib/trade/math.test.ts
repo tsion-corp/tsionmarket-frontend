@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   closeFee,
   formatCompactUsd,
+  formatSignedPercent,
   formatUsd,
   fromBaseUnits,
+  inferBracketSide,
   liquidationPrice,
   openFee,
   positionSize,
+  projectTriggerPnl,
   receiveFromPrices,
   toBaseUnits,
 } from "@/lib/trade/math";
@@ -171,5 +174,77 @@ describe("formatCompactUsd", () => {
   it("falls back to a dash for a non-finite value", () => {
     expect(formatCompactUsd(NaN)).toBe("—");
     expect(formatCompactUsd(Infinity)).toBe("—");
+  });
+});
+
+describe("projectTriggerPnl", () => {
+  // $100 margin at 10x on a $100 asset => 10 units, $1000 notional.
+  const base = { entryPrice: 100, sizeBaseUnits: 10, marginUsd: 100 } as const;
+
+  it("projects a long take-profit above entry as a leveraged gain", () => {
+    // +10% price move on 10x margin is a +100% return on the $100 posted.
+    const p = projectTriggerPnl({ ...base, side: "buy", triggerPrice: 110 });
+    expect(p?.pnlUsd).toBeCloseTo(100);
+    expect(p?.roePct).toBeCloseTo(100);
+  });
+
+  it("projects a long stop-loss below entry as a loss", () => {
+    const p = projectTriggerPnl({ ...base, side: "buy", triggerPrice: 96 });
+    expect(p?.pnlUsd).toBeCloseTo(-40);
+    expect(p?.roePct).toBeCloseTo(-40);
+  });
+
+  it("flips direction for a short: profit below entry, loss above", () => {
+    const tp = projectTriggerPnl({ ...base, side: "sell", triggerPrice: 90 });
+    expect(tp?.pnlUsd).toBeCloseTo(100);
+    expect(tp?.roePct).toBeCloseTo(100);
+    const sl = projectTriggerPnl({ ...base, side: "sell", triggerPrice: 105 });
+    expect(sl?.pnlUsd).toBeCloseTo(-50);
+    expect(sl?.roePct).toBeCloseTo(-50);
+  });
+
+  it("returns null when any input is missing or non-positive", () => {
+    expect(projectTriggerPnl({ ...base, side: "buy", triggerPrice: 0 })).toBeNull();
+    expect(
+      projectTriggerPnl({ ...base, side: "buy", triggerPrice: 110, sizeBaseUnits: 0 })
+    ).toBeNull();
+    expect(projectTriggerPnl({ ...base, side: "buy", triggerPrice: 110, marginUsd: 0 })).toBeNull();
+  });
+});
+
+describe("formatSignedPercent", () => {
+  it("signs gains and losses and drops decimals on whole/large values", () => {
+    expect(formatSignedPercent(100)).toBe("+100%");
+    expect(formatSignedPercent(25)).toBe("+25%");
+    expect(formatSignedPercent(-40)).toBe("-40%");
+  });
+
+  it("keeps one decimal for small fractional moves", () => {
+    expect(formatSignedPercent(12.5)).toBe("+12.5%");
+    expect(formatSignedPercent(-3.25)).toBe("-3.3%");
+    expect(formatSignedPercent(0)).toBe("0%");
+  });
+});
+
+describe("inferBracketSide", () => {
+  it("reads a long from a take profit above entry or a stop loss below it", () => {
+    expect(inferBracketSide(100, 110, 0)).toBe("buy");
+    expect(inferBracketSide(100, 0, 95)).toBe("buy");
+  });
+
+  it("reads a short from a take profit below entry or a stop loss above it", () => {
+    expect(inferBracketSide(100, 90, 0)).toBe("sell");
+    expect(inferBracketSide(100, 0, 105)).toBe("sell");
+  });
+
+  it("prefers the take profit when both legs are set", () => {
+    // TP above entry => long, regardless of where the SL sits.
+    expect(inferBracketSide(100, 110, 95)).toBe("buy");
+    expect(inferBracketSide(100, 90, 105)).toBe("sell");
+  });
+
+  it("is null without an entry price or any leg to read", () => {
+    expect(inferBracketSide(0, 110, 95)).toBeNull();
+    expect(inferBracketSide(100, 0, 0)).toBeNull();
   });
 });

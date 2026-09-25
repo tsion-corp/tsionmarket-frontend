@@ -15,6 +15,7 @@ import {
   PerpOrderTicket,
   type PerpOrderSide,
   type PerpMarginMode,
+  type PerpTriggerProjectionView,
 } from "@/features/trade/components/perp-order-ticket";
 import { spotAmountStatus } from "@/features/trade/components/spot-amount-card";
 import type { SpotOrderMode } from "@/features/trade/components/spot-order-mode-toggle";
@@ -27,7 +28,14 @@ import {
   type LiquidationMargin,
 } from "@/features/trade/lib/liquidation";
 import { tradingViewSymbolForAsset } from "@/features/trade/lib/hyperliquid-tradingview";
-import { formatUsd, openFee, toBaseUnits } from "@/lib/trade/math";
+import {
+  formatSignedPercent,
+  formatUsd,
+  inferBracketSide,
+  openFee,
+  projectTriggerPnl,
+  toBaseUnits,
+} from "@/lib/trade/math";
 import { entryPriceFromUsdString, reportShine } from "@/lib/shine";
 import { friendlyError } from "@/lib/errors";
 import { track } from "@/lib/analytics/mixpanel";
@@ -318,6 +326,58 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
     }
     return null;
   };
+
+  // --- take profit / stop loss projection --------------------------------
+  // What the bracket stands to make or cost, so the trader sees the stakes
+  // before committing. This ticket has no side control, so the intended
+  // direction is inferred from where the brackets sit relative to entry: a take
+  // profit above entry (or a stop loss below it) is a long, the reverse a short.
+  // Only a leg on the correct side of entry reads as a gain/loss; a crossed one
+  // is already flagged by triggerReasonFor and shows nothing here.
+  const tpPriceNum = Number(takeProfitPrice) || 0;
+  const slPriceNum = Number(stopLossPrice) || 0;
+  const bracketSide: HlOrderSide | null = inferBracketSide(entryPriceNum, tpPriceNum, slPriceNum);
+  const projectionBase =
+    triggersOpen && bracketSide
+      ? {
+          side: bracketSide,
+          entryPrice: entryPriceNum,
+          sizeBaseUnits,
+          marginUsd: collateralUsdcNum,
+        }
+      : null;
+  const tpProjection = projectionBase
+    ? projectTriggerPnl({ ...projectionBase, triggerPrice: tpPriceNum })
+    : null;
+  const slProjection = projectionBase
+    ? projectTriggerPnl({ ...projectionBase, triggerPrice: slPriceNum })
+    : null;
+  const takeProfitGain = tpProjection && tpProjection.pnlUsd > 0 ? tpProjection : null;
+  const stopLossRisk = slProjection && slProjection.pnlUsd < 0 ? slProjection : null;
+  // Reward-to-risk as "1 : N", the ratio traders judge a setup by — only when
+  // both legs are set and on the right side of entry.
+  const rewardToRisk =
+    takeProfitGain && stopLossRisk && stopLossRisk.pnlUsd !== 0
+      ? Math.abs(takeProfitGain.pnlUsd / stopLossRisk.pnlUsd)
+      : null;
+  const triggerProjection: PerpTriggerProjectionView | null =
+    takeProfitGain || stopLossRisk
+      ? {
+          takeProfit: takeProfitGain
+            ? {
+                amount: `+${formatUsd(takeProfitGain.pnlUsd)}`,
+                roe: formatSignedPercent(takeProfitGain.roePct),
+              }
+            : null,
+          stopLoss: stopLossRisk
+            ? {
+                amount: `-${formatUsd(Math.abs(stopLossRisk.pnlUsd))}`,
+                roe: formatSignedPercent(stopLossRisk.roePct),
+              }
+            : null,
+          rewardRisk: rewardToRisk ? `1 : ${rewardToRisk.toFixed(2)}` : null,
+        }
+      : null;
 
   // --- estimated liquidation, per side -----------------------------------
   // Both sides, never one unlabelled figure: a long and a short liquidate on
@@ -899,6 +959,7 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
                   onOpenChange: setTriggersOpen,
                   takeProfit: { value: takeProfitPrice, onChange: setTakeProfitPrice },
                   stopLoss: { value: stopLossPrice, onChange: setStopLossPrice },
+                  projection: triggerProjection,
                 }}
                 summary={{
                   orderValue: notionalUsdc > 0 ? formatUsd(notionalUsdc) : "\u2014",

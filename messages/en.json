@@ -1551,7 +1551,10 @@
     "colFunding": "Funding",
     "colVolume": "Volume",
     "colOpenInterest": "Open Interest",
-    "tryAgain": "Try again"
+    "tryAgain": "Try again",
+    "ifTakeProfitHits": "If take profit hits",
+    "ifStopLossHits": "If stop loss hits",
+    "rewardRisk": "Reward / risk"
   },
   "perpsFunds": {
     "topUpTitle": "Top up",

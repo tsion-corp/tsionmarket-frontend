@@ -1551,7 +1551,10 @@
     "colFunding": "Financiación",
     "colVolume": "Volumen",
     "colOpenInterest": "Interés abierto",
-    "tryAgain": "Intentar de nuevo"
+    "tryAgain": "Intentar de nuevo",
+    "ifTakeProfitHits": "Si se alcanza el take profit",
+    "ifStopLossHits": "Si se alcanza el stop loss",
+    "rewardRisk": "Recompensa / riesgo"
   },
   "perpsFunds": {
     "topUpTitle": "Recargar",
