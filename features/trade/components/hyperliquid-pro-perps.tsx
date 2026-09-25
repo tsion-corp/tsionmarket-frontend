@@ -28,6 +28,8 @@ import {
 } from "@/features/trade/lib/liquidation";
 import { tradingViewSymbolForAsset } from "@/features/trade/lib/hyperliquid-tradingview";
 import { formatUsd, openFee, toBaseUnits } from "@/lib/trade/math";
+import { entryPriceFromUsdString, reportShine } from "@/lib/shine";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { friendlyError } from "@/lib/errors";
 import { track } from "@/lib/analytics/mixpanel";
 import { PERP_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
@@ -387,6 +389,14 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
         // position, or a sibling TP/SL still shown as resting after being
         // cancelled, self-corrects within a few seconds instead of sitting
         // there until the next unrelated refetch.
+        //
+        // Shine does NOT listen here. This watcher only says the position is
+        // gone; the record that says what it closed at and what it returned
+        // (HlClosedPositionView) is written by the venue's fill event some
+        // seconds later, and HyperliquidPositionsList is already waiting for
+        // exactly that row to raise its share card. The close is reported
+        // from there, off the record that has the figures, so a post and the
+        // share card for the same trade cannot disagree.
         void trading.waitForPositionsChange((rows) => rows.every((p) => p.id !== position.id));
         if (siblingOrderIdsToCancel.length > 0) {
           void trading.waitForOrdersChange((rows) =>
@@ -479,11 +489,53 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
           (text) => setPendingStatus(text)
         );
         trading.refetchAll();
+        // The same poll, and the same predicate — but its answer is the fill,
+        // not just a cue to refresh, and it used to be discarded. The order
+        // response above says the entry was ACCEPTED; a position appearing
+        // under that entry order's id is what says it FILLED.
+        //
+        // Awaited in a `then`, never inline: the busy state and the order
+        // status below must not wait thirty seconds on a poll.
+        //
+        // A limit order that only rests never produces a position under its
+        // id, so it posts nothing, which is exactly what ADR-2026-09-24
+        // section 4 asks for. A TP or SL leg rejected beside a filled entry
+        // still posts, because the entry still filled.
+        const pair = hlPairLabel(asset.symbol);
+        const entryOrderId = result.entryOrder.id;
+        let filledRows: HlPositionView[] | null = null;
+        void trading
+          .waitForPositionsChange((rows) => {
+            const changed = JSON.stringify(rows.map((p) => [p.id, p.size]).sort()) !== before;
+            if (changed) filledRows = rows;
+            return changed;
+          })
+          .then((changed) => {
+            if (!changed || filledRows === null) return;
+            const opened = filledRows.find((p) => p.entryOrderId === entryOrderId);
+            // The snapshot moved for some other reason — a trigger firing on
+            // another market, the backend's reconciliation sweep. This order
+            // did not fill, so nothing is claimed for it.
+            if (!opened) return;
+            reportShine({
+              service: "perps",
+              // The entry order id, which is also what the venue keys the
+              // position's own entryOrderId on.
+              id: entryOrderId,
+              kind: "open",
+              symbol: pair,
+              side: opened.side,
+              // A multiplier, not money: the venue's own record of what this
+              // position was opened at, rather than what the ticket asked for.
+              leverage: opened.leverage,
+              price: entryPriceFromUsdString(opened.entryPrice),
+            });
+          });
         void trading.waitForPositionsChange(
           (rows) => JSON.stringify(rows.map((p) => [p.id, p.size]).sort()) !== before
         );
-        const opened = perpOpenedProps(ticket, result.entryOrder);
-        if (opened) track("perp_trade_opened", opened);
+        const openedProps = perpOpenedProps(ticket, result.entryOrder);
+        if (openedProps) track("perp_trade_opened", openedProps);
 
         const rejectedLegs = [
           result.takeProfitOrder?.status === "rejected" ? t("takeProfit") : null,
@@ -626,6 +678,13 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
     // Kept from the previous layout: broadcast mode blurs anything marked
     // sensitive, and this whole desk is position data.
     <div data-sensitive="position">
+      {/* Shine, above the desk rather than behind a settings sheet. It is on
+          by default and posts a filled order publicly without asking each
+          time, so the place someone finds out about it has to be the screen
+          they are trading on. This is the only perps interface in the app, so
+          one placement here covers /perps, the deep-linked terminal and the
+          phone Market tab. */}
+      <ShineToggle service="perps" className="mb-4" />
       <LeverageDesktopLayout
         // The design's ticket is a fixed 924px. Held as a floor rather than a
         // fixed height, because the order form grows with margin mode, TP/SL

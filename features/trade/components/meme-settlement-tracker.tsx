@@ -51,6 +51,10 @@ export function MemeSettlementTracker() {
           tokenAddress: purchase.assetAddress,
           amount: usdcFromRaw(spendRaw),
           chainId: SOLANA_CHAIN_ID,
+          // The second leg of an order the user placed, so it is their trade
+          // and it shines like one. The ticker is the one recorded when the
+          // first leg was saved; the Solana quote names none.
+          tokenSymbol: purchase.assetSymbol,
         });
         clearPendingRwaSettlement(settlement.requestId);
         await refetchFresh(CROSS_CHAIN);

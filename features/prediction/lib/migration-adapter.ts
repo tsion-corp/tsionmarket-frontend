@@ -145,6 +145,22 @@ export function classifyPolymarket(input: {
   return holdings;
 }
 
+// The relayer answers "rate limited" when it wants us to slow down (the
+// same-origin proxy collapses its 429 into one such error rather than the
+// SDK's retry burst). That is the venue's pace, not the account's fault: the
+// item waits for a later attempt, and nothing downstream reads it as a
+// failure that could hold the upgrade. Exported for its test.
+export function isRateLimited(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const status = (error as { status?: unknown }).status;
+  if (status === 429) return true;
+  const message = (error as { message?: unknown }).message;
+  return typeof message === "string" && /rate.?limit/i.test(message);
+}
+
+const THROTTLED_MESSAGE =
+  "Polymarket is busy right now. This waits and is tried again later; nothing here is lost.";
+
 // The client is bound to the old signer; building it deploys nothing, so one
 // per address is safe to keep across discover and settle.
 let cachedClient: { address: string; client: SecureClient } | null = null;
@@ -192,11 +208,16 @@ export const polymarketMigrationAdapter: VenueAdapter<PolymarketRef> = {
     await ensureDepositWallet(client);
 
     const fail = (id: string, error: unknown, retryable: boolean) =>
-      outcomes.set(id, {
-        ok: false,
-        error: error instanceof Error ? error.message : String(error),
-        retryable,
-      });
+      outcomes.set(
+        id,
+        isRateLimited(error)
+          ? { ok: false, error: THROTTLED_MESSAGE, retryable: true, throttled: true }
+          : {
+              ok: false,
+              error: error instanceof Error ? error.message : String(error),
+              retryable,
+            }
+      );
 
     // Winnings first: they add to the collateral the last step moves.
     for (const h of holdings) {

@@ -13,6 +13,7 @@ import { ArkadeFeaturedBanner } from "@/features/casino/components/arkade-featur
 import { ArkadeSectionHeader } from "@/features/casino/components/arkade-section-header";
 import { FEATURED_STATS } from "@/features/casino/lib/featured";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import type { CasinoPresenceByGame } from "@/features/casino/lib/api/presence";
 
@@ -171,6 +172,12 @@ export function ArkadeDesktop({
           </button>
         </div>
       </div>
+
+      {/* Shine sits between the head and the catalogue, at full width, because
+          it is on by default and posts publicly without asking each time. The
+          place someone finds that out has to be the page they play on, not a
+          settings sheet. One switch covers every game here. */}
+      <ShineToggle service="arcade" />
 
       {/* ── Tab bar + search (2234:11148) ── */}
       <div className="flex w-full items-center justify-between gap-6">

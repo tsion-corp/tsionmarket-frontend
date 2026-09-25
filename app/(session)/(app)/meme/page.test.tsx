@@ -45,6 +45,24 @@ const fresh = vi.hoisted(() => ({
   token: null as MemeToken | null,
   identities: [] as ({ address: string; chainId: number } | null)[],
 }));
+// The screen carries the Shine switch, which reads the account's own
+// preference through React Query and the session. Stubbed: this test is about
+// the screen, not the switch, which has its own suite in components/shine.
+vi.mock("@/hooks/use-shine", () => ({
+  useShine: () => ({
+    preferences: null,
+    isResolved: false,
+    isLoading: false,
+    isSignedIn: false,
+    isSaving: false,
+    error: null,
+    isOn: () => true,
+    mayPost: () => false,
+    setShine: async () => {},
+    refetch: () => {},
+  }),
+}));
+
 vi.mock("@/features/trade/hooks/use-meme-tokens", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/features/trade/hooks/use-meme-tokens")>();
   return {

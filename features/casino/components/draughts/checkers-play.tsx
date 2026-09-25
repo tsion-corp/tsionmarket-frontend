@@ -23,6 +23,7 @@ import {
 } from "@/features/casino/hooks/use-draughts-match";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
+import { useDraughtsShine } from "@/features/casino/hooks/use-arcade-shine";
 import {
   abortMatch,
   claimTimeout,
@@ -301,6 +302,11 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
   const wallet = address ?? null;
   const { match, loading, error, now, live, refresh, apply } = useDraughtsMatch(matchId);
   const { seat, myTurn, spectating } = useSeat(match, wallet);
+  // Shine: a win or a draw posts itself to Market Square, keyed on match.id.
+  // The hook keeps its own "was I here when it ended" flag rather than
+  // borrowing `reportedResult` below, which fires for a settled match opened
+  // cold — harmless for an analytics event, a published backlog for a post.
+  useDraughtsShine(match, seat);
   const cashier = useChessCashierStatus();
   const joinStake = match?.wager?.stakeUsdc ?? null;
   const shortForJoin = !!joinStake && exceedsUsdcBalance(joinStake, cashier.available);

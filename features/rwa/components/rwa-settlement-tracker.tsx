@@ -4,6 +4,8 @@ import { useCallback, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { useExecuteRwa } from "@/features/rwa/hooks/use-execute-rwa";
 import { buildRwaAction, USDC_BY_CHAIN } from "@/features/rwa/lib/api";
+import { rwaShineEvent } from "@/features/rwa/lib/shine";
+import { reportShine } from "@/lib/shine";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSettlementReconciler } from "@/hooks/use-settlement-reconciler";
 import { track } from "@/lib/analytics/mixpanel";
@@ -57,6 +59,24 @@ export function RwaSettlementTracker() {
           simulate: false,
         });
         await execute(action, "solana");
+        // The purchase is confirmed here, not in the ticket: the ticket only
+        // funded it, and may have been closed or reloaded away since. Solana
+        // signatures are polled to confirmation, so this await is a real one.
+        //
+        // Keyed by the settlement request id, which was written to storage
+        // before the bridge leg ran and is therefore the same id after the
+        // reload this worker exists to survive. The asset's decimals are not
+        // in the pending record, so the price per unit cannot be recovered
+        // here: the post states the buy and no figure.
+        const shineEvent = rwaShineEvent({
+          id: settlement.requestId,
+          symbol: purchase.assetSymbol,
+          chain: "solana",
+          side: "buy",
+          price: null,
+          stepCount: action.steps.length,
+        });
+        if (shineEvent) reportShine(shineEvent);
         clearPendingRwaSettlement(settlement.requestId);
         await refetchFresh(CROSS_CHAIN);
         void refetchUntilChanged(CROSS_CHAIN);

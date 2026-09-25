@@ -47,6 +47,7 @@ import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
 import { useVaultPendingWinnings } from "@/features/casino/hooks/use-vault-winnings";
 import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { usePayoutRefresh } from "@/features/casino/hooks/use-payout-refresh";
+import { useVaultShine } from "@/features/casino/hooks/use-arcade-shine";
 import { useVaultParams } from "@/features/casino/hooks/use-vault-params";
 import { usdOf } from "@/features/casino/lib/last-standing/pricing";
 import { activityAmount } from "@/features/casino/lib/last-standing/activity-payout";
@@ -660,6 +661,17 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
 
   // The payout, credited the moment the settle frame or the winners row lands.
   usePayoutRefresh(address, winners);
+
+  // Shine: a won round posts itself to Market Square.
+  //
+  // `phase === "won"` is the one point the three announcements converge on —
+  // the live reveal above, the winners-feed fallback above it, and whichever
+  // settlement follows. It is also the first point PAST THE BACK-OUT: the
+  // reveal re-reads the status after its suspense and abandons the round when
+  // a wager landed at the buzzer, and it does that before the phase moves.
+  // Reporting from the round-end signal instead would publish a win that the
+  // next check retracts, with nothing to retract it with.
+  useVaultShine(gameId, phase === "won" && youWon);
 
   // Brief post-round re-check so the settlement row and the reset status
   // appear quickly; self-clearing once the window passes.

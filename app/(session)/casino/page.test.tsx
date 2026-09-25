@@ -32,6 +32,25 @@ vi.mock("@/features/casino/hooks/use-casino-presence", () => ({
   }),
 }));
 
+// The arcade hub carries the Shine switch, which reads the account's own
+// preference through React Query. Stubbed for the same reason the portfolio is
+// above: this route's test is about the catalogue, not about standing up a
+// QueryClient. The switch has its own suite in components/shine.
+vi.mock("@/hooks/use-shine", () => ({
+  useShine: () => ({
+    preferences: null,
+    isResolved: false,
+    isLoading: false,
+    isSignedIn: false,
+    isSaving: false,
+    error: null,
+    isOn: () => true,
+    mayPost: () => false,
+    setShine: async () => {},
+    refetch: () => {},
+  }),
+}));
+
 vi.mock("@/features/casino/components/arkade-mobile", () => ({
   ArkadeMobile: () => <div data-testid="mobile-catalogue" />,
 }));

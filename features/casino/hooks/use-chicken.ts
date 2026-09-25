@@ -28,6 +28,8 @@ import {
   sendChickenCommand,
   subscribeChickenTopic,
 } from "@/features/casino/lib/chicken/live-socket";
+import { chickenShineEvent } from "@/features/casino/lib/shine/arcade";
+import { reportShine } from "@/lib/shine";
 
 const KEYS = {
   rules: ["casino", "chicken", "rules"] as const,
@@ -219,7 +221,14 @@ export function useChicken() {
   const cashout = useMutation({
     onMutate: () => queryClient.cancelQueries({ queryKey: KEYS.active }),
     mutationFn: (session: ChickenSession) => runAction("cashout", session),
-    onSuccess: settle,
+    onSuccess: (settled) => {
+      // The resolved cash-out, once per press. The history query re-serves
+      // every cashed-out session it holds, so watching that list instead
+      // would post a player's whole evening back to them.
+      const event = chickenShineEvent(settled);
+      if (event) reportShine(event);
+      return settle(settled);
+    },
     onError: synchronize,
   });
 

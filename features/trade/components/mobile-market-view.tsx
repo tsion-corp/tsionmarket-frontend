@@ -66,6 +66,7 @@ import { metricValue, type ScreenerMetric } from "@/lib/meme/screener";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { buyFunding } from "@/lib/meme/funding";
 import { exceedsHeld } from "@/lib/meme/sell-amount";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { toast } from "@/lib/toast";
 import { belowMinimumBuy } from "@/lib/trade/minimums";
 import { tokenBg } from "@/lib/trade/assets";
@@ -753,6 +754,21 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
           tabId={tabDomId}
           tabs={tabs}
         />
+
+        {/* Shine for the tab being looked at, right under the tab strip. It
+            is on by default and posts a confirmed trade publicly without
+            asking each time, so it has to be in view on the surface the trade
+            is made from, not in a settings sheet.
+
+            Spot and Memecoins only: the Perps tab draws the perps desk, which
+            carries its own, and Real assets and Prediction belong to other
+            features. */}
+        {activeTab === "spot" || activeTab === "memecoins" ? (
+          <ShineToggle
+            service={activeTab === "spot" ? "spot" : "memecoin"}
+            className="mt-3 shrink-0"
+          />
+        ) : null}
 
         {/* One panel, named by the tab that selected it. */}
         <div

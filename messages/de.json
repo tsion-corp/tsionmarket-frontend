@@ -3793,5 +3793,64 @@
     "expired": "Der Handel ist abgelaufen, bevor er gesendet wurde. Versuche es erneut.",
     "cancelled": "Dieser Handel wurde abgebrochen.",
     "unknown": "Der Handel konnte nicht abgeschlossen werden. Versuche es erneut."
+  },
+  "shine": {
+    "name": "Shine",
+    "toggleLabel": "Shine: automatisch auf dem Marktplatz posten, was ich hier mache",
+    "on": "An",
+    "off": "Aus",
+    "checking": "Wird geprüft…",
+    "signedOut": "Melde dich an, um das zu ändern.",
+    "blurb": "Wenn Shine an ist, wird alles, was du hier machst, von selbst auf dem Marktplatz gepostet. Beträge und Guthaben stehen nie in einem Post.",
+    "keepsPosts": "Shine auszuschalten stoppt neue Posts. Was bereits gepostet ist, bleibt auf dem Marktplatz.",
+    "saveFailed": "Das konnte nicht gespeichert werden. Prüfe deine Verbindung und versuch es noch mal.",
+    "readFailed": "Deine Shine-Einstellung konnte nicht geladen werden.",
+    "retry": "Erneut versuchen",
+    "post": {
+      "memecoin": {
+        "buy": "Bin kopfüber in {symbol} rein.",
+        "buyAt": "Bin kopfüber zu {price} in {symbol} rein.",
+        "sell": "Bin bei {symbol} raus.",
+        "sellAt": "Bin zu {price} bei {symbol} raus."
+      },
+      "spot": {
+        "buy": "{symbol} auf Spot gekauft.",
+        "buyAt": "{symbol} zu {price} auf Spot gekauft.",
+        "sell": "{symbol} auf Spot verkauft.",
+        "sellAt": "{symbol} zu {price} auf Spot verkauft."
+      },
+      "rwa": {
+        "buy": "Den realen Vermögenswert {symbol} gekauft.",
+        "buyAt": "Den realen Vermögenswert {symbol} zu {price} gekauft.",
+        "sell": "Den realen Vermögenswert {symbol} verkauft.",
+        "sellAt": "Den realen Vermögenswert {symbol} zu {price} verkauft."
+      },
+      "prediction": {
+        "took": "Auf „{outcome}“ bei „{market}“ gesetzt.",
+        "tookAt": "Auf „{outcome}“ bei „{market}“ gesetzt, für {price} pro Anteil."
+      },
+      "perps": {
+        "side": {
+          "long": "Long",
+          "short": "Short"
+        },
+        "open": "{side} auf {symbol} eröffnet.",
+        "openAt": "{side} auf {symbol} bei {price} eröffnet.",
+        "openLeveraged": "{leverage} {side} auf {symbol} eröffnet.",
+        "openLeveragedAt": "{leverage} {side} auf {symbol} bei {price} eröffnet.",
+        "close": "Meinen {side} auf {symbol} geschlossen.",
+        "closeAt": "Meinen {side} auf {symbol} bei {price} geschlossen."
+      },
+      "arcade": {
+        "won": "Bei {game} in der Arkade gewonnen.",
+        "drawn": "Bei {game} in der Arkade unentschieden gespielt."
+      },
+      "sports": {
+        "placed": "Auf {selection} bei {event} gesetzt.",
+        "placedAtOdds": "Auf {selection} bei {event} gesetzt, Quote {odds}.",
+        "won": "Mein Tipp auf {selection} ist aufgegangen. {event}."
+      },
+      "return": "{pnl}."
+    }
   }
 }

@@ -23,6 +23,16 @@ vi.mock("@/features/trade/components/perp-order-ticket", () => ({
     return <div data-testid="order-ticket">order ticket</div>;
   },
 }));
+// The Shine toggle reads the account's preference through React Query. These
+// tests are about this surface's layout, not about that read, so the control
+// is stubbed and only its placement and its service are checked here. Its own
+// behaviour is covered in components/shine/shine-toggle.test.tsx.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle" data-service={service} />
+  ),
+}));
+
 vi.mock("@/features/trade/components/hyperliquid-positions-list", () => ({
   HyperliquidPositionsList: (props: Record<string, unknown>) => {
     positionsListProps(props);
@@ -120,8 +130,12 @@ const trading = {
   refetchAll: vi.fn(),
   refetchOrders: vi.fn(),
   refreshBalances: vi.fn(),
-  waitForPositionsChange: vi.fn(),
-  waitForOrdersChange: vi.fn(),
+  // Both resolve: the desk consumes the positions watcher now (it is the fill
+  // Shine reports on), so a stub returning undefined is not a stand-in for the
+  // real hook. False is "nothing changed inside the window", which is what the
+  // tests below expect of a stub that is never fed a fresh row.
+  waitForPositionsChange: vi.fn(async () => false),
+  waitForOrdersChange: vi.fn(async () => false),
   actions: {
     placeOrder: vi.fn(),
     updateLeverage: vi.fn(),
@@ -222,6 +236,8 @@ beforeEach(() => {
   trading.actions.cancelOrder.mockReset();
   trading.actions.updateTriggerOrder.mockReset();
   trading.actions.closePosition.mockReset();
+  trading.waitForPositionsChange.mockClear();
+  trading.waitForOrdersChange.mockClear();
 });
 
 describe("HyperliquidProPerps", () => {
@@ -806,5 +822,16 @@ describe("HyperliquidProPerps", () => {
     const { container } = renderDesk();
 
     expect(region(container, "market-list")).toHaveTextContent("Loading markets…");
+  });
+});
+
+// Shine is on by default and posts a filled order publicly with no per-post
+// confirmation. This is the app's only perps interface, so this one placement
+// is what puts the control in front of every perps trader.
+describe("HyperliquidProPerps Shine", () => {
+  it("carries the perps Shine toggle above the desk", () => {
+    renderDesk();
+
+    expect(screen.getByTestId("shine-toggle")).toHaveAttribute("data-service", "perps");
   });
 });

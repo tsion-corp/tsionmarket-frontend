@@ -32,6 +32,7 @@ import { SpotSideSwitch, type SpotSide } from "@/features/trade/components/spot-
 import { SpotTradeActions } from "@/features/trade/components/spot-trade-actions";
 import { useSpotBuy } from "@/features/trade/hooks/use-spot-buy";
 import { useSpotMarkets, type SpotMarket } from "@/features/trade/hooks/use-spot-markets";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { useFittedRowCount } from "@/hooks/use-fitted-row-count";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { formatCompactUsd, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
@@ -392,6 +393,12 @@ export function SpotDesktopView({ onAddFunds }: SpotDesktopViewProps = {}) {
           disabled={loading || error}
           className="max-w-[394px]"
         />
+
+        {/* Shine, at the head of the desk rather than behind a settings
+            sheet. It is on by default and posts a filled buy publicly without
+            asking each time, so the screen someone is trading on is where
+            they have to be able to see and change it. */}
+        <ShineToggle service="spot" />
 
         {error ? (
           <AsyncError

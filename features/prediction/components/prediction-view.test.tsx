@@ -11,6 +11,15 @@ const mocks = vi.hoisted(() => ({
   clear: vi.fn(),
 }));
 
+// The Shine switch is the account's own preference behind a React Query read
+// and a Privy session. What matters here is that this page carries one, and
+// for which service, so it stands in as a marker naming the service it decides.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle">{service}</div>
+  ),
+}));
+
 vi.mock("../markets/hooks/use-discovery-markets", () => ({
   useDiscoveryEvents: mocks.catalog,
 }));
@@ -118,6 +127,11 @@ describe("PredictionView", () => {
       loadMore: vi.fn(),
       refetch: vi.fn(),
     });
+  });
+
+  it("carries the prediction Shine switch on the page", () => {
+    render(<PredictionView />);
+    expect(screen.getByTestId("shine-toggle")).toHaveTextContent("prediction");
   });
 
   it("renders the Polymarket feed filters backed by discovery sorts", () => {

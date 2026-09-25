@@ -34,6 +34,8 @@ import {
 import { SOLANA_CHAIN_ID, networkOf } from "@/lib/meme/chain";
 import { track } from "@/lib/analytics/mixpanel";
 import { reportTradeRecordingMismatch } from "@/lib/analytics/watchtower";
+import { reportShine, type EntryPrice } from "@/lib/shine";
+import { swapShineFacts } from "@/features/trade/lib/shine-trade";
 
 // One trade at a time, with the states the contract demands kept explicit.
 // Only the backend's CONFIRMED ever reads as success.
@@ -51,6 +53,35 @@ export interface MemeTradeInput extends Omit<SwapRequest, "walletAddress"> {
    * on it; analytics reports `trade_submitted` from here.
    */
   onSubmitted?: (swapId: string) => void;
+  /**
+   * Which service's Shine decides whether this trade is posted.
+   *
+   * This engine runs two products: the memecoin desks, and the spot surfaces
+   * for a symbol Dextopus does not offer (lib/spot-swap.ts). They are separate
+   * Shine settings and separate voices in a post, and the engine cannot tell
+   * them apart from the token address alone, so the caller says which it is.
+   * Defaulting to "memecoin" keeps every memecoin surface unchanged.
+   *
+   * Reported HERE rather than at the spot call sites so one confirmed swap can
+   * only ever produce one post: this hook's resolved promise is the single
+   * place CONFIRMED is reached, and it is the only place that holds the quote
+   * the symbol and the price come from.
+   */
+  shineService?: "memecoin" | "spot";
+  /**
+   * The traded token's ticker, for the Solana path alone.
+   *
+   * A Base quote names both its legs, so the EVM path takes the symbol off
+   * the quote and ignores this. PreparedSolanaSwap is one unsigned
+   * transaction and names nothing at all, so the only way a Solana trade can
+   * say what it bought is for the surface that knows the coin to hand the
+   * ticker down with the order.
+   *
+   * Optional, so no existing caller changes meaning, and absent still means
+   * NO POST. It is never filled in from the mint address or anything derived
+   * from one: a guessed ticker is published with no way to correct it.
+   */
+  tokenSymbol?: string;
 }
 
 export interface MemePreviewInput extends SwapRequest {
@@ -224,6 +255,57 @@ function markLinked(key: string) {
   }
 }
 
+// Tell Shine about a swap the trade service has CONFIRMED.
+//
+// Only `confirmed` reaches here, and that is the whole point of the
+// distinction above: `delivered` means the wallet was paid while the service
+// recorded FAILED or REVERTED, and `pending` means the poll ran out of time
+// and nothing is claimed either way. Neither is a confirmation, and a public
+// post claiming one cannot be retracted (ADR-2026-09-24, Alternatives).
+//
+// Fire and forget. reportShine reads the on/off gate, deduplicates on
+// `swapId`, returns void and never throws, so a trade is never broken by its
+// own share.
+interface ConfirmedTrade {
+  service: "memecoin" | "spot";
+  /** The swap id, which is what the Shine dedup store keys on. */
+  swapId: string;
+  side: "BUY" | "SELL";
+  /** The traded token's ticker, or null when nothing here knows it. */
+  symbol: string | null | undefined;
+  price: EntryPrice | null;
+}
+
+function reportConfirmedTrade({ service, swapId, side, symbol, price }: ConfirmedTrade): void {
+  // No ticker, no post. ShineEvent requires one and composeShinePost renders
+  // it as a cashtag, so a trade nothing can name has nothing truthful to say,
+  // and guessing one from the token address would be worse than silence.
+  if (typeof symbol !== "string" || symbol.trim() === "") return;
+  const ticker = symbol.trim();
+  if (side === "BUY") {
+    reportShine({ service, id: swapId, kind: "buy", symbol: ticker, price });
+    return;
+  }
+  reportShine({
+    service,
+    id: swapId,
+    kind: "sell",
+    symbol: ticker,
+    price,
+    // A sale's return needs the price the position was opened at. The swap
+    // quote carries only this trade's legs, and this hook never reads a cost
+    // basis, so there is no return to state. Null, rather than the nearest
+    // percentage to hand.
+    pnl: null,
+  });
+}
+
+/** The Base path, where the executed quote names both legs and prices them. */
+function reportConfirmedSwap(quote: PreparedSwap, service: "memecoin" | "spot"): void {
+  const { symbol, price } = swapShineFacts(quote);
+  reportConfirmedTrade({ service, swapId: quote.swapId, side: quote.side, symbol, price });
+}
+
 export function useMemeTrade() {
   const { evmAddress: wallet, solanaAddress: solanaWallet } = useAuthSession();
   const socialWallet = useSocialWallet();
@@ -361,7 +443,11 @@ export function useMemeTrade() {
   // the signature. The quote is one transaction, so there is nothing to
   // execute in order and no balance-delta proof yet; CONFIRMED is the word.
   const tradeSolana = useCallback(
-    async (body: SwapRequest, onSubmitted?: (swapId: string) => void): Promise<TradeResult> => {
+    async (
+      body: SwapRequest,
+      onSubmitted: ((swapId: string) => void) | undefined,
+      shine: { service: "memecoin" | "spot"; tokenSymbol: string | undefined }
+    ): Promise<TradeResult> => {
       const runQuote = () => quoteWithProviderRetry((key) => quoteSolanaSwap(body, key));
 
       await ensureLinked(SOLANA_CHAIN_ID);
@@ -423,6 +509,21 @@ export function useMemeTrade() {
       if (status === "CONFIRMED") {
         refreshServicePortfolio();
         setPhase("confirmed");
+        // The service's own verdict, reached once per action, exactly as on
+        // Base. The ticker comes in with the order because the Solana quote
+        // names nothing: PreparedSolanaSwap is one unsigned transaction, with
+        // no sellToken, no buyToken and no amounts. A caller that did not
+        // supply one posts nothing rather than a guess.
+        reportConfirmedTrade({
+          service: shine.service,
+          swapId: quote.swapId,
+          side: body.side,
+          symbol: shine.tokenSymbol,
+          // With no legs on the quote there is nothing to divide, and the
+          // amount the user typed is an amount, not a price. The post states
+          // the trade and no figure.
+          price: null,
+        });
         return {
           outcome: "confirmed",
           swapId: quote.swapId,
@@ -437,7 +538,13 @@ export function useMemeTrade() {
   );
 
   const trade = useCallback(
-    async ({ chainId, onSubmitted, ...input }: MemeTradeInput): Promise<TradeResult> => {
+    async ({
+      chainId,
+      onSubmitted,
+      shineService = "memecoin",
+      tokenSymbol,
+      ...input
+    }: MemeTradeInput): Promise<TradeResult> => {
       // A second press while one runs is the same action, not a new one, and
       // nothing is known about it yet.
       if (activeRef.current) {
@@ -453,7 +560,12 @@ export function useMemeTrade() {
       setQuotedFee(null);
       try {
         if (chainId === SOLANA_CHAIN_ID) {
-          return await tradeSolana({ ...input, walletAddress: chainWallet }, onSubmitted);
+          // The Shine facts travel beside the request rather than inside it:
+          // they are not part of the swap and must never reach the wire.
+          return await tradeSolana({ ...input, walletAddress: chainWallet }, onSubmitted, {
+            service: shineService,
+            tokenSymbol,
+          });
         }
         const wallet = chainWallet;
         const body: SwapRequest = { ...input, walletAddress: wallet };
@@ -609,6 +721,11 @@ export function useMemeTrade() {
         if (status === "CONFIRMED") {
           refreshServicePortfolio();
           setPhase("confirmed");
+          // The service's own verdict, reached once per action: activeRef
+          // above blocks a second press, and this promise resolves exactly
+          // here for a confirmed swap. Nothing re-enters this branch on a
+          // re-render, a refetch or a remount.
+          reportConfirmedSwap(quote, shineService);
           return {
             outcome: "confirmed",
             swapId: quote.swapId,

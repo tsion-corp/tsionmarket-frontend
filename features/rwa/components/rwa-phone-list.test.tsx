@@ -6,6 +6,15 @@ import type { RwaAssetView } from "@/features/rwa/lib/presenter";
 import { RwaPhoneList } from "@/features/rwa/components/rwa-phone-list";
 import type { TradePrefill } from "@/lib/voice/intent";
 
+// The Shine switch is the account's own preference behind a React Query read
+// and a Privy session. What matters here is that this page carries one, and
+// for which service, so it stands in as a marker naming the service it decides.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle">{service}</div>
+  ),
+}));
+
 vi.mock("@/hooks/use-token-logos", () => ({
   useTokenLogos: () => ({}),
   tokenLogoKey: (chain: string, address: string) => `${chain}:${address}`,
@@ -107,6 +116,12 @@ describe("RwaPhoneList", () => {
       searchBox()
     );
     expect(box.firstElementChild).toContainElement(searchBox());
+  });
+
+  it("carries the real-asset Shine switch at the head of the list", () => {
+    renderList();
+    const box = screen.getByTestId("rwa-market-list");
+    expect(within(box).getByTestId("shine-toggle")).toHaveTextContent("rwa");
   });
 
   it("filters the rows by what is typed into its own search field", () => {

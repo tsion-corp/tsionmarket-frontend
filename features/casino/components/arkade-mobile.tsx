@@ -19,6 +19,7 @@ import { ArkadeFeaturedBanner } from "@/features/casino/components/arkade-featur
 import { ArkadeSectionHeader } from "@/features/casino/components/arkade-section-header";
 import { FEATURED_STATS } from "@/features/casino/lib/featured";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import type { CasinoPresenceByGame } from "@/features/casino/lib/api/presence";
 
@@ -190,6 +191,10 @@ export function ArkadeMobile({
           </span>
         </button>
       </div>
+
+      {/* Shine, above the fold for the same reason as on the desktop hub: it
+          is on by default and posts without asking. */}
+      <ShineToggle service="arcade" />
 
       {/* Featured banner, resting layout only (2234:11192). */}
       {!searching && featured.length > 0 ? (

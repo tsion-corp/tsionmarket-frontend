@@ -555,6 +555,10 @@ export function MemeTradeSheet({
             order_id: swapId,
           });
         },
+        // The Solana path has no quote to read a ticker off, so the sheet
+        // hands down the one it is already showing. The Base path ignores
+        // this and takes the symbol from its own quote.
+        tokenSymbol: displaySym,
       });
       inFlightRef.current = false;
       // Settles on the token's own chain. A delivered swap counts: the receipt

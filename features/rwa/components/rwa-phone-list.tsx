@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { SearchField } from "@/components/ui/search-field";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { useFitRows } from "@/hooks/use-fit-rows";
 import { usePaged } from "@/hooks/use-paged";
 import { tokenLogoKey, useTokenLogos } from "@/hooks/use-token-logos";
@@ -238,6 +239,12 @@ export function RwaPhoneList({ assets, loading, error, onAddFunds, prefill }: Rw
           placeholder={t("searchPlaceholder")}
           className="mx-1 mb-2 w-auto"
         />
+        {/* The phone's Real assets tab is a service page too, and Shine posts
+            a trade made from its ticket without asking each time. It sits at
+            the head of the list rather than inside the ticket: it decides
+            every trade on this tab, not the one that happens to be open. The
+            search field keeps the box's first slot, which its own test pins. */}
+        <ShineToggle service="rwa" className="mx-1 mb-2" />
         {body}
       </div>
     </>

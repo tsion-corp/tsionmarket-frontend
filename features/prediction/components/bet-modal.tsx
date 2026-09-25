@@ -6,7 +6,9 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBet } from "@/features/prediction/hooks/use-bet";
 import { usePredictionConsent } from "@/features/prediction/hooks/use-prediction-consent";
+import { predictionShineEvent } from "@/features/prediction/lib/shine";
 import { predictionPayout } from "@/lib/format";
+import { reportShine } from "@/lib/shine";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import { PREDICTION_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
@@ -121,7 +123,24 @@ export function PredictionBetForm({
       market_ids: prediction?.conditionId ?? tokenId,
     });
     try {
-      await placeBet({ tokenId, amountUsd });
+      const fill = await placeBet({ tokenId, amountUsd });
+      // A fill-and-kill order that came back ok matched rather than rested, so
+      // this is the confirmation. The button is disabled while `busy`, so the
+      // handler cannot run twice for one order.
+      //
+      // "Yes" and "No" are the venue's own outcome names, not this page's
+      // labels. The event carries market data, which the composer quotes as
+      // it stands: the question is not translated either, and a multi-outcome
+      // market would name a candidate here, which could not be. The sentence
+      // around them is the composer's to write in the author's locale.
+      const shineEvent = predictionShineEvent({
+        orderId: fill.orderId,
+        question: prediction?.q,
+        outcome: side === "yes" ? "Yes" : "No",
+        makingAmount: fill.makingAmount,
+        takingAmount: fill.takingAmount,
+      });
+      if (shineEvent) reportShine(shineEvent);
       track("prediction_bet_placed", legs);
       toast.success(
         side === "yes"

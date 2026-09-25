@@ -4,6 +4,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { catalogKey } from "@/lib/meme/catalog";
 import { memeToken } from "@/lib/meme/fixture";
+// The Shine toggle reads the account's preference through React Query. These
+// tests are about this surface's layout, not about that read, so the control
+// is stubbed and only its placement and its service are checked here. Its own
+// behaviour is covered in components/shine/shine-toggle.test.tsx.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle" data-service={service} />
+  ),
+}));
+
 import {
   MEME_LIST_PAGE_SIZE,
   MEME_LIST_ROW_HEIGHT,
@@ -968,5 +978,16 @@ describe("MemeDesktopBoard search box", () => {
       "placeholder",
       "Search by name, symbol, address, market cap, price or age"
     );
+  });
+});
+
+// Shine is on by default and posts a confirmed trade publicly with no
+// per-post confirmation, so the desk someone trades from is where the control
+// has to be. Placement is wiring, and wiring is what this file covers.
+describe("MemeDesktopBoard Shine", () => {
+  it("carries the memecoin Shine toggle on the desk", () => {
+    renderBoard();
+
+    expect(screen.getByTestId("shine-toggle")).toHaveAttribute("data-service", "memecoin");
   });
 });

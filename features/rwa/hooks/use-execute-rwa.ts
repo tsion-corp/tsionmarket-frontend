@@ -5,18 +5,8 @@ import { awaitReceipt, isReceiptChain, publicClientForChain } from "@/lib/trade/
 import { confirmSolanaSignature } from "@/lib/trade/solana-confirm";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
 import { useEvmSend } from "@/hooks/use-evm-send";
+import { RWA_EVM_CHAIN_ID as EVM_CHAIN_ID } from "@/features/rwa/lib/chains";
 import type { RwaAction, RwaChain, RwaStep } from "@/features/rwa/lib/api";
-
-// EVM chain ids per RWA chain. Without an explicit chainId, Privy defaults to
-// Ethereum mainnet (1), so a non-Ethereum RWA buy would be signed on the wrong
-// chain and fail with "insufficient funds for gas".
-const EVM_CHAIN_ID: Partial<Record<RwaChain, number>> = {
-  ethereum: 1,
-  base: 8453,
-  arbitrum: 42161,
-  bsc: 56,
-  polygon: 137,
-};
 
 // Executes each step of a built RWA action with the embedded wallet. Solana
 // steps go through gas sponsorship: the sponsor takes the fee-payer seat, the

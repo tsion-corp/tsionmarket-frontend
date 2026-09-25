@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import type { PredictionMarketCategory } from "@/features/prediction/categories";
 import { usePolymarketAccess } from "@/features/prediction/hooks/use-polymarket-access";
 import type { DiscoveryMarketEvent, DiscoveryMarketSort } from "@/features/prediction/markets/api";
@@ -165,6 +166,13 @@ export function DiscoveryMarketsFeed({
           label={label}
           onTopicChange={setActiveTopic}
         />
+
+        {/* Shine posts a filled ticket from this page on its own, so its
+            switch sits at the top of the page rather than in a settings
+            sheet nobody opens. */}
+        <div className="mx-auto w-full max-w-[1350px] px-4 pt-4 lg:px-6">
+          <ShineToggle service="prediction" />
+        </div>
 
         <section aria-label={`${label} markets`} className="mx-auto w-full max-w-[1350px] pb-16">
           {catalog.loading ? (

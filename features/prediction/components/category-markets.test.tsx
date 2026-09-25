@@ -5,6 +5,15 @@ import { CategoryMarketsShell } from "./politics-markets-shell";
 
 const mocks = vi.hoisted(() => ({ catalog: vi.fn() }));
 
+// The Shine switch is the account's own preference behind a React Query read
+// and a Privy session. What matters here is that this page carries one, and
+// for which service, so it stands in as a marker naming the service it decides.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle">{service}</div>
+  ),
+}));
+
 vi.mock("../markets/hooks/use-discovery-markets", () => ({
   useDiscoveryEvents: mocks.catalog,
 }));

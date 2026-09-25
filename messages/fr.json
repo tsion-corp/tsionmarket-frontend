@@ -3793,5 +3793,64 @@
     "expired": "L'échange a expiré avant d'être envoyé. Réessayez.",
     "cancelled": "Cet échange a été annulé.",
     "unknown": "L'échange n'a pas pu aboutir. Réessayez."
+  },
+  "shine": {
+    "name": "Shine",
+    "toggleLabel": "Shine : publier automatiquement sur la Place du Marché ce que je fais ici",
+    "on": "Activé",
+    "off": "Désactivé",
+    "checking": "Vérification…",
+    "signedOut": "Connectez-vous pour modifier ce réglage.",
+    "blurb": "Quand Shine est activé, chaque action que vous faites ici est publiée toute seule sur la Place du Marché. Les publications n’indiquent jamais vos montants ni vos soldes.",
+    "keepsPosts": "Désactiver Shine arrête les nouvelles publications. Ce qui est déjà publié reste sur la Place.",
+    "saveFailed": "Impossible d’enregistrer. Vérifiez votre connexion et réessayez.",
+    "readFailed": "Impossible de charger votre réglage Shine.",
+    "retry": "Réessayer",
+    "post": {
+      "memecoin": {
+        "buy": "J’ai foncé sur {symbol}.",
+        "buyAt": "J’ai foncé sur {symbol} à {price}.",
+        "sell": "J’ai soldé {symbol}.",
+        "sellAt": "J’ai soldé {symbol} à {price}."
+      },
+      "spot": {
+        "buy": "J’ai acheté {symbol} sur Spot.",
+        "buyAt": "J’ai acheté {symbol} à {price} sur Spot.",
+        "sell": "J’ai vendu {symbol} sur Spot.",
+        "sellAt": "J’ai vendu {symbol} à {price} sur Spot."
+      },
+      "rwa": {
+        "buy": "J’ai acheté l’actif du monde réel {symbol}.",
+        "buyAt": "J’ai acheté l’actif du monde réel {symbol} à {price}.",
+        "sell": "J’ai vendu l’actif du monde réel {symbol}.",
+        "sellAt": "J’ai vendu l’actif du monde réel {symbol} à {price}."
+      },
+      "prediction": {
+        "took": "J’ai pris « {outcome} » sur « {market} ».",
+        "tookAt": "J’ai pris « {outcome} » sur « {market} » à {price} la part."
+      },
+      "perps": {
+        "side": {
+          "long": "long",
+          "short": "short"
+        },
+        "open": "J’ai ouvert un {side} sur {symbol}.",
+        "openAt": "J’ai ouvert un {side} sur {symbol} à {price}.",
+        "openLeveraged": "J’ai ouvert un {side} {leverage} sur {symbol}.",
+        "openLeveragedAt": "J’ai ouvert un {side} {leverage} sur {symbol} à {price}.",
+        "close": "J’ai fermé mon {side} sur {symbol}.",
+        "closeAt": "J’ai fermé mon {side} sur {symbol} à {price}."
+      },
+      "arcade": {
+        "won": "J’ai gagné à {game} dans l’Arkade.",
+        "drawn": "J’ai fait match nul à {game} dans l’Arkade."
+      },
+      "sports": {
+        "placed": "J’ai misé sur {selection} dans {event}.",
+        "placedAtOdds": "J’ai misé sur {selection} dans {event} à la cote de {odds}.",
+        "won": "Mon pari sur {selection} est passé. {event}."
+      },
+      "return": "{pnl}."
+    }
   }
 }

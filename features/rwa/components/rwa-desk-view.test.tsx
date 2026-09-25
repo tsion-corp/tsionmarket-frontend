@@ -16,6 +16,15 @@ vi.mock("@/hooks/use-fitted-row-count", () => ({
   useFittedRowCount: () => ({ ref: () => {}, rows: fittedRows }),
 }));
 
+// The Shine switch is the account's own preference behind a React Query read
+// and a Privy session. What matters here is that this page carries one, and
+// for which service, so it stands in as a marker naming the service it decides.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle">{service}</div>
+  ),
+}));
+
 const registry = {
   assets: [] as RwaAssetView[],
   loading: false,
@@ -149,6 +158,13 @@ describe("RwaDeskView layout", () => {
     expect(deskGrid()).toHaveClass("items-stretch");
     const panel = screen.getByRole("grid").parentElement?.parentElement;
     expect(panel).toHaveClass("self-stretch");
+  });
+});
+
+describe("RwaDeskView Shine", () => {
+  it("carries the real-asset Shine switch above the desk", () => {
+    renderDesk();
+    expect(screen.getByTestId("shine-toggle")).toHaveTextContent("rwa");
   });
 });
 

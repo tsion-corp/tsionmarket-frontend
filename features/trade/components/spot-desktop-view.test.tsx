@@ -2,6 +2,16 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
+// The Shine toggle reads the account's preference through React Query. These
+// tests are about this surface's layout, not about that read, so the control
+// is stubbed and only its placement and its service are checked here. Its own
+// behaviour is covered in components/shine/shine-toggle.test.tsx.
+vi.mock("@/components/shine/shine-toggle", () => ({
+  ShineToggle: ({ service }: { service: string }) => (
+    <div data-testid="shine-toggle" data-service={service} />
+  ),
+}));
+
 import { SpotDesktopView } from "@/features/trade/components/spot-desktop-view";
 import { SPOT_ASSET_PAGE_SIZE } from "@/features/trade/components/spot-asset-table";
 import type { SpotMarket } from "@/lib/spot-markets";
@@ -199,5 +209,16 @@ describe("SpotDesktopView loading skeleton", () => {
 
     const status = screen.getByRole("status");
     expect(status.querySelectorAll("[data-skeleton-row]")).toHaveLength(13);
+  });
+});
+
+// Shine is on by default and posts a filled buy publicly with no per-post
+// confirmation, so the desk someone trades from is where the control has to
+// be.
+describe("SpotDesktopView Shine", () => {
+  it("carries the spot Shine toggle on the desk", () => {
+    renderDesk();
+
+    expect(screen.getByTestId("shine-toggle")).toHaveAttribute("data-service", "spot");
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyCpmm,
   classifyPolymarket,
+  isRateLimited,
   type CpmmInput,
 } from "@/features/prediction/lib/migration-adapter";
 import type { LegacyRedeemable } from "@/features/prediction/lib/legacy-claim";
@@ -48,6 +49,24 @@ function input(overrides: Partial<CpmmInput>): CpmmInput {
     ...overrides,
   };
 }
+
+describe("isRateLimited", () => {
+  it("recognises the relayer's own wording, and a 429", () => {
+    expect(
+      isRateLimited(
+        new Error("Request to https://relayer-v2.polymarket.com/submit was rate limited")
+      )
+    ).toBe(true);
+    expect(isRateLimited({ status: 429 })).toBe(true);
+    expect(isRateLimited(new Error("Rate-limit exceeded"))).toBe(true);
+  });
+
+  it("is not any other failure", () => {
+    expect(isRateLimited(new Error("execution reverted"))).toBe(false);
+    expect(isRateLimited(null)).toBe(false);
+    expect(isRateLimited("rate limited")).toBe(false);
+  });
+});
 
 describe("classifyCpmm", () => {
   it("claims credited payouts without asking", () => {

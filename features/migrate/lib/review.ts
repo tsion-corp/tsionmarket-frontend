@@ -69,13 +69,25 @@ export function blockingHoldings(
 // positions, prediction shares — is the long tail, moved later from the
 // always-open door in the account menu. A revertible memecoin must never hold
 // the app shut.
+//
+// Polymarket is long tail even though its balance is USDC: it moves through
+// a third-party relayer that throttles, and a "Prediction balance" that could
+// not be moved because that relayer said "slow down" held the whole upgrade
+// and tripped the "this keeps failing" exit. The account menu's door tries it
+// again later; the gate does not wait on it.
 const CORE_STABLES = new Set(["USDC", "USDT"]);
 export function isCoreAsset(holding: LegacyHolding): boolean {
+  if (holding.venue === "polymarket") return false;
   return (
     holding.kind === "native" ||
     holding.venue === "kash" ||
     CORE_STABLES.has(holding.symbol.toUpperCase())
   );
+}
+
+/** A failure that is the venue asking us to slow down: it waits, it is not a fault. */
+export function isThrottled(outcome: SettleOutcome | undefined): boolean {
+  return outcome !== undefined && !outcome.ok && outcome.throttled === true;
 }
 
 // A holding is worth showing when it has a balance. What is worth MOVING was

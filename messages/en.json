@@ -3793,5 +3793,64 @@
     "expired": "The trade expired before it was sent. Try again.",
     "cancelled": "This trade was cancelled.",
     "unknown": "The trade couldn't be completed. Try again."
+  },
+  "shine": {
+    "name": "Shine",
+    "toggleLabel": "Shine: post what I do here to Market Square automatically",
+    "on": "On",
+    "off": "Off",
+    "checking": "Checking…",
+    "signedOut": "Sign in to change this.",
+    "blurb": "When Shine is on, each thing you do here is posted to Market Square by itself. Posts never include your amounts or balances.",
+    "keepsPosts": "Turning Shine off stops new posts. Anything already posted stays in the Square.",
+    "saveFailed": "Couldn’t save that. Check your connection and try again.",
+    "readFailed": "Couldn’t load your Shine setting.",
+    "retry": "Try again",
+    "post": {
+      "memecoin": {
+        "buy": "Aped into {symbol}.",
+        "buyAt": "Aped into {symbol} at {price}.",
+        "sell": "Closed out {symbol}.",
+        "sellAt": "Closed out {symbol} at {price}."
+      },
+      "spot": {
+        "buy": "Bought {symbol} on spot.",
+        "buyAt": "Bought {symbol} at {price} on spot.",
+        "sell": "Sold {symbol} on spot.",
+        "sellAt": "Sold {symbol} at {price} on spot."
+      },
+      "rwa": {
+        "buy": "Bought the real-world asset {symbol}.",
+        "buyAt": "Bought the real-world asset {symbol} at {price}.",
+        "sell": "Sold the real-world asset {symbol}.",
+        "sellAt": "Sold the real-world asset {symbol} at {price}."
+      },
+      "prediction": {
+        "took": "Took \"{outcome}\" on \"{market}\".",
+        "tookAt": "Took \"{outcome}\" on \"{market}\" at {price} a share."
+      },
+      "perps": {
+        "side": {
+          "long": "long",
+          "short": "short"
+        },
+        "open": "Opened a {side} on {symbol}.",
+        "openAt": "Opened a {side} on {symbol} at {price}.",
+        "openLeveraged": "Opened a {leverage} {side} on {symbol}.",
+        "openLeveragedAt": "Opened a {leverage} {side} on {symbol} at {price}.",
+        "close": "Closed my {side} on {symbol}.",
+        "closeAt": "Closed my {side} on {symbol} at {price}."
+      },
+      "arcade": {
+        "won": "Won at {game} in the arcade.",
+        "drawn": "Drew at {game} in the arcade."
+      },
+      "sports": {
+        "placed": "Backed {selection} in {event}.",
+        "placedAtOdds": "Backed {selection} in {event} at odds of {odds}.",
+        "won": "My ticket on {selection} landed. {event}."
+      },
+      "return": "{pnl}."
+    }
   }
 }

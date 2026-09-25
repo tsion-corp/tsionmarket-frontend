@@ -26,6 +26,7 @@ import { toast } from "@/lib/toast";
 import { tradeShareRef } from "@/lib/trade-share";
 import { useMoney } from "@/components/ui/currency-select";
 import { ShareToSquare } from "@/components/share/share-to-square";
+import { reportShine } from "@/lib/shine";
 import { track } from "@/lib/analytics/mixpanel";
 import { TRADE_FAILURE, failureReasonForStage, reasonFor } from "@/lib/analytics/failure-reason";
 import { tradeAmounts, USDC_DECIMALS, type TradeAmounts } from "@/lib/analytics/trade-amounts";
@@ -214,16 +215,60 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
 
   // Once the order settles, refresh holdings so the new asset appears, and thank
   // the user once.
-  const settledRef = useRef(false);
+  //
+  // The order this mount has already settled, not a bare "has settled": the
+  // effect fires from a cached terminal status row rather than from an event,
+  // and a boolean says nothing about WHICH order it was. It is still only a
+  // ref — a remount starts with a clean one and re-reads the same terminal
+  // row — and the Shine dedup store is what stops that becoming a second
+  // public post.
+  const settledRef = useRef<string | null>(null);
+  // Identifies the order this settlement belongs to. A swap-market buy has no
+  // Dextopus request, so its own swap id stands in.
+  const settlementKey = isSwapMarket ? memeTrade.swapId : requestId;
   // Id of the processing toast opened on confirm, resolved when the order settles.
   const toastRef = useRef<string | number | undefined>(undefined);
   // What the order in flight spends, fixed when it is placed: the field may
   // hold a different amount by the time it settles.
   const spentRef = useRef<TradeAmounts | null>(null);
   useEffect(() => {
-    if (!showTracking || settledRef.current) return;
+    if (!showTracking || (settlementKey !== null && settledRef.current === settlementKey)) return;
     if (stage === "settled") {
-      settledRef.current = true;
+      settledRef.current = settlementKey;
+      // A swap-market buy is reported to Shine by the engine itself, from the
+      // one place it reaches CONFIRMED (see useMemeTrade), where the quote's
+      // symbol and price are in hand. Only the Dextopus path is reported
+      // here, and only once there is a request id to key the dedup store on.
+      //
+      // WHY THIS CANNOT SERVE A BACKLOG, AND WHAT WOULD BREAK THAT
+      //
+      // useDepositStatus stops polling on a terminal stage but keeps the row
+      // CACHED, so reading one is not the same as watching one land. The only
+      // reason a week-old buy cannot be republished here is that `requestId`
+      // is component state: a sheet opened fresh starts it null, showTracking
+      // is false, and the cached row is never looked at. Every settlement
+      // reported here was placed by THIS mount of the sheet.
+      //
+      // Shine's dedup store stops the second post of something and does
+      // nothing about the first, and on the day Shine ships every store is
+      // empty while the app is full of settled orders. Lifting `requestId`
+      // into a store or a URL param would quietly turn this into a backlog
+      // publisher with no test failing, and would have to bring a freshness
+      // bound with it (SHINE_MAX_SETTLEMENT_AGE_MS, features/trade/lib/
+      // shine-trade.ts).
+      if (!isSwapMarket && requestId !== null) {
+        reportShine({
+          service: "spot",
+          id: requestId,
+          kind: "buy",
+          symbol: payload.symbol,
+          // DepositStatusResult carries a status, an execution status and the
+          // transaction hashes — no execution price. `bought` above is a
+          // quantity and the dollars entered are an amount; neither is a
+          // price, and neither may reach a post.
+          price: null,
+        });
+      }
       // Reported on settlement rather than on confirm, so the number counts
       // filled orders and not attempts. A swap-market buy is reported from its
       // own result in confirm() instead, where the amounts and the reference
@@ -248,7 +293,7 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
         )
       );
     } else if (stage === "failed" || stage === "refunded") {
-      settledRef.current = true;
+      settledRef.current = settlementKey;
       // A swap-market failure carries the error it failed with; a Dextopus
       // order only says which stage it ended in.
       track("trade_failed", {
@@ -277,6 +322,7 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
     stage,
     isSwapMarket,
     memeTrade.error,
+    settlementKey,
     payload.name,
     payload.symbol,
     route?.chainName,
@@ -341,6 +387,11 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
               amount_usd: spent.amount_usd,
               order_id: swapId,
             }),
+          // A spot buy that settles through the swap engine: spot's Shine
+          // decides it and spot's voice writes it. The engine posts it from
+          // its own CONFIRMED branch, so the settle effect above leaves the
+          // swap path alone and one buy makes one post.
+          shineService: "spot",
         });
         const facts = swapTradeFacts(result, spent);
         if (facts) {

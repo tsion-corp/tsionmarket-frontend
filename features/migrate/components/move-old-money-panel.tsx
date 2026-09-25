@@ -25,6 +25,7 @@ import {
   byVenue,
   defaultOptIn,
   isCoreAsset,
+  isThrottled,
   reasonKey,
   reviewGroups,
   VENUE_ORDER,
@@ -467,8 +468,13 @@ export function MoveOldMoneyPanel({
     const attempted = new Map(
       runs.flatMap((r) => r.plan.phases.flatMap((ph) => ph.holdings)).map((h) => [h.id, h])
     );
+    // A venue that asked us to slow down has not failed the item; it waits
+    // for the next door rather than sending the card round again now.
     return [...attempted.values()].filter(
-      (h) => isCoreAsset(h) && !runs.some((r) => r.results.get(h.id)?.ok)
+      (h) =>
+        isCoreAsset(h) &&
+        !runs.some((r) => r.results.get(h.id)?.ok) &&
+        !runs.some((r) => isThrottled(r.results.get(h.id)))
     ).length;
   }, [finishedNow, autoResult]);
   // Nothing left to run: finished, or discovered with nothing to do.
@@ -571,7 +577,10 @@ export function MoveOldMoneyPanel({
       const coreFailed = plan.phases
         .flatMap((ph) => ph.holdings)
         .filter(isCoreAsset)
-        .some((h) => outcome.results.get(h.id)?.ok === false);
+        .some((h) => {
+          const result = outcome.results.get(h.id);
+          return result?.ok === false && !isThrottled(result);
+        });
       setSweepFailures((n) => (coreFailed ? n + 1 : 0));
       if (outcome.outcome === "complete" && (linkLanded.current || serverLinked)) {
         markMigrationComplete(session.evmAddress);
@@ -843,13 +852,18 @@ export function MoveOldMoneyPanel({
         runs.flatMap((r) => r.plan.phases.flatMap((p) => p.holdings)).map((h) => [h.id, h])
       ).values(),
     ];
-    const failed = attempted.filter((h) => !runs.some((r) => r.results.get(h.id)?.ok));
+    // Throttled by the venue is "waiting", not "failed": it is counted with
+    // what settles later, and its line below says the venue is busy.
+    const throttled = attempted.filter((h) => runs.some((r) => isThrottled(r.results.get(h.id))));
+    const failed = attempted.filter(
+      (h) => !runs.some((r) => r.results.get(h.id)?.ok) && !throttled.includes(h)
+    );
     // Counted, not totalled: the upgrade is about the account carrying over,
     // and a figure here would frame it as a transfer instead.
     const movedCount = runs.reduce((sum, r) => sum + r.movedCount, 0);
     // Counted the way the review lists them, so "1 left" never sends the user
     // looking for a row worth nothing.
-    const left = finished.plan.settleLater.filter(worthShowing).length;
+    const left = finished.plan.settleLater.filter(worthShowing).length + throttled.length;
     return (
       <Step
         compact={compact}

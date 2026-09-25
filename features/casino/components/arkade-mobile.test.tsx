@@ -12,6 +12,25 @@ vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({ tokens: [], loading: false, totalUsd: 0 }),
 }));
 
+// The hub now carries the arcade's Shine switch. Its own behaviour is covered
+// by components/shine/shine-toggle.test.tsx; here the account read is stubbed
+// so the hub can be rendered without a query client, and the switch is on the
+// page as a real control rather than a placeholder.
+vi.mock("@/hooks/use-shine", () => ({
+  useShine: () => ({
+    preferences: { arcade: true },
+    isResolved: true,
+    isLoading: false,
+    isSignedIn: true,
+    isSaving: false,
+    error: null,
+    isOn: () => true,
+    mayPost: () => true,
+    setShine: async () => {},
+    refetch: () => {},
+  }),
+}));
+
 import { track } from "@/lib/analytics/mixpanel";
 import { ArkadeMobile } from "@/features/casino/components/arkade-mobile";
 
@@ -225,5 +244,17 @@ describe("ArkadeMobile", () => {
     // Every playable game becomes an anchor; coming-soon entries stay content.
     const playable = CASINO_GAMES.filter((game) => game.href && !game.comingSoon).length;
     expect(screen.getAllByRole("link")).toHaveLength(playable);
+  });
+
+  it("carries the arcade's Shine switch where it cannot be missed", () => {
+    // One switch governs every game in the arcade, and it is on by default.
+    // Putting it on the hub means the first place a person meets Shine is the
+    // page they play from, rather than a post that already exists.
+    renderMobile(<ArkadeMobile />);
+    const shine = screen.getByRole("switch", {
+      name: enMessages.shine.toggleLabel,
+    });
+    expect(shine).toBeTruthy();
+    expect(shine.closest("section")?.textContent).toContain(enMessages.shine.keepsPosts);
   });
 });

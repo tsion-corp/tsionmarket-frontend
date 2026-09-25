@@ -36,6 +36,8 @@ import {
 import { track } from "@/lib/analytics/mixpanel";
 import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { arkjetPlacedProps, arkjetSettledEvent } from "@/features/casino/lib/arkjet-analytics";
+import { arkjetShineEvent } from "@/features/casino/lib/shine/arcade";
+import { reportShine } from "@/lib/shine";
 
 export const ARKJET_KEYS = {
   current: ["casino", "arkjet", "round", "current"] as const,
@@ -351,7 +353,15 @@ export function useArkjet() {
           }),
         () => cashoutArkjetBet(betId)
       ),
-    onSuccess: applyBet,
+    onSuccess: (bet) => {
+      // Shine reads the RESOLVED cash-out, not the bets row flipping to
+      // CASHED_OUT: that row is re-served every two seconds while a round is
+      // live, and on every refocus and remount after it. This is once per
+      // press, and reportShine's store answers for the rest.
+      const event = arkjetShineEvent(bet);
+      if (event) reportShine(event);
+      return applyBet(bet);
+    },
   });
 
   return {

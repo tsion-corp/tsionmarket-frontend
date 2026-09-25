@@ -332,6 +332,10 @@ export function SpotPanel({
           tokenAddress: swapRoute.tokenAddress,
           amount,
           slippageBps: SLIPPAGE_BPS,
+          // A spot order that settles through the swap engine: spot's Shine
+          // decides it and spot's voice writes it. The engine reports it
+          // itself, from the one place it reaches CONFIRMED.
+          shineService: "spot",
         });
         if (buying) return; // buy stays in the sheet, matching the Dextopus path
         setConfirmOpen(false);

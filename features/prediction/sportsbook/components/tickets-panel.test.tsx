@@ -28,6 +28,12 @@ vi.mock("@/hooks/use-prices", () => ({
   usePrices: () => ({ ETH: 3_000 }),
 }));
 
+// The ticket list reports settled wins to Shine. Shine's own module reaches
+// the square's write path and the Privy session behind it, neither of which
+// this suite has; what it does with a ticket is pinned in shine.test.ts and in
+// use-sportsbook-shine.test.tsx.
+vi.mock("@/lib/shine", () => ({ reportShine: vi.fn() }));
+
 vi.mock("../api", () => ({
   getOrderByBookingCode: mocks.getOrderByBookingCode,
   sportsbookKeys: { order: (id: string) => ["sportsbook", "order", id] },

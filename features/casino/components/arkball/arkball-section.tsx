@@ -8,12 +8,18 @@ import { TicketBuilder } from "@/features/casino/components/arkball/ticket-build
 import { TicketHistory } from "@/features/casino/components/arkball/ticket-history";
 import { useLottery } from "@/features/casino/hooks/use-lottery";
 import { useArkballReport } from "@/features/casino/hooks/use-arkball-report";
+import { useArkballShine } from "@/features/casino/hooks/use-arcade-shine";
+import { ShineToggle } from "@/components/shine/shine-toggle";
 import { formatLotteryUsdc } from "@/features/casino/lib/lottery";
 import { friendlyError } from "@/lib/errors";
 
 export function ArkBallSection() {
   const t = useTranslations("casino.arkball");
   const lottery = useLottery();
+  // Shine: an ArkBall win is a field on a polled row rather than a moment, so
+  // this is the one arcade game whose post happens with nothing on screen to
+  // explain it. The toggle below is on this page for the same reason.
+  useArkballShine(lottery.tickets);
   const current = lottery.currentDraw;
   const rule = lottery.config?.rule;
   // Above the early returns below: a hook cannot be called behind a branch.
@@ -87,6 +93,8 @@ export function ArkBallSection() {
             </div>
           </div>
         </section>
+
+        <ShineToggle service="arcade" />
 
         <DrawOverview current={current} latest={lottery.results[0] ?? null} />
 

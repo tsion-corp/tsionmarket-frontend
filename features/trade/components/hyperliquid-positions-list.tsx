@@ -10,12 +10,15 @@ import {
   type TriggerModalTarget,
 } from "@/features/trade/components/hyperliquid-trigger-modal";
 import { listClosedPositions } from "@/features/trade/lib/hyperliquid-api";
-import type {
-  HlClosedPositionView,
-  HlOrderRow,
-  HlPositionView,
-  HlTriggerKind,
+import { closedPositionRoi, settledRecently } from "@/features/trade/lib/shine-trade";
+import {
+  hlPairLabel,
+  type HlClosedPositionView,
+  type HlOrderRow,
+  type HlPositionView,
+  type HlTriggerKind,
 } from "@/features/trade/lib/hyperliquid-types";
+import { entryPriceFromUsdString, reportShine } from "@/lib/shine";
 
 interface HyperliquidPositionsListProps {
   positions: HlPositionView[];
@@ -46,6 +49,42 @@ const SHARE_CARD_POLL_TIMEOUT_MS = 90_000;
 const SHARE_CARD_POLL_INTERVAL_MS = 1_000;
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Tell Shine a position closed, off the venue's own closed-position record.
+ *
+ * Two guards, and both are about the FIRST post rather than the second. The
+ * dedup store keyed on the position id stops a repeat; it does nothing about
+ * a backlog, and on the day Shine ships every store is empty.
+ *
+ *   * This runs only from confirmClose, so the close being reported is one
+ *     this client asked for in this session. Nothing here walks the closed
+ *     list looking for work — it is waiting for one id it already knows.
+ *   * The record's own closedAt is bounded anyway, because the poll runs for
+ *     ninety seconds and the list it reads is the whole history: a row that
+ *     settled last month can only match if the id matched, and if it somehow
+ *     did, it is still not news.
+ *
+ * A market with no usable name, or figures that cannot be read exactly, drops
+ * the post or the figure rather than substituting anything.
+ */
+function reportClose(position: HlClosedPositionView): void {
+  if (!settledRecently(position.closedAt)) return;
+  reportShine({
+    service: "perps",
+    // The position id, which is what the close acted on and what the dedup
+    // store keys on.
+    id: position.id,
+    kind: "close",
+    symbol: hlPairLabel(position.symbol),
+    side: position.side,
+    // The venue's own fill price for the close, not a mark or a valuation.
+    price: entryPriceFromUsdString(position.closePrice),
+    // The realised return, against the margin committed — the same figure,
+    // from the same record, as the share card this popup is about to draw.
+    pnl: closedPositionRoi(position),
+  });
+}
 
 function findTrigger(
   orders: HlOrderRow[],
@@ -89,6 +128,12 @@ export function HyperliquidPositionsList({
   // and pop the share card the instant it exists. Fire-and-forget: the close
   // modal must not wait on this, and a timeout just means no popup (the card
   // stays available from Trading history).
+  //
+  // It is also where Shine hears about a close, for the same reason the card
+  // is drawn here: this row is the only place the venue states what the
+  // position closed at and what it returned. Reporting off the open position
+  // as it vanished would have meant a post with no price and no return, and a
+  // return derived from anything else would disagree with the card above it.
   const offerShareCard = async (positionId: string) => {
     if (!walletId) return;
     const deadline = Date.now() + SHARE_CARD_POLL_TIMEOUT_MS;
@@ -97,6 +142,7 @@ export function HyperliquidPositionsList({
       const match = closed.find((p) => p.id === positionId);
       if (match) {
         setShareCard(match);
+        reportClose(match);
         return;
       }
       await delay(SHARE_CARD_POLL_INTERVAL_MS);

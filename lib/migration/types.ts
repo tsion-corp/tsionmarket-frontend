@@ -109,7 +109,19 @@ export interface SettleContext extends DiscoverContext {
 }
 
 export type SettleOutcome =
-  { ok: true; txHashes: string[] } | { ok: false; error: string; retryable: boolean };
+  | { ok: true; txHashes: string[] }
+  | {
+      ok: false;
+      error: string;
+      retryable: boolean;
+      /**
+       * The venue asked us to slow down (a relayer answering 429, say). Not a
+       * fault of the account or the money: the item simply waits for a later
+       * attempt, and nothing reads it as a failure that could hold the
+       * upgrade or trip the "this keeps failing" exit.
+       */
+      throttled?: boolean;
+    };
 
 export interface VenueAdapter<TRef = unknown> {
   venue: Venue;

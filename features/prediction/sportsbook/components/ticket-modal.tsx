@@ -3,6 +3,7 @@
 import { usePrices } from "@/hooks/use-prices";
 import type { SportsbookOrder } from "../api";
 import { useRedeemSportsbookOrder } from "../hooks/use-place-order";
+import { useSportsbookShine } from "../hooks/use-sportsbook-shine";
 import { useSportsbookOrder } from "../hooks/use-sportsbook";
 import {
   atomicToDecimal,
@@ -36,6 +37,10 @@ export function TicketModal({
   const query = useSportsbookOrder(ticketId);
   const redemption = useRedeemSportsbookOrder();
   const ethPriceUsd = usePrices(["ETH"]).ETH ?? 0;
+  // The poll behind this modal is where an acceptance and a settlement are
+  // first seen. Shine is told from an effect keyed to the ticket's status, not
+  // from the render below, which runs again on every poll tick.
+  useSportsbookShine(query.data);
   if (!ticketId) return null;
   const order = query.data;
   const lostLegCount = order?.legs.filter((leg) => isLostSelectionResult(leg.result)).length ?? 0;

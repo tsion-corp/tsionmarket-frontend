@@ -3,6 +3,8 @@ import {
   blockingHoldings,
   byVenue,
   defaultOptIn,
+  isCoreAsset,
+  isThrottled,
   reasonKey,
   reviewGroups,
   worthShowing,
@@ -91,6 +93,45 @@ describe("byVenue", () => {
       ["kash", 2],
       ["earn", 1],
     ]);
+  });
+});
+
+describe("isCoreAsset", () => {
+  const base: LegacyHolding = {
+    id: "x",
+    venue: "wallet",
+    kind: "token",
+    label: "x",
+    amount: 1n,
+    decimals: 6,
+    symbol: "USDC",
+    valueUsd: 1,
+    deterministic: true,
+    irreversible: false,
+    settleability: { state: "now" },
+    ref: null,
+  };
+
+  it("holds the gate on native, the stablecoins and Kash", () => {
+    expect(isCoreAsset({ ...base, kind: "native", symbol: "ETH" })).toBe(true);
+    expect(isCoreAsset({ ...base, symbol: "USDC" })).toBe(true);
+    expect(isCoreAsset({ ...base, venue: "kash", symbol: "KSH" })).toBe(true);
+    expect(isCoreAsset({ ...base, symbol: "PEPE" })).toBe(false);
+  });
+
+  // The prediction balance is USDC, but it moves through a relayer that
+  // throttles, and a "slow down" from it used to hold the whole upgrade.
+  it("never holds the gate on Polymarket, whatever the symbol", () => {
+    expect(isCoreAsset({ ...base, venue: "polymarket", kind: "collateral" })).toBe(false);
+  });
+});
+
+describe("isThrottled", () => {
+  it("is only a failure the venue asked to wait on", () => {
+    expect(isThrottled({ ok: false, error: "busy", retryable: true, throttled: true })).toBe(true);
+    expect(isThrottled({ ok: false, error: "reverted", retryable: true })).toBe(false);
+    expect(isThrottled({ ok: true, txHashes: [] })).toBe(false);
+    expect(isThrottled(undefined)).toBe(false);
   });
 });
 

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQuery } from "@tanstack/react-query";
 import { useChessMatch } from "@/features/casino/hooks/use-casino-chess";
+import { useChessShine } from "@/features/casino/hooks/use-arcade-shine";
 import { CasinoError, CasinoLoading } from "@/features/casino/components/casino-state";
 import { fetchChessPlayerRatings } from "@/features/casino/lib/api/chess-ratings";
 import type {
@@ -903,6 +904,11 @@ export function LichessRound({
   const loadedRound = useChessMatch(matchId, seatName);
   const isSpectator = forceSpectator || (!!loadedRound.match && loadedRound.you === null);
   const round = isSpectator ? { ...loadedRound, you: null } : loadedRound;
+  // Shine: a win or a draw on this board goes to Market Square by itself.
+  // `round.you` is already null for a spectator, and the hook keys on
+  // match.id, so the native play screen resolving the same match posts
+  // nothing a second time.
+  useChessShine(round.match, round.you);
   const whitePlayer =
     round.match?.computer?.side === "white" ? null : (round.match?.white?.id ?? null);
   const blackPlayer =
