@@ -9,7 +9,7 @@ import {
   noteSettlement,
   settlementFromFrame,
 } from "@/features/casino/lib/last-standing/settlements";
-import { sortGameRows } from "@/features/casino/lib/vault-game";
+import { keepKnownMetadata, sortGameRows } from "@/features/casino/lib/vault-game";
 import type { ChainGame } from "@/features/casino/lib/vault-game";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
 
@@ -238,7 +238,13 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
         if (dropped > 0) {
           console.warn(`[vault] dropped ${dropped} activeGames row(s) in no known shape`);
         }
-        client.setQueryData<VaultGame[]>(VAULT_KEYS.games, api);
+        // The snapshot carries no metadata (the keeper builds it with
+        // toGameDto(game, usd), where the third argument is the name), so a
+        // name the client already has is carried across rather than replaced
+        // with nothing. Everything else in the row is still the snapshot's.
+        client.setQueryData<VaultGame[]>(VAULT_KEYS.games, (previous) =>
+          keepKnownMetadata(previous ?? [], api)
+        );
         client.setQueryData<ChainGame[]>(VAULT_KEYS.chainGames, chain);
       } else if (games !== undefined) {
         console.warn("[vault] ignored an activeGames frame whose games is not an array");

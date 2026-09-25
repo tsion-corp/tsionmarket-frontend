@@ -2126,6 +2126,7 @@
       "startConfirming": "Wird auf Base bestätigt…",
       "startCta": "Für {amount} starten",
       "toastGameStarted": "Dein Spiel läuft",
+      "toastRoundContinued": "Die Runde läuft noch.",
       "toastStartFailed": "Spiel konnte nicht gestartet werden",
       "startFloorUnavailable": "Der Spielvertrag ist nicht erreichbar, daher lässt sich der Einsatz gerade nicht beziffern.",
       "startNeedsBalance": "Du brauchst mindestens {amount} Guthaben, um ein Spiel zu starten.",

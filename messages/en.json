@@ -2126,6 +2126,7 @@
       "startConfirming": "Confirming on Base…",
       "startCta": "Start for {amount}",
       "toastGameStarted": "Your game is live",
+      "toastRoundContinued": "The round is still running.",
       "toastStartFailed": "Couldn't start the game",
       "startFloorUnavailable": "Couldn't reach the game contract, so we can't quote a stake right now.",
       "startNeedsBalance": "You need at least {amount} in your balance to start a game.",

@@ -53,7 +53,10 @@ import { usdOf } from "@/features/casino/lib/last-standing/pricing";
 import { activityAmount } from "@/features/casino/lib/last-standing/activity-payout";
 import { usePrices } from "@/hooks/use-prices";
 import { usePaged } from "@/hooks/use-paged";
-import { shouldBeginRoundEnd } from "@/features/casino/lib/last-standing/round-end";
+import {
+  resolveRoundEndConfirmation,
+  shouldBeginRoundEnd,
+} from "@/features/casino/lib/last-standing/round-end";
 import { useLeavePrompt } from "@/features/casino/hooks/use-leave-prompt";
 import { KeepWatchingDialog } from "@/features/casino/components/last-standing/keep-watching-dialog";
 import { truncateAddress } from "@/lib/format";
@@ -100,6 +103,11 @@ const CALCULATING_MS = 1_200;
 // block and still keeps the payout in the winner's hands if the keeper is
 // down. One settlement transaction per round instead of two.
 const KEEPER_GRACE_MS = 15_000;
+
+// How long the arena waits for the service to confirm a round ended before
+// trusting its own clock. The service is usually seconds behind; long enough
+// to catch a buzzer-beater wager, short enough that 00:00 is never dead air.
+const ROUND_END_CONFIRM_MS = 6_000;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
 
@@ -260,6 +268,9 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // render. `youWon` switches the reveal from a personal jackpot to a "someone
   // won" announcement; `winnerLabel` is the winner's truncated address.
   const [phase, setPhase] = useState<RoundPhase>(null);
+  // When the local clock hit zero and the arena started asking the service
+  // whether the round really ended. Null when it is not asking.
+  const [confirmingSince, setConfirmingSince] = useState<number | null>(null);
   const [roundPrizeUsd, setRoundPrizeUsd] = useState<number | null>(null);
   // The winner being revealed (full address, held only in memory). youWon and
   // the truncated label are derived from it at render, so the reveal has a
@@ -553,11 +564,15 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameActive]);
 
-  // The client's own clock reaching zero IS the round-end signal — the server
-  // confirmation (socket push or poll) can be ~10s behind, which is exactly
-  // the dead air the user sits through at 00:00. Start the suspense right at
-  // zero; if a buzzer-beater wager actually continued the round, the reveal
-  // below notices and quietly backs out.
+  // The client's own clock reaching zero is a SIGNAL, not the verdict. The
+  // arena used to open the winner suspense on it and back out later if the
+  // round turned out to be running; to a player that reads as the game
+  // glitching at the exact moment money is decided.
+  //
+  // So zero starts a confirm step instead: ask the service, keep the timer on
+  // screen, and only open the suspense once the service agrees the round has
+  // ended. If a buzzer-beater wager put time back on the clock, the timer
+  // simply carries on and no winner was ever suggested.
   useEffect(() => {
     // The conditions live in lib/last-standing/round-end, where they are
     // tested: getting this wrong shows a winner card for a running round.
@@ -565,16 +580,48 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       !shouldBeginRoundEnd({
         gameActive,
         countdown,
-        alreadyEnding: phase !== null || roundEndedRef.current,
+        alreadyEnding: confirmingSince !== null || phase !== null || roundEndedRef.current,
         degraded,
         ownWagerPending: ownWagerRef.current,
       })
     ) {
       return;
     }
-    beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+    setConfirmingSince(clockNow());
+    // Ask now rather than waiting for the next socket push or poll tick.
+    resyncGame();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [countdown, gameActive, phase, degraded]);
+  }, [countdown, gameActive, phase, degraded, confirmingSince]);
+
+  // The confirm step's verdict. Re-runs on every status change and on its own
+  // tick, so a service that answers in 200ms is not made to wait for a poll.
+  useEffect(() => {
+    if (confirmingSince === null) return;
+
+    const decide = () => {
+      const verdict = resolveRoundEndConfirmation({
+        gameActive,
+        countdown,
+        waitedMs: clockNow() - confirmingSince,
+        maxWaitMs: ROUND_END_CONFIRM_MS,
+      });
+      if (verdict === "wait") return;
+      setConfirmingSince(null);
+      if (verdict === "ended") {
+        beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+        return;
+      }
+      // The round is plainly running again. Say so, because the clock visibly
+      // hit zero and silence would read as the timer being broken.
+      roundEndedRef.current = false;
+      toast.info(t("toastRoundContinued"));
+    };
+
+    decide();
+    const id = setInterval(decide, 500);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [confirmingSince, gameActive, countdown]);
 
   // The wager landed and the round is plainly running again, so the hold has
   // done its job. Also cleared on unmount, so no timer fires into a gone

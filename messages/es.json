@@ -2126,6 +2126,7 @@
       "startConfirming": "Confirmando en Base…",
       "startCta": "Iniciar por {amount}",
       "toastGameStarted": "Tu partida está en marcha",
+      "toastRoundContinued": "La ronda sigue en marcha.",
       "toastStartFailed": "No se pudo iniciar la partida",
       "startFloorUnavailable": "No se pudo contactar el contrato, así que no podemos calcular la apuesta ahora.",
       "startNeedsBalance": "Necesitas al menos {amount} en tu saldo para empezar una partida.",

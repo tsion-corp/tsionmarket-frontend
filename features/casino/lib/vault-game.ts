@@ -223,3 +223,34 @@ export function sortGameRows(rows: unknown[]): {
   }
   return { api, chain, dropped };
 }
+
+/**
+ * Carries a name the client already knows onto rows that arrive without one.
+ *
+ * The keeper builds its lobby snapshot with `toGameDto(game, usd)` — two
+ * arguments, where the third is the metadata — so a socket frame never carries
+ * a title. The snapshot replaces the games cache wholesale, which is correct
+ * for everything it DOES carry (a game missing from it has settled or gone
+ * away) and wrong for the one thing it does not: absent here means "not sent",
+ * not "cleared", and treating the two the same wiped a game's name a second
+ * after REST had loaded it.
+ *
+ * The snapshot still decides which games exist, so nothing is resurrected: a
+ * name is only ever carried onto a row the snapshot itself listed.
+ */
+export function keepKnownMetadata<
+  T extends { gameId: number; title?: string; description?: string },
+>(previous: readonly T[], incoming: readonly T[]): T[] {
+  if (previous.length === 0) return [...incoming];
+  const known = new Map(previous.map((game) => [game.gameId, game]));
+  return incoming.map((game) => {
+    if (game.title !== undefined) return game;
+    const before = known.get(game.gameId);
+    if (before?.title === undefined) return game;
+    return {
+      ...game,
+      title: before.title,
+      ...(before.description === undefined ? {} : { description: before.description }),
+    };
+  });
+}

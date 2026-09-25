@@ -11,7 +11,7 @@ import { authUrlFor } from "@/lib/return-to";
 
 // Sign the user out after this long with no interaction, so a funded session
 // left open on an unattended device doesn't stay open.
-const IDLE_TIMEOUT_HOURS = 2;
+const IDLE_TIMEOUT_HOURS = 6;
 const IDLE_TIMEOUT_MS = IDLE_TIMEOUT_HOURS * 60 * 60 * 1000;
 
 interface AuthGuardProps {

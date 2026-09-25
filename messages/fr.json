@@ -2126,6 +2126,7 @@
       "startConfirming": "Confirmation sur Base…",
       "startCta": "Lancer pour {amount}",
       "toastGameStarted": "Votre partie est lancée",
+      "toastRoundContinued": "La manche est toujours en cours.",
       "toastStartFailed": "Impossible de lancer la partie",
       "startFloorUnavailable": "Contrat injoignable, impossible de chiffrer une mise pour l'instant.",
       "startNeedsBalance": "Il vous faut au moins {amount} sur votre solde pour lancer une partie.",
