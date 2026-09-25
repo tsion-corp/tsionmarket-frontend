@@ -3562,6 +3562,7 @@
     "skippedHeading": "Can't carry across from here",
     "irreversibleWarning": "Closes at whatever the market gives right now. This can't be undone.",
     "nothingToMove": "Nothing left to carry across.",
+    "walletlessDone": "Your old account had no wallet, so there was nothing to carry across. Everything else on it — points, profile and history — is on Market 2.0 now.",
     "gateBlockedBody": "This old account is already linked to a different Market 2.0 account, so it can't be upgraded here. Everything on it stays safe where it is. Contact support to sort out which account it belongs to.",
     "gateBlockedExit": "Continue anyway",
     "gateNoAccess": "Having trouble?",

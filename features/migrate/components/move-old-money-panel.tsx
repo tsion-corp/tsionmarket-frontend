@@ -34,6 +34,8 @@ import { markFundsMoved, markMigrationComplete } from "@/features/migrate/lib/vi
 import { useLegacySigner } from "@/features/migrate/hooks/use-legacy-signer";
 import { useWalletWindowBlocked } from "@/features/migrate/hooks/use-wallet-window-blocked";
 import { useLegacyEmailMatch } from "@/features/migrate/hooks/use-legacy-email-match";
+import { useLegacyAccount } from "@/features/migrate/hooks/use-legacy-account";
+import { isWalletlessLegacyAccount } from "@/features/migrate/lib/walletless";
 import { isWalletWindowError } from "@/features/migrate/lib/wallet-window";
 import { useFreshLegacySession } from "@/features/migrate/hooks/use-fresh-legacy-session";
 import {
@@ -215,6 +217,25 @@ export function MoveOldMoneyPanel({
 
   const status = useMigrationStatus();
   const refetchStatus = status.refetch;
+  /*
+    AN OLD ACCOUNT WITH NO WALLET IS STILL AN OLD ACCOUNT. Signed in to one,
+    there is no signer, and "no signer while signed in" read as "never on the
+    old app". But its points, profile and history are keyed on the old
+    identity, not on a wallet, and the link alone brings them across. The
+    directory (or the service, for an account already linked) says it is a
+    real old account rather than a Privy user the sign-in just created; see
+    lib/walletless. Such an account is linked, and is done when the link lands.
+  */
+  const directory = useLegacyAccount(status.data?.linked !== true);
+  const walletless = isWalletlessLegacyAccount({
+    fresh,
+    ready: privy.ready,
+    authenticated: privy.authenticated,
+    hasUser: privy.user !== null,
+    embeddedWallets: getEmbeddedWallets(privy.user).length,
+    mismatch: emailMatch.mismatch,
+    legacyAccountKnown: directory.has || status.data?.linked === true,
+  });
   // The feed holds the old wallet's snapshot for the session; a fresh one
   // has to be re-read.
   const invalidateLegacyActivity = useCallback(
@@ -359,10 +380,10 @@ export function MoveOldMoneyPanel({
     attemptLink(1);
   }, [refetchStatus, invalidateLegacyActivity]);
   useEffect(() => {
-    if (!signer || linked.current) return;
+    if ((!signer && !walletless) || linked.current) return;
     linked.current = true;
     link();
-  }, [signer, link]);
+  }, [signer, walletless, link]);
   useEffect(
     () => () => {
       if (linkTimer.current) clearTimeout(linkTimer.current);
@@ -405,7 +426,9 @@ export function MoveOldMoneyPanel({
   // finds "nothing core left" is not proof the account is clear. Gating on the
   // signer stops the gate from offering "Continue to Market 2.0" on the sign-in
   // step for an already-linked account before it has been signed into.
-  const discovered = signer !== null && holdingsQuery.dataUpdatedAt > 0;
+  // A wallet-less old account has nothing to enumerate: the link is the
+  // whole upgrade, so it counts as discovered, and settled, on its own.
+  const discovered = (signer !== null && holdingsQuery.dataUpdatedAt > 0) || walletless;
   const blocking = useMemo(
     () =>
       blockingHoldings(
@@ -443,6 +466,7 @@ export function MoveOldMoneyPanel({
   // Nothing left to run: finished, or discovered with nothing to do.
   const settled =
     finishedNow !== null ||
+    walletless ||
     (discovered &&
       !holdingsQuery.isFetching &&
       groups.automatic.length === 0 &&
@@ -454,7 +478,20 @@ export function MoveOldMoneyPanel({
     unsettled > 0 &&
     !runBlocked &&
     sweepFailures < STUCK_AFTER_FAILURES;
-  const stage: MigrationStage = !signer ? "signIn" : finishedNow ? "finish" : "move";
+  const stage: MigrationStage = walletless
+    ? linkedNow
+      ? "finish"
+      : "signIn"
+    : !signer
+      ? "signIn"
+      : finishedNow
+        ? "finish"
+        : "move";
+  // Linked with nothing to move is the whole upgrade for such an account; the
+  // one-click door closes the same way a completed sweep closes it.
+  useEffect(() => {
+    if (walletless && linkedNow) markMigrationComplete(session.evmAddress);
+  }, [walletless, linkedNow, session.evmAddress]);
   const coreRemaining = blocking.filter(isCoreAsset).length;
   // Fetch cycles that ended in error (each already includes the client's two
   // retries), counted only while discovery is currently failing: a success
@@ -621,11 +658,51 @@ export function MoveOldMoneyPanel({
   }
 
   if (!signer) {
+    // The old account exists and has no wallet: the link is the upgrade. While
+    // it is in flight the card says so; once it has landed, it is done. A link
+    // that cannot land (blocked) falls through to the screens below, where the
+    // gate offers its way out.
+    if (walletless && linkBlocked === null) {
+      if (!linkedNow) {
+        return (
+          <Step compact={compact} bare title={t("signInTitle")} body={t("updating")}>
+            <p className="flex items-center justify-center gap-2 text-[13.5px] text-white/60">
+              <Spinner />
+              {t("updating")}
+            </p>
+          </Step>
+        );
+      }
+      return (
+        <Step
+          compact={compact}
+          bare={compact}
+          title={t("summary.complete")}
+          body={t("walletlessDone")}
+        >
+          {squareRekey ? (
+            <p
+              className={`mt-3 text-[13px] leading-normal ${
+                squareRekey === "failed" ? "text-down" : "text-white/65"
+              }`}
+            >
+              {t(`square.${squareRekey}`)}
+            </p>
+          ) : null}
+          {locked || compact ? null : (
+            <button onClick={onClose} className={SECONDARY}>
+              {t("close")}
+            </button>
+          )}
+        </Step>
+      );
+    }
     const known =
       walletFunds.data?.usd ?? (status.data?.hasLegacyFunds ? status.data.legacyFundsUsd : 0);
     // There is no signer for two unrelated reasons, and showing one screen for
     // both is what made this button do nothing: signed in to an account that
-    // never had an old wallet, privy.login() returns without opening anything,
+    // never had an old wallet (and that the directory does not know — a known
+    // one is handled above), privy.login() returns without opening anything,
     // because Privy is already signed in. The way out is a different account,
     // so say so and offer that instead. privy.user settles with authenticated,
     // and this provider creates no wallets on login, so an account with none

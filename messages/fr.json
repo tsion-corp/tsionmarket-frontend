@@ -3562,6 +3562,7 @@
     "skippedHeading": "Ne peut pas suivre d'ici",
     "irreversibleWarning": "Clôturé au prix que le marché donne à cet instant. C'est irréversible.",
     "nothingToMove": "Il ne reste rien à faire venir.",
+    "walletlessDone": "Ton ancien compte n’avait pas de portefeuille, il n’y avait donc rien à transférer. Tout le reste — points, profil et historique — est maintenant sur Market 2.0.",
     "gateBlockedBody": "Cet ancien compte est déjà lié à un autre compte Market 2.0 : il ne peut pas être mis à niveau ici. Tout ce qu'il contient reste en sécurité là où il est. Contactez le support pour déterminer à quel compte il appartient.",
     "gateBlockedExit": "Continuer quand même",
     "gateNoAccess": "Un problème ?",

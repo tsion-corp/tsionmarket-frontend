@@ -3562,6 +3562,7 @@
     "skippedHeading": "Não pode vir a partir daqui",
     "irreversibleWarning": "Fecha ao que o mercado der neste momento. Não dá para desfazer.",
     "nothingToMove": "Não falta nada para trazer.",
+    "walletlessDone": "A tua conta antiga não tinha carteira, por isso não havia nada para transferir. Tudo o resto — pontos, perfil e histórico — já está no Market 2.0.",
     "gateBlockedBody": "Esta conta antiga já está ligada a outra conta Market 2.0, por isso não pode ser atualizada aqui. Tudo o que está nela continua seguro onde está. Fale com o suporte para esclarecer a que conta pertence.",
     "gateBlockedExit": "Continuar mesmo assim",
     "gateNoAccess": "Com problemas?",

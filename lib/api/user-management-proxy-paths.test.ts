@@ -80,6 +80,26 @@ describe("user management proxy allowlist", () => {
     }
   });
 
+  it("relays a Decane user id, which is a UUID rather than a did", () => {
+    const uuid = "f14caba3-5969-416f-b547-3abaa87745fe";
+    expect(userManagementProxyPath(["users", uuid, "balance"], "GET")).toEqual({
+      ok: true,
+      path: `users/${uuid}/balance`,
+    });
+    expect(userManagementProxyPath(["users", uuid.toUpperCase(), "notifications"], "GET").ok).toBe(
+      true
+    );
+    // Nearly a UUID is not one: a bare hex run, a hyphen short, or a wallet.
+    for (const bad of [
+      "f14caba35969416fb5473abaa87745fe",
+      "f14caba3-5969-416f-b547-3abaa87745f",
+      "f14caba3-5969-416f-b547-3abaa87745fe-1",
+      "0xc58b29a50ccd557d33b6149b6fb8df5079fdd828",
+    ]) {
+      expect(userManagementProxyPath(["users", bad, "balance"], "GET").ok, bad).toBe(false);
+    }
+  });
+
   it("refuses a did that could climb out of its own segment", () => {
     const bad = [
       "..",

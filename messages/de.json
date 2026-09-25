@@ -3562,6 +3562,7 @@
     "skippedHeading": "Lässt sich von hier nicht mitnehmen",
     "irreversibleWarning": "Wird zu dem geschlossen, was der Markt gerade hergibt. Das lässt sich nicht rückgängig machen.",
     "nothingToMove": "Es ist nichts mehr mitzunehmen.",
+    "walletlessDone": "Dein altes Konto hatte keine Wallet, es gab also nichts zu übertragen. Alles andere darauf – Punkte, Profil und Verlauf – ist jetzt auf Market 2.0.",
     "gateBlockedBody": "Dieses alte Konto ist bereits mit einem anderen Market-2.0-Konto verknüpft und kann hier nicht upgegradet werden. Alles darauf bleibt sicher, wo es ist. Wende dich an den Support, um zu klären, zu welchem Konto es gehört.",
     "gateBlockedExit": "Trotzdem fortfahren",
     "gateNoAccess": "Probleme?",
