@@ -9,10 +9,12 @@ import {
   normalizeBanks,
   normalizeOfframpOrder,
   normalizeOnrampOrder,
+  normalizeQuote,
   normalizeRates,
   type OfframpOrder,
   type OnrampOrder,
   type RampBank,
+  type RampQuote,
   type RampingRates,
 } from "@/lib/ramping/orders";
 import {
@@ -55,10 +57,31 @@ export function useRampingRates() {
     staleTime: 60 * 1000,
     refetchInterval: 60 * 1000,
     queryFn: async () => {
-      const res = await apiFetch("/api/ramping/rates", {}, { requireAuth: true });
+      const res = await apiFetch("/api/ramping/rates");
       return normalizeRates(await readData(res, "Could not load the rate"));
     },
     retry: 2,
+  });
+}
+
+// The rail's own conversion for one amount. The rail applies a flat fee and
+// reports the payout net of it, so this is the only figure that matches what
+// reaches the bank; anything worked out here would overstate it.
+export function useRampingQuote(side: "onramp" | "offramp", amount: string | null, enabled = true) {
+  const trimmed = (amount ?? "").trim();
+  const positive = trimmed !== "" && Number(trimmed) > 0;
+  return useQuery<RampQuote>({
+    queryKey: ["ramping-quote", side, trimmed],
+    enabled: enabled && positive,
+    staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+    queryFn: async () => {
+      const key = side === "onramp" ? "ngnAmount" : "usdcAmount";
+      const query = new URLSearchParams({ side, [key]: trimmed });
+      const res = await apiFetch(`/api/ramping/rates/quote?${query.toString()}`);
+      return normalizeQuote(await readData(res, "Could not load the quote"));
+    },
+    retry: 1,
   });
 }
 

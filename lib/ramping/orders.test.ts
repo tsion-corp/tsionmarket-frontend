@@ -4,6 +4,7 @@ import {
   isValidOnrampNgn,
   isTerminalProgress,
   ngnForUsdcExact,
+  payoutNgnAfterFee,
   normalizeBanks,
   normalizeOfframpOrder,
   normalizeOnrampOrder,
@@ -146,5 +147,33 @@ describe("idempotency keys", () => {
     expect(a).not.toBe(b);
     expect(a.length).toBeGreaterThanOrEqual(8);
     expect(a.length).toBeLessThanOrEqual(200);
+  });
+});
+
+// Fee shape verified against api.tsionark.com on 2026-09-25: 10, 50 and 500
+// USDC each returned 20 NGN, so it is flat.
+describe("offramp payout, net of the rail's fee", () => {
+  it("is the gross conversion minus the fee the quote reports", () => {
+    expect(ngnForUsdcExact("50", "1350")).toBe("67500");
+    expect(payoutNgnAfterFee("50", "1350", "20")).toBe("67480");
+  });
+
+  it("holds at every size, because the fee is flat and not a percentage", () => {
+    expect(payoutNgnAfterFee("10", "1350", "20")).toBe("13480");
+    expect(payoutNgnAfterFee("500", "1350", "20")).toBe("674980");
+  });
+
+  it("is the gross figure when there is no fee, which is the onramp case", () => {
+    expect(payoutNgnAfterFee("50", "1350", "0")).toBe("67500");
+    expect(payoutNgnAfterFee("50", "1350", null)).toBe("67500");
+  });
+
+  it("floors at zero rather than showing a negative payout", () => {
+    expect(payoutNgnAfterFee("0.01", "1350", "20")).toBe("0");
+  });
+
+  it("is null when a figure cannot be parsed, like its siblings", () => {
+    expect(payoutNgnAfterFee("abc", "1350", "20")).toBeNull();
+    expect(payoutNgnAfterFee("50", "0", "20")).toBeNull();
   });
 });

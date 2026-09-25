@@ -10,6 +10,7 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 import {
   markRampOrderPaid,
   useCreateOnrampOrder,
+  useRampingQuote,
   useRampingRates,
   useRampOrder,
 } from "@/hooks/use-ramping";
@@ -125,8 +126,13 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
   const activeOrderId = created?.id ?? reused?.orderId ?? null;
 
   const ngnAmount = Number(amountNgn);
-  const estimateUsdc = rate && amountNgn ? usdcForNgnExact(amountNgn, rate) : null;
   const validAmount = isValidOnrampNgn(ngnAmount);
+  // The rail's own conversion, so the figure on screen is the one it will use.
+  // The local one covers the moment before the quote lands.
+  const quote = useRampingQuote("onramp", validAmount ? amountNgn : null);
+  const estimateUsdc =
+    (quote.data?.side === "onramp" ? quote.data.outputAmount : null) ??
+    (rate && amountNgn ? usdcForNgnExact(amountNgn, rate) : null);
 
   const orderQuery = useRampOrder("onramp", activeOrderId, {
     enabled: Boolean(activeOrderId),

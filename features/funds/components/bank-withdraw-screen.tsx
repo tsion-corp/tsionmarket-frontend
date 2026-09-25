@@ -12,6 +12,7 @@ import { useSendToken } from "@/hooks/use-withdraw";
 import {
   useCreateOfframpOrder,
   useRampingBanks,
+  useRampingQuote,
   useRampingRates,
   useRampOrder,
   useResolveBankAccount,
@@ -24,8 +25,8 @@ import { SETTLE_CHAINS } from "@/lib/deposit";
 import {
   idempotencyKey,
   isValidOfframpAmount,
-  ngnForUsdcExact,
   OFFRAMP_MIN_USDC,
+  payoutNgnAfterFee,
   usdcForNgnExact,
   type OfframpOrder,
   type RampBank,
@@ -218,8 +219,17 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   const amountUsdcText =
     entry === "usdc" ? amountInput : isFullBalance ? exactBalance : (typedUsdcExact ?? "0");
   const validAmount = isValidOfframpAmount(amount, balance);
-  const payoutNgn =
-    rateStr && validAmount && amountUsdcText ? ngnForUsdcExact(amountUsdcText, rateStr) : null;
+  // The rail prices the withdrawal and reports the payout net of its flat fee.
+  // Its figure is what the bank receives; the local one only fills the gap
+  // while the quote is in flight, so it is marked as an estimate.
+  const quote = useRampingQuote("offramp", validAmount ? amountUsdcText : null);
+  const quotedNgn = quote.data?.side === "offramp" ? quote.data.outputAmount : null;
+  const estimatedNgn =
+    rateStr && validAmount && amountUsdcText
+      ? payoutNgnAfterFee(amountUsdcText, rateStr, quote.data?.feeAmount ?? null)
+      : null;
+  const payoutNgn = quotedNgn ?? estimatedNgn;
+  const payoutIsQuoted = quotedNgn !== null;
   const minNgn = ngnRate > 0 ? OFFRAMP_MIN_USDC * ngnRate : null;
 
   // Switching entry currency carries the typed value across at the live rate,
@@ -585,7 +595,9 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
                 : validAmount
                   ? entry === "ngn"
                     ? t("usdcEquivalent", { amount: formatAmount(amount) })
-                    : t("youReceive", { amount: `₦${formatNgn(Number(payoutNgn ?? 0))}` })
+                    : t(payoutIsQuoted ? "youReceiveExact" : "youReceive", {
+                        amount: `₦${formatNgn(Number(payoutNgn ?? 0))}`,
+                      })
                   : entry === "ngn" && minNgn != null
                     ? t("enterMinNgn", { amount: `₦${formatNgn(minNgn)}` })
                     : t("enterMin", { amount: OFFRAMP_MIN_USDC })}

@@ -37,6 +37,17 @@ export interface RampingRates {
   offrampRate: string | null;
 }
 
+export interface RampQuote {
+  side: "onramp" | "offramp";
+  rate: string | null;
+  inputAmount: string | null;
+  inputCurrency: string | null;
+  outputAmount: string | null;
+  outputCurrency: string | null;
+  feeAmount: string | null;
+  feeCurrency: string | null;
+}
+
 export interface RampBank {
   uuid: string;
   name: string;
@@ -142,6 +153,23 @@ export function normalizeRates(raw: unknown): RampingRates {
   };
 }
 
+export function normalizeQuote(raw: unknown): RampQuote {
+  const r = asRecord(raw) ?? {};
+  const input = asRecord(r.input) ?? {};
+  const output = asRecord(r.output) ?? {};
+  const fee = asRecord(r.fee) ?? {};
+  return {
+    side: asString(r.side) === "offramp" ? "offramp" : "onramp",
+    rate: stringOrNull(r.rate),
+    inputAmount: stringOrNull(input.amount),
+    inputCurrency: stringOrNull(input.currency),
+    outputAmount: stringOrNull(output.amount),
+    outputCurrency: stringOrNull(output.currency),
+    feeAmount: stringOrNull(fee.amount),
+    feeCurrency: stringOrNull(fee.currency),
+  };
+}
+
 export function normalizeBanks(raw: unknown): RampBank[] {
   if (!Array.isArray(raw)) return [];
   const out: RampBank[] = [];
@@ -216,6 +244,23 @@ export function ngnForUsdcExact(usdc: string, rate: string): string | null {
   if (usdcUnits <= 0n || rateCents <= 0n) return null;
   const ngnCents = (usdcUnits * rateCents) / 1_000_000n;
   return fromBaseUnits(ngnCents, 2);
+}
+
+// The rail charges a FLAT fee, not a percentage, so it is subtracted after
+// converting. Kept separate from ngnForUsdcExact because the gross and the
+// payout are different figures and a screen may show both.
+export function payoutNgnAfterFee(
+  usdc: string,
+  rate: string,
+  feeNgn: string | null | undefined
+): string | null {
+  const gross = ngnForUsdcExact(usdc, rate);
+  if (gross === null) return null;
+  const grossCents = toBaseUnits(gross, 2);
+  const feeCents = feeNgn == null || feeNgn === "" ? 0n : toBaseUnits(feeNgn, 2);
+  if (feeCents < 0n) return null;
+  const net = grossCents - feeCents;
+  return fromBaseUnits(net > 0n ? net : 0n, 2);
 }
 
 export function isValidOnrampNgn(amountNgn: number): boolean {
