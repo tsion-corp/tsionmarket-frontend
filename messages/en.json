@@ -3568,7 +3568,7 @@
     "gateNoAccess": "Having trouble?",
     "gateNoAccessBody": "No problem. Your old account stays exactly as it is, and you can come back to this any time from Finish upgrading my old account in your account menu. If you need help getting back in, contact support. We’ll remind you again in a week.",
     "gateNoAccessBack": "Go back",
-    "gateStuckBody": "This keeps failing, and it’s not you. Your old account stays exactly as it is. You can try again now, or carry on and we’ll bring you back to this tomorrow.",
+    "gateStuckBody": "This keeps failing, and it’s not you. Your old account stays exactly as it is. Carry on for now and we’ll bring you back to this tomorrow.",
     "gateContinueLater": "Continue for now",
     "walletBlockedTitle": "Your browser is blocking the sign-in window",
     "walletBlockedBody": "Your old account signs in through a small window from privy.io, and this browser won’t let it load — usually an ad or tracker blocker, or third-party cookies being off. Allow privy.io or pause the blocker for this site, then reload. Or use another browser. Your old account stays exactly as it is until then.",

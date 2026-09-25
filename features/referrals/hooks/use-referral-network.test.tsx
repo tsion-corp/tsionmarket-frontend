@@ -17,17 +17,18 @@ vi.mock("@/features/referrals/lib/referrals", async (importOriginal) => ({
   getMyDownline: api.downline,
 }));
 
-const privy = vi.hoisted(() => ({
-  state: { ready: true, authenticated: true, user: { wallet: { address: "0xabc" } } },
+const session = vi.hoisted(() => ({
+  state: {
+    ready: true,
+    authenticated: true,
+    evmAddress: "0xabc" as string | null,
+    solanaAddress: null as string | null,
+    userId: "u-1" as string | null,
+    profile: { name: "u", email: "", avatarSeed: "u" },
+    logout: async () => {},
+  },
 }));
-vi.mock("@privy-io/react-auth", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@privy-io/react-auth")>()),
-  usePrivy: () => privy.state,
-}));
-vi.mock("@/lib/user", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/user")>()),
-  getWalletAddress: () => "0xabc",
-}));
+vi.mock("@/hooks/use-auth-session", () => ({ useAuthSession: () => session.state }));
 
 import {
   useDownlineBranches,

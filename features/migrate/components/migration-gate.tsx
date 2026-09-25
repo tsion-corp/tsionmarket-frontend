@@ -135,9 +135,15 @@ export function MigrationGate({ adapters }: { adapters: readonly VenueAdapter[] 
   // DONE: "Go to Market" on a finished upgrade is the one thing that marks an
   // account done, and this account has not upgraded. Support may yet sort out
   // whose it is, and the gate should come back for that.
+  // Putting the gate away is two things: the snooze flag, which stops the
+  // OFFER holding the card, and closing the card itself, which a door (the
+  // balance card, the account menu) may have opened. The flag alone left a
+  // door-opened card on screen with its exit already taken — "Continue for
+  // now" that did not continue.
   const leave = useCallback(() => {
     writeGateSnooze(snoozeKey, Date.now() + SNOOZE_NO_ACCESS_MS);
     track("migration_gate_snoozed", { reason: "blocked", stage });
+    closeMigration();
   }, [snoozeKey, stage]);
 
   const snooze = useCallback(
@@ -145,6 +151,7 @@ export function MigrationGate({ adapters }: { adapters: readonly VenueAdapter[] 
       const span = reason === "no_access" ? SNOOZE_NO_ACCESS_MS : SNOOZE_FAILING_MS;
       writeGateSnooze(snoozeKey, Date.now() + span);
       track("migration_gate_snoozed", { reason, stage });
+      closeMigration();
     },
     [snoozeKey, stage]
   );
@@ -171,6 +178,10 @@ export function MigrationGate({ adapters }: { adapters: readonly VenueAdapter[] 
             // Opened by a door, the panel's close simply puts the card away.
             onClose={locked ? ignore : closeMigration}
             compact
+            // One action at a time. Whenever the footer below draws a button,
+            // the panel draws none: "Check again" next to "Continue for now"
+            // asked the reader to choose between two next steps at once.
+            footerAction={blocked || canFinish || walletBlocked || stuck}
           />
           {blocked ? (
             <div className="mt-5 space-y-3 border-t border-white/10 pt-4">

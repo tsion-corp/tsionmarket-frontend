@@ -136,6 +136,13 @@ export interface MoveOldMoneyPanelProps {
    * say — the action, a decision, the details of what was left.
    */
   compact?: boolean;
+  /**
+   * The host is drawing the one action for this state under the panel — Go
+   * to Market, or a way out of a gate that cannot finish. The panel then
+   * draws no action of its own: two buttons that both read as "what next"
+   * (Check again beside Continue for now) is the thing this exists to stop.
+   */
+  footerAction?: boolean;
 }
 
 /*
@@ -173,6 +180,7 @@ export function MoveOldMoneyPanel({
   locked = false,
   onProgress,
   compact = false,
+  footerAction = false,
 }: MoveOldMoneyPanelProps) {
   const t = useTranslations("migrate");
   const locale = useLocale();
@@ -893,7 +901,7 @@ export function MoveOldMoneyPanel({
           </ul>
         ) : null}
         <div className="mt-4 grid gap-2.5">
-          {runBlocked ? (
+          {footerAction ? null : runBlocked ? (
             // A changed blocker setting only takes effect on a reload, so
             // "try again" without one would fail the same way.
             <button onClick={() => window.location.reload()} className={PRIMARY}>

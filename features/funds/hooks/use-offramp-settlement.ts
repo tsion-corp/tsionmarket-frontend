@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useRampOrder } from "@/hooks/use-ramping";
 import { track } from "@/lib/analytics/mixpanel";
 import { insertIdFor } from "@/lib/analytics/insert-id";
@@ -12,7 +12,6 @@ import {
   subscribeOfframpWatches,
 } from "@/lib/ramping/offramp-watch";
 import type { OfframpOrder } from "@/lib/ramping/orders";
-import { getWalletAddress } from "@/lib/user";
 
 /**
  * Follows this device's open bank withdrawals to their end, and reports it.
@@ -23,8 +22,8 @@ import { getWalletAddress } from "@/lib/user";
  * the bank rail, so a payout is never reported twice.
  */
 export function useOfframpSettlement(): void {
-  const { user } = usePrivy();
-  const wallet = (getWalletAddress(user, "ethereum") ?? "").toLowerCase();
+  const { evmAddress } = useAuthSession();
+  const wallet = (evmAddress ?? "").toLowerCase();
   const watches = useSyncExternalStore(
     subscribeOfframpWatches,
     offrampWatches,

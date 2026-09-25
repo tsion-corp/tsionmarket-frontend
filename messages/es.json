@@ -3568,7 +3568,7 @@
     "gateNoAccess": "¿Tienes problemas?",
     "gateNoAccessBody": "No pasa nada. Tu cuenta antigua se queda tal cual, y puedes volver aquí cuando quieras desde Terminar de mejorar mi cuenta antigua en el menú de tu cuenta. Si necesitas ayuda para entrar, escribe a soporte. Te lo recordaremos dentro de una semana.",
     "gateNoAccessBack": "Volver",
-    "gateStuckBody": "Esto sigue fallando, y no es cosa tuya. Tu cuenta antigua se queda tal cual. Puedes intentarlo otra vez ahora, o seguir y mañana te traemos de vuelta aquí.",
+    "gateStuckBody": "Esto sigue fallando, y no es cosa tuya. Tu cuenta antigua se queda tal cual. Sigue por ahora y mañana te traemos de vuelta aquí.",
     "gateContinueLater": "Continuar por ahora",
     "walletBlockedTitle": "Tu navegador está bloqueando la ventana de acceso",
     "walletBlockedBody": "Tu cuenta antigua inicia sesión en una ventanita de privy.io, y este navegador no la deja cargar: normalmente es un bloqueador de anuncios o rastreadores, o las cookies de terceros desactivadas. Permite privy.io o pausa el bloqueador en este sitio y recarga. O usa otro navegador. Hasta entonces, tu cuenta antigua se queda tal cual.",

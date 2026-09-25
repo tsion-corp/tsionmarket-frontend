@@ -2,8 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/react-auth";
-import { getWalletAddress } from "@/lib/user";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { errorStatus } from "@/lib/api/envelope";
 import {
   EMPTY_NETWORK,
@@ -27,8 +26,7 @@ const STALE_MS = 60 * 1000;
  * has simply not deployed is worse than an empty one.
  */
 export function useReferralNetwork(enabled: boolean) {
-  const { user, ready, authenticated } = usePrivy();
-  const wallet = getWalletAddress(user, "ethereum");
+  const { evmAddress: wallet, ready, authenticated } = useAuthSession();
 
   const query = useQuery<ReferralNetwork>({
     queryKey: ["referrals", "network", wallet],

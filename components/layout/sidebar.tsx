@@ -12,7 +12,7 @@ import { truncateAddress } from "@/lib/format";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
-import { SQUARE_ZONE_PATH } from "@/lib/square-zone";
+import { SQUARE_ZONE_PATH, openSquareZone } from "@/lib/square-zone";
 import { AccountPopover } from "@/components/layout/account-popover";
 
 interface SidebarProps {
@@ -165,7 +165,14 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
           {squareShown ? (
             <a
               href={SQUARE_ZONE_PATH}
-              onClick={onClose}
+              // The tap navigates through openSquareZone so the session rides
+              // along (lib/square-zone, SQUARE_HANDOFF_PARAM). The href stays
+              // the bare path: a token has no business sitting in the DOM.
+              onClick={(event) => {
+                event.preventDefault();
+                onClose();
+                openSquareZone(SQUARE_ZONE_PATH);
+              }}
               data-tour-nav="square"
               className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-[11px] text-left font-sans text-[14.5px] font-medium transition-colors ${
                 activeSection === "square"

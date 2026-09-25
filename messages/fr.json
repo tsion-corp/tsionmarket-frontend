@@ -3568,7 +3568,7 @@
     "gateNoAccess": "Un problème ?",
     "gateNoAccessBody": "Pas de souci. Votre ancien compte reste exactement tel quel, et vous pouvez revenir ici quand vous voulez via « Terminer la mise à niveau de mon ancien compte » dans le menu de votre compte. Si vous avez besoin d'aide pour y accéder, contactez le support. Nous vous le rappellerons dans une semaine.",
     "gateNoAccessBack": "Retour",
-    "gateStuckBody": "Cela continue d'échouer, et ce n'est pas de votre fait. Votre ancien compte reste exactement tel quel. Vous pouvez réessayer maintenant, ou poursuivre : nous vous ramènerons ici demain.",
+    "gateStuckBody": "Cela continue d'échouer, et ce n'est pas de votre fait. Votre ancien compte reste exactement tel quel. Poursuivez pour l'instant : nous vous ramènerons ici demain.",
     "gateContinueLater": "Continuer pour l'instant",
     "walletBlockedTitle": "Votre navigateur bloque la fenêtre de connexion",
     "walletBlockedBody": "Votre ancien compte se connecte via une petite fenêtre de privy.io, et ce navigateur ne la laisse pas se charger — en général un bloqueur de publicités ou de traqueurs, ou les cookies tiers désactivés. Autorisez privy.io ou mettez le bloqueur en pause sur ce site, puis rechargez. Ou utilisez un autre navigateur. D'ici là, votre ancien compte reste exactement tel quel.",

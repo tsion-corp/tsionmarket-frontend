@@ -3568,7 +3568,7 @@
     "gateNoAccess": "Probleme?",
     "gateNoAccessBody": "Kein Problem. Dein altes Konto bleibt genau so, wie es ist, und du kannst jederzeit über „Altes Konto fertig upgraden“ in deinem Kontomenü hierher zurückkehren. Wenn du Hilfe beim Zugang brauchst, wende dich an den Support. Wir erinnern dich in einer Woche noch einmal.",
     "gateNoAccessBack": "Zurück",
-    "gateStuckBody": "Das schlägt immer wieder fehl, und es liegt nicht an dir. Dein altes Konto bleibt genau so, wie es ist. Du kannst es jetzt noch einmal versuchen oder weitermachen — wir bringen dich morgen hierher zurück.",
+    "gateStuckBody": "Das schlägt immer wieder fehl, und es liegt nicht an dir. Dein altes Konto bleibt genau so, wie es ist. Mach vorerst weiter — wir bringen dich morgen hierher zurück.",
     "gateContinueLater": "Vorerst fortfahren",
     "walletBlockedTitle": "Dein Browser blockiert das Anmeldefenster",
     "walletBlockedBody": "Dein altes Konto meldet sich über ein kleines Fenster von privy.io an, und dieser Browser lässt es nicht laden — meist ein Werbe- oder Tracker-Blocker oder abgeschaltete Drittanbieter-Cookies. Erlaube privy.io oder pausiere den Blocker für diese Seite und lade neu. Oder nimm einen anderen Browser. Bis dahin bleibt dein altes Konto genau so, wie es ist.",

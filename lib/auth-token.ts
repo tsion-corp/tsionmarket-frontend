@@ -36,6 +36,16 @@ export function registerDecaneTokenSource(source: DecaneTokenSource | null): voi
   decaneTokenSource = source;
 }
 
+/**
+ * The live Decane access token, read synchronously, or null when there is no
+ * session (or no provider has registered yet). For the one place a token has
+ * to travel by URL — the hand-off to the Square, which is another app —
+ * rather than by header; everything else goes through resolveAuthTokens.
+ */
+export function peekDecaneAccessToken(): string | null {
+  return decaneTokenSource ? decaneTokenSource() : null;
+}
+
 interface AuthTokenResolverDeps {
   resolvePrivyTokens: () => Promise<AuthTokens>;
   // null when no Decane provider has registered a source; a string or null

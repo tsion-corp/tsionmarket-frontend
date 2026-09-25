@@ -3568,7 +3568,7 @@
     "gateNoAccess": "Com problemas?",
     "gateNoAccessBody": "Sem problema. A sua conta antiga fica exatamente como está, e pode voltar aqui quando quiser através de Concluir a atualização da minha conta antiga, no menu da sua conta. Se precisar de ajuda para entrar, fale com o suporte. Voltamos a lembrá-lo daqui a uma semana.",
     "gateNoAccessBack": "Voltar",
-    "gateStuckBody": "Isto continua a falhar, e não é culpa sua. A sua conta antiga fica exatamente como está. Pode tentar de novo agora, ou seguir em frente — amanhã trazemo-lo de volta aqui.",
+    "gateStuckBody": "Isto continua a falhar, e não é culpa sua. A sua conta antiga fica exatamente como está. Siga em frente por agora — amanhã trazemo-lo de volta aqui.",
     "gateContinueLater": "Continuar por agora",
     "walletBlockedTitle": "O seu navegador está a bloquear a janela de início de sessão",
     "walletBlockedBody": "A sua conta antiga inicia sessão através de uma pequena janela do privy.io, e este navegador não a deixa carregar — normalmente um bloqueador de anúncios ou rastreadores, ou os cookies de terceiros desligados. Permita o privy.io ou ponha o bloqueador em pausa neste site e recarregue. Ou use outro navegador. Até lá, a sua conta antiga fica exatamente como está.",
