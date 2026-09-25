@@ -83,7 +83,7 @@ function SkeletonRows() {
         <div
           key={i}
           aria-hidden="true"
-          className="flex items-center gap-3 border-t border-white/6 py-3.5"
+          className="flex items-center gap-3 border-t border-white/6 px-2 py-3.5"
         >
           <span className="size-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
           <span className="min-w-0 flex-1">

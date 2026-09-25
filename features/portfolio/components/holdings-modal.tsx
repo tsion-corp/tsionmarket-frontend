@@ -320,7 +320,10 @@ export function HoldingsModal({
             {loading ? (
               <div className="mt-3" aria-hidden="true">
                 {SKELETON_ROWS.map((i) => (
-                  <div key={i} className="flex items-center gap-3 border-t border-white/6 py-3.5">
+                  <div
+                    key={i}
+                    className="flex items-center gap-3 border-t border-white/6 px-2 py-3.5"
+                  >
                     <span className="size-9 shrink-0 animate-pulse rounded-[11px] bg-white/8" />
                     <span className="min-w-0 flex-1">
                       <span className="block font-sans text-[14.5px] font-medium">
@@ -398,7 +401,7 @@ export function HoldingsModal({
                     type="button"
                     data-no-ripple
                     onClick={() => openToken(token)}
-                    className="flex w-full cursor-pointer items-center gap-3 border-t border-white/6 py-3.5 text-left transition-colors duration-150 hover:bg-white/6"
+                    className="flex w-full cursor-pointer items-center gap-3 border-t border-white/6 px-2 py-3.5 text-left transition-colors duration-150 hover:bg-white/6"
                   >
                     <span className="relative shrink-0">
                       <AssetIcon

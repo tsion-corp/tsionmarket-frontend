@@ -1,9 +1,62 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "@/messages/en.json";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveryMarketEvent, DiscoveryMarketSummary } from "../markets/api";
 import { CategoryMarketsShell } from "./politics-markets-shell";
 
 const mocks = vi.hoisted(() => ({ catalog: vi.fn() }));
+
+// useMoney reaches for the FX query, which needs a QueryClient this suite does
+// not stand up. The panel only formats with it, so a fixed formatter is enough.
+vi.mock("@/components/ui/currency-select", () => ({
+  useMoney: () => ({
+    format: (usd: number) => `$${usd}`,
+    formatExact: (usd: number) => `$${usd}.00`,
+    ready: true,
+    currency: { code: "USD", symbol: "$" },
+    setCurrency: vi.fn(),
+  }),
+}));
+
+// The positions panel sits above this list and reads a Decane session and the
+// FX query. This suite is about the category listing, so the controller stands
+// in with the state somebody sees before pressing Load.
+vi.mock("../hooks/use-polymarket-positions-controller", () => ({
+  usePolymarketPositionsController: () => ({
+    positions: {
+      positions: [],
+      available: null,
+      cashable: null,
+      loading: false,
+      loaded: false,
+      error: null,
+      refresh: vi.fn(),
+    },
+    slip: null,
+    setSlip: vi.fn(),
+    onRedeem: vi.fn(),
+    onSellPosition: vi.fn(),
+    onCashOut: vi.fn(),
+    redeemingId: null,
+    claiming: false,
+    selling: false,
+    cashingOut: false,
+    claimedConditionIds: [],
+  }),
+}));
+
+// The panel reads its labels from the real catalogue, so every render needs the
+// provider around it.
+function render(ui: React.ReactElement) {
+  const wrap = (node: React.ReactElement) => (
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      {node}
+    </NextIntlClientProvider>
+  );
+  const view = rtlRender(wrap(ui));
+  return { ...view, rerender: (next: React.ReactElement) => view.rerender(wrap(next)) };
+}
 
 // The Shine switch is the account's own preference behind a React Query read
 // and a Privy session. What matters here is that this page carries one, and

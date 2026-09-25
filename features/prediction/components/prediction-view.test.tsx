@@ -1,8 +1,22 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, within } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import enMessages from "@/messages/en.json";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DiscoveryMarketEvent, DiscoveryMarketSummary } from "../markets/api";
 import { PREDICTION_CATEGORIES, predictionCategoryHref } from "../categories";
 import { PredictionView } from "./prediction-view";
+
+// The positions panel reads its labels from the real catalogue, so every
+// render — and every rerender — needs the provider around it.
+function render(ui: React.ReactElement) {
+  const wrap = (node: React.ReactElement) => (
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      {node}
+    </NextIntlClientProvider>
+  );
+  const view = rtlRender(wrap(ui));
+  return { ...view, rerender: (next: React.ReactElement) => view.rerender(wrap(next)) };
+}
 
 const mocks = vi.hoisted(() => ({
   catalog: vi.fn(),
@@ -33,6 +47,44 @@ vi.mock("../house-slip-store", () => ({
     remove: mocks.remove,
     clear: mocks.clear,
     selectedSide: () => undefined,
+  }),
+}));
+// useMoney reaches for the FX query, which needs a QueryClient this suite does
+// not stand up. The panel only formats with it, so a fixed formatter is enough.
+vi.mock("@/components/ui/currency-select", () => ({
+  useMoney: () => ({
+    format: (usd: number) => `$${usd}`,
+    formatExact: (usd: number) => `$${usd}.00`,
+    ready: true,
+    currency: { code: "USD", symbol: "$" },
+    setCurrency: vi.fn(),
+  }),
+}));
+// The controller reaches for a Decane session and the FX query. This suite is
+// about where the panel sits on the page, not what it fetches, so it stands in
+// with a loaded-nothing state: that is the shape somebody sees before they
+// press Load, which is the state under test.
+vi.mock("../hooks/use-polymarket-positions-controller", () => ({
+  usePolymarketPositionsController: () => ({
+    positions: {
+      positions: [],
+      available: null,
+      cashable: null,
+      loading: false,
+      loaded: false,
+      error: null,
+      refresh: vi.fn(),
+    },
+    slip: null,
+    setSlip: vi.fn(),
+    onRedeem: vi.fn(),
+    onSellPosition: vi.fn(),
+    onCashOut: vi.fn(),
+    redeemingId: null,
+    claiming: false,
+    selling: false,
+    cashingOut: false,
+    claimedConditionIds: [],
   }),
 }));
 vi.mock("./category-bet-sidebar", () => ({
@@ -197,6 +249,26 @@ describe("PredictionView", () => {
     expect(screen.queryByText("Global")).not.toBeInTheDocument();
     expect(screen.queryByText("Local")).not.toBeInTheDocument();
     expect(screen.queryByText("Explore all markets")).not.toBeInTheDocument();
-    expect(screen.queryByText("Your positions")).not.toBeInTheDocument();
+  });
+
+  // "Your positions" was retired with the rest of the old landing content when
+  // the 2.0 feed landed, and this suite locked that in. It came back on
+  // 2026-09-16 in #505: with the feed as the whole page, a signed-in user had
+  // no way to reach an open bet, claim a win or cash out, which is what people
+  // were reporting. #558 dropped it again by merging a branch cut before #505,
+  // so it is asserted here rather than only in the feed's own suite. The rest
+  // of the retired landing stays retired, which the case above still holds.
+  it("offers the positions panel above the market list", () => {
+    render(<PredictionView />);
+
+    expect(screen.getByText("Your positions")).toBeInTheDocument();
+    const panel = screen.getByRole("button", {
+      name: enMessages.prediction.loadPositions,
+    });
+    const markets = document.querySelector("section[aria-label$='markets']");
+    expect(markets).not.toBeNull();
+    // DOCUMENT_POSITION_FOLLOWING: the list comes after the panel, so somebody
+    // looking for an open bet meets it without scrolling the feed.
+    expect(panel.compareDocumentPosition(markets as Node) & 4).toBeTruthy();
   });
 });
