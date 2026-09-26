@@ -4,9 +4,12 @@
 // plus the full native balance, gas paid by the sponsor; on Solana one
 // sponsored transaction per asset. A failure marks its assets and moves on.
 
+import { numberToHex } from "viem";
 import { encodeErc20Transfer } from "@/lib/deposit";
 import { isSubmittedEvmOperationError } from "@/lib/trade/sponsor";
 import { getSponsoredEvmChainByNetwork } from "@/lib/trade/sponsored-evm";
+import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
+import { nativeSendFeeParams } from "@/lib/trade/native-gas";
 import type { EvmBatchCall, LegacySigner, SettleOutcome } from "@/lib/migration/types";
 import type { ChainSweep, SweepAsset } from "@/features/migrate/lib/plan";
 
@@ -29,8 +32,86 @@ const SUBMITTED_NOT_CONFIRMED =
 const NO_EVM_DESTINATION = "Your new account isn't ready on this network yet.";
 const NO_SOLANA_DESTINATION = "Your new account isn't ready on Solana yet.";
 
+const NO_LEGACY_SENDER = "Your old account isn't connected. Sign in again.";
+
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Transfer failed";
+}
+
+/**
+ * A chain with no sponsorship: the old wallet pays its own gas out of the
+ * native balance it holds, one plain transaction per asset through Privy's
+ * own send. Tokens go first, each confirmed before the next so the native
+ * balance below is read after their fees have come out; then the native
+ * coin, with the fee cap set explicitly and the value set to balance minus
+ * gas times that cap — the one shape the node's balance check accepts for
+ * sending everything. Nothing here is atomic and nothing needs to be: each
+ * transfer is its own outcome.
+ */
+async function sweepUserPaid(
+  chain: ChainSweep,
+  chainId: number,
+  from: string,
+  destination: string,
+  signer: LegacySigner,
+  outcomes: Map<string, SettleOutcome>
+): Promise<void> {
+  try {
+    // Privy's own switch first: a send names its chain, but the wallet
+    // object is bound to a current one and a mismatch is refused.
+    await signer.switchChain(chainId);
+  } catch (error) {
+    for (const asset of chain.assets) {
+      outcomes.set(asset.id, { ok: false, error: errorMessage(error), retryable: true });
+    }
+    return;
+  }
+  const client = publicClientForChain(chainId);
+
+  for (const asset of chain.assets) {
+    try {
+      if (asset.tokenAddress !== null) {
+        const hash = await signer.sendTransaction({
+          chainId,
+          to: asset.tokenAddress,
+          data: encodeErc20Transfer(destination, asset.amount),
+        });
+        await awaitReceipt(client, hash, `Moving ${asset.symbol}`);
+        outcomes.set(asset.id, { ok: true, txHashes: [hash] });
+        continue;
+      }
+
+      // The live balance, not the plan's: the token transfers above just paid
+      // their fees out of it.
+      const balance = await client.getBalance({ address: from as `0x${string}` });
+      const fee = await nativeSendFeeParams(chain.network, { from, to: destination });
+      const amount = balance - fee.feeWei;
+      if (amount <= 0n) {
+        outcomes.set(asset.id, {
+          ok: false,
+          error: `Not enough ${asset.symbol} left to cover the network fee.`,
+          retryable: true,
+        });
+        continue;
+      }
+      const hash = await signer.sendTransaction({
+        chainId,
+        to: destination,
+        value: numberToHex(amount),
+        gasLimit: numberToHex(fee.gas),
+        ...(fee.eip1559
+          ? {
+              maxFeePerGas: numberToHex(fee.maxFeePerGas),
+              maxPriorityFeePerGas: numberToHex(fee.maxPriorityFeePerGas),
+            }
+          : { gasPrice: numberToHex(fee.maxFeePerGas) }),
+      });
+      await awaitReceipt(client, hash, `Moving ${asset.symbol}`);
+      outcomes.set(asset.id, { ok: true, txHashes: [hash] });
+    } catch (error) {
+      outcomes.set(asset.id, { ok: false, error: errorMessage(error), retryable: true });
+    }
+  }
 }
 
 // Resolves to one outcome per asset id.
@@ -41,6 +122,33 @@ export async function runSweep(
 ): Promise<Map<string, SettleOutcome>> {
   const outcomes = new Map<string, SettleOutcome>();
   for (const chain of chains) {
+    if (chain.kind === "evm-user-paid") {
+      if (!destinations.evm) {
+        for (const a of chain.assets) {
+          outcomes.set(a.id, { ok: false, error: NO_EVM_DESTINATION, retryable: true });
+        }
+        continue;
+      }
+      const chainId = getSponsoredEvmChainByNetwork(chain.network)?.chainId;
+      if (!chainId) {
+        for (const a of chain.assets) {
+          outcomes.set(a.id, {
+            ok: false,
+            error: `No chain id for network ${chain.network}`,
+            retryable: false,
+          });
+        }
+        continue;
+      }
+      if (!signer.addresses.evm) {
+        for (const a of chain.assets) {
+          outcomes.set(a.id, { ok: false, error: NO_LEGACY_SENDER, retryable: true });
+        }
+        continue;
+      }
+      await sweepUserPaid(chain, chainId, signer.addresses.evm, destinations.evm, signer, outcomes);
+      continue;
+    }
     if (chain.kind === "evm-batch") {
       const ids = chain.assets.map((a) => a.id);
       if (!destinations.evm) {

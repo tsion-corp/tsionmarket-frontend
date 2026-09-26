@@ -86,6 +86,28 @@ export interface LegacySigner {
     amount: bigint;
   }): Promise<string>;
   getEthereumProvider(): Promise<EIP1193Provider>;
+  // Point the old EVM wallet at a chain before a plain send on it. Privy's
+  // own API: its embedded provider does not honour a raw
+  // wallet_switchEthereumChain ("handleSwitchEthereumChain" is undefined
+  // there), and it throws for a chain the provider was not configured with.
+  switchChain(chainId: number): Promise<void>;
+  // One plain, user-paid transaction from the old EVM wallet, through Privy's
+  // own send: its embedded provider services neither wallet_switchEthereumChain
+  // nor eth_sendTransaction ("handleSendTransaction" is undefined there).
+  // Fee fields are hex quantities; when given they are sent as-is, which is
+  // what lets a whole native balance go out as balance minus gas times cap.
+  sendTransaction(tx: LegacyEvmTransaction): Promise<string>;
+}
+
+export interface LegacyEvmTransaction {
+  chainId: number;
+  to: string;
+  value?: `0x${string}`;
+  data?: `0x${string}`;
+  gasLimit?: `0x${string}`;
+  maxFeePerGas?: `0x${string}`;
+  maxPriorityFeePerGas?: `0x${string}`;
+  gasPrice?: `0x${string}`;
 }
 
 export interface DiscoverContext {

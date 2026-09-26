@@ -333,7 +333,13 @@ describe("fetchPortfolio upstreams", () => {
     const symbols = (t: { symbol: string; balance: number }[]) =>
       t.filter((x) => x.balance > 0).map((x) => x.symbol);
     expect(symbols(legacy.tokens)).toEqual(expect.arrayContaining(["BONK", "SOL", "PRCL"]));
-    expect(symbols(legacy.tokens)).not.toContain("SPAM");
+    // A mint neither feed prices is admitted too, unpriced: the leg can send
+    // any mint, and the sweep moves it while the totals ignore it. Before,
+    // it never reached the review at all.
+    expect(symbols(legacy.tokens)).toContain("SPAM");
+    const spam = legacy.tokens.find((t) => t.symbol === "SPAM")!;
+    expect(spam.priceUsd).toBe(0);
+    expect(spam.valueUsd).toBe(0);
     const prcl = legacy.tokens.find((t) => t.symbol === "PRCL")!;
     expect(prcl.priceUsd).toBeCloseTo(0.0059);
     expect(prcl.valueUsd).toBeCloseTo(5627.359476 * 0.0059, 2);

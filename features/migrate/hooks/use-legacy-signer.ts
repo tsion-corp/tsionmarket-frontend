@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
 import { useWallets as useSolanaWallets } from "@privy-io/react-auth/solana";
 import type { EIP1193Provider } from "viem";
 import { getEmbeddedWallets, getWalletAddress } from "@/lib/user";
@@ -31,6 +31,7 @@ export const SOLANA_WALLET_GRACE_MS = 8_000;
 export function useLegacySigner(): LegacySigner | null {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
+  const { sendTransaction: privySendTransaction } = useSendTransaction();
   const { wallets: solanaWallets } = useSolanaWallets();
   const sendBatch = useLegacyEvmSendBatch();
   const sendToken = useLegacySendToken();
@@ -123,6 +124,19 @@ export function useLegacySigner(): LegacySigner | null {
         if (!wallet) throw new Error("Your old account isn't connected. Sign in again.");
         return (await wallet.getEthereumProvider()) as unknown as EIP1193Provider;
       },
+      async switchChain(chainId) {
+        const wallet = wallets.find(matchesChosen);
+        if (!wallet) throw new Error("Your old account isn't connected. Sign in again.");
+        await wallet.switchChain(chainId);
+      },
+      async sendTransaction(tx) {
+        const wallet = wallets.find(matchesChosen);
+        if (!wallet) throw new Error("Your old account isn't connected. Sign in again.");
+        // Sent from the chosen wallet by address, under the hood (showWalletUIs
+        // is off in the provider), on the chain the request names.
+        const result = await privySendTransaction(tx, { address: wallet.address });
+        return typeof result === "string" ? result : result.hash;
+      },
     };
   }, [
     fresh,
@@ -137,5 +151,6 @@ export function useLegacySigner(): LegacySigner | null {
     recorded?.solana,
     sendBatch,
     sendToken,
+    privySendTransaction,
   ]);
 }

@@ -141,7 +141,12 @@ export function SellSheet({ payload, onClose, initialAmount = "" }: SellSheetPro
       vertical: "spot",
       asset: payload.symbol,
       side: "sell",
-      amount_usd: value,
+      amount_usd: proceedsUsd,
+      // The schema requires the quantity on a sell (see lib/analytics/schema);
+      // without it the validator throws in development, before the sale even
+      // starts — which is how HYPE, APE and MON "would not sell" locally.
+      token_quantity: value,
+      network: payload.network,
     });
     toastRef.current = toast.loading(t("sellingToast", { symbol: payload.symbol }));
     try {

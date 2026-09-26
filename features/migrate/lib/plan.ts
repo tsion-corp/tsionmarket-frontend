@@ -5,7 +5,7 @@
 // never the float `balance`.
 
 import type { TokenBalance } from "@/lib/server/alchemy";
-import { isSponsoredEvmNetwork } from "@/lib/trade/sponsored-evm";
+import { canSponsorEvmNetwork, isUserPaidEvmNetwork } from "@/lib/trade/sponsored-evm";
 
 export const SOLANA_NETWORK = "solana-mainnet";
 // Two dust floors, and a token clears BOTH to be swept.
@@ -40,18 +40,20 @@ export interface SweepAsset {
 
 export interface ChainSweep {
   network: string;
-  // An EVM chain sweeps as one atomic sponsored batch; Solana sweeps one
-  // sponsored transaction per asset.
-  kind: "evm-batch" | "solana-sequential";
+  // A sponsored EVM chain sweeps as one atomic sponsored batch. An EVM chain
+  // with no sponsorship (HyperEVM, ApeChain: no EIP-7702) sweeps user-paid,
+  // one plain transaction per asset, the native coin last and minus the fee.
+  // Solana sweeps one sponsored transaction per asset.
+  kind: "evm-batch" | "evm-user-paid" | "solana-sequential";
   assets: SweepAsset[];
 }
 
 export interface SweepPlan {
   chains: ChainSweep[];
-  // Holdings the sweep cannot move: assets on EVM networks outside the gas
-  // sponsorship registry. Without sponsorship the full native balance cannot
-  // be sent (something must pay gas) and the batch path does not exist, so
-  // these stay in the old wallet and the UI says so instead of failing.
+  // Holdings the sweep cannot move: assets on EVM networks the wallet has no
+  // way to send on — not in the registry, or no read client to confirm a
+  // transaction with. These stay in the old wallet and the UI says so
+  // instead of failing.
   skipped: SweepAsset[];
 }
 
@@ -83,7 +85,15 @@ export function buildSweepPlan(tokens: TokenBalance[]): SweepPlan {
     // (priceUsd === 0) is kept: the feed may simply not cover it.
     if (token.balance < DUST_MIN_BALANCE) continue;
     const unpricedNative = token.address === null && token.priceUsd === 0;
-    if (!unpricedNative && token.valueUsd < DUST_MIN_VALUE_USD) continue;
+    // An unpriced Solana mint is moved rather than dropped: the leg sends
+    // any mint, each costs one sponsored transaction, and "no price" on
+    // Solana far more often means a thin market (PRCL, seen live) than
+    // nothing. The value floor stays for unpriced EVM tokens, where an
+    // unlisted contract is most often spam and a batch that reverts costs
+    // the whole chain's sweep.
+    const unpricedSolanaToken =
+      token.network === SOLANA_NETWORK && token.address !== null && token.priceUsd === 0;
+    if (!unpricedNative && !unpricedSolanaToken && token.valueUsd < DUST_MIN_VALUE_USD) continue;
     const asset: SweepAsset = {
       id: sweepAssetId(token.network, token.address),
       network: token.network,
@@ -93,7 +103,18 @@ export function buildSweepPlan(tokens: TokenBalance[]): SweepPlan {
       amount,
       valueUsd: token.valueUsd,
     };
-    if (token.network !== SOLANA_NETWORK && !isSponsoredEvmNetwork(token.network)) {
+    // Stranded means the sweep has NO way to send here: neither sponsored
+    // (a gas policy plus receipt polling, what sponsor.ts enforces) nor
+    // user-paid (readable, so the wallet can pay its own gas and the sweep
+    // can confirm it). A listed-but-unsponsored chain used to be planned as
+    // sponsored, refused at send time, and then forgotten; it now sweeps
+    // user-paid, and only a chain the wallet truly cannot send on is shown
+    // as "Can't carry across from here".
+    if (
+      token.network !== SOLANA_NETWORK &&
+      !canSponsorEvmNetwork(token.network) &&
+      !isUserPaidEvmNetwork(token.network)
+    ) {
       skipped.push(asset);
       continue;
     }
@@ -128,7 +149,12 @@ export function groupSweepAssets(assets: readonly SweepAsset[]): ChainSweep[] {
     ];
     return {
       network,
-      kind: network === SOLANA_NETWORK ? "solana-sequential" : "evm-batch",
+      kind:
+        network === SOLANA_NETWORK
+          ? "solana-sequential"
+          : isUserPaidEvmNetwork(network)
+            ? "evm-user-paid"
+            : "evm-batch",
       assets: tokensFirst,
     };
   });

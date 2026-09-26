@@ -18,6 +18,8 @@ const state = vi.hoisted(() => ({
 vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ ready: true, authenticated: true, user: { id: "did:privy:u" } }),
   useWallets: () => ({ wallets: state.wallets }),
+  // The signer reads this for the user-paid path; nothing here sends.
+  useSendTransaction: () => ({ sendTransaction: vi.fn() }),
 }));
 vi.mock("@privy-io/react-auth/solana", () => ({
   useWallets: () => ({ wallets: state.solanaWallets }),

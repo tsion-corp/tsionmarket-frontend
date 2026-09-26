@@ -1,5 +1,7 @@
 import { defineChain, type Chain } from "viem";
-import * as viemChains from "viem/chains";
+// Named imports of the registry's chains, never the whole catalogue — see the
+// generator. A wildcard import here once put 130 kB on every signed-in route.
+import { REGISTRY_CHAINS as viemChains } from "@/lib/trade/registry-chains";
 import sponsoredEvmRegistry from "@/config/alchemy-bso-evm-networks.json";
 
 export interface SponsoredEvmChainConfig {
@@ -109,6 +111,35 @@ export function hasGasPolicyForNetwork(network: string): boolean {
 
 export function hasGasPolicyForChainId(chainId: number): boolean {
   return BY_CHAIN_ID.get(chainId)?.gasPolicy ?? false;
+}
+
+// Whether a sponsored send can actually be SENT here: the two conditions
+// lib/trade/sponsor.ts enforces before it will submit — a gas policy, and a
+// chain we can poll receipts on. Registry membership alone is not that: a
+// network is listed so the portfolio can read it and the RPC proxy can serve
+// it, and hyperliquid-mainnet sat in the registry with no policy. The
+// migration planned a HYPE sweep on it, sponsor.ts refused ("not configured
+// for sponsored EVM sends"), and the holding went from "failed" to invisible
+// while the coins stayed in the old wallet. Plan with this, not membership.
+export function canSponsorEvmNetwork(network: string): boolean {
+  const config = BY_NETWORK.get(network);
+  return !!config && config.gasPolicy && config.supportsReceiptPolling;
+}
+
+export function canSponsorEvmChainId(chainId: number): boolean {
+  const config = BY_CHAIN_ID.get(chainId);
+  return !!config && config.gasPolicy && config.supportsReceiptPolling;
+}
+
+// A chain the wallet can send on by paying its own gas: readable (a viem
+// chain, so receipts can be polled) but with no sponsorship. HyperEVM and
+// ApeChain are the standing examples — pre-Prague chains with no EIP-7702, so
+// the sponsored path cannot exist there and sells already go user-paid. The
+// migration sweeps these the same way: tokens first, then the native coin
+// minus the measured fee.
+export function isUserPaidEvmNetwork(network: string): boolean {
+  const config = BY_NETWORK.get(network);
+  return !!config && config.supportsReceiptPolling && !config.gasPolicy;
 }
 
 // Whether a send on this network costs the wallet nothing. Solana sits outside

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PrivyProvider, type PrivyClientConfig } from "@privy-io/react-auth";
 import { createSolanaRpcSubscriptions } from "@solana/kit";
 import { createAppSolanaRpc } from "@/lib/solana-rpc";
+import { SPONSORED_EVM_CHAINS } from "@/lib/trade/sponsored-evm";
 
 // Privy's last mounts. The app runs on Decane; this provider wraps only the
 // surfaces that must still sign with the OLD Privy embedded wallets: the
@@ -43,6 +44,13 @@ export function LegacyPrivyProvider({ children }: { children: React.ReactNode })
           // always drove these wallets.
           showWalletUIs: false,
         },
+        // Every EVM chain the portfolio can read, so the old wallet can be
+        // switched to any of them for a user-paid sweep. Privy's default list
+        // is the majors only; HyperEVM, Monad and ApeChain are not on it, and
+        // wallet_switchEthereumChain refuses a chain it was not told about.
+        supportedChains: SPONSORED_EVM_CHAINS.filter((c) => c.supportsReceiptPolling).map(
+          (c) => c.chain
+        ),
         solana: { rpcs: solanaRpcs },
         appearance: {
           walletChainType: "ethereum-and-solana",

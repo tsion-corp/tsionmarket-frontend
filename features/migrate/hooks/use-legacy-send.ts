@@ -18,7 +18,7 @@ import { useSignTransaction, useWallets as useSolanaWallets } from "@privy-io/re
 import type { EIP1193Provider } from "viem";
 import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
 import { sendSponsoredEvmCalls } from "@/lib/trade/sponsor";
-import { isSponsoredEvmChainId } from "@/lib/trade/sponsored-evm";
+import { canSponsorEvmChainId } from "@/lib/trade/sponsored-evm";
 import {
   prepareSponsoredSolanaTransaction,
   sponsorAndSubmitSolanaTransaction,
@@ -52,7 +52,7 @@ export function useLegacyEvmSendBatch() {
     // Privy listed first, and a sweep from the wrong wallet moves nothing —
     // every transfer reverts on a balance that is not there.
     async (calls: EvmBatchCall[], chainId: number, from?: string): Promise<`0x${string}`> => {
-      if (!isSponsoredEvmChainId(chainId)) {
+      if (!canSponsorEvmChainId(chainId)) {
         throw new Error("Batched transactions are only supported on sponsored EVM chains.");
       }
       if (calls.length === 0) throw new Error("Nothing to send.");

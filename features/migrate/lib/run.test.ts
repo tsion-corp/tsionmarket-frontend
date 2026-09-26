@@ -39,6 +39,8 @@ const signer = {
   sendBatch: vi.fn(),
   sendToken: vi.fn(),
   getEthereumProvider: vi.fn(),
+  switchChain: vi.fn(async () => {}),
+  sendTransaction: vi.fn(async () => "0x"),
 };
 
 function discoverCtx(hasLegacySession: boolean): DiscoverContext {

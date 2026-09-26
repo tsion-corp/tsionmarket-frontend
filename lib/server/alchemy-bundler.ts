@@ -132,8 +132,12 @@ function sponsorPairsFor(
 // not own the policy. Anything else is the request's own outcome.
 // A bundler-sponsorship policy answers the paymaster path "Unsupported Policy
 // Type"; that pair can never serve this path, the same as a missing policy.
+// "<NETWORK> is not enabled for this app" is the same shape one level up: the
+// Alchemy app behind this key has never had the network switched on (seen
+// live for HyperEVM, Monad and ApeChain on one of five apps), so its policy
+// cannot sponsor there whatever it says — and another pair's can.
 const PAIR_REJECTED =
-  /policy not found|policy id\(s\) not found|unsupported policy type|does not support bundler sponsorship|must be authenticated|not authorized|unauthorized|invalid api key/i;
+  /policy not found|policy id\(s\) not found|unsupported policy type|does not support bundler sponsorship|is not enabled for this app|must be authenticated|not authorized|unauthorized|invalid api key/i;
 
 function pairCannotServe(status: number, text: string): "capacity" | "rejected" | null {
   // BSO returns the spending-limit failure inside a 200, while the paymaster

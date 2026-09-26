@@ -28,7 +28,8 @@
     "bundle:report": "node scripts/first-load.mjs",
     "bundle:check": "node scripts/first-load.mjs --check",
     "prepare": "husky",
-    "legacy:hash": "node scripts/hash-legacy-directory.mjs"
+    "legacy:hash": "node scripts/hash-legacy-directory.mjs",
+    "registry:chains": "node scripts/gen-registry-chains.mjs"
   },
   "dependencies": {
     "@badrap/result": "^0.3.1",

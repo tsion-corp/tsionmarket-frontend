@@ -96,6 +96,36 @@ describe("buildSweepPlan", () => {
     expect(skipped.map((a) => a.symbol)).toEqual(["AVAX"]);
   });
 
+  it("sweeps a readable but unsponsored chain user-paid, tokens before the native coin", () => {
+    // hyperliquid-mainnet has no gas policy — no EIP-7702, so no sponsored
+    // path — but the wallet can pay its own gas out of the HYPE it holds.
+    // Planning it as sponsored is how a user's HYPE went from "failed" to
+    // invisible while it stayed in the old wallet.
+    const plan = buildSweepPlan([
+      token({
+        symbol: "HYPE",
+        network: "hyperliquid-mainnet",
+        address: null,
+        decimals: 18,
+        rawBalance: "10831193123499757",
+        valueUsd: 0,
+        priceUsd: 0,
+      }),
+      token({
+        symbol: "USDT0",
+        network: "hyperliquid-mainnet",
+        address: "0xb8ce59fc3717ada4c02eadf9682a9e934f625ebb",
+        valueUsd: 3,
+      }),
+      token({ network: "base-mainnet" }),
+    ]);
+    const hyper = plan.chains.find((c) => c.network === "hyperliquid-mainnet")!;
+    expect(hyper.kind).toBe("evm-user-paid");
+    expect(hyper.assets.map((a) => a.symbol)).toEqual(["USDT0", "HYPE"]);
+    expect(plan.chains.find((c) => c.network === "base-mainnet")!.kind).toBe("evm-batch");
+    expect(plan.skipped).toEqual([]);
+  });
+
   it("returns an empty plan for an empty portfolio", () => {
     expect(buildSweepPlan([])).toEqual({ chains: [], skipped: [] });
   });
@@ -157,7 +187,7 @@ describe("buildSweepPlan — dust", () => {
     expect(plan.chains.flatMap((c) => c.assets).map((a) => a.symbol)).toEqual(["DEGEN"]);
   });
 
-  it("drops an unpriced TOKEN — $0.00 is nothing, whatever the balance says", () => {
+  it("drops an unpriced EVM token — an unlisted contract is most often spam, and a revert costs the chain's whole batch", () => {
     const plan = buildSweepPlan([
       token({
         symbol: "ZZZ",
@@ -169,6 +199,23 @@ describe("buildSweepPlan — dust", () => {
       }),
     ]);
     expect([...plan.chains.flatMap((c) => c.assets), ...plan.skipped]).toEqual([]);
+  });
+
+  it("keeps an unpriced SOLANA token — the leg can send any mint, and no price usually means a thin market", () => {
+    const plan = buildSweepPlan([
+      token({
+        symbol: "PRCL",
+        network: "solana-mainnet",
+        address: "4LLbsb5ReP3yEtYzmXewyGjcir5uXtKFURtaEUVC2AHs",
+        rawBalance: "5600000000",
+        decimals: 6,
+        balance: 5600,
+        priceUsd: 0,
+        valueUsd: 0,
+      }),
+    ]);
+    expect(plan.chains.flatMap((c) => c.assets).map((a) => a.symbol)).toEqual(["PRCL"]);
+    expect(plan.skipped).toEqual([]);
   });
 
   it("keeps an unpriced NATIVE coin — a feed gap, not a worthless balance", () => {

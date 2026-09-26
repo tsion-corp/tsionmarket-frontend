@@ -50,10 +50,28 @@ const BASE_FEE_MULTIPLIER = 2n;
 // Native tokens are 18 decimals on every EVM chain we hold balances on.
 const NATIVE_DECIMALS = 18;
 
-// What it actually costs to send this chain's native token right now, in whole
-// units. Replaces a guessed reserve with a measured one, so selling "max" can
-// leave behind the fee instead of a round number chosen in advance.
-export async function nativeSendCost(network: string, send: SendShape = {}): Promise<number> {
+export interface NativeSendFee {
+  // Gas units the send will be given: the node's estimate, floored.
+  gas: bigint;
+  // The fee cap per gas the wallet should set, headroom included. On an
+  // EIP-1559 chain this is maxFeePerGas (with maxPriorityFeePerGas beside it);
+  // on a legacy-fee chain it is the gasPrice, and maxPriorityFeePerGas is 0.
+  maxFeePerGas: bigint;
+  maxPriorityFeePerGas: bigint;
+  eip1559: boolean;
+  // gas * maxFeePerGas — what the node checks the balance against.
+  feeWei: bigint;
+}
+
+// The parameters a user-paid send should carry, measured live. Exposed so a
+// caller that has to send the ENTIRE native balance (the migration sweep) can
+// set the exact cap and send balance minus gas * cap, which is the one shape
+// the node's balance check accepts; leaving the wallet to pick its own fee
+// would set a different cap and reject the send as insufficient funds.
+export async function nativeSendFeeParams(
+  network: string,
+  send: SendShape = {}
+): Promise<NativeSendFee> {
   const target = getSponsoredEvmChainByNetwork(network);
   if (!target || !isReceiptChain(target.chainId)) {
     throw new Error(`No read node for ${network}.`);
@@ -91,8 +109,24 @@ export async function nativeSendCost(network: string, send: SendShape = {}): Pro
   const baseFee = block.baseFeePerGas ?? null;
   const feeCap = baseFee !== null ? baseFee * BASE_FEE_MULTIPLIER + tip : gasPrice;
   const fee = feeCap > gasPrice ? feeCap : gasPrice;
-  const wei = (gas * fee * HEADROOM_NUMERATOR) / HEADROOM_DENOMINATOR;
-  return Number(formatUnits(wei, NATIVE_DECIMALS));
+  // Headroom on the price, so gas * cap is exactly the balance the node will
+  // require, and the total is the same figure nativeSendCost always reported.
+  const maxFeePerGas = (fee * HEADROOM_NUMERATOR) / HEADROOM_DENOMINATOR;
+  return {
+    gas,
+    maxFeePerGas,
+    maxPriorityFeePerGas: baseFee !== null ? tip : 0n,
+    eip1559: baseFee !== null,
+    feeWei: gas * maxFeePerGas,
+  };
+}
+
+// What it actually costs to send this chain's native token right now, in whole
+// units. Replaces a guessed reserve with a measured one, so selling "max" can
+// leave behind the fee instead of a round number chosen in advance.
+export async function nativeSendCost(network: string, send: SendShape = {}): Promise<number> {
+  const { feeWei } = await nativeSendFeeParams(network, send);
+  return Number(formatUnits(feeWei, NATIVE_DECIMALS));
 }
 
 /**
