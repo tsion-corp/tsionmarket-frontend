@@ -123,6 +123,14 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
           apiKey: decane.apiKey,
           authMethods: ["google", "email", "kingschat", "x"],
           chains: DECANE_CHAINS,
+          // Keep the session across tabs, not just across reloads. Without it
+          // closing the tab reads as being signed out, which is most of what
+          // people meant by "it signs me out too quickly" — the enclave session
+          // is still valid for hours at that point.
+          //
+          // The trade: the session handle is the signing credential, so this
+          // widens where it can be read from one tab to the whole origin.
+          resumeSessionAcrossTabs: true,
           // The kit's own full-screen "Creating your wallet" overlay is off:
           // the sign-in page shows its branded busy panel for the creating
           // window (it is where the Google redirect lands), and AuthGuard's
