@@ -29,13 +29,10 @@ import {
 } from "@/features/casino/components/last-standing/rail-cards";
 import { estimateWinnerPayout, isSameAddress } from "@/features/casino/lib/last-standing/split";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
+import { readChainGameStatus } from "@/features/casino/lib/last-standing/chain-status";
 import {
   detectTier,
   openMiniWindow,
-  closeMiniWindow,
-  isMiniWindowOpen,
-  miniWindowSnapshot,
-  subscribeMiniWindow,
   formatCountdown,
 } from "@/features/casino/components/last-standing/mini-timer";
 import { useCountdown } from "@/features/casino/components/last-standing/use-countdown";
@@ -84,6 +81,7 @@ import { usePrices } from "@/hooks/use-prices";
 import { usePaged } from "@/hooks/use-paged";
 import {
   resolveRoundEndConfirmation,
+  resolveChainRoundEnd,
   shouldBeginRoundEnd,
 } from "@/features/casino/lib/last-standing/round-end";
 import {
@@ -246,47 +244,6 @@ function MusicToggle() {
   );
 }
 
-/**
- * Raises the floating clock, or closes it again.
- *
- * The pop-out was only ever offered on the way out, by the dialog that catches
- * a click leaving the arena. That covers navigating to another page of this
- * app, but not switching browser tabs or apps — and it cannot, because both
- * picture-in-picture APIs demand a user gesture and looking away is not one.
- * This is the deliberate way in: the click IS the gesture.
- *
- * `followGame` runs first for the same reason it does in that dialog — the
- * pop-out reads whichever game is followed, and following is otherwise only
- * set by wagering, so a watcher who never played took an empty clock away.
- */
-function PopOutToggle({ gameId }: { gameId: number }) {
-  const t = useTranslations("casino.lastStanding");
-  const mini = useSyncExternalStore(subscribeMiniWindow, miniWindowSnapshot, miniWindowSnapshot);
-  const open = isMiniWindowOpen(mini);
-  return (
-    <CornerPill
-      label={open ? t("miniClose") : t("miniOpen")}
-      pressed={open}
-      onClick={() => {
-        if (open) {
-          closeMiniWindow();
-          return;
-        }
-        followGame(gameId);
-        openMiniWindow(detectTier());
-      }}
-    >
-      {open ? (
-        // Closing: a window with an X.
-        <path d="M3 4h18v16H3V4Zm2 4v10h14V8H5Zm3.4 1.6L12 13.2l3.6-3.6 1.4 1.4-3.6 3.6 3.6 3.6-1.4 1.4-3.6-3.6-3.6 3.6-1.4-1.4 3.6-3.6-3.6-3.6 1.4-1.4Z" />
-      ) : (
-        // Opening: the standard arrow leaving a frame.
-        <path d="M14 3h7v7h-2V6.4l-8.3 8.3-1.4-1.4L17.6 5H14V3ZM5 5h5v2H5v12h12v-5h2v7H3V5h2Z" />
-      )}
-    </CornerPill>
-  );
-}
-
 // The wager's coin flight: fixed launch offsets and stagger, so the burst is
 // deterministic (no per-render randomness) and reads as a handful of coins
 // rather than a single dot. Coordinates are viewport-relative; the layer that
@@ -352,9 +309,25 @@ export function shortTimeAgo(
  * pill and the tagline. Split out because the error state below draws the same
  * frame, and a screen that fails to load should still say what it is.
  */
-function PageHeader({ pill }: { pill: { label: string; live: boolean; ended: boolean } }) {
+/**
+ * A named game puts the starter's own name and words in the heading, since
+ * that is what says which game you are looking at. An unnamed one falls back
+ * to the product's name and tagline.
+ */
+function PageHeader({
+  pill,
+  title,
+  description,
+}: {
+  pill: { label: string; live: boolean; ended: boolean };
+  title?: string | null;
+  description?: string | null;
+}) {
   const t = useTranslations("casino.lastStanding");
   const tSections = useTranslations("sections");
+  const named = typeof title === "string" && title.trim() !== "";
+  const heading = named ? title.trim() : t("title");
+  const sub = named && description?.trim() ? description.trim() : t("tagline");
 
   return (
     <header>
@@ -385,8 +358,11 @@ function PageHeader({ pill }: { pill: { label: string; live: boolean; ended: boo
         <div className="flex min-w-0 flex-wrap items-center gap-x-[17px] gap-y-3">
           {/* Figma 844:79667: Mona Sans Bold 36, leading 1.1, -1.08px (-0.03em).
               Scales down on a phone and settles at 36 on a desktop. */}
-          <h1 className="font-serif text-[clamp(28px,4.4vw,36px)] leading-[1.1] font-bold tracking-[-0.03em] text-white">
-            {t("title")}
+          <h1
+            data-testid="lms-heading"
+            className="min-w-0 font-serif text-[clamp(28px,4.4vw,36px)] leading-[1.1] font-bold tracking-[-0.03em] break-words text-white"
+          >
+            {heading}
           </h1>
           {/* Figma 844:79668 (Live) and 844:78319 (Ended): one neutral pill.
               Only the live one carries the static yellow dot. */}
@@ -410,8 +386,12 @@ function PageHeader({ pill }: { pill: { label: string; live: boolean; ended: boo
       </div>
 
       {/* Figma 844:79670: Mona Sans SemiBold 14, grey, leading 1. */}
-      <p className="mt-3 max-w-[60ch] font-serif text-[14px] leading-none font-semibold tracking-[-0.01em] text-[#8a8a8a]">
-        {t("tagline")}
+      {/* One clamped line, as the lobby card has it. */}
+      <p
+        data-testid="lms-subheading"
+        className="mt-3 line-clamp-1 max-w-[60ch] font-serif text-[14px] leading-[1.35] font-semibold tracking-[-0.01em] text-[#8a8a8a]"
+      >
+        {sub}
       </p>
     </header>
   );
@@ -476,7 +456,10 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // game id when the contract is redeployed, so the feed can also hold a
   // finished game's plays. The round number counts these, and the table shows
   // them.
+  // Oldest first, which is the order the round count is measured in.
   const runActivities = useMemo(() => currentRunActivities(activities) ?? [], [activities]);
+  // The table reads the other way round: newest at the top.
+  const feedActivities = useMemo(() => [...runActivities].reverse(), [runActivities]);
   const roundCount = useMemo(() => currentRoundCount(activities), [activities]);
 
   // The round visuals below were written against v3's single-game status. v4
@@ -579,7 +562,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const winnerLabel = revealWinner ? truncateAddress(revealWinner) : null;
 
   // Both feeds page 10 rows at a time so the cards don't grow unbounded.
-  const pagedActivities = usePaged(runActivities, FEED_PAGE_SIZE);
+  const pagedActivities = usePaged(feedActivities, FEED_PAGE_SIZE);
 
   // The balance the player spends from is their own money on the platform. We
   // present everything as plain dollars — the underlying asset (ETH on Base)
@@ -891,7 +874,31 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // tick, so a service that answers in 200ms is not made to wait for a poll.
   useEffect(() => {
     if (confirmingSince === null) return;
+    let done = false;
 
+    const toastId = toast.loading(t("toastCheckingRound"));
+
+    const settle = (verdict: "ended" | "continued") => {
+      if (done) return;
+      done = true;
+      setConfirmingSince(null);
+      if (verdict === "ended") {
+        toast.dismiss(toastId);
+        beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+        return;
+      }
+      roundEndedRef.current = false;
+      toast.info(t("toastRoundContinued"), { id: toastId });
+    };
+
+    // The contract settles it outright when it answers.
+    void readChainGameStatus(gameId)
+      .then((status) => {
+        if (status) settle(resolveChainRoundEnd(status));
+      })
+      .catch((error: unknown) => vaultLog("round-end chain read failed", { error: String(error) }));
+
+    // The service's answer, for a chain read that fails or is slow.
     const decide = () => {
       const verdict = resolveRoundEndConfirmation({
         gameActive,
@@ -900,21 +907,15 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
         maxWaitMs: ROUND_END_CONFIRM_MS,
         settleMs: ROUND_END_SETTLE_MS,
       });
-      if (verdict === "wait") return;
-      setConfirmingSince(null);
-      if (verdict === "ended") {
-        beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
-        return;
-      }
-      // The round is plainly running again. Say so, because the clock visibly
-      // hit zero and silence would read as the timer being broken.
-      roundEndedRef.current = false;
-      toast.info(t("toastRoundContinued"));
+      if (verdict !== "wait") settle(verdict);
     };
 
     decide();
     const id = setInterval(decide, 500);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      if (!done) toast.dismiss(toastId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [confirmingSince, gameActive, countdown]);
 
@@ -1256,6 +1257,18 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const canStepStakeUp = minStakeUnits > 0n && stake + minStakeUnits <= balanceUnits;
   const canStepStakeDown = minStakeUnits > 0n && stake - minStakeUnits >= minStakeUnits;
 
+  // Clamped, not rejected: under the game's minimum is what the contract
+  // reverts, over the balance is what the player cannot pay.
+  const onEditStake = (text: string) => {
+    const usd = money.fromInput(text);
+    if (usd === null || minStakeUnits <= 0n) return;
+    const wanted = usdToUnits(usd);
+    if (wanted < minStakeUnits) setStakeUnits(minStakeUnits);
+    else if (wanted > balanceUnits)
+      setStakeUnits(balanceUnits > minStakeUnits ? balanceUnits : minStakeUnits);
+    else setStakeUnits(wanted);
+  };
+
   const onPlay = async () => {
     if (!canPlay) {
       // The CTA already reads "Add money to play", so pressing it opens the
@@ -1528,6 +1541,8 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
           live: gameActive,
           ended: roundOver,
         }}
+        title={game?.title}
+        description={game?.description}
       />
 
       {/* The socket is behind, so nothing on this page is evidence of
@@ -1570,34 +1585,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
           rail readable on a narrow laptop, and below 980px they stack. */}
       <div className="mt-9 grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,1fr)_minmax(295px,29.4%)] min-[980px]:gap-3">
         <div className="flex min-w-0 flex-col gap-3">
-          {/* The starter's name for this game, when it has one. Above the
-              stage because it says WHICH game you are looking at, and only
-              when present: the number is already in the page title, so an
-              unnamed game loses nothing by leaving this out. Carried over
-              from the naming change (#569), which landed while this redesign
-              was in flight.
-
-              The description is one clamped line, taken from main (#573): the
-              starter's own words are worth showing, two lines of them on a
-              sixty-second page are not. Main made that call against its own
-              header, where the name rode the prize-pool eyebrow inline; that
-              eyebrow is gone here and the name is a heading of its own, but
-              the reason is about what the page is FOR, not how its header is
-              shaped, so it holds either way. The type is main's exactly rather
-              than re-tuned to sit under a larger heading — the two files
-              should keep converging, and a 0.5px and 5% difference is not
-              worth the next conflict. */}
-          {game?.title ? (
-            <div>
-              <h1 className="ws-display truncate text-[17px] tracking-[-0.01em]">{game.title}</h1>
-              {game.description ? (
-                <p className="mt-1 line-clamp-1 text-[12px] leading-[1.35] font-normal text-white/45">
-                  {game.description}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-
           {statusLoading && !status ? (
             // A first paint with nothing in hand. Said as a skeleton of the
             // stage's own height rather than an empty clock, which would read
@@ -1617,19 +1604,10 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
               // as fact.
               roundLabel={roundCount === null ? null : t("roundLabel", { round: roundCount })}
               // Opposite the round label, in the corner the design leaves
-              // empty. The pop-out sits inside the arena's own card rather
-              // than beside the page title, because it carries THIS game's
-              // clock away with the reader.
-              //
-              // It is dropped once the round is over: there is no clock left
-              // to take, which is the same reason `useLeavePrompt` stops
-              // asking then. Sound outlives the round and stays.
-              cornerAction={
-                <>
-                  {roundOver ? null : <PopOutToggle gameId={gameId} />}
-                  <MusicToggle />
-                </>
-              }
+              // empty. Sound only: the pop-out is offered on the way out, by
+              // the dialog that catches a click leaving the arena, and a
+              // second way in beside the clock was the same offer twice.
+              cornerAction={<MusicToggle />}
               countdown={formatCountdown(gameActive ? countdown : 0)}
               progress={timerPct / 100}
               // The ring turns red in the last URGENT_SECONDS (10) of a live round.
@@ -1728,6 +1706,9 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                     disabled: wagering,
                     decrementLabel: t("stepperDecrease"),
                     incrementLabel: t("stepperIncrease"),
+                    editValue: money.toInput(stakeUsd),
+                    onEdit: onEditStake,
+                    editLabel: t("stepperEdit"),
                   }}
                   cta={{
                     label: ctaLabel,

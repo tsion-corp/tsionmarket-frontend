@@ -2127,6 +2127,7 @@
       "startCta": "Start for {amount}",
       "toastGameStarted": "Your game is live",
       "toastRoundContinued": "The round is still running.",
+      "toastCheckingRound": "Checking whether the round ended…",
       "toastStartFailed": "Couldn't start the game",
       "startFloorUnavailable": "Couldn't reach the game contract, so we can't quote a stake right now.",
       "startNeedsBalance": "You need at least {amount} in your balance to start a game.",
@@ -2271,6 +2272,7 @@
       "railClaimCta": "Claim {amount}",
       "stepperDecrease": "Decrease the play amount",
       "stepperIncrease": "Increase the play amount",
+      "stepperEdit": "Play amount",
       "pagerItem": "Go to card {index} of {count}",
       "youLabel": "You"
     },

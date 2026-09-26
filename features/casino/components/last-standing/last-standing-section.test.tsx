@@ -167,6 +167,11 @@ vi.mock("@/components/ui/currency-select", () => ({
     ready: true,
     format: (n: number) => `$${n.toFixed(2)}`,
     formatExact: (n: number) => `$${n.toFixed(2)}`,
+    toInput: (n: number) => n.toFixed(2),
+    fromInput: (text: string) => {
+      const value = Number(text.replace("$", "").trim());
+      return Number.isFinite(value) && value > 0 ? value : null;
+    },
   }),
 }));
 
@@ -196,6 +201,8 @@ vi.mock("@/lib/toast", () => ({
     loading: () => "toast",
     success: () => {},
     error: () => {},
+    info: () => {},
+    dismiss: () => {},
   },
 }));
 
@@ -380,65 +387,53 @@ describe("LastStandingSection page frame", () => {
     expect(screen.getByTestId("stage-card")).toContainElement(sound);
   });
 
-  // The pop-out was only ever offered by the dialog that catches a click
-  // leaving the arena. That never fires for a tab switch — and cannot, since
-  // both picture-in-picture APIs need a gesture — so this is the way in.
-  describe("pop-out switch", () => {
-    it("sits in the stage card wearing the same pill as the sound switch", () => {
+  // The heading says WHICH game you are looking at. A named game puts the
+  // starter's own name and words there; an unnamed one falls back to the
+  // product's, which is what every game showed before naming existed.
+  describe("the heading", () => {
+    it("is the starter's name for the game, with their description under it", () => {
+      world.game = makeGame({ title: "Friday night pot", description: "Winner takes the lot" });
       renderSection();
 
-      const popOut = screen.getByRole("button", { name: ls.miniOpen });
-      const sound = screen.getByRole("button", { name: ls.soundPlay });
-
-      expect(screen.getByTestId("stage-card")).toContainElement(popOut);
-      // Same component, so the same face: this is what "exactly like the sound
-      // button" means, and what catches a copy drifting from its original.
-      expect(popOut.className).toBe(sound.className);
-      expect(popOut.getAttribute("style")).toBe(sound.getAttribute("style"));
+      expect(screen.getByTestId("lms-heading")).toHaveTextContent("Friday night pot");
+      expect(screen.getByTestId("lms-subheading")).toHaveTextContent("Winner takes the lot");
+      expect(screen.getByTestId("lms-crumb-current")).toHaveTextContent(ls.title);
     });
 
-    it("points the pop-out at this game before raising it", () => {
+    it("keeps the tagline under a named game that carries no description", () => {
+      world.game = makeGame({ title: "Friday night pot" });
       renderSection();
 
-      fireEvent.click(screen.getByRole("button", { name: ls.miniOpen }));
-
-      expect(followGame).toHaveBeenCalledWith(59);
-      expect(openMiniWindow).toHaveBeenCalledTimes(1);
-      // Following must happen first, or the window opens on an empty clock.
-      expect(followGame.mock.invocationCallOrder[0]).toBeLessThan(
-        openMiniWindow.mock.invocationCallOrder[0]
-      );
+      expect(screen.getByTestId("lms-heading")).toHaveTextContent("Friday night pot");
+      expect(screen.getByTestId("lms-subheading")).toHaveTextContent(ls.tagline);
     });
 
-    it("turns into a close switch while the window is up, and closes it", () => {
+    it("falls back to the product's own name and tagline for an unnamed game", () => {
       renderSection();
 
-      fireEvent.click(screen.getByRole("button", { name: ls.miniOpen }));
-
-      const close = screen.getByRole("button", { name: ls.miniClose });
-      expect(close).toHaveAttribute("aria-pressed", "true");
-      expect(screen.queryByRole("button", { name: ls.miniOpen })).toBeNull();
-
-      fireEvent.click(close);
-
-      expect(closeMiniWindow).toHaveBeenCalledTimes(1);
-      expect(openMiniWindow).toHaveBeenCalledTimes(1);
-      expect(screen.getByRole("button", { name: ls.miniOpen })).toHaveAttribute(
-        "aria-pressed",
-        "false"
-      );
+      expect(screen.getByTestId("lms-heading")).toHaveTextContent(ls.title);
+      expect(screen.getByTestId("lms-subheading")).toHaveTextContent(ls.tagline);
     });
 
-    // There is no clock left to carry away. `useLeavePrompt` stops asking for
-    // the same reason. Sound outlives the round and stays.
-    it("drops the switch once the round is over, and keeps the sound switch", () => {
-      world.game = makeGame({ active: false });
+    // It used to be drawn twice: once here and once again above the stage.
+    it("names the game once", () => {
+      world.game = makeGame({ title: "Friday night pot" });
       renderSection();
 
-      expect(screen.queryByRole("button", { name: ls.miniOpen })).toBeNull();
-      expect(screen.queryByRole("button", { name: ls.miniClose })).toBeNull();
-      expect(screen.getByRole("button", { name: ls.soundPlay })).toBeInTheDocument();
+      expect(screen.getAllByText("Friday night pot")).toHaveLength(1);
     });
+  });
+
+  // The stage's corner carries the sound switch and nothing else. A pop-out
+  // pill here was the same offer twice: the dialog that catches a click
+  // leaving the arena still raises the floating clock, which is where a
+  // reader actually wants it.
+  it("offers no pop-out switch beside the clock", () => {
+    renderSection();
+
+    expect(screen.queryByRole("button", { name: ls.miniOpen })).toBeNull();
+    expect(screen.queryByRole("button", { name: ls.miniClose })).toBeNull();
+    expect(screen.getByRole("button", { name: ls.soundPlay })).toBeInTheDocument();
   });
 
   it("shows a loading stage rather than an empty clock before the game arrives", () => {
@@ -586,10 +581,71 @@ describe("LastStandingSection rail", () => {
     renderSection();
 
     fireEvent.click(screen.getByRole("button", { name: ls.stepperIncrease }));
-    expect(screen.getByText("$0.76")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: ls.stepperEdit })).toHaveValue("$0.76");
 
     fireEvent.click(screen.getByRole("button", { name: ls.railAddCta }));
     expect(wager).toHaveBeenCalledWith(59, 760000n);
+  });
+
+  // Stepping is in units of the game's entry, so a ten-times stake is nine
+  // presses. The figure is a field for that reason.
+  describe("typing the stake", () => {
+    const field = () => screen.getByRole("textbox", { name: ls.stepperEdit });
+
+    it("wagers what was typed into it", () => {
+      renderSection();
+
+      fireEvent.focus(field());
+      fireEvent.change(field(), { target: { value: "2.50" } });
+      fireEvent.blur(field());
+
+      expect(field()).toHaveValue("$2.50");
+      fireEvent.click(screen.getByRole("button", { name: ls.railAddCta }));
+      expect(wager).toHaveBeenCalledWith(59, 2_500_000n);
+    });
+
+    // Both ends are clamped rather than refused: under the game's minimum is
+    // what the contract reverts, and over the balance is what cannot be paid.
+    it("pulls a figure under the game's minimum up to it", () => {
+      renderSection();
+
+      fireEvent.focus(field());
+      fireEvent.change(field(), { target: { value: "0.01" } });
+      fireEvent.blur(field());
+
+      expect(field()).toHaveValue("$0.38");
+    });
+
+    it("pulls a figure over the balance down to it", () => {
+      world.balanceUsd = 5;
+      renderSection();
+
+      fireEvent.focus(field());
+      fireEvent.change(field(), { target: { value: "999" } });
+      fireEvent.blur(field());
+
+      expect(field()).toHaveValue("$5.00");
+    });
+
+    it("leaves the stake alone when the field is cleared", () => {
+      renderSection();
+
+      fireEvent.focus(field());
+      fireEvent.change(field(), { target: { value: "" } });
+      fireEvent.blur(field());
+
+      expect(field()).toHaveValue("$0.38");
+    });
+
+    it("drops what was typed on Escape", () => {
+      renderSection();
+
+      fireEvent.focus(field());
+      fireEvent.change(field(), { target: { value: "9" } });
+      fireEvent.keyDown(field(), { key: "Escape" });
+
+      expect(field()).toHaveValue("$0.38");
+    });
   });
 
   it("never steps the stake past the balance", () => {
@@ -803,6 +859,27 @@ describe("LastStandingSection activity panel", () => {
     // Scoped to the table: the rail's stepper shows the same figure, because
     // the stake starts at the game's minimum.
     expect(within(screen.getByRole("table")).getByText("$0.38")).toBeInTheDocument();
+  });
+
+  // A reader watching a live round looks at the top of the table, so that is
+  // where the play that just landed belongs.
+  it("puts the newest play at the top", () => {
+    const now = Date.now();
+    const at = (msAgo: number) => new Date(now - msAgo).toISOString();
+    world.activities = [
+      play("started", ME, at(180_000), "380000"),
+      play("joined", THEM, at(120_000), "380000"),
+      play("won", THEM, at(60_000), "580000"),
+    ];
+
+    renderSection();
+
+    const times = within(screen.getByRole("table"))
+      .getAllByRole("row")
+      .slice(1)
+      .map((row) => row.textContent);
+    expect(times[0]).toContain("1 min ago");
+    expect(times[times.length - 1]).toContain("3 min ago");
   });
 
   it("writes the time in the design's short form", () => {

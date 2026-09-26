@@ -123,3 +123,28 @@ export function formatMoney(
   });
   return `${currency.symbol}${formatted}`;
 }
+
+/**
+ * A USD amount as the plain figure for an editable field, in `currency`. No
+ * symbol and no grouping: both are things a player has to delete before they
+ * can type.
+ */
+export function moneyInputValue(amountUsd: number, currency: Currency, rate: number): string {
+  if (!Number.isFinite(amountUsd) || !Number.isFinite(rate) || rate <= 0) return "";
+  return (amountUsd * rate).toFixed(NO_DECIMALS.has(currency.code) ? 0 : 2);
+}
+
+/**
+ * What a player typed, back in USD, through the rate it was shown at. Null for
+ * anything unusable, which the caller reads as "leave the amount alone" rather
+ * than as zero. Symbols and separators are accepted, since a pasted figure
+ * brings them along.
+ */
+export function moneyInputToUsd(text: string, currency: Currency, rate: number): number | null {
+  if (!Number.isFinite(rate) || rate <= 0) return null;
+  const cleaned = text.replace(currency.symbol, "").replace(/[\s,]/g, "").trim();
+  if (cleaned === "" || !/^\d*\.?\d*$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value / rate;
+}

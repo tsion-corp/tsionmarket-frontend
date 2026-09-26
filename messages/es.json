@@ -2127,6 +2127,7 @@
       "startCta": "Iniciar por {amount}",
       "toastGameStarted": "Tu partida está en marcha",
       "toastRoundContinued": "La ronda sigue en marcha.",
+      "toastCheckingRound": "Comprobando si la ronda ha terminado…",
       "toastStartFailed": "No se pudo iniciar la partida",
       "startFloorUnavailable": "No se pudo contactar el contrato, así que no podemos calcular la apuesta ahora.",
       "startNeedsBalance": "Necesitas al menos {amount} en tu saldo para empezar una partida.",
@@ -2271,6 +2272,7 @@
       "railClaimCta": "Reclamar {amount}",
       "stepperDecrease": "Reducir el importe",
       "stepperIncrease": "Aumentar el importe",
+      "stepperEdit": "Cantidad de juego",
       "pagerItem": "Ir a la tarjeta {index} de {count}",
       "youLabel": "Tú"
     },

@@ -2127,6 +2127,7 @@
       "startCta": "Lancer pour {amount}",
       "toastGameStarted": "Votre partie est lancée",
       "toastRoundContinued": "La manche est toujours en cours.",
+      "toastCheckingRound": "Vérification de la fin de la manche…",
       "toastStartFailed": "Impossible de lancer la partie",
       "startFloorUnavailable": "Contrat injoignable, impossible de chiffrer une mise pour l'instant.",
       "startNeedsBalance": "Il vous faut au moins {amount} sur votre solde pour lancer une partie.",
@@ -2271,6 +2272,7 @@
       "railClaimCta": "Récupérer {amount}",
       "stepperDecrease": "Diminuer la mise",
       "stepperIncrease": "Augmenter la mise",
+      "stepperEdit": "Montant de jeu",
       "pagerItem": "Aller à la carte {index} sur {count}",
       "youLabel": "Toi"
     },

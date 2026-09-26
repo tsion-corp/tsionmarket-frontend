@@ -9,6 +9,8 @@ import {
   DEFAULT_CURRENCY,
   findCurrency,
   formatMoney,
+  moneyInputValue,
+  moneyInputToUsd,
   searchCurrencies,
   type Currency,
 } from "@/lib/currencies";
@@ -115,6 +117,9 @@ export function useMoney() {
     // For the amount of a transaction rather than the size of a holding: what
     // is staked, paid out, or charged. Those are never abbreviated.
     formatExact: (amountUsd: number) => formatMoney(amountUsd, active, activeRate, { exact: true }),
+    /** The same figure as a plain value for an editable field, and back again. */
+    toInput: (amountUsd: number) => moneyInputValue(amountUsd, active, activeRate),
+    fromInput: (text: string) => moneyInputToUsd(text, active, activeRate),
   };
 }
 

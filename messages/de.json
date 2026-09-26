@@ -2127,6 +2127,7 @@
       "startCta": "Für {amount} starten",
       "toastGameStarted": "Dein Spiel läuft",
       "toastRoundContinued": "Die Runde läuft noch.",
+      "toastCheckingRound": "Es wird geprüft, ob die Runde beendet ist…",
       "toastStartFailed": "Spiel konnte nicht gestartet werden",
       "startFloorUnavailable": "Der Spielvertrag ist nicht erreichbar, daher lässt sich der Einsatz gerade nicht beziffern.",
       "startNeedsBalance": "Du brauchst mindestens {amount} Guthaben, um ein Spiel zu starten.",
@@ -2271,6 +2272,7 @@
       "railClaimCta": "{amount} abholen",
       "stepperDecrease": "Einsatz verringern",
       "stepperIncrease": "Einsatz erhöhen",
+      "stepperEdit": "Einsatz",
       "pagerItem": "Zu Karte {index} von {count}",
       "youLabel": "Du"
     },

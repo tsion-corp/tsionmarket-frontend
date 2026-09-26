@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveRoundEndConfirmation } from "./round-end";
+import { resolveChainRoundEnd, resolveRoundEndConfirmation } from "./round-end";
 
 // "Calculating the winner" must come after the game has ended, never before.
 //
@@ -54,5 +54,35 @@ describe("a service that has not answered", () => {
   // the prediction existed to avoid.
   it("falls back to the local clock at the deadline", () => {
     expect(verdict({ gameActive: true, countdown: 0, waitedMs: DEADLINE })).toBe("ended");
+  });
+});
+
+// The contract answers outright: a wager extends endTime in the transaction
+// that places it, so there is nothing to wait out.
+describe("the contract's own answer", () => {
+  const chain = (over: Partial<Parameters<typeof resolveChainRoundEnd>[0]> = {}) =>
+    resolveChainRoundEnd({
+      endTime: 1_700_000_060,
+      settled: false,
+      chainNow: 1_700_000_000,
+      ...over,
+    });
+
+  it("keeps a round whose endTime is still ahead of the block", () => {
+    expect(chain()).toBe("continued");
+  });
+
+  it("ends a round whose endTime the block has passed", () => {
+    expect(chain({ endTime: 1_700_000_000, chainNow: 1_700_000_001 })).toBe("ended");
+  });
+
+  it("ends a settled round whatever its endTime says", () => {
+    expect(chain({ settled: true, endTime: 1_700_009_999 })).toBe("ended");
+  });
+
+  // The buzzer-beater. The service still reports the round over here, which is
+  // exactly the report that named a winner on a live round.
+  it("saves a round a buzzer-beater wager extended", () => {
+    expect(chain({ endTime: 1_700_000_045, chainNow: 1_700_000_000 })).toBe("continued");
   });
 });

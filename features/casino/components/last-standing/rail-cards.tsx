@@ -1,6 +1,7 @@
 "use client";
 
 // React 19 dropped the global JSX namespace; it lives on the react package now.
+import { useState } from "react";
 import type { JSX, Ref } from "react";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 
@@ -39,6 +40,14 @@ export interface StakeStepperProps {
    */
   decrementLabel?: string;
   incrementLabel?: string;
+  /**
+   * The same figure as a plain editable value, e.g. "0.38". Nothing is parsed
+   * here: the card hands the raw text back and the caller, which owns the
+   * amount in base units, clamps it. Absent, the figure stays read-only.
+   */
+  editValue?: string;
+  onEdit?(text: string): void;
+  editLabel?: string;
 }
 
 export interface RailBadge {
@@ -416,6 +425,61 @@ const STEP_BUTTON =
 // the design clears on each side of the figure, and only the figure itself
 // gives ground, so the stepper never wraps or overflows. 916:84237 wraps the
 // row in 10px of padding, which is what puts it 22px under "Play Amount".
+// The draft is held here because a half-typed "0." is not an amount and the
+// caller must never hold one. Commits on blur and Enter; Escape drops it.
+function StakeField({
+  amount,
+  editValue,
+  onEdit,
+  editLabel,
+  disabled,
+}: {
+  amount: string;
+  editValue?: string;
+  onEdit?(text: string): void;
+  editLabel?: string;
+  disabled?: boolean;
+}): JSX.Element {
+  const [draft, setDraft] = useState<string | null>(null);
+  const editable = onEdit !== undefined && editValue !== undefined && disabled !== true;
+
+  if (!editable) {
+    return (
+      <span className="ws-display tnum block w-full truncate text-[36px] leading-none tracking-[-1.08px] text-[#ffe178]">
+        {amount}
+      </span>
+    );
+  }
+
+  const commit = () => {
+    const text = draft;
+    setDraft(null);
+    if (text !== null && text.trim() !== "") onEdit(text);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      value={draft ?? amount}
+      aria-label={editLabel}
+      onFocus={() => setDraft(editValue)}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          e.currentTarget.blur();
+        } else if (e.key === "Escape") {
+          setDraft(null);
+          e.currentTarget.blur();
+        }
+      }}
+      className="ws-display tnum block w-full cursor-text truncate rounded-[10px] bg-transparent text-center text-[36px] leading-none tracking-[-1.08px] text-[#ffe178] outline-none focus:bg-white/[0.06]"
+    />
+  );
+}
+
 function StakeStepper({
   amount,
   currency,
@@ -426,6 +490,9 @@ function StakeStepper({
   disabled,
   decrementLabel,
   incrementLabel,
+  editValue,
+  onEdit,
+  editLabel,
   amountLabel,
 }: StakeStepperProps & { amountLabel: string }): JSX.Element {
   return (
@@ -444,9 +511,13 @@ function StakeStepper({
             Mona Sans Bold, 8px over "USD" in Mona Sans SemiBold. The design
             gives the column 93px, so that is its floor. */}
         <span className="flex min-w-0 flex-col items-center gap-2 text-center sm:min-w-[93px]">
-          <span className="ws-display tnum block w-full truncate text-[36px] leading-none tracking-[-1.08px] text-[#ffe178]">
-            {amount}
-          </span>
+          <StakeField
+            amount={amount}
+            editValue={editValue}
+            onEdit={onEdit}
+            editLabel={editLabel ?? amountLabel}
+            disabled={disabled}
+          />
           <span className="block font-serif text-[13px] leading-none font-semibold text-[#f4f4f4]/40">
             {currency}
           </span>
