@@ -5,6 +5,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePrices } from "@/hooks/use-prices";
 import { useVaultSocket } from "@/features/casino/hooks/use-vault-socket";
 import { seedGame } from "@/features/casino/lib/last-standing/seed-game";
+import {
+  rememberMetadata,
+  withKnownMetadata,
+} from "@/features/casino/lib/last-standing/metadata-memory";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
 import { priced } from "@/features/casino/lib/last-standing/pricing";
@@ -15,6 +19,11 @@ import {
 import { fetchGame, isVaultNotFound, type VaultGame } from "@/features/casino/lib/vault-api";
 
 const FALLBACK_POLL_MS = 5_000;
+
+function rememberOne(game: VaultGame): VaultGame {
+  rememberMetadata([game]);
+  return game;
+}
 
 // A slow reconcile that runs even on a healthy socket, for the same reason the
 // lobby has one: the socket is authoritative for liveness, not for everything
@@ -147,7 +156,9 @@ export function useVaultGame(gameId: number | null) {
     queryFn: async () => {
       const id = gameId as number;
       try {
-        return await fetchGame(id);
+        // A response without a name does not mean the game lost one; see
+        // lib/last-standing/metadata-memory.
+        return withKnownMetadata(rememberOne(await fetchGame(id)));
       } catch (error) {
         // A 404 is final; anything else is the service being unreachable, and
         // the retry below handles that. The service reads the chain itself
@@ -214,6 +225,33 @@ export function useVaultGame(gameId: number | null) {
     unfollowGame();
   }, [gameId, settled, missing]);
 
+  // The contract's endTime, applied to the cached game.
+  //
+  // The round-end check reads games(id) when the clock hits zero. When it
+  // comes back saying the round was extended, that endTime is the only fresh
+  // fact anyone has: the indexer has not caught up, so a refetch returns the
+  // stale one and the clock sits at 00:00 believing the round is over. Writing
+  // it restarts the countdown from the truth.
+  //
+  // Only ever forward. A read that raced a fresher socket frame must not pull
+  // the clock back.
+  const extendTo = useCallback(
+    (endTime: number) => {
+      if (gameId === null) return;
+      queryClient.setQueryData<VaultGame>(VAULT_KEYS.game(gameId), (current) =>
+        current && endTime > current.endTime
+          ? {
+              ...current,
+              endTime,
+              active: true,
+              timeRemaining: Math.max(0, endTime - Math.floor(Date.now() / 1000)),
+            }
+          : current
+      );
+    },
+    [gameId, queryClient]
+  );
+
   const online = useSyncExternalStore(subscribeOnline, onlineNow, onlineOnServer);
   // Degraded: what the screen shows cannot be trusted as current. Either the
   // browser knows it is offline, or the socket is down AND the REST fallback
@@ -234,5 +272,6 @@ export function useVaultGame(gameId: number | null) {
     degraded,
     confirmGame,
     resync,
+    extendTo,
   };
 }

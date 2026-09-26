@@ -16,6 +16,13 @@ vi.mock("@/features/portfolio/components/add-to-metamask-button", () => ({
   AddToMetaMaskButton: () => null,
 }));
 
+const sendFlag = { enabled: false };
+vi.mock("@/features/portfolio/lib/kash-send", () => ({
+  get KASH_SEND_ENABLED() {
+    return sendFlag.enabled;
+  },
+}));
+
 import { KashCardMobile } from "@/features/portfolio/components/kash-card-mobile";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -49,12 +56,12 @@ function renderCard() {
 }
 
 // Send is off the card for now; Buy and Convert stay. The send modal and its
-// wiring remain in the codebase, only the door is gone. The phone card carries
-// the same guard as the desktop one: users were sending KASH+ to the Dextopus
-// deposit address and losing it.
+// wiring remain in the codebase, only the door is gone: users were sending
+// KASH+ to the Dextopus deposit address and losing it.
 describe("KashCardMobile actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sendFlag.enabled = false;
     kashHooks.useKashAccount.mockReturnValue({
       data: account(),
       isError: false,
@@ -63,16 +70,31 @@ describe("KashCardMobile actions", () => {
     kashHooks.useKashStatus.mockReturnValue({ data: undefined });
   });
 
-  it("offers Buy, Send and Convert, in that order", () => {
+  it("offers Buy and Convert, and no way to send", () => {
     renderCard();
     expect(screen.getByRole("button", { name: "Buy" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+  });
 
+  // Two buttons in a three-column grid would leave a hole where Send was.
+  it("sizes the row to the buttons it actually has", () => {
+    renderCard();
+    const row = screen.getByRole("button", { name: "Buy" }).parentElement;
+    expect(row?.className).toContain("grid-cols-2");
+    expect(row?.className).not.toContain("grid-cols-3");
+  });
+
+  it("puts Send back between Buy and Convert once it is switched on", () => {
+    sendFlag.enabled = true;
+    renderCard();
     const labels = screen
       .getAllByRole("button")
       .map((b) => b.textContent?.trim())
       .filter((label) => label === "Buy" || label === "Send" || label === "Convert");
     expect(labels).toEqual(["Buy", "Send", "Convert"]);
+    expect(screen.getByRole("button", { name: "Buy" }).parentElement?.className).toContain(
+      "grid-cols-3"
+    );
   });
 });

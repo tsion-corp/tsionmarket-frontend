@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
 import { useKashAccount, useKashStatus } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount } from "@/features/portfolio/lib/kash";
+import { KASH_SEND_ENABLED } from "@/features/portfolio/lib/kash-send";
 
 // The whole card background from the mobile comp (node 1:1565): the yellow
 // gradient, the cloud bank, the sparkle field, and the rounded border, exported
@@ -136,7 +137,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
         {/* Actions, above the cloud bank. Three across on a phone rather than
             two: a third row of pills would push the cloud bank off the card,
             and the labels are one short word each. */}
-        <div className="grid grid-cols-3 gap-[1.9cqw]">
+        <div className={`grid gap-[1.9cqw] ${KASH_SEND_ENABLED ? "grid-cols-3" : "grid-cols-2"}`}>
           <button
             onClick={onBuy}
             className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-white py-[14px] text-[15px] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
@@ -145,13 +146,15 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
             {t("buy")}
           </button>
           {/* Ink on the card's own gold, so Buy stays the one bright pill. */}
-          <button
-            onClick={onSend}
-            className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-black/20 bg-black/[0.07] py-[14px] text-[15px] font-semibold text-black transition-transform active:scale-[0.98]"
-          >
-            <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw] rotate-180" />
-            {t("send")}
-          </button>
+          {KASH_SEND_ENABLED ? (
+            <button
+              onClick={onSend}
+              className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-black/20 bg-black/[0.07] py-[14px] text-[15px] font-semibold text-black transition-transform active:scale-[0.98]"
+            >
+              <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw] rotate-180" />
+              {t("send")}
+            </button>
+          ) : null}
           <button
             onClick={onConvert}
             className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full bg-black py-[14px] text-[15px] font-semibold text-white shadow-[0_1.6px_3.3px_rgba(0,0,0,0.28)] transition-transform active:scale-[0.98]"

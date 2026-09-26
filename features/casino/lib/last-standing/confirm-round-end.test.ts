@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { resolveChainRoundEnd, resolveRoundEndConfirmation } from "./round-end";
+import {
+  ROUND_CONTINUED_HOLD_MS,
+  justContinued,
+  resolveChainRoundEnd,
+  resolveRoundEndConfirmation,
+} from "./round-end";
 
 // "Calculating the winner" must come after the game has ended, never before.
 //
@@ -84,5 +89,32 @@ describe("the contract's own answer", () => {
   // exactly the report that named a winner on a live round.
   it("saves a round a buzzer-beater wager extended", () => {
     expect(chain({ endTime: 1_700_000_045, chainNow: 1_700_000_000 })).toBe("continued");
+  });
+});
+
+// Reported 2026-09-26: the checking toast, then "the round continues", then
+// the calculating-winner modal anyway. The clock still read 00:00 at the
+// moment of the verdict, so the check re-armed on the next render and its
+// second pass rode out the deadline into a winner card.
+describe("the hold after a round continues", () => {
+  const at = 1_000_000;
+
+  it("holds while the clock is still catching up", () => {
+    expect(justContinued(at, at)).toBe(true);
+    expect(justContinued(at, at + ROUND_CONTINUED_HOLD_MS - 1)).toBe(true);
+  });
+
+  it("lets go once the hold is up", () => {
+    expect(justContinued(at, at + ROUND_CONTINUED_HOLD_MS)).toBe(false);
+  });
+
+  it("holds nothing when no round has continued", () => {
+    expect(justContinued(null, at)).toBe(false);
+  });
+
+  // The hold has to outlast the round-end deadline, or the second pass it
+  // exists to prevent starts before it expires and ends the round anyway.
+  it("outlasts the settle window it is protecting against", () => {
+    expect(ROUND_CONTINUED_HOLD_MS).toBeGreaterThan(SETTLE);
   });
 });

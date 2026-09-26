@@ -82,6 +82,7 @@ import { usePaged } from "@/hooks/use-paged";
 import {
   resolveRoundEndConfirmation,
   resolveChainRoundEnd,
+  justContinued,
   shouldBeginRoundEnd,
 } from "@/features/casino/lib/last-standing/round-end";
 import {
@@ -446,6 +447,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     connected,
     degraded,
     resync: resyncGame,
+    extendTo,
   } = useVaultGame(gameId);
   // This game's plays and this game's result, not every game's.
   const { activities, winners, activitiesLoading } = useVaultFeeds(connected, gameId);
@@ -507,6 +509,8 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // When the local clock hit zero and the arena started asking the service
   // whether the round really ended. Null when it is not asking.
   const [confirmingSince, setConfirmingSince] = useState<number | null>(null);
+  // When the last confirm step decided the round was still running.
+  const continuedAtRef = useRef<number | null>(null);
   const [roundPrizeUsd, setRoundPrizeUsd] = useState<number | null>(null);
   // The winner being revealed (full address, held only in memory). youWon and
   // the truncated label are derived from it at render, so the reveal has a
@@ -757,6 +761,18 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
+  // The same, for the confirm step: it is keyed on when it started, not on the
+  // clock, so a tick must not rebuild it.
+  const gameActiveRef = useRef(gameActive);
+  const countdownRef = useRef(countdown);
+  const lastPlayerRef = useRef(lastPlayer);
+  const potUsdRef = useRef(potUsd);
+  useEffect(() => {
+    gameActiveRef.current = gameActive;
+    countdownRef.current = countdown;
+    lastPlayerRef.current = lastPlayer;
+    potUsdRef.current = potUsd;
+  });
   // Freshest connection verdict, for the timed reveal to consult without
   // re-arming itself.
   const degradedRef = useRef(degraded);
@@ -833,7 +849,8 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       !gameActive &&
       phase === null &&
       !roundEndedRef.current &&
-      confirmingSince === null
+      confirmingSince === null &&
+      !justContinued(continuedAtRef.current, clockNow())
     ) {
       setConfirmingSince(clockNow());
       resyncGame();
@@ -857,7 +874,11 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       !shouldBeginRoundEnd({
         gameActive,
         countdown,
-        alreadyEnding: confirmingSince !== null || phase !== null || roundEndedRef.current,
+        alreadyEnding:
+          confirmingSince !== null ||
+          phase !== null ||
+          roundEndedRef.current ||
+          justContinued(continuedAtRef.current, clockNow()),
         degraded,
         ownWagerPending: ownWagerRef.current,
       })
@@ -870,8 +891,13 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [countdown, gameActive, phase, degraded, confirmingSince]);
 
-  // The confirm step's verdict. Re-runs on every status change and on its own
-  // tick, so a service that answers in 200ms is not made to wait for a poll.
+  // The confirm step's verdict.
+  //
+  // Keyed on `confirmingSince` alone. It used to list `gameActive` and
+  // `countdown` too, so a ticking clock tore the effect down and rebuilt it
+  // every second: the "done" guard reset each time and a fresh progress toast
+  // was raised on every tick. The live values are read through refs instead,
+  // so one confirm step is one effect with one toast.
   useEffect(() => {
     if (confirmingSince === null) return;
     let done = false;
@@ -884,25 +910,37 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       setConfirmingSince(null);
       if (verdict === "ended") {
         toast.dismiss(toastId);
-        beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+        beginRoundEnd(lastPlayerRef.current, lastPotRef.current || potUsdRef.current);
         return;
       }
+      // The round is running. Hold the arming effect off until the clock
+      // visibly has time on it again: the local countdown is still 0 at this
+      // instant, and without the hold it re-arms on the very next render and
+      // the second pass rides out its deadline into a winner card. That is
+      // what put "calculating the winner" straight after "the round
+      // continues" (reported 2026-09-26).
+      continuedAtRef.current = clockNow();
       roundEndedRef.current = false;
       toast.info(t("toastRoundContinued"), { id: toastId });
     };
 
-    // The contract settles it outright when it answers.
     void readChainGameStatus(gameId)
       .then((status) => {
-        if (status) settle(resolveChainRoundEnd(status));
+        if (!status) return;
+        const verdict = resolveChainRoundEnd(status);
+        // The contract's endTime is the only fresh clock anyone has here, so
+        // it goes in before the verdict: the countdown restarts from the
+        // truth rather than sitting at 00:00 waiting for the indexer.
+        if (verdict === "continued") extendTo(status.endTime);
+        settle(verdict);
       })
       .catch((error: unknown) => vaultLog("round-end chain read failed", { error: String(error) }));
 
     // The service's answer, for a chain read that fails or is slow.
     const decide = () => {
       const verdict = resolveRoundEndConfirmation({
-        gameActive,
-        countdown,
+        gameActive: gameActiveRef.current,
+        countdown: countdownRef.current,
         waitedMs: clockNow() - confirmingSince,
         maxWaitMs: ROUND_END_CONFIRM_MS,
         settleMs: ROUND_END_SETTLE_MS,
@@ -917,7 +955,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       if (!done) toast.dismiss(toastId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [confirmingSince, gameActive, countdown]);
+  }, [confirmingSince]);
 
   // The wager landed and the round is plainly running again, so the hold has
   // done its job. Also cleared on unmount, so no timer fires into a gone

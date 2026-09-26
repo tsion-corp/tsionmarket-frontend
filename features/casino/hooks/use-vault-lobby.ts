@@ -9,6 +9,10 @@ import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { usePrices } from "@/hooks/use-prices";
 import { priced, rawToTokenAmount } from "@/features/casino/lib/last-standing/pricing";
 import { fetchActiveGames, type VaultGame } from "@/features/casino/lib/vault-api";
+import {
+  reconcileMetadata,
+  withKnownMetadata,
+} from "@/features/casino/lib/last-standing/metadata-memory";
 import type { ChainGame } from "@/features/casino/lib/vault-game";
 
 // The socket carries the lobby while it is up; this polls fast as a fallback
@@ -93,7 +97,7 @@ export function useVaultLobby(options: { history?: boolean } = {}) {
 
   const games = useQuery<VaultGame[]>({
     queryKey: VAULT_KEYS.games,
-    queryFn: fetchActiveGames,
+    queryFn: async () => reconcileMetadata(await fetchActiveGames()),
     staleTime: FALLBACK_POLL_MS,
     refetchInterval: connected ? RECONCILE_POLL_MS : FALLBACK_POLL_MS,
   });
@@ -109,8 +113,9 @@ export function useVaultLobby(options: { history?: boolean } = {}) {
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
   const indexed = games.data ?? EMPTY_GAMES;
   const onChain = chain.data ?? EMPTY_CHAIN;
+  // The chain rows carry no name at all, so the memory fills them too.
   const priced = useMemo(
-    () => priceChainRows(indexed, onChain, ethPrice),
+    () => priceChainRows(indexed, onChain, ethPrice).map(withKnownMetadata),
     [indexed, onChain, ethPrice]
   );
 

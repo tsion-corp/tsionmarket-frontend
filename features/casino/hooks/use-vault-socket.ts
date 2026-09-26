@@ -10,6 +10,10 @@ import {
   settlementFromFrame,
 } from "@/features/casino/lib/last-standing/settlements";
 import { keepKnownMetadata, sortGameRows } from "@/features/casino/lib/vault-game";
+import {
+  rememberMetadata,
+  withKnownMetadata,
+} from "@/features/casino/lib/last-standing/metadata-memory";
 import type { ChainGame } from "@/features/casino/lib/vault-game";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
 
@@ -277,8 +281,9 @@ export function handleVaultFrame(client: QueryClient, raw: string): void {
         // toGameDto(game, usd), where the third argument is the name), so a
         // name the client already has is carried across rather than replaced
         // with nothing. Everything else in the row is still the snapshot's.
+        rememberMetadata(api);
         client.setQueryData<VaultGame[]>(VAULT_KEYS.games, (previous) =>
-          keepKnownMetadata(previous ?? [], api)
+          keepKnownMetadata(previous ?? [], api).map(withKnownMetadata)
         );
         client.setQueryData<ChainGame[]>(VAULT_KEYS.chainGames, chain);
       } else if (games !== undefined) {

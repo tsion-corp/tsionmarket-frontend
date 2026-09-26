@@ -116,3 +116,19 @@ export function resolveChainRoundEnd({
   if (settled) return "ended";
   return endTime > chainNow ? "continued" : "ended";
 }
+
+/**
+ * How long a "the round continues" verdict holds the round-end check off.
+ *
+ * The local clock still reads 00:00 for a moment after one: the contract said
+ * the round was extended, and the countdown only restarts once that endTime is
+ * applied and a render has run. Without the hold the check re-arms on the next
+ * render and its second pass rides out the deadline into a winner card, which
+ * is what put "calculating the winner" straight after "the round continues".
+ */
+export const ROUND_CONTINUED_HOLD_MS = 4_000;
+
+/** Whether a "continues" verdict at `at` is still holding at `now`. */
+export function justContinued(at: number | null, now: number): boolean {
+  return at !== null && now - at < ROUND_CONTINUED_HOLD_MS;
+}

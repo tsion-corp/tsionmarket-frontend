@@ -10,6 +10,9 @@ import { SHARE_IMAGE_SIZE, drawShareImage } from "@/features/casino/lib/last-sta
 interface GameShareCardProps {
   gameId: number;
   url: string;
+  /** The starter's own name for the game, when they gave it one. */
+  title?: string;
+  description?: string;
   /** The stake, already formatted, shown under the code. */
   stakeLabel?: string;
   isPrivate: boolean;
@@ -23,10 +26,20 @@ interface GameShareCardProps {
  * Built to be scanned off a screen at a stand, so the code is the largest
  * thing on it and keeps its white quiet zone.
  */
-export function GameShareCard({ gameId, url, stakeLabel, isPrivate, onOpen }: GameShareCardProps) {
+export function GameShareCard({
+  gameId,
+  url,
+  title,
+  description,
+  stakeLabel,
+  isPrivate,
+  onOpen,
+}: GameShareCardProps) {
   const t = useTranslations("casino.lastStanding");
   const qrRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
+  const name = title?.trim() ?? "";
+  const blurb = description?.trim() ?? "";
 
   const copy = useCallback(async () => {
     try {
@@ -57,7 +70,8 @@ export function GameShareCard({ gameId, url, stakeLabel, isPrivate, onOpen }: Ga
       drawShareImage(ctx, image, {
         eyebrow: t("eyebrow"),
         title: t("title"),
-        game: t("shareTitle", { gameId }),
+        game: name === "" ? t("shareTitle", { gameId }) : name,
+        ...(blurb === "" ? {} : { description: blurb }),
         stake: stakeLabel ?? "",
         scan: t("shareScan"),
       });
@@ -71,7 +85,7 @@ export function GameShareCard({ gameId, url, stakeLabel, isPrivate, onOpen }: Ga
       toast.error(t("shareDownloadFailed"));
     };
     image.src = objectUrl;
-  }, [gameId, t, stakeLabel]);
+  }, [gameId, t, stakeLabel, name, blurb]);
 
   const action =
     "flex-1 cursor-pointer rounded-[12px] border border-white/12 bg-white/[0.06] px-3 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-white/[0.12]";
@@ -96,10 +110,10 @@ export function GameShareCard({ gameId, url, stakeLabel, isPrivate, onOpen }: Ga
         </span>
 
         <h3 className="ws-display mt-2.5 text-[19px] tracking-[-0.01em]">
-          {t("shareTitle", { gameId })}
+          {name === "" ? t("shareTitle", { gameId }) : name}
         </h3>
         <p className="mt-1 max-w-[34ch] text-[12.5px] leading-[1.5] font-normal text-white/55">
-          {isPrivate ? t("shareBodyPrivate") : t("shareBodyPublic")}
+          {blurb === "" ? (isPrivate ? t("shareBodyPrivate") : t("shareBodyPublic")) : blurb}
         </p>
 
         <div ref={qrRef} className="mt-4">

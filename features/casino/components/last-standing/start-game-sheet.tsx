@@ -13,6 +13,7 @@ import { useVaultGame } from "@/features/casino/hooks/use-vault-game";
 import {
   DESCRIPTION_MAX,
   metadataProblem,
+  normalizeMetadata,
   TITLE_MAX,
 } from "@/features/casino/lib/last-standing/game-metadata";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
@@ -66,6 +67,12 @@ export function StartGameSheet({
   // open: metadataProblem only decides whether there is anything worth sending.
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  // What the service is actually given, sanitised. The share card draws the
+  // same values, so the image never names a game the vault does not.
+  const acceptedMetadata =
+    metadataProblem({ title, description }) === null
+      ? normalizeMetadata({ title, description })
+      : undefined;
   // Private by default when the lobby slot is taken: that is the only choice
   // available then, so it should be the one already selected.
   const [visibility, setVisibility] = useState<Visibility>(canStartPublic ? "public" : "private");
@@ -111,8 +118,7 @@ export function StartGameSheet({
         onClose();
         return;
       }
-      const metadata =
-        metadataProblem({ title, description }) === null ? { title, description } : undefined;
+      const metadata = acceptedMetadata;
       const { gameId } = await startGame(send, metadata, visibility === "private");
       // The stake has left the wallet: show it gone now, confirm from Base once.
       void settleBalance();
@@ -148,6 +154,8 @@ export function StartGameSheet({
           <GameShareCard
             gameId={started}
             url={url}
+            title={acceptedMetadata?.title}
+            description={acceptedMetadata?.description}
             stakeLabel={t("shareStake", { amount: formatUsd(sendUsd) })}
             isPrivate={visibility === "private"}
             onOpen={() => {
