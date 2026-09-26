@@ -283,7 +283,9 @@ export function KashCard({
           onClick={onSend}
           className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-black/25 bg-black/[0.07] px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
         >
-          <ButtonIcon src="/market/kash-icon-arrow-buy.svg" />
+          {/* Both exported arrows point down, so send is the same glyph turned
+              to point up: money leaving, against Buy's money arriving. */}
+          <ButtonIcon src="/market/kash-icon-arrow-send.svg" flip="vertical" />
           {t("send")}
         </button>
         <button

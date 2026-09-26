@@ -149,6 +149,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
             onClick={onSend}
             className="flex cursor-pointer items-center justify-center gap-1.5 rounded-full border border-black/20 bg-black/[0.07] py-[14px] text-[15px] font-semibold text-black transition-transform active:scale-[0.98]"
           >
+            <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw] rotate-180" />
             {t("send")}
           </button>
           <button
