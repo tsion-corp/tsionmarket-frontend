@@ -3,19 +3,39 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { motion, useReducedMotion } from "motion/react";
-import { useTranslations } from "next-intl";
+import { useNow, useTranslations } from "next-intl";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { Eyebrow } from "@/components/ui/eyebrow";
-import { ProgressBar } from "@/components/ui/progress-bar";
+import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { Pager } from "@/components/ui/pager";
-import { MoneyTicker } from "@/features/casino/components/last-standing/money-ticker";
+import { QrCode } from "@/components/ui/qr-code";
 import { useMoney } from "@/components/ui/currency-select";
-import { WinnersList } from "@/features/casino/components/last-standing/winners-list";
+import { HowItWorks } from "@/features/casino/components/last-standing/how-it-works";
+import {
+  ActivityPanel,
+  type ActivityRow,
+} from "@/features/casino/components/last-standing/activity-panel";
+import {
+  StageCard,
+  type StageChip,
+  type StageLeader,
+  type StagePhase,
+} from "@/features/casino/components/last-standing/stage-card";
+import {
+  RailActionCard,
+  RailCardFrame,
+  RailClaimCard,
+  RailInviteCard,
+  RailPager,
+} from "@/features/casino/components/last-standing/rail-cards";
 import { estimateWinnerPayout, isSameAddress } from "@/features/casino/lib/last-standing/split";
 import { vaultLog } from "@/features/casino/lib/last-standing/log";
 import {
   detectTier,
   openMiniWindow,
+  closeMiniWindow,
+  isMiniWindowOpen,
+  miniWindowSnapshot,
+  subscribeMiniWindow,
   formatCountdown,
 } from "@/features/casino/components/last-standing/mini-timer";
 import { useCountdown } from "@/features/casino/components/last-standing/use-countdown";
@@ -28,8 +48,17 @@ import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { rememberRoundLength, secondsUntil } from "@/features/casino/lib/last-standing/clock";
 import { GAME_ASSET, unitsToUsd, usdToUnits } from "@/features/casino/lib/last-standing/stake";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
-import { ShareGame, ShareGameButton } from "@/features/casino/components/last-standing/share-game";
-import { GameGoLive } from "@/features/casino/components/broadcast";
+import { useGameShare } from "@/features/casino/components/last-standing/share-game";
+import {
+  GameBroadcastProvider,
+  GoLivePanel,
+  isBroadcastOngoing,
+  type BroadcastCopy,
+} from "@/features/casino/components/broadcast";
+import {
+  useGameBroadcast,
+  type GameBroadcastTarget,
+} from "@/features/casino/hooks/use-game-broadcast";
 import type { TokenAmount } from "@/features/casino/lib/vault-api";
 
 // The shape the round visuals below consume, kept local now that the API
@@ -57,6 +86,10 @@ import {
   resolveRoundEndConfirmation,
   shouldBeginRoundEnd,
 } from "@/features/casino/lib/last-standing/round-end";
+import {
+  currentRoundCount,
+  currentRunActivities,
+} from "@/features/casino/lib/last-standing/rounds";
 import { useLeavePrompt } from "@/features/casino/hooks/use-leave-prompt";
 import { KeepWatchingDialog } from "@/features/casino/components/last-standing/keep-watching-dialog";
 import { truncateAddress } from "@/lib/format";
@@ -115,21 +148,75 @@ const ROUND_END_CONFIRM_MS = 6_000;
 const ROUND_END_SETTLE_MS = 2_000;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
+// How often the relative times in the activity table are recomputed. The clock
+// beside them already re-renders every second, so this costs nothing.
+const FEED_TIME_REFRESH_MS = 60_000;
+
+// An address the contract uses for "nobody". A game with this as its king has
+// had no confirmed play, so there is no leader to draw and no face to derive.
+const NO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 // The wall clock, read from inside event handlers. Through a function so the
 // compiler does not take a handler defined in the component for render work.
 const clockNow = () => Date.now();
 
-// Decorative sparkle field drifting behind the arena. Fixed positions/timings
-// keep the layout deterministic — no per-render randomness.
-const SPARKLES = [
-  { left: "8%", top: "20%", size: 10, dur: 3.4, delay: 0 },
-  { left: "23%", top: "64%", size: 7, dur: 4.2, delay: 0.8 },
-  { left: "70%", top: "22%", size: 8, dur: 3.8, delay: 1.4 },
-  { left: "89%", top: "56%", size: 11, dur: 4.6, delay: 0.4 },
-  { left: "52%", top: "80%", size: 6, dur: 3.2, delay: 2.0 },
-  { left: "41%", top: "12%", size: 7, dur: 4.0, delay: 1.1 },
-];
+// The raised face worn by both controls in the stage card's top-right corner.
+// Reproduced from CHROME_PILL and PILL_SHADOW in
+// components/last-standing/rail-cards.tsx — same gradient angle (179.583deg)
+// and stop positions, same shadow geometry — rather than imported: features
+// share through lib/, not sideways, and those values are that card's own.
+//
+// Two deliberate departures from the rail's pill. The face stays in a dark
+// neutral family instead of going chrome or gold: gold is the primary call to
+// action's, and a corner control must not compete with the button that starts
+// a game. And the lit top edge drops from the rail's 0.95 white to 0.24,
+// because 0.95 over a dark face is a bright seam rather than a highlight.
+// Every colour for these controls is in this one object.
+const CORNER_PILL: React.CSSProperties = {
+  backgroundImage:
+    "linear-gradient(179.583deg, #3d3d42 2.3594%, #313135 38.566%, #26262a 62.387%, #33333a 97.641%)",
+  boxShadow: "inset 0 0.619px 0 rgba(255, 255, 255, 0.24), 0 1.238px 2.477px rgba(0, 0, 0, 0.5)",
+};
+
+/**
+ * One corner control. Both the sound switch and the pop-out switch render
+ * through this, so "exactly like the sound button" is true by construction
+ * rather than by a copy that drifts on the next change.
+ *
+ * Both are toggles that say which state they are in, so both take `pressed`
+ * and expose it as `aria-pressed`: the label alone is the state, and a screen
+ * reader should hear the same thing the eye reads.
+ */
+function CornerPill({
+  label,
+  pressed,
+  onClick,
+  children,
+}: {
+  label: string;
+  pressed: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-pressed={pressed}
+      // No border: the lit top edge and the shadow beneath are what say it
+      // stands off the card, and an outline on top of them reads as a painted
+      // pill again.
+      style={CORNER_PILL}
+      className="ws-pressable flex h-[34px] shrink-0 cursor-pointer items-center gap-1.5 rounded-full px-3.5 text-[13px] font-semibold text-white/85 hover:text-white"
+    >
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        {children}
+      </svg>
+      {label}
+    </button>
+  );
+}
 
 // Play/pause for the arena's looping background track. The track (and every
 // event cue) is synthesised live with the Web Audio API — no audio file ships
@@ -149,18 +236,54 @@ function MusicToggle() {
     }
   };
   return (
-    <button
-      type="button"
+    <CornerPill
+      label={playing ? t("soundMute") : t("soundPlay")}
+      pressed={playing}
       onClick={toggle}
-      aria-label={playing ? t("soundMute") : t("soundPlay")}
-      aria-pressed={playing}
-      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 text-[11.5px] font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
     >
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-        {playing ? <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" /> : <path d="M8 5v14l11-7L8 5Z" />}
-      </svg>
-      {playing ? t("soundMute") : t("soundPlay")}
-    </button>
+      {playing ? <path d="M7 5h4v14H7V5Zm6 0h4v14h-4V5Z" /> : <path d="M8 5v14l11-7L8 5Z" />}
+    </CornerPill>
+  );
+}
+
+/**
+ * Raises the floating clock, or closes it again.
+ *
+ * The pop-out was only ever offered on the way out, by the dialog that catches
+ * a click leaving the arena. That covers navigating to another page of this
+ * app, but not switching browser tabs or apps — and it cannot, because both
+ * picture-in-picture APIs demand a user gesture and looking away is not one.
+ * This is the deliberate way in: the click IS the gesture.
+ *
+ * `followGame` runs first for the same reason it does in that dialog — the
+ * pop-out reads whichever game is followed, and following is otherwise only
+ * set by wagering, so a watcher who never played took an empty clock away.
+ */
+function PopOutToggle({ gameId }: { gameId: number }) {
+  const t = useTranslations("casino.lastStanding");
+  const mini = useSyncExternalStore(subscribeMiniWindow, miniWindowSnapshot, miniWindowSnapshot);
+  const open = isMiniWindowOpen(mini);
+  return (
+    <CornerPill
+      label={open ? t("miniClose") : t("miniOpen")}
+      pressed={open}
+      onClick={() => {
+        if (open) {
+          closeMiniWindow();
+          return;
+        }
+        followGame(gameId);
+        openMiniWindow(detectTier());
+      }}
+    >
+      {open ? (
+        // Closing: a window with an X.
+        <path d="M3 4h18v16H3V4Zm2 4v10h14V8H5Zm3.4 1.6L12 13.2l3.6-3.6 1.4 1.4-3.6 3.6 3.6 3.6-1.4 1.4-3.6-3.6-3.6 3.6-1.4-1.4 3.6-3.6-3.6-3.6 1.4-1.4Z" />
+      ) : (
+        // Opening: the standard arrow leaving a frame.
+        <path d="M14 3h7v7h-2V6.4l-8.3 8.3-1.4-1.4L17.6 5H14V3ZM5 5h5v2H5v12h12v-5h2v7H3V5h2Z" />
+      )}
+    </CornerPill>
   );
 }
 
@@ -185,7 +308,7 @@ function WifiOffIcon({ size = 22 }: { size?: number }) {
       viewBox="0 0 24 24"
       fill="none"
       aria-hidden
-      className="text-white/70"
+      className="shrink-0 text-white/70"
     >
       <path
         d="M2 8.5C4.8 6 8.2 4.6 12 4.6c3.8 0 7.2 1.4 10 3.9M5.2 12c1.9-1.7 4.2-2.6 6.8-2.6 2.6 0 4.9.9 6.8 2.6M8.4 15.4a6.4 6.4 0 0 1 3.6-1.2c1.3 0 2.6.4 3.6 1.2"
@@ -199,6 +322,101 @@ function WifiOffIcon({ size = 22 }: { size?: number }) {
   );
 }
 
+/**
+ * The activity table's "when", in the design's short form (844:79535):
+ * "Just now" under a minute, then whole minutes, hours and days, each floored
+ * ("1 min ago", "3 h ago", "2 d ago"). Intl's relativeTime spells the unit out
+ * ("1 minute ago") and says "now", which the design does not, so the wording
+ * comes from the catalogue instead. A timestamp slightly ahead of this
+ * client's clock (skew) reads as "Just now" rather than a negative count.
+ */
+export function shortTimeAgo(
+  then: Date,
+  now: Date,
+  t: (
+    key: "timeJustNow" | "timeMinutesAgo" | "timeHoursAgo" | "timeDaysAgo",
+    values?: { count: number }
+  ) => string
+): string {
+  const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+  if (!Number.isFinite(seconds) || seconds < 60) return t("timeJustNow");
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return t("timeMinutesAgo", { count: minutes });
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return t("timeHoursAgo", { count: hours });
+  return t("timeDaysAgo", { count: Math.floor(hours / 24) });
+}
+
+/**
+ * The page's own heading: the trail back to the Arkade, the title, the status
+ * pill and the tagline. Split out because the error state below draws the same
+ * frame, and a screen that fails to load should still say what it is.
+ */
+function PageHeader({ pill }: { pill: { label: string; live: boolean; ended: boolean } }) {
+  const t = useTranslations("casino.lastStanding");
+  const tSections = useTranslations("sections");
+
+  return (
+    <header>
+      {/* Figma 844:79664: Mona Sans Bold 14, the trail grey and the current
+          page amber in every state, live or not. */}
+      <nav
+        aria-label={t("title")}
+        data-testid="lms-breadcrumb"
+        className="flex items-center gap-[0.3em] font-serif text-[14px] leading-none font-bold text-[#8a8a8a]"
+      >
+        <Link href="/casino" className="transition-colors hover:text-white/70">
+          {tSections("casino")}
+        </Link>
+        <span aria-hidden>/</span>
+        <span
+          data-testid="lms-crumb-current"
+          data-live={String(pill.live)}
+          aria-current="page"
+          className="text-[#ffe178]"
+        >
+          {t("title")}
+        </span>
+      </nav>
+
+      {/* 24 from the trail to the title (914:83409), 17 from the title to the
+          pill (844:79666), 12 down to the tagline (844:79665). */}
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-[17px] gap-y-3">
+          {/* Figma 844:79667: Mona Sans Bold 36, leading 1.1, -1.08px (-0.03em).
+              Scales down on a phone and settles at 36 on a desktop. */}
+          <h1 className="font-serif text-[clamp(28px,4.4vw,36px)] leading-[1.1] font-bold tracking-[-0.03em] text-white">
+            {t("title")}
+          </h1>
+          {/* Figma 844:79668 (Live) and 844:78319 (Ended): one neutral pill.
+              Only the live one carries the static yellow dot. */}
+          <span
+            data-testid="lms-pill"
+            data-live={String(pill.live)}
+            className={`inline-flex h-7 shrink-0 items-center gap-2 rounded-full border border-white/30 bg-white/[0.13] font-serif text-[14px] leading-none font-semibold whitespace-nowrap text-[#e0e0e0] ${
+              pill.live ? "pr-[13px] pl-2" : "px-3"
+            }`}
+          >
+            {pill.live ? (
+              <span
+                aria-hidden
+                data-testid="lms-pill-dot"
+                className="size-[7.4px] shrink-0 rounded-full bg-[#FBE35C]"
+              />
+            ) : null}
+            {pill.label}
+          </span>
+        </div>
+      </div>
+
+      {/* Figma 844:79670: Mona Sans SemiBold 14, grey, leading 1. */}
+      <p className="mt-3 max-w-[60ch] font-serif text-[14px] leading-none font-semibold tracking-[-0.01em] text-[#8a8a8a]">
+        {t("tagline")}
+      </p>
+    </header>
+  );
+}
+
 interface LastStandingSectionProps {
   /** Which game this screen is showing. The vault runs many at once. */
   gameId: number;
@@ -206,18 +424,40 @@ interface LastStandingSectionProps {
   onAddFunds?: () => void;
 }
 
+/** Which rail card is on screen. The state decides which of these exist. */
+type RailCardId = "action" | "claim" | "invite" | "broadcast";
+
+// The copy the broadcast panel needs. It is English while the rest of the page
+// is translated: the panel carries no catalogue yet.
+const BROADCAST_COPY: BroadcastCopy = {
+  subject: "the arena",
+  finishedNotice:
+    "This game has settled. End the broadcast so you are not streaming a finished game.",
+};
+/** Which of the bottom panel's three tabs is open. */
+type PanelTab = "activity" | "rules";
+
 export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionProps) {
   const t = useTranslations("casino.lastStanding");
-  const tBuySell = useTranslations("buySell");
-  const tBuySellNotEnough = tBuySell("notEnoughBalance");
   const { evmAddress: address } = useAuthSession();
+  // One identity across the ecosystem: the picture this player set on Market
+  // Square is their picture here too. Only ever theirs — the backend has no
+  // address-to-avatar mapping yet, so every other player keeps the face drawn
+  // from their address. Null is the ordinary answer (see the hook), which is
+  // why nothing here waits on it or retries: the drawn face is already right.
+  const selfAvatar = useSquareAvatar();
   const money = useMoney();
+  // One "now" for every relative time in the table, refreshed on its own slow
+  // interval rather than read during render, which would make the render
+  // impure and the output untestable.
+  const feedNow = useNow({ updateInterval: FEED_TIME_REFRESH_MS });
   // The stake and the payout move the USDC balance, and the portfolio's own
   // receipt path cannot see them, so this hook is told the amounts and confirms
   // them with one read of Base. There is no balance card on this screen any
   // more — the balance is the one the shell already shows — but `balanceUsd`
-  // still decides whether the entry is affordable.
-  const { balanceUsd, settle: settleBalance } = useGameBalance();
+  // still decides whether the entry is affordable, and `balanceUnits` is the
+  // ceiling the stake stepper may not step past.
+  const { balanceUsd, balanceUnits, settle: settleBalance } = useGameBalance();
   const {
     game,
     loading: statusLoading,
@@ -228,8 +468,16 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     resync: resyncGame,
   } = useVaultGame(gameId);
   // This game's plays and this game's result, not every game's.
-  const { activities, winners, winnersLoading } = useVaultFeeds(connected, gameId);
+  const { activities, winners, activitiesLoading } = useVaultFeeds(connected, gameId);
   const { wager, wagering, claim, claiming, settle, settling } = useVaultActions();
+  const share = useGameShare(gameId);
+
+  // This game's own rows, narrowed to the run being played: the vault reuses a
+  // game id when the contract is redeployed, so the feed can also hold a
+  // finished game's plays. The round number counts these, and the table shows
+  // them.
+  const runActivities = useMemo(() => currentRunActivities(activities) ?? [], [activities]);
+  const roundCount = useMemo(() => currentRoundCount(activities), [activities]);
 
   // The round visuals below were written against v3's single-game status. v4
   // gives one game at a time instead, so it is mapped here rather than
@@ -283,6 +531,31 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const [revealWinner, setRevealWinner] = useState<string | null>(null);
   // Shows the "you won, balance updating" banner briefly after a win.
   const [recentWinUsd, setRecentWinUsd] = useState<number | null>(null);
+  // Which bottom tab is open, and which rail card the pager is on.
+  const [tab, setTab] = useState<PanelTab>("activity");
+  // Held as the card the player picked, not an index, so a card appearing or
+  // leaving does not slide the rail onto a different one. Tagged with the
+  // round state it was picked in: when the round ends the pick lapses and the
+  // rail opens on the new state's first card, which is claim for a winner.
+  const [railPick, setRailPick] = useState<{ card: RailCardId; roundOver: boolean } | null>(null);
+
+  // The broadcast lives up here rather than inside its panel: whether this
+  // session is streaming decides whether the rail offers the broadcast card
+  // at all once the round is over. The arena is all motion (the countdown,
+  // the pot, the coin flights), so it is published for framerate.
+  const broadcastTarget = useMemo<GameBroadcastTarget>(
+    () => ({
+      game: "last-standing",
+      ref: String(gameId),
+      title: `The Last Man: game ${gameId}`,
+      watchPath: `/casino/last-standing/${gameId}`,
+      descriptionLead: "Live on Ark. Outlast everyone:",
+      content: "motion",
+      creatorApplicationNote: "I play The Last Man on Ark and want to broadcast my games.",
+    }),
+    [gameId]
+  );
+  const broadcast = useGameBroadcast(broadcastTarget);
 
   const reduce = useReducedMotion();
 
@@ -306,7 +579,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const winnerLabel = revealWinner ? truncateAddress(revealWinner) : null;
 
   // Both feeds page 10 rows at a time so the cards don't grow unbounded.
-  const pagedActivities = usePaged(activities, FEED_PAGE_SIZE);
+  const pagedActivities = usePaged(runActivities, FEED_PAGE_SIZE);
 
   // The balance the player spends from is their own money on the platform. We
   // present everything as plain dollars — the underlying asset (ETH on Base)
@@ -332,7 +605,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // between two different currencies: a funded player reads as broke.
   const canPlay = entryFeeUsd > 0 && balanceUsd >= entryFeeUsd;
   // The primary CTA is in its "Add money to play" state — short on funds but
-  // otherwise pressable. This gets the blinking, coin-tagged nudge.
+  // otherwise pressable. This gets the blinking nudge on the rail.
   const luring = !!status && !!address && !wagering && !canPlay;
 
   // An on-chain amount as money.
@@ -374,6 +647,10 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const settledPrizeUsd = latestWinner
     ? usdOf(latestWinner.paidToWinner ?? latestWinner.toWinner, ethPrice)
     : null;
+  // The pot as the settlement recorded it. The contract keeps a settled game's
+  // pot on its own record after paying it out, so the live figure reads as
+  // money still on the table; this is the only trustworthy final pot.
+  const settledPotUsd = latestWinner ? usdOf(latestWinner.pot, ethPrice) : null;
   const revealPrizeUsd =
     latestWinner &&
     settledPrizeUsd !== null &&
@@ -781,7 +1058,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
 
   // Auto-claim: if a win lands in pendingWithdrawals instead of the wallet,
   // collect it automatically so "winner takes the pot" actually pays out. The
-  // persistent banner below is the fallback for anything left unclaimed.
+  // claim card in the rail is the fallback for anything left unclaimed.
   // Latest handler kept in a ref, updated in an effect, so the trigger effect
   // doesn't re-bind every render.
   const claimRef = useRef<() => void>(() => {});
@@ -896,8 +1173,8 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     }
   };
 
-  // One wager, whatever the size: the minimum from the Play button, or more
-  // from the liquidity control. The contract's wager(gameId) takes any value
+  // One wager, whatever the size: the minimum from the stepper's floor, or
+  // more from a stepped-up stake. The contract's wager(gameId) takes any value
   // at or above the game's minimum; either way the sender becomes last
   // standing and the clock resets, so the two share every step after the
   // amount.
@@ -959,6 +1236,26 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     }
   };
 
+  // The stake, in the game asset's base units, and the steps it moves in.
+  //
+  // That game's minimum, not a global fee: the starter set it when they opened
+  // the game, and the contract rejects anything under it. The entry arrives
+  // from the service already at the game's own scale, so it is parsed at that
+  // scale. parseEther here would send a 10-cent wager as 100000000000000000
+  // base units of a 6-decimal token.
+  //
+  // Held as bigint, never as a typed dollar string: the number the player sees
+  // is derived from these units at the display edge, so what is shown and what
+  // is signed can never drift apart.
+  const minStakeUnits = usdToUnits(Number(status?.entryFee.amount ?? "0"));
+  const [stakeUnits, setStakeUnits] = useState<bigint | null>(null);
+  // Null means "whatever the minimum turns out to be", so a stake chosen
+  // before the game loaded cannot pin the stepper at zero.
+  const stake = stakeUnits !== null && stakeUnits >= minStakeUnits ? stakeUnits : minStakeUnits;
+  const stakeUsd = unitsToUsd(stake);
+  const canStepStakeUp = minStakeUnits > 0n && stake + minStakeUnits <= balanceUnits;
+  const canStepStakeDown = minStakeUnits > 0n && stake - minStakeUnits >= minStakeUnits;
+
   const onPlay = async () => {
     if (!canPlay) {
       // The CTA already reads "Add money to play", so pressing it opens the
@@ -970,42 +1267,10 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       toast.error(t("toastBalanceShort"));
       return;
     }
-    // That game's minimum, not a global fee: the starter set it when they
-    // opened the game, and the contract rejects anything under it.
-    // The entry fee arrives from the service already at the game's own scale,
-    // so it is parsed at that scale. parseEther here would send a 10-cent
-    // wager as 100000000000000000 base units of a 6-decimal token.
-    await placeWager(
-      usdToUnits(Number(status?.entryFee.amount ?? "0")),
-      entryFeeUsd,
-      playBtnRef.current
-    );
-  };
-
-  // Adding liquidity: a play of the player's own size. Typed in dollars,
-  // priced at the same rate as the entry fee, never under the game's minimum
-  // and never over what the wallet holds.
-  const [liquidityUsd, setLiquidityUsd] = useState("");
-  const liquidityAmountUsd = Number.parseFloat(liquidityUsd) || 0;
-  // Straight to the game asset's base units. This used to convert through the
-  // ETH price, which is derived from the entry fee and is 0 for a USDC game —
-  // so the amount came out 0n and the button was dead. Even with a price it
-  // produced 18-decimal wei for a 6-decimal token.
-  const liquidityUnits = usdToUnits(liquidityAmountUsd);
-  const liquidityBelowMin = liquidityAmountUsd > 0 && liquidityAmountUsd < entryFeeUsd - 1e-9;
-  const liquidityOverBalance = liquidityAmountUsd > 0 && liquidityAmountUsd > balanceUsd + 1e-9;
-  const liquidityReady =
-    liquidityAmountUsd > 0 &&
-    !liquidityBelowMin &&
-    !liquidityOverBalance &&
-    liquidityUnits > 0n &&
-    !wagering;
-  const liquidityBtnRef = useRef<HTMLButtonElement | null>(null);
-
-  const onAddLiquidity = async () => {
-    if (!liquidityReady) return;
-    const ok = await placeWager(liquidityUnits, liquidityAmountUsd, liquidityBtnRef.current);
-    if (ok) setLiquidityUsd("");
+    const ok = await placeWager(stake, stakeUsd, playBtnRef.current);
+    // Back to the minimum, so the next play does not silently repeat a stake
+    // the player chose once for one round.
+    if (ok) setStakeUnits(null);
   };
 
   // Nothing to draw the arena from: the service could not be reached and the
@@ -1013,14 +1278,11 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // plainly, with the one action that helps, instead of a pot skeleton and a
   // "Loading…" button that never resolve. A game already on screen never
   // comes through here; a failed refetch keeps it up under the degraded
-  // overlay.
+  // banner.
   if (!game && !statusLoading && gameError) {
     return (
       <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-        <Eyebrow>{t("eyebrow")}</Eyebrow>
-        <h2 className="ws-display mt-2.5 text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em]">
-          {t("title")}
-        </h2>
+        <PageHeader pill={{ label: t("pillNotStarted"), live: false, ended: false }} />
         <div role="alert" className="ws-inset mt-6 max-w-[560px] px-5 py-6">
           <div className="flex items-center gap-2.5">
             {gameNotFound ? null : <WifiOffIcon size={18} />}
@@ -1052,6 +1314,171 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // What the new frame draws. Every value below is derived from the state
+  // machine above and handed down already formatted: the cards hold no logic,
+  // so anything that can be got wrong is got wrong here or not at all.
+  // ---------------------------------------------------------------------------
+
+  // A game whose king is the zero address has had no confirmed play. The
+  // contract's own starter is normally the first king, so this is rare, but a
+  // leader strip reading "0x0000…0000" is the alternative.
+  const hasLeader = !!lastPlayer && !isSameAddress(lastPlayer, NO_ADDRESS);
+  // The round is over and this wallet was the last one standing. Either the
+  // reveal said so, or the finished game's own king is this wallet, which is
+  // the same fact read from the server for someone coming back later.
+  const iAmWinner = roundOver && (youWon || iAmKing);
+
+  const stagePhase: StagePhase = !status
+    ? "notStarted"
+    : roundOver
+      ? iAmWinner
+        ? "won"
+        : "ended"
+      : hasLeader
+        ? "live"
+        : "notStarted";
+
+  const leaderIsStarter = isSameAddress(lastPlayer, starter);
+  // The pot the settlement recorded, or nothing at all once a game is settled:
+  // the live figure is the contract's own stale record and would read as money
+  // still on the table.
+  const potTileUsd = game?.settled ? (settledPotUsd ?? 0) : potUsd;
+  const finalPotUsd = settledPotUsd ?? potUsd;
+  const winnerShareUsd = roundOver
+    ? (settledPrizeUsd ?? estimateWinnerPayout(finalPotUsd, leaderIsStarter, split))
+    : estimateWinnerPayout(potUsd, leaderIsStarter, split);
+
+  const leaderName = hasLeader ? truncateAddress(lastPlayer) : "";
+  const stageLeader: StageLeader | null = hasLeader
+    ? {
+        label: roundOver
+          ? t("stageRoundWinner")
+          : iAmLastStanding
+            ? t("stageLeadingYou")
+            : t("stageLeadingOther"),
+        value: iAmKing ? `${t("youLabel")} - ${leaderName}` : leaderName,
+        isYou: iAmKing,
+        // Theirs when the king is them; anyone else stays the drawn face.
+        avatarUrl: iAmKing ? selfAvatar : null,
+        seed: lastPlayer,
+      }
+    : status
+      ? {
+          // Nobody leads, so the strip says so rather than naming a wallet.
+          // The seed is deliberately empty of address characters: the avatar
+          // draws a plain coloured disc instead of somebody's initials.
+          label: t("stageNoLeader"),
+          value: t("stageNoLeaderBody"),
+          isYou: false,
+          avatarUrl: null,
+          seed: "0x",
+        }
+      : null;
+
+  // Gold only for THIS wallet: "You" while it leads (#FFD02C) and "Winner" once
+  // it has won (#F7A92F, 844:78328). When another player leads or won, the
+  // design draws the dark outline pill instead — "Leading" at 916:84111 and
+  // "Winner" at 918:86248 (Round Ended). `iAmKing` compares the round's last
+  // player to this wallet, and the last player is the winner once it is over.
+  const stageChip: StageChip | null = !hasLeader
+    ? null
+    : roundOver
+      ? { label: t("chipWinner"), tone: iAmKing ? "winner" : "other" }
+      : iAmKing
+        ? { label: t("chipYou"), tone: "leading" }
+        : { label: t("chipLeading"), tone: "other" };
+
+  // No caption once the round is over: the ended (918:84758) and won
+  // (844:77548) stages carry only their heading and the line under it.
+  const stageCaption = roundOver ? "" : hasLeader ? t("stageCaptionLive") : t("stageCaptionStart");
+
+  // The rail. A card is listed only when its action can actually be taken, so
+  // the pager's length is the state's own answer to "what can I do here".
+  const settleable = roundOver && game?.settled !== true;
+  //
+  //   live round:  action, invite, broadcast
+  //   round over:  claim (when there is something to settle or collect),
+  //                invite, and broadcast only while this session is still
+  //                streaming, so a finished game's stream can be ended.
+  const broadcasting = isBroadcastOngoing(broadcast.phase);
+  const railCards: RailCardId[] = [];
+  if (!roundOver && !!status) railCards.push("action");
+  if (roundOver && (settleable || hasPending)) railCards.push("claim");
+  // Always: a game is worth sharing whatever state it is in, and the starter
+  // earns from everyone who joins through the link.
+  railCards.push("invite");
+  // A game is public, so anyone in it can stream it.
+  if (!roundOver || broadcasting) railCards.push("broadcast");
+  const picked =
+    railPick && railPick.roundOver === roundOver && railCards.includes(railPick.card)
+      ? railPick.card
+      : null;
+  const railIndex = picked ? railCards.indexOf(picked) : 0;
+  const railCard = railCards[railIndex];
+  // The dots sit inside whichever card is showing, at its foot, as every
+  // frame of the design draws them.
+  const railPager = (
+    <RailPager
+      count={railCards.length}
+      index={railIndex}
+      onSelect={(index) => {
+        const card = railCards[index];
+        if (card) setRailPick({ card, roundOver });
+      }}
+      itemLabel={(index, count) => t("pagerItem", { index: index + 1, count })}
+    />
+  );
+
+  // Start or add: the same wager either way. Before the first play it opens
+  // the round, which is why the copy changes but the action does not.
+  const actionIsStart = !hasLeader;
+  const ctaLabel = wagering
+    ? t("ctaPlacing")
+    : !status
+      ? t("loading")
+      : !canPlay
+        ? t("ctaAddMoney")
+        : actionIsStart
+          ? t("railStartCta")
+          : t("railAddCta");
+
+  const pendingLabel = pending
+    .map((payout) => rawToMoney(payout.raw.toString(), payout.amount.decimals))
+    .join(" + ");
+  // Claimed means the money reached the wallet: the round is settled and
+  // nothing was left behind in the contract's pendingWithdrawals.
+  const claimed = game?.settled === true && !hasPending;
+
+  // What the panel draws instead of its table. Undefined on the activity tab,
+  // and it has to be exactly undefined: the panel falls through to its own
+  // table only when it is handed no body at all, and two JSX children would
+  // reach it as an array of nulls that renders to nothing.
+  const panelBody = tab === "rules" ? <HowItWorks /> : undefined;
+
+  const rows: ActivityRow[] = pagedActivities.pageItems.map((a) => {
+    // A win opened and won by the same wallet shows what that wallet
+    // received, not the winner's share alone — see
+    // lib/last-standing/activity-payout.
+    const shown = activityAmount(a, winners);
+    const mine = isSameAddress(a.address, address);
+    return {
+      id: a.id,
+      address: a.address,
+      addressLabel: truncateAddress(a.address),
+      // The reader's own rows carry their Market Square picture. No
+      // wallet-to-profile lookup exists on the square yet, so every other face
+      // falls back to the mark derived from the address — when that lookup
+      // lands, this is the line it replaces.
+      avatarUrl: mine ? selfAvatar : null,
+      action: a.action === "won" ? t("actionWon") : t("actionPlayed"),
+      amount: rawToMoney(shown.raw ?? a.amountWei, shown.decimals),
+      time: shortTimeAgo(new Date(a.createdAt), feedNow, t),
+      isYou: mine,
+      href: `${EXPLORER_TX_URL}${a.transactionHash}`,
+    };
+  });
 
   return (
     <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
@@ -1089,626 +1516,356 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
           ))}
         </div>
       ) : null}
-      {/* Playful layered glow behind the arena, for an arcade-y feel. */}
-      <div
-        aria-hidden
-        className="bg-[radial-gradient(55%_55%_at_50%_0%,rgba(255, 255, 255, 0.22),transparent_70%)] pointer-events-none absolute inset-x-0 top-0 -z-10 mx-auto h-[520px] max-w-[1000px]"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-10 left-[12%] -z-10 h-64 w-64 animate-pulse rounded-full bg-[#7CE7B0]/10 blur-[110px]"
-      />
-      <div
-        aria-hidden
-        className="bg-accent/15 pointer-events-none absolute -top-16 right-[10%] -z-10 h-72 w-72 animate-pulse rounded-full blur-[120px]"
+
+      {/* Nothing sits beside the title any more. The rail's invite card carries
+          the share link, so a second Share here was the same offer twice; the
+          pop-out is offered on the way out, where it is actually wanted; and the
+          sound switch has moved into the stage card's top-right corner, opposite
+          the round label. */}
+      <PageHeader
+        pill={{
+          label: gameActive ? t("pillLive") : roundOver ? t("pillEnded") : t("pillNotStarted"),
+          live: gameActive,
+          ended: roundOver,
+        }}
       />
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Eyebrow>{t("eyebrow")}</Eyebrow>
-          <h2 className="ws-display mt-2.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(30px,4.4vw,40px)] tracking-[-0.02em] text-transparent">
-            {t("title")}
-          </h2>
-        </div>
-        <span
-          className={`ws-glass inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold text-white/75 ${
-            gameActive ? "shadow-[0_0_24px_-8px_rgba(124,231,176,0.7)]" : ""
-          }`}
+      {/* The socket is behind, so nothing on this page is evidence of
+          anything. The clock is dimmed and frozen beside this; the banner is
+          what says why. */}
+      {degraded ? (
+        <div
+          role="status"
+          data-testid="lms-degraded"
+          className="ws-inset mt-4 flex items-start gap-3 px-4 py-3.5"
         >
-          <span
-            className={`h-1.5 w-1.5 rounded-full ${gameActive ? "bg-up animate-pulse" : "bg-white/25"}`}
-          />
-          {gameActive ? t("live") : status ? t("statusRoundEnded") : t("offline")}
-        </span>
-      </div>
-
-      {/* Winners take the pot via a gasless claim(); the contract holds it in
-          pendingWinnings until then. Auto-claim usually collects it on the win;
-          this persistent banner sweeps up anything left unclaimed. */}
-      {hasPending ? (
-        <motion.div
-          initial={reduce ? false : { opacity: 0, y: -6 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-[linear-gradient(110deg,rgba(216, 216, 220, 0.16),rgba(216, 216, 220, 0.04))] relative mt-5 flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-[20px] border border-[#d8d8dc]/40 px-5 py-4"
-        >
-          <div className="flex items-center gap-3">
-            <span className="shadow-[0_8px_22px_-8px_rgba(216, 216, 220, 0.9)] grid h-11 w-11 shrink-0 place-items-center rounded-full bg-[linear-gradient(180deg,#d8d8dc,#a8a8ae)] text-[22px]">
-              🏆
-            </span>
-            <div>
-              <div className="text-[14px] font-bold text-white">{t("claimTitle")}</div>
-              <div className="tnum text-[13px] font-normal text-[#d8d8dc]">
-                {t("claimWaiting", {
-                  amount: pending
-                    .map((payout) => rawToMoney(payout.raw.toString(), payout.amount.decimals))
-                    .join(" + "),
-                })}
-              </div>
+          <WifiOffIcon size={18} />
+          <div className="min-w-0">
+            <div className="text-[13.5px] font-bold text-white">{t("connectionLostTitle")}</div>
+            <div className="mt-0.5 text-[12.5px] leading-[1.5] font-normal text-white/60">
+              {t("connectionLostBody")}
             </div>
           </div>
-          <button
-            onClick={() => void onClaim()}
-            disabled={claiming}
-            className="shadow-[0_12px_30px_-10px_rgba(216, 216, 220, 0.9)] shrink-0 cursor-pointer rounded-xl bg-[linear-gradient(180deg,#f0f0f2,#d8d8dc,#b0b0b6)] px-6 py-2.5 font-sans text-[14px] font-bold text-[#1a1a1a] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {claiming ? t("claiming") : t("claimNow")}
-          </button>
-        </motion.div>
+        </div>
       ) : null}
 
-      <div className="mt-5 grid grid-cols-1 gap-4 min-[980px]:grid-cols-[1fr_360px] min-[980px]:items-start">
-        {/* Game panel */}
-        <div className="ws-glass shadow-[0_40px_120px_-50px_rgba(255, 255, 255, 0.55)] relative overflow-hidden rounded-[26px] p-5 sm:p-7">
-          <div
-            aria-hidden
-            className="bg-accent/30 pointer-events-none absolute -top-32 left-1/2 h-64 w-72 -translate-x-1/2 animate-pulse rounded-full blur-[100px]"
-          />
-          {/* Drifting sparkles for a living, arcade-y arena. */}
-          {reduce ? null : (
-            <div aria-hidden className="pointer-events-none absolute inset-0">
-              {SPARKLES.map((s, i) => (
-                <motion.span
-                  key={i}
-                  className="absolute text-[#d8d8dc]/45"
-                  style={{ left: s.left, top: s.top, fontSize: s.size }}
-                  animate={{ y: [0, -16, 0], opacity: [0, 0.85, 0], scale: [0.8, 1.05, 0.8] }}
-                  transition={{
-                    duration: s.dur,
-                    repeat: Infinity,
-                    delay: s.delay,
-                    ease: "easeInOut",
-                  }}
-                >
-                  ✦
-                </motion.span>
-              ))}
-            </div>
-          )}
-          {/* Final-seconds tension: the whole arena edge pulses red. */}
-          {urgent && !reduce ? (
-            <motion.div
-              aria-hidden
-              className="ring-down/50 pointer-events-none absolute inset-0 rounded-[26px] ring-2 ring-inset"
-              animate={{ opacity: [0.3, 0.9, 0.3] }}
-              transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
-            />
-          ) : null}
-          <div className="relative">
-            {/* Wraps on a narrow phone: the label plus both pills do not fit
-                one line there, and forcing them to overlapped the pot below. */}
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-              {/* The starter's name for this game rides the eyebrow that was
-                  already here rather than taking a heading of its own: it says
-                  WHICH game this is, which is a label on the prize pool, not a
-                  second title above it. Costs no height on a page whose whole
-                  job is the figure below. */}
-              <div className="flex min-w-0 items-baseline gap-2">
-                <span className="text-accent/80 shrink-0 text-[11px] font-semibold tracking-[0.18em] uppercase">
-                  {t("prizePool")}
-                </span>
-                {game?.title ? (
-                  <>
-                    <span aria-hidden className="shrink-0 text-[11px] text-white/25">
-                      ·
-                    </span>
-                    <h1 className="truncate text-[13px] font-semibold text-white/85">
-                      {game.title}
-                    </h1>
-                  </>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2">
-                <ShareGameButton gameId={gameId} />
-                {/* No pop-out button: the pop-out is offered on the way out
-                    now, where it is actually wanted, and a second way in only
-                    made the header busier. */}
-                <MusicToggle />
-              </div>
-            </div>
-            {/* One clamped line, and only for a game that has one. The
-                starter's own words are worth showing; two lines of them on a
-                sixty-second page are not. */}
-            {game?.description ? (
-              <p className="mt-1 line-clamp-1 text-[12px] leading-[1.35] font-normal text-white/45">
-                {game.description}
-              </p>
-            ) : null}
-            <motion.div
-              ref={potRef}
-              key={flight?.id ?? "idle"}
-              className="inline-block"
-              animate={flight && !reduce ? { scale: [1, 1, 1.05, 1] } : undefined}
-              transition={
-                flight && !reduce
-                  ? { duration: COIN_FLIGHT_SECONDS + 0.2, times: [0, 0.8, 0.92, 1] }
-                  : undefined
-              }
-            >
-              {statusLoading || !status ? (
-                <div className="mt-2 h-[62px] w-52 animate-pulse rounded-xl bg-white/8" />
-              ) : gameActive ? (
-                // Live round: the pot pulses between white and gold so it reads as
-                // hot money on the line.
-                <motion.div
-                  className="ws-display tnum drop-shadow-[0_0_34px_rgba(216, 216, 220, 0.4)] mt-1.5 text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em]"
-                  animate={
-                    reduce ? { color: "#d8d8dc" } : { color: ["#ffffff", "#d8d8dc", "#ffffff"] }
-                  }
-                  transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <MoneyTicker value={status.vaultBalance.usdValue} format={money.format} />
-                </motion.div>
-              ) : (
-                // The contract keeps the pot on a settled game's record after
-                // paying it out, so the figure has to be zeroed here or a
-                // finished game reads as money still on the table.
-                <div className="ws-display tnum drop-shadow-[0_0_30px_rgba(255, 255, 255, 0.35)] mt-1.5 bg-[linear-gradient(180deg,#ffffff,#cfcfd4)] bg-clip-text text-[clamp(48px,8vw,72px)] leading-none tracking-[-0.02em] text-transparent">
-                  <MoneyTicker
-                    value={game?.settled ? 0 : status.vaultBalance.usdValue}
-                    format={money.format}
-                  />
-                </div>
-              )}
-            </motion.div>
-            <div className="mt-2 text-[13px] font-normal text-white/50">
-              {game?.settled && game.king
-                ? t("potPaidOut", { winner: truncateAddress(game.king) })
-                : t("potNote")}
-            </div>
-
-            {/* Live tension: when this wallet is last to play, it's winning. The
-                banner ramps up in the final seconds. */}
-            {iAmLastStanding ? (
-              <motion.div
-                initial={reduce ? false : { opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`relative mt-4 overflow-hidden rounded-[16px] border px-4 py-3 ${
-                  urgent
-                    ? "border-[#d8d8dc]/60 bg-[#d8d8dc]/15"
-                    : "border-[#d8d8dc]/35 bg-[#d8d8dc]/10"
-                }`}
-              >
-                <motion.div
-                  aria-hidden
-                  className="bg-[radial-gradient(55%_60%_at_50%_50%,rgba(216, 216, 220, 0.4),transparent_70%)] pointer-events-none absolute -inset-3 blur-md"
-                  animate={reduce ? { opacity: 0.5 } : { opacity: [0.3, 0.7, 0.3] }}
-                  transition={{ duration: urgent ? 0.7 : 1.5, repeat: Infinity, ease: "easeInOut" }}
-                />
-                <div className="relative flex items-center gap-2.5">
-                  <motion.span
-                    className="text-[22px]"
-                    animate={reduce || !urgent ? {} : { scale: [1, 1.18, 1] }}
-                    transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
-                  >
-                    👑
-                  </motion.span>
-                  <div className="min-w-0">
-                    <div className="text-[13.5px] font-bold text-[#d8d8dc]">
-                      {urgent ? t("standingTitleUrgent") : t("standingTitle")}
-                    </div>
-                    <div className="text-[12px] font-normal text-white/70">
-                      {urgent ? t("standingBodyUrgent") : t("standingBody")}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            ) : null}
-
-            {/* Countdown — the arcade centerpiece. */}
-            <div
-              className={`relative mt-6 overflow-hidden rounded-[20px] border px-4 py-5 transition-colors sm:px-5 ${
-                gameActive
-                  ? urgent
-                    ? "border-down/40 bg-down/10"
-                    : "border-accent/30 bg-accent/8"
-                  : "border-white/8 bg-black/35"
-              }`}
-            >
-              {degraded ? (
-                <div className="absolute inset-0 z-[1] grid place-items-center bg-black/72 backdrop-blur-[2px]">
-                  <div className="flex flex-col items-center gap-1.5 px-6 text-center">
-                    <WifiOffIcon />
-                    <div className="text-[13.5px] font-bold text-white">
-                      {t("connectionLostTitle")}
-                    </div>
-                    <div className="max-w-[36ch] text-[12px] leading-[1.5] font-normal text-white/60">
-                      {t("connectionLostBody")}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold tracking-[0.14em] text-white/45 uppercase">
-                  {t("timeRemaining")}
-                </span>
-                <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    gameActive
-                      ? urgent
-                        ? "bg-down/15 text-down"
-                        : "bg-accent/15 text-accent"
-                      : "bg-white/6 text-white/45"
-                  }`}
-                >
-                  <span
-                    className={`h-1.5 w-1.5 rounded-full ${
-                      gameActive
-                        ? urgent
-                          ? "bg-down animate-ping"
-                          : "bg-accent animate-pulse"
-                        : "bg-white/30"
-                    }`}
-                  />
-                  {gameActive
-                    ? urgent
-                      ? t("statusEnding")
-                      : t("statusLiveRound")
-                    : status?.isGameStarted
-                      ? t("statusRoundEnded")
-                      : t("statusIdle")}
-                </span>
-              </div>
-              <div
-                className={`ws-display tnum mt-3 text-center text-[clamp(52px,11vw,76px)] leading-none tracking-[-0.01em] ${
-                  gameActive
-                    ? urgent
-                      ? "text-down animate-pulse drop-shadow-[0_0_28px_rgba(246,165,165,0.5)]"
-                      : "drop-shadow-[0_0_26px_rgba(255, 255, 255, 0.45)] text-white"
-                    : "text-white/30"
-                }`}
-              >
-                {formatCountdown(gameActive ? countdown : 0)}
-              </div>
-              <div className="mt-4">
-                <ProgressBar
-                  pct={gameActive ? timerPct : 0}
-                  color={urgent ? "#F6A5A5" : "#d4d4d8"}
-                />
-              </div>
-              <div className="mt-3 text-center text-[12px] font-normal text-white/50">
-                {gameActive
-                  ? t("hintActive")
-                  : status?.isGameStarted
-                    ? game?.settled
-                      ? t("hintSettled")
-                      : t("hintEnded")
-                    : t("hintIdle")}
-              </div>
-            </div>
-
-            {/* Meta row */}
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <div className="ws-inset px-4 py-3.5">
-                <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  {t("lastPlayer")}
-                </div>
-                <div className="tnum mt-1 text-[13.5px] font-semibold text-white/85">
-                  {status?.lastPlayer ? truncateAddress(status.lastPlayer) : t("noneYet")}
-                </div>
-              </div>
-              <div className="ws-inset px-4 py-3.5">
-                <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  {t("costToPlay")}
-                </div>
-                <div className="tnum mt-1 text-[13.5px] font-semibold text-white/85">
-                  {status ? money.format(entryFeeUsd) : "—"}
-                </div>
-              </div>
-            </div>
-
-            {/* Every player brought in grows the pot the starter takes 10% of,
-                so the invite sits with the game. On a laptop the same card
-                heads the side rail instead, where the QR is in view without
-                scrolling. */}
-            {/* Play CTA — the primary action, silver whether you're playing or
-                being nudged to add money. The add-money state carries a coin and
-                blinks to pull the eye. */}
-            <div className="relative mt-5">
-              {roundOver ? (
-                // The round is over. A play here would revert on-chain, so the
-                // button does what is actually left to do.
-                game?.settled ? (
-                  <Link
-                    href="/casino/last-standing"
-                    className="text-ink block w-full rounded-2xl bg-white p-4 text-center font-sans text-[16.5px] font-bold shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)] transition-[transform] hover:-translate-y-0.5"
-                  >
-                    {t("ctaStartAnother")}
-                  </Link>
-                ) : (
-                  <button
-                    onClick={() => void onSettle()}
-                    disabled={settling || !address}
-                    className="text-ink w-full cursor-pointer rounded-2xl bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)] p-4 font-sans text-[16.5px] font-bold shadow-[0_18px_44px_-12px_rgba(255,255,255,0.9),inset_0_1px_0_rgba(255,255,255,0.45)] transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {settling
-                      ? t("ctaSettling")
-                      : iAmKing
-                        ? t("ctaSettleCollect")
-                        : t("ctaSettleRound")}
-                  </button>
-                )
-              ) : null}
-              {!roundOver && (canPlay || luring) ? (
-                <div
-                  aria-hidden
-                  className="bg-accent/40 pointer-events-none absolute -inset-1 animate-pulse rounded-2xl blur-lg"
-                />
-              ) : null}
-              {roundOver ? null : (
-                <motion.button
-                  ref={playBtnRef}
-                  onClick={() => void onPlay()}
-                  disabled={wagering || !status || !address}
-                  animate={
-                    reduce
-                      ? undefined
-                      : luring
-                        ? { opacity: [1, 0.5, 1] }
-                        : canPlay
-                          ? {
-                              // A slow breath of light: the button glows brighter
-                              // and settles, so a live round reads as alive even
-                              // between shimmer sweeps.
-                              boxShadow: [
-                                "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
-                                "0 18px 64px -8px rgba(255,255,255,0.95), inset 0 1px 0 rgba(255,255,255,0.45)",
-                                "0 18px 40px -14px rgba(255,255,255,0.45), inset 0 1px 0 rgba(255,255,255,0.45)",
-                              ],
-                            }
-                          : undefined
-                  }
-                  transition={
-                    reduce
-                      ? undefined
-                      : luring
-                        ? { duration: 1, repeat: Infinity, ease: "easeInOut" }
-                        : canPlay
-                          ? { duration: 2.2, repeat: Infinity, ease: "easeInOut" }
-                          : undefined
-                  }
-                  className={`relative w-full cursor-pointer overflow-hidden rounded-2xl p-4 font-sans text-[16.5px] font-bold transition-[transform] hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    canPlay || luring
-                      ? "text-ink shadow-[0_18px_44px_-12px_rgba(255, 255, 255, 0.9),inset_0_1px_0_rgba(255,255,255,0.45)] bg-[linear-gradient(180deg,#e8e8ea,#b6b6bc)]"
-                      : "text-ink bg-white shadow-[0_12px_32px_-14px_rgba(255,255,255,0.5)]"
-                  }`}
-                >
-                  {/* Light sweeps across the button whenever it's inviting a press. */}
-                  {(canPlay || luring) && !reduce ? (
-                    <motion.span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/3 -skew-x-12 bg-[linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent)]"
-                      animate={{ x: ["0%", "420%"] }}
-                      transition={{
-                        duration: 2.2,
-                        repeat: Infinity,
-                        repeatDelay: 1.2,
-                        ease: "easeInOut",
-                      }}
-                    />
-                  ) : null}
-                  <span className="relative inline-flex items-center justify-center gap-2">
-                    {luring ? (
-                      <span aria-hidden className="text-xl">
-                        💰
-                      </span>
-                    ) : null}
-                    {wagering
-                      ? t("ctaPlacing")
-                      : !status
-                        ? t("loading")
-                        : canPlay
-                          ? t("ctaPlay", { amount: money.format(entryFeeUsd) })
-                          : t("ctaAddMoney")}
-                  </span>
-                </motion.button>
-              )}
-            </div>
-
-            {/* Add liquidity: a play of any size above the minimum. The input
-                is dollars; the button says what it would send. */}
-            {roundOver || !gameActive ? null : (
-              <div className="ws-inset mt-3 px-4 py-3.5">
-                <div className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
-                  {t("liquidityLabel")}
-                </div>
-                {/* Stacked on a phone. Sharing a row left the input too
-                    narrow to read the amount back, which is the one thing it
-                    exists to show. */}
-                <div className="mt-2 flex flex-col items-stretch gap-2 sm:flex-row">
-                  <label
-                    className={`flex min-w-0 flex-1 items-center gap-2 rounded-[12px] border bg-black/35 px-3.5 transition-colors ${
-                      liquidityBelowMin || liquidityOverBalance
-                        ? "border-[#e3a49a]/60"
-                        : "focus-within:border-accent/45 border-white/10"
-                    }`}
-                  >
-                    <span className="text-[14px] font-medium text-white/45">$</span>
-                    <input
-                      inputMode="decimal"
-                      value={liquidityUsd}
-                      onChange={(e) => {
-                        if (/^\d*\.?\d*$/.test(e.target.value)) setLiquidityUsd(e.target.value);
-                      }}
-                      placeholder={t("liquidityPlaceholder", { amount: money.format(entryFeeUsd) })}
-                      className="tnum w-full min-w-0 bg-transparent py-2.5 font-sans text-[14px] text-white outline-none placeholder:text-white/30"
-                    />
-                  </label>
-                  <button
-                    ref={liquidityBtnRef}
-                    type="button"
-                    onClick={() => void onAddLiquidity()}
-                    disabled={!liquidityReady}
-                    className="border-accent/40 bg-accent/14 text-accent hover:bg-accent/22 w-full shrink-0 cursor-pointer rounded-[12px] border px-4 py-2.5 font-sans text-[13px] font-semibold whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
-                  >
-                    {wagering
-                      ? t("ctaPlacing")
-                      : liquidityReady
-                        ? t("liquidityCtaAmount", { amount: money.format(liquidityAmountUsd) })
-                        : t("liquidityCta")}
-                  </button>
-                </div>
-                <div
-                  className={`mt-2 text-[12px] leading-relaxed font-normal ${
-                    liquidityBelowMin || liquidityOverBalance ? "text-[#e3a49a]" : "text-white/45"
-                  }`}
-                >
-                  {liquidityBelowMin
-                    ? t("liquidityMin", { amount: money.format(entryFeeUsd) })
-                    : liquidityOverBalance
-                      ? tBuySellNotEnough
-                      : t("liquidityHint", { amount: money.format(entryFeeUsd) })}
-                </div>
-              </div>
-            )}
-
-            {/* On a phone the invite card sits after the play controls: the
-                clock and the two ways to put money in are what somebody opens
-                this screen for, and a QR above them pushed all of it under the
-                fold. On a laptop the same card heads the side rail, where it is
-                in view without scrolling. */}
-            <ShareGame gameId={gameId} className="mt-4 min-[980px]:hidden" />
-
-            {/* Balance. Add money only shows when the play CTA isn't already
-                saying it. */}
-
-            {/* You won — auto-credited, no claim needed. */}
-            {recentWinUsd !== null ? (
-              <div className="border-up/40 bg-up/10 mt-3 rounded-[16px] border px-4 py-3.5 shadow-[0_0_28px_-10px_rgba(124,231,176,0.6)]">
-                <div className="text-[13.5px] font-bold text-white">{t("wonBannerTitle")}</div>
-                <div className="tnum mt-0.5 text-[12.5px] font-normal text-white/60">
-                  {t("wonBannerDetail", { amount: money.format(recentWinUsd) })}
-                </div>
-              </div>
-            ) : null}
+      {/* You won — auto-credited, no claim needed. */}
+      {recentWinUsd !== null ? (
+        <div className="border-up/40 bg-up/10 mt-4 rounded-[16px] border px-4 py-3.5">
+          <div className="text-[13.5px] font-bold text-white">{t("wonBannerTitle")}</div>
+          <div className="tnum mt-0.5 text-[12.5px] font-normal text-white/60">
+            {t("wonBannerDetail", { amount: money.format(recentWinUsd) })}
           </div>
         </div>
+      ) : null}
 
-        {/* Side rail */}
-        <div className="flex flex-col gap-4">
-          <ShareGame gameId={gameId} className="hidden min-[980px]:block" />
-          {/* A game is public, so anyone in it can stream it. The arena is all
-              motion (the countdown, the pot, the coin flights), so it is
-              published for framerate. The copy here is English while the rest
-              of the page is translated: the panel carries no catalogue yet. */}
-          <GameGoLive
-            target={{
-              game: "last-standing",
-              ref: String(gameId),
-              title: `The Last Man: game ${gameId}`,
-              watchPath: `/casino/last-standing/${gameId}`,
-              descriptionLead: "Live on Ark. Outlast everyone:",
-              content: "motion",
-              creatorApplicationNote: "I play The Last Man on Ark and want to broadcast my games.",
-            }}
-            copy={{
-              subject: "the arena",
-              finishedNotice:
-                "This game has settled. End the broadcast so you are not streaming a finished game.",
-            }}
-            activityOver={game?.settled === true}
-          />
-          <div className="ws-glass rounded-[22px] p-5">
-            <div className="flex items-center justify-between">
-              <span className="text-[13px] font-semibold text-white/80">{t("recentActivity")}</span>
-              <span className="rounded-full bg-white/6 px-2 py-0.5 text-[10.5px] font-medium text-white/40">
-                {t("liveFeed")}
-              </span>
+      {/* Measured off the design's own page (844:78897), not off the isolated
+          stage component, which is drawn at a width the page never uses: the
+          content row is 1002px, the stage 695px, the rail 295px, 12px apart.
+          So the rail is 29.4% of the row, not a fixed 295px. Pinned at 295px
+          it kept its width while the stage swallowed every pixel a wide
+          monitor added, which is what left the rail's cards — invite, stake,
+          claim — looking shrunken. Held as a share, the two grow together and
+          keep the drawn proportion at any width. The 295px floor keeps the
+          rail readable on a narrow laptop, and below 980px they stack. */}
+      <div className="mt-9 grid grid-cols-1 items-start gap-4 min-[980px]:grid-cols-[minmax(0,1fr)_minmax(295px,29.4%)] min-[980px]:gap-3">
+        <div className="flex min-w-0 flex-col gap-3">
+          {/* The starter's name for this game, when it has one. Above the
+              stage because it says WHICH game you are looking at, and only
+              when present: the number is already in the page title, so an
+              unnamed game loses nothing by leaving this out. Carried over
+              from the naming change (#569), which landed while this redesign
+              was in flight.
+
+              The description is one clamped line, taken from main (#573): the
+              starter's own words are worth showing, two lines of them on a
+              sixty-second page are not. Main made that call against its own
+              header, where the name rode the prize-pool eyebrow inline; that
+              eyebrow is gone here and the name is a heading of its own, but
+              the reason is about what the page is FOR, not how its header is
+              shaped, so it holds either way. The type is main's exactly rather
+              than re-tuned to sit under a larger heading — the two files
+              should keep converging, and a 0.5px and 5% difference is not
+              worth the next conflict. */}
+          {game?.title ? (
+            <div>
+              <h1 className="ws-display truncate text-[17px] tracking-[-0.01em]">{game.title}</h1>
+              {game.description ? (
+                <p className="mt-1 line-clamp-1 text-[12px] leading-[1.35] font-normal text-white/45">
+                  {game.description}
+                </p>
+              ) : null}
             </div>
-            {activities.length === 0 ? (
-              <div className="grid place-items-center py-10 text-center text-[13px] font-normal text-white/40">
-                {t("noPlays")}
+          ) : null}
+
+          {statusLoading && !status ? (
+            // A first paint with nothing in hand. Said as a skeleton of the
+            // stage's own height rather than an empty clock, which would read
+            // as a round waiting to start.
+            <div
+              role="status"
+              aria-label={t("loading")}
+              data-testid="stage-loading"
+              className="h-[372px] w-full animate-pulse rounded-[15px] bg-[#121314]"
+            />
+          ) : (
+            <StageCard
+              phase={stagePhase}
+              // The round this game is on, not the game's id. Starting it is
+              // round 1 and every stake after that adds one. Omitted rather
+              // than guessed while the feed is still out: a number here reads
+              // as fact.
+              roundLabel={roundCount === null ? null : t("roundLabel", { round: roundCount })}
+              // Opposite the round label, in the corner the design leaves
+              // empty. The pop-out sits inside the arena's own card rather
+              // than beside the page title, because it carries THIS game's
+              // clock away with the reader.
+              //
+              // It is dropped once the round is over: there is no clock left
+              // to take, which is the same reason `useLeavePrompt` stops
+              // asking then. Sound outlives the round and stays.
+              cornerAction={
+                <>
+                  {roundOver ? null : <PopOutToggle gameId={gameId} />}
+                  <MusicToggle />
+                </>
+              }
+              countdown={formatCountdown(gameActive ? countdown : 0)}
+              progress={timerPct / 100}
+              // The ring turns red in the last URGENT_SECONDS (10) of a live round.
+              secondsLeft={gameActive ? countdown : 0}
+              caption={stageCaption}
+              heading={iAmWinner ? t("stageWonTitle") : t("stageEndedTitle")}
+              subheading={
+                iAmWinner
+                  ? t("stageWonBody")
+                  : t("stageEndedBody", {
+                      player: leaderName || t("noneYet"),
+                    })
+              }
+              leader={stageLeader}
+              chip={stageChip}
+              pot={{ label: t("tilePot"), value: money.format(potTileUsd) }}
+              winnerShare={{ label: t("tileWinnerShare"), value: money.format(winnerShareUsd) }}
+              potRef={potRef}
+              frozen={degraded}
+            >
+              {/* Final seconds: the stage's own edge pulses red. It is drawn
+                  here rather than around the card so it follows the card's
+                  corners exactly. */}
+              {urgent && !reduce ? (
+                <motion.span
+                  aria-hidden
+                  className="ring-down/60 pointer-events-none absolute inset-0 rounded-[15px] ring-2 ring-inset"
+                  animate={{ opacity: [0.3, 0.9, 0.3] }}
+                  transition={{ duration: 0.7, repeat: Infinity, ease: "easeInOut" }}
+                />
+              ) : null}
+            </StageCard>
+          )}
+
+          {/* Live tension: when this wallet is last to play, it is winning.
+              The line sharpens in the final seconds. */}
+          {iAmLastStanding ? (
+            <div
+              className={`rounded-[15px] border px-4 py-3 ${
+                urgent ? "border-[#ffe178]/60 bg-[#ffe178]/10" : "border-hairline bg-surface"
+              }`}
+            >
+              <div className="text-[13.5px] font-bold text-[#ffe178]">
+                {urgent ? t("standingTitleUrgent") : t("standingTitle")}
               </div>
-            ) : (
-              <div className="mt-3 flex flex-col gap-1">
-                {pagedActivities.pageItems.map((a) => (
-                  <a
-                    key={a.id}
-                    href={`${EXPLORER_TX_URL}${a.transactionHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between gap-3 rounded-[12px] px-2 py-2 transition-colors hover:bg-white/6"
-                  >
-                    <span className="flex min-w-0 items-center gap-2.5 text-[13px] font-normal text-white/75">
-                      <span
-                        className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] ${
-                          a.action === "won" ? "bg-up/15 text-up" : "bg-accent/15 text-accent"
-                        }`}
-                      >
-                        {a.action === "won" ? "★" : "↑"}
-                      </span>
-                      <span className="min-w-0 truncate">
-                        <span className="tnum">{truncateAddress(a.address)}</span>{" "}
-                        {a.action === "won" ? t("actionWon") : t("actionPlayed")}
-                      </span>
-                    </span>
-                    <span className="tnum shrink-0 text-[12.5px] font-semibold text-white/65">
-                      {/* A win opened and won by the same wallet shows what
-                          that wallet received, not the winner's share alone —
-                          see lib/last-standing/activity-payout. */}
-                      {(() => {
-                        const shown = activityAmount(a, winners);
-                        return rawToMoney(shown.raw ?? a.amountWei, shown.decimals);
-                      })()}
-                    </span>
-                  </a>
-                ))}
+              <div className="mt-0.5 text-[12.5px] font-normal text-white/60">
+                {urgent ? t("standingBodyUrgent") : t("standingBody")}
               </div>
-            )}
-            {pagedActivities.total > FEED_PAGE_SIZE ? (
-              <Pager
-                from={pagedActivities.from}
-                to={pagedActivities.to}
-                total={pagedActivities.total}
-                canPrev={pagedActivities.canPrev}
-                canNext={pagedActivities.canNext}
-                onPrev={pagedActivities.goPrev}
-                onNext={pagedActivities.goNext}
+            </div>
+          ) : null}
+
+          {/* The round is finished. A wager here would revert on chain, so the
+              one thing left to do from this page is open another game. */}
+          {roundOver ? (
+            <Link
+              href="/casino/last-standing"
+              className="ws-chrome-pill ws-pressable text-ink flex min-h-11 w-full items-center justify-center rounded-full px-4 text-[13px] font-semibold"
+            >
+              {t("ctaStartAnother")}
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-3">
+          {/* Short on funds: the card keeps its place and its action, and the
+              glow behind it is the nudge the old blinking button was. */}
+          <div className="relative">
+            {luring && !reduce ? (
+              <motion.span
+                aria-hidden
+                className="pointer-events-none absolute -inset-1 rounded-[24px] bg-[#ffe178]/25 blur-lg"
+                animate={{ opacity: [0.3, 0.8, 0.3] }}
+                transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
               />
             ) : null}
+            <div className="relative">
+              {railCard === "action" ? (
+                <RailActionCard
+                  badge={
+                    actionIsStart
+                      ? { label: t("railStartBadge"), tone: "waiting" }
+                      : iAmKing
+                        ? { label: t("railBadgeLead"), tone: "lead" }
+                        : { label: t("railBadgeBehind"), tone: "behind" }
+                  }
+                  heading={actionIsStart ? t("railStartHeading") : t("railAddHeading")}
+                  sub={t("railSub")}
+                  amountLabel={t("railPlayAmount")}
+                  stepper={{
+                    amount: money.format(stakeUsd),
+                    currency: money.currency.code,
+                    onDecrement: () => setStakeUnits(stake - minStakeUnits),
+                    onIncrement: () => setStakeUnits(stake + minStakeUnits),
+                    canDecrement: canStepStakeDown,
+                    canIncrement: canStepStakeUp,
+                    disabled: wagering,
+                    decrementLabel: t("stepperDecrease"),
+                    incrementLabel: t("stepperIncrease"),
+                  }}
+                  cta={{
+                    label: ctaLabel,
+                    icon: actionIsStart ? "play" : null,
+                    onPress: () => void onPlay(),
+                    disabled: !status || !address,
+                    busy: wagering,
+                  }}
+                  ctaRef={playBtnRef}
+                  footer={railPager}
+                />
+              ) : null}
+
+              {railCard === "claim" ? (
+                <RailClaimCard
+                  heading={t("railClaimHeading")}
+                  shareLabel={t("railClaimShare")}
+                  shareValue={money.format(winnerShareUsd)}
+                  status={{
+                    label: hasPending ? t("railClaimReady") : t("railClaimWaiting"),
+                    ready: hasPending,
+                  }}
+                  rows={[
+                    { label: t("rowFinalPot"), value: money.format(finalPotUsd) },
+                    { label: t("rowWinnerAllocation"), value: money.format(winnerShareUsd) },
+                    {
+                      label: t("rowClaimStatus"),
+                      value: claimed ? t("claimStatusClaimed") : t("claimStatusNotClaimed"),
+                    },
+                  ]}
+                  cta={
+                    settleable
+                      ? {
+                          // Nobody is paid until this runs, so it stays the
+                          // card's action even for a wallet that did not win.
+                          label: settling
+                            ? t("ctaSettling")
+                            : iAmKing
+                              ? t("ctaSettleCollect")
+                              : t("ctaSettleRound"),
+                          onPress: () => void onSettle(),
+                          disabled: !address,
+                          busy: settling,
+                        }
+                      : {
+                          label: claiming
+                            ? t("claiming")
+                            : t("railClaimCta", { amount: pendingLabel }),
+                          onPress: () => void onClaim(),
+                          disabled: !hasPending,
+                          busy: claiming,
+                        }
+                  }
+                  footer={railPager}
+                />
+              ) : null}
+
+              {railCard === "invite" ? (
+                <RailInviteCard
+                  // "You earn 10%" is the design's own chip (B6) — a borderless
+                  // pill on rgba(255,255,255,0.04) — not a status pill. It used
+                  // to ship through the status-pill prop, which drew it with a
+                  // border at 8.494px.
+                  chip={t("railInviteBadge")}
+                  heading={t("railInviteHeading")}
+                  sub={t("railInviteBody")}
+                  // The card supplies the white tile, so the code goes in bare.
+                  qr={<QrCode value={share.url} size={112} bare />}
+                  caption={t("railInviteCaption")}
+                  share={{
+                    label: share.copied ? t("shareCopied") : t("railShareCta"),
+                    onPress: () => void share.share(),
+                  }}
+                  footer={railPager}
+                />
+              ) : null}
+
+              {/* Broadcast to Market Square. No frame of the design draws it,
+                  so it wears the rail's own shell and heading, and the panel
+                  goes in bare so there is one card edge, not two. */}
+              {railCard === "broadcast" ? (
+                <RailCardFrame label={t("railBroadcastHeading")} footer={railPager}>
+                  <div data-rail-card="broadcast">
+                    <GameBroadcastProvider broadcast={broadcast} copy={BROADCAST_COPY}>
+                      <GoLivePanel
+                        variant="bare"
+                        activityOver={game?.settled === true}
+                        header={
+                          <h3 className="ws-display text-[24px] leading-none tracking-[-0.96px] text-[#f4f4f4]">
+                            {t("railBroadcastHeading")}
+                          </h3>
+                        }
+                      />
+                    </GameBroadcastProvider>
+                  </div>
+                </RailCardFrame>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Hall of Winners — champions of past rounds, given the main stage rather
-          than a cramped side slot. Chronological (newest first), not a ranking. */}
-      <div className="ws-glass relative mt-4 overflow-hidden rounded-[24px] p-5 sm:p-6">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-20 -right-16 h-52 w-52 rounded-full bg-[#d8d8dc]/10 blur-[80px]"
-        />
-        <div className="relative flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="text-[30px]">👑</span>
-            <div>
-              <div className="text-[14px] font-semibold text-white/90">{t("hallTitle")}</div>
-              <div className="text-[11.5px] font-normal text-white/45">
-                {t("hallSubtitleRound")}
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="mt-4">
+        <ActivityPanel
+          tabs={[
+            { id: "activity", label: t("tabActivity") },
+            { id: "rules", label: t("tabRules") },
+          ]}
+          activeTab={tab}
+          onTabChange={(id) => setTab(id as PanelTab)}
+          columns={{
+            player: t("colPlayer"),
+            action: t("colAction"),
+            amount: t("colAmount"),
+            time: t("colTime"),
+          }}
+          rows={rows}
+          emptyLabel={t("noPlays")}
+          isLoading={activitiesLoading}
+        >
+          {panelBody}
+        </ActivityPanel>
 
-        <WinnersList winners={winners} loading={winnersLoading} emptyLabel={t("hallEmpty")} />
+        {/* The feed is capped per page, and the pager sits under the card
+            rather than inside it: the panel's body is the tab's to fill. */}
+        {tab === "activity" && pagedActivities.total > FEED_PAGE_SIZE ? (
+          <div className="px-4 sm:px-6">
+            <Pager
+              from={pagedActivities.from}
+              to={pagedActivities.to}
+              total={pagedActivities.total}
+              canPrev={pagedActivities.canPrev}
+              canNext={pagedActivities.canNext}
+              onPrev={pagedActivities.goPrev}
+              onNext={pagedActivities.goNext}
+            />
+          </div>
+        ) : null}
       </div>
 
       {/* There is no "add money" and no "withdraw" here any more. Both sheets

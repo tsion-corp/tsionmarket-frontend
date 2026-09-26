@@ -21,21 +21,17 @@ function useOrigin(): string {
   return useSyncExternalStore(NO_UPDATES, readShareOrigin, serverShareOrigin);
 }
 
-// Sharing is the point of opening a game: the starter earns 10% of whatever the
-// pot reaches, so every player they bring in pays them. The link is the game's
-// own route, which means it works for someone who is not signed in yet.
-//
-// A card of its own, with the QR always showing: players asked for it after
-// the link and code kept hiding behind a toggle under the stats. On a laptop it
-// heads the side rail above the activity feed; on a phone it keeps its place
-// under the game stats.
-export function ShareGame({ gameId, className = "" }: { gameId: number; className?: string }) {
+/**
+ * A game's invite link, and the two ways to pass it on.
+ *
+ * Two surfaces send the same link: the card below and the rail's invite card on
+ * the game screen. The origin, the toasts and the native-sheet fallback belong
+ * in one place, or they drift apart.
+ */
+export function useGameShare(gameId: number) {
   const t = useTranslations("casino.lastStanding");
-
   const origin = useOrigin();
-  const path = `/casino/last-standing/${gameId}`;
-  const url = `${origin}${path}`;
-
+  const url = `${origin}/casino/last-standing/${gameId}`;
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {
@@ -67,6 +63,21 @@ export function ShareGame({ gameId, className = "" }: { gameId: number; classNam
     }
     await copy();
   };
+
+  return { url, copied, copy, share };
+}
+
+// Sharing is the point of opening a game: the starter earns 10% of whatever the
+// pot reaches, so every player they bring in pays them. The link is the game's
+// own route, which means it works for someone who is not signed in yet.
+//
+// A card of its own, with the QR always showing: players asked for it after
+// the link and code kept hiding behind a toggle under the stats. On a laptop it
+// heads the side rail above the activity feed; on a phone it keeps its place
+// under the game stats.
+export function ShareGame({ gameId, className = "" }: { gameId: number; className?: string }) {
+  const t = useTranslations("casino.lastStanding");
+  const { url, copied, copy, share } = useGameShare(gameId);
 
   return (
     <div className={`ws-glass rounded-[22px] p-5 ${className}`}>
@@ -116,56 +127,6 @@ export function ShareGame({ gameId, className = "" }: { gameId: number; classNam
   );
 }
 
-/**
- * The same link, as one button for the header row.
- *
- * The full invite block sits below the game stats, which on a laptop is under
- * the fold — a starter who never scrolls never finds the thing that earns them
- * their 10%. This puts it next to the timer and sound controls.
- */
-export function ShareGameButton({ gameId }: { gameId: number }) {
-  const t = useTranslations("casino.lastStanding");
-  const origin = useOrigin();
-  const url = `${origin}/casino/last-standing/${gameId}`;
-
-  const onClick = async () => {
-    if (!origin) return;
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      try {
-        await navigator.share({ title: t("shareTitle"), text: t("shareText"), url });
-        return;
-      } catch {
-        // Dismissed or refused; fall through to copying.
-      }
-    }
-    const ok = await copyText(url);
-    if (ok) toast.success(t("shareCopied"));
-    else toast.error(t("shareCopyFailed"));
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={() => void onClick()}
-      className="flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-white/12 bg-white/5 px-3 text-[11.5px] font-medium text-white/60 transition-colors hover:bg-white/10 hover:text-white"
-    >
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <circle cx="18" cy="5" r="3" />
-        <circle cx="6" cy="12" r="3" />
-        <circle cx="18" cy="19" r="3" />
-        <path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" />
-      </svg>
-      {t("shareCta")}
-    </button>
-  );
-}
+// The header's own Share button lived here. It is gone: the game screen's rail
+// carries an invite card with the same link, and two Shares on one screen is
+// the same offer twice. `useGameShare` above is what that card uses.

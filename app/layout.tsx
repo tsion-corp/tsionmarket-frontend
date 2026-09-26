@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Manrope, Noto_Sans, Roboto } from "next/font/google";
+import { Geist, Manrope, Noto_Sans, Quicksand, Roboto } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -14,9 +14,19 @@ const geist = Geist({
 });
 
 // Headers. Mona Sans, used at bold by the ws-display utility.
+//
+// The declared range is the file's own: its fvar table carries one `wght` axis
+// running 200 to 900. It used to say "500 700", which is not a subset of the
+// file but a cap on it — CSS clamps a request to the declared bounds, so every
+// `font-extrabold` in the tree silently rendered at Bold. The Last Man stage's
+// countdown digits and hero heading are drawn ExtraBold 800 and were the first
+// place it showed.
+//
+// The same table says there is NO `wdth` axis, so a `font-variation-settings:
+// "wdth" 100` would do nothing here however the design file describes it.
 const monaSans = localFont({
   src: "./fonts/mona-sans-latin.woff2",
-  weight: "500 700",
+  weight: "200 900",
   variable: "--font-display",
 });
 
@@ -51,6 +61,16 @@ const squareRoboto = Roboto({
   variable: "--font-roboto",
 });
 
+// The Arkade's second face. The Last Man's design sets its round label, leader
+// bar, status pills, tab strip and the whole activity table in Quicksand Bold
+// against Mona Sans elsewhere on the same card, so the pair is deliberate and
+// not a stray. Bold alone: no other weight of it appears in the design.
+const quicksand = Quicksand({
+  subsets: ["latin"],
+  weight: ["700"],
+  variable: "--font-quicksand",
+});
+
 // No `icons` here: app/icon.svg is picked up by file convention and emits the
 // link tag itself. Declaring both would point the tab at the wide wordmark,
 // which is what made the old icon unreadable.
@@ -82,7 +102,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased ${squareHeading.variable} ${squareRoboto.variable}`}
+      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased ${squareHeading.variable} ${squareRoboto.variable} ${quicksand.variable}`}
     >
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>

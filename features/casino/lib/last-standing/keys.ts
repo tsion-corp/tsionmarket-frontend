@@ -9,6 +9,10 @@ export const VAULT_KEYS = {
   // Every winner ever, walked server-side for the all-time board.
   leaderboard: ["vault", "leaderboard"] as const,
   activities: ["vault", "activities"] as const,
+  // One game's own complete feed, as against the capped cross-game strip
+  // above. Deliberately nested under `game(gameId)`: a wager invalidates that
+  // game, and the rows it just added should be refetched with it.
+  gameActivities: (gameId: number) => ["vault", "game", gameId, "activities"] as const,
   // The socket's contract-shaped lobby rows. Under the same prefix, so a
   // reconnect resync refreshes them with everything else, but not under
   // `games`, so an invalidation of the API list does not touch them.

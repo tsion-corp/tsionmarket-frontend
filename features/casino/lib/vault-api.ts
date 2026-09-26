@@ -347,3 +347,25 @@ export async function fetchVaultActivities(): Promise<VaultActivity[]> {
   vaultLog("REST /game/activities", { rows: rows.length });
   return rows;
 }
+
+/**
+ * One game's own feed, which is every row that game ever had.
+ *
+ * The cross-game `/game/activities` above is a recent-activity strip and is
+ * capped: it answered with 25 rows spanning 12 games, two per game. Filtering
+ * that down to one game gives a truncated feed, which is fine for a ticker and
+ * wrong for anything that counts, so a game's own page reads this instead and
+ * the lobby keeps the cheap global one.
+ */
+export async function fetchVaultGameActivities(gameId: number): Promise<VaultActivity[]> {
+  const data = await vault.get<{ activities: unknown }>(`/games/${gameId}/activities`);
+  const rows = onlyVaultActivities(data.activities);
+  const total = Array.isArray(data.activities) ? data.activities.length : 0;
+  if (rows.length !== total) {
+    console.warn(
+      `[vault] dropped ${total - rows.length} /games/${gameId}/activities row(s) not in shape`
+    );
+  }
+  vaultLog(`REST /games/${gameId}/activities`, { rows: rows.length });
+  return rows;
+}

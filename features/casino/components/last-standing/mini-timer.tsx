@@ -119,6 +119,22 @@ const getSnapshot = () => state;
 export function miniWindowSnapshot(): MiniWindowState {
   return state;
 }
+/**
+ * Subscribes to that state. Exported for the arena's own pop-out switch, which
+ * has to show whether the window is up: it says "Pop-out timer" when it is not
+ * and "Close pop-out" when it is, and only this store knows which.
+ *
+ * `setState` replaces the object on every change, so this pairs safely with
+ * `miniWindowSnapshot` in `useSyncExternalStore` — the identity is stable
+ * between changes and different across them, which is what it checks.
+ */
+export function subscribeMiniWindow(listener: () => void): () => void {
+  return subscribe(listener);
+}
+/** True while any tier is up — a real window, a floating video, or the overlay. */
+export function isMiniWindowOpen(s: MiniWindowState): boolean {
+  return s.pipWindow !== null || s.videoActive || s.overlayActive;
+}
 const getServerSnapshot = () => state;
 
 function useMiniWindow(): MiniWindowState {

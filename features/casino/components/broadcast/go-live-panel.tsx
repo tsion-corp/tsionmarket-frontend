@@ -39,6 +39,44 @@ import {
 
 const buttonSize = "px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap";
 
+interface ButtonClasses {
+  primary: string;
+  secondary: string;
+}
+
+// The panel as its own card: small pills, sized to their label.
+const CARD_BUTTONS: ButtonClasses = {
+  primary: `${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize}`,
+  secondary: `${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize}`,
+};
+
+// The panel inside a host's own card shell (the Last Man rail). No design
+// frame exists for it there, so it borrows the rail cards' language: a full
+// width chrome pill for the main action, 44px tall for a finger and the
+// drawn 31.798px from 980px up, with an 11px Mona Sans SemiBold label.
+const BARE_BUTTON_BOX =
+  "inline-flex min-h-11 w-full items-center justify-center gap-1 px-4 text-center font-serif text-[11px] leading-[1.1] font-semibold min-[980px]:min-h-[31.798px]";
+const BARE_BUTTONS: ButtonClasses = {
+  primary: `ws-chrome-pill ws-pressable text-ink cursor-pointer rounded-full tracking-[-0.11px] disabled:cursor-not-allowed disabled:opacity-40 ${BARE_BUTTON_BOX}`,
+  secondary: `${CASINO_SECONDARY_BUTTON_CLASS} ${BARE_BUTTON_BOX}`,
+};
+
+/**
+ * Whether this session has a broadcast in hand: going out, being started or
+ * ended, or waiting on a host. A host page uses it to keep the control on
+ * screen after its own activity has finished, so a stream can still be ended.
+ */
+export function isBroadcastOngoing(phase: Broadcast["phase"]): boolean {
+  return (
+    phase === "starting" ||
+    phase === "live" ||
+    phase === "share-stopped" ||
+    phase === "joining" ||
+    phase === "ending" ||
+    phase === "end-failed"
+  );
+}
+
 export type Broadcast = GameBroadcastState & GameBroadcastActions;
 
 /** The two places the panel has to name the thing being broadcast. */
@@ -93,7 +131,7 @@ function speakerName(entry: {
  * usable: an opponent's request has to be answerable from the game, because a
  * host who has to open Market Square to approve it will not do it mid-match.
  */
-function SpeakerRequests({ broadcast }: { broadcast: Broadcast }) {
+function SpeakerRequests({ broadcast, buttons }: { broadcast: Broadcast; buttons: ButtonClasses }) {
   if (broadcast.pendingSpeakers.length === 0) return null;
   return (
     <div className="border-accent/25 mt-2.5 rounded-[10px] border bg-black/20 px-3 py-2.5">
@@ -108,14 +146,14 @@ function SpeakerRequests({ broadcast }: { broadcast: Broadcast }) {
               <button
                 onClick={() => void broadcast.approveSpeaker(entry.id)}
                 disabled={working}
-                className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize}`}
+                className={`${buttons.primary}`}
               >
                 {working ? "…" : "Approve"}
               </button>
               <button
                 onClick={() => void broadcast.declineSpeaker(entry.id)}
                 disabled={working}
-                className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize}`}
+                className={`${buttons.secondary}`}
               >
                 Decline
               </button>
@@ -135,7 +173,7 @@ function SpeakerRequests({ broadcast }: { broadcast: Broadcast }) {
  * can both be streaming the same ArkBall draw), so the choice is presented
  * rather than made here.
  */
-function JoinExisting({ broadcast }: { broadcast: Broadcast }) {
+function JoinExisting({ broadcast, buttons }: { broadcast: Broadcast; buttons: ButtonClasses }) {
   const many = broadcast.joinable.length > 1;
   return (
     <div className="mt-2">
@@ -150,7 +188,7 @@ function JoinExisting({ broadcast }: { broadcast: Broadcast }) {
             key={candidate.id}
             onClick={() => void broadcast.join(candidate.id)}
             disabled={broadcast.busy}
-            className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize} text-left`}
+            className={`${buttons.primary} text-left`}
           >
             {broadcast.busy ? "…" : `Join ${broadcastLabel(candidate)}`}
           </button>
@@ -160,8 +198,24 @@ function JoinExisting({ broadcast }: { broadcast: Broadcast }) {
   );
 }
 
-export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }) {
+export function GoLivePanel({
+  activityOver = false,
+  variant = "card",
+  header,
+}: {
+  activityOver?: boolean;
+  /**
+   * "card" draws the panel as a card of its own. "bare" draws no border,
+   * background or padding, for a host that seats it in its own card shell,
+   * and styles its buttons and copy to sit with that host's cards.
+   */
+  variant?: "card" | "bare";
+  /** Replaces the small "Broadcast to Market Square" label, e.g. with a heading. */
+  header?: React.ReactNode;
+}) {
   const context = useContext(BroadcastContext);
+  const bare = variant === "bare";
+  const buttons = bare ? BARE_BUTTONS : CARD_BUTTONS;
   const [confirming, setConfirming] = useState(false);
 
   if (!context) return null;
@@ -181,11 +235,18 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
 
   return (
     <div
-      className="mt-3 rounded-[16px] border border-white/6 px-4 py-3.5"
-      style={{ background: CASINO_CARD_BG, boxShadow: CASINO_CARD_SHADOW }}
+      data-go-live-panel={variant}
+      className={
+        bare
+          ? // The host card's body face: Mona Sans SemiBold at a readable size.
+            // Colour is left to each line, so a failure still reads red.
+            "flex flex-col gap-1 [&_p]:font-serif [&_p]:text-[12.5px] [&_p]:leading-[1.5] [&_p]:font-semibold"
+          : "mt-3 rounded-[16px] border border-white/6 px-4 py-3.5"
+      }
+      style={bare ? undefined : { background: CASINO_CARD_BG, boxShadow: CASINO_CARD_SHADOW }}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-[12px] text-white/48">Broadcast to Market Square</span>
+        {header ?? <span className="text-[12px] text-white/48">Broadcast to Market Square</span>}
         {/* A guest publishes a camera, not a screen, so either track counts. */}
         {phase === "live" && (broadcast.sharingScreen || broadcast.sharingCamera) ? (
           <LiveDot />
@@ -204,7 +265,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
           </p>
           <button
             onClick={() => void broadcast.recheckRole()}
-            className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+            className={`${buttons.secondary} mt-2.5`}
           >
             Try again
           </button>
@@ -220,7 +281,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
           <button
             onClick={() => void onApply()}
             disabled={broadcast.applying}
-            className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+            className={`${buttons.secondary} mt-2.5`}
           >
             {broadcast.applying ? "…" : "Apply to be a creator"}
           </button>
@@ -237,7 +298,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
           ) : phase === "idle" || phase === "ended" || phase === "error" ? (
             broadcast.joinable.length > 0 ? (
               <>
-                <JoinExisting broadcast={broadcast} />
+                <JoinExisting broadcast={broadcast} buttons={buttons} />
                 {/* Still available, but only to an account that may create a
                     stream: a second stream of the same activity is legitimate,
                     and the host may not want a guest. A citizen can join
@@ -247,7 +308,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                   <button
                     onClick={() => setConfirming(true)}
                     disabled={broadcast.busy}
-                    className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize} mt-2`}
+                    className={`${buttons.secondary} mt-2`}
                   >
                     Start my own instead
                   </button>
@@ -262,7 +323,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                 <button
                   onClick={() => setConfirming(true)}
                   disabled={broadcast.busy}
-                  className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+                  className={`${buttons.primary} mt-2.5`}
                 >
                   {phase === "ended" ? "Go live again" : "Go live"}
                 </button>
@@ -279,7 +340,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
               <button
                 onClick={() => void broadcast.cancelJoin()}
                 disabled={broadcast.busy}
-                className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+                className={`${buttons.secondary} mt-2.5`}
               >
                 Cancel request
               </button>
@@ -296,7 +357,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                   <button
                     onClick={() => void broadcast.join(broadcast.joinable[0].id)}
                     disabled={broadcast.busy}
-                    className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize}`}
+                    className={`${buttons.secondary}`}
                   >
                     Ask again
                   </button>
@@ -305,7 +366,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                   <button
                     onClick={() => setConfirming(true)}
                     disabled={broadcast.busy}
-                    className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize}`}
+                    className={`${buttons.primary}`}
                   >
                     Start my own broadcast
                   </button>
@@ -323,7 +384,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
               <button
                 onClick={() => setConfirming(true)}
                 disabled={broadcast.busy}
-                className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+                className={`${buttons.primary} mt-2.5`}
               >
                 Start my own broadcast
               </button>
@@ -344,19 +405,19 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                 <button
                   onClick={() => void broadcast.resumeScreenShare()}
                   disabled={broadcast.busy}
-                  className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize}`}
+                  className={`${buttons.primary}`}
                 >
                   {broadcast.busy ? "…" : `Share ${copy.subject} again`}
                 </button>
                 <button
                   onClick={() => void broadcast.stop()}
                   disabled={broadcast.busy}
-                  className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize}`}
+                  className={`${buttons.secondary}`}
                 >
                   End broadcast
                 </button>
               </div>
-              <SpeakerRequests broadcast={broadcast} />
+              <SpeakerRequests broadcast={broadcast} buttons={buttons} />
             </div>
           ) : null}
 
@@ -389,7 +450,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                 <button
                   onClick={() => void broadcast.resumeScreenShare()}
                   disabled={broadcast.busy}
-                  className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize} mt-2.5 mr-2`}
+                  className={`${buttons.secondary} mt-2.5 mr-2`}
                 >
                   {broadcast.busy ? "…" : `Share ${copy.subject} too`}
                 </button>
@@ -397,7 +458,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
               <button
                 onClick={() => void broadcast.stop()}
                 disabled={broadcast.busy}
-                className={`${CASINO_SECONDARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+                className={`${buttons.secondary} mt-2.5`}
               >
                 {broadcast.busy
                   ? "…"
@@ -405,7 +466,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
                     ? "Leave broadcast"
                     : "End broadcast"}
               </button>
-              <SpeakerRequests broadcast={broadcast} />
+              <SpeakerRequests broadcast={broadcast} buttons={buttons} />
             </div>
           ) : null}
 
@@ -418,7 +479,7 @@ export function GoLivePanel({ activityOver = false }: { activityOver?: boolean }
               <button
                 onClick={() => void broadcast.stop()}
                 disabled={broadcast.busy}
-                className={`${CASINO_PRIMARY_BUTTON_CLASS} ${buttonSize} mt-2.5`}
+                className={`${buttons.primary} mt-2.5`}
               >
                 {broadcast.busy ? "…" : "Try ending again"}
               </button>

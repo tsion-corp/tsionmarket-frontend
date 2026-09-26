@@ -4,6 +4,8 @@ import { act, renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
+import { currentRoundCount } from "@/features/casino/lib/last-standing/rounds";
+import type { VaultActivity } from "@/features/casino/lib/vault-api";
 import {
   handleVaultFrame,
   reconnectDelay,
@@ -293,5 +295,130 @@ describe("revision tracking", () => {
     handleVaultFrame(client, JSON.stringify({ type: "activeGames", data: { games: [] } }));
     handleVaultFrame(client, JSON.stringify(snapshot(23331)));
     expect(invalidate).not.toHaveBeenCalled();
+  });
+});
+
+// The game detail page reads ONE game's own feed, `gameActivities(id)`, not
+// the capped cross-game strip under `activities`. Its activity table and its
+// "Rounds #N" label are both derived from it, so a live join that never
+// reaches it leaves the pot moving while the table and the round number sit
+// frozen — for the whole round, since nothing else invalidates that key while
+// the socket is healthy.
+//
+// `keys.ts` states the intent this restores: "Deliberately nested under
+// `game(gameId)`: a wager invalidates that game, and the rows it just added
+// should be refetched with it." The wager handler patches the game with
+// `setQueryData`, which does not invalidate child keys, so the plan was
+// written down and never wired.
+describe("a live join reaches the game's own activity feed", () => {
+  const GAME = 59;
+  const OPENER = {
+    id: "started-1",
+    gameId: GAME,
+    action: "started" as const,
+    address: "0x1111111111111111111111111111111111111111",
+    amountWei: "380000",
+    transactionHash: "0xstarted",
+    createdAt: "2026-09-26T10:00:00.000Z",
+  };
+
+  function wager(over: Record<string, unknown> = {}) {
+    return JSON.stringify({
+      type: "wagerPlaced",
+      topic: "vault:king-of-night",
+      data: {
+        gameId: GAME,
+        player: "0x2222222222222222222222222222222222222222",
+        amountWei: "500000",
+        newPotWei: "880000",
+        newEndTime: Math.floor(Date.parse("2026-09-26T10:05:00.000Z") / 1000),
+        transactionHash: "0xjoined",
+        timestamp: Date.parse("2026-09-26T10:01:00.000Z") / 1000,
+        ...over,
+      },
+    });
+  }
+
+  it("appends the joined row to the feed the game page reads", () => {
+    const client = new QueryClient();
+    client.setQueryData(VAULT_KEYS.gameActivities(GAME), [OPENER]);
+
+    handleVaultFrame(client, wager());
+
+    const feed = client.getQueryData<VaultActivity[]>(VAULT_KEYS.gameActivities(GAME))!;
+    // Two rows: the opener and the join. One round becomes two.
+    expect(feed).toHaveLength(2);
+    expect(feed.map((r) => r.transactionHash)).toContain("0xjoined");
+    expect(feed.find((r) => r.transactionHash === "0xjoined")).toMatchObject({
+      gameId: GAME,
+      action: "joined",
+      address: "0x2222222222222222222222222222222222222222",
+      amountWei: "500000",
+    });
+  });
+
+  it("does not add the same join twice when a frame is replayed", () => {
+    const client = new QueryClient();
+    client.setQueryData(VAULT_KEYS.gameActivities(GAME), [OPENER]);
+
+    handleVaultFrame(client, wager());
+    handleVaultFrame(client, wager());
+
+    expect(client.getQueryData(VAULT_KEYS.gameActivities(GAME))).toHaveLength(2);
+  });
+
+  // A feed nobody has fetched must stay unfetched. Seeding it with the one row
+  // the socket happens to carry would look like a complete feed while missing
+  // the `started` row the round count is measured from — which reads as "no
+  // game here" rather than as "not loaded yet".
+  it("leaves an unfetched feed alone rather than inventing a one-row history", () => {
+    const client = new QueryClient();
+
+    handleVaultFrame(client, wager());
+
+    expect(client.getQueryData(VAULT_KEYS.gameActivities(GAME))).toBeUndefined();
+  });
+
+  // The symptom this was reported as: "the round is showing just one". The
+  // label is `1 + the joined rows in the feed`, so a feed that never sees the
+  // joins prints "Rounds #1" for the whole game however many people play.
+  it("moves the round number the game page draws", () => {
+    const client = new QueryClient();
+    client.setQueryData(VAULT_KEYS.gameActivities(GAME), [OPENER]);
+    const before = client.getQueryData<VaultActivity[]>(VAULT_KEYS.gameActivities(GAME));
+    expect(currentRoundCount(before!)).toBe(1);
+
+    handleVaultFrame(client, wager());
+    handleVaultFrame(client, wager({ transactionHash: "0xjoined2", player: OPENER.address }));
+
+    const after = client.getQueryData<VaultActivity[]>(VAULT_KEYS.gameActivities(GAME));
+    expect(currentRoundCount(after!)).toBe(3);
+  });
+
+  // The other half of the same defect: the row that ends the game.
+  it("refreshes the game's feed when the round settles, so the win lands in it", () => {
+    const client = new QueryClient();
+    client.setQueryData(VAULT_KEYS.gameActivities(GAME), [OPENER]);
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    handleVaultFrame(
+      client,
+      JSON.stringify({
+        type: "gameSettled",
+        topic: "vault:king-of-night",
+        data: {
+          gameId: GAME,
+          winner: "0x2222222222222222222222222222222222222222",
+          starter: OPENER.address,
+          potWei: "880000",
+          toWinnerWei: "440000",
+          toStarterWei: "88000",
+          toTreasuryWei: "352000",
+          transactionHash: "0xsettled",
+        },
+      })
+    );
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: VAULT_KEYS.gameActivities(GAME) });
   });
 });

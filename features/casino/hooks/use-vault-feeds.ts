@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import {
   fetchVaultActivities,
+  fetchVaultGameActivities,
   fetchVaultWinners,
   type VaultActivity,
   type VaultWinner,
@@ -35,9 +36,15 @@ export function useVaultFeeds(
   const wantActivity = wanted.activity ?? true;
   const wantWinners = wanted.winners ?? true;
 
+  // A game's own page reads that game's complete feed; the lobby reads the
+  // cheap cross-game strip. One query either way, never both: the global feed
+  // is capped (25 rows across 12 games when measured), so filtering it down to
+  // one game truncates that game's history, and anything counting rows off it
+  // counts short.
+  const scoped = gameId != null;
   const activities = useQuery<VaultActivity[]>({
-    queryKey: VAULT_KEYS.activities,
-    queryFn: fetchVaultActivities,
+    queryKey: scoped ? VAULT_KEYS.gameActivities(gameId) : VAULT_KEYS.activities,
+    queryFn: scoped ? () => fetchVaultGameActivities(gameId) : fetchVaultActivities,
     enabled: wantActivity,
     staleTime: 5_000,
     refetchInterval: connected ? false : FALLBACK_FEED_POLL_MS,
@@ -68,5 +75,8 @@ export function useVaultFeeds(
     activities: scopedActivities,
     winners: scopedWinners,
     winnersLoading: winners.isPending,
+    // A first paint with nothing in hand is not the same statement as "nobody
+    // has played", so the table that draws this feed needs to tell them apart.
+    activitiesLoading: activities.isPending,
   };
 }

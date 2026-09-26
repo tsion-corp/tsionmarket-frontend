@@ -56,8 +56,11 @@ function isGain(change: string | null): boolean | null {
   return value === null ? null : value.units >= 0n;
 }
 
-// Rank rings copy the leaderboard's in winners-list.tsx, shrunk to sit beside
-// a 28px coin. A pill rather than a circle past two digits, so "#100" fits.
+// Rank rings copy the arcade leaderboard's, shrunk to sit beside a 28px coin.
+// A pill rather than a circle past two digits, so "#100" fits. (They were
+// copied from last-standing/winners-list.tsx, which has since been deleted
+// with the "Past rounds" tab it drew; last-standing/leaderboard-board.tsx is
+// the surviving board.)
 export function RankRing({ rank }: { rank: number }) {
   const t = useTranslations("memeScreener");
   return (

@@ -7,6 +7,7 @@ const socket = vi.hoisted(() => ({ connected: true }));
 const reads = vi.hoisted(() => ({
   fetchActiveGames: vi.fn(async () => []),
   fetchVaultActivities: vi.fn(async () => []),
+  fetchVaultGameActivities: vi.fn(async () => []),
   fetchVaultWinners: vi.fn(async () => []),
   rpc: vi.fn(),
 }));
@@ -17,6 +18,7 @@ vi.mock("@/features/casino/hooks/use-vault-socket", () => ({
 vi.mock("@/features/casino/lib/vault-api", () => ({
   fetchActiveGames: reads.fetchActiveGames,
   fetchVaultActivities: reads.fetchVaultActivities,
+  fetchVaultGameActivities: reads.fetchVaultGameActivities,
   fetchVaultWinners: reads.fetchVaultWinners,
 }));
 // Every contract read in the app goes through this client. The lobby and the
@@ -174,13 +176,30 @@ describe("useVaultFeeds", () => {
     renderHook(() => useVaultFeeds(false, 416), { wrapper });
     await act(() => vi.advanceTimersByTimeAsync(0));
     await act(() => vi.advanceTimersByTimeAsync(30_500));
-    expect(reads.fetchVaultActivities).toHaveBeenCalledTimes(3);
+    expect(reads.fetchVaultGameActivities).toHaveBeenCalledTimes(3);
     expect(reads.fetchVaultWinners).toHaveBeenCalledTimes(3);
     expect(reads.rpc).not.toHaveBeenCalled();
   });
 
+  // The cross-game strip is capped, so a game's own page reads that game's own
+  // feed. One request either way: the page never asks for both.
+  it("reads one game's own feed on its page, and the cross-game strip nowhere else", async () => {
+    renderHook(() => useVaultFeeds(true, 416), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(reads.fetchVaultGameActivities).toHaveBeenCalledTimes(1);
+    expect(reads.fetchVaultGameActivities).toHaveBeenCalledWith(416);
+    expect(reads.fetchVaultActivities).not.toHaveBeenCalled();
+  });
+
+  it("reads the cross-game strip when no game is named", async () => {
+    renderHook(() => useVaultFeeds(true, undefined), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    expect(reads.fetchVaultActivities).toHaveBeenCalledTimes(1);
+    expect(reads.fetchVaultGameActivities).not.toHaveBeenCalled();
+  });
+
   it("scopes both feeds to the game on its page, by the gameId the service carries", async () => {
-    reads.fetchVaultActivities.mockResolvedValueOnce([
+    reads.fetchVaultGameActivities.mockResolvedValueOnce([
       { id: "a", gameId: 416, action: "started" },
       { id: "b", gameId: 415, action: "won" },
     ] as never);

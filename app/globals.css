@@ -179,6 +179,17 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
   letter-spacing: -0.01em;
 }
 
+/* The Arkade's second face. The Last Man's design pairs Mona Sans with
+   Quicksand Bold on the same card: Mona Sans takes the display and the
+   numbers, Quicksand takes the round label, the leader bar, the status pills,
+   the tab strip and every cell of the activity table. Bold is the only weight
+   of it the design uses, so the weight is part of the utility rather than
+   something each call site has to remember. */
+@utility ws-quick {
+  font-family: var(--font-quicksand), sans-serif;
+  font-weight: 700;
+}
+
 @utility ws-card {
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.05);
