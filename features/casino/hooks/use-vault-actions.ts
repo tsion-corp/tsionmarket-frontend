@@ -123,13 +123,17 @@ export function useVaultActions() {
   const startGame = useCallback(
     async (
       stake: bigint,
-      metadata?: GameMetadataInput
+      metadata?: GameMetadataInput,
+      isPrivate = false
     ): Promise<{ hash: string; gameId: number | null }> => {
       const address = owner();
       try {
         const client = publicClientForChain(VAULT_CHAIN_ID);
         setStartPhase("sending");
-        const hash = await sendBatch(startGameCalls(contractAddress(), stake), VAULT_CHAIN_ID);
+        const hash = await sendBatch(
+          startGameCalls(contractAddress(), stake, isPrivate),
+          VAULT_CHAIN_ID
+        );
         setStartPhase("confirming");
         const receipt = await awaitReceipt(client, hash, "Your game");
         // Tell the service about the hash so it indexes this game now rather

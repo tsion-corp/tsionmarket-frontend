@@ -51,6 +51,15 @@ export interface VaultGame {
    */
   title?: string;
   description?: string;
+  /**
+   * The starter chose to keep this game off the lobby. Served on every row
+   * since the v5.1 privacy upgrade; games started before it read false, which
+   * is what those games always were.
+   *
+   * It is NOT access control. Anyone holding a game id can still join, and the
+   * vault says so plainly. It decides listing, nothing else.
+   */
+  isPrivate: boolean;
   starter: string;
   king: string;
   pot: TokenAmount;

@@ -50,16 +50,31 @@ describe("useVaultLobby reads", () => {
     client.clear();
   });
 
-  it("reads the service once while the socket is up, and never the contract or the feeds", async () => {
+  // This used to assert exactly ONE read while the socket was up, and that was
+  // the bug: a game's name is bound after its row first appears, no socket
+  // frame has ever carried one, so the name was unreachable rather than late.
+  // A slow reconcile is the only path by which anything the snapshot does not
+  // carry can reach the lobby. The contract and the feeds are still never read.
+  it("reconciles slowly while the socket is up, and never reads the contract or the feeds", async () => {
     renderHook(() => useVaultLobby(), { wrapper });
     await act(() => vi.advanceTimersByTimeAsync(0));
     expect(reads.fetchActiveGames).toHaveBeenCalledTimes(1);
 
+    // Two minutes at one reconcile per twenty seconds.
     await act(() => vi.advanceTimersByTimeAsync(120_000));
-    expect(reads.fetchActiveGames).toHaveBeenCalledTimes(1);
+    expect(reads.fetchActiveGames).toHaveBeenCalledTimes(7);
     expect(reads.rpc).not.toHaveBeenCalled();
     expect(reads.fetchVaultActivities).not.toHaveBeenCalled();
     expect(reads.fetchVaultWinners).not.toHaveBeenCalled();
+  });
+
+  // The reconcile must stay SLOW. It exists to close a gap, not to become a
+  // second poll: the socket is still what carries the lobby.
+  it("reconciles no more than once in ten seconds", async () => {
+    renderHook(() => useVaultLobby(), { wrapper });
+    await act(() => vi.advanceTimersByTimeAsync(0));
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(reads.fetchActiveGames).toHaveBeenCalledTimes(1);
   });
 
   it("polls the service every 5 s while the socket is down, and still never the contract", async () => {

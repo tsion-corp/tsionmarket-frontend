@@ -66,7 +66,7 @@ function positive(amount: bigint, what: string): bigint {
  * The stake becomes that game's own minimum for everyone who joins, so it is
  * the number the sheet must show before signing, not a floor.
  */
-export function startGameCalls(vault: string, stake: bigint): VaultCall[] {
+export function startGameCalls(vault: string, stake: bigint, isPrivate = false): VaultCall[] {
   positive(stake, "stake");
   return [
     approve(vault, stake),
@@ -75,7 +75,11 @@ export function startGameCalls(vault: string, stake: bigint): VaultCall[] {
       data: encodeFunctionData({
         abi: KING_OF_NIGHT_V5_ABI,
         functionName: "startGame",
-        args: [GAME_ASSET.address, stake],
+        // The three-argument overload, added by the v5.1 privacy upgrade. The
+        // contract records the choice and emits GamePrivacySet, which is what
+        // puts isPrivate on every row the service serves. Before this, private
+        // was a note in the starter's own browser that nobody else could read.
+        args: [GAME_ASSET.address, stake, isPrivate],
       }),
     },
   ];

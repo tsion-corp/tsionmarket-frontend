@@ -113,7 +113,7 @@ export function StartGameSheet({
       }
       const metadata =
         metadataProblem({ title, description }) === null ? { title, description } : undefined;
-      const { gameId } = await startGame(send, metadata);
+      const { gameId } = await startGame(send, metadata, visibility === "private");
       // The stake has left the wallet: show it gone now, confirm from Base once.
       void settleBalance();
       // The pop-out timer follows whatever you last put money into.

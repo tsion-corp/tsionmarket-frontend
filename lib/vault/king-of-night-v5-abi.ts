@@ -73,6 +73,10 @@ export const KING_OF_NIGHT_V5_ABI = [
         name: "starterBps",
         type: "uint16",
       },
+      {
+        name: "isPrivate",
+        type: "bool",
+      },
     ],
     stateMutability: "view",
   },
@@ -930,5 +934,64 @@ export const KING_OF_NIGHT_V5_ABI = [
         type: "string",
       },
     ],
+  },
+  {
+    type: "event",
+    name: "GamePrivacySet",
+    inputs: [
+      {
+        name: "gameId",
+        type: "uint256",
+        indexed: true,
+      },
+      {
+        name: "isPrivate",
+        type: "bool",
+        indexed: false,
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "function",
+    name: "startGame",
+    inputs: [
+      {
+        name: "isPrivate",
+        type: "bool",
+      },
+    ],
+    outputs: [
+      {
+        name: "gameId",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "payable",
+  },
+  {
+    type: "function",
+    name: "startGame",
+    inputs: [
+      {
+        name: "token",
+        type: "address",
+      },
+      {
+        name: "stake",
+        type: "uint256",
+      },
+      {
+        name: "isPrivate",
+        type: "bool",
+      },
+    ],
+    outputs: [
+      {
+        name: "gameId",
+        type: "uint256",
+      },
+    ],
+    stateMutability: "payable",
   },
 ] as const;

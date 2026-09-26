@@ -33,9 +33,11 @@ describe("starting a game", () => {
       args: [VAULT, 100_000n],
     });
     expect(calls[1].to).toBe(VAULT);
+    // Three arguments since the v5.1 privacy upgrade. A caller that says
+    // nothing gets a public game, which is what every game was before it.
     expect(asVault(calls[1].data)).toMatchObject({
       functionName: "startGame",
-      args: [GAME_ASSET.address, 100_000n],
+      args: [GAME_ASSET.address, 100_000n, false],
     });
   });
 

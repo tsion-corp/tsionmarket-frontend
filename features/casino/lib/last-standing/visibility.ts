@@ -1,15 +1,25 @@
 // Public and private games.
 //
-// "Public" means the game holds the lobby's single slot. "Private" means it is
-// reachable only by its link: not listed, but fully playable by anyone who has
-// the link. The contract knows nothing about either — every game it emits is
-// indexed and served the same way — so the distinction is drawn here.
+// The contract knows the difference now. Since the v5.1 privacy upgrade
+// (on-chain 2026-09-26) a game is started through the `bool isPrivate`
+// overload, the vault emits GamePrivacySet, and every row it serves carries
+// `isPrivate`. That flag is the truth, and publicGames in lib/vault-game.ts
+// is what reads it.
 //
-// The starter's choice is kept in this browser, which makes it authoritative
-// for them and invisible to everyone else. The lobby therefore ALSO caps
-// itself to one game, the lowest active id. That is a rule every client
-// computes identically from the same list, so a private game started after a
-// public one is hidden from everybody, not just its creator.
+// This file is what remains of the workaround that stood in before then: the
+// starter's own choice, kept in this browser. It is still needed, for one
+// window only. A game reaches the client before the reconciler has indexed its
+// privacy log, and until it does the row honestly says public; without this
+// the starter's private game appears in their own lobby for a few seconds.
+//
+// It only ever HIDES. One browser's list cannot reveal anything, and cannot
+// affect what anybody else sees.
+//
+// Gone with the upgrade: the one-public-game cap. It existed because privacy
+// was unenforceable — every client had to compute the same "only the lowest id
+// is listed" rule for a private game to be hidden from anyone but its creator.
+// With a real flag on every row there is nothing left for it to protect
+// against, and it was hiding genuinely public games from the lobby.
 
 const KEY = "wsws.last-man.private.v1";
 
@@ -44,35 +54,4 @@ export function markPrivate(gameId: number): void {
   } catch {
     // Not being able to remember it only costs this browser a lobby row.
   }
-}
-
-/**
- * The games the lobby lists.
- *
- * Two rules, in order: drop anything this browser started privately, then keep
- * only the lowest remaining id. The second is what makes "one public game"
- * true for every viewer rather than only for the starter.
- */
-export function lobbyGames<T extends LobbyGame>(
-  games: readonly T[],
-  hidden: readonly number[]
-): T[] {
-  const secret = new Set(hidden);
-  const listed = games.filter((game) => !secret.has(game.gameId));
-  if (listed.length === 0) return [];
-  const lowest = listed.reduce((best, game) => (game.gameId < best.gameId ? game : best));
-  return [lowest];
-}
-
-/**
- * Whether a public game may be started right now.
- *
- * Only one can hold the lobby slot, so a second public game would take a slot
- * that is not free. A private game is always allowed: it never competes for it.
- */
-export function canStartPublic<T extends LobbyGame>(
-  games: readonly T[],
-  hidden: readonly number[]
-): boolean {
-  return lobbyGames(games, hidden).length === 0;
 }

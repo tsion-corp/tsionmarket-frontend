@@ -64,10 +64,35 @@ function readMetadata(value: unknown): { title?: string; description?: string } 
 // a label.
 export function onlyVaultGames(value: unknown): VaultGame[] {
   if (!Array.isArray(value)) return [];
-  return value.filter(isVaultGame).map((game) => ({
-    ...game,
-    ...readMetadata((game as unknown as Record<string, unknown>).metadata),
-  }));
+  return value.filter(isVaultGame).map((game) => {
+    const raw = game as unknown as Record<string, unknown>;
+    return {
+      ...game,
+      // Only a literal true is private. An absent or malformed flag reads as
+      // public, because the failure that matters is a public game vanishing
+      // from the lobby, not a private one appearing in it.
+      isPrivate: raw.isPrivate === true,
+      ...readMetadata(raw.metadata),
+    };
+  });
+}
+
+/**
+ * The games the lobby may list.
+ *
+ * `locallyPrivate` is the starter's own record of what they chose. A private
+ * game can reach this client before the reconciler has indexed its
+ * GamePrivacySet log, and until it does the row honestly says public; without
+ * that record the game flashes into everybody's lobby for a few seconds.
+ * It only ever hides, never reveals, so one browser's list cannot expose
+ * somebody else's game.
+ */
+export function publicGames<T extends { gameId: number; isPrivate?: boolean }>(
+  games: readonly T[],
+  locallyPrivate: readonly number[] = []
+): T[] {
+  const mine = new Set(locallyPrivate);
+  return games.filter((game) => game.isPrivate !== true && !mine.has(game.gameId));
 }
 
 /** What to call a game: its name, or its number when it has none. */

@@ -15,6 +15,14 @@ import {
 import { fetchGame, isVaultNotFound, type VaultGame } from "@/features/casino/lib/vault-api";
 
 const FALLBACK_POLL_MS = 5_000;
+
+// A slow reconcile that runs even on a healthy socket, for the same reason the
+// lobby has one: the socket is authoritative for liveness, not for everything
+// a row carries. A game's NAME is bound when the reconciler indexes its
+// GameStarted log, which is after the page's first read, and no socket frame
+// has ever carried one. Without this the page would show "Game 258" for the
+// whole round even though the service had the name seconds in.
+const RECONCILE_POLL_MS = 20_000;
 // The service falls through to the contract for a game its index has not
 // reached, but that read is a block or two behind the receipt the client
 // holds, so a fresh game is asked for a few times a second apart.
@@ -149,7 +157,7 @@ export function useVaultGame(gameId: number | null) {
     },
     enabled: gameId !== null,
     staleTime: FALLBACK_POLL_MS,
-    refetchInterval: connected ? false : FALLBACK_POLL_MS,
+    refetchInterval: connected ? RECONCILE_POLL_MS : FALLBACK_POLL_MS,
     // A game that was never started stays that way; polling will not change it.
     retry: (count, error) => !isVaultNotFound(error) && count < 3,
     select: withUsd,

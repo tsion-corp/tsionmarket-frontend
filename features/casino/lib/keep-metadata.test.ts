@@ -12,6 +12,7 @@ const game = (over: Partial<VaultGame> = {}): VaultGame => ({
   timeRemaining: 50,
   settled: false,
   active: true,
+  isPrivate: false,
   ...over,
 });
 

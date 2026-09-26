@@ -10,9 +10,25 @@ import { priced, rawToTokenAmount } from "@/features/casino/lib/last-standing/pr
 import { fetchActiveGames, type VaultGame } from "@/features/casino/lib/vault-api";
 import type { ChainGame } from "@/features/casino/lib/vault-game";
 
-// The socket carries the lobby while it is up; this polls only as a fallback
-// while it is down, so a healthy connection costs no REST traffic at all.
+// The socket carries the lobby while it is up; this polls fast as a fallback
+// while it is down.
 const FALLBACK_POLL_MS = 5_000;
+
+// …but the socket is authoritative for LIVENESS, not for everything a row
+// carries. The keeper builds its snapshot with toGameDto(game, usd) — two
+// arguments, where the third is the metadata — so no socket frame has ever
+// carried a game's name.
+//
+// That left a name unreachable rather than merely late. A game's name is bound
+// when the reconciler indexes its GameStarted log, which is AFTER the row first
+// appears; the client's one REST read had already happened, the socket then
+// drove the lobby forever, and the name never arrived at all. Carrying a known
+// name across snapshots (keepKnownMetadata) protects one you already have and
+// cannot conjure one you never got.
+//
+// So a slow reconcile runs even on a healthy socket. It is the only path by
+// which anything the snapshot does not carry can reach the lobby.
+const RECONCILE_POLL_MS = 20_000;
 
 const EMPTY_GAMES: VaultGame[] = [];
 const EMPTY_CHAIN: ChainGame[] = [];
@@ -44,6 +60,11 @@ function priceChainRows(indexed: VaultGame[], chain: ChainGame[], ethPrice: numb
       timeRemaining: Math.max(0, game.endTime - now),
       settled: false,
       active: true,
+      // A hub row the service has not indexed yet carries no privacy flag, so
+      // it reads public here, as an absent flag does everywhere. The starter's
+      // own local mark is what keeps THEIR private game out of the lobby in
+      // the seconds before the service catches up.
+      isPrivate: false,
     }));
   // Indexed rows are priced too. The service sets usdValue only for native
   // games — it is native-only by its own contract — so a USDC row arrives at
@@ -73,7 +94,7 @@ export function useVaultLobby(options: { history?: boolean } = {}) {
     queryKey: VAULT_KEYS.games,
     queryFn: fetchActiveGames,
     staleTime: FALLBACK_POLL_MS,
-    refetchInterval: connected ? false : FALLBACK_POLL_MS,
+    refetchInterval: connected ? RECONCILE_POLL_MS : FALLBACK_POLL_MS,
   });
 
   // Written by the socket alone; nothing fetches it. Read here so a hub row
