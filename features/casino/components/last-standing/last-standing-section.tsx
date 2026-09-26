@@ -108,6 +108,11 @@ const KEEPER_GRACE_MS = 15_000;
 // trusting its own clock. The service is usually seconds behind; long enough
 // to catch a buzzer-beater wager, short enough that 00:00 is never dead air.
 const ROUND_END_CONFIRM_MS = 6_000;
+
+// How long an "inactive" report has to hold before the suspense opens. Long
+// enough for a buzzer-beater wager to be indexed and put time back on the
+// clock, short enough that a real ending does not feel stalled.
+const ROUND_END_SETTLE_MS = 2_000;
 // How many feed rows to show per page in the activity and winners cards.
 const FEED_PAGE_SIZE = 10;
 
@@ -557,12 +562,24 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     // A fresh round going live re-arms the round-end sequence. The keeper
     // grace is re-armed by beginRoundEnd itself, at the next round end.
     if (gameActive) roundEndedRef.current = false;
-    // A live round just ended (active -> inactive). Only start once per round.
-    if (wasActive && !gameActive && phase === null && !roundEndedRef.current) {
-      beginRoundEnd(lastPlayer, lastPotRef.current || potUsd);
+    // A live round looks over (active -> inactive). This is a SIGNAL, not the
+    // verdict: `active` is derived from endTime, so a wager landing at the
+    // buzzer leaves a window where the service says inactive before the
+    // extension is indexed. Opening the suspense here directly is what showed
+    // a winner card on a round that then carried on, so it goes through the
+    // same confirm step the local clock uses.
+    if (
+      wasActive &&
+      !gameActive &&
+      phase === null &&
+      !roundEndedRef.current &&
+      confirmingSince === null
+    ) {
+      setConfirmingSince(clockNow());
+      resyncGame();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameActive]);
+  }, [gameActive, confirmingSince]);
 
   // The client's own clock reaching zero is a SIGNAL, not the verdict. The
   // arena used to open the winner suspense on it and back out later if the
@@ -604,6 +621,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
         countdown,
         waitedMs: clockNow() - confirmingSince,
         maxWaitMs: ROUND_END_CONFIRM_MS,
+        settleMs: ROUND_END_SETTLE_MS,
       });
       if (verdict === "wait") return;
       setConfirmingSince(null);

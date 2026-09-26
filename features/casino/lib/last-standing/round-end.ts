@@ -52,6 +52,8 @@ export interface RoundEndConfirmation {
   waitedMs: number;
   /** How long it is willing to wait before trusting its own clock. */
   maxWaitMs: number;
+  /** How long an "inactive" report must hold before it is believed. */
+  settleMs: number;
 }
 
 /**
@@ -76,9 +78,17 @@ export function resolveRoundEndConfirmation({
   countdown,
   waitedMs,
   maxWaitMs,
+  settleMs,
 }: RoundEndConfirmation): "wait" | "ended" | "continued" {
+  // A clock with time on it is positive evidence the round is alive and beats
+  // everything below: no answer, however slow, may turn it into a winner card.
   if (gameActive && countdown > 0) return "continued";
-  if (!gameActive) return "ended";
+  // An inactive report has to HOLD before it is believed. `active` is derived
+  // from endTime, so a wager landing at the buzzer leaves a window where
+  // endTime has passed but the extension is not indexed yet. Believing that
+  // window is what showed a winner card on a round that then carried on.
+  if (!gameActive) return waitedMs >= settleMs ? "ended" : "wait";
+  // The local clock is at zero and nothing has contradicted it.
   if (waitedMs >= maxWaitMs) return "ended";
   return "wait";
 }

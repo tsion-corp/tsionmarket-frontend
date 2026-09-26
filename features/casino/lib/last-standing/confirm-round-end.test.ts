@@ -1,68 +1,58 @@
 import { describe, expect, it } from "vitest";
 import { resolveRoundEndConfirmation } from "./round-end";
 
-// Between the local clock hitting zero and the winner suspense there is now a
-// confirm step: the arena asks the service whether the round actually ended.
+// "Calculating the winner" must come after the game has ended, never before.
 //
-// The bug this closes: the suspense ran off the local clock alone, so a round
-// that was still going showed "calculating the winner" and then went back to a
-// running timer. The old code called that "quietly backing out"; to a player
-// it reads as the game glitching at the exact moment money is decided.
-describe("resolveRoundEndConfirmation", () => {
-  it("waits while the service has not answered yet", () => {
-    expect(
-      resolveRoundEndConfirmation({ gameActive: true, countdown: 0, waitedMs: 0, maxWaitMs: 6000 })
-    ).toBe("wait");
+// Two ways a round can look over, and both used to open the suspense without
+// checking. The local clock reaching zero is a prediction. The service
+// reporting the game inactive is not much better: `active` is derived from
+// endTime, so a wager landing at the buzzer leaves a window where endTime has
+// passed but the extension is not indexed yet.
+const SETTLE = 2000;
+const DEADLINE = 6000;
+
+const verdict = (over: Partial<Parameters<typeof resolveRoundEndConfirmation>[0]>) =>
+  resolveRoundEndConfirmation({
+    gameActive: false,
+    countdown: 0,
+    waitedMs: 0,
+    maxWaitMs: DEADLINE,
+    settleMs: SETTLE,
+    ...over,
   });
 
-  it("ends the round once the service says it is over", () => {
-    expect(
-      resolveRoundEndConfirmation({
-        gameActive: false,
-        countdown: 0,
-        waitedMs: 500,
-        maxWaitMs: 6000,
-      })
-    ).toBe("ended");
+describe("a clock with time on it", () => {
+  it("beats a fresh inactive report", () => {
+    expect(verdict({ gameActive: true, countdown: 47, waitedMs: 900 })).toBe("continued");
   });
 
-  // A buzzer-beater wager put time back on the clock. The round is plainly
-  // running, so the timer comes back and no winner is ever suggested.
-  it("returns to the round when the clock has time on it again", () => {
-    expect(
-      resolveRoundEndConfirmation({
-        gameActive: true,
-        countdown: 12,
-        waitedMs: 800,
-        maxWaitMs: 6000,
-      })
-    ).toBe("continued");
+  it("beats the deadline", () => {
+    expect(verdict({ gameActive: true, countdown: 30, waitedMs: 99_999 })).toBe("continued");
+  });
+});
+
+describe("a round reported inactive", () => {
+  it("is not believed immediately", () => {
+    expect(verdict({ waitedMs: 0 })).toBe("wait");
   });
 
-  // The service can be seconds behind, but it cannot be minutes behind. A
-  // clock at zero that nobody has contradicted has ended; waiting forever
-  // would leave the arena frozen at 00:00 with nothing happening at all.
-  it("ends the round when the wait runs out with no contradiction", () => {
-    expect(
-      resolveRoundEndConfirmation({
-        gameActive: true,
-        countdown: 0,
-        waitedMs: 6000,
-        maxWaitMs: 6000,
-      })
-    ).toBe("ended");
+  it("is believed once it has held", () => {
+    expect(verdict({ waitedMs: SETTLE })).toBe("ended");
+  });
+});
+
+describe("a service that has not answered", () => {
+  it("waits", () => {
+    expect(verdict({ gameActive: true, countdown: 0, waitedMs: 0 })).toBe("wait");
   });
 
-  // "Continued" beats the deadline: if the clock genuinely has time on it, a
-  // slow answer must not turn that into a winner card.
-  it("prefers a running clock over the deadline", () => {
-    expect(
-      resolveRoundEndConfirmation({
-        gameActive: true,
-        countdown: 30,
-        waitedMs: 9999,
-        maxWaitMs: 6000,
-      })
-    ).toBe("continued");
+  it("keeps waiting until the deadline", () => {
+    expect(verdict({ gameActive: true, countdown: 0, waitedMs: DEADLINE - 1 })).toBe("wait");
+  });
+
+  // Waiting for ever would freeze the arena at 00:00, which is the dead air
+  // the prediction existed to avoid.
+  it("falls back to the local clock at the deadline", () => {
+    expect(verdict({ gameActive: true, countdown: 0, waitedMs: DEADLINE })).toBe("ended");
   });
 });
