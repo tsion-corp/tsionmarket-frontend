@@ -38,6 +38,10 @@ const WithdrawModal = dynamic(
   () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
   { ssr: false, loading: () => <ModalLoading /> }
 );
+const ShineScreen = dynamic(
+  () => import("@/components/shine/shine-screen").then((m) => m.ShineScreen),
+  { ssr: false, loading: () => <ModalLoading /> }
+);
 const BuySheet = dynamic(
   () => import("@/features/trade/components/buy-sheet").then((m) => m.BuySheet),
   { ssr: false, loading: () => <ModalLoading /> }
@@ -133,6 +137,18 @@ interface AppModalHostProps {
 
 // Renders whichever sheet is active. Openness is derived from `active`, not
 // from the hook's own state, so a URL-staged sheet actually appears.
+// The account sheet and its Shine sub-view. Its own component so the view
+// resets by unmounting when the sheet closes, rather than by an effect that
+// writes state during render.
+function AccountScreens({ onClose }: { onClose: () => void }) {
+  const [shineOpen, setShineOpen] = useState(false);
+  return shineOpen ? (
+    <ShineScreen onBack={() => setShineOpen(false)} />
+  ) : (
+    <AccountModal onClose={onClose} onOpenShine={() => setShineOpen(true)} />
+  );
+}
+
 export function AppModalHost({ active, onClose, onConfirmed, onOpenFunds }: AppModalHostProps) {
   return (
     <ModalShell
@@ -185,7 +201,10 @@ export function AppModalHost({ active, onClose, onConfirmed, onOpenFunds }: AppM
       ) : null}
       {active?.type === "funds" ? <FundsModal onClose={onClose} deposit={active.deposit} /> : null}
       {active?.type === "withdraw" ? <WithdrawModal onClose={onClose} /> : null}
-      {active?.type === "account" ? <AccountModal onClose={onClose} /> : null}
+      {/* Shine is a sub-view of the account sheet, not a modal of its own:
+          this host's modal state belongs to the page, and closing the account
+          sheet to open another would take the shell down with it. */}
+      {active?.type === "account" ? <AccountScreens onClose={onClose} /> : null}
       {active?.type === "done" ? (
         <SuccessPanel title={active.title} onDone={onClose}>
           {active.msg}

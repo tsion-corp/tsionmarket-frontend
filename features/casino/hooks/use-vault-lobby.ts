@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useVaultSocket } from "@/features/casino/hooks/use-vault-socket";
+import { useGamePrivacy } from "@/features/casino/hooks/use-game-privacy";
 import { VAULT_KEYS } from "@/features/casino/lib/last-standing/keys";
 import { useVaultFeeds } from "@/features/casino/hooks/use-vault-feeds";
 import { usePrices } from "@/hooks/use-prices";
@@ -108,9 +109,23 @@ export function useVaultLobby(options: { history?: boolean } = {}) {
   const ethPrice = usePrices(["ETH"])["ETH"] ?? 0;
   const indexed = games.data ?? EMPTY_GAMES;
   const onChain = chain.data ?? EMPTY_CHAIN;
-  const merged = useMemo(
+  const priced = useMemo(
     () => priceChainRows(indexed, onChain, ethPrice),
     [indexed, onChain, ethPrice]
+  );
+
+  // The contract's own answer, because the keeper's snapshot may be reporting
+  // every game public. Unknown ids keep whatever the row already said.
+  const fromChain = useGamePrivacy(priced.map((game) => game.gameId));
+  const merged = useMemo(
+    () =>
+      priced.map((game) => {
+        const onChainFlag = fromChain[String(game.gameId)];
+        return onChainFlag === undefined || onChainFlag === game.isPrivate
+          ? game
+          : { ...game, isPrivate: onChainFlag };
+      }),
+    [priced, fromChain]
   );
 
   // The lobby renders winners only inside the history modal and never the

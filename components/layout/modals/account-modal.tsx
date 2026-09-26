@@ -14,13 +14,15 @@ import { LanguageSelect } from "@/components/ui/language-select";
 // deferred below.
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
 import { WalletAddresses } from "@/components/layout/modals/wallet-addresses";
-import { HelpIcon, LockIcon, PasskeyIcon, SignOutIcon } from "@/components/ui/icons";
+import { HelpIcon, LockIcon, PasskeyIcon, ShineIcon, SignOutIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useDevicePasskey } from "@/hooks/use-device-passkey";
 import { useUnlockPassword } from "@/hooks/use-unlock-password";
 
 interface AccountModalProps {
   onClose: () => void;
+  /** Opens the Shine sheet. Hosted by the shell, so it outlives this modal. */
+  onOpenShine: () => void;
 }
 
 function InviteIcon({ size = 20 }: { size?: number }) {
@@ -43,7 +45,7 @@ function InviteIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-export function AccountModal({ onClose }: AccountModalProps) {
+export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
   const t = useTranslations("account");
   const tLanguage = useTranslations("language");
   const { profile, logout } = useAuthSession();
@@ -144,6 +146,18 @@ export function AccountModal({ onClose }: AccountModalProps) {
             </span>
           </button>
         ) : null}
+        {/* Shine, the same single home the desktop account menu offers. The
+            phone had no way to reach it at all. */}
+        <button
+          onClick={() => {
+            onClose();
+            onOpenShine();
+          }}
+          className={`${item} text-white`}
+        >
+          <ShineIcon size={20} />
+          {t("shine")}
+        </button>
         <button onClick={onClose} className={`${item} text-white`}>
           <HelpIcon size={20} />
           {t("helpSupport")}

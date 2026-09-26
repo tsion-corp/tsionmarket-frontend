@@ -15,7 +15,7 @@ import Link from "next/link";
 // so only the sheet is deferred — and this popover is mounted on every route.
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
 import { WalletAddresses } from "@/components/layout/modals/wallet-addresses";
-import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
+import { HelpIcon, ShineIcon, SignOutIcon } from "@/components/ui/icons";
 import { openSupportChat } from "@/lib/support-chat/open";
 import { toast } from "@/lib/toast";
 import { openMigration } from "@/features/migrate/lib/migration-card-store";
@@ -44,25 +44,6 @@ function PasskeyIcon({ size = 18 }: { size?: number }) {
         stroke="currentColor"
         strokeWidth="1.7"
         strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function ShineIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <path
-        d="M12 3.5l1.9 4.6 4.6 1.9-4.6 1.9L12 16.5l-1.9-4.6L5.5 10l4.6-1.9L12 3.5z"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M18.5 16.5l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7.7-1.8z"
-        stroke="currentColor"
-        strokeWidth="1.4"
         strokeLinejoin="round"
       />
     </svg>
@@ -230,7 +211,7 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
                 className={itemClass}
               >
                 <span className="text-accent">
-                  <ShineIcon />
+                  <ShineIcon size={18} />
                 </span>
                 <span>{t("shine")}</span>
               </button>

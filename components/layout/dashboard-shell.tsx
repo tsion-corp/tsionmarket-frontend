@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
+import { ShineSheet } from "@/components/shine/shine-sheet";
 import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
@@ -49,6 +50,9 @@ interface DashboardShellProps {
 // there and otherwise navigates to /dashboard#id first.
 export function DashboardShell({ nav, activeSection, children }: DashboardShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
+  // Held by the shell, not the account modal: that modal closes on the way to
+  // this one, and a sheet rendered inside it would close with it.
+  const [shineOpen, setShineOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   // Funding from the phone tab bar's round button. The shell owns this one so
   // the action works on every page, not just the dashboard, which keeps its own
@@ -115,8 +119,13 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       />
 
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
-        <AccountModal onClose={() => setAccountOpen(false)} />
+        <AccountModal
+          onClose={() => setAccountOpen(false)}
+          onOpenShine={() => setShineOpen(true)}
+        />
       </ModalShell>
+
+      <ShineSheet open={shineOpen} onClose={() => setShineOpen(false)} />
 
       <ModalShell open={fundsOpen} onClose={() => setFundsOpen(false)} size="lg">
         <FundsModal onClose={() => setFundsOpen(false)} />

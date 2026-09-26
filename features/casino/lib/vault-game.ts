@@ -264,18 +264,30 @@ export function sortGameRows(rows: unknown[]): {
  * name is only ever carried onto a row the snapshot itself listed.
  */
 export function keepKnownMetadata<
-  T extends { gameId: number; title?: string; description?: string },
+  T extends { gameId: number; title?: string; description?: string; isPrivate?: boolean },
 >(previous: readonly T[], incoming: readonly T[]): T[] {
   if (previous.length === 0) return [...incoming];
   const known = new Map(previous.map((game) => [game.gameId, game]));
   return incoming.map((game) => {
-    if (game.title !== undefined) return game;
     const before = known.get(game.gameId);
-    if (before?.title === undefined) return game;
+    if (before === undefined) return game;
+
+    // Private latches. A stale keeper reports every game public over the
+    // socket, so a flag that contradicts what we know is refused: the wrong
+    // direction is exposure. A missing name is carried across instead.
+    const isPrivate = before.isPrivate === true ? true : game.isPrivate;
+    const keepsTitle = game.title === undefined && before.title !== undefined;
+    if (!keepsTitle && isPrivate === game.isPrivate) return game;
+
     return {
       ...game,
-      title: before.title,
-      ...(before.description === undefined ? {} : { description: before.description }),
+      ...(isPrivate === undefined ? {} : { isPrivate }),
+      ...(keepsTitle
+        ? {
+            title: before.title,
+            ...(before.description === undefined ? {} : { description: before.description }),
+          }
+        : {}),
     };
   });
 }

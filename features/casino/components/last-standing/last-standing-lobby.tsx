@@ -236,14 +236,18 @@ export function LastStandingLobby() {
             </p>
           ) : null}
 
-          <div className="mt-3 flex flex-col gap-2">
+          {/* One game to a row on a phone, three across from lg up. A single
+              live game used to stretch the full width of a desk, which made
+              one row look like a page. The states below span every column:
+              an error or an empty lobby is about the whole list, not a cell. */}
+          <div className="mt-3 grid grid-cols-1 gap-2 lg:grid-cols-3">
             {gamesLoading ? (
               // Fixed-height skeletons so the list does not jump when they resolve.
               Array.from({ length: 3 }, (_, i) => (
                 <div key={i} className="ws-inset h-[86px] animate-pulse bg-white/[0.03]" />
               ))
             ) : gamesError ? (
-              <div className="ws-inset px-4 py-6 text-center">
+              <div className="ws-inset px-4 py-6 text-center lg:col-span-3">
                 <p className="text-[13.5px] font-normal text-white/60">{t("lobbyError")}</p>
                 <button
                   type="button"
@@ -254,7 +258,7 @@ export function LastStandingLobby() {
                 </button>
               </div>
             ) : games.length === 0 ? (
-              <div className="ws-inset px-4 py-8 text-center">
+              <div className="ws-inset px-4 py-8 text-center lg:col-span-3">
                 <p className="text-[14px] font-medium text-white">{t("lobbyEmptyTitle")}</p>
                 <p className="mt-1.5 text-[13px] leading-relaxed font-normal text-white/55">
                   {t("lobbyEmptyBody")}
