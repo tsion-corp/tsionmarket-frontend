@@ -160,7 +160,9 @@ describe("draughts", () => {
     expect(shine.reportShine).toHaveBeenCalledWith({
       service: "arcade",
       id: "checkers:draughts-1",
-      game: "Checkers",
+      // The id, not "Checkers": the game is hidden on production and so is off
+      // the catalogue `gameName` reads. See lib/shine/arcade.test.ts.
+      game: "checkers",
       outcome: "won",
       pnl: "+80%",
     });

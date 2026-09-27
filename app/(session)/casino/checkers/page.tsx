@@ -1,38 +1,13 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { Suspense, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { CasinoPage } from "@/features/casino/components/casino-page";
-import { CheckersLanding } from "@/features/casino/components/draughts/checkers-landing";
-import { isMatchId } from "@/features/casino/lib/api/draughts-wire";
-
-// The landing menu. A board now has its own route, but invite links handed out
-// before that still carry ?match=<id> here, so those are forwarded rather than
-// broken.
-function CheckersRoute() {
-  const router = useRouter();
-  const params = useSearchParams();
-  const matchId = params.get("match");
-  const legacyMatch = matchId && isMatchId(matchId) ? matchId : null;
-
-  useEffect(() => {
-    if (legacyMatch) router.replace(`/casino/checkers/play?match=${legacyMatch}`);
-  }, [legacyMatch, router]);
-
-  if (legacyMatch) return null;
-  return <CheckersLanding />;
-}
-
+// Checkers is hidden on production (2026-09-27), by the team's call.
+//
+// The route is kept as a redirect rather than deleted so a shared invite link
+// or a bookmark lands somewhere real instead of a 404. Restoring the game is
+// restoring this file from git, together with the catalogue entry in
+// features/casino/lib/games.ts, the discovery card in
+// features/discovery/components/arkade-row.tsx and the live marquee arm in
+// lib/dashboard-feed.ts.
 export default function CheckersPage() {
-  return (
-    <CasinoPage hideBackLink>
-      {/* useSearchParams suspends on the server render, so the boundary is
-          required for the route to prerender. */}
-      <Suspense
-        fallback={<p className="py-16 text-center font-sans text-[14px] text-white/50">Loading…</p>}
-      >
-        <CheckersRoute />
-      </Suspense>
-    </CasinoPage>
-  );
+  redirect("/casino");
 }

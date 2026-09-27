@@ -1,18 +1,13 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { use } from "react";
-import { useSearchParams } from "next/navigation";
-import { CasinoPage } from "@/features/casino/components/casino-page";
-import { SwissDetailSection } from "@/features/casino/components/chess-app/swiss/detail-section";
-
-// The standings, pairings and round controls are game-agnostic; a draughts
-// pairing simply opens its board on the checkers surface.
-export default function CheckersTournamentPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
-  const created = useSearchParams().get("created") === "1";
-  return (
-    <CasinoPage>
-      <SwissDetailSection tournamentId={id} showCreatedShare={created} game="draughts" />
-    </CasinoPage>
-  );
+// Checkers is hidden on production (2026-09-27), by the team's call.
+//
+// The route is kept as a redirect rather than deleted so a shared invite link
+// or a bookmark lands somewhere real instead of a 404. Restoring the game is
+// restoring this file from git, together with the catalogue entry in
+// features/casino/lib/games.ts, the discovery card in
+// features/discovery/components/arkade-row.tsx and the live marquee arm in
+// lib/dashboard-feed.ts.
+export default function CheckersTournamentPage() {
+  redirect("/casino");
 }

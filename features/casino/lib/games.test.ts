@@ -5,17 +5,17 @@ import { CASINO_GAMES, filterGames, type TileSize } from "@/features/casino/lib/
 const SPAN: Record<TileSize, number> = { hero: 4, tall: 2, medium: 2, wide: 3 };
 
 describe("casino game catalogue", () => {
-  // The order the team set on 2026-09-25: Last Man, Arkjet, Pilot Chicken,
+  // The order the team set on 2026-09-25 was Last Man, Arkjet, Pilot Chicken,
   // Chess, ArkBall, Checkers. Last Man takes the hero slot and Arkjet the
   // two-column slot beside it, so the first row still fills the six columns.
-  it("leads with Last Man, then Arkjet, Pilot Chicken, Chess, ArkBall and Checkers", () => {
-    expect(CASINO_GAMES.slice(0, 6).map((g) => g.id)).toEqual([
+  // Checkers is hidden on production (2026-09-27), so the order stops at five.
+  it("leads with Last Man, then Arkjet, Pilot Chicken, Chess and ArkBall", () => {
+    expect(CASINO_GAMES.slice(0, 5).map((g) => g.id)).toEqual([
       "last-standing",
       "arkjet",
       "chicken",
       "chess",
       "arkball",
-      "checkers",
     ]);
     const [first, second] = CASINO_GAMES;
     expect(first.size).toBe("hero");
@@ -39,14 +39,25 @@ describe("casino game catalogue", () => {
 
   it("keeps that order under the All games filter", () => {
     const shown = filterGames(CASINO_GAMES, "All games", "");
-    expect(shown.slice(0, 6).map((g) => g.id)).toEqual([
+    expect(shown.slice(0, 5).map((g) => g.id)).toEqual([
       "last-standing",
       "arkjet",
       "chicken",
       "chess",
       "arkball",
-      "checkers",
     ]);
+  });
+
+  // Hidden on production by the team's call. Asserted rather than left to the
+  // order above, so restoring the entry without restoring the routes and the
+  // discovery card fails here rather than shipping a half-restored game.
+  it("does not offer Checkers", () => {
+    expect(CASINO_GAMES.some((game) => game.id === "checkers")).toBe(false);
+    expect(filterGames(CASINO_GAMES, "All games", "").some((g) => g.id === "checkers")).toBe(false);
+    expect(filterGames(CASINO_GAMES, "Skill", "").some((g) => g.id === "checkers")).toBe(false);
+    expect(filterGames(CASINO_GAMES, "All games", "check").some((g) => g.id === "checkers")).toBe(
+      false
+    );
   });
 
   it("uses the two-column footprint for every game after the hero", () => {

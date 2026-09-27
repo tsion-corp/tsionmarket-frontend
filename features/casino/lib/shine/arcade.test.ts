@@ -186,11 +186,17 @@ describe("chess", () => {
 });
 
 describe("draughts", () => {
-  it("reports a win under the catalogue's name for the game", () => {
+  // Checkers is hidden on production (2026-09-27), so it is not in the
+  // catalogue and `gameName` falls back to the id, as it is written to.
+  //
+  // The post is unreachable while the game is hidden: `useDraughtsShine` is
+  // mounted only by checkers-play.tsx, and that route redirects. Restoring the
+  // catalogue entry restores the capitalised name and this expectation.
+  it("reports a win under the id while the game is off the catalogue", () => {
     expect(draughtsShineEvent(draughtsMatch(), "white")).toEqual({
       service: "arcade",
       id: "checkers:draughts-1",
-      game: "Checkers",
+      game: "checkers",
       outcome: "won",
       pnl: "+80%",
     });

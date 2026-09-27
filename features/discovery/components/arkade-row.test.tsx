@@ -75,8 +75,15 @@ describe("Arkade row", () => {
       enMessages.discovery.chickenHeadline,
       enMessages.discovery.chessHeadline,
       enMessages.discovery.arkballHeadline,
-      enMessages.discovery.checkersIdleHeadline,
     ]);
+  });
+
+  // Hidden on production (2026-09-27). The card component is still built and
+  // tested in arkade-cards.test.tsx; it is simply not dealt here.
+  it("deals no Checkers card", () => {
+    render(<ArkadeRow />, { wrapper });
+    expect(realSlideHeadlines()).not.toContain(enMessages.discovery.checkersIdleHeadline);
+    expect(screen.queryByRole("link", { name: /\/casino\/checkers/ })).toBeNull();
   });
 
   it("sends the heading to the Arkade itself", () => {
@@ -87,7 +94,7 @@ describe("Arkade row", () => {
     );
   });
 
-  it("puts the richest open round on the Last Man card, and counts the live matches", () => {
+  it("puts the richest open round on the Last Man card", () => {
     const soon = Math.floor(Date.now() / 1000) + 3600;
     useDashboardFeed.mockReturnValue({
       data: feed({
@@ -103,6 +110,8 @@ describe("Arkade row", () => {
     render(<ArkadeRow />, { wrapper });
     const joins = screen.getAllByRole("link", { name: /Join Now/ });
     for (const join of joins) expect(join).toHaveAttribute("href", "/casino/last-standing/9");
-    expect(screen.getAllByText("2 matches being played right now").length).toBeGreaterThan(0);
+    // The two live checkers matches are still in the feed and are deliberately
+    // not counted anywhere on the row while the game is hidden.
+    expect(screen.queryByText("2 matches being played right now")).toBeNull();
   });
 });

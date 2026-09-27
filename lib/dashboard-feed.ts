@@ -118,10 +118,15 @@ export function liveEventsFrom(live: DashboardLive | null, nowSeconds: number): 
       kind: "chess",
       href: `/casino/chess/watch?match=${encodeURIComponent(m.id)}`,
     })),
-    ...live.checkers.map<LiveEvent>((m) => ({
-      key: `checkers-${m.id}`,
-      kind: "checkers",
-      href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
-    })),
+    // Checkers is hidden on production (2026-09-27), so a live match must not
+    // reach the marquee: the chip would link to a route that redirects away.
+    // The feed still carries the matches; only this arm is off. Restoring the
+    // game is restoring this map. See features/casino/lib/games.ts.
+    //
+    // ...live.checkers.map<LiveEvent>((m) => ({
+    //   key: `checkers-${m.id}`,
+    //   kind: "checkers",
+    //   href: `/casino/checkers/play?match=${encodeURIComponent(m.id)}`,
+    // })),
   ];
 }

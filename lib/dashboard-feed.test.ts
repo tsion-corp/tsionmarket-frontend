@@ -21,15 +21,20 @@ describe("liveEventsFrom", () => {
       },
       NOW
     );
-    expect(events.map((e) => e.key)).toEqual([
-      "lastman-7",
-      "lastman-5",
-      "chess-c1",
-      "checkers-d 1",
-    ]);
+    expect(events.map((e) => e.key)).toEqual(["lastman-7", "lastman-5", "chess-c1"]);
     expect(events[0]).toMatchObject({ href: "/casino/last-standing/7", pot: "$300.00" });
-    expect(events[2].href).toBe("/casino/chess/watch?match=c1");
     // Ids are URL-encoded into the watch link.
-    expect(events[3].href).toBe("/casino/checkers/play?match=d%201");
+    expect(events[2].href).toBe("/casino/chess/watch?match=c1");
+  });
+
+  // Checkers is hidden on production (2026-09-27). The feed still carries live
+  // matches; the marquee must not chip them, because the chip would link to a
+  // route that redirects away.
+  it("leaves live checkers matches out of the marquee", () => {
+    const events = liveEventsFrom(
+      { rounds: [], chess: [], checkers: [{ id: "d1" }, { id: "d2" }] },
+      NOW
+    );
+    expect(events).toEqual([]);
   });
 });

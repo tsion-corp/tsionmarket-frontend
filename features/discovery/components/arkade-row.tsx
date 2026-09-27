@@ -6,7 +6,7 @@ import { Carousel } from "@/components/ui/carousel";
 import {
   ArkBallCard,
   ArkjetCard,
-  CheckersCard,
+  // CheckersCard — hidden on production (2026-09-27).
   ChessCard,
   LastManCard,
   PilotChickenCard,
@@ -51,7 +51,6 @@ export function ArkadeRow() {
   const feed = useDashboardFeed().data;
   const round = richestRound(feed?.live?.rounds, feed ? feed.asOf / 1000 : 0);
   const remainingMs = useCountdown(round ? round.endTime * 1000 : null);
-  const checkersLive = feed?.live?.checkers.length ?? 0;
 
   return (
     <DiscoveryRow
@@ -66,7 +65,8 @@ export function ArkadeRow() {
         <PilotChickenCard onHold={hold} />
         <ChessCard onHold={hold} />
         <ArkBallCard onHold={hold} />
-        <CheckersCard liveCount={checkersLive} onHold={hold} />
+        {/* Checkers is hidden on production (2026-09-27); the card and its
+            component stay for the restore. See features/casino/lib/games.ts. */}
       </Carousel>
     </DiscoveryRow>
   );

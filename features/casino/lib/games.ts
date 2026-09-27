@@ -49,9 +49,9 @@ export interface CasinoGame {
 }
 
 export const CASINO_GAMES: CasinoGame[] = [
-  // The order the team set on 2026-09-25: Last Man, Arkjet, Pilot Chicken,
-  // Chess, ArkBall, Checkers. Last Man takes the hero slot, four of the six
-  // columns.
+  // The order the team set on 2026-09-25 was Last Man, Arkjet, Pilot Chicken,
+  // Chess, ArkBall, Checkers, with Last Man in the hero slot taking four of the
+  // six columns. Checkers is hidden on production; see below.
   {
     id: "last-standing",
     name: "The Last Man",
@@ -120,19 +120,25 @@ export const CASINO_GAMES: CasinoGame[] = [
     note: "Pick 5 white balls and 1 ArkBall",
     comingSoon: false,
   },
-  {
-    id: "checkers",
-    name: "Checkers",
-    category: "Skill",
-    size: "tall",
-    glyph: "⛃",
-    image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
-    tintRgb: "148 163 184",
-    href: "/casino/checkers",
-    isNew: true,
-    note: "Fast staked matches",
-    comingSoon: false,
-  },
+  // Checkers is HIDDEN on production (2026-09-27), by the team's call: it is
+  // not ready to be offered. Nothing is deleted. Restoring it is uncommenting
+  // this entry, the discovery card in features/discovery/components/
+  // arkade-cards.tsx, the live marquee arm in lib/dashboard-feed.ts, and the
+  // route redirects under app/(session)/casino/checkers.
+  //
+  // {
+  //   id: "checkers",
+  //   name: "Checkers",
+  //   category: "Skill",
+  //   size: "tall",
+  //   glyph: "⛃",
+  //   image: "https://upload.wikimedia.org/wikipedia/commons/3/30/International_draughts.jpg",
+  //   tintRgb: "148 163 184",
+  //   href: "/casino/checkers",
+  //   isNew: true,
+  //   note: "Fast staked matches",
+  //   comingSoon: false,
+  // },
   {
     id: "ayo",
     name: "Ayo",
