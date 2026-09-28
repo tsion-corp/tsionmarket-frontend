@@ -332,6 +332,16 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
   color: transparent;
 }
 
+/* The Ark ID headline: the Arkade's gold, brightest at the cap height. Gold is
+   the app's one warm colour (the Kash card, the Last Man clock), so a page that
+   sells a name borrows it rather than inventing a second accent. */
+@utility ws-gold-ink {
+  background-image: linear-gradient(180deg, #fff3c9 0%, #ffe178 46%, #e8b93f 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
 /* The arena card's headline: white falling to the design's pale violet. */
 @utility ws-arena-ink {
   background-image: linear-gradient(99.3123deg, #ffffff 1.5687%, #e3c0ff 96.946%);
@@ -1476,6 +1486,30 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
 
 @media (prefers-reduced-motion: reduce) {
   .ws-wink-blink {
+    animation: none;
+  }
+}
+
+/* The example names drifting behind the Ark ID search. Each pill sets its own
+   duration, delay and resting angle, so the group never moves as one block. */
+@keyframes ws-name-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--ws-name-rot, 0deg));
+  }
+  50% {
+    transform: translateY(-11px) rotate(calc(var(--ws-name-rot, 0deg) + 1.5deg));
+  }
+}
+
+.ws-name-float {
+  animation: ws-name-float var(--ws-name-dur, 7s) ease-in-out infinite;
+  animation-delay: var(--ws-name-delay, 0s);
+  transform: rotate(var(--ws-name-rot, 0deg));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ws-name-float {
     animation: none;
   }
 }

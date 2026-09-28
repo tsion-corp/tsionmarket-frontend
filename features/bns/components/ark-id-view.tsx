@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import { formatUnits, parseUnits } from "viem";
@@ -75,18 +75,56 @@ function Spinner() {
 
 // The scattered names both Basenames and ENS lead with: real-looking names in
 // pills, drifting around the search so the page shows what it sells before it
-// asks for anything. Decorative and aria-hidden, fixed positions rather than
-// random so the composition is the same on every render, and only drawn from
-// lg up, where there is room beside the column.
-const SAMPLE_NAMES = [
-  { name: "ada.ark", top: "6%", left: "4%", rotate: -4, dim: 0.5 },
-  { name: "chidi.ark", top: "26%", left: "11%", rotate: 3, dim: 0.85 },
-  { name: "zainab.ark", top: "58%", left: "5%", rotate: -2, dim: 0.65 },
-  { name: "kofi.ark", top: "80%", left: "14%", rotate: 5, dim: 0.4 },
-  { name: "amaka.ark", top: "9%", left: "78%", rotate: 4, dim: 0.6 },
-  { name: "tunde.ark", top: "31%", left: "84%", rotate: -3, dim: 0.9 },
-  { name: "nia.ark", top: "62%", left: "80%", rotate: 2, dim: 0.55 },
-  { name: "obi.ark", top: "84%", left: "72%", rotate: -5, dim: 0.42 },
+// asks for anything.
+//
+// Spread into two bands down the left and right, clear of the 620px column in
+// the middle, so nothing ever sits under the headline or the field. Decorative
+// and aria-hidden. Fixed positions rather than random, so the composition is
+// the same on every render, and each pill carries its own duration, delay and
+// resting angle so the group drifts rather than pulsing as one block.
+//
+// A few are gold: the Arkade's own warm colour, spent on a handful so the
+// others stay quiet and the gold still reads as something worth having.
+interface SampleName {
+  name: string;
+  top: string;
+  left: string;
+  rotate: number;
+  dim: number;
+  seconds: number;
+  delay: number;
+  gold?: boolean;
+}
+
+const SAMPLE_NAMES: SampleName[] = [
+  { name: "ada.ark", top: "7%", left: "3%", rotate: -5, dim: 0.5, seconds: 7.5, delay: 0 },
+  {
+    name: "chidi.ark",
+    top: "23%",
+    left: "13%",
+    rotate: 3,
+    dim: 0.9,
+    seconds: 6.4,
+    delay: 0.8,
+    gold: true,
+  },
+  { name: "zainab.ark", top: "41%", left: "2%", rotate: -2, dim: 0.62, seconds: 8.2, delay: 1.6 },
+  { name: "kofi.ark", top: "61%", left: "11%", rotate: 4, dim: 0.75, seconds: 7, delay: 0.4 },
+  { name: "ngozi.ark", top: "82%", left: "5%", rotate: -3, dim: 0.45, seconds: 9, delay: 2.2 },
+  { name: "amaka.ark", top: "9%", left: "80%", rotate: 4, dim: 0.66, seconds: 8.6, delay: 1.1 },
+  { name: "tunde.ark", top: "28%", left: "88%", rotate: -3, dim: 0.85, seconds: 6.8, delay: 0.2 },
+  {
+    name: "nia.ark",
+    top: "48%",
+    left: "78%",
+    rotate: 2,
+    dim: 0.95,
+    seconds: 7.4,
+    delay: 1.9,
+    gold: true,
+  },
+  { name: "obi.ark", top: "68%", left: "89%", rotate: -4, dim: 0.55, seconds: 8, delay: 0.6 },
+  { name: "sade.ark", top: "86%", left: "76%", rotate: 3, dim: 0.42, seconds: 9.4, delay: 2.6 },
 ];
 
 function ScatteredNames() {
@@ -95,13 +133,21 @@ function ScatteredNames() {
       {SAMPLE_NAMES.map((pill) => (
         <span
           key={pill.name}
-          className="absolute rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 font-serif text-[15px] font-medium whitespace-nowrap text-white/70 backdrop-blur-sm"
-          style={{
-            top: pill.top,
-            left: pill.left,
-            opacity: pill.dim,
-            transform: `rotate(${pill.rotate}deg)`,
-          }}
+          className={`ws-name-float absolute rounded-full border px-4 py-2 font-serif text-[15px] font-medium whitespace-nowrap backdrop-blur-sm ${
+            pill.gold
+              ? "border-[#FFE178]/30 bg-[#FFE178]/10 text-[#FFE178]"
+              : "border-white/10 bg-white/[0.04] text-white/70"
+          }`}
+          style={
+            {
+              top: pill.top,
+              left: pill.left,
+              opacity: pill.dim,
+              "--ws-name-rot": `${pill.rotate}deg`,
+              "--ws-name-dur": `${pill.seconds}s`,
+              "--ws-name-delay": `${pill.delay}s`,
+            } as CSSProperties
+          }
         >
           {pill.name}
         </span>
@@ -525,318 +571,334 @@ export function ArkIdView() {
   const usdcBalanceLabel = usdcBalanceAtomic !== null ? formatUnits(usdcBalanceAtomic, 6) : "0";
 
   return (
-    <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
-      {/* The page width the portfolio sets, which is the app's. The search is
-          the hero rather than a field in a card, and the names drift around it,
-          which is the shape Basenames and ENS both lead with: show what is for
-          sale before asking for anything. */}
-      <ScatteredNames />
-      <div className="relative mx-auto max-w-[680px] py-6 sm:py-10 lg:py-16">
-        {successName ? (
-          <SuccessPanel title={t("successTitle", { brand: BRAND })} onDone={reset}>
-            {t("successBody", { name: successName, brand: BRAND })}
-          </SuccessPanel>
-        ) : (
-          <div className="flex flex-col gap-4" aria-busy={working}>
-            <div className="text-center">
-              <p className="text-accent text-[11px] font-semibold tracking-[0.16em] uppercase">
-                {t("cardLabel")}
-              </p>
-              <h1 className="ws-display mt-3 text-[clamp(30px,6vw,52px)] leading-[1.05] tracking-[-0.03em] text-white">
-                {t("modalTitle", { brand: BRAND })}
-              </h1>
-              <p className="mx-auto mt-3 max-w-[46ch] text-[14.5px] leading-[1.5] text-white/55">
-                {t("modalSubtitle")}
-              </p>
-            </div>
-
-            {ownedName ? (
-              // The wallet already holds an Ark ID: a calm confirmation showing
-              // the real expiry date. A paid renewal appears ONLY inside the
-              // renewal window (see RENEWAL_WINDOW_DAYS) and behind a confirm, so
-              // an active name never shows a pay button.
-              <div className="rounded-lg border border-white/10 bg-white/4 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-semibold tracking-[0.06em] text-white/45 uppercase">
-                      {t("ownedNameLabel")}
-                    </p>
-                    <p className="mt-1 truncate text-[15px] font-semibold text-white">
-                      {ownedName}
-                    </p>
-                    <p
-                      className={`mt-1 text-[11px] font-medium ${expiresSoon ? "text-down" : "text-up"}`}
-                    >
-                      {expiryLabel ? t("ownedExpiresOn", { date: expiryLabel }) : t("ownedActive")}
-                    </p>
-                  </div>
-                  <span className="bg-accent/12 text-accent rounded-md px-2 py-1 text-[10px] font-semibold">
-                    {t("walletAttached")}
-                  </span>
-                </div>
-
-                {expiresSoon ? (
-                  confirmRenew ? (
-                    <div className="mt-3 rounded-md border border-white/10 bg-white/4 p-2.5">
-                      <p className="text-[12px] leading-5 text-white/70">
-                        {t("renewPrompt", { name: ownedName })}
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={renewName}
-                          disabled={working || !ownedPrice.data || !evmAddress}
-                          className="bg-accent text-ink flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-[12px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
-                        >
-                          {working ? (
-                            <>
-                              <ButtonSpinner />
-                              {t("paymentWorking")}
-                            </>
-                          ) : (
-                            t("renewConfirmCta", { amount: ownedUsdcPrice ?? "…" })
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmRenew(false)}
-                          disabled={working}
-                          className="rounded-md border border-white/10 px-3 py-2 text-[12px] font-semibold text-white/60 transition-colors hover:text-white disabled:opacity-45"
-                        >
-                          {t("renewCancel")}
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setConfirmRenew(true)}
-                      className="mt-3 flex w-full items-center justify-between rounded-md border border-white/10 bg-white/4 px-3 py-2 text-left text-[12px] font-semibold text-white transition-colors hover:bg-white/8"
-                    >
-                      <span>{t("renewCta")}</span>
-                      <span className="text-accent">
-                        {ownedUsdcPrice ? `$${ownedUsdcPrice} USDC` : "…"}
-                      </span>
-                    </button>
-                  )
-                ) : null}
+    <div className="mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+      {/* The portfolio's own page frame: its width, its padding, and one
+          rounded panel filling it, because this route renders inside the same
+          shell and has to read as part of the app rather than a landing page
+          that lost its chrome.
+          The panel is where the Basenames/ENS idea lands: the search is the
+          thing on it, and the names drift behind, clipped by the card. */}
+      <div className="ws-card relative flex min-h-[520px] items-center justify-center overflow-hidden px-4 py-10 sm:px-8 md:min-h-[calc(100svh-150px)]">
+        {/* The Arkade's gold, as a lamp behind the headline rather than a fill:
+            the page stays dark and the warmth sits where the eye lands. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute top-[-18%] left-1/2 h-[420px] w-[820px] max-w-[130%] -translate-x-1/2 rounded-full bg-[#FFE178]/12 blur-[110px]"
+        />
+        <ScatteredNames />
+        {/* Centred both ways inside the panel: the panel takes the height the
+            shell leaves it (topbar plus this page's own padding), and the
+            column sits in the middle of it rather than against the top. */}
+        <div className="relative mx-auto w-full max-w-[620px]">
+          {successName ? (
+            <SuccessPanel title={t("successTitle", { brand: BRAND })} onDone={reset}>
+              {t("successBody", { name: successName, brand: BRAND })}
+            </SuccessPanel>
+          ) : (
+            <div className="flex flex-col gap-4" aria-busy={working}>
+              <div className="text-center">
+                <p className="text-[11px] font-semibold tracking-[0.16em] text-[#FFE178] uppercase">
+                  {t("cardLabel")}
+                </p>
+                <h1 className="ws-display ws-gold-ink mt-3 text-[clamp(30px,6vw,52px)] leading-[1.05] tracking-[-0.03em]">
+                  {t("modalTitle", { brand: BRAND })}
+                </h1>
+                <p className="mx-auto mt-3 max-w-[46ch] text-[14.5px] leading-[1.5] text-white/55">
+                  {t("modalSubtitle")}
+                </p>
               </div>
-            ) : null}
 
-            {/* One Ark ID per wallet: the search-and-buy flow is shown only to
-                a wallet that does not already hold a name. An owner sees their
-                confirmation above and no path to a second purchase. */}
-            {!ownedName ? (
-              <>
-                <div>
-                  <label htmlFor="ark-id-name" className="sr-only">
-                    {t("nameLabel")}
-                  </label>
-                  <div className="focus-within:border-accent/55 flex items-center rounded-full border border-white/14 bg-white/[0.06] px-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors">
-                    <input
-                      id="ark-id-name"
-                      value={search}
-                      onChange={(event) => {
-                        const value = event.target.value.replace(/\.ark$/i, "");
-                        const parsed = parseKashRecipient(value);
-                        setSearch(value);
-                        setNow(Date.now());
-                        if (evmAddress && parsed.kind === "name") {
-                          setPendingRegistration(
-                            getPendingArkRegistration(evmAddress, parsed.label)
-                          );
-                          setPendingFunding(getPendingArkFunding(evmAddress, parsed.label));
-                        } else {
-                          setPendingRegistration(null);
-                          setPendingFunding(null);
-                        }
-                        setError(null);
-                      }}
-                      autoComplete="off"
-                      spellCheck={false}
-                      placeholder={t("namePlaceholder")}
-                      aria-describedby="ark-id-status"
-                      className="min-w-0 flex-1 bg-transparent px-4 py-4 text-[clamp(17px,2.6vw,21px)] text-white outline-none placeholder:text-white/25 sm:py-[18px]"
-                    />
-                    <span className="pr-5 pl-1 text-[clamp(15px,2.2vw,18px)] font-medium text-white/40">
-                      .ark
+              {ownedName ? (
+                // The wallet already holds an Ark ID: a calm confirmation showing
+                // the real expiry date. A paid renewal appears ONLY inside the
+                // renewal window (see RENEWAL_WINDOW_DAYS) and behind a confirm, so
+                // an active name never shows a pay button.
+                <div className="rounded-[16px] border border-white/10 bg-white/4 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold tracking-[0.06em] text-white/45 uppercase">
+                        {t("ownedNameLabel")}
+                      </p>
+                      <p className="mt-1 truncate text-[15px] font-semibold text-white">
+                        {ownedName}
+                      </p>
+                      <p
+                        className={`mt-1 text-[11px] font-medium ${expiresSoon ? "text-down" : "text-up"}`}
+                      >
+                        {expiryLabel
+                          ? t("ownedExpiresOn", { date: expiryLabel })
+                          : t("ownedActive")}
+                      </p>
+                    </div>
+                    <span className="bg-accent/12 text-accent rounded-[14px] px-2 py-1 text-[10px] font-semibold">
+                      {t("walletAttached")}
                     </span>
                   </div>
-                  <div
-                    id="ark-id-status"
-                    aria-live="polite"
-                    className="mt-3 flex min-h-5 justify-center text-[13px]"
-                  >
-                    {label.length < 3 ? (
-                      <span className="text-white/40">{t("nameHint")}</span>
-                    ) : !lookupReady || nameAvailability.isFetching ? (
-                      <span className="flex items-center gap-1.5 text-white/60">
-                        <Spinner />
-                        {t("checking")}
-                      </span>
-                    ) : nameAvailability.isError ? (
-                      <span className="text-down">{t("availabilityFailed")}</span>
-                    ) : nameAvailability.data?.available && namePrice.isFetching ? (
-                      <span className="flex items-center gap-1.5 text-white/60">
-                        <Spinner />
-                        {t("checkingPrice")}
-                      </span>
-                    ) : nameAvailability.data?.available && namePrice.isError ? (
-                      <span className="text-down">{t("priceFailed")}</span>
-                    ) : nameAvailability.data?.available && searchUsdcPrice ? (
-                      <span className="text-up">
-                        {t("available", { name: currentName })} · ${searchUsdcPrice} USDC / year
-                      </span>
-                    ) : ownsSearchedName ? (
-                      <span className="text-up">{t("ownSearched", { name: currentName })}</span>
-                    ) : nameAvailability.data ? (
-                      <span className="text-white/50">{t("taken", { name: currentName })}</span>
-                    ) : null}
-                  </div>
-                </div>
 
-                {currentRegistration ? (
-                  <div className="border-accent/20 bg-accent/8 rounded-lg border p-3">
-                    <p className="text-[13px] font-semibold text-white">
-                      {t("reserved", { name: currentRegistration.name })}
-                    </p>
-                    <p className="mt-1 text-[12px] leading-5 text-white/60">
-                      {revealSeconds > 0
-                        ? t("revealWait", { seconds: revealSeconds })
-                        : t("revealReady")}
-                    </p>
-                    {currentRegistration.commitTxHash ? (
-                      <a
-                        href={`https://basescan.org/tx/${currentRegistration.commitTxHash}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-accent mt-1 inline-block text-[11px] underline underline-offset-2"
-                      >
-                        {t("viewCommit")}
-                      </a>
+                  {expiresSoon ? (
+                    confirmRenew ? (
+                      <div className="mt-3 rounded-[14px] border border-white/10 bg-white/4 p-2.5">
+                        <p className="text-[12px] leading-5 text-white/70">
+                          {t("renewPrompt", { name: ownedName })}
+                        </p>
+                        <div className="mt-2 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={renewName}
+                            disabled={working || !ownedPrice.data || !evmAddress}
+                            className="bg-accent text-ink flex flex-1 items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-[12px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-45"
+                          >
+                            {working ? (
+                              <>
+                                <ButtonSpinner />
+                                {t("paymentWorking")}
+                              </>
+                            ) : (
+                              t("renewConfirmCta", { amount: ownedUsdcPrice ?? "…" })
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmRenew(false)}
+                            disabled={working}
+                            className="rounded-[14px] border border-white/10 px-3 py-2 text-[12px] font-semibold text-white/60 transition-colors hover:text-white disabled:opacity-45"
+                          >
+                            {t("renewCancel")}
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <button
                         type="button"
-                        onClick={reserveName}
-                        disabled={working}
-                        className="text-accent mt-2 cursor-pointer text-[11px] font-semibold"
+                        onClick={() => setConfirmRenew(true)}
+                        className="mt-3 flex w-full items-center justify-between rounded-[14px] border border-white/10 bg-white/4 px-3 py-2 text-left text-[12px] font-semibold text-white transition-colors hover:bg-white/8"
                       >
-                        {t("retryReservation")}
+                        <span>{t("renewCta")}</span>
+                        <span className="text-accent">
+                          {ownedUsdcPrice ? `$${ownedUsdcPrice} USDC` : "…"}
+                        </span>
                       </button>
-                    )}
-                  </div>
-                ) : null}
+                    )
+                  ) : null}
+                </div>
+              ) : null}
 
-                {currentFunding || paymentStep ? (
-                  <div
-                    className="rounded-lg border border-white/10 bg-white/4 p-3"
-                    aria-live="polite"
-                  >
-                    <p className="text-[12px] font-medium text-white">
-                      {paymentStep === "preparing"
-                        ? t("paymentPreparing")
-                        : paymentStep === "signing"
-                          ? t("paymentSigning")
-                          : paymentStep === "processing"
-                            ? t("paymentProcessing", { brand: BRAND })
-                            : t("paymentResume")}
+              {/* One Ark ID per wallet: the search-and-buy flow is shown only to
+                a wallet that does not already hold a name. An owner sees their
+                confirmation above and no path to a second purchase. */}
+              {!ownedName ? (
+                <>
+                  <div>
+                    <label htmlFor="ark-id-name" className="sr-only">
+                      {t("nameLabel")}
+                    </label>
+                    <div className="flex items-center rounded-[14px] border border-white/12 bg-white/6 px-2 transition-colors focus-within:border-[#FFE178]/55 focus-within:shadow-[0_0_0_4px_rgba(255,225,120,0.10)]">
+                      <input
+                        id="ark-id-name"
+                        value={search}
+                        onChange={(event) => {
+                          const value = event.target.value.replace(/\.ark$/i, "");
+                          const parsed = parseKashRecipient(value);
+                          setSearch(value);
+                          setNow(Date.now());
+                          if (evmAddress && parsed.kind === "name") {
+                            setPendingRegistration(
+                              getPendingArkRegistration(evmAddress, parsed.label)
+                            );
+                            setPendingFunding(getPendingArkFunding(evmAddress, parsed.label));
+                          } else {
+                            setPendingRegistration(null);
+                            setPendingFunding(null);
+                          }
+                          setError(null);
+                        }}
+                        autoComplete="off"
+                        spellCheck={false}
+                        placeholder={t("namePlaceholder")}
+                        aria-describedby="ark-id-status"
+                        className="min-w-0 flex-1 bg-transparent px-4 py-4 text-[clamp(17px,2.6vw,21px)] text-white outline-none placeholder:text-white/25 sm:py-[18px]"
+                      />
+                      <span className="pr-5 pl-1 text-[clamp(15px,2.2vw,18px)] font-medium text-white/40">
+                        .ark
+                      </span>
+                    </div>
+                    <div
+                      id="ark-id-status"
+                      aria-live="polite"
+                      className="mt-3 flex min-h-5 justify-center text-[13px]"
+                    >
+                      {label.length < 3 ? (
+                        <span className="text-white/40">{t("nameHint")}</span>
+                      ) : !lookupReady || nameAvailability.isFetching ? (
+                        <span className="flex items-center gap-1.5 text-white/60">
+                          <Spinner />
+                          {t("checking")}
+                        </span>
+                      ) : nameAvailability.isError ? (
+                        <span className="text-down">{t("availabilityFailed")}</span>
+                      ) : nameAvailability.data?.available && namePrice.isFetching ? (
+                        <span className="flex items-center gap-1.5 text-white/60">
+                          <Spinner />
+                          {t("checkingPrice")}
+                        </span>
+                      ) : nameAvailability.data?.available && namePrice.isError ? (
+                        <span className="text-down">{t("priceFailed")}</span>
+                      ) : nameAvailability.data?.available && searchUsdcPrice ? (
+                        <span className="text-up">
+                          {t("available", { name: currentName })} · ${searchUsdcPrice} USDC / year
+                        </span>
+                      ) : ownsSearchedName ? (
+                        <span className="text-up">{t("ownSearched", { name: currentName })}</span>
+                      ) : nameAvailability.data ? (
+                        <span className="text-white/50">{t("taken", { name: currentName })}</span>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {currentRegistration ? (
+                    <div className="border-accent/20 bg-accent/8 rounded-[16px] border p-3">
+                      <p className="text-[13px] font-semibold text-white">
+                        {t("reserved", { name: currentRegistration.name })}
+                      </p>
+                      <p className="mt-1 text-[12px] leading-5 text-white/60">
+                        {revealSeconds > 0
+                          ? t("revealWait", { seconds: revealSeconds })
+                          : t("revealReady")}
+                      </p>
+                      {currentRegistration.commitTxHash ? (
+                        <a
+                          href={`https://basescan.org/tx/${currentRegistration.commitTxHash}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-accent mt-1 inline-block text-[11px] underline underline-offset-2"
+                        >
+                          {t("viewCommit")}
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={reserveName}
+                          disabled={working}
+                          className="text-accent mt-2 cursor-pointer text-[11px] font-semibold"
+                        >
+                          {t("retryReservation")}
+                        </button>
+                      )}
+                    </div>
+                  ) : null}
+
+                  {currentFunding || paymentStep ? (
+                    <div
+                      className="rounded-[16px] border border-white/10 bg-white/4 p-3"
+                      aria-live="polite"
+                    >
+                      <p className="text-[12px] font-medium text-white">
+                        {paymentStep === "preparing"
+                          ? t("paymentPreparing")
+                          : paymentStep === "signing"
+                            ? t("paymentSigning")
+                            : paymentStep === "processing"
+                              ? t("paymentProcessing", { brand: BRAND })
+                              : t("paymentResume")}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {currentRegistration &&
+                  canReveal &&
+                  !currentFunding &&
+                  !fundingRoute.isPending &&
+                  !fundingRoute.data ? (
+                    <p className="text-[12px] leading-5 text-white/50">{t("paymentUnavailable")}</p>
+                  ) : null}
+
+                  {error || registrationExpired ? (
+                    <p
+                      role="alert"
+                      className="text-down bg-down/10 rounded-[14px] px-3 py-2 text-[12px] leading-5"
+                    >
+                      {error ?? t("commitExpired")}
                     </p>
-                  </div>
-                ) : null}
+                  ) : null}
 
-                {currentRegistration &&
-                canReveal &&
-                !currentFunding &&
-                !fundingRoute.isPending &&
-                !fundingRoute.data ? (
-                  <p className="text-[12px] leading-5 text-white/50">{t("paymentUnavailable")}</p>
-                ) : null}
+                  {insufficientUsdc && !currentFunding && !working ? (
+                    <p className="text-down bg-down/10 rounded-[14px] px-3 py-2 text-[12px] leading-5">
+                      {t("insufficientUsdc", {
+                        price: searchUsdcPrice ?? "",
+                        balance: usdcBalanceLabel,
+                      })}
+                    </p>
+                  ) : null}
 
-                {error || registrationExpired ? (
-                  <p
-                    role="alert"
-                    className="text-down bg-down/10 rounded-md px-3 py-2 text-[12px] leading-5"
-                  >
-                    {error ?? t("commitExpired")}
-                  </p>
-                ) : null}
+                  {ownsSearchedName && !currentRegistration ? (
+                    <button
+                      type="button"
+                      onClick={() => setPrimaryName(currentName)}
+                      disabled={working || !evmAddress}
+                      className="bg-accent text-ink flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {working ? <ButtonSpinner /> : null}
+                      {working ? t("settingPrimary") : t("setPrimaryCta")}
+                    </button>
+                  ) : !currentRegistration ? (
+                    <button
+                      type="button"
+                      onClick={reserveName}
+                      disabled={
+                        !available ||
+                        !searchUsdcPrice ||
+                        !evmAddress ||
+                        working ||
+                        insufficientUsdc ||
+                        Boolean(currentFunding)
+                      }
+                      className="bg-accent text-ink flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {working ? <ButtonSpinner /> : null}
+                      {working ? t("reserving") : t("reserveCta")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={completeRegistration}
+                      disabled={
+                        !canReveal ||
+                        !searchUsdcPrice ||
+                        working ||
+                        (!currentFunding && insufficientUsdc) ||
+                        (!currentFunding && (fundingRoute.isPending || !fundingRoute.data))
+                      }
+                      className="bg-accent text-ink flex w-full cursor-pointer items-center justify-center gap-2 rounded-[14px] px-4 py-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {working ? (
+                        <>
+                          <ButtonSpinner />
+                          {paymentStep === "signing" ? t("paymentSigning") : t("paymentWorking")}
+                        </>
+                      ) : currentFunding ? (
+                        t("continuePaymentCta", { amount: searchUsdcPrice ?? "…" })
+                      ) : (
+                        t("payRegisterCta", {
+                          amount: searchUsdcPrice ?? "…",
+                          name: currentRegistration?.name ?? currentName,
+                        })
+                      )}
+                    </button>
+                  )}
 
-                {insufficientUsdc && !currentFunding && !working ? (
-                  <p className="text-down bg-down/10 rounded-md px-3 py-2 text-[12px] leading-5">
-                    {t("insufficientUsdc", {
-                      price: searchUsdcPrice ?? "",
-                      balance: usdcBalanceLabel,
-                    })}
-                  </p>
-                ) : null}
-
-                {ownsSearchedName && !currentRegistration ? (
-                  <button
-                    type="button"
-                    onClick={() => setPrimaryName(currentName)}
-                    disabled={working || !evmAddress}
-                    className="bg-accent text-ink flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {working ? <ButtonSpinner /> : null}
-                    {working ? t("settingPrimary") : t("setPrimaryCta")}
-                  </button>
-                ) : !currentRegistration ? (
-                  <button
-                    type="button"
-                    onClick={reserveName}
-                    disabled={
-                      !available ||
-                      !searchUsdcPrice ||
-                      !evmAddress ||
-                      working ||
-                      insufficientUsdc ||
-                      Boolean(currentFunding)
-                    }
-                    className="bg-accent text-ink flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {working ? <ButtonSpinner /> : null}
-                    {working ? t("reserving") : t("reserveCta")}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={completeRegistration}
-                    disabled={
-                      !canReveal ||
-                      !searchUsdcPrice ||
-                      working ||
-                      (!currentFunding && insufficientUsdc) ||
-                      (!currentFunding && (fundingRoute.isPending || !fundingRoute.data))
-                    }
-                    className="bg-accent text-ink flex w-full cursor-pointer items-center justify-center gap-2 rounded-md px-4 py-3 text-[13px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {working ? (
-                      <>
-                        <ButtonSpinner />
-                        {paymentStep === "signing" ? t("paymentSigning") : t("paymentWorking")}
-                      </>
-                    ) : currentFunding ? (
-                      t("continuePaymentCta", { amount: searchUsdcPrice ?? "…" })
-                    ) : (
-                      t("payRegisterCta", {
-                        amount: searchUsdcPrice ?? "…",
-                        name: currentRegistration?.name ?? currentName,
-                      })
-                    )}
-                  </button>
-                )}
-
-                {evmAddress ? (
-                  <p className="text-center text-[10px] text-white/35">
-                    {t("payingFrom", { wallet: shortenAddress(evmAddress) })} · {t("annualRenewal")}
-                  </p>
-                ) : (
-                  <p className="text-center text-[11px] text-white/50">{t("walletNeeded")}</p>
-                )}
-              </>
-            ) : null}
-          </div>
-        )}
+                  {evmAddress ? (
+                    <p className="text-center text-[10px] text-white/35">
+                      {t("payingFrom", { wallet: shortenAddress(evmAddress) })} ·{" "}
+                      {t("annualRenewal")}
+                    </p>
+                  ) : (
+                    <p className="text-center text-[11px] text-white/50">{t("walletNeeded")}</p>
+                  )}
+                </>
+              ) : null}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

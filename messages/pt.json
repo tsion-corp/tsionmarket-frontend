@@ -1,12 +1,8 @@
 {
   "bns": {
     "cardLabel": "ARK ID",
-    "cardTitle": "Seja um nome, não um número",
-    "cardBody": "Sua carteira merece um nome.",
-    "cardCta": "Garanta seu {brand} ID",
-    "cardManage": "Gerenciar {name}",
-    "cardAttached": "Ativo · vinculado à sua carteira",
-    "cardManageLabel": "Gerenciar",
+    "promoTitle": "Obtém o teu {brand} ID",
+    "promoSubtitle": "Envia e recebe Kash",
     "modalTitle": "Garanta seu {brand} ID",
     "modalSubtitle": "Um nome, sempre seu — envie e receba Kash hoje, e seu dinheiro amanhã.",
     "ownedNameLabel": "SEU ARK ID",

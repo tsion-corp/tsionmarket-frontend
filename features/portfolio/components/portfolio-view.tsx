@@ -24,7 +24,7 @@ import { BalanceCarousel } from "@/features/portfolio/components/balance-carouse
 import Link from "next/link";
 import { PromoCarousel } from "@/components/ui/promo-deck";
 import { PromoBanner, PromoRail } from "@/components/ui/promo-rail";
-import { ARKSTORE_URL } from "@/lib/brand";
+import { ARKSTORE_URL, BRAND } from "@/lib/brand";
 import { marketSquareHref } from "@/lib/market-square";
 import { SetTheStakeBanner } from "@/features/portfolio/components/set-the-stake-banner";
 import { ArkStoreBanner } from "@/features/portfolio/components/ark-store-banner";
@@ -292,8 +292,8 @@ export function PortfolioView({
   const arkIdBanner = (
     <PromoBanner
       href="/ark-id"
-      title={tBns("cardTitle")}
-      subtitle={tBns("cardBody")}
+      title={tBns("promoTitle", { brand: BRAND })}
+      subtitle={tBns("promoSubtitle")}
       background="#EDEDED"
       tone="on-light"
       scallop="/market/promo-ark-id-scallop.svg"

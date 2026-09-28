@@ -12,19 +12,31 @@ scenario-impact: needs_automation
 has to survive a reload mid-payment, and a name is worth linking to. A modal is
 a bad container for a flow that can be interrupted.
 
-The page is laid out as **Basenames and ENS lay theirs out**: the search is the
-hero rather than a field in a card, under display type, with example `.ark`
-names drifting around it so the page shows what it sells before it asks for
-anything. The names are decorative, `aria-hidden`, at fixed positions so the
-composition does not reshuffle on every render, and drawn only from `lg` up
-where there is room beside the column.
+It renders **inside the app shell**, in the `(session)/(app)` route group with
+the portfolio and referrals, so it carries the sidebar, the topbar and the phone
+tab bar. It was first put one level above that group, which is why the first
+build showed a bare page with no chrome at all.
 
-It takes **the portfolio page's width** (`max-w-[1520px]`, the app's page
-width), not the narrower one referrals was using. `/referrals` is moved onto the
-same width here, since a route that opens narrower than the page it was reached
-from reads as a modal that lost its backdrop. The referral **claim** step keeps
-its narrow column: it is one field and a button, and a form stretched across
-1520px is not easier to fill in.
+Inside the shell it is the portfolio's own page frame: the same width
+(`max-w-[1520px]`) and padding, with one rounded panel filling it, centred both
+ways so the content sits in the middle of the space the shell leaves rather than
+against the top. `/referrals` moves onto the same width. Its **claim** step
+keeps its narrow column: it is one field and a button, and a form stretched
+across 1520px is not easier to fill in.
+
+The panel is where the **Basenames and ENS** idea lands. The search is the thing
+on it, under a gold headline, with example `.ark` names drifting behind in two
+bands down the left and right, clear of the centre column so nothing sits under
+the headline or the field. They are decorative and `aria-hidden`, at fixed
+positions so the composition does not reshuffle per render, each with its own
+duration, delay and resting angle so the group drifts rather than pulsing as one
+block, and they stop entirely under `prefers-reduced-motion`. A couple are gold;
+the rest stay quiet so the gold still reads as something worth having.
+
+Gold is the Arkade's own warm colour — the Kash card, the Last Man clock — so a
+page selling a name borrows it rather than inventing a second accent: a lamp
+behind the headline, the headline itself in `ws-gold-ink`, and the search field's
+focus ring.
 
 `ArkIdModal`, `ArkIdCard` and the dialog store are gone. The view is the same
 component with `open`/`onClose` removed; finishing now resets the page rather
@@ -47,6 +59,10 @@ effectively desktop-only, which is why it went unnoticed.
 It is a banner in the promo strip now, second in both, directly after the
 ArkStore ticket. That strip is `PromoCarousel` on a phone and `PromoRail` on a
 desk, so every device shows it.
+
+The banner's copy is its own, sized to the rail: "Get your unique Ark ID" over
+"Send and receive Kash". It first reused the sidebar card's lines, and "Your
+wallet deserves a name." truncated to "Your Wall…" in the narrow subtitle column.
 
 `PromoBanner` gained a `tone` prop. Every banner the rail carried was a
 saturated fill with white words; a pale fill needs ink instead, and
