@@ -153,6 +153,12 @@ interface PromoBannerProps {
   art?: PromoArt[];
   /** Leading illustration, e.g. the stake banner's torch. */
   glyph?: string;
+  /**
+   * Which way round the words are set. Every banner the rail carried was a
+   * saturated fill with white words, so that stays the default; a pale fill
+   * needs ink instead, and white-on-white is the failure this exists to stop.
+   */
+  tone?: "on-dark" | "on-light";
 }
 
 // A banner whose words are real text. Feature-agnostic: it takes its colour,
@@ -174,7 +180,14 @@ export function PromoBanner({
   scallop = "/market/promo-stake-scallop.svg",
   art,
   glyph,
+  tone = "on-dark",
 }: PromoBannerProps) {
+  const ink = tone === "on-light" ? "text-[#101013]" : "text-white";
+  // The divider is a stroked rule, so it needs the same swap the words do.
+  const divider =
+    tone === "on-light"
+      ? "/market/promo-banner-divider-ink.svg"
+      : "/market/promo-banner-divider.svg";
   return (
     <Link
       href={href}
@@ -262,21 +275,21 @@ export function PromoBanner({
           // descenders. The design sets 0.86, and because the title clips to
           // draw its ellipsis, the missing fifth of an em was taken off the
           // glyphs: it cut the tail off the "ç" in "Faça A Sua Aposta".
-          className="ws-poster min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-white capitalize"
+          className={`ws-poster min-w-0 overflow-hidden text-ellipsis whitespace-nowrap capitalize ${ink}`}
           style={{ fontSize: cqw(24.46), lineHeight: 1.3 }}
         >
           {title}
         </span>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/market/promo-banner-divider.svg"
+          src={divider}
           alt=""
           aria-hidden
           className="shrink-0"
           style={{ height: cqw(DIVIDER_HEIGHT), width: cqw(DIVIDER_WIDTH) }}
         />
         <span
-          className="line-clamp-2 min-w-0 flex-1 font-serif font-medium text-white capitalize"
+          className={`line-clamp-2 min-w-0 flex-1 font-serif font-medium capitalize ${ink}`}
           style={{
             fontSize: cqw(18.34),
             lineHeight: 1.52,

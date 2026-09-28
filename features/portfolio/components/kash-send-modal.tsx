@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
@@ -9,7 +11,6 @@ import { toast } from "@/lib/toast";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { useQuery } from "@tanstack/react-query";
 import { resolveArkName, reverseResolveArkAddress } from "@/lib/bns/api";
-import { openArkIdDialog } from "@/lib/bns/ark-id-dialog-store";
 import { parseKashRecipient } from "@/lib/bns/name";
 import { BRAND } from "@/lib/brand";
 import {
@@ -53,12 +54,14 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
     staleTime: 30_000,
     retry: false,
   });
+  // An Ark ID and nothing else. A raw wallet address is refused even though it
+  // is a perfectly good address: Kash is sent to a NAME, so the sender reads
+  // back who they are paying instead of a hex string they cannot check. The
+  // address still exists — it is what the name resolves to, and it is shown
+  // before the send — but it is not something anyone types.
   const resolvedAddress =
-    recipientInput.kind === "address"
-      ? recipientInput.address.trim()
-      : recipientInput.kind === "name" && resolution.data?.address
-        ? resolution.data.address
-        : null;
+    recipientInput.kind === "name" && resolution.data?.address ? resolution.data.address : null;
+  const pastedAddress = recipientInput.kind === "address";
   // Whether the SENDER already owns an Ark ID. Once they do, they should not be
   // pitched to get one — no "buy now" reminder while sending. Shares the
   // ["bns","reverse",wallet] cache with the sidebar card, so it's one lookup.
@@ -129,7 +132,7 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
             <div>
               <div className="ws-display text-[22px]">{t("sendTitle")}</div>
               <p className="mt-1 text-[13px] leading-[1.5] font-normal text-white/60">
-                {t("sendSubtitle")}
+                {t("sendSubtitle", { brand: BRAND })}
               </p>
             </div>
 
@@ -138,7 +141,7 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
                 htmlFor="kash-send-recipient"
                 className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase"
               >
-                {t("sendRecipient")}
+                {t("sendRecipient", { brand: BRAND })}
               </label>
               <input
                 id="kash-send-recipient"
@@ -150,9 +153,9 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
                 className="mt-1.5 w-full rounded-[14px] border border-white/12 bg-white/6 px-4 py-3 font-mono text-[14px] outline-none focus:border-amber-200/50"
               />
               <div id="kash-recipient-status" aria-live="polite">
-                {recipient.trim() && recipientInput.kind === "invalid" ? (
+                {pastedAddress || (recipient.trim() && recipientInput.kind === "invalid") ? (
                   <p className="mt-1.5 text-[12px] font-normal text-white/50">
-                    {t("sendBadAddress")}
+                    {t("sendAddressRefused", { brand: BRAND })}
                   </p>
                 ) : recipientName && resolution.isFetching ? (
                   <p className="mt-1.5 text-[12px] font-normal text-white/50">
@@ -173,37 +176,28 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
                       {t("sendArkInvalid", { name: recipientName })}
                     </span>
                     {senderHasArkId ? null : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          openArkIdDialog();
-                        }}
+                      <Link
+                        href="/ark-id"
+                        onClick={onClose}
                         className="text-accent cursor-pointer font-semibold underline underline-offset-2"
                       >
                         {t("sendArkBuyNow")}
-                      </button>
+                      </Link>
                     )}
                   </div>
                 ) : recipientName && !senderHasArkId ? (
                   <p className="mt-1.5 text-[12px] font-normal text-white/45">
                     {t("sendArkHint", { brand: BRAND })}{" "}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        openArkIdDialog();
-                      }}
+                    <Link
+                      href="/ark-id"
+                      onClick={onClose}
                       className="text-accent cursor-pointer font-semibold underline underline-offset-2"
                     >
                       {t("sendArkBuyNow")}
-                    </button>
+                    </Link>
                   </p>
                 ) : null}
               </div>
-              {selfSend && recipientInput.kind === "address" && (
-                <p className="text-down mt-1.5 text-[12px] font-normal">{t("sendToSelf")}</p>
-              )}
             </div>
 
             <div>

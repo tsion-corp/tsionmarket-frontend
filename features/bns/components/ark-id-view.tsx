@@ -6,7 +6,6 @@ import { useFormatter, useTranslations } from "next-intl";
 import { formatUnits, parseUnits } from "viem";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
-import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { fetchDepositStatus } from "@/hooks/use-deposit";
@@ -57,16 +56,61 @@ const delay = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
 const RENEWAL_WINDOW_DAYS = 60;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-interface ArkIdModalProps {
-  open: boolean;
-  onClose: () => void;
-}
-
 function shortenAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
+// The check is debounced and the verdict waits on `lookupReady`, so a name is
+// never called available before the answer for THAT name is in. A line of grey
+// text was the only sign it was still working, which reads as nothing
+// happening; this is the same wait, said out loud.
+function Spinner() {
+  return (
+    <span
+      aria-hidden
+      className="inline-block size-3 shrink-0 animate-spin rounded-full border-[1.5px] border-white/25 border-t-white/80"
+    />
+  );
+}
+
+// The scattered names both Basenames and ENS lead with: real-looking names in
+// pills, drifting around the search so the page shows what it sells before it
+// asks for anything. Decorative and aria-hidden, fixed positions rather than
+// random so the composition is the same on every render, and only drawn from
+// lg up, where there is room beside the column.
+const SAMPLE_NAMES = [
+  { name: "ada.ark", top: "6%", left: "4%", rotate: -4, dim: 0.5 },
+  { name: "chidi.ark", top: "26%", left: "11%", rotate: 3, dim: 0.85 },
+  { name: "zainab.ark", top: "58%", left: "5%", rotate: -2, dim: 0.65 },
+  { name: "kofi.ark", top: "80%", left: "14%", rotate: 5, dim: 0.4 },
+  { name: "amaka.ark", top: "9%", left: "78%", rotate: 4, dim: 0.6 },
+  { name: "tunde.ark", top: "31%", left: "84%", rotate: -3, dim: 0.9 },
+  { name: "nia.ark", top: "62%", left: "80%", rotate: 2, dim: 0.55 },
+  { name: "obi.ark", top: "84%", left: "72%", rotate: -5, dim: 0.42 },
+];
+
+function ScatteredNames() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 hidden lg:block">
+      {SAMPLE_NAMES.map((pill) => (
+        <span
+          key={pill.name}
+          className="absolute rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 font-serif text-[15px] font-medium whitespace-nowrap text-white/70 backdrop-blur-sm"
+          style={{
+            top: pill.top,
+            left: pill.left,
+            opacity: pill.dim,
+            transform: `rotate(${pill.rotate}deg)`,
+          }}
+        >
+          {pill.name}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function ArkIdView() {
   const t = useTranslations("bns");
   const format = useFormatter();
   const { evmAddress } = useAuthSession();
@@ -97,14 +141,14 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
   const nameAvailability = useQuery({
     queryKey: ["bns", "label-availability", lookupLabel],
     queryFn: () => getArkLabelAvailability(lookupLabel),
-    enabled: open && lookupLabel.length >= 3,
+    enabled: lookupLabel.length >= 3,
     staleTime: 15_000,
     retry: false,
   });
   const namePrice = useQuery({
     queryKey: ["bns", "label-price", lookupLabel],
     queryFn: () => getArkLabelPrice(lookupLabel),
-    enabled: open && lookupLabel.length >= 3 && nameAvailability.data?.available === true,
+    enabled: lookupLabel.length >= 3 && nameAvailability.data?.available === true,
     staleTime: 30_000,
     retry: false,
   });
@@ -115,14 +159,14 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
   const searchResolve = useQuery({
     queryKey: ["bns", "resolve", `${lookupLabel}.ark`],
     queryFn: () => resolveArkName(`${lookupLabel}.ark`),
-    enabled: open && lookupLabel.length >= 3 && nameAvailability.data?.available === false,
+    enabled: lookupLabel.length >= 3 && nameAvailability.data?.available === false,
     staleTime: 30_000,
     retry: false,
   });
   const reverse = useQuery({
     queryKey: ["bns", "reverse", evmAddress],
     queryFn: () => reverseResolveArkAddress(evmAddress as string),
-    enabled: open && Boolean(evmAddress),
+    enabled: Boolean(evmAddress),
     staleTime: 60_000,
     retry: false,
   });
@@ -137,7 +181,7 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
   const ownedExpiry = useQuery({
     queryKey: ["bns", "label-expires", ownedLabelValue],
     queryFn: () => getArkLabelExpiry(ownedLabelValue),
-    enabled: open && ownedLabelValue.length >= 3,
+    enabled: ownedLabelValue.length >= 3,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -155,14 +199,14 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
   const ownedPrice = useQuery({
     queryKey: ["bns", "label-price", ownedLabelValue],
     queryFn: () => getArkLabelPrice(ownedLabelValue),
-    enabled: open && expiresSoon && ownedLabelValue.length >= 3,
+    enabled: expiresSoon && ownedLabelValue.length >= 3,
     staleTime: 30_000,
     retry: false,
   });
   const walletBalances = useQuery({
     queryKey: ["bns", "wallet-balances", evmAddress],
     queryFn: () => readArkWalletBalances(evmAddress as string),
-    enabled: open && Boolean(evmAddress),
+    enabled: Boolean(evmAddress),
     staleTime: 0,
     refetchOnWindowFocus: false,
     retry: false,
@@ -177,7 +221,7 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
   const fundingRoute = useQuery({
     queryKey: ["bns", "dextopus", "base-native-eth"],
     queryFn: fetchArkEthRoute,
-    enabled: open && (currentFunding !== null || Boolean(currentRegistration) || expiresSoon),
+    enabled: currentFunding !== null || Boolean(currentRegistration) || expiresSoon,
     staleTime: 60_000,
     retry: false,
   });
@@ -187,14 +231,13 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
     return () => window.clearInterval(timer);
   }, [pendingRegistration, pendingFunding]);
 
-  // Read the wall clock once the modal opens, so expiry math runs off state
+  // Read the wall clock once the page mounts, so expiry math runs off state
   // rather than a Date.now() call in render (which the purity rule forbids).
   // Set from a timer callback, not the effect body, per the hooks rules.
   useEffect(() => {
-    if (!open) return;
     const id = window.setTimeout(() => setNow(Date.now()), 0);
     return () => window.clearTimeout(id);
-  }, [open]);
+  }, []);
 
   useEffect(() => {
     if (!currentFunding?.requestId) return;
@@ -446,14 +489,15 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
     }
   };
 
-  const close = () => {
+  // A page has nothing to close. Finishing returns it to its resting state,
+  // which now shows the name the wallet just claimed.
+  const reset = () => {
     if (working) return;
     setSearch("");
     setPendingRegistration(null);
     setPendingFunding(null);
     setError(null);
     setSuccessName(null);
-    onClose();
   };
 
   const currentName = parsedSearch.kind === "name" ? parsedSearch.name : "";
@@ -481,22 +525,29 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
   const usdcBalanceLabel = usdcBalanceAtomic !== null ? formatUnits(usdcBalanceAtomic, 6) : "0";
 
   return (
-    <ModalShell open={open} onClose={close} size="md">
-      <div className="p-1 pb-2">
+    <div className="relative mx-auto w-full max-w-[1520px] p-4 sm:p-6 lg:p-8">
+      {/* The page width the portfolio sets, which is the app's. The search is
+          the hero rather than a field in a card, and the names drift around it,
+          which is the shape Basenames and ENS both lead with: show what is for
+          sale before asking for anything. */}
+      <ScatteredNames />
+      <div className="relative mx-auto max-w-[680px] py-6 sm:py-10 lg:py-16">
         {successName ? (
-          <SuccessPanel title={t("successTitle", { brand: BRAND })} onDone={close}>
+          <SuccessPanel title={t("successTitle", { brand: BRAND })} onDone={reset}>
             {t("successBody", { name: successName, brand: BRAND })}
           </SuccessPanel>
         ) : (
           <div className="flex flex-col gap-4" aria-busy={working}>
-            <div className="pr-9">
-              <p className="text-accent text-[10px] font-semibold tracking-[0.09em] uppercase">
+            <div className="text-center">
+              <p className="text-accent text-[11px] font-semibold tracking-[0.16em] uppercase">
                 {t("cardLabel")}
               </p>
-              <h2 className="mt-1 font-sans text-[21px] leading-7 font-semibold text-white">
+              <h1 className="ws-display mt-3 text-[clamp(30px,6vw,52px)] leading-[1.05] tracking-[-0.03em] text-white">
                 {t("modalTitle", { brand: BRAND })}
-              </h2>
-              <p className="mt-1 text-[13px] leading-5 text-white/55">{t("modalSubtitle")}</p>
+              </h1>
+              <p className="mx-auto mt-3 max-w-[46ch] text-[14.5px] leading-[1.5] text-white/55">
+                {t("modalSubtitle")}
+              </p>
             </div>
 
             {ownedName ? (
@@ -578,10 +629,10 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
             {!ownedName ? (
               <>
                 <div>
-                  <label htmlFor="ark-id-name" className="text-[11px] font-medium text-white/55">
+                  <label htmlFor="ark-id-name" className="sr-only">
                     {t("nameLabel")}
                   </label>
-                  <div className="focus-within:border-accent/55 mt-1.5 flex items-center rounded-lg border border-white/12 bg-white/5">
+                  <div className="focus-within:border-accent/55 flex items-center rounded-full border border-white/14 bg-white/[0.06] px-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition-colors">
                     <input
                       id="ark-id-name"
                       value={search}
@@ -605,19 +656,31 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
                       spellCheck={false}
                       placeholder={t("namePlaceholder")}
                       aria-describedby="ark-id-status"
-                      className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[14px] text-white outline-none placeholder:text-white/25"
+                      className="min-w-0 flex-1 bg-transparent px-4 py-4 text-[clamp(17px,2.6vw,21px)] text-white outline-none placeholder:text-white/25 sm:py-[18px]"
                     />
-                    <span className="px-3 text-[13px] font-medium text-white/45">.ark</span>
+                    <span className="pr-5 pl-1 text-[clamp(15px,2.2vw,18px)] font-medium text-white/40">
+                      .ark
+                    </span>
                   </div>
-                  <div id="ark-id-status" aria-live="polite" className="mt-2 min-h-5 text-[12px]">
+                  <div
+                    id="ark-id-status"
+                    aria-live="polite"
+                    className="mt-3 flex min-h-5 justify-center text-[13px]"
+                  >
                     {label.length < 3 ? (
                       <span className="text-white/40">{t("nameHint")}</span>
                     ) : !lookupReady || nameAvailability.isFetching ? (
-                      <span className="text-white/50">{t("checking")}</span>
+                      <span className="flex items-center gap-1.5 text-white/60">
+                        <Spinner />
+                        {t("checking")}
+                      </span>
                     ) : nameAvailability.isError ? (
                       <span className="text-down">{t("availabilityFailed")}</span>
                     ) : nameAvailability.data?.available && namePrice.isFetching ? (
-                      <span className="text-white/50">{t("checking")}</span>
+                      <span className="flex items-center gap-1.5 text-white/60">
+                        <Spinner />
+                        {t("checkingPrice")}
+                      </span>
                     ) : nameAvailability.data?.available && namePrice.isError ? (
                       <span className="text-down">{t("priceFailed")}</span>
                     ) : nameAvailability.data?.available && searchUsdcPrice ? (
@@ -775,6 +838,6 @@ export function ArkIdModal({ open, onClose }: ArkIdModalProps) {
           </div>
         )}
       </div>
-    </ModalShell>
+    </div>
   );
 }

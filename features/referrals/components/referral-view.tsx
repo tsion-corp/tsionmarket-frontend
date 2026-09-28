@@ -32,8 +32,10 @@ export function ReferralView() {
   return (
     <div
       className={
-        "mx-auto w-full px-4 pt-2 pb-16 sm:px-6 lg:px-8 " +
-        (claiming ? "max-w-[520px]" : "max-w-[1180px]")
+        // The page width the portfolio sets, which is the app's. The claim step
+        // keeps its narrow column: it is one field and a button, and a form
+        // stretched across 1520px is not easier to fill in.
+        "mx-auto w-full p-4 sm:p-6 lg:p-8 " + (claiming ? "max-w-[520px]" : "max-w-[1520px]")
       }
     >
       <h1 className="ws-display text-center text-[19px] lg:text-left lg:text-[24px]">

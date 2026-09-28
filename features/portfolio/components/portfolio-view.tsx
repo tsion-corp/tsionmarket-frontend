@@ -108,6 +108,7 @@ export function PortfolioView({
   const router = useRouter();
   const t = useTranslations("portfolio");
   const tDiscovery = useTranslations("discovery");
+  const tBns = useTranslations("bns");
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
   const [kashModal, setKashModal] = useState<
@@ -283,6 +284,23 @@ export function PortfolioView({
     </a>
   );
 
+  // Ark ID, second on both strips, right behind the store ticket. It used to be
+  // a card in the sidebar, which on a phone is a drawer nobody opens: the promo
+  // strip is the one surface every device actually shows. Pale fill and ink
+  // words so it reads as a name card rather than another coloured ticket, and
+  // so it carries in a rail of saturated ones.
+  const arkIdBanner = (
+    <PromoBanner
+      href="/ark-id"
+      title={tBns("cardTitle")}
+      subtitle={tBns("cardBody")}
+      background="#EDEDED"
+      tone="on-light"
+      scallop="/market/promo-ark-id-scallop.svg"
+      glyph="/market/promo-ark-id-at.svg"
+    />
+  );
+
   // The stake banner, and the third rail stop it used to fill on its own. With
   // the square switched off there is still no Market Square banner, so it
   // repeats as it always did and the carousel keeps something to move to.
@@ -356,6 +374,7 @@ export function PortfolioView({
         <div className="mt-3">
           <PromoCarousel>
             {arkStoreBanner}
+            {arkIdBanner}
             {/* The ticket is presentational; the doorway to the casino lives
                 here at the composition site. Embla suppresses the click after a
                 drag, so a tap navigates and a swipe still pages the deck. */}
@@ -413,6 +432,7 @@ export function PortfolioView({
       <div className="mt-3 hidden md:block">
         <PromoRail label={tDiscovery("promoRailCarousel")}>
           {arkStoreBanner}
+          {arkIdBanner}
           {stakeBanner}
           <KashBanner onBuy={() => setKashModal("buy")} />
           {squareBanner ?? stakeBanner}

@@ -1,2 +1,1 @@
-export { ArkIdCard } from "./components/ark-id-card";
-export { ArkIdModal } from "./components/ark-id-modal";
+export { ArkIdView } from "./components/ark-id-view";
