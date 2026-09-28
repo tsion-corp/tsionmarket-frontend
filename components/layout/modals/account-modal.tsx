@@ -13,7 +13,6 @@ import { LanguageSelect } from "@/components/ui/language-select";
 // which mounts the whole Privy SDK. The row is light; the sheet it opens is
 // deferred below.
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
-import { WalletAddresses } from "@/components/layout/modals/wallet-addresses";
 import { HelpIcon, LockIcon, PasskeyIcon, ShineIcon, SignOutIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useDevicePasskey } from "@/hooks/use-device-passkey";
@@ -78,7 +77,7 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
       {/* The addresses come FIRST of the sections: where the money is, is
           what a person opens the account screen to find out — settings are
           what they scroll past on the way. */}
-      <WalletAddresses className="mt-[18px]" />
+      {/* The wallet addresses are gone (2026-09-28); see account-popover. */}
 
       {/* Language lives here on a phone, where the header has no room for it.
           The desktop header still carries its own picker. */}

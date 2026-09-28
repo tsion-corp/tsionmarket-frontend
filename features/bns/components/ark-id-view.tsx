@@ -133,7 +133,11 @@ function ScatteredNames() {
       {SAMPLE_NAMES.map((pill) => (
         <span
           key={pill.name}
-          className={`ws-name-float absolute rounded-full border px-4 py-2 font-serif text-[15px] font-medium whitespace-nowrap backdrop-blur-sm ${
+          className={`ws-name-float absolute rounded-full border px-4 py-2 font-serif text-[15px] font-medium whitespace-nowrap ${
+            // The far ones sit out of focus, which is what gives the group
+            // depth instead of reading as a flat scatter.
+            pill.dim < 0.6 ? "blur-[1.5px]" : ""
+          } ${
             pill.gold
               ? "border-[#FFE178]/30 bg-[#FFE178]/10 text-[#FFE178]"
               : "border-white/10 bg-white/[0.04] text-white/70"
@@ -718,39 +722,78 @@ export function ArkIdView() {
                         aria-describedby="ark-id-status"
                         className="min-w-0 flex-1 bg-transparent px-4 py-4 text-[clamp(17px,2.6vw,21px)] text-white outline-none placeholder:text-white/25 sm:py-[18px]"
                       />
-                      <span className="pr-5 pl-1 text-[clamp(15px,2.2vw,18px)] font-medium text-white/40">
+                      <span className="pl-1 text-[clamp(15px,2.2vw,18px)] font-medium text-white/40">
                         .ark
                       </span>
+                      {/* Clearing the field is one tap, as it is on every name
+                          search worth using; without it the only way back to an
+                          empty field is holding backspace. */}
+                      {search ? (
+                        <button
+                          type="button"
+                          aria-label={t("clearName")}
+                          onClick={() => {
+                            setSearch("");
+                            setPendingRegistration(null);
+                            setPendingFunding(null);
+                            setError(null);
+                          }}
+                          className="mx-2 grid size-7 shrink-0 cursor-pointer place-items-center rounded-full text-white/40 transition-colors hover:bg-white/10 hover:text-white"
+                        >
+                          <svg viewBox="0 0 24 24" className="size-4" fill="currentColor">
+                            <path d="M6.4 5 12 10.6 17.6 5 19 6.4 13.4 12 19 17.6 17.6 19 12 13.4 6.4 19 5 17.6 10.6 12 5 6.4 6.4 5Z" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <span aria-hidden className="mx-2 size-7 shrink-0" />
+                      )}
                     </div>
                     <div
                       id="ark-id-status"
                       aria-live="polite"
-                      className="mt-3 flex min-h-5 justify-center text-[13px]"
+                      className="mt-2 overflow-hidden rounded-[14px] border border-white/10 bg-white/[0.04]"
                     >
                       {label.length < 3 ? (
-                        <span className="text-white/40">{t("nameHint")}</span>
+                        <p className="px-4 py-3 text-[13px] text-white/40">{t("nameHint")}</p>
                       ) : !lookupReady || nameAvailability.isFetching ? (
-                        <span className="flex items-center gap-1.5 text-white/60">
+                        <p className="flex items-center gap-2 px-4 py-3 text-[13px] text-white/60">
                           <Spinner />
                           {t("checking")}
-                        </span>
+                        </p>
                       ) : nameAvailability.isError ? (
-                        <span className="text-down">{t("availabilityFailed")}</span>
+                        <p className="text-down px-4 py-3 text-[13px]">{t("availabilityFailed")}</p>
                       ) : nameAvailability.data?.available && namePrice.isFetching ? (
-                        <span className="flex items-center gap-1.5 text-white/60">
+                        <p className="flex items-center gap-2 px-4 py-3 text-[13px] text-white/60">
                           <Spinner />
                           {t("checkingPrice")}
-                        </span>
+                        </p>
                       ) : nameAvailability.data?.available && namePrice.isError ? (
-                        <span className="text-down">{t("priceFailed")}</span>
+                        <p className="text-down px-4 py-3 text-[13px]">{t("priceFailed")}</p>
                       ) : nameAvailability.data?.available && searchUsdcPrice ? (
-                        <span className="text-up">
-                          {t("available", { name: currentName })} · ${searchUsdcPrice} USDC / year
-                        </span>
+                        // The row Basenames drops under its field: the name on
+                        // the left, its price on the right, the whole row the
+                        // answer rather than a sentence about it.
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                          <span className="ws-display min-w-0 truncate text-[16px] text-white">
+                            {currentName}
+                          </span>
+                          <span className="shrink-0 text-[13px] font-semibold text-[#FFE178]">
+                            {t("perYear", { price: `$${searchUsdcPrice}` })}
+                          </span>
+                        </div>
                       ) : ownsSearchedName ? (
-                        <span className="text-up">{t("ownSearched", { name: currentName })}</span>
+                        <p className="text-up px-4 py-3 text-[13px]">
+                          {t("ownSearched", { name: currentName })}
+                        </p>
                       ) : nameAvailability.data ? (
-                        <span className="text-white/50">{t("taken", { name: currentName })}</span>
+                        <div className="flex items-center justify-between gap-3 px-4 py-3">
+                          <span className="ws-display min-w-0 truncate text-[16px] text-white/40 line-through">
+                            {currentName}
+                          </span>
+                          <span className="shrink-0 text-[13px] font-medium text-white/45">
+                            {t("takenTag")}
+                          </span>
+                        </div>
                       ) : null}
                     </div>
                   </div>

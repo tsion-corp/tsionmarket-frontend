@@ -30,6 +30,11 @@ interface KashSendModalProps {
 // wallet, gas-sponsored on Base. Real tokens exist only in ethers mode; in
 // mock mode balances are ledger entries with nothing on-chain to move, so the
 // form stays visible but disabled with an honest explanation.
+/** A transaction hash as something a person can glance at and match. */
+function shortHash(hash: string): string {
+  return `${hash.slice(0, 8)}…${hash.slice(-6)}`;
+}
+
 export function KashSendModal({ open, onClose }: KashSendModalProps) {
   const t = useTranslations("kash");
   const [recipient, setRecipient] = useState("");
@@ -102,7 +107,10 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
       // The tokens have left the wallet; the card reads its balance from the
       // chain, so refresh rather than leave the pre-send figure on screen.
       invalidateKash();
-      setDone({ kash: amount, to: resolvedAddress as string, txHash });
+      // The name is what was typed and what the sender recognises. The address
+      // it resolved to is a detail of how it got there, and a hex string is not
+      // a confirmation anybody can check.
+      setDone({ kash: amount, to: recipientName ?? (resolvedAddress as string), txHash });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("sendFailed"));
     } finally {
@@ -110,21 +118,22 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
     }
   };
 
-  const shortTo = done ? `${done.to.slice(0, 6)}…${done.to.slice(-4)}` : "";
-
   return (
     <ModalShell open={open} onClose={sending ? () => {} : close} size="lg">
       <div className="p-5 sm:p-6">
         {done ? (
           <SuccessPanel title={t("sendSuccessTitle")} onDone={close}>
-            {t("sendSuccessBody", { kash: done.kash, to: shortTo })}{" "}
+            {t("sendSuccessBody", { kash: done.kash, to: done.to })}{" "}
+            {/* The transaction itself is the link. Naming the explorer told the
+                reader which website they were about to visit, which is not what
+                they wanted to know. */}
             <a
               href={`https://basescan.org/tx/${done.txHash}`}
               target="_blank"
               rel="noreferrer"
               className="text-amber-200 underline hover:text-amber-100"
             >
-              {t("viewOnBasescan")}
+              {shortHash(done.txHash)}
             </a>
           </SuccessPanel>
         ) : (
@@ -166,9 +175,11 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
                     {t("sendArkSelf", { brand: BRAND })}
                   </p>
                 ) : recipientName && resolvedAddress ? (
+                  // The name is confirmed, not explained. The address behind it
+                  // is how the money gets there, and a hex string under the
+                  // field is something the sender can neither check nor use.
                   <p className="text-up mt-1.5 text-[12px] font-normal">
-                    {t("sendArkResolved", { name: recipientName })}{" "}
-                    <span className="font-mono break-all">{resolvedAddress}</span>
+                    {t("sendArkFound", { name: recipientName })}
                   </p>
                 ) : recipientName && (resolution.isError || resolution.isSuccess) ? (
                   <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1 text-[12px] font-normal">

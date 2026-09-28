@@ -70,14 +70,14 @@ describe("Kash Ark ID recipients", () => {
     fireEvent.change(screen.getByLabelText("Recipient Ark ID"), { target: { value: "Alice" } });
     fireEvent.change(screen.getByLabelText("Amount (KASH)"), { target: { value: "1" } });
 
-    expect(await screen.findByText(/alice\.ark resolves to/)).toBeInTheDocument();
+    expect(await screen.findByText(/alice\.ark is ready to receive/)).toBeInTheDocument();
     const send = screen.getByRole("button", { name: "Send Kash+" });
     expect(send).toBeEnabled();
     fireEvent.click(send);
 
     await waitFor(() => expect(chain.evmSend).toHaveBeenCalledTimes(1));
     expect(chain.evmSend).toHaveBeenCalledWith(expect.objectContaining({ chainId: 8453 }));
-    expect(screen.getByText(/sent 1 KASH to 0xbbbb…bbbb/)).toBeInTheDocument();
+    expect(screen.getByText(/sent 1 KASH to alice\.ark/)).toBeInTheDocument();
   });
 
   // An Ark ID and nothing else: Kash goes to a name, so the sender reads back
@@ -105,13 +105,31 @@ describe("Kash Ark ID recipients", () => {
     expect(resolveArkName).not.toHaveBeenCalled();
   });
 
-  // The name is what is typed; the address it resolves to is still shown before
-  // the send, so the sender can see where the money is actually going.
-  it("shows the wallet a name resolves to", async () => {
+  // The name is confirmed, not explained. A hex address under the field is
+  // something the sender can neither check nor use, and it was the only thing
+  // there that looked machine-generated.
+  it("confirms the name without showing the wallet behind it", async () => {
     renderModal();
     fireEvent.change(screen.getByLabelText("Recipient Ark ID"), { target: { value: "alice" } });
 
-    expect(await screen.findByText(recipientWallet)).toBeInTheDocument();
+    expect(await screen.findByText(/alice\.ark is ready to receive/)).toBeInTheDocument();
+    expect(screen.queryByText(recipientWallet)).toBeNull();
+  });
+
+  // The receipt names who was paid, not the address it resolved to.
+  it("names the recipient on the receipt, and links the transaction", async () => {
+    renderModal();
+    fireEvent.change(screen.getByLabelText("Recipient Ark ID"), { target: { value: "alice" } });
+    fireEvent.change(screen.getByLabelText("Amount (KASH)"), { target: { value: "1" } });
+    await screen.findByText(/alice\.ark is ready to receive/);
+    fireEvent.click(screen.getByRole("button", { name: "Send Kash+" }));
+
+    await waitFor(() => expect(chain.evmSend).toHaveBeenCalledTimes(1));
+    expect(screen.getByText(/sent 1 KASH to alice\.ark/)).toBeInTheDocument();
+    expect(screen.queryByText(/Basescan/)).toBeNull();
+    const link = screen.getByRole("link");
+    expect(link).toHaveAttribute("href", `https://basescan.org/tx/0x${"1".repeat(64)}`);
+    expect(link.textContent).toMatch(/^0x111111…111111$/);
   });
 
   it("does not send an Ark ID without an attached address", async () => {
