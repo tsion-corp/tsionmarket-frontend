@@ -13,13 +13,15 @@ describe("scrubVenue", () => {
     expect(scrubVenue("minted on HyperEVM")).toBe("minted on Ark");
   });
 
-  it("calls the venue's margin account the perps balance", () => {
-    expect(scrubVenue("Insufficient HyperCore balance")).toBe("Insufficient perps balance");
-    expect(scrubVenue("hypercore margin is low")).toBe("perps margin is low");
+  it("calls the venue's margin account the leverage trading balance", () => {
+    expect(scrubVenue("Insufficient HyperCore balance")).toBe(
+      "Insufficient leverage trading balance"
+    );
+    expect(scrubVenue("hypercore margin is low")).toBe("leverage trading margin is low");
   });
 
   it("catches the spaced and hyphenated spellings too", () => {
-    expect(scrubVenue("Hyper Liquid and Hyper-Core")).toBe("Ark and perps");
+    expect(scrubVenue("Hyper Liquid and Hyper-Core")).toBe("Ark and leverage trading");
   });
 
   it("leaves a message without the venue untouched", () => {

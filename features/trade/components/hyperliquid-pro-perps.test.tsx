@@ -20,7 +20,16 @@ const ordersListProps = vi.fn();
 vi.mock("@/features/trade/components/perp-order-ticket", () => ({
   PerpOrderTicket: (props: Record<string, unknown>) => {
     ticketProps(props);
-    return <div data-testid="order-ticket">order ticket</div>;
+    // The slot is rendered, not swallowed. Top up and Withdraw are handed to
+    // the ticket through `accountActions` now, so a stub that dropped its
+    // children would take those two buttons out of the DOM and every test
+    // below them would fail for a reason that has nothing to do with them.
+    return (
+      <div data-testid="order-ticket">
+        {props.accountActions as React.ReactNode}
+        order ticket
+      </div>
+    );
   },
 }));
 // The Shine toggle reads the account's preference through React Query. These
@@ -680,6 +689,31 @@ describe("HyperliquidProPerps", () => {
       }
     });
 
+    // They used to sit under the ticket, behind a top border. The maintainer
+    // asked for them at the top of it, so the desk hands them to the ticket
+    // through its `accountActions` slot instead of rendering them beside it.
+    // This is the assertion that fails if someone puts them back outside.
+    it("hands them to the ticket rather than rendering them beside it", () => {
+      renderDesk();
+
+      expect(screen.getByTestId("order-ticket")).toContainElement(topUp());
+      expect(screen.getByTestId("order-ticket")).toContainElement(withdraw());
+      expect(ticketProps).toHaveBeenCalled();
+      expect(ticketProps.mock.calls.at(-1)?.[0]).toHaveProperty("accountActions");
+    });
+
+    // The border divided the row from the ticket above it. At the top of the
+    // ticket there is nothing above to divide it from, and a rule under the
+    // heading of a card it now opens reads as a heading rule for the pair
+    // strip below it.
+    it("drops the divider that belonged to sitting underneath", () => {
+      renderDesk();
+
+      const row = topUp().parentElement as HTMLElement;
+      expect(row.className).not.toContain("border-t");
+      expect(row.className).not.toContain("pt-3");
+    });
+
     // The same height, radius and label type as the Buy/Sell pair in
     // perp-order-ticket.tsx, so the two rows read as one family.
     it("matches the order buttons' height, radius and label type", () => {
@@ -809,8 +843,8 @@ describe("HyperliquidProPerps", () => {
     trading.assets = [];
     const { container } = renderDesk();
 
-    expect(region(container, "market-list")).toHaveTextContent("Sign in to trade perps.");
-    expect(region(container, "ticket")).toHaveTextContent("Sign in to trade perps.");
+    expect(region(container, "market-list")).toHaveTextContent("Sign in to trade with leverage.");
+    expect(region(container, "ticket")).toHaveTextContent("Sign in to trade with leverage.");
     expect(region(container, "order-entry")).toBeNull();
     expect(region(container, "ledger")).toBeNull();
     expect(screen.queryByTestId("order-form")).not.toBeInTheDocument();

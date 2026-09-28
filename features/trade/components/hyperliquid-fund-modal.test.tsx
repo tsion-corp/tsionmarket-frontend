@@ -5,7 +5,7 @@ import messages from "@/messages/en.json";
 import type { DepositOutcome, DepositStage } from "@/features/trade/lib/hyperliquid-actions";
 import { CctpFeeUnavailableError } from "@/features/trade/lib/cctp-transfers";
 
-// Top up the perps wallet over CCTP (llms.txt §6a). The modal checks the amount
+// Top up the trading wallet over CCTP (llms.txt §6a). The modal checks the amount
 // against the exact Base USDC balance and the venue's minimum, shows a fee line
 // only when the user pays for the mint relay, words each stage, and after the
 // burn always says what happened, with a reference to trace it by.
@@ -109,7 +109,7 @@ describe("HyperliquidFundModal form", () => {
     renderModal(null);
     fireEvent.change(amountField(), { target: { value: "25" } });
     expect(
-      screen.getByText("Your perps wallet isn't ready yet. Try again in a moment.")
+      screen.getByText("Your trading wallet isn't ready yet. Try again in a moment.")
     ).toBeInTheDocument();
     expect(topUpButton()).toBeDisabled();
   });
@@ -140,12 +140,12 @@ describe("HyperliquidFundModal top-up", () => {
     run.report("sending");
     expect(screen.getByText("Sending…")).toBeInTheDocument();
     run.report("confirming");
-    expect(screen.getByText("Arriving in your perps wallet…")).toBeInTheDocument();
+    expect(screen.getByText("Arriving in your trading wallet…")).toBeInTheDocument();
     await run.finish();
 
-    expect(screen.getByText("Perps wallet funded")).toBeInTheDocument();
+    expect(screen.getByText("Trading wallet funded")).toBeInTheDocument();
     expect(
-      screen.getByText("25 USDC is in your perps wallet, ready to trade.")
+      screen.getByText("25 USDC is in your trading wallet, ready to trade.")
     ).toBeInTheDocument();
     expect(onFunded).toHaveBeenCalled();
   });

@@ -162,7 +162,7 @@ export function classifyPerps(input: {
       id: holdingId("perps", "balance", input.walletId),
       venue: "perps",
       kind: "balance",
-      label: "USDC on Perpetuals",
+      label: "USDC on Leverage Trading",
       amount: usdc(withdrawable),
       decimals: USDC_DECIMALS,
       symbol: "USDC",
@@ -182,7 +182,7 @@ export function classifyPerps(input: {
       id: holdingId("perps", "arbitrum", input.walletId),
       venue: "perps",
       kind: "arbitrum",
-      label: "USDC on Arbitrum, on its way from Perpetuals",
+      label: "USDC on Arbitrum, on its way from Leverage Trading",
       amount: usdc(onArbitrum),
       decimals: USDC_DECIMALS,
       symbol: "USDC",
@@ -354,7 +354,7 @@ export const perpsMigrationAdapter: VenueAdapter<PerpRef> = {
         const state = await getAccountState(address);
         let plan = planWithdrawal({ total: state.withdrawable, withdrawable: state.withdrawable });
         if (plan.kind === "ok") {
-          ctx.onProgress("Withdrawing from Perpetuals");
+          ctx.onProgress("Withdrawing from Leverage Trading");
           const before = await getArbitrumBalance(address)
             .then((b) => toBaseUnits(b, USDC_DECIMALS))
             .catch(() => null);
@@ -393,7 +393,7 @@ export const perpsMigrationAdapter: VenueAdapter<PerpRef> = {
             await hopArbitrumToBase(ctx, address, before ?? 0n);
           } catch (error) {
             console.warn(
-              "Perps withdrawal reached Arbitrum; the move to Base did not finish",
+              "Leverage Trading withdrawal reached Arbitrum; the move to Base did not finish",
               error
             );
             if (balanceHolding) fail(balanceHolding.id, error);
@@ -401,7 +401,7 @@ export const perpsMigrationAdapter: VenueAdapter<PerpRef> = {
         } else if (balanceHolding) {
           fail(
             balanceHolding.id,
-            new Error("Too little is left on Perpetuals to cover the withdrawal fee."),
+            new Error("Too little is left on Leverage Trading to cover the withdrawal fee."),
             false
           );
         }

@@ -13,6 +13,21 @@ interface PerpsMenuDrawerProps {
   /** Owned by the route, which also makes the desk behind inert while it is true. */
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * What sits beside the hamburger on the screen's one header row — the page
+   * title, today.
+   *
+   * It is drawn here rather than by the route because the button and the title
+   * have to share a row, and the button is this component's. The route cannot
+   * simply put them in a flex row itself: this component renders the button and
+   * the off-canvas rail as siblings, so the rail would become a third flex item
+   * between them and open a second gap.
+   *
+   * Anything passed here stays OUTSIDE the route's inert region, so it must be
+   * non-interactive. A title is; a button would silently keep working while the
+   * rest of the screen is held shut.
+   */
+  title?: React.ReactNode;
 }
 
 // What counts as a stop on the way round the drawer. Anything the browser
@@ -51,7 +66,7 @@ function focusableIn(root: HTMLElement): HTMLElement[] {
  * backdrop's and close button's display. Descendant selectors, so they win on
  * specificity without the rail needing to know this screen exists.
  */
-export function PerpsMenuDrawer({ open, onOpenChange }: PerpsMenuDrawerProps) {
+export function PerpsMenuDrawer({ open, onOpenChange, title }: PerpsMenuDrawerProps) {
   const tSections = useTranslations("sections");
   const tTopbar = useTranslations("topbar");
   const interest = useInterest();
@@ -106,24 +121,33 @@ export function PerpsMenuDrawer({ open, onOpenChange }: PerpsMenuDrawerProps) {
 
   return (
     <>
-      <button
-        ref={buttonRef}
-        type="button"
-        aria-label={tTopbar("menu")}
-        aria-expanded={open}
-        aria-controls="app-sidebar"
-        onClick={() => onOpenChange(!open)}
-        className="mb-4 grid size-9 cursor-pointer place-items-center rounded-full border border-white/10 text-white/60 transition-colors hover:border-white/25 hover:text-white"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
-          <path
-            d="M4 7h16M4 12h16M4 17h16"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-        </svg>
-      </button>
+      {/* The header row. The button carries no bottom margin of its own any
+          more: the row is the header, and the route spaces the desk away from
+          it in one place rather than two. Wrapping only the button and the
+          title keeps the off-canvas rail below as this fragment's own second
+          child, which its `inert` handling and its `[&>aside]` selectors both
+          depend on. */}
+      <div className="flex items-center gap-3">
+        <button
+          ref={buttonRef}
+          type="button"
+          aria-label={tTopbar("menu")}
+          aria-expanded={open}
+          aria-controls="app-sidebar"
+          onClick={() => onOpenChange(!open)}
+          className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-full border border-white/10 text-white/60 transition-colors hover:border-white/25 hover:text-white"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+            <path
+              d="M4 7h16M4 12h16M4 17h16"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+        {title}
+      </div>
 
       {/* Closed, the rail is parked off-canvas but still in the document, so
           `inert` takes it out of the tab order and off the accessibility tree

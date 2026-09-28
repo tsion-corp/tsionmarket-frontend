@@ -276,7 +276,17 @@ export function LeverageDesktopLayout({
               data-region="ticket"
               // Same scanner rule as the market column above: keep the space
               // before the interpolation or this height is never emitted.
-              className={`bg-surface border-hairline flex min-w-0 flex-col justify-center overflow-hidden rounded-3xl border px-[11px] pt-3 pb-[11px] min-[1080px]:h-[924px] ${
+              //
+              // `justify-start`, not `justify-center`. This panel is a fixed
+              // 924px from 1080px up so it stands level with the market column
+              // beside it, and the ticket is shorter than that. Centred, the
+              // leftover height was split in two and half of it sat above the
+              // first control as dead space at the top of the card — which is
+              // what the maintainer saw. Starting at the top spends the whole
+              // remainder below the ticket, where a card with room left under
+              // its content reads as a card with room left, and the only space
+              // above the first row is the card's own pt-3.
+              className={`bg-surface border-hairline flex min-w-0 flex-col justify-start overflow-hidden rounded-3xl border px-[11px] pt-3 pb-[11px] min-[1080px]:h-[924px] ${
                 ticketClassName ?? ""
               }`}
             >

@@ -21,7 +21,7 @@ export const INTERESTS: Interest[] = [
   },
   {
     key: "perps",
-    title: "Perps & leverage",
+    title: "Leverage Trading",
     desc: "Long or short with up to 100x leverage.",
     icon: "trend",
   },

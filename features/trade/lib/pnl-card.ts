@@ -126,7 +126,10 @@ export function drawPnlCard(ctx: CanvasRenderingContext2D, model: PnlCardModel):
   ctx.fillStyle = "rgba(255,255,255,0.40)";
   ctx.font = `600 26px ${FONT}`;
   ctx.textAlign = "right";
-  ctx.fillText("PERPS", W - 64, 88);
+  // Right-aligned against the 64px gutter, so it grows leftwards. At 26px
+  // Helvetica this is ~270px wide and starts near x=867; the letter-spaced
+  // MARKET on the left ends near x=222, so the row has room to spare.
+  ctx.fillText("LEVERAGE TRADING", W - 64, 88);
   ctx.textAlign = "left";
 
   // Position row: symbol, side pill, leverage.

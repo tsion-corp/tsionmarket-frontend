@@ -350,8 +350,12 @@ function renderTicket(props: TicketHarnessProps = {}) {
     onBuy,
     onSell,
     onQuantityChange,
-    buy: screen.getByRole("button", { name: "Buy" }),
-    sell: screen.getByRole("button", { name: "Sell" }),
+    // The two buttons ARE the side control on this ticket, and they now name
+    // the position a trader is opening rather than the order they are
+    // sending. The local handles stay buy/sell: that is the order side, the
+    // value that goes over the wire, and it has not changed.
+    buy: screen.getByRole("button", { name: "Long" }),
+    sell: screen.getByRole("button", { name: "Short" }),
     quantity: screen.getByRole("textbox", { name: "Order quantity" }),
   };
 }
@@ -522,7 +526,7 @@ describe("PerpOrderTicket", () => {
     expect(sell).toBeEnabled();
     expect(
       screen.getByText(
-        "More than your perps margin. The rest is moved over when you place the order."
+        "More than your trading margin. The rest is moved over when you place the order."
       )
     ).toBeInTheDocument();
 
@@ -540,7 +544,7 @@ describe("PerpOrderTicket", () => {
       const ids = (action.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean);
       const texts = ids.map((id) => document.getElementById(id)?.textContent ?? "");
       expect(texts).toContain(
-        "More than your perps margin. The rest is moved over when you place the order."
+        "More than your trading margin. The rest is moved over when you place the order."
       );
     }
   });
@@ -562,7 +566,7 @@ describe("PerpOrderTicket", () => {
     expect(screen.getByText("Not enough USDC")).toBeInTheDocument();
     expect(
       screen.queryByText(
-        "More than your perps margin. The rest is moved over when you place the order."
+        "More than your trading margin. The rest is moved over when you place the order."
       )
     ).not.toBeInTheDocument();
   });
@@ -600,10 +604,10 @@ describe("PerpOrderTicket", () => {
     expect(sell).toBeDisabled();
     expect(
       screen.getByText(
-        "More than your perps margin. The rest is moved over when you place the order."
+        "More than your trading margin. The rest is moved over when you place the order."
       )
     ).toBeInTheDocument();
-    expect(screen.getByText("Sell: Take profit sits above the entry price")).toBeInTheDocument();
+    expect(screen.getByText("Short: Take profit sits above the entry price")).toBeInTheDocument();
   });
 
   it("still blocks an over-precise amount under the advisory policy", () => {
@@ -892,10 +896,10 @@ describe("PerpOrderTicket", () => {
 
     expect(buy).toBeEnabled();
     expect(sell).toBeDisabled();
-    expect(screen.getByText("Sell: Take profit sits above the entry price")).toBeInTheDocument();
+    expect(screen.getByText("Short: Take profit sits above the entry price")).toBeInTheDocument();
     const sellReasonId = sell.getAttribute("aria-describedby");
     expect(document.getElementById(sellReasonId as string)).toHaveTextContent(
-      "Sell: Take profit sits above the entry price"
+      "Short: Take profit sits above the entry price"
     );
   });
 
@@ -1039,5 +1043,70 @@ describe("PerpOrderTicket top strip", () => {
 
     expect(change).toHaveClass("truncate");
     expect(change.parentElement).toHaveClass("min-w-0");
+  });
+});
+
+// Top up and Withdraw moved from under the ticket to the top of it. The desk
+// still owns them — they need the wallet id, the clearinghouse's withdrawable
+// figure and two modals, none of which this component knows — so they arrive
+// already built and this file only proves the ticket gives them a place and
+// puts them first.
+//
+// The desk's own suite cannot prove this: it mocks PerpOrderTicket, so it can
+// only show the prop was handed over, not that anything renders it. That is
+// exactly the gap this covers.
+describe("PerpOrderTicket account actions slot", () => {
+  it("renders whatever the desk hands it", () => {
+    renderTicket({ accountActions: <button type="button">Top up</button> });
+
+    expect(screen.getByRole("button", { name: "Top up" })).toBeInTheDocument();
+  });
+
+  it("draws nothing when the desk hands it nothing", () => {
+    renderTicket();
+
+    expect(screen.queryByRole("button", { name: "Top up" })).toBeNull();
+    // No empty wrapper either: a bare `{accountActions}` would leave a 0-height
+    // box carrying mb-2, which is 8px of nothing above the pair strip.
+    expect(document.querySelector(".mb-2")).toBeNull();
+  });
+
+  // Moving money in and out is a different job from placing an order, so the
+  // seam between those two groups is wider than the rhythm inside either. It
+  // lives on the slot's own wrapper rather than on the column's gap, because
+  // raising the gap would have pushed the Long/Short pair off the summary above
+  // it by the same amount.
+  it("sets the group apart from order entry without moving anything else", () => {
+    renderTicket({
+      accountActions: (
+        <div data-testid="account-actions">
+          <button type="button">Top up</button>
+        </div>
+      ),
+    });
+
+    const wrapper = screen.getByTestId("account-actions").parentElement as HTMLElement;
+    expect(wrapper.className).toContain("mb-2");
+    // The column's own rhythm is untouched, so nothing below this seam moved.
+    expect((wrapper.parentElement as HTMLElement).className).toContain("gap-2");
+  });
+
+  // First, above the pair strip: funding the account comes before choosing a
+  // market to spend it on. A slot that rendered last would put the money
+  // controls under the Long/Short pair, which is where they used to be and is
+  // the thing that was asked to change.
+  it("puts them before the market identity, not after the order buttons", () => {
+    renderTicket({
+      accountActions: (
+        <div data-testid="account-actions">
+          <button type="button">Top up</button>
+        </div>
+      ),
+    });
+
+    const actions = screen.getByTestId("account-actions");
+    const long = screen.getByRole("button", { name: "Long" });
+    // Node.compareDocumentPosition: FOLLOWING (4) means `long` comes after.
+    expect(actions.compareDocumentPosition(long) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

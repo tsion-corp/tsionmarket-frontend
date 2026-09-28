@@ -38,7 +38,10 @@ import type {
 // The app's perp proxy (app/api/perp/[...path]/route.ts), under its /ark/*
 // sub-paths: one backend service and one transport, per this app's
 // architecture rules.
-const perp = createServiceClient("/api/perp", "The perp service is unavailable right now.");
+const perp = createServiceClient(
+  "/api/perp",
+  "The Leverage Trading service is unavailable right now."
+);
 
 export async function getOrCreateWallet(address: string): Promise<HlWallet> {
   return perp.authedGet<HlWallet>(`/ark/wallet/${address}`);

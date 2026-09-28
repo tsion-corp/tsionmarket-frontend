@@ -107,11 +107,11 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
     const data = await res.json().catch(() => ({}));
     return NextResponse.json(data, { status: res.status });
   } catch (error) {
-    console.error("Perp proxy failed:", error);
+    console.error("Leverage Trading proxy failed:", error);
     return NextResponse.json(
       {
         success: false,
-        error: { code: "SERVICE_UNAVAILABLE", message: "Perp service unreachable" },
+        error: { code: "SERVICE_UNAVAILABLE", message: "Leverage Trading service unreachable" },
       },
       { status: 502 }
     );

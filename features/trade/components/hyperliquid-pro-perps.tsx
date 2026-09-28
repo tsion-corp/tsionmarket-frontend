@@ -910,13 +910,57 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
         // amount. Everything derived from it (notional, wire size, the minimum
         // check, the liquidation estimate) is computed above from that reading.
         //
-        // Top up and Withdraw sit under the ticket rather than inside it: they
-        // move USDC in and out of the perps account and are not order entry. The
-        // ticket says so itself and exposes nothing for them.
+        // Top up and Withdraw are built here and handed to the ticket through
+        // its `accountActions` slot, which draws them as its first row. They
+        // move USDC in and out of the leverage account and are not order entry,
+        // so the ticket still knows nothing about them — it is given a finished
+        // node and a place to put it.
         orderEntry={
           signedOut ? null : (
             <div className="flex w-full flex-col gap-3">
               <PerpOrderTicket
+                accountActions={
+                  /* Funding the account, at the top of the ticket, where the
+                   maintainer asked for it. It used to sit under the ticket
+                   behind a top border; at the top that border would divide it
+                   from nothing, so it is gone and the ticket's own gap-2 is
+                   the separation.
+
+                   Still PerpOrderTicket's ActionButton geometry — the same
+                   h-12, rounded-3xl, border-2, gap-2 and 16px semibold as the
+                   Long/Short pair — so the two rows read as one family top and
+                   bottom. Still NOT bg-buy or bg-sell: those two tokens mean
+                   "this places an order", and these move collateral. A green
+                   button that is not Long, on a leveraged desk, is a misfire
+                   waiting to happen. */
+                  <div className="flex w-full items-start gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFundOpen(true)}
+                      disabled={!trading.walletId || busy}
+                      // When the entered collateral outruns the HyperCore balance the
+                      // button takes the same kash accent as the ticket's "may bridge"
+                      // advisory, so the note and the way to clear it read as one
+                      // thing. The order still places either way; this only makes
+                      // funding up front the obvious move.
+                      className={`bg-surface-strong flex h-12 min-w-0 flex-1 shrink-0 cursor-pointer items-center justify-center rounded-3xl border-2 font-[family-name:var(--font-sportsbook)] text-[16px] font-semibold transition-all hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45 ${
+                        emphasizeTopUp
+                          ? "border-kash text-kash shadow-[0_0_0_3px_rgba(255,214,47,0.18)]"
+                          : "border-hairline text-white"
+                      }`}
+                    >
+                      {trading.walletId ? t("topUp") : t("topUpPreparing")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setWithdrawOpen(true)}
+                      disabled={!trading.walletId || busy || collateralBalance <= 0n}
+                      className="border-hairline hover:bg-surface flex h-12 min-w-0 flex-1 shrink-0 cursor-pointer items-center justify-center rounded-3xl border-2 bg-transparent font-[family-name:var(--font-sportsbook)] text-[16px] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {t("withdraw")}
+                    </button>
+                  </div>
+                }
                 pair={asset ? hlPairLabel(asset.symbol) : ""}
                 change24h={changeLabel ?? "\u2014"}
                 changeDirection={changeDirection ?? "flat"}
@@ -999,49 +1043,6 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
                   {orderStatus.text}
                 </p>
               ) : null}
-
-              {/* Moving USDC in and out of the perps account. Both were on
-                  HyperliquidOrderForm's own footer and neither is order entry,
-                  so they move here with their modals and their wiring
-                  unchanged. A trader must always be able to get money out.
-
-                  One row, split evenly, in PerpOrderTicket's ActionButton
-                  geometry: the same h-12, rounded-3xl, border-2, gap-2 and
-                  16px semibold Inter as the Buy/Sell pair directly above, so
-                  the two rows read as one family. NOT bg-buy or bg-sell. Those
-                  two tokens mean "this places an order"; these move collateral,
-                  and a green button that is not Buy sitting under Buy is the
-                  worst thing this column could do. They take the neutral
-                  surface tokens instead, filled for Top up and outlined for
-                  Withdraw, which puts them a clear step below the saturated
-                  pair without making either look disabled. */}
-              <div className="flex w-full items-start gap-2 border-t border-white/10 pt-3">
-                <button
-                  type="button"
-                  onClick={() => setFundOpen(true)}
-                  disabled={!trading.walletId || busy}
-                  // When the entered collateral outruns the HyperCore balance the
-                  // button takes the same kash accent as the ticket's "may bridge"
-                  // advisory, so the note and the way to clear it read as one
-                  // thing. The order still places either way; this only makes
-                  // funding up front the obvious move.
-                  className={`bg-surface-strong flex h-12 min-w-0 flex-1 shrink-0 cursor-pointer items-center justify-center rounded-3xl border-2 font-[family-name:var(--font-sportsbook)] text-[16px] font-semibold transition-all hover:bg-white/16 disabled:cursor-not-allowed disabled:opacity-45 ${
-                    emphasizeTopUp
-                      ? "border-kash text-kash shadow-[0_0_0_3px_rgba(255,214,47,0.18)]"
-                      : "border-hairline text-white"
-                  }`}
-                >
-                  {trading.walletId ? t("topUp") : t("topUpPreparing")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setWithdrawOpen(true)}
-                  disabled={!trading.walletId || busy || collateralBalance <= 0n}
-                  className="border-hairline hover:bg-surface flex h-12 min-w-0 flex-1 shrink-0 cursor-pointer items-center justify-center rounded-3xl border-2 bg-transparent font-[family-name:var(--font-sportsbook)] text-[16px] font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  {t("withdraw")}
-                </button>
-              </div>
 
               <HyperliquidFundModal
                 open={fundOpen}

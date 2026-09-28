@@ -18,7 +18,7 @@ export type SectionId =
 export const SECTION_LABEL: Record<SectionId, string> = {
   portfolio: "Portfolio",
   spot: "Spot",
-  perps: "Perpetuals",
+  perps: "Leverage Trading",
   meme: "Memecoins",
   rwa: "Real assets",
   prediction: "Prediction",

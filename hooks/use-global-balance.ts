@@ -9,7 +9,10 @@ import { usePortfolio } from "@/hooks/use-portfolio";
 // second, minimal client here rather than importing that feature's hook
 // directly, since features never import each other. Only the one read this
 // hook needs.
-const perp = createServiceClient("/api/perp", "The perps service is unavailable right now.");
+const perp = createServiceClient(
+  "/api/perp",
+  "The Leverage Trading service is unavailable right now."
+);
 
 // The perps balance is not polled (llms.txt §10: no background poll on the
 // clearinghouse). It refreshes on window focus, the query client's default,

@@ -150,6 +150,22 @@ describe("LeverageDesktopLayout", () => {
     expect(region(container, "market-column")).toHaveClass("min-[1080px]:h-[924px]");
   });
 
+  // The panel is a fixed 924px from 1080px up so it stands level with the
+  // market column, and the ticket inside it is shorter than that. Centred, the
+  // leftover height was halved and the top half sat above the ticket's first
+  // control as dead space inside the card. The remainder belongs below the
+  // content, so the only gap above the first row is the card's own padding.
+  it("starts the ticket at the top of its panel rather than centring it", () => {
+    const { container } = render(<LeverageDesktopLayout {...allSlots} />);
+
+    const ticket = region(container, "ticket") as HTMLElement;
+    expect(ticket).toHaveClass("justify-start");
+    expect(ticket).not.toHaveClass("justify-center");
+    // The fixed height is what creates the slack in the first place; if it ever
+    // goes, this guard is measuring nothing and should go with it.
+    expect(ticket).toHaveClass("min-[1080px]:h-[924px]");
+  });
+
   it("sizes the market column with a definite height, never a floor", () => {
     const { container } = render(<LeverageDesktopLayout {...allSlots} />);
 

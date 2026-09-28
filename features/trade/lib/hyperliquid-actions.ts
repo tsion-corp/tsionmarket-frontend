@@ -262,7 +262,7 @@ export function useHyperliquidActions(walletId: string | undefined, address: str
         // themselves. If Arbitrum's balance is below Hyperliquid's minimum,
         // `bridge` throws its own clear error here and this propagates
         // instead of retrying — there is nothing a retry would fix.
-        onStatus?.("Perps wallet balance is short — bridging more in automatically…");
+        onStatus?.("Trading wallet balance is short — bridging more in automatically…");
         await bridge();
         // A bridge deposit takes a real amount of time (~1 minute typical)
         // to actually land in clearinghouseState — retrying immediately

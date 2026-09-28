@@ -9,5 +9,5 @@ export const tradeClient = createServiceClient(
 
 export const perpClient = createServiceClient(
   "/api/perp",
-  "Perpetuals service unavailable right now."
+  "Leverage Trading service unavailable right now."
 );

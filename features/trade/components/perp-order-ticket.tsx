@@ -1,6 +1,6 @@
 "use client";
 
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
@@ -70,10 +70,12 @@ import { fromBaseUnits } from "@/lib/trade/math";
 //     control, so the ticket carries no chart slot and no "View Chart"
 //     disclosure. A second chart control inside the ticket would be a control
 //     that fights the layout around it.
-//   * Top up and Withdraw. They move USDC in and out of the perps account,
+//   * Top up and Withdraw. They move USDC in and out of the leverage account,
 //     need the wallet id and the clearinghouse's withdrawable figure, and each
-//     opens its own modal. None of that is order entry. The composer renders
-//     them beside this ticket; nothing here is exposed for them.
+//     opens its own modal. None of that is order entry, and none of it is known
+//     here. They now sit at the TOP of this ticket rather than under it, but
+//     they arrive already built, through the `accountActions` slot — this file
+//     draws a position for them and nothing else.
 //   * Whether a take profit sits on the right side of entry. That answer
 //     depends on the direction, and this design picks the direction at the
 //     moment of the click rather than up front, so only the composer can judge
@@ -207,6 +209,21 @@ export interface PerpSideBlockedReasons {
 }
 
 export interface PerpOrderTicketProps {
+  /**
+   * Account actions — Top up and Withdraw — drawn as the ticket's first row.
+   *
+   * A node rather than a set of handlers and flags. Whether Withdraw is
+   * reachable depends on the clearinghouse's withdrawable figure, and whether
+   * Top up is accented depends on the wallet id and on the collateral the
+   * trader has typed; carrying all of that in as props would make this
+   * component know what an account is, which is the one thing the list above
+   * says it must not. The composer already holds every piece, so it hands the
+   * finished row down.
+   *
+   * Omitted where there is no account to act on, which is why it is optional.
+   */
+  accountActions?: ReactNode;
+
   // --- pair strip -------------------------------------------------------
   // Display label for the market, e.g. "BTC/USDT". A label, not a control: the
   // market is picked from the list in the left column, so there is no
@@ -338,6 +355,7 @@ function presentOrNull(value: string | null | undefined): string | null {
 }
 
 export function PerpOrderTicket({
+  accountActions,
   pair,
   change24h,
   changeDirection,
@@ -433,9 +451,9 @@ export function PerpOrderTicket({
   const sellReasonTarget = oneReason ? buyReasonId : sellReasonId;
   const describedBy = (reasonId: string) => (advisory ? `${advisoryId} ${reasonId}` : reasonId);
   const buyLine =
-    oneReason || buyReason === null ? buyReason : t("buyBlocked", { reason: buyReason });
+    oneReason || buyReason === null ? buyReason : t("longBlocked", { reason: buyReason });
   const sellLine =
-    oneReason || sellReason === null ? sellReason : t("sellBlocked", { reason: sellReason });
+    oneReason || sellReason === null ? sellReason : t("shortBlocked", { reason: sellReason });
 
   const balanceLine = t("balanceOf", {
     amount: formatDecimalString(
@@ -447,6 +465,19 @@ export function PerpOrderTicket({
 
   return (
     <div className={`flex w-full flex-col gap-2 ${className ?? ""}`}>
+      {/* Funding the account comes before using it, so it reads first. Above
+          the pair strip rather than below it: the strip says which market, and
+          moving money in or out is not about a market.
+
+          The extra 8px under it is on purpose, and it is why this is wrapped
+          rather than dropped straight into the column. The container's own
+          gap-2 is the rhythm BETWEEN the parts of order entry; moving money in
+          and out is a different job from placing an order, so the seam between
+          the two groups is twice the seam inside either. Raising the
+          container's gap instead would have pushed the Long/Short pair away
+          from the summary above it by the same amount, which is one group, not
+          two. */}
+      {accountActions ? <div className="mb-2">{accountActions}</div> : null}
       <div className="flex flex-col gap-3">
         {/* The pair strip, composed from the spot desk's own exported pieces
             rather than from SpotPairHeader whole. The header bundles a "View
@@ -533,7 +564,7 @@ export function PerpOrderTicket({
       <div className="flex w-full flex-col gap-1.5">
         <div className="flex w-full items-start gap-2">
           <ActionButton
-            label={t("buy")}
+            label={t("long")}
             side="buy"
             busy={pending === "buy"}
             disabled={buyReason !== null}
@@ -541,7 +572,7 @@ export function PerpOrderTicket({
             onClick={() => onBuy(quantity)}
           />
           <ActionButton
-            label={t("sell")}
+            label={t("short")}
             side="sell"
             busy={pending === "sell"}
             disabled={sellReason !== null}
