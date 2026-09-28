@@ -3,8 +3,11 @@
 import { useEffect } from "react";
 
 import { useTranslations } from "next-intl";
+import { useQuery } from "@tanstack/react-query";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
+import { CopyButton } from "@/components/ui/copy-button";
 import { SyncingValue } from "@/components/ui/syncing-value";
+import { reverseResolveArkAddress } from "@/lib/bns/api";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
 import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
@@ -61,12 +64,30 @@ export function KashCard({
   onUpgrade,
 }: KashCardProps) {
   const t = useTranslations("kash");
+  const tc = useTranslations("common");
   const { data: engineStatus } = useKashStatus();
   // True only while an action's effects are still landing — not on the
   // background poll, which would leave the card permanently pulsing.
   const syncing = useKashSyncing();
-  const { data: account, isError, walletMissing } = useKashAccount();
+  const { data: account, isError, walletMissing, wallet } = useKashAccount();
   const { data: subscription } = useKashSubscription();
+
+  // The wallet's own Ark ID, shown on the card as a copyable identity. Shares
+  // the ["bns","reverse",wallet] cache with the sidebar card and the send
+  // modal, so surfacing it here is one lookup, not a third. Only a verified
+  // .ark reverse counts: an unverified record means the name isn't actually
+  // pointed at this wallet yet.
+  const arkReverse = useQuery({
+    queryKey: ["bns", "reverse", wallet],
+    queryFn: () => reverseResolveArkAddress(wallet as string),
+    enabled: Boolean(wallet),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const arkName =
+    arkReverse.data?.verified && arkReverse.data.name?.toLowerCase().endsWith(".ark")
+      ? arkReverse.data.name
+      : null;
 
   // An unknown balance must never render as zero: someone who holds KASH would
   // read that as their money gone, and once the "0" fallback is applied the two
@@ -254,6 +275,17 @@ export function KashCard({
                 ${balanceUsd}
               </div>
             ) : null}
+            {/* The wallet's Ark ID, so a holder can read and copy the name that
+                receives their Kash without leaving the card. Only shown once
+                the name is verified against this wallet. */}
+            {arkName ? (
+              <div className="mt-2.5 flex max-w-full items-center gap-1.5 rounded-full border border-black/15 bg-black/6 py-1 pr-1 pl-3.5">
+                <span className="truncate font-serif text-[13px] leading-[1.3] font-medium tracking-[-0.01em] text-black/75">
+                  {arkName}
+                </span>
+                <CopyButton value={arkName} size="sm" tone="ink" toastMessage={tc("copied")} />
+              </div>
+            ) : null}
           </>
         )}
       </div>
@@ -273,7 +305,9 @@ export function KashCard({
           onClick={onBuy}
           className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
         >
-          <ButtonIcon src="/market/kash-icon-arrow-buy.svg" flip="both" />
+          {/* Buy brings Kash IN, so the arrow points down into the balance,
+              the deposit convention every wallet shares. */}
+          <ButtonIcon src="/market/kash-icon-arrow-buy.svg" />
           {t("buy")}
         </button>
         {/* Send sits between Buy and Convert: the three are what you can do

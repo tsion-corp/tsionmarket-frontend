@@ -51,6 +51,11 @@ vi.mock("@/components/broadcast/go-live-control", () => ({
 vi.mock("@/components/layout/account-popover", () => ({
   AccountPopover: () => null,
 }));
+// The rail mounts the Ark ID card and its modal, which read the reverse-name
+// record through a react-query hook. The drawer is what is under test, so they
+// are stubbed the way the rail's own suite stubs them.
+vi.mock("@/features/bns/components/ark-id-card", () => ({ ArkIdCard: () => null }));
+vi.mock("@/features/bns/components/ark-id-modal", () => ({ ArkIdModal: () => null }));
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>

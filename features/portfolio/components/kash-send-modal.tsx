@@ -7,13 +7,18 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { useEvmSend } from "@/hooks/use-evm-send";
+import { useQuery } from "@tanstack/react-query";
+import { resolveArkName, reverseResolveArkAddress } from "@/lib/bns/api";
+import { openArkIdDialog } from "@/lib/bns/ark-id-dialog-store";
+import { parseKashRecipient } from "@/lib/bns/name";
+import { BRAND } from "@/lib/brand";
 import {
   useInvalidateKash,
   useKashAccount,
   useKashStatus,
 } from "@/features/portfolio/hooks/use-kash";
 import { isValidKashAmount } from "@/features/portfolio/lib/kash";
-import { isEvmAddress, kashTransferData } from "@/features/portfolio/lib/kash-transfer";
+import { kashTransferData } from "@/features/portfolio/lib/kash-transfer";
 
 interface KashSendModalProps {
   open: boolean;
@@ -39,8 +44,38 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
   const onChain = status?.chainMode === "ethers" && Boolean(status.chain);
   const balance = account?.balance ?? "0";
 
-  const validRecipient = isEvmAddress(recipient);
-  const selfSend = validRecipient && wallet?.toLowerCase() === recipient.trim().toLowerCase();
+  const recipientInput = parseKashRecipient(recipient);
+  const recipientName = recipientInput.kind === "name" ? recipientInput.name : null;
+  const resolution = useQuery({
+    queryKey: ["bns", "resolve", recipientName],
+    queryFn: () => resolveArkName(recipientName as string),
+    enabled: Boolean(recipientName),
+    staleTime: 30_000,
+    retry: false,
+  });
+  const resolvedAddress =
+    recipientInput.kind === "address"
+      ? recipientInput.address.trim()
+      : recipientInput.kind === "name" && resolution.data?.address
+        ? resolution.data.address
+        : null;
+  // Whether the SENDER already owns an Ark ID. Once they do, they should not be
+  // pitched to get one — no "buy now" reminder while sending. Shares the
+  // ["bns","reverse",wallet] cache with the sidebar card, so it's one lookup.
+  const senderReverse = useQuery({
+    queryKey: ["bns", "reverse", wallet],
+    queryFn: () => reverseResolveArkAddress(wallet as string),
+    enabled: Boolean(wallet),
+    staleTime: 60_000,
+    retry: false,
+  });
+  const senderHasArkId = Boolean(
+    senderReverse.data?.verified && senderReverse.data.name?.toLowerCase().endsWith(".ark")
+  );
+  const validRecipient = Boolean(resolvedAddress);
+  const selfSend = Boolean(
+    resolvedAddress && wallet?.toLowerCase() === resolvedAddress.toLowerCase()
+  );
   const withinBalance = isValidKashAmount(amount) && Number(amount) <= Number(balance);
   const canSubmit =
     onChain && Boolean(wallet) && validRecipient && !selfSend && withinBalance && !sending;
@@ -58,13 +93,13 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
     try {
       const txHash = await sendEvm({
         to: status.chain.tokenAddress as `0x${string}`,
-        data: kashTransferData(recipient, amount),
+        data: kashTransferData(resolvedAddress as string, amount),
         chainId: status.chain.chainId,
       });
       // The tokens have left the wallet; the card reads its balance from the
       // chain, so refresh rather than leave the pre-send figure on screen.
       invalidateKash();
-      setDone({ kash: amount, to: recipient.trim(), txHash });
+      setDone({ kash: amount, to: resolvedAddress as string, txHash });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t("sendFailed"));
     } finally {
@@ -99,29 +134,84 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
             </div>
 
             <div>
-              <label className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
+              <label
+                htmlFor="kash-send-recipient"
+                className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase"
+              >
                 {t("sendRecipient")}
               </label>
               <input
+                id="kash-send-recipient"
                 value={recipient}
                 onChange={(e) => setRecipient(e.target.value)}
-                placeholder="0x…"
+                placeholder={t("sendRecipientPlaceholder", { brand: BRAND })}
+                aria-describedby="kash-recipient-status"
                 spellCheck={false}
                 className="mt-1.5 w-full rounded-[14px] border border-white/12 bg-white/6 px-4 py-3 font-mono text-[14px] outline-none focus:border-amber-200/50"
               />
-              {recipient.trim() !== "" && !validRecipient && (
-                <p className="mt-1.5 text-[12px] font-normal text-white/50">
-                  {t("sendBadAddress")}
-                </p>
-              )}
-              {selfSend && (
-                <p className="mt-1.5 text-[12px] font-normal text-white/50">{t("sendToSelf")}</p>
+              <div id="kash-recipient-status" aria-live="polite">
+                {recipient.trim() && recipientInput.kind === "invalid" ? (
+                  <p className="mt-1.5 text-[12px] font-normal text-white/50">
+                    {t("sendBadAddress")}
+                  </p>
+                ) : recipientName && resolution.isFetching ? (
+                  <p className="mt-1.5 text-[12px] font-normal text-white/50">
+                    {t("sendArkChecking", { name: recipientName })}
+                  </p>
+                ) : recipientName && resolvedAddress && selfSend ? (
+                  <p className="text-down mt-1.5 text-[12px] font-normal">
+                    {t("sendArkSelf", { brand: BRAND })}
+                  </p>
+                ) : recipientName && resolvedAddress ? (
+                  <p className="text-up mt-1.5 text-[12px] font-normal">
+                    {t("sendArkResolved", { name: recipientName })}{" "}
+                    <span className="font-mono break-all">{resolvedAddress}</span>
+                  </p>
+                ) : recipientName && (resolution.isError || resolution.isSuccess) ? (
+                  <div className="mt-1.5 flex flex-wrap items-baseline gap-x-1 text-[12px] font-normal">
+                    <span className="text-down">
+                      {t("sendArkInvalid", { name: recipientName })}
+                    </span>
+                    {senderHasArkId ? null : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose();
+                          openArkIdDialog();
+                        }}
+                        className="text-accent cursor-pointer font-semibold underline underline-offset-2"
+                      >
+                        {t("sendArkBuyNow")}
+                      </button>
+                    )}
+                  </div>
+                ) : recipientName && !senderHasArkId ? (
+                  <p className="mt-1.5 text-[12px] font-normal text-white/45">
+                    {t("sendArkHint", { brand: BRAND })}{" "}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        openArkIdDialog();
+                      }}
+                      className="text-accent cursor-pointer font-semibold underline underline-offset-2"
+                    >
+                      {t("sendArkBuyNow")}
+                    </button>
+                  </p>
+                ) : null}
+              </div>
+              {selfSend && recipientInput.kind === "address" && (
+                <p className="text-down mt-1.5 text-[12px] font-normal">{t("sendToSelf")}</p>
               )}
             </div>
 
             <div>
               <div className="flex items-baseline justify-between">
-                <label className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase">
+                <label
+                  htmlFor="kash-send-amount"
+                  className="text-[11px] font-normal tracking-[0.04em] text-white/45 uppercase"
+                >
                   {t("amountKash")}
                 </label>
                 <button
@@ -132,6 +222,7 @@ export function KashSendModal({ open, onClose }: KashSendModalProps) {
                 </button>
               </div>
               <input
+                id="kash-send-amount"
                 inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}

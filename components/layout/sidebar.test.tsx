@@ -52,6 +52,11 @@ vi.mock("@/components/broadcast/go-live-control", () => ({
 vi.mock("@/components/layout/account-popover", () => ({
   AccountPopover: () => null,
 }));
+// The rail also mounts the Ark ID card and its modal, which read the
+// reverse-name record through a react-query hook. The rail's own markup is
+// what is under test, so they are stubbed like the popover above.
+vi.mock("@/features/bns/components/ark-id-card", () => ({ ArkIdCard: () => null }));
+vi.mock("@/features/bns/components/ark-id-modal", () => ({ ArkIdModal: () => null }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
