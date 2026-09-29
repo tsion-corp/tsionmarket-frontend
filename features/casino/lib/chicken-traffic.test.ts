@@ -46,13 +46,12 @@ describe("Chicken ambient traffic", () => {
     expect(new Set(samples.slice(0, 1_000)).size).toBeGreaterThan(700);
   });
 
-  it("does not expose a fixed flight duration or direction", () => {
+  it("varies flight duration and texture without changing direction", () => {
     const random = lcg(0xabcdef01);
     const passes = Array.from({ length: 2_000 }, () => sampleTrafficPass(7, random));
 
     expect(new Set(passes.map((pass) => pass.durationMs)).size).toBeGreaterThan(500);
-    expect(passes.some((pass) => pass.reverse)).toBe(true);
-    expect(passes.some((pass) => !pass.reverse)).toBe(true);
+    expect(new Set(passes.map((pass) => pass.textureIndex)).size).toBe(7);
   });
 });
 

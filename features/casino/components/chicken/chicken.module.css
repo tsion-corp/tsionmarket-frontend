@@ -365,9 +365,6 @@
   animation: planePass var(--plane-duration, 500ms) linear both;
   transition: opacity 80ms linear;
 }
-.planeReverse {
-  animation-direction: reverse;
-}
 .planeMuted {
   opacity: 0;
 }

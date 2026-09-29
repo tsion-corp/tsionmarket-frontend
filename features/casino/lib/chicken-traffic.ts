@@ -11,7 +11,6 @@ type RandomUnit = () => number;
 export interface ChickenTrafficPass {
   delayMs: number;
   durationMs: number;
-  reverse: boolean;
   textureIndex: number;
 }
 
@@ -40,7 +39,6 @@ export function sampleTrafficPass(
   return {
     delayMs: sampleTrafficDelayMs(random),
     durationMs: sampleInteger(TRAFFIC_FLIGHT_MIN_MS, TRAFFIC_FLIGHT_MAX_MS, random),
-    reverse: random() < 0.5,
     textureIndex: sampleInteger(0, textureCount - 1, random),
   };
 }

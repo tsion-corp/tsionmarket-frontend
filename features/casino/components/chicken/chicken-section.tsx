@@ -78,7 +78,6 @@ function LanePlane({ muted }: { muted: boolean }) {
   const [plane, setPlane] = useState({
     durationMs: 500,
     pass: 0,
-    reverse: false,
     texture: 0,
     visible: false,
   });
@@ -93,7 +92,6 @@ function LanePlane({ muted }: { muted: boolean }) {
         setPlane((current) => ({
           durationMs: next.durationMs,
           pass: current.pass + 1,
-          reverse: next.reverse,
           texture: next.textureIndex,
           visible: true,
         }));
@@ -116,9 +114,7 @@ function LanePlane({ muted }: { muted: boolean }) {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       key={plane.pass}
-      className={`${styles.plane} ${plane.reverse ? styles.planeReverse : ""} ${
-        muted ? styles.planeMuted : ""
-      }`}
+      className={`${styles.plane} ${muted ? styles.planeMuted : ""}`}
       src={`${ASSET}/img/${PLANES[plane.texture]}@2x.png`}
       style={{ "--plane-duration": `${plane.durationMs}ms` } as CSSProperties}
       alt=""
@@ -316,7 +312,6 @@ export function ChickenSection() {
       setResultBanner({
         tone: "lost",
         title: "Lost",
-        detail: outcome.outcomeReason === "liquidity" ? "Liquidity limit" : undefined,
       });
       await resetVisual(sequence, "lost");
       return;
