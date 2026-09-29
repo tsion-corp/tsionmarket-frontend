@@ -1906,6 +1906,10 @@
           "name": "Pilot Chicken",
           "note": "Überquere jede Spur und zahle vor dem Absturz aus"
         },
+        "spin-da-bottle": {
+          "name": "Spin Da Bottle",
+          "note": "Wähle Hoch oder Runter und drehe die Flasche"
+        },
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
@@ -3615,6 +3619,9 @@
     "chickenKicker": "Pilot Chicken",
     "chickenHeadline": "Überquere jede Spur. Steig vor dem Crash aus.",
     "chickenPlay": "Pilot Chicken spielen",
+    "spinBottleKicker": "Spin da' Bottle",
+    "spinBottleHeadline": "Wähle oben oder unten. Gewinne das Doppelte, wenn die Flasche passt.",
+    "spinBottlePlay": "Spin da' Bottle spielen",
     "goLiveBadge": "Auf Sendung",
     "goLiveKicker": "Live gehen",
     "goLiveHeadline": "Starte einen Raum und nimm den Markt mit.",

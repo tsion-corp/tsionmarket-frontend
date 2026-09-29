@@ -22,6 +22,7 @@ import {
   type ArkjetRound,
   type ArkjetSimulatedActivityFeed,
   type CreateArkjetBetInput,
+  ARKADE_CAMPAIGN_QUERY_KEY,
 } from "@/features/casino/lib/api/arkjet";
 import {
   ARKJET_SOCKET_CLOSED,
@@ -172,6 +173,7 @@ export function useArkjet() {
           settledBets.current.add(bet.betId);
           if (settled.name === "arkjet_cashed_out") track("arkjet_cashed_out", settled.props);
           else track("arkjet_round_lost", settled.props);
+          void queryClient.invalidateQueries({ queryKey: ARKADE_CAMPAIGN_QUERY_KEY });
         }
       }
       void queryClient.cancelQueries({ queryKey: ARKJET_KEYS.bets });

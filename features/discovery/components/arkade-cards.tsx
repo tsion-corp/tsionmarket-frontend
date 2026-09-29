@@ -35,20 +35,6 @@ function Chevron() {
   );
 }
 
-function ArrowOut() {
-  return (
-    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" aria-hidden className="shrink-0">
-      <path
-        d="M7 17 17 7M9 7h8v8"
-        stroke="currentColor"
-        strokeWidth="3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 /** The gold-to-bark fill the Marathon wordmark is lettered in. */
 const WORDMARK_INK = "bg-gradient-to-r from-[#ac6900] to-[#462b00] bg-clip-text text-transparent";
 
@@ -427,6 +413,37 @@ export function PilotChickenCard({ onHold }: { onHold?: (held: boolean) => void 
       kicker={{ icon: <KickerGlyph glyph="◆" />, label: t("chickenKicker") }}
       headline={t("chickenHeadline")}
       action={{ href: "/casino/chicken", label: t("chickenPlay"), icon: <Chevron /> }}
+      onHold={onHold}
+    />
+  );
+}
+
+export function SpinDaBottleCard({ onHold }: { onHold?: (held: boolean) => void }) {
+  const t = useTranslations("discovery");
+
+  return (
+    <ConversationCard
+      gradient="bg-[linear-gradient(180deg,#29140b_0%,#8e4b25_100%)]"
+      art={
+        <>
+          <Dust />
+          <img
+            src="/casino/arkade/spindabottle.png"
+            alt=""
+            aria-hidden
+            width={400}
+            height={400}
+            className={`${artLayer} inset-y-0 right-0 h-full w-[58%] object-cover opacity-70`}
+            style={{
+              maskImage: "linear-gradient(90deg, transparent 0%, #000 45%)",
+              WebkitMaskImage: "linear-gradient(90deg, transparent 0%, #000 45%)",
+            }}
+          />
+        </>
+      }
+      kicker={{ icon: <KickerGlyph glyph="↕" />, label: t("spinBottleKicker") }}
+      headline={t("spinBottleHeadline")}
+      action={{ href: "/casino/spin-da-bottle", label: t("spinBottlePlay"), icon: <Chevron /> }}
       onHold={onHold}
     />
   );

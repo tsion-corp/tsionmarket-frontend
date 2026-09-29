@@ -73,6 +73,7 @@ describe("Arkade row", () => {
       `${enMessages.discovery.lastManMarathonLead} ${enMessages.discovery.lastManMarathonTitle}`,
       enMessages.discovery.arkjetHeadline,
       enMessages.discovery.chickenHeadline,
+      enMessages.discovery.spinBottleHeadline,
       enMessages.discovery.chessHeadline,
       enMessages.discovery.arkballHeadline,
     ]);

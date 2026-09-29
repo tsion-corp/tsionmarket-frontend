@@ -32,7 +32,10 @@ const api = vi.hoisted(() => ({
   stepChicken: vi.fn(),
   cashoutChicken: vi.fn(),
 }));
-vi.mock("@/features/casino/lib/api/arkjet", () => api);
+vi.mock("@/features/casino/lib/api/arkjet", () => ({
+  ...api,
+  ARKADE_CAMPAIGN_QUERY_KEY: ["casino", "arkade", "campaign"],
+}));
 // Both games try the live socket first and fall back to HTTP when it is not
 // there. The socket is not what these tests are about, so it answers "not
 // available" and every command lands on the API fakes above.

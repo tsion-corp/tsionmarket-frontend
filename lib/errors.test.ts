@@ -11,6 +11,18 @@ import {
 } from "@/lib/errors";
 
 describe("friendlyError", () => {
+  it("does not expose identity-provider configuration errors", () => {
+    expect(
+      friendlyError(
+        apiError(
+          "UNAUTHORIZED",
+          "access token comes from a provider this service does not accept",
+          401
+        )
+      )
+    ).toBe("Your session needs to be refreshed. Sign in again and retry.");
+  });
+
   it("preserves the actionable confirmed-balance message", () => {
     const message = "Your Solana balance changed. Review the updated Max amount and try again.";
     expect(friendlyError(new Error(message), "Order rejected")).toBe(message);

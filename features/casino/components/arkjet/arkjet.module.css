@@ -106,6 +106,34 @@
   letter-spacing: -0.8px;
 }
 
+.howToPlayTag {
+  height: 28px;
+  margin-left: 4px;
+  border: 1px solid #34353a;
+  border-radius: 999px;
+  background: #191a1c;
+  padding: 0 10px;
+  color: #a7a8ad;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: 140ms ease;
+}
+
+.howToPlayTag:hover {
+  border-color: #ef263b;
+  color: #fff;
+}
+
+.howToPlayTag:focus-visible {
+  outline: 2px solid #ef263b;
+  outline-offset: 2px;
+}
+
+.campaignSlot {
+  margin-right: 2px;
+}
+
 .balance {
   color: #d5d5d8;
   font-size: 12px;
@@ -373,6 +401,52 @@
   cursor: not-allowed;
   opacity: 0.35;
   box-shadow: none;
+}
+
+.cashierExternalFunding {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 12px;
+}
+
+.cashierExternalFunding > span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #66686f;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.cashierExternalFunding > span::before,
+.cashierExternalFunding > span::after {
+  height: 1px;
+  flex: 1;
+  background: #2b2c31;
+  content: "";
+}
+
+.cashierExternalFunding > button {
+  width: 100%;
+  border: 1px solid #35363c;
+  border-radius: 13px;
+  background: #222328;
+  padding: 12px;
+  color: #dedee1;
+  font-size: 11px;
+  font-weight: 800;
+  transition: 140ms ease;
+}
+
+.cashierExternalFunding > button:hover {
+  border-color: #4a4b52;
+  background: #292a30;
+  color: #fff;
+}
+
+.cashierDialogChicken .cashierExternalFunding > button:hover {
+  border-color: #3d9f5d;
 }
 
 .cashierRecovery {
@@ -1971,8 +2045,18 @@
     padding-top: env(safe-area-inset-top);
   }
 
+  .campaignSlot {
+    margin-right: 0;
+  }
+
   .brandName {
     display: none;
+  }
+
+  .howToPlayTag {
+    margin-left: 0;
+    padding-inline: 8px;
+    font-size: 9px;
   }
 
   .balanceButton {

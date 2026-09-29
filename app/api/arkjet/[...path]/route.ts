@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { wsapiService } from "@/lib/wsapi-base";
-import { verifyRequest } from "@/lib/server/auth";
+import { accessTokenFromCookie, verifyRequest } from "@/lib/server/auth";
 import {
   fetchUpstreamRead,
   fetchUpstreamWrite,
@@ -31,6 +31,7 @@ const PUBLIC_READ =
   /^(?:capabilities|rounds\/(?:current|history|[0-9a-f-]{36})|activity\/simulated\/(?:current|rounds\/[0-9a-f-]{36})|fairness\/(?:rules|commitments\/current|proofs\/[0-9a-f-]{36})|risk\/rules)$/iu;
 const CHAT_PATH = /^chat(?:\/|$)/u;
 const CHAT_LIKE = /^chat\/messages\/[0-9a-f-]{36}\/like$/iu;
+const GAME_COMMENTS = /^comments\/spin-da-bottle(?:\/presence)?$/u;
 const BET_READ = /^bets\/(?:current|history|balance)$/u;
 const BET_ID = /^bets\/[0-9a-f-]{36}$/iu;
 const BET_CASHOUT = /^bets\/[0-9a-f-]{36}\/cashout$/iu;
@@ -40,6 +41,12 @@ const CHICKEN_PUBLIC_READ = /^(?:chicken\/rules|chicken\/proofs\/[0-9a-f-]{36})$
 const CHICKEN_READ = /^chicken\/sessions\/(?:active|history)$/u;
 const CHICKEN_START = /^chicken\/(?:sessions|autoplay)$/u;
 const CHICKEN_ACTION = /^chicken\/sessions\/[0-9a-f-]{36}\/(?:steps|cashout)$/iu;
+const SPIN_PUBLIC_READ = /^(?:spin\/rules|spin\/proofs\/[0-9a-f-]{36})$/iu;
+const SPIN_READ = /^spin\/wagers\/history$/u;
+const SPIN_PREPARE = /^spin\/wagers\/prepare$/u;
+const SPIN_PLAY = /^spin\/wagers\/[0-9a-f-]{36}\/play$/iu;
+const CAMPAIGN_CURRENT = "campaigns/current";
+const CAMPAIGN_DRAW_PROOF = /^campaigns\/[0-9a-f-]{36}\/draw-proof$/iu;
 
 function invalidPath() {
   return NextResponse.json(
@@ -57,7 +64,7 @@ function unauthorized() {
 
 function forwardAuthHeaders(req: NextRequest, headers: Record<string, string>): void {
   const authorization = req.headers.get("authorization");
-  const accessToken = req.cookies.get("privy-token")?.value;
+  const accessToken = accessTokenFromCookie((name) => req.cookies.get(name)?.value);
   const identityToken =
     req.headers.get("privy-id-token") ?? req.cookies.get("privy-id-token")?.value;
   if (authorization) headers.authorization = authorization;
@@ -76,20 +83,37 @@ async function forward(
   const isFundingWrite = FUNDING_WRITE.test(joined);
   const isChicken =
     CHICKEN_READ.test(joined) || CHICKEN_START.test(joined) || CHICKEN_ACTION.test(joined);
-  const requiresAuth = isChat || isBet || isFundingWrite || isChicken;
+  const isSpin = SPIN_READ.test(joined) || SPIN_PREPARE.test(joined) || SPIN_PLAY.test(joined);
+  const requiresAuth =
+    isChat ||
+    GAME_COMMENTS.test(joined) ||
+    isBet ||
+    isFundingWrite ||
+    isChicken ||
+    isSpin ||
+    joined === CAMPAIGN_CURRENT;
   const allowed =
     (method === "GET" &&
       (PUBLIC_READ.test(joined) ||
         joined === FUNDING_CONFIG ||
         CHICKEN_PUBLIC_READ.test(joined) ||
         CHICKEN_READ.test(joined) ||
+        SPIN_PUBLIC_READ.test(joined) ||
+        SPIN_READ.test(joined) ||
+        joined === CAMPAIGN_CURRENT ||
+        CAMPAIGN_DRAW_PROOF.test(joined) ||
+        joined === "comments/spin-da-bottle" ||
         joined === "chat" ||
         BET_READ.test(joined))) ||
     (method === "POST" &&
       (joined === "fairness/verify" ||
         joined === "chicken/proofs/verify" ||
+        joined === "spin/proofs/verify" ||
+        SPIN_PREPARE.test(joined) ||
+        SPIN_PLAY.test(joined) ||
         CHICKEN_START.test(joined) ||
         CHICKEN_ACTION.test(joined) ||
+        GAME_COMMENTS.test(joined) ||
         joined === "chat/messages" ||
         joined === "chat/presence" ||
         joined === "bets" ||

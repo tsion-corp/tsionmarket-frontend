@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
+import { useMoney } from "@/components/ui/currency-select";
 import type { ChickenDifficulty, ChickenSession } from "@/features/casino/lib/api/arkjet";
 import { useChicken } from "@/features/casino/hooks/use-chicken";
 import { gameActionError } from "@/features/casino/lib/game-error";
+import { sampleTrafficPass } from "@/features/casino/lib/chicken-traffic";
+import { usePortfolio } from "@/hooks/use-portfolio";
+import { fromBaseUnits } from "@/lib/trade/math";
 import { amountUnits, normalizeArkjetAmount, stepArkjetAmount } from "../../lib/arkjet-funding";
-import { ArkjetCashier } from "../arkjet/arkjet-cashier";
+import { GameHowToPlay } from "../game-how-to-play";
+import { GameMoneyInput } from "../game-money-input";
 import { ChickenCharacter, type ChickenAnimation } from "./chicken-character";
 import styles from "./chicken.module.css";
 
@@ -31,6 +38,16 @@ const CHECKPOINT_REVEAL_MS = 150;
 const RESULT_HOLD_MS = 1_000;
 const WORLD_RESET_MS = 500;
 
+const ArkjetCashier = dynamic(
+  () => import("../arkjet/arkjet-cashier").then((module) => module.ArkjetCashier),
+  { ssr: false }
+);
+
+const ArkadeCampaignBadge = dynamic(
+  () => import("../campaign/arkade-campaign-badge").then((module) => module.ArkadeCampaignBadge),
+  { ssr: false }
+);
+
 type VisualPhase =
   "setup" | "ready" | "walking" | "waiting" | "lost" | "lost-reset" | "won" | "won-reset";
 
@@ -51,39 +68,40 @@ function delay(milliseconds: number) {
   return new Promise<void>((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
-function money(value: string | null | undefined, currency: string) {
-  const parsed = Number(value ?? 0);
-  return `${Number.isFinite(parsed) ? parsed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : value} ${currency}`;
-}
-
 function collisionPlaneTexture(resultHash: string) {
   const hashPrefix = resultHash.replace(/^0x/, "").slice(0, 8);
   const hashValue = Number.parseInt(hashPrefix, 16);
   return PLANES[(Number.isFinite(hashValue) ? hashValue : 0) % PLANES.length];
 }
 
-function LanePlane() {
-  const [plane, setPlane] = useState({ visible: false, texture: 0, pass: 0 });
+function LanePlane({ muted }: { muted: boolean }) {
+  const [plane, setPlane] = useState({
+    durationMs: 500,
+    pass: 0,
+    reverse: false,
+    texture: 0,
+    visible: false,
+  });
 
   useEffect(() => {
     let timer: number | undefined;
     let flight: number | undefined;
 
     const schedule = () => {
-      timer = window.setTimeout(
-        () => {
-          setPlane((current) => ({
-            visible: true,
-            texture: Math.floor(Math.random() * PLANES.length),
-            pass: current.pass + 1,
-          }));
-          flight = window.setTimeout(() => {
-            setPlane((current) => ({ ...current, visible: false }));
-            schedule();
-          }, 500);
-        },
-        Math.floor(100 + Math.random() * 3_900)
-      );
+      const next = sampleTrafficPass(PLANES.length);
+      timer = window.setTimeout(() => {
+        setPlane((current) => ({
+          durationMs: next.durationMs,
+          pass: current.pass + 1,
+          reverse: next.reverse,
+          texture: next.textureIndex,
+          visible: true,
+        }));
+        flight = window.setTimeout(() => {
+          setPlane((current) => ({ ...current, visible: false }));
+          schedule();
+        }, next.durationMs);
+      }, next.delayMs);
     };
 
     schedule();
@@ -98,8 +116,11 @@ function LanePlane() {
     // eslint-disable-next-line @next/next/no-img-element
     <img
       key={plane.pass}
-      className={styles.plane}
+      className={`${styles.plane} ${plane.reverse ? styles.planeReverse : ""} ${
+        muted ? styles.planeMuted : ""
+      }`}
       src={`${ASSET}/img/${PLANES[plane.texture]}@2x.png`}
+      style={{ "--plane-duration": `${plane.durationMs}ms` } as CSSProperties}
       alt=""
     />
   );
@@ -107,12 +128,17 @@ function LanePlane() {
 
 export function ChickenSection() {
   const game = useChicken();
+  const portfolio = usePortfolio({ scope: "base" });
+  const modals = useAppModals();
+  const money = useMoney();
   const [difficulty, setDifficulty] = useState<ChickenDifficulty>("medium");
   const [amount, setAmount] = useState("0.10");
   const [notice, setNotice] = useState<string | null>(null);
   const [cashierOpen, setCashierOpen] = useState(false);
+  const [cashierInitialAmount, setCashierInitialAmount] = useState<string | undefined>();
   const [menuOpen, setMenuOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
   const [chickenEntered, setChickenEntered] = useState(false);
   const [visualStep, setVisualStep] = useState(0);
   const [revealedStep, setRevealedStep] = useState(0);
@@ -137,9 +163,41 @@ export function ChickenSection() {
   const currentWonStep = visibleSteps.at(-1)?.step ?? 0;
   const nextStep = currentStep + 1;
   const currency = game.risk?.currency ?? game.balance?.currency ?? "USDC";
+  const displayCurrency = money.ready ? money.currency.code : "USD";
+  const formatGameMoney = (value: string | null | undefined) => {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? money.formatExact(parsed) : String(value ?? "");
+  };
   const minimumStake = game.risk?.minimumBet ?? "0.1";
   const normalizedAmount = normalizeArkjetAmount(amount, 6);
   const validAmount = amountUnits(normalizedAmount, 6) >= amountUnits(minimumStake, 6);
+  const needsFunding =
+    validAmount &&
+    amountUnits(normalizedAmount, 6) >
+      amountUnits(normalizeArkjetAmount(game.balance?.available ?? "0", 6), 6);
+  const requiredUnits = amountUnits(normalizedAmount, 6);
+  const playableUnits = amountUnits(normalizeArkjetAmount(game.balance?.available ?? "0", 6), 6);
+  const shortfallUnits = requiredUnits > playableUnits ? requiredUnits - playableUnits : 0n;
+  const walletToken = portfolio.tokens.find(
+    (token) => token.network === "base-mainnet" && token.symbol.toUpperCase() === "USDC"
+  );
+  const walletRaw = BigInt(walletToken?.rawBalance ?? "0");
+  const openFunding = () => {
+    if (!portfolio.loading && walletRaw < shortfallUnits) {
+      modals.openFunds();
+      return;
+    }
+    setCashierInitialAmount(fromBaseUnits(shortfallUnits, 6));
+    setCashierOpen(true);
+  };
+  const openBalance = () => {
+    if (!portfolio.loading && needsFunding && walletRaw < shortfallUnits) {
+      modals.openFunds();
+      return;
+    }
+    setCashierInitialAmount(needsFunding ? fromBaseUnits(shortfallUnits, 6) : undefined);
+    setCashierOpen(true);
+  };
   const overlayVisible = menuOpen || historyOpen;
   const visualBusy = !["ready", "waiting"].includes(phase);
   const controlsLocked = game.pending || visualBusy;
@@ -153,11 +211,7 @@ export function ChickenSection() {
         : phase === "waiting"
           ? "Idle Active"
           : "Start";
-  const stageMessage =
-    notice ??
-    (activeSession?.liquidityCrashStep
-      ? `Cash out by step ${activeSession.maximumPayableStep}. Step ${activeSession.liquidityCrashStep} is the liquidity limit.`
-      : null);
+  const stageMessage = notice;
   const worldStyle = {
     "--world-transition": ["lost-reset", "won-reset"].includes(phase)
       ? `${WORLD_RESET_MS}ms`
@@ -279,7 +333,7 @@ export function ChickenSection() {
     setResultBanner({
       tone: "won",
       title: "Win",
-      detail: money(updated.payout, updated.currency),
+      detail: formatGameMoney(updated.payout),
     });
     await resetVisual(sequence, "won");
   }
@@ -325,7 +379,7 @@ export function ChickenSection() {
       setResultBanner({
         tone: "won",
         title: "Win",
-        detail: money(updated.payout, updated.currency),
+        detail: formatGameMoney(updated.payout),
       });
       await resetVisual(sequence, "won");
     } catch (error) {
@@ -353,6 +407,22 @@ export function ChickenSection() {
           src={`${ASSET}/img/logo-mobile@2x.png`}
           alt="Pilot Chicken"
         />
+        <button
+          type="button"
+          className={styles.howToPlayTag}
+          onClick={() => {
+            setHistoryOpen(false);
+            setMenuOpen(false);
+            setHowToPlayOpen(true);
+          }}
+        >
+          ? How to play
+        </button>
+        <ArkadeCampaignBadge
+          className={styles.campaignSlot}
+          enabled={game.authReady && game.authenticated}
+          playerId={game.balance?.playerId}
+        />
         <div className={styles.headerRight}>
           <button
             type="button"
@@ -361,14 +431,15 @@ export function ChickenSection() {
             onClick={() => {
               setHistoryOpen(false);
               setMenuOpen(false);
-              if (game.authenticated) setCashierOpen(true);
-              else game.login();
+              if (game.authenticated) {
+                openBalance();
+              } else game.login();
             }}
           >
             <span className={styles.balanceAmount}>
-              {game.authenticated ? (game.balance?.available ?? "0.00") : "0.00"}
+              {formatGameMoney(game.authenticated ? game.balance?.available : "0")}
             </span>
-            <span className={styles.balanceCurrency}>{currency}</span>
+            <span className={styles.balanceCurrency}>{displayCurrency}</span>
             <span className={styles.balanceAdd} aria-hidden="true">
               +
             </span>
@@ -468,19 +539,16 @@ export function ChickenSection() {
                         <span>{(hundredths / 100).toFixed(2)}x</span>
                       </div>
                     ) : null}
-                    {traffic ? (
-                      traffic.collision ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={traffic.key}
-                          className={`${styles.plane} ${styles.collisionPlane}`}
-                          src={`${ASSET}/img/${traffic.texture}@2x.png`}
-                          alt=""
-                        />
-                      ) : null
-                    ) : (
-                      <LanePlane />
-                    )}
+                    <LanePlane muted={Boolean(traffic)} />
+                    {traffic?.collision ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={traffic.key}
+                        className={`${styles.plane} ${styles.collisionPlane}`}
+                        src={`${ASSET}/img/${traffic.texture}@2x.png`}
+                        alt=""
+                      />
+                    ) : null}
                   </div>
                 );
               })}
@@ -594,11 +662,18 @@ export function ChickenSection() {
               <img src={`${ASSET}/icons/icon-game-limits.svg`} alt="" />
               Game Limits
             </span>
-            <span className={styles.menuRow}>
+            <button
+              type="button"
+              className={styles.menuRow}
+              onClick={() => {
+                setMenuOpen(false);
+                setHowToPlayOpen(true);
+              }}
+            >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`${ASSET}/icons/icon-hint.svg`} alt="" />
               How to Play
-            </span>
+            </button>
             <span className={styles.menuRow}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`${ASSET}/icons/icon-game-rules.svg`} alt="" />
@@ -642,16 +717,14 @@ export function ChickenSection() {
                 </button>
                 <label>
                   <span className={styles.srOnly}>Stake</span>
-                  <input
-                    type="number"
+                  <GameMoneyInput
                     inputMode="decimal"
-                    min={game.risk?.minimumBet ?? "0.1"}
-                    step="0.000001"
                     disabled={active || controlsLocked}
                     value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
+                    currencyDecimals={6}
+                    onValueChange={setAmount}
                   />
-                  <small>{currency}</small>
+                  <small>{displayCurrency}</small>
                 </label>
                 <button
                   type="button"
@@ -670,7 +743,7 @@ export function ChickenSection() {
                     key={stake}
                     onClick={() => setAmount(String(stake))}
                   >
-                    {stake}
+                    {money.formatExact(stake)}
                   </button>
                 ))}
               </div>
@@ -686,13 +759,23 @@ export function ChickenSection() {
                       game.login();
                       return;
                     }
+                    if (needsFunding) {
+                      openFunding();
+                      return;
+                    }
                     void executeStep(() => game.start({ amount, currency, difficulty }), true);
                   }}
                 >
                   <span>
-                    {game.pending ? "WAIT..." : game.authenticated ? "SUBMIT" : "SIGN IN"}
+                    {game.pending
+                      ? "WAIT..."
+                      : !game.authenticated
+                        ? "SIGN IN"
+                        : needsFunding
+                          ? "ADD FUNDS"
+                          : "SUBMIT"}
                   </span>
-                  <span>{money(amount, currency)}</span>
+                  <span>{formatGameMoney(amount)}</span>
                 </button>
               ) : (
                 <>
@@ -703,7 +786,7 @@ export function ChickenSection() {
                     onClick={() => void executeCashout(() => game.cashout(activeSession))}
                   >
                     <span>CASH OUT</span>
-                    <span>{money(activeSession.potentialPayout, currency)}</span>
+                    <span>{formatGameMoney(activeSession.potentialPayout)}</span>
                   </button>
                   <button
                     type="button"
@@ -725,11 +808,33 @@ export function ChickenSection() {
         <ArkjetCashier
           balance={game.balance}
           minimumAmount={game.risk?.minimumBet ?? "0.10"}
+          initialAmount={cashierInitialAmount}
           productName="Chicken Cross"
           tone="chicken"
           onClose={() => setCashierOpen(false)}
+          onOpenFunds={() => {
+            setCashierOpen(false);
+            modals.openFunds();
+          }}
         />
       ) : null}
+      <GameHowToPlay
+        accent="chicken"
+        open={howToPlayOpen}
+        title="How to play Chicken Cross"
+        steps={[
+          "Choose a difficulty and ticket amount, then submit to start the crossing.",
+          "Press Next to cross one lane. Every safe lane increases your possible payout.",
+          "Cash out after a safe lane. If the chicken is hit before cashout, the ticket loses.",
+        ]}
+        onClose={() => setHowToPlayOpen(false)}
+      />
+      <AppModalHost
+        active={modals.modal}
+        onClose={modals.close}
+        onConfirmed={modals.showDone}
+        onOpenFunds={modals.openFunds}
+      />
     </main>
   );
 }

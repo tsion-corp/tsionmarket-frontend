@@ -52,10 +52,15 @@ function fundingState() {
   };
 }
 
-function mountCashier() {
+function mountCashier(onOpenFunds?: () => void) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
-      <ArkjetCashier balance={null} minimumAmount="0.1" onClose={vi.fn()} />
+      <ArkjetCashier
+        balance={null}
+        minimumAmount="0.1"
+        onClose={vi.fn()}
+        onOpenFunds={onOpenFunds}
+      />
     </NextIntlClientProvider>
   );
 }
@@ -123,5 +128,14 @@ describe("USDC cashier", () => {
 
     await waitFor(() => expect(mocks.recoverDeposit).toHaveBeenCalledWith(txHash));
     expect(mocks.deposit).not.toHaveBeenCalled();
+  });
+
+  it("offers crypto or Naira funding even when the wallet already has USDC", () => {
+    const onOpenFunds = vi.fn();
+    mountCashier(onOpenFunds);
+
+    fireEvent.click(screen.getByRole("button", { name: "Fund with crypto or Naira" }));
+
+    expect(onOpenFunds).toHaveBeenCalledTimes(1);
   });
 });

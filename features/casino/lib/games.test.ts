@@ -5,15 +5,16 @@ import { CASINO_GAMES, filterGames, type TileSize } from "@/features/casino/lib/
 const SPAN: Record<TileSize, number> = { hero: 4, tall: 2, medium: 2, wide: 3 };
 
 describe("casino game catalogue", () => {
-  // The order the team set on 2026-09-25 was Last Man, Arkjet, Pilot Chicken,
-  // Chess, ArkBall, Checkers. Last Man takes the hero slot and Arkjet the
-  // two-column slot beside it, so the first row still fills the six columns.
-  // Checkers is hidden on production (2026-09-27), so the order stops at five.
-  it("leads with Last Man, then Arkjet, Pilot Chicken, Chess and ArkBall", () => {
-    expect(CASINO_GAMES.slice(0, 5).map((g) => g.id)).toEqual([
+  // The order the team set on 2026-09-28 was Last Man, Arkjet, Pilot Chicken,
+  // Spin Da Bottle, Chess, ArkBall, Checkers. Last Man takes the hero slot and
+  // Arkjet the two-column slot beside it, so the first row still fills the six
+  // columns. Checkers is hidden on production (2026-09-27).
+  it("places Spin Da Bottle immediately after Pilot Chicken", () => {
+    expect(CASINO_GAMES.slice(0, 6).map((g) => g.id)).toEqual([
       "last-standing",
       "arkjet",
       "chicken",
+      "spin-da-bottle",
       "chess",
       "arkball",
     ]);
@@ -39,10 +40,11 @@ describe("casino game catalogue", () => {
 
   it("keeps that order under the All games filter", () => {
     const shown = filterGames(CASINO_GAMES, "All games", "");
-    expect(shown.slice(0, 5).map((g) => g.id)).toEqual([
+    expect(shown.slice(0, 6).map((g) => g.id)).toEqual([
       "last-standing",
       "arkjet",
       "chicken",
+      "spin-da-bottle",
       "chess",
       "arkball",
     ]);

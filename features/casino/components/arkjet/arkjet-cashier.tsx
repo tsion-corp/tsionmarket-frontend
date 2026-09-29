@@ -20,7 +20,9 @@ type CashierMode = "deposit" | "withdraw";
 interface ArkjetCashierProps {
   balance: ArkjetBalance | null;
   minimumAmount: string;
+  initialAmount?: string;
   onClose: () => void;
+  onOpenFunds?: () => void;
   productName?: string;
   tone?: "arkjet" | "chicken";
 }
@@ -38,7 +40,9 @@ function money(value: string, currency: string): string {
 export function ArkjetCashier({
   balance,
   minimumAmount,
+  initialAmount,
   onClose,
+  onOpenFunds,
   productName = "Arkjet",
   tone = "arkjet",
 }: ArkjetCashierProps) {
@@ -46,7 +50,7 @@ export function ArkjetCashier({
   const funding = useArkjetFunding();
   const portfolio = usePortfolio({ scope: "base" });
   const [mode, setMode] = useState<CashierMode>("deposit");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(initialAmount ?? "");
   const [awaitingCredit, setAwaitingCredit] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState<string | null>(null);
 
@@ -328,6 +332,15 @@ export function ArkjetCashier({
                   ? "Transfer USDC and add funds"
                   : "Withdraw to Privy wallet"}
             </button>
+
+            {mode === "deposit" && onOpenFunds ? (
+              <div className={styles.cashierExternalFunding}>
+                <span>or</span>
+                <button type="button" onClick={onOpenFunds}>
+                  Fund with crypto or Naira
+                </button>
+              </div>
+            ) : null}
 
             {mode === "deposit" ? (
               <details

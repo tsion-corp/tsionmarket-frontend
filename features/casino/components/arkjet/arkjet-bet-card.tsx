@@ -6,9 +6,11 @@ import type {
   ArkjetRound,
   CreateArkjetBetInput,
 } from "@/features/casino/lib/api/arkjet";
+import { useMoney } from "@/components/ui/currency-select";
 import { gameActionError } from "@/features/casino/lib/game-error";
 import { toast } from "@/lib/toast";
 import { amountUnits, normalizeArkjetAmount, stepArkjetAmount } from "../../lib/arkjet-funding";
+import { GameMoneyInput } from "../game-money-input";
 import styles from "./arkjet.module.css";
 
 const QUICK_AMOUNTS = [1, 2, 5, 10];
@@ -25,7 +27,7 @@ function fixedMultiplier(value: string): string {
   return Number.isFinite(parsed) ? parsed.toFixed(2) : value;
 }
 
-interface ArkjetBetCardProps {
+export interface ArkjetBetCardProps {
   slot: 1 | 2;
   round: ArkjetRound;
   currency: string;
@@ -38,7 +40,9 @@ interface ArkjetBetCardProps {
   authenticated: boolean;
   authReady: boolean;
   busy: boolean;
+  availableBalance: string;
   onLogin: () => void;
+  onFund: (amount: string) => void;
   onPlace: (input: CreateArkjetBetInput) => Promise<ArkjetBet>;
   onCancel: (betId: string) => Promise<ArkjetBet>;
   onCashout: (betId: string) => Promise<ArkjetBet>;
@@ -57,11 +61,14 @@ export function ArkjetBetCard({
   authenticated,
   authReady,
   busy,
+  availableBalance,
   onLogin,
+  onFund,
   onPlace,
   onCancel,
   onCashout,
 }: ArkjetBetCardProps) {
+  const money = useMoney();
   const [mode, setMode] = useState<"bet" | "auto">("bet");
   const minimum = normalizeArkjetAmount(minimumAmount, 6) ?? "0.1";
   const [amount, setAmount] = useState(() => stepArkjetAmount("0", minimum, "increase"));
@@ -73,12 +80,19 @@ export function ArkjetBetCard({
   const maximumCashout = Math.max(Number(maximumCashoutMultiplier) || 100, minimumCashout);
   const currentMultiplier = Number(round.currentMultiplier) || 1;
   const panelId = slot === 1 ? "A" : "B";
+  const formatGameMoney = (value: string) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? money.formatExact(parsed) : value;
+  };
   const canSubmitAmount =
     amountUnits(normalizedAmount, 6) >= amountUnits(minimum, 6) &&
     (mode === "bet" || (autoCashout >= minimumCashout && autoCashout <= maximumCashout));
+  const needsFunding =
+    canSubmitAmount &&
+    amountUnits(normalizedAmount, 6) > amountUnits(normalizeArkjetAmount(availableBalance, 6), 6);
 
   let action = "Wait for next round";
-  let actionKind: "place" | "cancel" | "cashout" | "login" | "none" = "none";
+  let actionKind: "place" | "fund" | "cancel" | "cashout" | "login" | "none" = "none";
   let status = "Tickets open during the committed phase";
 
   if (!authReady) {
@@ -92,7 +106,7 @@ export function ArkjetBetCard({
     action = "Tickets unavailable";
     status = "Live wagering is currently disabled";
   } else if (activeBet) {
-    status = `${activeBet.amount} ${activeBet.currency} accepted · max ${activeBet.maximumCashoutMultiplier}x`;
+    status = `${formatGameMoney(activeBet.amount)} accepted · max ${activeBet.maximumCashoutMultiplier}x`;
     if (round.status === "COMMITTED") {
       action = "Cancel Ticket";
       actionKind = "cancel";
@@ -113,8 +127,12 @@ export function ArkjetBetCard({
       action = "Settling ticket…";
     }
   } else if (round.status === "COMMITTED") {
-    action = mode === "auto" ? "Submit Auto Ticket" : "Submit Ticket";
-    actionKind = canSubmitAmount ? "place" : "none";
+    action = needsFunding
+      ? "Add funds to play"
+      : mode === "auto"
+        ? "Submit Auto Ticket"
+        : "Submit Ticket";
+    actionKind = canSubmitAmount ? (needsFunding ? "fund" : "place") : "none";
     status =
       mode === "auto"
         ? `Auto cashout at ${cashout || "0.00"}x`
@@ -129,6 +147,11 @@ export function ArkjetBetCard({
   async function act() {
     if (actionKind === "login") {
       onLogin();
+      return;
+    }
+
+    if (actionKind === "fund") {
+      onFund(normalizedAmount ?? amount);
       return;
     }
 
@@ -151,7 +174,7 @@ export function ArkjetBetCard({
         const settled = await onCashout(activeBet.betId);
         toast.success(
           settled.payout
-            ? `Cashed out ${settled.payout} ${settled.currency}.`
+            ? `Cashed out ${formatGameMoney(settled.payout)}.`
             : "Arkjet cashout completed.",
           { id: toastId }
         );
@@ -181,7 +204,7 @@ export function ArkjetBetCard({
         idempotencyKey: idempotency.current.key,
       });
       idempotency.current = null;
-      toast.success(`Ticket for ${amount} ${currency} accepted.`, { id: toastId });
+      toast.success(`Ticket for ${formatGameMoney(amount)} accepted.`, { id: toastId });
     } catch (error) {
       toast.error(gameActionError(error, "Arkjet", "Could not submit that Arkjet ticket."), {
         id: toastId,
@@ -222,13 +245,14 @@ export function ArkjetBetCard({
             >
               −
             </button>
-            <input
+            <GameMoneyInput
               aria-label={`Ticket ${slot} amount`}
               value={activeBet?.amount ?? amount}
+              currencyDecimals={6}
               inputMode="decimal"
               className={styles.amountInput}
               disabled={Boolean(activeBet) || busy}
-              onChange={(event) => setAmount(validAmount(event.target.value))}
+              onValueChange={setAmount}
             />
             <button
               type="button"
@@ -250,7 +274,7 @@ export function ArkjetBetCard({
                   disabled={Boolean(activeBet) || busy}
                   onClick={() => setAmount(quick.toFixed(2))}
                 >
-                  {quick.toLocaleString()}
+                  {money.formatExact(quick)}
                 </button>
               );
             })}
@@ -282,9 +306,7 @@ export function ArkjetBetCard({
           onClick={() => void act()}
         >
           {busy ? "Processing…" : action}
-          <span className={styles.betAmount}>
-            {shownAmount} {activeBet?.currency ?? currency}
-          </span>
+          <span className={styles.betAmount}>{formatGameMoney(shownAmount)}</span>
         </button>
       </div>
     </article>

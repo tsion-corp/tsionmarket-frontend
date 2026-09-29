@@ -1906,6 +1906,10 @@
           "name": "Pilot Chicken",
           "note": "Cross each lane and cash out before the crash"
         },
+        "spin-da-bottle": {
+          "name": "Spin Da Bottle",
+          "note": "Pick up or down and spin the bottle"
+        },
         "arkball": {
           "name": "ArkBall",
           "note": "Pick 5 white balls and 1 ArkBall"
@@ -3615,6 +3619,9 @@
     "chickenKicker": "Pilot Chicken",
     "chickenHeadline": "Cross each lane. Cash out before the crash.",
     "chickenPlay": "Play Pilot Chicken",
+    "spinBottleKicker": "Spin da' Bottle",
+    "spinBottleHeadline": "Pick up or down. Win double when the bottle agrees.",
+    "spinBottlePlay": "Play Spin da' Bottle",
     "goLiveBadge": "On air",
     "goLiveKicker": "Go live",
     "goLiveHeadline": "Start a room and bring the market with you.",

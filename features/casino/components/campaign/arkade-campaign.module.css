@@ -1,0 +1,672 @@
+.root {
+  position: relative;
+  z-index: 36;
+  flex: 0 0 auto;
+  font-family: var(--font-body), sans-serif;
+}
+
+.badge {
+  display: flex;
+  width: 92px;
+  height: 25px;
+  align-items: center;
+  overflow: visible;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 7px;
+  background: #050506;
+  padding: 2px;
+  color: #fff;
+  box-shadow: 1px 2px 5px rgb(0 0 0 / 42%);
+  cursor: pointer;
+}
+
+.badge:hover {
+  border-color: rgb(255 82 68 / 68%);
+}
+
+.badge:focus-visible {
+  outline: 2px solid #ff5849;
+  outline-offset: 2px;
+}
+
+.badgeProgress {
+  position: relative;
+  display: grid;
+  width: 64px;
+  height: 19px;
+  flex: 0 0 64px;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #171719;
+}
+
+.badgeProgressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 2px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #9f1226, #ef293e);
+  opacity: 0.62;
+  transition: width 240ms ease;
+}
+
+.badgeLabel {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  max-width: 60px;
+  padding-inline: 2px;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+.badgeGift {
+  position: relative;
+  display: grid;
+  width: 22px;
+  height: 20px;
+  margin-left: 2px;
+  place-items: center;
+  border-radius: 4px;
+  background: linear-gradient(145deg, #cf1730, #7e0b1b);
+  color: #ffd36f;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+
+.badgeGift svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.badgeGift small {
+  position: absolute;
+  top: -7px;
+  right: -6px;
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  border-radius: 50%;
+  background: #ffd057;
+  color: #2b1a05;
+  font-size: 7px;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 45%);
+}
+
+.badgeQualified .badgeProgressFill {
+  background: linear-gradient(90deg, #bf7014, #f7b73b);
+  opacity: 0.72;
+}
+
+.badgeQualified .badgeGift {
+  background: linear-gradient(145deg, #f7be4d, #ad6514);
+  color: #261603;
+}
+
+.panel {
+  width: min(360px, 100%) !important;
+  max-height: min(490px, 92dvh) !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 20px 20px 0 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: 0 -18px 60px rgb(0 0 0 / 55%) !important;
+}
+
+.panel > span:first-child {
+  display: none !important;
+}
+
+.panelContent {
+  overflow: hidden;
+}
+
+.shellClose {
+  top: 7px !important;
+  right: 7px !important;
+  z-index: 30 !important;
+  width: 30px !important;
+  height: 30px !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #fff !important;
+}
+
+.modalBody {
+  overflow: hidden;
+  border-radius: 20px 20px 0 0;
+  background: #13151a;
+  color: #fff;
+}
+
+.modalHeader {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px 20px 0 0;
+  background: #22252d;
+}
+
+.modalHeader h2 {
+  max-width: 220px;
+  margin: 0 0 0 14px;
+  background: linear-gradient(90deg, #f0c465, #ffefcf);
+  background-clip: text;
+  color: transparent;
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.prizeArt {
+  position: absolute;
+  top: 5px;
+  left: 12px;
+  width: 72px;
+  height: 50px;
+  pointer-events: none;
+}
+
+.prizeHalo {
+  position: absolute;
+  top: -4px;
+  left: -3px;
+  width: 58px;
+  height: 44px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 198 74 / 32%), transparent 68%);
+}
+
+.prizeBox {
+  position: absolute;
+  top: 2px;
+  left: 7px;
+  display: grid;
+  width: 39px;
+  height: 36px;
+  place-items: center;
+  transform: rotate(-5deg);
+  border: 2px solid #ffce68;
+  border-radius: 8px;
+  background: linear-gradient(145deg, #e9293f, #870c20);
+  color: #ffe3a3;
+  box-shadow: 0 5px 12px rgb(0 0 0 / 35%);
+}
+
+.prizeBox svg {
+  width: 25px;
+  height: 25px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.prizeTag {
+  position: absolute;
+  right: 0;
+  bottom: 6px;
+  transform: rotate(5deg);
+  border: 1px solid #ffe39f;
+  border-radius: 8px;
+  background: #f2b83e;
+  padding: 1px 4px;
+  color: #4a2b04;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.endsIn {
+  height: 22px;
+  background: #3a3c42;
+  padding: 3px 2px 2px;
+  color: #fff;
+  font-size: 11px;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+  line-height: 17px;
+  text-align: center;
+}
+
+.scrollArea {
+  height: min(424px, calc(100dvh - 100px));
+  overflow-y: auto;
+  padding: 12px;
+  scrollbar-width: none;
+}
+
+.scrollArea::-webkit-scrollbar {
+  display: none;
+}
+
+.tier {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgb(255 119 102 / 28%);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle at -8% 15%, rgb(255 134 87 / 27%), transparent 32%),
+    linear-gradient(145deg, #71101e, #3f0b14 62%, #281015);
+  padding: 14px 15px;
+  box-shadow: 0 3px 10px rgb(0 0 0 / 42%);
+}
+
+.tier::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent 20%, rgb(255 255 255 / 4%), transparent 65%);
+  content: "";
+  pointer-events: none;
+}
+
+.tierComplete {
+  border-color: rgb(255 197 87 / 46%);
+  background:
+    radial-gradient(circle at -8% 15%, rgb(255 201 83 / 25%), transparent 32%),
+    linear-gradient(145deg, #6a3510, #3f210b 62%, #25170c);
+}
+
+.brandWatermark {
+  position: absolute;
+  top: -49px;
+  left: -8px;
+  transform: rotate(-8deg);
+  color: rgb(255 255 255 / 6%);
+  font-family: var(--font-display), sans-serif;
+  font-size: 210px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.tierContent {
+  position: relative;
+  z-index: 2;
+}
+
+.tierTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.prizeBadge {
+  display: flex;
+  width: 70px;
+  height: 45px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 224 153 / 45%);
+  border-radius: 7px;
+  background: linear-gradient(160deg, #f0b83f, #9b5410);
+  color: #fff6dc;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
+}
+
+.prizeBadge strong {
+  font-size: 20px;
+  line-height: 18px;
+}
+
+.prizeBadge small {
+  margin-top: 3px;
+  color: #4a2905;
+  font-size: 7px;
+  font-weight: 900;
+}
+
+.missionTag {
+  border-radius: 4px;
+  background: rgb(255 255 255 / 92%);
+  padding: 2px 8px;
+  color: #351017;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.steps {
+  display: flex;
+  align-items: flex-start;
+  margin: 4px 1px 13px;
+}
+
+.stepGroup {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-start;
+}
+
+.stepGroup:last-child {
+  flex: 0 0 auto;
+}
+
+.step {
+  display: flex;
+  width: 42px;
+  flex: 0 0 42px;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.stepIcon {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 48%);
+  border-radius: 50%;
+  background: rgb(0 0 0 / 24%);
+  color: rgb(255 255 255 / 72%);
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.stepIconComplete {
+  border-color: #ffd36b;
+  background: #f4b93d;
+  color: #3b2103;
+}
+
+.step small {
+  color: rgb(255 255 255 / 62%);
+  font-size: 7px;
+  font-weight: 800;
+}
+
+.connector {
+  height: 10px;
+  flex: 1 1 auto;
+  margin: 5px 4px 0;
+  background-image: linear-gradient(90deg, rgb(255 255 255 / 28%) 30%, transparent 0%);
+  background-position: center;
+  background-repeat: repeat-x;
+  background-size: 7px 2px;
+}
+
+.connectorComplete {
+  background-image: linear-gradient(90deg, #ffd267 40%, transparent 0%);
+}
+
+.criteriaHeading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.criteriaHeading strong {
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.criteriaHeading span {
+  color: #ffe3a0;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.progressTrack {
+  height: 8px;
+  margin: 6px 2px 5px 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: rgb(29 2 7 / 58%);
+}
+
+.progressTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ff765f, #ffd263);
+  transition: width 280ms ease;
+}
+
+.criteriaSubheading {
+  margin: 0 0 12px;
+  color: #e8a4a4;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.missions {
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 7px;
+  background: rgb(10 4 6 / 31%);
+}
+
+.mission {
+  display: grid;
+  min-height: 68px;
+  grid-template-columns: 28px minmax(0, 1fr) 10px;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+  padding: 8px;
+  color: inherit;
+}
+
+.mission:last-child {
+  border-bottom: 0;
+}
+
+.mission:hover {
+  background: rgb(255 255 255 / 5%);
+}
+
+.missionMark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 28%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 8%);
+  color: #f8d4d4;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.missionMarkComplete {
+  border-color: #ffd36c;
+  background: #f0b53b;
+  color: #3a2103;
+}
+
+.missionContent {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.missionTitleRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.missionTitleRow strong {
+  font-size: 11px;
+  line-height: 1.1;
+}
+
+.missionTitleRow small {
+  color: #edb1b1;
+  font-size: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.missionTitleRow .completeText {
+  color: #ffd46e;
+}
+
+.missionRule {
+  margin-top: 3px;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.condition {
+  display: flex;
+  align-items: flex-start;
+  margin-top: 3px;
+  color: #e49b9f;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.condition i {
+  width: 4px;
+  height: 4px;
+  flex: 0 0 4px;
+  margin: 3px 5px 0 0;
+  border-radius: 50%;
+  background: #ffcb64;
+}
+
+.chevron {
+  color: rgb(255 255 255 / 46%);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.entryState {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  border: 1px solid #30333b;
+  border-radius: 8px;
+  background: #1b1e25;
+  padding: 8px 10px;
+}
+
+.entryIcon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border-radius: 7px;
+  background: #2b2e36;
+  color: #8d9099;
+}
+
+.entryIcon svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.entryState > span:last-child {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.entryState strong {
+  font-size: 10px;
+  line-height: 1.25;
+}
+
+.entryState small {
+  margin-top: 3px;
+  color: #858892;
+  font-size: 8px;
+  line-height: 1.25;
+}
+
+.entryStateQualified {
+  border-color: rgb(241 184 61 / 42%);
+  background: #282214;
+}
+
+.entryStateQualified .entryIcon {
+  background: #efb73f;
+  color: #3b2204;
+}
+
+.fairDraw {
+  margin-top: 9px;
+  color: #666a74;
+  font-size: 8px;
+  text-align: center;
+}
+
+.fairDraw summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.fairDraw summary::-webkit-details-marker {
+  display: none;
+}
+
+.fairDraw code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-top: 5px;
+  color: #737781;
+  font-size: 7px;
+  line-height: 1.3;
+}
+
+@media (min-width: 768px) {
+  .panel {
+    border-radius: 20px 20px 0 0 !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .modalHeader h2 {
+    max-width: 180px;
+    margin-left: 35px;
+    font-size: 14px;
+  }
+
+  .scrollArea {
+    padding-inline: 8px;
+  }
+
+  .tier {
+    padding-inline: 11px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badgeProgressFill,
+  .progressTrack span {
+    transition: none;
+  }
+}

@@ -10,6 +10,7 @@ import {
   ChessCard,
   LastManCard,
   PilotChickenCard,
+  SpinDaBottleCard,
 } from "@/features/discovery/components/arkade-cards";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -124,6 +125,15 @@ describe("Pilot Chicken card", () => {
     renderWithIntl(<PilotChickenCard />);
     expect(screen.getByText(enMessages.discovery.chickenHeadline)).toBeInTheDocument();
     expect(link(/Play Pilot Chicken/)).toHaveAttribute("href", "/casino/chicken");
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+  });
+});
+
+describe("Spin Da Bottle card", () => {
+  it("links to the game", () => {
+    renderWithIntl(<SpinDaBottleCard />);
+    expect(screen.getByText(enMessages.discovery.spinBottleHeadline)).toBeInTheDocument();
+    expect(link(/Play Spin da' Bottle/)).toHaveAttribute("href", "/casino/spin-da-bottle");
     expect(screen.getAllByRole("link")).toHaveLength(1);
   });
 });

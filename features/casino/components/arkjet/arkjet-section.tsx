@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useState } from "react";
+import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
+import { useMoney } from "@/components/ui/currency-select";
 import type {
   ArkjetFairnessRules,
   ArkjetRound,
@@ -10,13 +13,24 @@ import type {
 } from "@/features/casino/lib/api/arkjet";
 import { useArkjet } from "@/features/casino/hooks/use-arkjet";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { amountUnits, normalizeArkjetAmount } from "@/features/casino/lib/arkjet-funding";
+import { GameHowToPlay } from "../game-how-to-play";
 import { ArkjetBetCard } from "./arkjet-bet-card";
-import { ArkjetCashier } from "./arkjet-cashier";
 import { ArkjetChatRail } from "./arkjet-chat-rail";
 import { ArkjetMultiplierBar, ArkjetStage } from "./arkjet-stage";
 import styles from "./arkjet.module.css";
 
 type RailTab = "all" | "previous" | "top";
+
+const ArkjetCashier = dynamic(
+  () => import("./arkjet-cashier").then((module) => module.ArkjetCashier),
+  { ssr: false }
+);
+
+const ArkadeCampaignBadge = dynamic(
+  () => import("../campaign/arkade-campaign-badge").then((module) => module.ArkadeCampaignBadge),
+  { ssr: false }
+);
 
 function ArkjetLogo() {
   return (
@@ -44,24 +58,6 @@ function orderedRounds(rounds: ArkjetRound[], tab: RailTab): ArkjetRound[] {
 function displayVersion(version: string): string {
   const match = version.match(/^arkjet-(v\d+)$/iu);
   return match ? `Arkjet ${match[1].toLowerCase()}` : version;
-}
-
-function displayMoney(value: string, currency: string): string {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return `${value} ${currency}`;
-  return `${amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ${currency}`;
-}
-
-function displayActivityMoney(value: string): string {
-  const amount = Number(value);
-  if (!Number.isFinite(amount)) return value;
-  return amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 }
 
 const ACTIVITY_AVATARS = [
@@ -107,10 +103,14 @@ function LeftRail({
   rounds,
   activity,
   algorithmVersion,
+  displayCurrency,
+  formatMoney,
 }: {
   rounds: ArkjetRound[];
   activity: ArkjetSimulatedActivityFeed | null;
   algorithmVersion: string;
+  displayCurrency: string;
+  formatMoney: (value: string) => string;
 }) {
   const [tab, setTab] = useState<RailTab>("all");
   const shown = orderedRounds(rounds, tab).slice(0, 20);
@@ -147,7 +147,7 @@ function LeftRail({
                 ))}
               </div>
               <strong className={styles.summaryValue}>
-                {displayActivityMoney(activity?.totalDisplayPayout ?? "0")}
+                {formatMoney(activity?.totalDisplayPayout ?? "0")}
               </strong>
             </div>
             <div className={styles.summaryMeta}>
@@ -157,7 +157,7 @@ function LeftRail({
                 </strong>{" "}
                 Tickets
               </span>
-              <span>Total win {activity?.currency ?? "USDC"}</span>
+              <span>Total win {displayCurrency}</span>
             </div>
             <div className={styles.activityProgress} aria-hidden="true">
               <span style={{ width: `${progress}%` }} />
@@ -182,9 +182,9 @@ function LeftRail({
       </div>
       <div className={`${styles.railColumns} ${showingActivity ? styles.activityColumns : ""}`}>
         <span>{showingActivity ? "Profile" : "Round"}</span>
-        <span>{showingActivity ? `Ticket ${activity?.currency ?? "USDC"}` : "Result"}</span>
+        <span>{showingActivity ? `Ticket ${displayCurrency}` : "Result"}</span>
         {showingActivity ? <span>X</span> : null}
-        <span>{showingActivity ? `Win ${activity?.currency ?? "USDC"}` : "Proof"}</span>
+        <span>{showingActivity ? `Win ${displayCurrency}` : "Proof"}</span>
       </div>
       <div className={`${styles.railRows} ${showingActivity ? styles.activityRailRows : ""}`}>
         {showingActivity
@@ -200,7 +200,7 @@ function LeftRail({
                   <ActivityAvatar item={item} />
                   <span className={styles.roundLabel}>{item.profileName}</span>
                 </div>
-                <strong className={styles.activityStake}>{displayActivityMoney(item.stake)}</strong>
+                <strong className={styles.activityStake}>{formatMoney(item.stake)}</strong>
                 <strong className={styles.activityMultiplier}>
                   {item.status === "CASHED_OUT" && item.cashoutMultiplier
                     ? `${Number(item.cashoutMultiplier).toFixed(2)}x`
@@ -208,7 +208,7 @@ function LeftRail({
                 </strong>
                 <strong className={styles.activityWin}>
                   {item.status === "CASHED_OUT" && item.displayPayout
-                    ? displayActivityMoney(item.displayPayout)
+                    ? formatMoney(item.displayPayout)
                     : ""}
                 </strong>
               </div>
@@ -264,12 +264,14 @@ function SettingsMenu({
   onSound,
   onAnimation,
   onFairness,
+  onHowToPlay,
 }: {
   sound: boolean;
   animation: boolean;
   onSound: () => void;
   onAnimation: () => void;
   onFairness: () => void;
+  onHowToPlay: () => void;
 }) {
   return (
     <div className={styles.menu}>
@@ -299,7 +301,7 @@ function SettingsMenu({
       <button type="button" className={styles.menuRow}>
         <span>▣ Game Limits</span>
       </button>
-      <button type="button" className={styles.menuRow}>
+      <button type="button" className={styles.menuRow} onClick={onHowToPlay}>
         <span>? How To Play</span>
       </button>
       <button type="button" className={styles.menuRow}>
@@ -361,12 +363,16 @@ function FairnessDialog({
 export function ArkjetSection() {
   const arkjet = useArkjet();
   const portfolio = usePortfolio({ scope: "base" });
+  const modals = useAppModals();
+  const money = useMoney();
   const [menuOpen, setMenuOpen] = useState(false);
   const [fairnessOpen, setFairnessOpen] = useState(false);
   const [cashierOpen, setCashierOpen] = useState(false);
+  const [cashierInitialAmount, setCashierInitialAmount] = useState<string | undefined>();
   const [sound, setSound] = useState(true);
   const [animation, setAnimation] = useState(true);
   const [chatOpen, setChatOpen] = useState(true);
+  const [howToPlayOpen, setHowToPlayOpen] = useState(false);
 
   if (arkjet.loading) {
     return <main className={`${styles.page} ${styles.unavailable}`}>Loading Arkjet…</main>;
@@ -397,15 +403,30 @@ export function ArkjetSection() {
   );
   const panelABet = activeBets.find((bet) => bet.panelId === "A") ?? null;
   const panelBBet = activeBets.find((bet) => bet.panelId === "B") ?? null;
-  const walletUsdc =
-    portfolio.tokens.find(
-      (token) => token.network === "base-mainnet" && token.symbol.toUpperCase() === "USDC"
-    )?.balance ?? 0;
+  const walletToken = portfolio.tokens.find(
+    (token) => token.network === "base-mainnet" && token.symbol.toUpperCase() === "USDC"
+  );
+  const walletUsdc = walletToken?.balance ?? 0;
+  const displayCurrency = money.ready ? money.currency.code : "USD";
+  const formatGameMoney = (value: string) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? money.formatExact(parsed) : value;
+  };
+  const openFunding = (amount: string) => {
+    const required = amountUnits(normalizeArkjetAmount(amount, 6), 6);
+    const walletRaw = BigInt(walletToken?.rawBalance ?? "0");
+    if (!portfolio.loading && walletRaw < required) {
+      modals.openFunds();
+      return;
+    }
+    setCashierInitialAmount(amount);
+    setCashierOpen(true);
+  };
   const balance = !arkjet.authReady
     ? "Checking account…"
     : arkjet.authenticated
       ? arkjet.balance
-        ? displayMoney(arkjet.balance.available, arkjet.balance.currency)
+        ? formatGameMoney(arkjet.balance.available)
         : "Balance unavailable"
       : "Sign in";
 
@@ -420,22 +441,32 @@ export function ArkjetSection() {
             <ArkjetLogo />
           </span>
           <span className={styles.brandName}>Arkjet</span>
+          <button
+            type="button"
+            className={styles.howToPlayTag}
+            onClick={() => setHowToPlayOpen(true)}
+          >
+            ? How to play
+          </button>
         </div>
         <div className={styles.topActions}>
+          <ArkadeCampaignBadge
+            className={styles.campaignSlot}
+            enabled={arkjet.authReady && arkjet.authenticated}
+            playerId={arkjet.balance?.playerId}
+          />
           <button
             type="button"
             className={styles.balanceButton}
             onClick={() => {
-              if (arkjet.authenticated) setCashierOpen(true);
-              else arkjet.login();
+              if (arkjet.authenticated) {
+                setCashierInitialAmount(undefined);
+                setCashierOpen(true);
+              } else arkjet.login();
             }}
           >
             <span className={styles.balance}>{balance}</span>
-            {arkjet.authenticated ? (
-              <small>
-                {walletUsdc.toLocaleString(undefined, { maximumFractionDigits: 4 })} USDC wallet
-              </small>
-            ) : null}
+            {arkjet.authenticated ? <small>{money.format(walletUsdc)} wallet</small> : null}
           </button>
           <button
             type="button"
@@ -466,6 +497,10 @@ export function ArkjetSection() {
               setMenuOpen(false);
               setFairnessOpen(true);
             }}
+            onHowToPlay={() => {
+              setMenuOpen(false);
+              setHowToPlayOpen(true);
+            }}
           />
         ) : null}
       </header>
@@ -475,6 +510,8 @@ export function ArkjetSection() {
           rounds={arkjet.history}
           activity={arkjet.activity}
           algorithmVersion={arkjet.current.algorithmVersion}
+          displayCurrency={displayCurrency}
+          formatMoney={formatGameMoney}
         />
         <section className={styles.center}>
           <ArkjetMultiplierBar rounds={arkjet.history} />
@@ -493,7 +530,9 @@ export function ArkjetSection() {
               authenticated={arkjet.authenticated}
               authReady={arkjet.authReady}
               busy={arkjet.wagerPending}
+              availableBalance={arkjet.balance?.available ?? "0"}
               onLogin={arkjet.login}
+              onFund={openFunding}
               onPlace={arkjet.placeBet}
               onCancel={arkjet.cancelBet}
               onCashout={arkjet.cashoutBet}
@@ -511,7 +550,9 @@ export function ArkjetSection() {
               authenticated={arkjet.authenticated}
               authReady={arkjet.authReady}
               busy={arkjet.wagerPending}
+              availableBalance={arkjet.balance?.available ?? "0"}
               onLogin={arkjet.login}
+              onFund={openFunding}
               onPlace={arkjet.placeBet}
               onCancel={arkjet.cancelBet}
               onCashout={arkjet.cashoutBet}
@@ -538,9 +579,31 @@ export function ArkjetSection() {
         <ArkjetCashier
           balance={arkjet.balance}
           minimumAmount={minimumBet}
+          initialAmount={cashierInitialAmount}
           onClose={() => setCashierOpen(false)}
+          onOpenFunds={() => {
+            setCashierOpen(false);
+            modals.openFunds();
+          }}
         />
       ) : null}
+      <GameHowToPlay
+        accent="arkjet"
+        open={howToPlayOpen}
+        title="How to play Arkjet"
+        steps={[
+          "Choose your ticket amount and, if you want, set an automatic cashout multiplier.",
+          "Submit before the round locks. The multiplier starts rising when the jet takes off.",
+          "Cash out before the jet crashes. If it crashes first, that ticket loses.",
+        ]}
+        onClose={() => setHowToPlayOpen(false)}
+      />
+      <AppModalHost
+        active={modals.modal}
+        onClose={modals.close}
+        onConfirmed={modals.showDone}
+        onOpenFunds={modals.openFunds}
+      />
     </main>
   );
 }

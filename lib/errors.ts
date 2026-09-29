@@ -215,6 +215,10 @@ export function friendlyError(
   if (!m) return fallback;
   const gateway = gatewayMeta(e);
 
+  if (/access token comes from a provider this service does not accept/.test(m)) {
+    return "Your session needs to be refreshed. Sign in again and retry.";
+  }
+
   // The Solana sell executor already replaced the stale amount with confirmed
   // chain state. Tell the user why another confirmation is required instead
   // of masking it behind the generic order failure.

@@ -10,6 +10,7 @@ import {
   ChessCard,
   LastManCard,
   PilotChickenCard,
+  SpinDaBottleCard,
 } from "@/features/discovery/components/arkade-cards";
 import { DiscoveryRow } from "@/features/discovery/components/discovery-row";
 import { useCountdown } from "@/hooks/use-countdown";
@@ -42,7 +43,7 @@ export function ArkadeRow() {
   // Every copy of every card reports its own hold, so this counts holds rather
   // than flagging one: a pointer can reach a second card before it has left
   // the first, and one release must not let go of the other's hold.
-  const [holds, setHolds] = useState(0);
+  const [, setHolds] = useState(0);
   const hold = useCallback((held: boolean) => setHolds((n) => n + (held ? 1 : -1)), []);
 
   // Rounds are read against the feed's own clock. A round that had ended by
@@ -63,6 +64,7 @@ export function ArkadeRow() {
         <LastManCard round={round} remainingMs={remainingMs} onHold={hold} />
         <ArkjetCard onHold={hold} />
         <PilotChickenCard onHold={hold} />
+        <SpinDaBottleCard onHold={hold} />
         <ChessCard onHold={hold} />
         <ArkBallCard onHold={hold} />
         {/* Checkers is hidden on production (2026-09-27); the card and its

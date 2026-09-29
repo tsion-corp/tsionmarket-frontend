@@ -20,6 +20,7 @@ import {
   stepChicken,
   type ChickenDifficulty,
   type ChickenSession,
+  ARKADE_CAMPAIGN_QUERY_KEY,
 } from "@/features/casino/lib/api/arkjet";
 import {
   CHICKEN_SOCKET_CLOSED,
@@ -129,6 +130,7 @@ export function useChicken() {
       }
       if (session.status !== "active") {
         void queryClient.invalidateQueries({ queryKey: KEYS.history });
+        void queryClient.invalidateQueries({ queryKey: ARKADE_CAMPAIGN_QUERY_KEY });
       }
     },
     [queryClient]

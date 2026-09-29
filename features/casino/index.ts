@@ -5,6 +5,7 @@ export { ArkadeDesktop } from "./components/arkade-desktop";
 export { ArkBallSection } from "./components/arkball/arkball-section";
 export { ArkjetSection } from "./components/arkjet/arkjet-section";
 export { ChickenSection } from "./components/chicken/chicken-section";
+export { SpinDaBottleSection } from "./components/spin/spin-da-bottle-section";
 export { MiniTimerHost } from "./components/last-standing/mini-timer";
 export { LastStandingSection } from "./components/last-standing/last-standing-section";
 export { LastStandingLobby } from "./components/last-standing/last-standing-lobby";

@@ -3,17 +3,24 @@ import type { NextRequest } from "next/server";
 
 const auth = vi.hoisted(() => ({
   verifyRequest: vi.fn(),
+  accessTokenFromCookie: (read: (name: string) => string | undefined) =>
+    read("privy-token") ?? read("decane-token") ?? null,
 }));
 vi.mock("@/lib/server/auth", () => auth);
 
 function makeReq(
   url: string,
-  init: { body?: string; headers?: Record<string, string> } = {}
+  init: { body?: string; headers?: Record<string, string>; cookies?: Record<string, string> } = {}
 ): NextRequest {
   return {
     nextUrl: new URL(url),
     headers: new Headers(init.headers),
-    cookies: { get: vi.fn(() => undefined) },
+    cookies: {
+      get: vi.fn((name: string) => {
+        const value = init.cookies?.[name];
+        return value ? { name, value } : undefined;
+      }),
+    },
     text: async () => init.body ?? "",
   } as unknown as NextRequest;
 }
@@ -101,6 +108,39 @@ describe("arkjet proxy route", () => {
       "http://127.0.0.1:8096/risk/rules",
       expect.objectContaining({ method: "GET" })
     );
+  });
+
+  it("keeps Spin Da Bottle rules public", async () => {
+    const { GET } = await loadRoute();
+    const response = await GET(makeReq("https://app.test/api/arkjet/spin/rules"), {
+      params: Promise.resolve({ path: ["spin", "rules"] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(auth.verifyRequest).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:8096/spin/rules",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("forwards a Decane cookie to authenticated Spin routes", async () => {
+    auth.verifyRequest.mockResolvedValue({ provider: "decane", userId: "user-1" });
+    const body = JSON.stringify({ idempotencyKey: "273277c1-ae45-4872-9025-6322b0d25a66" });
+    const { POST } = await loadRoute();
+    const response = await POST(
+      makeReq("https://app.test/api/arkjet/spin/wagers/prepare", {
+        body,
+        cookies: { "decane-token": "decane-access-token" },
+      }),
+      { params: Promise.resolve({ path: ["spin", "wagers", "prepare"] }) }
+    );
+
+    expect(response.status).toBe(200);
+    const [url, init] = forwardedCalls()[0];
+    expect(url).toBe("http://127.0.0.1:8096/spin/wagers/prepare");
+    expect(init.body).toBe(body);
+    expect(init.headers).toMatchObject({ authorization: "Bearer decane-access-token" });
   });
 
   it("requires a Privy session for player balances", async () => {

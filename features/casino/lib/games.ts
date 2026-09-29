@@ -49,9 +49,9 @@ export interface CasinoGame {
 }
 
 export const CASINO_GAMES: CasinoGame[] = [
-  // The order the team set on 2026-09-25 was Last Man, Arkjet, Pilot Chicken,
-  // Chess, ArkBall, Checkers, with Last Man in the hero slot taking four of the
-  // six columns. Checkers is hidden on production; see below.
+  // The order the team set on 2026-09-28 was Last Man, Arkjet, Pilot Chicken,
+  // Spin Da Bottle, Chess, ArkBall, Checkers, with Last Man in the hero slot
+  // taking four of the six columns. Checkers is hidden on production; see below.
   {
     id: "last-standing",
     name: "The Last Man",
@@ -91,6 +91,19 @@ export const CASINO_GAMES: CasinoGame[] = [
     isNew: true,
     href: "/casino/chicken",
     note: "Cross each lane and cash out before the crash",
+    comingSoon: false,
+  },
+  {
+    id: "spin-da-bottle",
+    name: "Spin Da Bottle",
+    category: "New",
+    size: "tall",
+    glyph: "\u2195",
+    image: "/casino/arkade/spindabottle.png",
+    preserveImageColor: true,
+    isNew: true,
+    href: "/casino/spin-da-bottle",
+    note: "Pick up or down and spin the bottle",
     comingSoon: false,
   },
   // "tall" is the two-column slot, so the first row is the hero plus one.
