@@ -34,6 +34,14 @@ vi.mock("@/hooks/use-auth-session", async () => {
   };
 });
 
+// The name the shell shows is the Ark ID when the wallet has one. The lookup
+// behind it needs a query client; these tests are about the chrome, so the
+// answer is stubbed and one test flips it.
+const arkName = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("@/hooks/use-ark-name", () => ({
+  useArkName: () => arkName.value,
+}));
+
 let pathname = "/portfolio";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -87,6 +95,16 @@ describe("Topbar tour button", () => {
     privyUser = null;
     pathname = "/portfolio";
     render(<Topbar onOpenAccount={() => {}} />);
+  });
+
+  it("names the account by its Ark ID when the wallet holds one", () => {
+    arkName.value = "signor.ark";
+    try {
+      render(<Topbar onOpenAccount={() => {}} />);
+      expect(screen.getByText("signor.ark")).toBeInTheDocument();
+    } finally {
+      arkName.value = null;
+    }
   });
 
   it("puts the desktop circle in the right-hand cluster wearing the bell treatment", () => {

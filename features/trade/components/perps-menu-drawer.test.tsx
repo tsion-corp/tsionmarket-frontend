@@ -48,6 +48,10 @@ vi.mock("@/components/broadcast/go-live-control", () => ({
 // The rail always mounts its account popover, which pulls in a react-query
 // hook. The drawer is what is under test, so the popover is stubbed the way
 // the rail's own suite stubs it.
+// The account footer names the person by their Ark ID when the wallet holds
+// one; the lookup behind it needs a query client, and this test is about the
+// drawer, so it answers with none.
+vi.mock("@/hooks/use-ark-name", () => ({ useArkName: () => null }));
 vi.mock("@/components/layout/account-popover", () => ({
   AccountPopover: () => null,
 }));

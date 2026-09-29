@@ -26,6 +26,14 @@ vi.mock("@/hooks/use-auth-session", () => ({
   }),
 }));
 
+// The name the shell shows is the Ark ID when the wallet has one. The lookup
+// behind it needs a query client; these tests are about the chrome, so the
+// answer is stubbed and one test flips it.
+const arkName = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("@/hooks/use-ark-name", () => ({
+  useArkName: () => arkName.value,
+}));
+
 vi.mock("decane-connect-kit", () => ({
   useSocialAuth: () => ({ canUsePasskey: false }),
   useSocialWallet: () => ({ addPasskey: mockLinkWithPasskey }),
@@ -95,6 +103,26 @@ describe("AccountPopover", () => {
     expect(screen.getByText("test@example.com")).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /signOut/i })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /inviteFriends/i })).toBeInTheDocument();
+  });
+
+  it("names the account by its Ark ID when the wallet holds one, email unchanged", () => {
+    arkName.value = "signor.ark";
+    const triggerRef = { current: document.createElement("button") };
+    try {
+      render(
+        <AccountPopover
+          open={true}
+          onOpenShine={onOpenShine}
+          onClose={() => {}}
+          triggerRef={triggerRef}
+        />
+      );
+      expect(screen.getByText("signor.ark")).toBeInTheDocument();
+      expect(screen.queryByText("Test User")).toBeNull();
+      expect(screen.getByText("test@example.com")).toBeInTheDocument();
+    } finally {
+      arkName.value = null;
+    }
   });
 
   it("calls logout when sign out is clicked", () => {

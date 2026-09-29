@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useSocialAuth, useSocialWallet } from "decane-connect-kit";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useDisplayName } from "@/hooks/use-display-name";
 import { Avatar } from "@/components/ui/avatar";
 import { SquareAvatar } from "@/components/ui/square-avatar";
 import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
@@ -73,6 +74,7 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
   const popoverRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("account");
   const { profile, logout: sessionLogout } = useAuthSession();
+  const displayName = useDisplayName();
   const { canUsePasskey } = useSocialAuth();
   const { addPasskey } = useSocialWallet();
   const router = useRouter();
@@ -150,7 +152,7 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
             <div className="flex items-center gap-2.5 px-1 pb-2">
               <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={36} />
               <div className="min-w-0 flex-1" data-sensitive="other">
-                <div className="truncate text-[13.5px] font-medium text-white">{profile.name}</div>
+                <div className="truncate text-[13.5px] font-medium text-white">{displayName}</div>
                 <div className="truncate text-[11.5px] font-normal text-white/50">
                   {profile.email}
                 </div>

@@ -42,6 +42,15 @@ vi.mock("@/hooks/use-auth-session", async () => {
     }),
   };
 });
+
+// The name the shell shows is the Ark ID when the wallet has one. The lookup
+// behind it needs a query client; these tests are about the chrome, so the
+// answer is stubbed and one test flips it.
+const arkName = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("@/hooks/use-ark-name", () => ({
+  useArkName: () => arkName.value,
+}));
+
 vi.mock("@/components/broadcast/go-live-control", () => ({
   GoLiveControl: () => <button type="button">Go Live</button>,
 }));
@@ -133,6 +142,19 @@ describe("Sidebar", () => {
    * module reads its environment at import, and the test run loads no .env, so
    * this is also the state the suite sees by default.
    */
+  // The Ark ID is the identity people hand out, so the footer names the
+  // person by it once the wallet holds one; without one, the profile name.
+  it("names the account by its Ark ID when the wallet holds one", () => {
+    arkName.value = "signor.ark";
+    try {
+      renderSidebar();
+      expect(screen.getByText("signor.ark")).toBeInTheDocument();
+      expect(screen.queryByText("World Street user")).toBeNull();
+    } finally {
+      arkName.value = null;
+    }
+  });
+
   it("offers no Market Square entry while the square is hidden", () => {
     renderSidebar();
     expect(screen.queryByRole("link", { name: /^square$/i })).toBeNull();

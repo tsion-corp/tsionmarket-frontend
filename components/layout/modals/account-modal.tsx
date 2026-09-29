@@ -15,6 +15,7 @@ import { LanguageSelect } from "@/components/ui/language-select";
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
 import { HelpIcon, LockIcon, PasskeyIcon, ShineIcon, SignOutIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useDisplayName } from "@/hooks/use-display-name";
 import { useDevicePasskey } from "@/hooks/use-device-passkey";
 import { useUnlockPassword } from "@/hooks/use-unlock-password";
 
@@ -48,6 +49,7 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
   const t = useTranslations("account");
   const tLanguage = useTranslations("language");
   const { profile, logout } = useAuthSession();
+  const displayName = useDisplayName();
   const passkey = useDevicePasskey();
   const unlockPassword = useUnlockPassword();
   const router = useRouter();
@@ -67,7 +69,7 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
       <div className="flex items-center gap-[13px]">
         <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={46} />
         <div className="min-w-0" data-sensitive="other">
-          <div className="ws-display truncate text-[21px]">{profile.name}</div>
+          <div className="ws-display truncate text-[21px]">{displayName}</div>
           {profile.email ? (
             <div className="truncate text-[12.5px] font-normal text-white/50">{profile.email}</div>
           ) : null}

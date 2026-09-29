@@ -9,6 +9,7 @@ import { SquareAvatar } from "@/components/ui/square-avatar";
 import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
 import { HelpIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useDisplayName } from "@/hooks/use-display-name";
 import { requestTourReplay, startDashboardTour } from "@/features/tour";
 
 interface TopbarProps {
@@ -31,6 +32,7 @@ function CompassIcon({ size = 17 }: { size?: number }) {
 
 export function Topbar({ onOpenAccount }: TopbarProps) {
   const { profile } = useAuthSession();
+  const displayName = useDisplayName();
   const squareAvatar = useSquareAvatar();
   const squareSeed = useSquareSeed();
   const t = useTranslations("topbar");
@@ -89,7 +91,7 @@ export function Topbar({ onOpenAccount }: TopbarProps) {
         <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={38} />
         <span className={`min-w-0 flex-col md:flex md:gap-[5.43px] ${isHome ? "flex" : "hidden"}`}>
           <span className="block truncate font-sans text-[14px] font-semibold text-white md:font-serif md:text-[15px] md:leading-[17.4px] md:tracking-[-0.15px]">
-            {profile.name}
+            {displayName}
           </span>
         </span>
       </button>

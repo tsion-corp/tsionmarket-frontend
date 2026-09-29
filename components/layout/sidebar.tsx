@@ -10,6 +10,7 @@ import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 import { truncateAddress } from "@/lib/format";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useDisplayName } from "@/hooks/use-display-name";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
 import { SQUARE_ZONE_PATH, openSquareZone } from "@/lib/square-zone";
@@ -32,6 +33,7 @@ interface SidebarProps {
 // component for both, so the nav can never differ between the two.
 export function Sidebar({ items, activeSection, onNavigate, open, onClose }: SidebarProps) {
   const { profile, evmAddress: address } = useAuthSession();
+  const displayName = useDisplayName();
   const squareAvatar = useSquareAvatar();
   const squareSeed = useSquareSeed();
   const t = useTranslations("topbar");
@@ -215,7 +217,7 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
             <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={32} />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-sans text-[13px] font-medium text-white">
-                {profile.name}
+                {displayName}
               </span>
             </span>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
