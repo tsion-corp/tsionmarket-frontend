@@ -50,6 +50,7 @@ import {
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { shareOrigin } from "@/lib/site-url";
+import { useShareLink } from "@/hooks/use-share-link";
 
 type Translator = ReturnType<typeof useTranslations>;
 type RailTab = "standings" | "games" | "info";
@@ -590,10 +591,12 @@ export function SwissDetailSection({
   const [manual, setManual] = useState("");
   const [railTabChoice, setRailTabChoice] = useState<RailTab | null>(null);
   const [shareDismissed, setShareDismissed] = useState(!showCreatedShare);
-  const shareUrl =
+  const shareLink = useShareLink();
+  const shareUrl = shareLink(
     typeof window === "undefined"
       ? routes.detail(tournamentId)
-      : `${shareOrigin()}${routes.detail(tournamentId)}`;
+      : `${shareOrigin()}${routes.detail(tournamentId)}`
+  );
   const shareVisible = !!detail && isOrganizer && detail.state === "open" && !shareDismissed;
 
   const onStartRound = async () => {

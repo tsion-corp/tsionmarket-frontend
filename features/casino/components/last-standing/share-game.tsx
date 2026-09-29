@@ -6,6 +6,8 @@ import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
 import { QrCode } from "@/components/ui/qr-code";
 import { CANONICAL_SITE_URL, shareOrigin } from "@/lib/site-url";
+import { useReferralCode } from "@/hooks/use-referral-code";
+import { withReferral } from "@/lib/referral-code";
 
 // The origin is only knowable in the browser. Reading it during render makes the
 // first client paint disagree with the server HTML, and setting it from an
@@ -31,7 +33,11 @@ function useOrigin(): string {
 export function useGameShare(gameId: number) {
   const t = useTranslations("casino.lastStanding");
   const origin = useOrigin();
-  const url = `${origin}/casino/last-standing/${gameId}`;
+  // The sharer's referral code rides along, so pulling somebody into a round
+  // credits whoever pulled them (kash ADR-0015). `withReferral` leaves the link
+  // exactly as it is when there is no code yet, so nothing here has to branch.
+  const referralCode = useReferralCode();
+  const url = withReferral(`${origin}/casino/last-standing/${gameId}`, referralCode);
   const [copied, setCopied] = useState(false);
 
   const copy = async () => {

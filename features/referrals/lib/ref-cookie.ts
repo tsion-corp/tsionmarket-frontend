@@ -1,8 +1,9 @@
 "use client";
 
-import { USERNAME_PATTERN } from "@/features/referrals/lib/referrals";
+import { isReferralCode } from "@/lib/referral-code";
 
-// The /r/<username> landing route drops the referral code in this cookie so it
+// The /r/<code> landing route, and a ?ref= on any other route, drop the code in
+// this cookie so it
 // survives the whole sign-up flow: OAuth redirects, the interests page, and
 // however many days pass before the visitor actually creates an account. The
 // claim hook reads it after login and clears it once the claim is settled.
@@ -21,7 +22,7 @@ export function readRefCode(
     } catch {
       return null;
     }
-    return USERNAME_PATTERN.test(value) ? value : null;
+    return isReferralCode(value) ? value : null;
   }
   return null;
 }

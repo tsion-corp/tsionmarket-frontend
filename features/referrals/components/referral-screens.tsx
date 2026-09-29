@@ -118,37 +118,50 @@ function StatTile({ label, value, accent }: { label: string; value: number; acce
   return (
     <div
       className={
-        "rounded-[16.54px] border-[0.75px] px-4 py-3.5 " +
+        "rounded-[16px] border-[0.75px] px-4 py-4 sm:px-5 sm:py-5 " +
         (accent ? "border-accent/30 bg-accent/[0.07]" : "border-black/7 bg-[#3C3C3C]/21")
       }
     >
       <div
         className={
-          "tnum text-[22px] leading-none font-semibold lg:text-[26px] " +
+          "tnum text-[clamp(24px,2.4vw,34px)] leading-none font-semibold " +
           (accent ? "text-accent" : "text-white")
         }
       >
         {value}
       </div>
-      <div className="mt-1.5 text-[11.5px] leading-[1.35] font-normal text-white/50">{label}</div>
+      <div className="mt-2 text-[clamp(11.5px,0.85vw,13px)] leading-[1.35] font-normal text-white/50">
+        {label}
+      </div>
     </div>
   );
 }
 
-// The main screen once a username exists.
+// The main screen once this wallet has a link, which is as soon as kash has
+// given it a code (ADR-0015) — a username is an upgrade to a nicer one.
 function InviteScreen({
   username,
+  hasUsername = true,
+  onClaimUsername,
   referred,
   pending,
   referrals,
 }: {
+  /** The code the link is built from: a chosen username, or the given code. */
   username: string;
+  /** False when that code is the given one and no name has been claimed. */
+  hasUsername?: boolean;
+  /**
+   * Opens the username form. A Kash username is free and lives on this page;
+   * it is NOT an Ark ID, which is a paid .ark name on chain. Sending someone
+   * to buy one when they wanted the free nicer link would be the wrong door.
+   */
+  onClaimUsername?: () => void;
   referred: number;
   pending: number;
   referrals?: ReferralEntry[];
 }) {
-  // Only fetched once a username exists: without one there is no link, so
-  // there is nothing under this person yet to read.
+  // There is a link either way now, so the network is worth reading either way.
   const { network, loading: networkLoading } = useReferralNetwork(true);
   const t = useTranslations("referral");
   const origin = useOrigin();
@@ -204,11 +217,11 @@ function InviteScreen({
         <div className="relative grid gap-6 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)] lg:items-center lg:gap-12">
           <MascotHero className="mx-auto w-[min(260px,72%)] lg:mx-0 lg:w-full" />
 
-          <div className="min-w-0">
-            <h2 className="ws-display text-center text-[25px] lg:text-left lg:text-[34px] lg:leading-[1.12]">
+          <div className="min-w-0 lg:max-w-[720px]">
+            <h2 className="ws-display text-center text-[clamp(25px,3.2vw,40px)] leading-[1.12] lg:text-left">
               {t("headline")}
             </h2>
-            <p className="mx-auto mt-1.5 max-w-[300px] text-center text-[13.5px] leading-[1.5] font-normal text-white/55 lg:mx-0 lg:mt-3 lg:max-w-[440px] lg:text-left lg:text-[14.5px]">
+            <p className="mx-auto mt-1.5 max-w-[300px] text-center text-[clamp(13.5px,1.05vw,16px)] leading-[1.5] font-normal text-white/55 lg:mx-0 lg:mt-3 lg:max-w-[52ch] lg:text-left">
               {t("sub")}
             </p>
 
@@ -217,12 +230,12 @@ function InviteScreen({
             <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center lg:mt-6">
               <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-full border border-white/12 bg-white/5 py-1.5 pr-1.5 pl-4">
                 <LinkIcon className="shrink-0 text-white/45" />
-                <span className="tnum min-w-0 flex-1 truncate text-[13.5px] font-normal text-white/75">
+                <span className="tnum min-w-0 flex-1 truncate text-[clamp(13px,0.95vw,15px)] font-normal text-white/75">
                   {displayLink(url)}
                 </span>
                 <button
                   onClick={() => void copy()}
-                  className="text-ink shrink-0 cursor-pointer rounded-full bg-white px-4 py-2 font-sans text-[13px] font-semibold hover:opacity-90"
+                  className="text-ink shrink-0 cursor-pointer rounded-full bg-white px-5 py-2.5 font-sans text-[clamp(13px,0.95vw,14.5px)] font-semibold hover:opacity-90"
                 >
                   {copied ? t("copied") : t("copy")}
                 </button>
@@ -230,11 +243,28 @@ function InviteScreen({
 
               <button
                 onClick={() => void share()}
-                className="shrink-0 cursor-pointer rounded-full border border-white/14 bg-white/6 px-6 py-3 font-sans text-[14px] font-semibold text-white transition-colors hover:bg-white/10 sm:py-2.5"
+                className="shrink-0 cursor-pointer rounded-full border border-white/14 bg-white/6 px-6 py-3 font-sans text-[clamp(14px,1vw,15.5px)] font-semibold text-white transition-colors hover:bg-white/10 sm:py-2.5"
               >
                 {t("cta")}
               </button>
             </div>
+
+            {/* The link already works; a username only makes it nicer to read.
+                Offered under it rather than in front of it, because a form
+                between a person and their working link is what this change
+                exists to remove. */}
+            {hasUsername || !onClaimUsername ? null : (
+              <p className="mt-2.5 text-[12.5px] leading-[1.5] font-normal text-white/45">
+                {t("upgradeHint")}{" "}
+                <button
+                  type="button"
+                  onClick={onClaimUsername}
+                  className="text-accent cursor-pointer font-semibold underline underline-offset-2"
+                >
+                  {t("upgradeCta")}
+                </button>
+              </p>
+            )}
 
             {/* Progress belongs beside the link rather than in a card further
                 down: it is the answer to "did that work", and a rail is where
@@ -273,7 +303,7 @@ function InviteScreen({
         ) : null}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-start lg:gap-5">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] lg:items-start lg:gap-5">
         {/* The rules come FIRST in the document, so a phone still reads hero,
             eligibility, how it works, then the lists — the order the sheet
             had. On a wide viewport they move to the rail. */}

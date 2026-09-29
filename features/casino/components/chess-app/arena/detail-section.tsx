@@ -16,6 +16,7 @@ import type { ArenaDetail, ArenaPairing, ArenaStanding } from "@/features/casino
 import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { useShareLink } from "@/hooks/use-share-link";
 
 function gameHref(matchId: string, playerName: string): string {
   return `/casino/chess/play?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerName)}`;
@@ -420,8 +421,10 @@ export function ArenaDetailSection({
     }
   };
 
+  const shareLink = useShareLink();
+
   const share = async () => {
-    const ok = await copyText(window.location.href.split("?")[0]);
+    const ok = await copyText(shareLink(window.location.href.split("?")[0]));
     if (ok) toast.success("Arena link copied.");
   };
 

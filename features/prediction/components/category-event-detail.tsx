@@ -20,6 +20,7 @@ import {
   CategoryTopNav,
 } from "./category-market-shared";
 import { PredictionCategoryDrawer } from "./prediction-category-drawer";
+import { ShareLinkButton } from "@/components/ui/share-link-button";
 
 interface CategoryEventDetailProps {
   // Every category, sports included. The screen reads the discovery endpoint,
@@ -160,10 +161,11 @@ function CategoryEventContent({
             <h1 className="mt-1 text-2xl leading-tight font-bold tracking-tight text-white sm:text-3xl">
               {event.title}
             </h1>
-            <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium text-[#888]">
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-xs font-medium text-[#888]">
               <span>{event.marketCount} markets</span>
               <span>{compactVolume(event.volume24h ?? event.volume) || "-"}</span>
               <span>{compactVolume(event.liquidity) || "-"} liquidity</span>
+              <ShareLinkButton title={event.title} />
             </div>
           </div>
         </div>

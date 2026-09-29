@@ -862,6 +862,9 @@
   "common": {
     "addressCopied": "Address copied",
     "copied": "Copied",
+    "share": "Share",
+    "copyFailed": "Couldn't copy the link.",
+    "linkCopied": "Link copied",
     "copy": "Copy",
     "back": "Back",
     "tradeAria": "Trade {symbol}",
@@ -3035,6 +3038,8 @@
     "howTitle": "How it works?",
     "howBody": "Share your link with a friend to join ARK and make a first deposit of at least $1 for the referral to count.",
     "cta": "Invite and Earn",
+    "upgradeHint": "Sharing a code instead of a name?",
+    "upgradeCta": "Claim a username",
     "shareTitle": "Join me on ARK",
     "shareText": "Sign up with my invite link and let's grow together on ARK.",
     "applied": "Invite link applied",

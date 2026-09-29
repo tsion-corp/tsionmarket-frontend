@@ -862,6 +862,9 @@
   "common": {
     "addressCopied": "Endereço copiado",
     "copied": "Copiado",
+    "share": "Partilhar",
+    "copyFailed": "Não foi possível copiar o link.",
+    "linkCopied": "Link copiado",
     "copy": "Copiar",
     "back": "Voltar",
     "tradeAria": "Negociar {symbol}",
@@ -3035,6 +3038,8 @@
     "howTitle": "Como funciona?",
     "howBody": "Partilha o teu link com um amigo para aderir à ARK e fazer um primeiro depósito de pelo menos 1 $ para a indicação contar.",
     "cta": "Convide e ganhe",
+    "upgradeHint": "A partilhar um código em vez de um nome?",
+    "upgradeCta": "Reivindica um nome de utilizador",
     "shareTitle": "Junte-se a mim na ARK",
     "shareText": "Cadastre-se com meu link de convite e vamos crescer juntos na ARK.",
     "applied": "Link de convite aplicado",

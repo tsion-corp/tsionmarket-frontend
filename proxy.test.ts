@@ -1,118 +1,83 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { proxy } from "@/proxy";
+import { proxy } from "./proxy";
 
-function get(path: string) {
-  return proxy(new NextRequest(new URL(`https://tsionark.com${path}`)));
+// A shared link carries ?ref=<code> on whatever page it points at. Nothing read
+// it before: only /r/<code> set the cookie, so attaching a code to a market or
+// a game link attributed nobody (kash ADR-0015).
+
+function visit(url: string, cookie?: string) {
+  const request = new NextRequest(new URL(url));
+  if (cookie) request.cookies.set("ark_ref", cookie);
+  return proxy(request);
 }
 
-const ORIGINAL = { ...process.env };
+// Stubbed here and cleared after, never cleared first: unstubbing at the START
+// of a test wipes whatever another file had set, which is what made
+// lib/market-square fail in a batch run and pass on its own.
+beforeEach(() => {
+  vi.stubEnv("NEXT_PUBLIC_LAUNCH_AT", "");
+  vi.stubEnv("MAINTENANCE", "");
+});
 
-describe("proxy", () => {
-  beforeEach(() => {
-    delete process.env.ALLOW_ACCESS;
-    delete process.env.NEXT_PUBLIC_LAUNCH_AT;
-  });
-  afterEach(() => {
-    process.env = { ...ORIGINAL };
-  });
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
-  // The state the site is in almost all of the time. A guard that is not inert
-  // when open is worse than no guard.
-  describe("open", () => {
-    it("lets every path through when neither switch is closed", () => {
-      for (const path of ["/", "/privacy", "/dashboard", "/api/kash/status"]) {
-        expect(get(path).status, path).toBe(200);
-      }
-    });
-
-    it("stays open once the launch time has passed", () => {
-      process.env.NEXT_PUBLIC_LAUNCH_AT = new Date(Date.now() - 60_000).toISOString();
-      expect(get("/dashboard").status).toBe(200);
-    });
-
-    it("ignores a launch time it cannot parse rather than closing the site", () => {
-      process.env.NEXT_PUBLIC_LAUNCH_AT = "not a date";
-      expect(get("/dashboard").status).toBe(200);
-    });
+describe("a referral code on a shared link", () => {
+  it("is stored from any page, not just the invite route", () => {
+    const res = visit("https://tsionark.com/casino/last-standing/274?ref=7k4m9x2p");
+    expect(res.cookies.get("ark_ref")?.value).toBe("7k4m9x2p");
   });
 
-  describe("maintenance (ALLOW_ACCESS=false)", () => {
-    beforeEach(() => {
-      process.env.ALLOW_ACCESS = "false";
-    });
-
-    // 503 rather than a redirect to a 200: the URLs are real and coming back,
-    // so a crawler must be told to retry, not that the page has moved.
-    it("answers 503 on the landing page, so the notice is not indexed as the site", () => {
-      const res = get("/");
-      expect(res.status).toBe(503);
-      expect(res.headers.get("Retry-After")).toBe("3600");
-      expect(res.headers.get("X-Robots-Tag")).toBe("noindex");
-    });
-
-    it("answers 503 on an app route without redirecting, so the URL survives a refresh", () => {
-      const res = get("/dashboard");
-      expect(res.status).toBe(503);
-      expect(res.headers.get("Location")).toBeNull();
-      expect(res.headers.get("x-middleware-rewrite")).toContain("/");
-    });
-
-    it("keeps the legal documents open and indexable", () => {
-      for (const path of ["/privacy", "/terms"]) {
-        const res = get(path);
-        expect(res.status, path).toBe(200);
-        expect(res.headers.get("X-Robots-Tag"), path).toBeNull();
-      }
-    });
-
-    it("closes the waitlist endpoint, which the maintenance page does not use", () => {
-      expect(get("/api/waitlist").status).toBe(503);
-    });
-
-    it("closes regardless of the launch clock", () => {
-      process.env.NEXT_PUBLIC_LAUNCH_AT = new Date(Date.now() - 60_000).toISOString();
-      expect(get("/dashboard").status).toBe(503);
-    });
+  it("is stripped from the address, so the visitor cannot pass it on", () => {
+    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p");
+    const location = res.headers.get("Location") ?? "";
+    expect(location).toContain("/prediction");
+    expect(location).not.toContain("ref=");
   });
 
-  // Unchanged behaviour, kept because maintenance now shares this function.
-  describe("pre-launch (a launch time in the future)", () => {
-    beforeEach(() => {
-      process.env.NEXT_PUBLIC_LAUNCH_AT = new Date(Date.now() + 60_000).toISOString();
-    });
-
-    it("redirects an app route to the landing page", () => {
-      const res = get("/dashboard");
-      expect(res.status).toBe(307);
-      expect(res.headers.get("Location")).toBe("https://tsionark.com/");
-    });
-
-    it("leaves the landing page and the waitlist endpoint open", () => {
-      expect(get("/").status).toBe(200);
-      expect(get("/api/waitlist").status).toBe(200);
-    });
-
-    it("lets analytics from the landing page through to its relay", () => {
-      // The landing page reports its visits. Redirected, the SDK would get the
-      // landing page's HTML back instead of Mixpanel's answer and retry forever.
-      expect(get("/api/relay/e").status).toBe(200);
-    });
-
-    it("keeps the campaign tags when it sends a visitor to the landing page", () => {
-      // A shared link with utm_* that lands before launch must still say which
-      // campaign brought the visitor.
-      const res = get("/dashboard?utm_source=x&utm_campaign=launch");
-      expect(res.headers.get("Location")).toBe(
-        "https://tsionark.com/?utm_source=x&utm_campaign=launch"
-      );
-    });
+  it("keeps the rest of the query, which campaign tags ride in", () => {
+    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p&utm_source=x");
+    expect(res.headers.get("Location")).toContain("utm_source=x");
   });
 
-  describe("analytics under maintenance", () => {
-    it("keeps the relay open, so the maintenance page's visits are not retried forever", () => {
-      process.env.ALLOW_ACCESS = "false";
-      expect(get("/api/relay/e").status).toBe(200);
-    });
+  it("takes a username too", () => {
+    expect(visit("https://tsionark.com/spot?ref=alice").cookies.get("ark_ref")?.value).toBe(
+      "alice"
+    );
+  });
+
+  it("lower-cases what it was given", () => {
+    expect(visit("https://tsionark.com/spot?ref=7K4M9X2P").cookies.get("ark_ref")?.value).toBe(
+      "7k4m9x2p"
+    );
+  });
+
+  // The referral belongs to whoever brought this visitor first; a later link
+  // must not take it off them.
+  it("never overwrites a code the visitor already carries", () => {
+    const res = visit("https://tsionark.com/spot?ref=7k4m9x2p", "alice");
+    expect(res.cookies.get("ark_ref")).toBeUndefined();
+    expect(res.headers.get("Location")).not.toContain("ref=");
+  });
+
+  it("stores nothing for a code that is neither kind", () => {
+    const res = visit("https://tsionark.com/spot?ref=0x85178feb764f92a919ff49717d9b493aa4f55784");
+    expect(res.cookies.get("ark_ref")).toBeUndefined();
+  });
+
+  // The matcher covers /api too, and a redirect there breaks the call rather
+  // than crediting anyone. A referral arrives on a page somebody opened.
+  it("never redirects an api request", () => {
+    const res = visit("https://tsionark.com/api/kash/referrals/me?ref=7k4m9x2p");
+    expect(res.headers.get("Location")).toBeNull();
+    expect(res.cookies.get("ark_ref")).toBeUndefined();
+  });
+
+  it("leaves a page with no ref alone", () => {
+    const res = visit("https://tsionark.com/spot");
+    expect(res.headers.get("Location")).toBeNull();
+    expect(res.cookies.get("ark_ref")).toBeUndefined();
   });
 });

@@ -4,10 +4,11 @@ import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { fetchMyReferral, MY_REFERRAL_KEY } from "@/lib/referral-me";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import {
-  getMyReferralStats,
+  type ReferralStats,
   getUsernameAvailability,
   postReferralClaim,
   putUsername,
@@ -24,8 +25,10 @@ export function useReferralStats(enabled: boolean) {
   const { ready, authenticated, evmAddress: wallet } = useAuthSession();
 
   return useQuery({
-    queryKey: ["referrals", "me", wallet],
-    queryFn: getMyReferralStats,
+    // The same key and fetcher useReferralCode uses, so the two are one
+    // request and one cache entry rather than a race over which fills it.
+    queryKey: MY_REFERRAL_KEY(wallet),
+    queryFn: () => fetchMyReferral<ReferralStats>(),
     enabled: enabled && ready && authenticated && Boolean(wallet),
     refetchInterval: STATS_POLL_MS,
   });

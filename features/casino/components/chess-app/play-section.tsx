@@ -96,6 +96,7 @@ import { RoundChatFeed } from "@/features/casino/components/chess/round/round-ch
 import { RoundBoardMenu } from "@/features/casino/components/chess/round/round-board-menu";
 import { shareOrigin } from "@/lib/site-url";
 import { useChessStartReport } from "@/features/casino/hooks/use-chess-start-report";
+import { useShareLink } from "@/hooks/use-share-link";
 
 const LiveVideoPlayer = dynamic(
   () =>
@@ -1657,11 +1658,16 @@ export function PlaySection({
                     : match.computer
                       ? t("statusComputerThinking", { level: match.computer.level })
                       : t("statusOpponentThinking");
+  // The invite earns for whoever sent it, like every other link the app hands
+  // out. shareLink leaves it alone when there is no code yet.
+  const shareLink = useShareLink();
   const inviteUrl =
     waiting && matchId
-      ? typeof window === "undefined"
-        ? `/casino/chess/invite?code=${matchId}`
-        : `${shareOrigin()}/casino/chess/invite?code=${matchId}`
+      ? shareLink(
+          typeof window === "undefined"
+            ? `/casino/chess/invite?code=${matchId}`
+            : `${shareOrigin()}/casino/chess/invite?code=${matchId}`
+        )
       : null;
   const canWriteChat = !!wallet.address && !isComputerGame;
   const canEditComments = you !== null && currentPly !== null;

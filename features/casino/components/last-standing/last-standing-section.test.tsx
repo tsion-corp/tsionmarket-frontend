@@ -160,6 +160,10 @@ vi.mock("@/features/casino/hooks/use-leave-prompt", () => ({
   useLeavePrompt: () => ({ pending: null, leave: vi.fn(), stay: vi.fn() }),
 }));
 vi.mock("@/hooks/use-prices", () => ({ usePrices: () => ({ ETH: 3000 }) }));
+// The share link carries the sharer's referral code now, and the hook behind it
+// is a react-query read. This file renders without a QueryClientProvider, and
+// the code itself is not what any test here is about.
+vi.mock("@/hooks/use-referral-code", () => ({ useReferralCode: () => null }));
 
 vi.mock("@/components/ui/currency-select", () => ({
   useMoney: () => ({

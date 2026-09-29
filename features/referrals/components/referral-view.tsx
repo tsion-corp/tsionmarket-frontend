@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useTranslations } from "next-intl";
 import { useReferralStats } from "@/features/referrals/hooks/use-referrals";
 import {
@@ -27,7 +29,17 @@ export function ReferralView() {
   // holding a 520px strip in the middle of a desktop. The claim step keeps a
   // narrow measure of its own: it is a single form, and a form stretched to
   // 1100px is harder to fill, not easier.
-  const claiming = !stats.isPending && !stats.isError && !stats.data?.username;
+  // The claim form is the whole screen only for someone who has NO link at
+  // all. Since kash gives every wallet a code (ADR-0015) that is nobody who
+  // has loaded, so this is now the narrow case: an engine that predates the
+  // code, or a read that has not landed. A username is an upgrade to a nicer
+  // link, offered inside the invite screen, not a toll gate in front of it.
+  const shareCode = stats.data?.username ?? stats.data?.refCode ?? null;
+  // Asked for from the invite screen, where the link already works: claiming a
+  // username is the upgrade to a nicer one, not a gate in front of it.
+  const [wantsUsername, setWantsUsername] = useState(false);
+  const claiming =
+    !stats.isPending && !stats.isError && (!shareCode || (wantsUsername && !stats.data?.username));
 
   return (
     <div
@@ -38,7 +50,7 @@ export function ReferralView() {
         "mx-auto w-full p-4 sm:p-6 lg:p-8 " + (claiming ? "max-w-[520px]" : "max-w-[1520px]")
       }
     >
-      <h1 className="ws-display text-center text-[19px] lg:text-left lg:text-[24px]">
+      <h1 className="ws-display text-center text-[clamp(20px,2vw,28px)] lg:text-left">
         {t("title")}
       </h1>
 
@@ -55,9 +67,11 @@ export function ReferralView() {
               {t("retry")}
             </button>
           </div>
-        ) : stats.data.username ? (
+        ) : shareCode && !claiming ? (
           <InviteScreen
-            username={stats.data.username}
+            username={shareCode}
+            hasUsername={Boolean(stats.data.username)}
+            onClaimUsername={() => setWantsUsername(true)}
             referred={stats.data.referred}
             pending={stats.data.pending}
             referrals={stats.data.referrals}

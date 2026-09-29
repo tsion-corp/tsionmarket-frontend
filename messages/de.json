@@ -862,6 +862,9 @@
   "common": {
     "addressCopied": "Adresse kopiert",
     "copied": "Kopiert",
+    "share": "Teilen",
+    "copyFailed": "Link konnte nicht kopiert werden.",
+    "linkCopied": "Link kopiert",
     "copy": "Kopieren",
     "back": "Zurück",
     "tradeAria": "{symbol} handeln",
@@ -3035,6 +3038,8 @@
     "howTitle": "Wie funktioniert es?",
     "howBody": "Teile deinen Link mit einem Freund, damit er ARK beitritt und eine erste Einzahlung von mindestens 1 $ vornimmt, damit die Empfehlung zählt.",
     "cta": "Einladen und verdienen",
+    "upgradeHint": "Du teilst einen Code statt eines Namens?",
+    "upgradeCta": "Benutzernamen sichern",
     "shareTitle": "Komm zu mir auf ARK",
     "shareText": "Melde dich über meinen Einladungslink an und lass uns gemeinsam auf ARK wachsen.",
     "applied": "Einladungslink angewendet",

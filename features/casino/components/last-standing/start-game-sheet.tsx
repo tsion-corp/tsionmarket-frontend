@@ -18,6 +18,8 @@ import {
 } from "@/features/casino/lib/last-standing/game-metadata";
 import { useDefaultEntry } from "@/features/casino/hooks/use-default-entry";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
+import { useReferralCode } from "@/hooks/use-referral-code";
+import { withReferral } from "@/lib/referral-code";
 import { markPrivate } from "@/features/casino/lib/last-standing/visibility";
 import { GameShareCard } from "@/features/casino/components/last-standing/game-share-card";
 import {
@@ -67,6 +69,7 @@ export function StartGameSheet({
   // open: metadataProblem only decides whether there is anything worth sending.
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const referralCode = useReferralCode();
   // What the service is actually given, sanitised. The share card draws the
   // same values, so the image never names a game the vault does not.
   const acceptedMetadata =
@@ -146,7 +149,12 @@ export function StartGameSheet({
   };
 
   if (started !== null) {
-    const url = `${typeof window === "undefined" ? "" : window.location.origin}/casino/last-standing/${started}`;
+    // The QR and the link a starter hands out carry their referral code, so
+    // somebody scanning it at a stand credits them (kash ADR-0015).
+    const url = withReferral(
+      `${typeof window === "undefined" ? "" : window.location.origin}/casino/last-standing/${started}`,
+      referralCode
+    );
     return (
       <div>
         <SheetNav title={t("shareNavTitle")} onBack={onClose} />
