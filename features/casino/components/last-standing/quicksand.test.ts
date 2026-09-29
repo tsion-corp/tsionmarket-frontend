@@ -23,16 +23,21 @@ const activityPanel = read("features/casino/components/last-standing/activity-pa
 const railCards = read("features/casino/components/last-standing/rail-cards.tsx");
 
 describe("the Quicksand wiring", () => {
-  it("loads Quicksand from the font provider", () => {
-    expect(layout).toMatch(/import \{[^}]*\bQuicksand\b[^}]*\} from "next\/font\/google"/);
-    expect(layout).toMatch(/Quicksand\(\{/);
+  // A file in the repo, not a fetch from Google: the build is hermetic, and
+  // the face is the one we shipped. See app/layout.fonts.test.ts.
+  it("loads Quicksand from its file in app/fonts", () => {
+    expect(layout).toMatch(/const quicksand = localFont\(\{/);
+    expect(layout).toMatch(/src: "\.\/fonts\/quicksand-latin\.woff2"/);
   });
 
-  // Bold is the only weight of it the design uses. Asking for more would ship
-  // files nothing renders.
-  it("asks for bold alone, under the variable the utility reads", () => {
-    const declaration = layout.slice(layout.indexOf("Quicksand({"));
-    expect(declaration).toMatch(/weight: \["700"\]/);
+  // One variable file carries every weight; the range it declares must reach
+  // the bold the utility asks for, or CSS clamps the request short of it.
+  it("declares a range that reaches bold, under the variable the utility reads", () => {
+    const declaration = layout.slice(layout.indexOf("const quicksand = localFont({"));
+    const range = declaration.match(/weight: "(\d+) (\d+)"/);
+    expect(range).not.toBeNull();
+    expect(Number(range?.[1])).toBeLessThanOrEqual(700);
+    expect(Number(range?.[2])).toBeGreaterThanOrEqual(700);
     expect(declaration).toMatch(/variable: "--font-quicksand"/);
   });
 

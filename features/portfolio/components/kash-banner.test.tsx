@@ -23,4 +23,10 @@ describe("KashBanner", () => {
     expect(headline.className).toContain("ws-poster");
     expect(screen.getByText(messages.kash.railSubtitle)).toBeInTheDocument();
   });
+
+  it("runs straight to its edges, with no stub at either end", () => {
+    const { container } = renderBanner();
+    const sources = [...container.querySelectorAll("img")].map((node) => node.getAttribute("src"));
+    expect(sources.some((src) => src?.includes("scallop"))).toBe(false);
+  });
 });

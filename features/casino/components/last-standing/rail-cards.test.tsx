@@ -22,14 +22,7 @@ function actionProps(over: Partial<RailActionCardProps> = {}): RailActionCardPro
     heading: "Start The Round",
     sub: "Be the last man and win the winner's share.",
     amountLabel: "Play Amount",
-    stepper: {
-      amount: "$0.38",
-      currency: "USD",
-      onDecrement: vi.fn(),
-      onIncrement: vi.fn(),
-      canDecrement: true,
-      canIncrement: true,
-    },
+    stepper: { amount: "$0.38", currency: "USD" },
     cta: { label: "Start Game", icon: "play", onPress: vi.fn() },
     ...over,
   };
@@ -113,69 +106,12 @@ describe("RailActionCard", () => {
     expect(badge.className).not.toContain("text-down");
   });
 
-  it("steps the stake up and down", () => {
-    const props = actionProps();
-    render(<RailActionCard {...props} />);
-
-    fireEvent.click(screen.getByRole("button", { name: "Increase Play Amount" }));
-    fireEvent.click(screen.getByRole("button", { name: "Decrease Play Amount" }));
-
-    expect(props.stepper.onIncrement).toHaveBeenCalledTimes(1);
-    expect(props.stepper.onDecrement).toHaveBeenCalledTimes(1);
-  });
-
-  it("takes bespoke stepper labels when the caller localises them", () => {
-    const props = actionProps();
-    render(
-      <RailActionCard
-        {...actionProps({
-          stepper: { ...props.stepper, decrementLabel: "Moins", incrementLabel: "Plus" },
-        })}
-      />
-    );
-
-    expect(screen.getByRole("button", { name: "Moins" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Plus" })).toBeTruthy();
-  });
-
-  // At the bottom of the range the minus must be dead, not merely quiet: a
-  // click that still fired would walk the stake below the floor.
-  it("kills the minus at the floor", () => {
-    const props = actionProps();
-    render(
-      <RailActionCard {...actionProps({ stepper: { ...props.stepper, canDecrement: false } })} />
-    );
-
-    const minus = screen.getByRole("button", { name: "Decrease Play Amount" });
-    expect((minus as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(minus);
-    expect(props.stepper.onDecrement).not.toHaveBeenCalled();
-  });
-
-  it("kills the plus at the ceiling", () => {
-    const props = actionProps();
-    render(
-      <RailActionCard {...actionProps({ stepper: { ...props.stepper, canIncrement: false } })} />
-    );
-
-    const plus = screen.getByRole("button", { name: "Increase Play Amount" });
-    expect((plus as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(plus);
-    expect(props.stepper.onIncrement).not.toHaveBeenCalled();
-  });
-
-  it("kills both steps while the stepper is disabled", () => {
-    const props = actionProps();
-    render(<RailActionCard {...actionProps({ stepper: { ...props.stepper, disabled: true } })} />);
-
-    const minus = screen.getByRole("button", { name: "Decrease Play Amount" });
-    const plus = screen.getByRole("button", { name: "Increase Play Amount" });
-    expect((minus as HTMLButtonElement).disabled).toBe(true);
-    expect((plus as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(minus);
-    fireEvent.click(plus);
-    expect(props.stepper.onDecrement).not.toHaveBeenCalled();
-    expect(props.stepper.onIncrement).not.toHaveBeenCalled();
+  // The figure is typed now, so there is nothing beside it to press: the plus
+  // and minus only ever moved it by the game's minimum.
+  it("shows the figure with nothing to step it by", () => {
+    render(<RailActionCard {...actionProps()} />);
+    expect(screen.getByText("$0.38")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /play amount/i })).toBeNull();
   });
 
   it("fires the call to action and draws its play icon", () => {
@@ -544,30 +480,7 @@ describe("icon sides", () => {
   });
 });
 
-describe("stake stepper", () => {
-  // B3: a 40px box, no fill, and the design's own remove-circle / add-circle
-  // artwork (ring included), 36px clear of the figure on each side.
-  it("draws both steps as the design's 40px circle glyphs", () => {
-    render(<RailActionCard {...actionProps()} />);
-    for (const [name, file] of [
-      ["Decrease Play Amount", "rail-minus.svg"],
-      ["Increase Play Amount", "rail-plus.svg"],
-    ] as const) {
-      const step = screen.getByRole("button", { name });
-      expect(step.className).toContain("size-10");
-      expect(step.className).not.toContain("bg-surface");
-      expect(step.className).not.toMatch(/\bborder\b/u);
-      expect(step.querySelector("img")?.getAttribute("src")).toBe(`/casino/last-standing/${file}`);
-      expect(step.querySelector("svg")).toBeNull();
-    }
-  });
-
-  it("holds the figure 36px clear of each step", () => {
-    render(<RailActionCard {...actionProps()} />);
-    const row = screen.getByRole("button", { name: "Decrease Play Amount" }).parentElement;
-    expect(row?.className).toContain("gap-9");
-  });
-
+describe("stake figure", () => {
   it("draws the design's stake figure at 36px in its gold", () => {
     render(<RailActionCard {...actionProps()} />);
     const value = screen.getByText("$0.38");

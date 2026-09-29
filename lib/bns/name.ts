@@ -23,32 +23,42 @@ const resolverAddressAbi = [
   },
 ] as const;
 
-export function parseKashRecipient(raw: string): KashRecipientInput {
-  const value = raw.trim();
-  if (!value) return { kind: "invalid", reason: "empty" };
-  if (EVM_ADDRESS.test(value)) return { kind: "address", address: value };
-
-  const lower = value.toLowerCase();
-  if (lower.startsWith("0x") && !lower.endsWith(ARK_SUFFIX)) {
-    return { kind: "invalid", reason: "address" };
-  }
-
-  const label = lower.endsWith(ARK_SUFFIX) ? value.slice(0, -ARK_SUFFIX.length) : value;
+// The registrar's own rule, mirrored by the BNS service: at least three
+// characters, no dot, no whitespace, nothing a URL path would misread. It is
+// deliberately not limited to ASCII letters and digits, because the chain
+// takes more than that and a name the chain sells must be one the app can
+// search for. Letters and digits pass in any order, so "2fast" and "0xazach"
+// are labels.
+export function parseArkLabel(raw: string): string | null {
+  const label = raw.trim();
   if (
     label.length < 3 ||
     label.length > 255 ||
     /[\s.\/\\?#%]/.test(label) ||
     /[\x00-\x1f\x7f]/.test(label)
   ) {
-    return { kind: "invalid", reason: "name" };
+    return null;
+  }
+  return label.toLowerCase();
+}
+
+export function parseKashRecipient(raw: string): KashRecipientInput {
+  const value = raw.trim();
+  if (!value) return { kind: "invalid", reason: "empty" };
+  if (EVM_ADDRESS.test(value)) return { kind: "address", address: value };
+
+  // On a recipient field a bare "0x" is a pasted address, not a name; the
+  // suffix is what says otherwise.
+  const lower = value.toLowerCase();
+  if (lower.startsWith("0x") && !lower.endsWith(ARK_SUFFIX)) {
+    return { kind: "invalid", reason: "address" };
   }
 
-  const normalizedLabel = label.toLowerCase();
-  return {
-    kind: "name",
-    label: normalizedLabel,
-    name: `${normalizedLabel}${ARK_SUFFIX}`,
-  };
+  const label = parseArkLabel(
+    lower.endsWith(ARK_SUFFIX) ? value.slice(0, -ARK_SUFFIX.length) : value
+  );
+  if (label === null) return { kind: "invalid", reason: "name" };
+  return { kind: "name", label, name: `${label}${ARK_SUFFIX}` };
 }
 
 export function arkLabelNode(label: string): `0x${string}` {

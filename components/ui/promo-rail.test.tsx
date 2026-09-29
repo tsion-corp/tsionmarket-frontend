@@ -82,6 +82,12 @@ function isActive(dot: HTMLElement): boolean {
 }
 
 describe("promo rail", () => {
+  it("draws every banner straight to its edges, with no stub", () => {
+    const { container } = renderRail();
+    const sources = [...container.querySelectorAll("img")].map((node) => node.getAttribute("src"));
+    expect(sources.some((src) => src?.includes("scallop"))).toBe(false);
+  });
+
   it("gives every banner a slide of its own", () => {
     renderRail();
     const slides = document.querySelectorAll("[data-carousel-slide]");

@@ -1,16 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Manrope, Noto_Sans, Quicksand, Roboto } from "next/font/google";
 import localFont from "next/font/local";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import Providers from "./providers";
 import "./globals.css";
 
+// Every face is a file in app/fonts, the latin subset of the variable font
+// Google serves, so the build never fetches one. Fetching them at build time
+// was a coin toss: Turbopack falls over when Google's answer comes back in a
+// shape it does not expect (vercel/next.js#99114), and the same commit built
+// green on its PR and red on main. The declared range on each is the file's
+// own fvar table, the way Mona Sans below declares its.
+
 // Body and normal text. Geist is a variable font, so every weight (we default
 // to medium in globals.css) ships in one file, no per-weight requests.
-const geist = Geist({
+const geist = localFont({
+  src: "./fonts/geist-latin.woff2",
+  weight: "100 900",
   variable: "--font-body",
-  subsets: ["latin"],
 });
 
 // Headers. Mona Sans, used at bold by the ws-display utility.
@@ -33,15 +40,15 @@ const monaSans = localFont({
 // Chess round uses the same type families Lichess does: Noto Sans for the
 // surrounding table text and Roboto light for clocks. Kept as local variables
 // so only chess opts into them.
-const chessSans = Noto_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+const chessSans = localFont({
+  src: "./fonts/noto-sans-latin.woff2",
+  weight: "100 900",
   variable: "--font-chess-body",
 });
 
-const chessClock = Roboto({
-  subsets: ["latin"],
-  weight: ["300", "400"],
+const chessClock = localFont({
+  src: "./fonts/roboto-latin.woff2",
+  weight: "100 900",
   variable: "--font-chess-clock",
 });
 
@@ -49,15 +56,15 @@ const chessClock = Roboto({
 // Home drawn as the Square draws it: Manrope for its section headings and
 // "View more" pills, Roboto for the name and handle on its people cards.
 // Loaded as their own variables so only that page reads them.
-const squareHeading = Manrope({
-  subsets: ["latin"],
-  weight: ["600", "700"],
+const squareHeading = localFont({
+  src: "./fonts/manrope-latin.woff2",
+  weight: "200 800",
   variable: "--font-heading",
 });
 
-const squareRoboto = Roboto({
-  subsets: ["latin"],
-  weight: ["400", "600"],
+const squareRoboto = localFont({
+  src: "./fonts/roboto-latin.woff2",
+  weight: "100 900",
   variable: "--font-roboto",
 });
 
@@ -65,9 +72,9 @@ const squareRoboto = Roboto({
 // bar, status pills, tab strip and the whole activity table in Quicksand Bold
 // against Mona Sans elsewhere on the same card, so the pair is deliberate and
 // not a stray. Bold alone: no other weight of it appears in the design.
-const quicksand = Quicksand({
-  subsets: ["latin"],
-  weight: ["700"],
+const quicksand = localFont({
+  src: "./fonts/quicksand-latin.woff2",
+  weight: "300 700",
   variable: "--font-quicksand",
 });
 

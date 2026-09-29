@@ -92,7 +92,7 @@ export function HowItWorks({ onStart, startLabel }: HowItWorksProps) {
         {[
           { k: "Timer", v: "60s" },
           { k: "Stake", v: "$0.10" },
-          { k: "Chain", v: "Base" },
+          { k: "Chain", v: t("howFactChainValue") },
         ].map((fact) => (
           <div key={fact.k} className="ws-inset px-4 py-3.5">
             <div className="text-[11px] font-semibold tracking-[0.08em] text-white/35 uppercase">

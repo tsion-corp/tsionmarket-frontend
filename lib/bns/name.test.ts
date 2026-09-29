@@ -1,6 +1,6 @@
 import { decodeFunctionData, getAddress } from "viem";
 import { describe, expect, it } from "vitest";
-import { arkAddressRecordCalldata, arkLabelNode, parseKashRecipient } from "./name";
+import { arkAddressRecordCalldata, arkLabelNode, parseArkLabel, parseKashRecipient } from "./name";
 
 describe("parseKashRecipient", () => {
   it("preserves a valid EVM address", () => {
@@ -57,5 +57,29 @@ describe("Ark name record encoding", () => {
         data: encoded,
       })
     ).toMatchObject({ functionName: "setAddr", args: [arkLabelNode("alice"), getAddress(wallet)] });
+  });
+});
+
+// The registrar takes letters and digits alike, in any order, so "2fast" and
+// "0xazach" are names somebody can buy. The recipient parser turns a bare "0x"
+// away because on the send form that is a pasted address; the Ark ID page
+// parses a label, where it is not.
+describe("Ark ID labels", () => {
+  it.each(["alice", "alice1", "2fast", "0xazach", "ALICE9"])(
+    "accepts the alphanumeric label %j",
+    (value) => {
+      expect(parseArkLabel(value)).toBe(value.toLowerCase());
+    }
+  );
+
+  it.each(["", "ab", "a b", "a.b", "bad/name", "bad?name", "bad#name", "bad%name", "bad\\name"])(
+    "refuses %j, which is the registrar's own rule",
+    (value) => {
+      expect(parseArkLabel(value)).toBeNull();
+    }
+  );
+
+  it("takes digits in a recipient name too", () => {
+    expect(parseKashRecipient("alice123")).toMatchObject({ kind: "name", label: "alice123" });
   });
 });

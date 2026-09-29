@@ -140,7 +140,8 @@ describe("Kash Ark ID recipients", () => {
     });
     fireEvent.change(screen.getByLabelText("Amount (KASH)"), { target: { value: "1" } });
 
-    expect(await screen.findByText("alice.ark isn't attached to a wallet.")).toBeInTheDocument();
+    expect(await screen.findByText("alice.ark isn't owned by anyone.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Buy now" })).toHaveAttribute("href", "/ark-id");
     expect(screen.getByRole("button", { name: "Send Kash+" })).toBeDisabled();
     expect(chain.evmSend).not.toHaveBeenCalled();
   });

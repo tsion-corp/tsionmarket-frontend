@@ -296,7 +296,6 @@ export function PortfolioView({
       subtitle={tBns("promoSubtitle")}
       background="#EDEDED"
       tone="on-light"
-      scallop="/market/promo-ark-id-scallop.svg"
       glyph="/market/promo-ark-id-at.svg"
     />
   );
@@ -311,7 +310,6 @@ export function PortfolioView({
       subtitle={tDiscovery("stakeSubtitle")}
       background="#ed2b07"
       glyph="/market/promo-stake-flame.svg"
-      scallop="/market/promo-stake-scallop.svg"
       art={[
         {
           src: "/market/promo-stake-glow-left.svg",

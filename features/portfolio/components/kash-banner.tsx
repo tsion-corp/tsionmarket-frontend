@@ -28,19 +28,20 @@ function cqwAtLeast(designPx: number, floorPx: number) {
   return `max(${floorPx}px, ${cqw(designPx)})`;
 }
 
-// The stub edge's own export width, and the clear space the words keep inside
-// it. The design ends the text slot 0.66px short of the stub, which is not a
-// gap: in every locale the subline's last line runs right up to the circles.
-// This gutter is part of the box, so no string can sit against the edge.
-const STUB_WIDTH = 27.2165;
+// The clear space the words keep from the right edge. The design ended the
+// text slot at the ticket's stub, which is gone: the fill runs to the edge now
+// (2026-09-29), and the words stop where the fill used to. This gutter is part
+// of the box, so no string can sit against the edge.
+const FILL_INSET = 21.2416;
 const EDGE_GUTTER = 12;
+const CORNER_RADIUS = 10;
 
 // The row of words the design lays between the coins and the right stub. The
 // coin cluster's artwork stops at 205 across the band the headline sits in,
 // read off the export, so the design's own left edge is already eleven design
 // pixels clear of it and needs no gutter of its own.
 const TEXT_SLOT_LEFT = 216.31;
-const TEXT_SLOT_WIDTH = DESIGN_WIDTH - STUB_WIDTH - EDGE_GUTTER - TEXT_SLOT_LEFT;
+const TEXT_SLOT_WIDTH = DESIGN_WIDTH - FILL_INSET - EDGE_GUTTER - TEXT_SLOT_LEFT;
 
 // The hairline the design stands between the two halves, and the clear space
 // either side of it. The design leaves 7.684 for the hairline and both its
@@ -84,31 +85,23 @@ function estimatedHeadlineScale(headline: string) {
   return Math.min(1, HEADLINE_SLOT_WIDTH / (headlineEm(headline) * HEADLINE_FONT_SIZE));
 }
 
-// The design's fill sits inside the stub edges rather than under them.
-const FILL_AREA = {
-  left: `${((21.2416 / DESIGN_WIDTH) * 100).toFixed(4)}%`,
-  top: `${((3.0344 / DESIGN_HEIGHT) * 100).toFixed(4)}%`,
-  width: `${((473.379 / DESIGN_WIDTH) * 100).toFixed(4)}%`,
-  height: `${((81.931 / DESIGN_HEIGHT) * 100).toFixed(4)}%`,
-};
-
 interface KashBannerProps {
   onBuy: () => void;
 }
 
-// The Kash promo banner, built to the Market design: a gold ticket with a stub
-// edge at each end, the coin cluster and its rate badges on the left, a cloud
-// bank along the top, and the headline over a fine subline on the right. The
-// whole card is the button.
+// The Kash promo banner, built to the Market design: a gold card with the coin
+// cluster and its rate badges on the left, a cloud bank along the top, and the
+// headline over a fine subline on the right. The whole card is the button.
 //
-// The artwork is one export drawn to the fill area, so it can never leave a gap
-// or sit as an island whatever size the banner is given. The words are real
-// text laid over it rather than baked into the export, so they translate.
+// The artwork is one export drawn to the whole card, so it can never leave a
+// gap or sit as an island whatever size the banner is given. It was drawn to
+// the fill inside the ticket's stubs, a hair narrower than the card, and is
+// stretched the one part in seventy that takes it to the edges. The words are
+// real text laid over it rather than baked into the export, so they translate.
 //
 // The whole banner scales as a unit. It has no way to absorb spare width on its
-// own: the export bakes in the cloud bank across the top and the stub edge at
-// each end, and widening it alone would flatten the coins into ovals and stop
-// the clouds halfway. So it fills whatever width it is given at the design's own
+// own: the export bakes in the cloud bank across the top, and widening it
+// alone would flatten the coins into ovals and stop the clouds halfway. So it fills whatever width it is given at the design's own
 // ratio, and nothing ever asks it to stretch: the phone hands it the column, the
 // promo rail hands it a carousel slide, and both are the same card at a
 // different scale.
@@ -128,33 +121,20 @@ export function KashBanner({ onBuy }: KashBannerProps) {
       type="button"
       onClick={onBuy}
       className="ws-pressable @container relative block w-full cursor-pointer overflow-hidden text-left"
-      style={{ aspectRatio: `${DESIGN_WIDTH} / ${DESIGN_HEIGHT}` }}
+      style={{
+        aspectRatio: `${DESIGN_WIDTH} / ${DESIGN_HEIGHT}`,
+        borderRadius: cqw(CORNER_RADIUS),
+      }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/market/kash-banner-art.svg"
         alt=""
         aria-hidden
-        className="pointer-events-none absolute"
-        style={FILL_AREA}
+        className="pointer-events-none absolute inset-0 h-full w-full"
       />
-      {/* The stub edge the designer puts on both ends of a rail banner. The
-          exported shape is symmetric left to right, so one file serves both. */}
-      {(["left", "right"] as const).map((side) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          key={side}
-          src="/market/kash-banner-scallop.svg"
-          alt=""
-          aria-hidden
-          className={`pointer-events-none absolute inset-y-0 h-full ${
-            side === "left" ? "left-0" : "right-0"
-          }`}
-          style={{ width: acrossPct(STUB_WIDTH) }}
-        />
-      ))}
 
-      {/* The words sit in the slot between the coins and the right stub's
+      {/* The words sit in the slot between the coins and the right edge's
           gutter, and the row's own gap holds the hairline clear of both halves.
           Nothing here clips: the headline is scaled to its share, so it cannot
           outgrow it, and clipping it was what cut the tail off the "g" in
@@ -163,7 +143,7 @@ export function KashBanner({ onBuy }: KashBannerProps) {
         className="absolute top-[35.34%] flex h-[40.166%] items-center"
         style={{
           left: acrossPct(TEXT_SLOT_LEFT),
-          right: acrossPct(STUB_WIDTH + EDGE_GUTTER),
+          right: acrossPct(FILL_INSET + EDGE_GUTTER),
           gap: cqw(DIVIDER_GAP),
         }}
       >

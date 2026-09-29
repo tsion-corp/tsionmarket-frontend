@@ -35,9 +35,8 @@ export function PromoCarousel({ children }: { children: React.ReactNode }) {
 
   return (
     <div>
-      {/* The comp frames the scroll in a dark #232222 card (node 1:2687): the
-          banners inset onto it, and the Set-the-stake ticket's scalloped notches
-          reveal it between the bumps. */}
+      {/* The comp frames the scroll in a dark #232222 card (node 1:2687) that
+          the banners inset onto. */}
       <div className="rounded-lg bg-[#232222] px-1.5 py-1.75">
         <div ref={emblaRef} className="overflow-hidden">
           <div className="flex touch-pan-y items-center">

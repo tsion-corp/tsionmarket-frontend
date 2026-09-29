@@ -48,6 +48,11 @@ describe("ArkStoreBanner", () => {
     expect(container.querySelectorAll("img[alt='']").length).toBeGreaterThan(0);
   });
 
+  it("runs straight to its edges, with no stub at either end", () => {
+    const { container } = renderBanner();
+    expect(container.querySelector("[style*='ticket-edge']")).toBeNull();
+  });
+
   it("scales its artboard to the width it is given", () => {
     const { container } = renderBanner();
     const board = container.querySelector<HTMLElement>(".origin-top-left");

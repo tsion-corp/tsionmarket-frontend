@@ -5,27 +5,20 @@ import { useTranslations } from "next-intl";
 import { useFitText } from "@/hooks/use-fit-text";
 import { cn } from "@/lib/utils";
 
-// The scalloped edge the whole deck is cut with. It is horizontally symmetric,
-// so the same file serves both sides, as it does on the casino ticket.
-const EDGE = "/casino/set-the-stake/ticket-edge.svg";
 const DIVIDER = "/casino/set-the-stake/divider.svg";
 
 // The deck's artboard: drawn once at this size in real pixels and scaled as one
 // piece, so every position and font size keeps its ratio at any width instead
-// of stretching. Same geometry as the casino and square tickets beside it.
+// of stretching. Same geometry as the casino and square cards beside it. The
+// deck was cut like a ticket, with a column of bumps at each end, and the art
+// was measured from the fill those left inside; the edges are straight now
+// (2026-09-29), the fill is the card, and the art keeps its box.
 const W = 340;
 const H = 58;
 const FILL_LEFT = 14;
 const FILL_TOP = 2;
 const FILL_W = 312;
 const FILL_H = 54;
-const STUB_W = 17.938;
-
-// Each stub takes the colour the body's wash reaches at its end.
-const STUBS = [
-  { left: 0, top: 1, colour: "#3a3f47" },
-  { left: 322, top: 0, colour: "#15171b" },
-];
 
 // The four tiles of the app-grid motif, as a home screen reads: three plain
 // tiles and the Ark tile, which is the lit one.
@@ -82,118 +75,101 @@ export function ArkStoreBanner({ className }: { className?: string }) {
         className="absolute top-0 left-0 origin-top-left"
         style={{ width: W, height: H, transform: `scale(${scale})` }}
       >
-        {/* The scalloped edges. The export is the casino ticket's red, so it
-            is used as a mask rather than an image: each stub is then painted in
-            the colour the body reaches at that end, and the ticket reads as one
-            piece instead of three. */}
-        {STUBS.map((stub) => (
-          <span
-            key={stub.left}
-            aria-hidden
-            className="pointer-events-none absolute"
-            style={{
-              left: stub.left,
-              top: stub.top,
-              width: STUB_W,
-              height: 60,
-              background: stub.colour,
-              maskImage: `url(${EDGE})`,
-              WebkitMaskImage: `url(${EDGE})`,
-              maskSize: "100% 100%",
-              WebkitMaskSize: "100% 100%",
-            }}
-          />
-        ))}
-
         {/* Ink body. The wash is lit from the left, behind the phone, so the
             motif sits in the light and the words stay on the flat. */}
         <div
-          className="absolute overflow-hidden bg-[linear-gradient(100deg,#3a3f47_0%,#23262c_46%,#15171b_100%)]"
-          style={{ left: FILL_LEFT, top: FILL_TOP, width: FILL_W, height: FILL_H }}
+          className="absolute overflow-hidden rounded-[10px] bg-[linear-gradient(100deg,#3a3f47_0%,#23262c_46%,#15171b_100%)]"
+          style={{ left: 0, top: 0, width: W, height: H }}
         >
           <span
             aria-hidden
             className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/15"
           />
-          {/* A star field, the same night sky the app's own cards carry. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-0 opacity-50"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle, rgba(255,255,255,0.55) 0.7px, transparent 1.3px), radial-gradient(circle, rgba(255,255,255,0.3) 0.6px, transparent 1.2px)",
-              backgroundSize: "47px 33px, 31px 41px",
-              backgroundPosition: "6px 9px, 21px 23px",
-            }}
-          />
-          {/* The glow the phone stands in. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute top-[-34px] left-[-16px] size-[112px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.22)_0%,transparent_68%)]"
-          />
-
-          {/* The phone: a home screen of four tiles, the Ark tile lit, with the
-              download badge on its corner. */}
-          <span
-            aria-hidden
-            className="pointer-events-none absolute top-[6px] left-[10px] h-[42px] w-[30px] rotate-[-8deg] rounded-[6px] border border-white/25 bg-[linear-gradient(160deg,#3b4048_0%,#15171b_100%)] shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
+          {/* The box the art was measured in. */}
+          <div
+            className="absolute"
+            style={{ left: FILL_LEFT, top: FILL_TOP, width: FILL_W, height: FILL_H }}
           >
-            <span className="absolute top-[3px] left-1/2 h-[2px] w-[8px] -translate-x-1/2 rounded-full bg-white/30" />
-            <span className="absolute top-[8px] left-[4px] h-[30px] w-[22px]">
-              {TILES.map((tile) => (
-                <span
-                  key={`${tile.x}-${tile.y}`}
-                  className={`absolute size-[9px] rounded-[2.5px] ${
-                    tile.ark ? "bg-white" : "bg-white/18"
-                  }`}
-                  style={{ left: tile.x, top: tile.y }}
-                >
-                  {tile.ark ? (
-                    <span className="absolute inset-0 grid place-items-center text-[6px] leading-none font-black text-[#15171b]">
-                      A
-                    </span>
-                  ) : null}
-                </span>
-              ))}
-            </span>
-          </span>
-          <span
-            aria-hidden
-            className="pointer-events-none absolute top-[30px] left-[30px] grid size-[16px] place-items-center rounded-full bg-white text-[#15171b] shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
-          >
-            <svg viewBox="0 0 12 12" className="size-[8px]" fill="none" aria-hidden>
-              <path
-                d="M6 1.5v6m0 0L3.6 5.1M6 7.5l2.4-2.4M2.5 10h7"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-
-          {/* The words, in the band the phone leaves, on the casino ticket's
-              own rhythm: pitch, hairline, tagline. */}
-          <div className="absolute inset-y-0 right-[10px] left-[56px] flex items-center gap-[7px]">
-            <p
-              ref={pitchRef}
-              className="min-w-0 flex-1 font-serif leading-none font-bold whitespace-nowrap text-white capitalize"
-              style={{ fontSize: `calc(15px * ${pitchScale.toFixed(4)})` }}
-            >
-              {t("arkStorePitch")}
-            </p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={DIVIDER}
-              alt=""
-              className="pointer-events-none h-[15px] w-px shrink-0 opacity-60"
+            {/* A star field, the same night sky the app's own cards carry. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-50"
+              style={{
+                backgroundImage:
+                  "radial-gradient(circle, rgba(255,255,255,0.55) 0.7px, transparent 1.3px), radial-gradient(circle, rgba(255,255,255,0.3) 0.6px, transparent 1.2px)",
+                backgroundSize: "47px 33px, 31px 41px",
+                backgroundPosition: "6px 9px, 21px 23px",
+              }}
             />
-            <p
-              className="shrink-0 text-[11px] leading-[1.5] font-medium tracking-[-0.22px] whitespace-nowrap text-white/75 capitalize"
-              style={{ fontFamily: "var(--font-display)", fontVariationSettings: '"wdth" 100' }}
+            {/* The glow the phone stands in. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-[-34px] left-[-16px] size-[112px] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.22)_0%,transparent_68%)]"
+            />
+
+            {/* The phone: a home screen of four tiles, the Ark tile lit, with the
+              download badge on its corner. */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-[6px] left-[10px] h-[42px] w-[30px] rotate-[-8deg] rounded-[6px] border border-white/25 bg-[linear-gradient(160deg,#3b4048_0%,#15171b_100%)] shadow-[0_4px_10px_rgba(0,0,0,0.45)]"
             >
-              {t("arkStoreTagline")}
-            </p>
+              <span className="absolute top-[3px] left-1/2 h-[2px] w-[8px] -translate-x-1/2 rounded-full bg-white/30" />
+              <span className="absolute top-[8px] left-[4px] h-[30px] w-[22px]">
+                {TILES.map((tile) => (
+                  <span
+                    key={`${tile.x}-${tile.y}`}
+                    className={`absolute size-[9px] rounded-[2.5px] ${
+                      tile.ark ? "bg-white" : "bg-white/18"
+                    }`}
+                    style={{ left: tile.x, top: tile.y }}
+                  >
+                    {tile.ark ? (
+                      <span className="absolute inset-0 grid place-items-center text-[6px] leading-none font-black text-[#15171b]">
+                        A
+                      </span>
+                    ) : null}
+                  </span>
+                ))}
+              </span>
+            </span>
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-[30px] left-[30px] grid size-[16px] place-items-center rounded-full bg-white text-[#15171b] shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
+            >
+              <svg viewBox="0 0 12 12" className="size-[8px]" fill="none" aria-hidden>
+                <path
+                  d="M6 1.5v6m0 0L3.6 5.1M6 7.5l2.4-2.4M2.5 10h7"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+
+            {/* The words, in the band the phone leaves, on the casino ticket's
+              own rhythm: pitch, hairline, tagline. */}
+            <div className="absolute inset-y-0 right-[10px] left-[56px] flex items-center gap-[7px]">
+              <p
+                ref={pitchRef}
+                className="min-w-0 flex-1 font-serif leading-none font-bold whitespace-nowrap text-white capitalize"
+                style={{ fontSize: `calc(15px * ${pitchScale.toFixed(4)})` }}
+              >
+                {t("arkStorePitch")}
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={DIVIDER}
+                alt=""
+                className="pointer-events-none h-[15px] w-px shrink-0 opacity-60"
+              />
+              <p
+                className="shrink-0 text-[11px] leading-[1.5] font-medium tracking-[-0.22px] whitespace-nowrap text-white/75 capitalize"
+                style={{ fontFamily: "var(--font-display)", fontVariationSettings: '"wdth" 100' }}
+              >
+                {t("arkStoreTagline")}
+              </p>
+            </div>
           </div>
         </div>
       </div>

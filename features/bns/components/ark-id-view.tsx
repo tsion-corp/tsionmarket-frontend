@@ -29,6 +29,7 @@ import {
   ARK_DEFAULT_REVERSE_REGISTRAR,
   ARK_PUBLIC_RESOLVER_ADDRESS,
   arkSetPrimaryNameCalldata,
+  parseArkLabel,
   parseKashRecipient,
 } from "@/lib/bns/name";
 import { secondsUntil } from "@/lib/bns/format";
@@ -184,8 +185,9 @@ export function ArkIdView() {
     null
   );
 
-  const parsedSearch = parseKashRecipient(search);
-  const label = parsedSearch.kind === "name" ? parsedSearch.label : "";
+  // A label, not a recipient: "0xazach" is a name somebody can buy here, and
+  // only the send form has a reason to read a bare "0x" as an address.
+  const label = parseArkLabel(search) ?? "";
   const lookupLabel = useDebouncedValue(label, 300);
   const lookupReady = label === lookupLabel;
   const nameAvailability = useQuery({
@@ -550,7 +552,7 @@ export function ArkIdView() {
     setSuccessName(null);
   };
 
-  const currentName = parsedSearch.kind === "name" ? parsedSearch.name : "";
+  const currentName = label ? `${label}.ark` : "";
   const searchPrice = lookupReady ? namePrice.data?.total : undefined;
   const searchUsdcPrice =
     searchPrice && ethPriceUsd > 0
@@ -702,14 +704,12 @@ export function ArkIdView() {
                         value={search}
                         onChange={(event) => {
                           const value = event.target.value.replace(/\.ark$/i, "");
-                          const parsed = parseKashRecipient(value);
+                          const typed = parseArkLabel(value);
                           setSearch(value);
                           setNow(Date.now());
-                          if (evmAddress && parsed.kind === "name") {
-                            setPendingRegistration(
-                              getPendingArkRegistration(evmAddress, parsed.label)
-                            );
-                            setPendingFunding(getPendingArkFunding(evmAddress, parsed.label));
+                          if (evmAddress && typed !== null) {
+                            setPendingRegistration(getPendingArkRegistration(evmAddress, typed));
+                            setPendingFunding(getPendingArkFunding(evmAddress, typed));
                           } else {
                             setPendingRegistration(null);
                             setPendingFunding(null);

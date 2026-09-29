@@ -86,12 +86,13 @@ describe("MarketSquareBanner", () => {
     }
   });
 
-  it("draws both scalloped edges, the shape the rail's other banners share", () => {
+  // The rail's banners were cut like tickets, with a column of bumps at each
+  // end. They run straight to their edges now (2026-09-29), all of them.
+  it("runs straight to its edges, with no stub at either end", () => {
     const { container } = renderBanner();
     const sources = [...container.querySelectorAll("img")].map((node) => node.getAttribute("src"));
 
-    expect(sources).toContain("/market/square-banner/scallop-left.svg");
-    expect(sources).toContain("/market/square-banner/scallop-right.svg");
+    expect(sources.some((src) => src?.includes("scallop"))).toBe(false);
   });
 
   it("keeps the comp's card shape, so it sits in the rail without resizing it", () => {

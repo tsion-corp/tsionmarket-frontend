@@ -27,19 +27,7 @@ export interface StakeStepperProps {
   /** Already formatted for display, e.g. "$0.38". Never parsed here. */
   amount: string;
   currency: string;
-  onDecrement(): void;
-  onIncrement(): void;
-  canDecrement: boolean;
-  canIncrement: boolean;
   disabled?: boolean;
-  /**
-   * Accessible names for the two round buttons. The contract carried no slot
-   * for them, and a hard-coded English name cannot be translated, so the rail
-   * may hand localised ones down; without them the names fall back to the
-   * card's own `amountLabel`.
-   */
-  decrementLabel?: string;
-  incrementLabel?: string;
   /**
    * The same figure as a plain editable value, e.g. "0.38". Nothing is parsed
    * here: the card hands the raw text back and the caller, which owns the
@@ -365,23 +353,6 @@ function Sub({
   );
 }
 
-// remove-circle / add-circle: the ring is part of the exported artwork, a 1px
-// white stroke with the sign at 2.5 units inside a 34.333 viewBox, drawn in a
-// 40px box whose 8.33% inset (less the stroke's overhang) is the padding here.
-function StepGlyph({ sign }: { sign: "minus" | "plus" }): JSX.Element {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={`${ASSET_ROOT}/rail-${sign}.svg`}
-      alt=""
-      aria-hidden="true"
-      width={40}
-      height={40}
-      className="block size-10 p-[2.833px]"
-    />
-  );
-}
-
 // play (930:2009): a 16px box, the 10.333x11 outline triangle centred in it.
 function PlayGlyph(): JSX.Element {
   return (
@@ -414,17 +385,6 @@ function ShareGlyph(): JSX.Element {
   );
 }
 
-// B3: a 40px box with no fill and no border of its own — the white ring is in
-// the artwork. It had been drawn 44px, filled with `bg-surface` and rimmed in
-// the shell's 12% hairline, which is three departures from a control the
-// design draws as a plain white ring on the card.
-const STEP_BUTTON =
-  "ws-pressable grid size-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full disabled:cursor-not-allowed disabled:opacity-30";
-
-// One row at every width: the two round buttons keep their 40px and the 36px
-// the design clears on each side of the figure, and only the figure itself
-// gives ground, so the stepper never wraps or overflows. 916:84237 wraps the
-// row in 10px of padding, which is what puts it 22px under "Play Amount".
 // The draft is held here because a half-typed "0." is not an amount and the
 // caller must never hold one. Commits on blur and Enter; Escape drops it.
 function StakeField({
@@ -483,30 +443,18 @@ function StakeField({
 function StakeStepper({
   amount,
   currency,
-  onDecrement,
-  onIncrement,
-  canDecrement,
-  canIncrement,
   disabled,
-  decrementLabel,
-  incrementLabel,
   editValue,
   onEdit,
   editLabel,
   amountLabel,
 }: StakeStepperProps & { amountLabel: string }): JSX.Element {
+  // The figure used to sit between a minus and a plus that moved it by the
+  // game's minimum. It is typed now, so it stands alone: 916:84237 wraps the
+  // row in 10px of padding, which is what puts it 22px under "Play Amount".
   return (
     <div className="mt-3 w-full p-2.5">
-      <div className="flex w-full items-center justify-center gap-9">
-        <button
-          type="button"
-          onClick={onDecrement}
-          disabled={disabled === true || !canDecrement}
-          aria-label={decrementLabel ?? `Decrease ${amountLabel}`}
-          className={STEP_BUTTON}
-        >
-          <StepGlyph sign="minus" />
-        </button>
+      <div className="flex w-full items-center justify-center">
         {/* T20/T21 (916:84243): the stake is the card's biggest figure at 36px
             Mona Sans Bold, 8px over "USD" in Mona Sans SemiBold. The design
             gives the column 93px, so that is its floor. */}
@@ -522,15 +470,6 @@ function StakeStepper({
             {currency}
           </span>
         </span>
-        <button
-          type="button"
-          onClick={onIncrement}
-          disabled={disabled === true || !canIncrement}
-          aria-label={incrementLabel ?? `Increase ${amountLabel}`}
-          className={STEP_BUTTON}
-        >
-          <StepGlyph sign="plus" />
-        </button>
       </div>
     </div>
   );

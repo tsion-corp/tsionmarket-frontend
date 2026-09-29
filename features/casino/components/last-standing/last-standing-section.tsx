@@ -437,7 +437,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // them with one read of Base. There is no balance card on this screen any
   // more — the balance is the one the shell already shows — but `balanceUsd`
   // still decides whether the entry is affordable, and `balanceUnits` is the
-  // ceiling the stake stepper may not step past.
+  // ceiling a typed stake is clamped to.
   const { balanceUsd, balanceUnits, settle: settleBalance } = useGameBalance();
   const {
     game,
@@ -1212,8 +1212,8 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     }
   };
 
-  // One wager, whatever the size: the minimum from the stepper's floor, or
-  // more from a stepped-up stake. The contract's wager(gameId) takes any value
+  // One wager, whatever the size: the minimum, or more from a typed-up
+  // stake. The contract's wager(gameId) takes any value
   // at or above the game's minimum; either way the sender becomes last
   // standing and the clock resets, so the two share every step after the
   // amount.
@@ -1289,11 +1289,9 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const minStakeUnits = usdToUnits(Number(status?.entryFee.amount ?? "0"));
   const [stakeUnits, setStakeUnits] = useState<bigint | null>(null);
   // Null means "whatever the minimum turns out to be", so a stake chosen
-  // before the game loaded cannot pin the stepper at zero.
+  // before the game loaded cannot pin the stake at zero.
   const stake = stakeUnits !== null && stakeUnits >= minStakeUnits ? stakeUnits : minStakeUnits;
   const stakeUsd = unitsToUsd(stake);
-  const canStepStakeUp = minStakeUnits > 0n && stake + minStakeUnits <= balanceUnits;
-  const canStepStakeDown = minStakeUnits > 0n && stake - minStakeUnits >= minStakeUnits;
 
   // Clamped, not rejected: under the game's minimum is what the contract
   // reverts, over the balance is what the player cannot pay.
@@ -1737,13 +1735,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                   stepper={{
                     amount: money.format(stakeUsd),
                     currency: money.currency.code,
-                    onDecrement: () => setStakeUnits(stake - minStakeUnits),
-                    onIncrement: () => setStakeUnits(stake + minStakeUnits),
-                    canDecrement: canStepStakeDown,
-                    canIncrement: canStepStakeUp,
                     disabled: wagering,
-                    decrementLabel: t("stepperDecrease"),
-                    incrementLabel: t("stepperIncrease"),
                     editValue: money.toInput(stakeUsd),
                     onEdit: onEditStake,
                     editLabel: t("stepperEdit"),

@@ -83,6 +83,19 @@ describe("KashCardMobile actions", () => {
     );
   });
 
+  // Three pills across a card the carousel can hand a narrow slide, with
+  // labels set in fixed pixels: "Convert" ran past the card on a phone. The
+  // pills take their type from the card's own width instead, and may shrink.
+  it("sizes the pills to the card, so three fit at every width", () => {
+    renderCard();
+    for (const name of ["Buy", "Send", "Convert"]) {
+      const pill = screen.getByRole("button", { name });
+      expect(pill.className).toContain("min-w-0");
+      expect(pill.className).toMatch(/text-\[clamp\([^\]]*cqw[^\]]*\)\]/);
+      expect(pill.className).not.toContain("text-[15px]");
+    }
+  });
+
   describe("and if it is taken down again", () => {
     beforeEach(() => {
       sendFlag.enabled = false;

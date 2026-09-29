@@ -581,18 +581,14 @@ describe("LastStandingSection rail", () => {
     expect(screen.getByText(ls.railBadgeLead)).toBeInTheDocument();
   });
 
-  it("wagers the stepper's amount, and steps it by the game's minimum", () => {
+  it("offers nothing to step the figure by: it is typed", () => {
     renderSection();
 
-    fireEvent.click(screen.getByRole("button", { name: ls.stepperIncrease }));
-    expect(screen.getByRole("textbox", { name: ls.stepperEdit })).toHaveValue("$0.76");
-
-    fireEvent.click(screen.getByRole("button", { name: ls.railAddCta }));
-    expect(wager).toHaveBeenCalledWith(59, 760000n);
+    expect(screen.getByRole("textbox", { name: ls.stepperEdit })).toHaveValue("$0.38");
+    expect(screen.queryByRole("button", { name: /play amount/i })).toBeNull();
   });
 
-  // Stepping is in units of the game's entry, so a ten-times stake is nine
-  // presses. The figure is a field for that reason.
+  // The figure is a field, and the only way to change it.
   describe("typing the stake", () => {
     const field = () => screen.getByRole("textbox", { name: ls.stepperEdit });
 
@@ -650,14 +646,6 @@ describe("LastStandingSection rail", () => {
 
       expect(field()).toHaveValue("$0.38");
     });
-  });
-
-  it("never steps the stake past the balance", () => {
-    world.balanceUsd = 0.38;
-    renderSection();
-
-    expect(screen.getByRole("button", { name: ls.stepperIncrease })).toBeDisabled();
-    expect(screen.getByRole("button", { name: ls.stepperDecrease })).toBeDisabled();
   });
 
   it("asks for money instead of a play when the balance is short", () => {
