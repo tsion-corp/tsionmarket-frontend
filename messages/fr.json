@@ -1851,6 +1851,18 @@
     "comingSoon": "Bientôt disponible"
   },
   "casino": {
+    "campaign": {
+      "eyebrow": "Mission de la semaine",
+      "eyebrowSecured": "Participation assurée",
+      "rule": "Atteignez {multiplier}x sur Arkjet et Chicken, gagnez {streak} d'affilée sur Spin.",
+      "endsIn": "Se termine dans {time}",
+      "startsIn": "Commence dans {time}",
+      "ended": "Campagne terminée",
+      "seeMissions": "Voir les missions",
+      "viewEntry": "Voir la participation",
+      "progress": "{done} mission(s) sur 3 terminée(s)",
+      "open": "Ouvrir la campagne {name}"
+    },
     "common": {
       "loading": "Chargement…",
       "tryAgain": "Réessayer",

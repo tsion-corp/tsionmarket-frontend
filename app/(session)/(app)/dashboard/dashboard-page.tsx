@@ -1,11 +1,22 @@
 "use client";
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 import { useAppChrome, useReportActiveSection } from "@/components/layout/app-chrome";
 import { PortfolioView } from "@/features/portfolio";
+// The campaign banner and the modal behind it are the casino's; deferred, so
+// the dashboard's first load does not carry them. It renders nothing without
+// a session or a campaign, and a null slot leaves the view exactly as it was.
+const ArkadeCampaignBanner = dynamic(
+  () =>
+    import("@/features/casino/components/campaign/arkade-campaign-banner").then(
+      (module) => module.ArkadeCampaignBanner
+    ),
+  { ssr: false }
+);
 // Deep import, not the @/features/migrate barrel: that barrel re-exports the
 // sweep button, which mounts the whole Privy SDK. This hook is light — a
 // localStorage read, the migration status, and one cached lookup.
@@ -320,6 +331,7 @@ export function DashboardPage() {
           onOpenWithdraw={modals.openWithdraw}
           onTakeTour={takeTour}
           crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
+          campaignSlot={<ArkadeCampaignBanner />}
           maskForMigration={maskForMigration}
           onOpenDetail={modals.openDetail}
           onOpenBuy={modals.openBuy}

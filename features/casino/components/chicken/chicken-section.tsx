@@ -416,7 +416,6 @@ export function ChickenSection() {
         <ArkadeCampaignBadge
           className={styles.campaignSlot}
           enabled={game.authReady && game.authenticated}
-          playerId={game.balance?.playerId}
         />
         <div className={styles.headerRight}>
           <button

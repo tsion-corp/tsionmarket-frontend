@@ -10,6 +10,7 @@ import {
 } from "@/features/casino/lib/games";
 import { ArkadeDesktopRow } from "@/features/casino/components/arkade-desktop-row";
 import { ArkadeFeaturedBanner } from "@/features/casino/components/arkade-featured-banner";
+import { ArkadeCampaignBanner } from "@/features/casino/components/campaign/arkade-campaign-banner";
 import { ArkadeSectionHeader } from "@/features/casino/components/arkade-section-header";
 import { FEATURED_STATS } from "@/features/casino/lib/featured";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
@@ -238,6 +239,11 @@ export function ArkadeDesktop({
         </div>
       ) : (
         <>
+          {/* The weekly campaign, above the featured game: it is the one
+              thing on Arkade with a clock on it. Renders nothing without a
+              session or a campaign. */}
+          <ArkadeCampaignBanner />
+
           {/* Featured banner (2234:10801) */}
           {featured.length > 0 ? (
             <ArkadeFeaturedBanner games={featured} stats={FEATURED_STATS} onPlay={onSelectGame} />

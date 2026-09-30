@@ -355,7 +355,6 @@ export function SpinDaBottleSection() {
                 <ArkadeCampaignBadge
                   className={styles.campaignSlot}
                   enabled={game.authReady && game.authenticated}
-                  playerId={game.balance?.playerId}
                 />
               </header>
 

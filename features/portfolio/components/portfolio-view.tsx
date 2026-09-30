@@ -71,6 +71,9 @@ interface PortfolioViewProps {
       money is still in the old wallet. Both owned by the route: they belong to
       another feature, and features never import each other. */
   updateBalanceSlot?: ReactNode;
+  /** The Arkade campaign banner, above the balance row. Owned by the route
+      for the same reason: it belongs to the casino feature. */
+  campaignSlot?: ReactNode;
   maskForMigration?: boolean;
   onOpenDetail: (detail: DetailPayload) => void;
   onOpenBuy: (buy: BuyPayload) => void;
@@ -91,6 +94,7 @@ export function PortfolioView({
   onOpenWithdraw,
   onTakeTour,
   updateBalanceSlot,
+  campaignSlot,
   maskForMigration,
   // crossBorderSlot is unused while the section below is commented out.
   onOpenDetail,
@@ -352,6 +356,7 @@ export function PortfolioView({
       {/* Phone head: swipe carousel of the two starfield cards, then the promo
           strip. The carousel gives the h-full cards their height. */}
       <div className="md:hidden">
+        {campaignSlot ? <div className="mb-3">{campaignSlot}</div> : null}
         <BalanceCarousel>
           <BalanceCard
             onOpenFunds={onOpenFunds}
@@ -392,6 +397,7 @@ export function PortfolioView({
       </div>
 
       {/* Desktop: the side-by-side grid. */}
+      {campaignSlot ? <div className="mb-3 hidden md:block">{campaignSlot}</div> : null}
       <div className="hidden gap-3 md:grid lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
         <BalanceCard
           onOpenFunds={onOpenFunds}

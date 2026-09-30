@@ -5,6 +5,12 @@ import { NextIntlClientProvider } from "next-intl";
 import enMessages from "@/messages/en.json";
 
 const push = vi.fn();
+// The campaign banner reads the session and the campaign query; this test is
+// about which catalogue the route mounts, so it is a marker.
+vi.mock("@/features/casino/components/campaign/arkade-campaign-banner", () => ({
+  ArkadeCampaignBanner: () => null,
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
   usePathname: () => "/casino",

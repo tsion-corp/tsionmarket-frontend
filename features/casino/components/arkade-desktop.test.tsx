@@ -5,6 +5,12 @@ import { NextIntlClientProvider } from "next-intl";
 import enMessages from "@/messages/en.json";
 import type { CasinoGame } from "@/features/casino/lib/games";
 
+// The campaign banner reads the session and the campaign query; here it is a
+// marker, because these tests are about the hub's own layout.
+vi.mock("@/features/casino/components/campaign/arkade-campaign-banner", () => ({
+  ArkadeCampaignBanner: () => <div data-testid="campaign-banner" />,
+}));
+
 vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 // The head shows the wallet balance; the balance is not under test, so the hook
 // is stubbed to a settled, empty portfolio.
@@ -239,6 +245,15 @@ describe("ArkadeDesktopRow", () => {
 });
 
 describe("ArkadeDesktop", () => {
+  it("puts the campaign banner above the featured game", () => {
+    renderWithIntl(<ArkadeDesktop games={catalogue} />);
+    const banner = screen.getByTestId("campaign-banner");
+    const featured = screen.getByText(messages.casino.hub.featured);
+    expect(
+      banner.compareDocumentPosition(featured) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
   it("lays the catalogue out as rails of three, as the desktop comp draws it", () => {
     renderWithIntl(<ArkadeDesktop games={catalogue} />);
 

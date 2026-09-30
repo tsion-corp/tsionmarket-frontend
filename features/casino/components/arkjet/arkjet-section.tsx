@@ -453,7 +453,6 @@ export function ArkjetSection() {
           <ArkadeCampaignBadge
             className={styles.campaignSlot}
             enabled={arkjet.authReady && arkjet.authenticated}
-            playerId={arkjet.balance?.playerId}
           />
           <button
             type="button"

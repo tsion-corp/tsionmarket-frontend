@@ -1851,6 +1851,18 @@
     "comingSoon": "Coming soon"
   },
   "casino": {
+    "campaign": {
+      "eyebrow": "Weekly mission",
+      "eyebrowSecured": "Entry secured",
+      "rule": "Hit {multiplier}x on Arkjet and Chicken, win {streak} in a row on Spin.",
+      "endsIn": "Ends in {time}",
+      "startsIn": "Starts in {time}",
+      "ended": "Campaign ended",
+      "seeMissions": "See missions",
+      "viewEntry": "View entry",
+      "progress": "{done} of 3 missions complete",
+      "open": "Open the {name} campaign"
+    },
     "common": {
       "loading": "Loading…",
       "tryAgain": "Try again",

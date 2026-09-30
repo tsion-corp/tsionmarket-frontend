@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ArkadeCampaignJourney } from "@/features/casino/lib/api/arkjet";
+import { campaignJourney, qualifiedJourney } from "./campaign-fixture";
 import { ArkadeCampaignBadge } from "./arkade-campaign-badge";
 
 const mockUseCampaign = vi.hoisted(() => vi.fn());
@@ -9,57 +9,53 @@ vi.mock("@/features/casino/hooks/use-arkade-campaign", () => ({
   useArkadeCampaign: mockUseCampaign,
 }));
 
+// The badge reads the session itself: the journey is authenticated by the
+// wallet, and the wallet is what keys the cache the banner shares.
+const session = vi.hoisted(() => ({
+  ready: true,
+  authenticated: true,
+  evmAddress: "0x0000000000000000000000000000000000000001" as string | null,
+}));
+vi.mock("@/hooks/use-auth-session", () => ({
+  useAuthSession: () => ({
+    ...session,
+    solanaAddress: null,
+    profile: { name: "Test", email: null, avatarSeed: "seed" },
+    logout: vi.fn(),
+  }),
+}));
+
 vi.mock("@/components/ui/modal-shell", () => ({
   ModalShell: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div role="dialog">{children}</div> : null,
 }));
 
-const journey: ArkadeCampaignJourney = {
-  campaign: {
-    campaignId: "95e90041-6baf-4a6a-8716-b51950dad632",
-    slug: "triple-challenge-test",
-    displayName: "7-Day Triple Challenge",
-    status: "active",
-    startsAt: "2026-09-29T00:00:00Z",
-    endsAt: "2026-10-06T00:00:00Z",
-    secondsRemaining: 604_800,
-    currency: "USDC",
-    minimumStake: "1.00",
-    minimumStakeMinor: 1_000_000,
-    targetMultiplier: "11.50",
-    targetMultiplierHundredths: 1_150,
-    spinStreakTarget: 4,
-    prize: "50.00",
-    prizeMinor: 50_000_000,
-    drawSeedCommitment: "7aa38e524814df49e37be56ff03fcf735c095a0a893add0fca290abb14f2598a",
-    drawSeedRevealed: null,
-    qualifiedEntrants: 12,
-  },
-  progress: {
-    arkjet: { completed: true, bestMultiplier: "12.40", targetMultiplier: "11.50" },
-    chickenCross: { completed: false, bestMultiplier: "8.25", targetMultiplier: "11.50" },
-    spinDaBottle: { completed: false, currentStreak: 2, bestStreak: 3, targetStreak: 4 },
-    qualified: false,
-    qualifiedAt: null,
-    isWinner: false,
-  },
-};
+const journey = campaignJourney;
 
 describe("ArkadeCampaignBadge", () => {
   beforeEach(() => {
     mockUseCampaign.mockReset();
     mockUseCampaign.mockReturnValue({ data: journey });
+    session.ready = true;
+    session.authenticated = true;
+    session.evmAddress = "0x0000000000000000000000000000000000000001";
   });
 
-  it("does not mount the private campaign query until the player identity is known", () => {
-    const { container } = render(<ArkadeCampaignBadge enabled playerId={null} />);
+  it("does not fire the private campaign query until the wallet is known", () => {
+    session.evmAddress = null;
+    const { container } = render(<ArkadeCampaignBadge enabled />);
 
     expect(container).toBeEmptyDOMElement();
-    expect(mockUseCampaign).not.toHaveBeenCalled();
+    expect(mockUseCampaign).toHaveBeenCalledWith(false, null);
+  });
+
+  it("keys the query by the wallet the request is authenticated as", () => {
+    render(<ArkadeCampaignBadge enabled />);
+    expect(mockUseCampaign).toHaveBeenCalledWith(true, session.evmAddress);
   });
 
   it("shows exact progress and campaign rules in the shared game modal", () => {
-    render(<ArkadeCampaignBadge enabled playerId="player-1" />);
+    render(<ArkadeCampaignBadge enabled />);
     fireEvent.click(screen.getByRole("button", { name: /open arkade campaign/i }));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -73,20 +69,9 @@ describe("ArkadeCampaignBadge", () => {
   });
 
   it("switches the badge and entry panel to the secured state", () => {
-    mockUseCampaign.mockReturnValue({
-      data: {
-        ...journey,
-        progress: {
-          ...journey.progress,
-          chickenCross: { ...journey.progress.chickenCross, completed: true },
-          spinDaBottle: { ...journey.progress.spinDaBottle, completed: true },
-          qualified: true,
-          qualifiedAt: "2026-09-30T00:00:00Z",
-        },
-      },
-    });
+    mockUseCampaign.mockReturnValue({ data: qualifiedJourney });
 
-    render(<ArkadeCampaignBadge enabled playerId="player-1" />);
+    render(<ArkadeCampaignBadge enabled />);
     expect(screen.getByRole("button", { name: /entry secured/i })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /entry secured/i }));
     expect(screen.getByText("Your draw entry is secured")).toBeInTheDocument();
