@@ -83,8 +83,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       decane-connect-kit:
-        specifier: ^2.29.2
-        version: 2.29.2(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)
+        specifier: ^2.29.3
+        version: 2.29.3(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)
       decane-node:
         specifier: ^1.4.0
         version: 1.4.0
@@ -4891,8 +4891,8 @@ packages:
     resolution: {integrity: sha512-z2S+W9X73hAUUki+N+9Za2lBlun89zigOyGrsax+KUQ6wKW4ZoWpEYBkGhQjwAjjDCkWxhY0VKEhk8wzY7F5cA==}
     engines: {node: '>=0.10.0'}
 
-  decane-connect-kit@2.29.2:
-    resolution: {integrity: sha512-GJOBmWiHt6A7Nrmizbd2PyjCIyEedee60Ff3ev/qTQVv1UtOS3J47+l2TDp7a3/z0f0cN2mgK4sT+NxljdEmGg==}
+  decane-connect-kit@2.29.3:
+    resolution: {integrity: sha512-wHZd5M1bAxcVsFkwl7I/nyps5DoY6K9rB9kZZwFX+lgrjZUl1IiJjbpJK5eMO131ieF+whPF4LELUvHNdu2N+g==}
     peerDependencies:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
@@ -14005,7 +14005,7 @@ snapshots:
 
   decamelize@1.2.0: {}
 
-  decane-connect-kit@2.29.2(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6):
+  decane-connect-kit@2.29.3(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6):
     dependencies:
       '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
