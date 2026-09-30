@@ -7,6 +7,14 @@ scenario-impact: needs_automation
 
 # Arkade campaign banner, and a landscape campaign modal
 
+## Hidden for now
+
+The banner is built and switched off (2026-09-30), by the team's call:
+`ARKADE_CAMPAIGN_BANNER_HIDDEN` in `features/casino/lib/arkade-campaign.ts`
+gates all three mounts, and the hubs load it through `next/dynamic`, so a
+hidden banner costs no route anything. The in-game badge and the landscape
+modal are live. Showing the banner is flipping one flag.
+
 See `docs/adr/ADR-2026-09-30-arkade-campaign-banner-and-landscape-modal.md`.
 
 ## The banner

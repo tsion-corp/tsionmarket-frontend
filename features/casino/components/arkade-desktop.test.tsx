@@ -245,13 +245,11 @@ describe("ArkadeDesktopRow", () => {
 });
 
 describe("ArkadeDesktop", () => {
-  it("puts the campaign banner above the featured game", () => {
+  // Built, and hidden by the team's call (2026-09-30). The mount stays behind
+  // ARKADE_CAMPAIGN_BANNER_HIDDEN so showing it again is one flag.
+  it("does not mount the campaign banner while it is hidden", () => {
     renderWithIntl(<ArkadeDesktop games={catalogue} />);
-    const banner = screen.getByTestId("campaign-banner");
-    const featured = screen.getByText(messages.casino.hub.featured);
-    expect(
-      banner.compareDocumentPosition(featured) & Node.DOCUMENT_POSITION_FOLLOWING
-    ).toBeTruthy();
+    expect(screen.queryByTestId("campaign-banner")).toBeNull();
   });
 
   it("lays the catalogue out as rails of three, as the desktop comp draws it", () => {

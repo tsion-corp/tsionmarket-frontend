@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
@@ -10,7 +11,14 @@ import {
 } from "@/features/casino/lib/games";
 import { ArkadeDesktopRow } from "@/features/casino/components/arkade-desktop-row";
 import { ArkadeFeaturedBanner } from "@/features/casino/components/arkade-featured-banner";
-import { ArkadeCampaignBanner } from "@/features/casino/components/campaign/arkade-campaign-banner";
+import { ARKADE_CAMPAIGN_BANNER_HIDDEN } from "@/features/casino/lib/arkade-campaign";
+const ArkadeCampaignBanner = dynamic(
+  () =>
+    import("@/features/casino/components/campaign/arkade-campaign-banner").then(
+      (module) => module.ArkadeCampaignBanner
+    ),
+  { ssr: false }
+);
 import { ArkadeSectionHeader } from "@/features/casino/components/arkade-section-header";
 import { FEATURED_STATS } from "@/features/casino/lib/featured";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
@@ -242,7 +250,7 @@ export function ArkadeDesktop({
           {/* The weekly campaign, above the featured game: it is the one
               thing on Arkade with a clock on it. Renders nothing without a
               session or a campaign. */}
-          <ArkadeCampaignBanner />
+          {ARKADE_CAMPAIGN_BANNER_HIDDEN ? null : <ArkadeCampaignBanner />}
 
           {/* Featured banner (2234:10801) */}
           {featured.length > 0 ? (

@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 import { useAppChrome, useReportActiveSection } from "@/components/layout/app-chrome";
 import { PortfolioView } from "@/features/portfolio";
+import { ARKADE_CAMPAIGN_BANNER_HIDDEN } from "@/features/casino/lib/arkade-campaign";
 // The campaign banner and the modal behind it are the casino's; deferred, so
 // the dashboard's first load does not carry them. It renders nothing without
 // a session or a campaign, and a null slot leaves the view exactly as it was.
@@ -331,7 +332,7 @@ export function DashboardPage() {
           onOpenWithdraw={modals.openWithdraw}
           onTakeTour={takeTour}
           crossBorderSlot={<CrossBorderBanner onClick={openCrossBorder} />}
-          campaignSlot={<ArkadeCampaignBanner />}
+          campaignSlot={ARKADE_CAMPAIGN_BANNER_HIDDEN ? null : <ArkadeCampaignBanner />}
           maskForMigration={maskForMigration}
           onOpenDetail={modals.openDetail}
           onOpenBuy={modals.openBuy}
