@@ -83,7 +83,7 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       decane-connect-kit:
-        specifier: ^2.29.3
+        specifier: 2.29.3
         version: 2.29.3(bufferutil@4.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.3)(utf-8-validate@6.0.6)
       decane-node:
         specifier: ^1.4.0
