@@ -2,12 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ARKJET_KEYS } from "@/features/casino/hooks/use-arkjet";
-import { ARKADE_CAMPAIGN_QUERY_KEY, fetchArkjetBalance } from "@/features/casino/lib/api/arkjet";
+import { ARKADE_CAMPAIGN_QUERY_KEY } from "@/features/casino/lib/api/arkjet";
 import {
+  fetchSpinBalance,
   fetchSpinRules,
   playSpin,
   prepareSpin,
+  SPIN_QUERY_KEYS,
   type SpinPick,
 } from "@/features/casino/lib/api/spin";
 import { useAuthSession } from "@/hooks/use-auth-session";
@@ -15,7 +16,7 @@ import { pollUnlessFailing } from "@/lib/query-poll";
 
 const KEYS = {
   rules: ["casino", "spin-da-bottle", "rules"] as const,
-  balance: ARKJET_KEYS.balance,
+  balance: SPIN_QUERY_KEYS.balance,
 };
 
 export function useSpinDaBottle() {
@@ -31,7 +32,7 @@ export function useSpinDaBottle() {
   });
   const balance = useQuery({
     queryKey: [...KEYS.balance, evmAddress ?? null],
-    queryFn: fetchArkjetBalance,
+    queryFn: fetchSpinBalance,
     enabled: hasSession,
     refetchInterval: pollUnlessFailing(30_000),
     staleTime: 30_000,

@@ -708,6 +708,7 @@ export function SpinDaBottleSection() {
           initialAmount={cashierInitialAmount}
           productName="Spin Da Bottle"
           tone="chicken"
+          fundingScope="spin"
           onClose={() => setCashierOpen(false)}
           onOpenFunds={() => {
             setCashierOpen(false);

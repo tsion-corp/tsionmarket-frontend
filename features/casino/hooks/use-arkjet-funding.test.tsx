@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const api = vi.hoisted(() => ({ config: vi.fn() }));
+const api = vi.hoisted(() => ({ config: vi.fn(), spinConfig: vi.fn() }));
 vi.mock("@/hooks/use-auth-session", () => ({
   useAuthSession: () => ({
     ready: true,
@@ -23,12 +23,18 @@ vi.mock("@/features/casino/lib/api/arkjet", () => ({
   confirmArkjetDeposit: vi.fn(),
   createArkjetWithdrawal: vi.fn(),
 }));
+vi.mock("@/features/casino/lib/api/spin", () => ({
+  SPIN_QUERY_KEYS: { funding: ["spin", "funding"], balance: ["spin", "balance"] },
+  fetchSpinFundingConfig: api.spinConfig,
+  confirmSpinDeposit: vi.fn(),
+  createSpinWithdrawal: vi.fn(),
+}));
 
-import { useArkjetFunding } from "./use-arkjet-funding";
+import { useArkjetFunding, type ArkjetFundingScope } from "./use-arkjet-funding";
 
-function mountFunding() {
+function mountFunding(scope: ArkjetFundingScope = "shared") {
   const client = new QueryClient({ defaultOptions: { queries: { retryDelay: 0 } } });
-  const hook = renderHook(() => useArkjetFunding(), {
+  const hook = renderHook(() => useArkjetFunding(scope), {
     wrapper: ({ children }: { children: ReactNode }) => (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
     ),
@@ -39,6 +45,7 @@ function mountFunding() {
 afterEach(cleanup);
 beforeEach(() => {
   api.config.mockReset();
+  api.spinConfig.mockReset();
 });
 
 describe("Arkjet funding availability", () => {
@@ -57,6 +64,7 @@ describe("Arkjet funding availability", () => {
         Object.assign(new Error("temporary outage"), { code: "SERVICE_UNAVAILABLE" })
       )
       .mockResolvedValue({
+        custodyScope: "shared",
         currency: "USDC",
         currencyDecimalPlaces: 6,
         tokenDecimals: 6,
@@ -106,6 +114,39 @@ describe("Arkjet funding availability", () => {
     await waitFor(() => expect(result.current.configError).not.toBeNull());
     expect(result.current.configUnavailable).toBe(false);
     expect(api.config).toHaveBeenCalledTimes(4);
+    unmount();
+    client.clear();
+  });
+
+  it("loads Spin funding only from the dedicated custody endpoint", async () => {
+    api.spinConfig.mockResolvedValue({
+      custodyScope: "spin",
+      currency: "USDC",
+      currencyDecimalPlaces: 6,
+      tokenDecimals: 6,
+      ledgerMinorPerUsdc: "1000000",
+    });
+
+    const { result, client, unmount } = mountFunding("spin");
+    await waitFor(() => expect(result.current.configured).toBe(true));
+    expect(api.spinConfig).toHaveBeenCalledTimes(1);
+    expect(api.config).not.toHaveBeenCalled();
+    unmount();
+    client.clear();
+  });
+
+  it("rejects a custody-scope mismatch instead of routing money to another wallet", async () => {
+    api.spinConfig.mockResolvedValue({
+      custodyScope: "shared",
+      currency: "USDC",
+      currencyDecimalPlaces: 6,
+      tokenDecimals: 6,
+      ledgerMinorPerUsdc: "1000000",
+    });
+
+    const { result, client, unmount } = mountFunding("spin");
+    await waitFor(() => expect(result.current.configError).not.toBeNull());
+    expect(result.current.configured).toBe(false);
     unmount();
     client.clear();
   });

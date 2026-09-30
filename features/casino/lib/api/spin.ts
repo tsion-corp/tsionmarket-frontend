@@ -1,8 +1,19 @@
 "use client";
 
 import { createServiceClient } from "@/lib/api/service";
+import type {
+  ArkjetBalance,
+  ArkjetDeposit,
+  ArkjetFundingConfig,
+  ArkjetWithdrawal,
+} from "@/features/casino/lib/api/arkjet";
 
 const spin = createServiceClient("/api/arkjet", "Spin Da Bottle is unavailable right now.");
+
+export const SPIN_QUERY_KEYS = {
+  funding: ["casino", "spin-da-bottle", "funding", "config", "usdc-v1"] as const,
+  balance: ["casino", "spin-da-bottle", "balance", "usdc-v1"] as const,
+};
 
 export type SpinOutcome = "UP" | "DOWN" | "MIDDLE";
 export type SpinPick = Exclude<SpinOutcome, "MIDDLE">;
@@ -118,6 +129,28 @@ export interface SpinCommentFeed {
 
 export function fetchSpinRules(): Promise<SpinRules> {
   return spin.get<SpinRules>("/spin/rules");
+}
+
+export function fetchSpinBalance(): Promise<ArkjetBalance> {
+  return spin.authedGet<ArkjetBalance>("/spin/balance");
+}
+
+export function fetchSpinFundingConfig(): Promise<ArkjetFundingConfig> {
+  return spin.get<ArkjetFundingConfig>("/spin/funding/config");
+}
+
+export function confirmSpinDeposit(txHash: string): Promise<ArkjetDeposit> {
+  return spin.post<ArkjetDeposit>("/spin/funding/deposits/confirm", { txHash });
+}
+
+export function createSpinWithdrawal(
+  amount: string,
+  idempotencyKey: string
+): Promise<ArkjetWithdrawal> {
+  return spin.post<ArkjetWithdrawal>("/spin/funding/withdrawals", {
+    amount,
+    idempotencyKey,
+  });
 }
 
 export function fetchSpinHistory(limit = 20, offset = 0): Promise<SpinHistory> {

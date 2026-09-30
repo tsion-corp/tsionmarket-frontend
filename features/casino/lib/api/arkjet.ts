@@ -167,6 +167,7 @@ export interface ArkjetBalance {
 }
 
 export interface ArkjetFundingConfig {
+  custodyScope: "shared" | "spin";
   chainId: number;
   tokenSymbol: string;
   tokenAddress: string;
@@ -188,6 +189,7 @@ export interface ArkjetDeposit {
   amountUsdc: string;
   creditedAmount: string;
   currency: string;
+  custodyScope: "shared" | "spin";
   status: string;
   creditedAt: string;
 }
@@ -199,6 +201,7 @@ export interface ArkjetWithdrawal {
   fee: string;
   amountUsdc: string;
   currency: string;
+  custodyScope: "shared" | "spin";
   status: string;
   txHash: string | null;
   createdAt: string;

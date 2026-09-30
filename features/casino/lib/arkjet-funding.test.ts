@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { normalizeArkjetAmount, withdrawalUsdcEstimate } from "./arkjet-funding";
+import type { ArkjetFundingConfig } from "./api/arkjet";
+import {
+  normalizeArkjetAmount,
+  validateArkjetFundingConfig,
+  withdrawalUsdcEstimate,
+} from "./arkjet-funding";
+
+const fundingConfig: ArkjetFundingConfig = {
+  custodyScope: "spin",
+  chainId: 8453,
+  tokenSymbol: "USDC",
+  tokenAddress: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  tokenDecimals: 6,
+  depositAddress: "0x1111111111111111111111111111111111111111",
+  requiredConfirmations: 1,
+  currency: "USDC",
+  currencyDecimalPlaces: 6,
+  ledgerMinorPerUsdc: "1000000",
+  withdrawalFeeBps: 0,
+  withdrawalsEnabled: true,
+  simulatedWithdrawals: false,
+};
 
 describe("Arkjet funding math", () => {
   it("estimates native USDC withdrawals after integer fee rounding", () => {
@@ -19,5 +40,12 @@ describe("Arkjet funding math", () => {
     expect(normalizeArkjetAmount("0.1000001", 6)).toBeNull();
     expect(normalizeArkjetAmount("1e6", 6)).toBeNull();
     expect(normalizeArkjetAmount("-1", 6)).toBeNull();
+  });
+
+  it("rejects a wallet configuration from another custody scope", () => {
+    expect(validateArkjetFundingConfig(fundingConfig, "spin")).toBe(fundingConfig);
+    expect(() => validateArkjetFundingConfig(fundingConfig, "shared")).toThrow(
+      "Expected shared custody configuration."
+    );
   });
 });

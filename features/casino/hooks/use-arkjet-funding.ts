@@ -9,6 +9,12 @@ import {
   fetchArkjetFundingConfig,
   type ArkjetWithdrawal,
 } from "@/features/casino/lib/api/arkjet";
+import {
+  confirmSpinDeposit,
+  createSpinWithdrawal,
+  fetchSpinFundingConfig,
+  SPIN_QUERY_KEYS,
+} from "@/features/casino/lib/api/spin";
 import { ARKJET_KEYS } from "@/features/casino/hooks/use-arkjet";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { errorStatus, type GatewayApiError } from "@/lib/api/envelope";
@@ -25,6 +31,7 @@ const WITHDRAWAL_ATTEMPT_PREFIX = "arkjet:withdrawal-attempt:v1";
 const TRANSACTION_HASH = /^0x[0-9a-fA-F]{64}$/;
 
 export type ArkjetDepositPhase = "idle" | "sending" | "confirming";
+export type ArkjetFundingScope = "shared" | "spin";
 
 export interface ArkjetDepositOutcome {
   txHash: string;
@@ -35,31 +42,31 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function pendingDepositStorageKey(wallet: string): string {
-  return `${PENDING_DEPOSIT_PREFIX}:${wallet.toLowerCase()}`;
+function pendingDepositStorageKey(scope: ArkjetFundingScope, wallet: string): string {
+  return `${PENDING_DEPOSIT_PREFIX}:${scope}:${wallet.toLowerCase()}`;
 }
 
-function readPendingDeposit(wallet: string): string | null {
+function readPendingDeposit(scope: ArkjetFundingScope, wallet: string): string | null {
   try {
-    const txHash = localStorage.getItem(pendingDepositStorageKey(wallet));
+    const txHash = localStorage.getItem(pendingDepositStorageKey(scope, wallet));
     return txHash && TRANSACTION_HASH.test(txHash) ? txHash : null;
   } catch {
     return null;
   }
 }
 
-function writePendingDeposit(wallet: string, txHash: string): void {
+function writePendingDeposit(scope: ArkjetFundingScope, wallet: string, txHash: string): void {
   try {
-    localStorage.setItem(pendingDepositStorageKey(wallet), txHash);
+    localStorage.setItem(pendingDepositStorageKey(scope, wallet), txHash);
     window.dispatchEvent(new Event(PENDING_DEPOSIT_EVENT));
   } catch {
     // Recovery remains available through manual transaction-hash entry.
   }
 }
 
-function removePendingDeposit(wallet: string, txHash: string): void {
+function removePendingDeposit(scope: ArkjetFundingScope, wallet: string, txHash: string): void {
   try {
-    const storageKey = pendingDepositStorageKey(wallet);
+    const storageKey = pendingDepositStorageKey(scope, wallet);
     if (localStorage.getItem(storageKey)?.toLowerCase() === txHash.toLowerCase()) {
       localStorage.removeItem(storageKey);
       window.dispatchEvent(new Event(PENDING_DEPOSIT_EVENT));
@@ -100,12 +107,20 @@ function networkForChain(chainId: number): string {
   throw new Error(`Arkjet funding does not support chain ${chainId}.`);
 }
 
-function withdrawalAttemptStorageKey(wallet: string, amount: string): string {
-  return `${WITHDRAWAL_ATTEMPT_PREFIX}:${wallet.toLowerCase()}:${amount}`;
+function withdrawalAttemptStorageKey(
+  scope: ArkjetFundingScope,
+  wallet: string,
+  amount: string
+): string {
+  return `${WITHDRAWAL_ATTEMPT_PREFIX}:${scope}:${wallet.toLowerCase()}:${amount}`;
 }
 
-function getWithdrawalIdempotencyKey(wallet: string, amount: string): string {
-  const storageKey = withdrawalAttemptStorageKey(wallet, amount);
+function getWithdrawalIdempotencyKey(
+  scope: ArkjetFundingScope,
+  wallet: string,
+  amount: string
+): string {
+  const storageKey = withdrawalAttemptStorageKey(scope, wallet, amount);
   try {
     const existing = sessionStorage.getItem(storageKey);
     if (existing) return existing;
@@ -118,30 +133,37 @@ function getWithdrawalIdempotencyKey(wallet: string, amount: string): string {
   }
 }
 
-function clearWithdrawalIdempotencyKey(wallet: string, amount: string): void {
+function clearWithdrawalIdempotencyKey(
+  scope: ArkjetFundingScope,
+  wallet: string,
+  amount: string
+): void {
   try {
-    sessionStorage.removeItem(withdrawalAttemptStorageKey(wallet, amount));
+    sessionStorage.removeItem(withdrawalAttemptStorageKey(scope, wallet, amount));
   } catch {
     // Storage can be unavailable in privacy-restricted browser contexts.
   }
 }
 
-export function useArkjetFunding() {
-  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
-  const addressFor = (chain: string) => (chain === "solana" ? solanaAddress : evmAddress);
+export function useArkjetFunding(scope: ArkjetFundingScope = "shared") {
+  const { ready, authenticated, evmAddress } = useAuthSession();
   const wallet = evmAddress;
   const queryClient = useQueryClient();
   const { sendToken } = useSendToken();
   const [depositPhase, setDepositPhase] = useState<ArkjetDepositPhase>("idle");
   const pendingDepositHash = useSyncExternalStore(
     subscribePendingDeposit,
-    () => (wallet ? readPendingDeposit(wallet) : null),
+    () => (wallet ? readPendingDeposit(scope, wallet) : null),
     () => null
   );
 
   const config = useQuery({
-    queryKey: ARKJET_KEYS.funding,
-    queryFn: async () => validateArkjetFundingConfig(await fetchArkjetFundingConfig()),
+    queryKey: scope === "spin" ? SPIN_QUERY_KEYS.funding : ARKJET_KEYS.funding,
+    queryFn: async () => {
+      const fetched =
+        scope === "spin" ? await fetchSpinFundingConfig() : await fetchArkjetFundingConfig();
+      return validateArkjetFundingConfig(fetched, scope);
+    },
     staleTime: CONFIG_STALE_MS,
     refetchOnMount: "always",
     throwOnError: false,
@@ -150,7 +172,9 @@ export function useArkjetFunding() {
   });
 
   const invalidateBalance = () => {
-    void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.balance });
+    void queryClient.invalidateQueries({
+      queryKey: scope === "spin" ? SPIN_QUERY_KEYS.balance : ARKJET_KEYS.balance,
+    });
   };
 
   const confirmDeposit = async (txHash: string): Promise<ArkjetDepositOutcome> => {
@@ -165,8 +189,14 @@ export function useArkjetFunding() {
       for (let attempt = 0; attempt < CONFIRM_ATTEMPTS; attempt++) {
         if (attempt > 0) await wait(CONFIRM_DELAY_MS);
         try {
-          const confirmed = await confirmArkjetDeposit(normalizedHash);
-          removePendingDeposit(wallet, normalizedHash);
+          const confirmed =
+            scope === "spin"
+              ? await confirmSpinDeposit(normalizedHash)
+              : await confirmArkjetDeposit(normalizedHash);
+          if (confirmed.custodyScope !== scope) {
+            throw new Error(`Expected a ${scope} custody deposit confirmation.`);
+          }
+          removePendingDeposit(scope, wallet, normalizedHash);
           return { txHash: normalizedHash, credited: confirmed.creditedAmount };
         } catch (error) {
           if (!isDepositStillConfirming(error)) throw error;
@@ -203,7 +233,7 @@ export function useArkjetFunding() {
           amount: toBaseUnits(amountUsdc, freshConfig.tokenDecimals),
         });
 
-        writePendingDeposit(wallet, txHash);
+        writePendingDeposit(scope, wallet, txHash);
         try {
           return await confirmDeposit(txHash);
         } catch {
@@ -228,9 +258,15 @@ export function useArkjetFunding() {
     mutationFn: async (amountUsdc: string): Promise<ArkjetWithdrawal> => {
       if (!config.data) throw new Error("Arkjet wallet funding is not configured.");
       if (!ready || !authenticated || !wallet) throw new Error("Connect your Privy wallet first.");
-      const idempotencyKey = getWithdrawalIdempotencyKey(wallet, amountUsdc);
-      const result = await createArkjetWithdrawal(amountUsdc, idempotencyKey);
-      clearWithdrawalIdempotencyKey(wallet, amountUsdc);
+      const idempotencyKey = getWithdrawalIdempotencyKey(scope, wallet, amountUsdc);
+      const result =
+        scope === "spin"
+          ? await createSpinWithdrawal(amountUsdc, idempotencyKey)
+          : await createArkjetWithdrawal(amountUsdc, idempotencyKey);
+      if (result.custodyScope !== scope) {
+        throw new Error(`Expected a ${scope} custody withdrawal.`);
+      }
+      clearWithdrawalIdempotencyKey(scope, wallet, amountUsdc);
 
       if (result.status === "FAILED") {
         throw new Error("The withdrawal failed and your Arkjet balance was restored. Try again.");

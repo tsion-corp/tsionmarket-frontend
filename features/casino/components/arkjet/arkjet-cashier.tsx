@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ArkjetBalance } from "@/features/casino/lib/api/arkjet";
-import { useArkjetFunding } from "@/features/casino/hooks/use-arkjet-funding";
+import {
+  useArkjetFunding,
+  type ArkjetFundingScope,
+} from "@/features/casino/hooks/use-arkjet-funding";
 import { gameActionError } from "@/features/casino/lib/game-error";
 import {
   amountUnits,
@@ -25,6 +28,7 @@ interface ArkjetCashierProps {
   onOpenFunds?: () => void;
   productName?: string;
   tone?: "arkjet" | "chicken";
+  fundingScope?: ArkjetFundingScope;
 }
 
 const DECIMAL = /^\d*\.?\d*$/;
@@ -45,9 +49,10 @@ export function ArkjetCashier({
   onOpenFunds,
   productName = "Arkjet",
   tone = "arkjet",
+  fundingScope = "shared",
 }: ArkjetCashierProps) {
   const t = useTranslations("arkjetFunding");
-  const funding = useArkjetFunding();
+  const funding = useArkjetFunding(fundingScope);
   const portfolio = usePortfolio({ scope: "base" });
   const [mode, setMode] = useState<CashierMode>("deposit");
   const [amount, setAmount] = useState(initialAmount ?? "");

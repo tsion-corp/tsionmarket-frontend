@@ -3,7 +3,10 @@ import type { ArkjetFundingConfig } from "./api/arkjet";
 
 const PLAIN_DECIMAL = /^\d*\.?\d*$/;
 
-export function validateArkjetFundingConfig(config: ArkjetFundingConfig): ArkjetFundingConfig {
+export function validateArkjetFundingConfig(
+  config: ArkjetFundingConfig,
+  expectedScope?: ArkjetFundingConfig["custodyScope"]
+): ArkjetFundingConfig {
   if (
     config.currency !== "USDC" ||
     config.currencyDecimalPlaces !== 6 ||
@@ -16,6 +19,12 @@ export function validateArkjetFundingConfig(config: ArkjetFundingConfig): Arkjet
         code: "NOT_CONFIGURED",
       }
     );
+  }
+  if (config.custodyScope !== "shared" && config.custodyScope !== "spin") {
+    throw new Error("Wallet funding returned an invalid custody scope.");
+  }
+  if (expectedScope && config.custodyScope !== expectedScope) {
+    throw new Error(`Expected ${expectedScope} custody configuration.`);
   }
   return config;
 }
