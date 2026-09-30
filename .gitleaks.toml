@@ -1,0 +1,65 @@
+# Secret scanning for this repo, run by the `secrets` job in CI and by anyone
+# locally with `gitleaks git .` (history) or `gitleaks dir .` (working tree).
+#
+# The default rules cover every provider this app talks to. What is listed
+# here is what a scanner without this file gets wrong: test fixtures such as
+# "test-key" and "access-1", the vendored chess engine and Lichess bundles,
+# and the public values (contract addresses, localStorage key names) that the
+# generic rule reads as credentials. Between them these produced 120 false
+# positives and zero real findings in the 2026-09-29 external assessment.
+
+title = "wsws-frontend"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures: values the tests assert against, never credentials"
+paths = [
+  '''(^|/)[^/]+\.test\.(ts|tsx|js|mjs)$''',
+  '''(^|/)[^/]+\.fixtures\.(ts|tsx)$''',
+  '''^__tests__/''',
+]
+
+[[allowlists]]
+description = "Vendored third-party bundles and their build tooling"
+paths = [
+  '''^public/npm/''',
+  '''^public/compiled/''',
+  '''^public/chess/''',
+  '''^reference/''',
+  '''^features/casino/components/chess/\.build/''',
+]
+
+[[allowlists]]
+description = "Lockfiles carry integrity hashes, not secrets"
+paths = ['''^pnpm-lock\.yaml$''']
+
+# The generic rule reads any `key`/`token` identifier with an opaque value as
+# a credential. These are the values it meets in this app that are public by
+# construction.
+[[allowlists]]
+description = "Public values the generic rule mistakes for keys"
+regexTarget = "secret"
+regexes = [
+  # EVM contract and token addresses
+  '''^0x[0-9a-fA-F]{40}$''',
+  # localStorage key names, e.g. wsws.pouch.pending-onramp.v1
+  '''^ws(ws)?\.[A-Za-z0-9.-]+\.v\d+$''',
+  # CDN asset file names
+  '''\.(png|svg|jpg|jpeg|webp|woff2)$''',
+  # An env var left blank on purpose in .env.example
+  '''^[A-Z0-9_]+=$''',
+]
+
+[[allowlists]]
+description = "A Figma file key is in every Figma URL; opening the file still needs a Figma login"
+regexTarget = "line"
+regexes = ['''Figma file key''']
+
+# The Vivid support widget's browser key, shipped in the page as
+# window.__VIVID_CONFIG from 2026-08-01 (#92) to 2026-08-23 (#256). Public by
+# design: every visitor's browser received it. Removed with the widget.
+[[allowlists]]
+description = "Vivid widget browser key, removed 2026-08-23"
+commits = ["911f62379e0eac985535e4755af4e31797a064b5"]
