@@ -170,43 +170,10 @@
   white-space: nowrap;
 }
 
-.cashierOverlay {
-  position: fixed;
-  z-index: 110;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgb(0 0 0 / 76%);
-  padding: 18px;
-  backdrop-filter: blur(8px);
+.cashierShell {
+  background: radial-gradient(circle at 50% -20%, rgb(255 255 255 / 7%), transparent 42%), #151619;
 }
 
-.cashierDialog {
-  width: min(440px, 100%);
-  max-height: min(760px, calc(100vh - 36px));
-  overflow-y: auto;
-  border: 1px solid #33343a;
-  border-radius: 22px;
-  background: radial-gradient(circle at 85% 0%, rgb(239 31 49 / 14%), transparent 34%), #17181a;
-  box-shadow: 0 28px 90px rgb(0 0 0 / 72%);
-  padding: 20px;
-}
-
-.cashierDialogChicken {
-  background: radial-gradient(circle at 85% 0%, rgb(40 184 88 / 16%), transparent 34%), #17181a;
-}
-
-.cashierDialogChicken .cashierEyebrow,
-.cashierDialogChicken .cashierAmountLabel button {
-  color: #52cf79;
-}
-
-.cashierDialogChicken .cashierSubmit {
-  background: linear-gradient(180deg, #2bc05d, #208e45);
-  box-shadow: 0 10px 28px rgb(32 151 72 / 24%);
-}
-
-.cashierHeader,
 .cashierAmountLabel,
 .cashierInputRow {
   display: flex;
@@ -214,48 +181,56 @@
   justify-content: space-between;
 }
 
-.cashierHeader h2 {
-  margin: 3px 0 0;
-  font-family: var(--font-display), sans-serif;
-  font-size: 24px;
-  letter-spacing: -0.6px;
+.cashierHeader {
+  padding-right: 42px;
 }
 
-.cashierEyebrow {
-  color: #ef3242;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 1.3px;
+.cashierHeader h2 {
+  margin: 0;
+  font-family: var(--font-display), sans-serif;
+  font-size: 22px;
+  letter-spacing: -0.45px;
+}
+
+.cashierHeader p {
+  max-width: 34ch;
+  margin: 5px 0 0;
+  color: rgb(255 255 255 / 52%);
+  font-size: 12.5px;
+  line-height: 1.5;
 }
 
 .cashierBalances {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 18px;
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 14px;
+  background: rgb(255 255 255 / 3%);
 }
 
 .cashierBalances > div {
   min-width: 0;
-  border: 1px solid #292a2f;
-  border-radius: 14px;
-  background: #111214;
-  padding: 13px;
+  padding: 12px 13px;
 }
 
-.cashierBalances span,
-.cashierBalances small {
+.cashierBalances > div + div {
+  border-left: 1px solid rgb(255 255 255 / 9%);
+}
+
+.cashierBalances span {
   display: block;
-  color: #73757c;
-  font-size: 9px;
+  color: rgb(255 255 255 / 48%);
+  font-size: 10px;
 }
 
 .cashierBalances strong {
   display: block;
   overflow: hidden;
-  margin: 5px 0 3px;
-  color: #f1f1f2;
-  font-size: 15px;
+  margin-top: 5px;
+  color: #fff;
+  font-size: 14px;
   font-variant-numeric: tabular-nums;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -265,9 +240,9 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px 14px;
-  margin: 10px 1px 0;
-  color: #777981;
-  font-size: 9px;
+  margin: 9px 2px 0;
+  color: rgb(255 255 255 / 46%);
+  font-size: 10px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -276,42 +251,52 @@
   grid-template-columns: repeat(2, 1fr);
   gap: 3px;
   margin-top: 18px;
-  border-radius: 13px;
-  background: #0f1012;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 5%);
   padding: 3px;
 }
 
 .cashierTabs button {
-  border-radius: 10px;
-  padding: 10px;
-  color: #777980;
-  font-size: 11px;
+  border-radius: 9px;
+  padding: 9px;
+  color: rgb(255 255 255 / 50%);
+  font-size: 12px;
   font-weight: 700;
+  transition: 140ms ease;
 }
 
 .cashierTabs .cashierTabActive {
-  background: #2c2d32;
-  color: #f5f5f6;
-  box-shadow: inset 0 0 0 1px #3a3b41;
+  background: rgb(255 255 255 / 11%);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%);
 }
 
 .cashierAmount {
-  margin-top: 9px;
-  border: 1px solid #2b2c31;
+  margin-top: 10px;
+  border: 1px solid rgb(255 255 255 / 10%);
   border-radius: 16px;
-  background: #101113;
-  padding: 14px;
+  background: rgb(0 0 0 / 24%);
+  padding: 15px;
 }
 
 .cashierAmountLabel {
-  color: #777980;
-  font-size: 10px;
+  gap: 16px;
+  color: rgb(255 255 255 / 52%);
+  font-size: 11px;
 }
 
 .cashierAmountLabel button {
-  color: #ef3b4b;
-  font-size: 10px;
-  font-weight: 800;
+  overflow: hidden;
+  color: rgb(255 255 255 / 58%);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 140ms ease;
+}
+
+.cashierAmountLabel button:hover {
+  color: #fff;
 }
 
 .cashierInputRow {
@@ -324,27 +309,55 @@
   border: 0;
   outline: 0;
   background: transparent;
-  color: #f5f5f6;
+  color: #fff;
   font-family: var(--font-display), sans-serif;
-  font-size: 31px;
+  font-size: 28px;
   font-variant-numeric: tabular-nums;
   font-weight: 800;
 }
 
 .cashierInputRow input::placeholder {
-  color: #3f4045;
+  color: rgb(255 255 255 / 24%);
 }
 
 .cashierInputRow > span {
-  color: #8a8c93;
-  font-size: 11px;
+  color: rgb(255 255 255 / 56%);
+  font-size: 12px;
   font-weight: 800;
 }
 
 .cashierConversion {
-  margin-top: 4px;
-  color: #6f7178;
-  font-size: 10px;
+  margin-top: 5px;
+  color: rgb(255 255 255 / 40%);
+  font-size: 11px;
+}
+
+.cashierPresets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.cashierPresets button {
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 4%);
+  padding: 8px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 12px;
+  font-weight: 650;
+  transition: 140ms ease;
+}
+
+.cashierPresets button:hover {
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+}
+
+.cashierPresets button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
 }
 
 .cashierError,
@@ -388,13 +401,13 @@
 .cashierSubmit {
   width: 100%;
   margin-top: 16px;
-  border-radius: 13px;
-  background: linear-gradient(180deg, #f12b3c, #be1221);
-  box-shadow: 0 10px 28px rgb(214 18 34 / 24%);
+  border-radius: 14px;
+  background: #fff;
   padding: 13px;
-  color: white;
-  font-size: 12px;
-  font-weight: 850;
+  color: #16171a;
+  font-size: 14px;
+  font-weight: 750;
+  transition: opacity 140ms ease;
 }
 
 .cashierSubmit:disabled {
@@ -429,24 +442,20 @@
 
 .cashierExternalFunding > button {
   width: 100%;
-  border: 1px solid #35363c;
+  border: 1px solid rgb(255 255 255 / 12%);
   border-radius: 13px;
-  background: #222328;
+  background: rgb(255 255 255 / 5%);
   padding: 12px;
-  color: #dedee1;
-  font-size: 11px;
-  font-weight: 800;
+  color: rgb(255 255 255 / 82%);
+  font-size: 13px;
+  font-weight: 650;
   transition: 140ms ease;
 }
 
 .cashierExternalFunding > button:hover {
-  border-color: #4a4b52;
-  background: #292a30;
+  border-color: rgb(255 255 255 / 18%);
+  background: rgb(255 255 255 / 9%);
   color: #fff;
-}
-
-.cashierDialogChicken .cashierExternalFunding > button:hover {
-  border-color: #3d9f5d;
 }
 
 .cashierRecovery {
@@ -2095,21 +2104,6 @@
 
   .balanceButton small {
     font-size: 8px;
-  }
-
-  .cashierOverlay {
-    align-items: end;
-    padding: 0;
-  }
-
-  .cashierDialog {
-    width: 100%;
-    max-height: 88dvh;
-    border-right: 0;
-    border-bottom: 0;
-    border-left: 0;
-    border-radius: 22px 22px 0 0;
-    padding: 17px;
   }
 
   .board {

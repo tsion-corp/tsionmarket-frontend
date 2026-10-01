@@ -208,6 +208,7 @@
 
 .walletRow {
   position: absolute;
+  z-index: 1;
   top: 53px;
   left: 16px;
   display: flex;
@@ -245,6 +246,7 @@
 
 .campaignSlot {
   position: absolute;
+  z-index: 2;
   top: 50px;
   right: 16px;
 }

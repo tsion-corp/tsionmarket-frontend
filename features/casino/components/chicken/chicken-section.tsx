@@ -804,7 +804,6 @@ export function ChickenSection() {
           minimumAmount={game.risk?.minimumBet ?? "0.10"}
           initialAmount={cashierInitialAmount}
           productName="Chicken Cross"
-          tone="chicken"
           onClose={() => setCashierOpen(false)}
           onOpenFunds={() => {
             setCashierOpen(false);

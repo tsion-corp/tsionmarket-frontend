@@ -124,6 +124,63 @@ describe("arkjet proxy route", () => {
     );
   });
 
+  it("keeps dedicated Spin funding configuration public", async () => {
+    const { GET } = await loadRoute();
+    const response = await GET(makeReq("https://app.test/api/arkjet/spin/funding/config"), {
+      params: Promise.resolve({ path: ["spin", "funding", "config"] }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(auth.verifyRequest).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:8096/spin/funding/config",
+      expect.objectContaining({ method: "GET" })
+    );
+  });
+
+  it("protects and forwards dedicated Spin balances", async () => {
+    auth.verifyRequest.mockResolvedValue({ provider: "decane", userId: "user-1" });
+    const { GET } = await loadRoute();
+    const response = await GET(
+      makeReq("https://app.test/api/arkjet/spin/balance", {
+        cookies: { "decane-token": "decane-access-token" },
+      }),
+      { params: Promise.resolve({ path: ["spin", "balance"] }) }
+    );
+
+    expect(response.status).toBe(200);
+    expect(auth.verifyRequest).toHaveBeenCalledOnce();
+    expect(global.fetch).toHaveBeenCalledWith(
+      "http://127.0.0.1:8096/spin/balance",
+      expect.objectContaining({
+        method: "GET",
+        headers: expect.objectContaining({ authorization: "Bearer decane-access-token" }),
+      })
+    );
+  });
+
+  it("protects and forwards dedicated Spin deposit confirmation", async () => {
+    auth.verifyRequest.mockResolvedValue({ provider: "decane", userId: "user-1" });
+    const body = JSON.stringify({ txHash: `0x${"a".repeat(64)}` });
+    const { POST } = await loadRoute();
+    const response = await POST(
+      makeReq("https://app.test/api/arkjet/spin/funding/deposits/confirm", {
+        body,
+        cookies: { "decane-token": "decane-access-token" },
+      }),
+      { params: Promise.resolve({ path: ["spin", "funding", "deposits", "confirm"] }) }
+    );
+
+    expect(response.status).toBe(200);
+    const [url, init] = forwardedCalls()[0];
+    expect(url).toBe("http://127.0.0.1:8096/spin/funding/deposits/confirm");
+    expect(init.body).toBe(body);
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer decane-access-token",
+      "content-type": "application/json",
+    });
+  });
+
   it("forwards a Decane cookie to authenticated Spin routes", async () => {
     auth.verifyRequest.mockResolvedValue({ provider: "decane", userId: "user-1" });
     const body = JSON.stringify({ idempotencyKey: "273277c1-ae45-4872-9025-6322b0d25a66" });

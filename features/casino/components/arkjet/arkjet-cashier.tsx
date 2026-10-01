@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { ModalShell } from "@/components/ui/modal-shell";
 import type { ArkjetBalance } from "@/features/casino/lib/api/arkjet";
 import {
   useArkjetFunding,
@@ -27,7 +28,6 @@ interface ArkjetCashierProps {
   onClose: () => void;
   onOpenFunds?: () => void;
   productName?: string;
-  tone?: "arkjet" | "chicken";
   fundingScope?: ArkjetFundingScope;
 }
 
@@ -48,7 +48,6 @@ export function ArkjetCashier({
   onClose,
   onOpenFunds,
   productName = "Arkjet",
-  tone = "arkjet",
   fundingScope = "shared",
 }: ArkjetCashierProps) {
   const t = useTranslations("arkjetFunding");
@@ -197,32 +196,23 @@ export function ArkjetCashier({
     }
   };
 
+  const depositPresets = [...new Set([minimumAmount, "0.50", "1.00"])].slice(0, 3);
+  const withdrawalPresets = [25, 50, 100] as const;
+
+  const setWithdrawalPercentage = (percentage: (typeof withdrawalPresets)[number]) => {
+    if (!config) return;
+    setAmount(
+      fromBaseUnits((availableMinor * BigInt(percentage)) / 100n, config.currencyDecimalPlaces)
+    );
+  };
+
   return (
-    <div
-      className={styles.cashierOverlay}
-      role="presentation"
-      onMouseDown={(event) => event.target === event.currentTarget && onClose()}
-    >
-      <section
-        className={`${styles.cashierDialog} ${tone === "chicken" ? styles.cashierDialogChicken : ""}`}
-        role="dialog"
-        aria-modal="true"
-        aria-label={`${productName} balance`}
-      >
-        <div className={styles.cashierHeader}>
-          <div>
-            <span className={styles.cashierEyebrow}>PRIVY WALLET + ARKADE BALANCE</span>
-            <h2>{productName} balance</h2>
-          </div>
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={onClose}
-            aria-label="Close balance"
-          >
-            ×
-          </button>
-        </div>
+    <ModalShell open onClose={onClose} contentKey={mode} panelClassName={styles.cashierShell}>
+      <section role="dialog" aria-modal="true" aria-label={`${productName} balance`}>
+        <header className={styles.cashierHeader}>
+          <h2>{productName} balance</h2>
+          <p>Move USDC between your wallet and the balance you play with.</p>
+        </header>
 
         {funding.configLoading ? (
           <div className={styles.cashierUnavailable}>Loading wallet funding…</div>
@@ -237,26 +227,6 @@ export function ArkjetCashier({
           </div>
         ) : (
           <>
-            <div className={styles.cashierBalances}>
-              <div>
-                <span>Privy wallet</span>
-                <strong>{money(walletUsdc, config.tokenSymbol)}</strong>
-                <small>On Base</small>
-              </div>
-              <div>
-                <span>Playable now</span>
-                <strong>{money(balance?.available ?? "0", config.currency)}</strong>
-                <small>Internal ledger</small>
-              </div>
-            </div>
-
-            <div className={styles.cashierBuckets}>
-              <span>Locked in tickets: {money(balance?.locked ?? "0", config.currency)}</span>
-              <span>
-                Pending payout: {money(balance?.pendingWithdrawal ?? "0", config.currency)}
-              </span>
-            </div>
-
             <div className={styles.cashierTabs}>
               {(["deposit", "withdraw"] as const).map((item) => (
                 <button
@@ -270,11 +240,37 @@ export function ArkjetCashier({
               ))}
             </div>
 
+            <div className={styles.cashierBalances}>
+              <div>
+                <span>Wallet</span>
+                <strong>{money(walletUsdc, config.tokenSymbol)}</strong>
+              </div>
+              <div>
+                <span>Playable balance</span>
+                <strong>{money(balance?.available ?? "0", config.currency)}</strong>
+              </div>
+            </div>
+
+            {Number(balance?.locked ?? "0") > 0 || Number(balance?.pendingWithdrawal ?? "0") > 0 ? (
+              <div className={styles.cashierBuckets}>
+                {Number(balance?.locked ?? "0") > 0 ? (
+                  <span>In play: {money(balance?.locked ?? "0", config.currency)}</span>
+                ) : null}
+                {Number(balance?.pendingWithdrawal ?? "0") > 0 ? (
+                  <span>
+                    Withdrawing: {money(balance?.pendingWithdrawal ?? "0", config.currency)}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className={styles.cashierAmount}>
               <div className={styles.cashierAmountLabel}>
-                <span>Amount in {config.currency}</span>
+                <span>{mode === "deposit" ? "Amount to add" : "Amount to withdraw"}</span>
                 <button type="button" onClick={setMaximum}>
-                  Max
+                  {mode === "deposit"
+                    ? `Balance ${money(walletUsdc, config.tokenSymbol)}`
+                    : `Balance ${money(balance?.available ?? "0", config.currency)}`}
                 </button>
               </div>
               <div className={styles.cashierInputRow}>
@@ -291,9 +287,28 @@ export function ArkjetCashier({
               </div>
               <div className={styles.cashierConversion}>
                 {mode === "deposit"
-                  ? `${normalized ? depositUsdc : "0"} ${config.tokenSymbol} leaves your wallet`
-                  : `${withdrawal.receiveUsdc} ${config.tokenSymbol} returns to your wallet`}
+                  ? `${normalized ? depositUsdc : "0"} ${config.tokenSymbol} will be ready to play`
+                  : `${withdrawal.receiveUsdc} ${config.tokenSymbol} will return to your wallet`}
               </div>
+            </div>
+
+            <div className={styles.cashierPresets}>
+              {mode === "deposit"
+                ? depositPresets.map((preset) => (
+                    <button key={preset} type="button" onClick={() => setAmount(preset)}>
+                      {money(preset, config.currency)}
+                    </button>
+                  ))
+                : withdrawalPresets.map((percentage) => (
+                    <button
+                      key={percentage}
+                      type="button"
+                      disabled={availableMinor === 0n}
+                      onClick={() => setWithdrawalPercentage(percentage)}
+                    >
+                      {percentage === 100 ? "Max" : `${percentage}%`}
+                    </button>
+                  ))}
             </div>
 
             {belowMinimum ? (
@@ -334,8 +349,8 @@ export function ArkjetCashier({
                   ? "Confirming deposit…"
                   : "Processing…"
                 : mode === "deposit"
-                  ? "Transfer USDC and add funds"
-                  : "Withdraw to Privy wallet"}
+                  ? `Add ${config.tokenSymbol} to ${productName}`
+                  : `Withdraw ${config.tokenSymbol}`}
             </button>
 
             {mode === "deposit" && onOpenFunds ? (
@@ -384,6 +399,6 @@ export function ArkjetCashier({
           </>
         )}
       </section>
-    </div>
+    </ModalShell>
   );
 }

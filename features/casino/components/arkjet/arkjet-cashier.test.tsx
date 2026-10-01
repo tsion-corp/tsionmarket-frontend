@@ -73,12 +73,20 @@ beforeEach(() => {
 });
 
 describe("USDC cashier", () => {
+  it("uses the shared wallet language without exposing the legacy Privy banner", () => {
+    mountCashier();
+
+    expect(screen.queryByText("PRIVY WALLET + ARKADE BALANCE")).not.toBeInTheDocument();
+    expect(screen.getByText("Wallet")).toBeInTheDocument();
+    expect(screen.getByText("Playable balance")).toBeInTheDocument();
+  });
+
   // Under the pre-push gate's full-suite load this mount has crossed the
   // default five seconds; alone it takes well under one.
   it("blocks sub-minimum and excess-precision amounts, then sends native USDC", async () => {
     mountCashier();
     const input = screen.getByPlaceholderText("0.10");
-    const submit = screen.getByRole("button", { name: "Transfer USDC and add funds" });
+    const submit = screen.getByRole("button", { name: "Add USDC to Arkjet" });
     fireEvent.change(input, { target: { value: "0.099999" } });
     expect(submit).toBeDisabled();
     fireEvent.change(input, { target: { value: "0.1000001" } });
@@ -113,9 +121,7 @@ describe("USDC cashier", () => {
     });
     mountCashier();
     expect(screen.getByText(/USDC vault is configured/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Transfer USDC and add funds" })
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add USDC to Arkjet" })).not.toBeInTheDocument();
   });
 
   it("recovers a transferred deposit without sending USDC again", async () => {

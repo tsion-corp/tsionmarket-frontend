@@ -42,6 +42,9 @@ const CHICKEN_READ = /^chicken\/sessions\/(?:active|history)$/u;
 const CHICKEN_START = /^chicken\/(?:sessions|autoplay)$/u;
 const CHICKEN_ACTION = /^chicken\/sessions\/[0-9a-f-]{36}\/(?:steps|cashout)$/iu;
 const SPIN_PUBLIC_READ = /^(?:spin\/rules|spin\/proofs\/[0-9a-f-]{36})$/iu;
+const SPIN_BALANCE = "spin/balance";
+const SPIN_FUNDING_CONFIG = "spin/funding/config";
+const SPIN_FUNDING_WRITE = /^spin\/funding\/(?:deposits\/confirm|withdrawals)$/u;
 const SPIN_READ = /^spin\/wagers\/history$/u;
 const SPIN_PREPARE = /^spin\/wagers\/prepare$/u;
 const SPIN_PLAY = /^spin\/wagers\/[0-9a-f-]{36}\/play$/iu;
@@ -83,7 +86,12 @@ async function forward(
   const isFundingWrite = FUNDING_WRITE.test(joined);
   const isChicken =
     CHICKEN_READ.test(joined) || CHICKEN_START.test(joined) || CHICKEN_ACTION.test(joined);
-  const isSpin = SPIN_READ.test(joined) || SPIN_PREPARE.test(joined) || SPIN_PLAY.test(joined);
+  const isSpin =
+    joined === SPIN_BALANCE ||
+    SPIN_FUNDING_WRITE.test(joined) ||
+    SPIN_READ.test(joined) ||
+    SPIN_PREPARE.test(joined) ||
+    SPIN_PLAY.test(joined);
   const requiresAuth =
     isChat ||
     GAME_COMMENTS.test(joined) ||
@@ -99,6 +107,8 @@ async function forward(
         CHICKEN_PUBLIC_READ.test(joined) ||
         CHICKEN_READ.test(joined) ||
         SPIN_PUBLIC_READ.test(joined) ||
+        joined === SPIN_BALANCE ||
+        joined === SPIN_FUNDING_CONFIG ||
         SPIN_READ.test(joined) ||
         joined === CAMPAIGN_CURRENT ||
         CAMPAIGN_DRAW_PROOF.test(joined) ||
@@ -109,6 +119,7 @@ async function forward(
       (joined === "fairness/verify" ||
         joined === "chicken/proofs/verify" ||
         joined === "spin/proofs/verify" ||
+        SPIN_FUNDING_WRITE.test(joined) ||
         SPIN_PREPARE.test(joined) ||
         SPIN_PLAY.test(joined) ||
         CHICKEN_START.test(joined) ||

@@ -118,6 +118,7 @@ describe("SpinDaBottleSection", () => {
     render(<SpinDaBottleSection />);
 
     expect(screen.getByRole("main", { name: "Spin da' Bottle" })).toBeInTheDocument();
+    expect(screen.getByText("$15.76")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "UP" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "DOWN" })).toBeInTheDocument();
     expect(screen.queryByText("GAMES")).toBeNull();

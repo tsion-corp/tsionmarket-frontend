@@ -352,10 +352,9 @@ export function SpinDaBottleSection() {
                 >
                   + Add Money
                 </button>
-                <ArkadeCampaignBadge
-                  className={styles.campaignSlot}
-                  enabled={game.authReady && game.authenticated}
-                />
+                <div className={styles.campaignSlot}>
+                  <ArkadeCampaignBadge enabled={game.authReady && game.authenticated} />
+                </div>
               </header>
 
               <div className={styles.boardRow}>
@@ -707,7 +706,6 @@ export function SpinDaBottleSection() {
           minimumAmount={minimum}
           initialAmount={cashierInitialAmount}
           productName="Spin Da Bottle"
-          tone="chicken"
           fundingScope="spin"
           onClose={() => setCashierOpen(false)}
           onOpenFunds={() => {
