@@ -4,6 +4,7 @@ import {
   REF_CODE_PATTERN,
   USERNAME_PATTERN,
   withReferral,
+  addressWithReferral,
 } from "@/lib/referral-code";
 
 // The frontend has to accept the code kash hands out (ADR-0015). It only ever
@@ -85,5 +86,32 @@ describe("a shared link carrying its sharer's code", () => {
     expect(withReferral("https://tsionark.com/spot?ref=alice", "7k4m9x2p")).toBe(
       "https://tsionark.com/spot?ref=alice"
     );
+  });
+});
+
+// The signed-in user's own code, kept in the address bar so a link copied from
+// it credits them (ADR-2026-10-01-referral-code-in-address-bar).
+describe("addressWithReferral", () => {
+  it("adds the code to a bare path", () => {
+    expect(addressWithReferral("/prediction/local", "adaeze")).toBe("/prediction/local?ref=adaeze");
+  });
+
+  it("keeps the other parameters and the hash", () => {
+    expect(addressWithReferral("/prediction/local?event=x&sport=boxing#top", "adaeze")).toBe(
+      "/prediction/local?event=x&sport=boxing&ref=adaeze#top"
+    );
+  });
+
+  it("replaces somebody else's code with the user's own", () => {
+    expect(addressWithReferral("/spot?ref=7k4m9x2p", "adaeze")).toBe("/spot?ref=adaeze");
+  });
+
+  it("answers null when the address already carries the user's code", () => {
+    expect(addressWithReferral("/spot?ref=adaeze", "adaeze")).toBeNull();
+  });
+
+  it("answers null without a valid code", () => {
+    expect(addressWithReferral("/spot", null)).toBeNull();
+    expect(addressWithReferral("/spot", "0xabc")).toBeNull();
   });
 });

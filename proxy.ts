@@ -72,8 +72,11 @@ function isAnalyticsRelay(pathname: string): boolean {
 // are sharing a game rather than an invite.
 //
 // The code lands in the same cookie the landing route writes, so the claim
-// afterwards is the one flow, and the query is stripped from the address so a
-// second share from this visitor cannot carry somebody else's code onward.
+// afterwards is the one flow. The query stays in the address (2026-10-01): a
+// signed-in user's own code lives there on purpose so links copied from the
+// bar credit them, and the client swaps a visitor's bar to their own code once
+// they sign in (ADR-2026-10-01-referral-code-in-address-bar). Stripping it
+// here would bounce every refresh through a redirect.
 //
 // First writer wins: a visitor who already has a code keeps it. The referral
 // belongs to whoever brought them first, and a later link must not take it.
@@ -81,37 +84,21 @@ const REF_QUERY = "ref";
 const REF_COOKIE = "ark_ref";
 const REF_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 
-function captureReferral(request: NextRequest): NextResponse | null {
-  // Pages only. The matcher below also covers /api, and answering a fetch with
-  // a redirect would break the call rather than credit anybody; a referral
-  // arrives on a page somebody opened, never on a request the app made itself.
+// The code to store for this request, or null. Pages only: the matcher also
+// covers /api, and a referral arrives on a page somebody opened, never on a
+// request the app made itself.
+function referralToStore(request: NextRequest): string | null {
   if (request.nextUrl.pathname.startsWith("/api/")) return null;
   const code = request.nextUrl.searchParams.get(REF_QUERY);
   if (!code) return null;
-
   const normalized = code.trim().toLowerCase();
-  const url = request.nextUrl.clone();
-  url.searchParams.delete(REF_QUERY);
-  const response = NextResponse.redirect(url);
-  if (!isReferralCode(normalized) || request.cookies.has(REF_COOKIE)) return response;
-
-  // Readable by client script on purpose: the claim hook needs the value.
-  response.cookies.set(REF_COOKIE, normalized, {
-    maxAge: REF_MAX_AGE_SECONDS,
-    path: "/",
-    sameSite: "lax",
-  });
-  return response;
+  if (!isReferralCode(normalized) || request.cookies.has(REF_COOKIE)) return null;
+  return normalized;
 }
 
-export function proxy(request: NextRequest) {
+function route(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
   if (isAnalyticsRelay(pathname)) return NextResponse.next();
-
-  // Before the gates below: a code on a closed site is still worth keeping, and
-  // the redirect this returns carries the visitor to the same page without it.
-  const referral = captureReferral(request);
-  if (referral) return referral;
 
   if (underMaintenance()) {
     if (MAINTENANCE_OPEN_PATHS.has(pathname)) return NextResponse.next();
@@ -125,6 +112,22 @@ export function proxy(request: NextRequest) {
   const home = new URL("/", request.url);
   home.search = request.nextUrl.search;
   return NextResponse.redirect(home);
+}
+
+// The gates decide the response; the referral cookie rides on whichever one
+// they chose, so a code on a closed site is still kept.
+export function proxy(request: NextRequest) {
+  const response = route(request);
+  const code = referralToStore(request);
+  if (code) {
+    // Readable by client script on purpose: the claim hook needs the value.
+    response.cookies.set(REF_COOKIE, code, {
+      maxAge: REF_MAX_AGE_SECONDS,
+      path: "/",
+      sameSite: "lax",
+    });
+  }
+  return response;
 }
 
 export const config = {

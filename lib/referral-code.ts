@@ -58,3 +58,22 @@ export function withReferral(url: string, code: string | null | undefined): stri
     ? parsed.toString()
     : `${parsed.pathname}${parsed.search}${parsed.hash}`;
 }
+
+/**
+ * The address-bar form of a signed-in user's own link: `href` with `ref` set
+ * to their code, or null when there is nothing to write (no valid code, or
+ * the address already carries it).
+ *
+ * Unlike `withReferral`, this REPLACES a code already in the address. A share
+ * button preserves whoever brought the visitor; the address bar belongs to
+ * the person reading it, so once they are signed in it carries their code and
+ * whatever they copy from it credits them (ADR-2026-10-01-referral-code-in-
+ * address-bar). The sharer was already captured by the cookie on arrival.
+ */
+export function addressWithReferral(href: string, code: string | null | undefined): string | null {
+  if (!code || !isReferralCode(code)) return null;
+  const parsed = new URL(href, "https://ark.invalid");
+  if (parsed.searchParams.get(REF_QUERY) === code) return null;
+  parsed.searchParams.set(REF_QUERY, code);
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+}

@@ -13,6 +13,7 @@ import { NetworkStatusProvider } from "@/components/providers/network-status";
 import { SessionCacheGuard } from "@/components/providers/session-cache-guard";
 import { DecaneTokenBridge } from "@/components/providers/decane-token-bridge";
 import { DecaneRecoveryHost } from "@/components/providers/decane-recovery-host";
+import { AddressBarReferral } from "@/components/layout/address-bar-referral";
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 // Deep imports, not the barrels, for the reason given for the casino import
@@ -222,6 +223,9 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
                 Renders nothing on any ordinary page load. */}
             {returningFromPrivyOAuth ? <MigrationOAuthReturnHost /> : null}
             <MigrationGateHost />
+            {/* Keeps the signed-in user's referral code on the address so a
+                link copied from the bar credits them. Renders nothing. */}
+            <AddressBarReferral />
           </BroadcastSessionProvider>
         </BalanceVisibilityProvider>
       </NetworkStatusProvider>

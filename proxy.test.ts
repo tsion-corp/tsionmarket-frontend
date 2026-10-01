@@ -30,16 +30,21 @@ describe("a referral code on a shared link", () => {
     expect(res.cookies.get("ark_ref")?.value).toBe("7k4m9x2p");
   });
 
-  it("is stripped from the address, so the visitor cannot pass it on", () => {
-    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p");
-    const location = res.headers.get("Location") ?? "";
-    expect(location).toContain("/prediction");
-    expect(location).not.toContain("ref=");
+  // The code now lives in the address bar on purpose (ADR-2026-10-01): a
+  // signed-in user's bar carries their own code, so a refresh must not bounce
+  // through a redirect. The visitor's own sign-in swaps the code client-side.
+  it("stays in the address: no redirect", () => {
+    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p&utm_source=x");
+    expect(res.headers.get("Location")).toBeNull();
+    expect(res.status).toBe(200);
+    expect(res.cookies.get("ark_ref")?.value).toBe("7k4m9x2p");
   });
 
-  it("keeps the rest of the query, which campaign tags ride in", () => {
-    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p&utm_source=x");
-    expect(res.headers.get("Location")).toContain("utm_source=x");
+  it("still lets the launch gate send a closed site home, keeping the query", () => {
+    vi.stubEnv("NEXT_PUBLIC_LAUNCH_AT", "2999-01-01T00:00:00Z");
+    const res = visit("https://tsionark.com/prediction?ref=7k4m9x2p");
+    expect(res.headers.get("Location")).toContain("ref=7k4m9x2p");
+    expect(res.cookies.get("ark_ref")?.value).toBe("7k4m9x2p");
   });
 
   it("takes a username too", () => {
@@ -59,7 +64,7 @@ describe("a referral code on a shared link", () => {
   it("never overwrites a code the visitor already carries", () => {
     const res = visit("https://tsionark.com/spot?ref=7k4m9x2p", "alice");
     expect(res.cookies.get("ark_ref")).toBeUndefined();
-    expect(res.headers.get("Location")).not.toContain("ref=");
+    expect(res.headers.get("Location")).toBeNull();
   });
 
   it("stores nothing for a code that is neither kind", () => {
