@@ -54,6 +54,7 @@ import { friendlyError } from "@/lib/errors";
 import { compactUsd, isValidTradeAmount, type MemeToken, type SwapPreview } from "@/lib/meme/api";
 import { chartUp, platformFeeText } from "@/lib/meme/format";
 import { SOLANA_CHAIN_ID, chainSlug, networkOf } from "@/lib/meme/chain";
+import { memeChartSource } from "@/lib/meme/chart-source";
 import { buyFunding, estimateReceive, type BuyFunding } from "@/lib/meme/funding";
 import { exceedsHeld } from "@/lib/meme/sell-amount";
 import { toast } from "@/lib/toast";
@@ -127,7 +128,13 @@ function MemeDeskChart({ token }: { token: MemeToken }) {
   const t = useTranslations("meme");
   // CoinGecko's asset platform ids are the same two slugs the trade service
   // uses for these chains.
-  const { id, loading } = useCoingeckoId(chainSlug(token.chainId), token.address);
+  const { id, loading: resolving } = useCoingeckoId(chainSlug(token.chainId), token.address);
+  // The pool charts whether or not the listing lookup lands, so the chart no
+  // longer waits on it: a token with a pairAddress has a source from the first
+  // render. Only a token with neither a pool nor an id waits, and only to find
+  // out which of "no chart" and "not yet" it is.
+  const source = memeChartSource(token, id);
+  const loading = source === null && resolving;
   // A change the service did not publish is not a gain: the chart draws neutral.
   const up = chartUp(token.priceChange24hPercent);
 
@@ -138,8 +145,14 @@ function MemeDeskChart({ token }: { token: MemeToken }) {
           <span className="sr-only">{t("loading")}</span>
           <div aria-hidden="true" className="size-full animate-pulse rounded-[14px] bg-white/6" />
         </div>
-      ) : id ? (
-        <AssetChart coingeckoId={id} up={up} height={CHART_DRAW_HEIGHT} allowCandles={false} />
+      ) : source ? (
+        <AssetChart
+          coingeckoId={null}
+          source={source}
+          up={up}
+          height={CHART_DRAW_HEIGHT}
+          allowCandles={false}
+        />
       ) : (
         <div
           style={{ height: CHART_AREA_HEIGHT }}

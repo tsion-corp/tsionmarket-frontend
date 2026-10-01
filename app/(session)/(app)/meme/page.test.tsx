@@ -833,7 +833,10 @@ describe("the memecoin desk's screener", () => {
     renderDesk();
     const header = listPanel().firstElementChild as HTMLElement;
     expect(header.children[2]).toHaveTextContent(/^1h$/);
-    expect(header.children[4]).toHaveTextContent("Volume");
+    // Liquidity holds index 4 permanently now, so a sorted metric the table
+    // does not already show lands after it.
+    expect(header.children[4]).toHaveTextContent("Liquidity");
+    expect(header.children[5]).toHaveTextContent("Volume");
   });
 
   it("marks the page's top gainers", () => {

@@ -16,26 +16,37 @@ const column = (id: MemeColumn["id"], sortsBy: MemeColumn["sortsBy"]): MemeColum
 });
 
 describe("the desk table's columns", () => {
-  it("draws four columns when nothing extra is sorted", () => {
-    expect(memeColumns(null).map((c) => c.id)).toEqual(["asset", "price", "change", "marketCap"]);
-  });
-
-  it("appends the metric column for a sort the table does not already show", () => {
-    expect(memeColumns("liquidity").map((c) => c.id)).toEqual([
+  it("draws five columns when nothing extra is sorted", () => {
+    expect(memeColumns(null).map((c) => c.id)).toEqual([
       "asset",
       "price",
       "change",
       "marketCap",
+      "liquidity",
+    ]);
+  });
+
+  it("appends the metric column for a sort the table does not already show", () => {
+    expect(memeColumns("volume").map((c) => c.id)).toEqual([
+      "asset",
+      "price",
+      "change",
+      "marketCap",
+      "liquidity",
       "metric",
     ]);
   });
 
-  // Price and market cap have columns of their own; a fifth showing the same
-  // figure twice is the bug this guards.
+  // Price, market cap and liquidity have columns of their own; one more showing
+  // the same figure twice is the bug this guards. Liquidity is the newest of
+  // the three and the one most likely to be forgotten here, because it reaches
+  // the table through the screener's metric vocabulary as well as its own
+  // column.
   it("adds no extra column for a metric already on screen", () => {
     expect(metricColumnFor("price")).toBeNull();
     expect(metricColumnFor("marketCap")).toBeNull();
-    expect(metricColumnFor("liquidity")).toBe("liquidity");
+    expect(metricColumnFor("liquidity")).toBeNull();
+    expect(metricColumnFor("volume")).toBe("volume");
     expect(metricColumnFor(null)).toBeNull();
   });
 });
@@ -67,6 +78,15 @@ describe("the figure a column draws", () => {
     expect(columnFigure(column("marketCap", "marketCap"), token, "1h", NOW)).toEqual({
       kind: "usd",
       value: "3491589227.12",
+    });
+    // Drawn from the token's own liquidityUsd, not from the screener's metric
+    // vocabulary. The two agree today; this is what catches them diverging, and
+    // what catches the column being wired to the wrong field — marketCapUsd and
+    // liquidityUsd are both "usd" figures on the same row, so a mix-up would
+    // render perfectly and be wrong.
+    expect(columnFigure(column("liquidity", "liquidity"), token, "1h", NOW)).toEqual({
+      kind: "usd",
+      value: "84200",
     });
   });
 

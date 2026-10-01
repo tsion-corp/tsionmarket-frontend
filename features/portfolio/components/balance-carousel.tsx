@@ -1,6 +1,6 @@
 "use client";
 
-import { Children, useEffect, useState } from "react";
+import { Children, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import useEmblaCarousel from "embla-carousel-react";
 
@@ -8,11 +8,29 @@ import useEmblaCarousel from "embla-carousel-react";
 // the Kash+ card ride a swipe carousel instead of stacking, with a pill
 // indicator that tracks the card in view. Each top-level child is one slide, so
 // the caller composes the cards exactly as it does for the desktop grid.
-export function BalanceCarousel({ children }: { children: React.ReactNode }) {
+export function BalanceCarousel({
+  children,
+  card,
+}: {
+  children: React.ReactNode;
+  /**
+   * The card the page's scroll is asking for, when something is driving it.
+   *
+   * Undefined leaves the carousel exactly as it was: a swipe carousel that
+   * answers to nothing else. The scroll driver is additive, which is what lets
+   * the desktop grid and the reduced-motion path use this component unchanged.
+   */
+  card?: number;
+}) {
   const t = useTranslations("portfolio");
   const [emblaRef, emblaApi] = useEmblaCarousel({ align: "start", dragFree: false, loop: false });
   const [selected, setSelected] = useState(0);
   const slides = Children.toArray(children);
+  // What the scroll driver last asked for. The carousel moves when this
+  // CHANGES, not while it merely differs: a reader who swipes back to the
+  // balance card halfway down the hold would otherwise be dragged to Kash
+  // again on the very next scroll frame, with no way to disagree.
+  const lastAsked = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     if (!emblaApi) return;
@@ -24,6 +42,15 @@ export function BalanceCarousel({ children }: { children: React.ReactNode }) {
       emblaApi.off("reInit", onSelect);
     };
   }, [emblaApi]);
+
+  useEffect(() => {
+    if (!emblaApi || card === undefined) return;
+    if (lastAsked.current === card) return;
+    lastAsked.current = card;
+    // Animated, not a jump: the point of the hold is that the reader SEES the
+    // card travel. A jump would land on Kash with nothing to notice.
+    emblaApi.scrollTo(card);
+  }, [emblaApi, card]);
 
   return (
     <div>

@@ -607,7 +607,7 @@ export function ArkIdView() {
                   {t("cardLabel")}
                 </p>
                 <h1 className="ws-display ws-gold-ink mt-3 text-[clamp(30px,6vw,52px)] leading-[1.05] tracking-[-0.03em]">
-                  {t("modalTitle", { brand: BRAND })}
+                  {t("modalTitle")}
                 </h1>
                 <p className="mx-auto mt-3 max-w-[46ch] text-[14.5px] leading-[1.5] text-white/55">
                   {t("modalSubtitle")}

@@ -14,7 +14,10 @@ describe("PortfolioView campaign slot", () => {
   });
 
   it("renders it above the balance row in both layouts", () => {
-    const phone = source.indexOf("<BalanceCarousel>");
+    // Matched without the closing bracket on purpose: the carousel takes a
+    // `card` prop now, so an anchor of "<BalanceCarousel>" finds nothing and
+    // every position below it compares against -1 rather than failing honestly.
+    const phone = source.indexOf("<BalanceCarousel");
     const desk = source.indexOf("{/* Desktop: the side-by-side grid. */}");
     const slots = [...source.matchAll(/\{campaignSlot\}/g)].map((m) => m.index ?? -1);
     expect(slots).toHaveLength(2);

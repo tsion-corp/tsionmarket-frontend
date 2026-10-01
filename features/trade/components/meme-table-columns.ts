@@ -15,7 +15,7 @@ import type { MemeTimeframe, MemeToken } from "@/lib/meme/types";
 // state, nothing else.
 
 /** Which screener metric a column sorts by, when it can sort at all. */
-export type MemeColumnId = "asset" | "price" | "change" | "marketCap" | "metric";
+export type MemeColumnId = "asset" | "price" | "change" | "marketCap" | "liquidity" | "metric";
 
 export interface MemeColumn {
   id: MemeColumnId;
@@ -29,11 +29,14 @@ export interface MemeColumn {
   numeric: boolean;
 }
 
-// Price and market cap already have columns of their own, so a sort by either
-// never adds the extra metric column.
+// Price, market cap and liquidity already have columns of their own, so a sort
+// by any of them never adds the extra metric column. Liquidity joined this set
+// when it got a permanent column: without that, sorting by liquidity would
+// append a sixth column printing the figure the fifth already shows.
 export const SHOWN_METRICS: ReadonlySet<ScreenerMetric> = new Set<ScreenerMetric>([
   "price",
   "marketCap",
+  "liquidity",
 ]);
 
 const BASE_COLUMNS: readonly MemeColumn[] = [
@@ -43,6 +46,11 @@ const BASE_COLUMNS: readonly MemeColumn[] = [
   // its own, so it is shown but not sortable from the heading.
   { id: "change", sortsBy: null, numeric: true },
   { id: "marketCap", sortsBy: "marketCap", numeric: true },
+  // How much there is to trade against. On a memecoin desk this is a safety
+  // figure as much as a size one — a large market cap over a thin pool is the
+  // shape of a coin you cannot get out of — so it reads last, beside the other
+  // figure it has to be weighed against.
+  { id: "liquidity", sortsBy: "liquidity", numeric: true },
 ];
 
 /**
@@ -105,6 +113,8 @@ export function columnFigure(
       return { kind: "percent", value: changeFor(token, timeframe) };
     case "marketCap":
       return { kind: "usd", value: token.marketCapUsd };
+    case "liquidity":
+      return { kind: "usd", value: token.liquidityUsd };
     case "metric":
       // memeColumns only ever appends this column with a metric to sort by.
       // The guard is for a column built by hand, and keeps the switch total.

@@ -2,13 +2,24 @@
 
 import { useState } from "react";
 import { PriceChart } from "@/components/ui/price-chart";
-import { useChart } from "@/hooks/use-chart";
+import { useTranslations } from "next-intl";
+import { useChart, type ChartSource } from "@/hooks/use-chart";
 import type { ChartRange } from "@/lib/coingecko";
 
 const RANGES: ChartRange[] = ["1D", "1W", "1M", "1Y", "ALL"];
 
 interface AssetChartProps {
   coingeckoId: string | null;
+  /**
+   * Where to read the series from, when it is not a plain CoinGecko listing.
+   *
+   * Wins over `coingeckoId` when both are given. It exists because a memecoin
+   * the exchanges have never listed still trades in a pool, and the pool is
+   * the only thing that can be asked. Everything below this prop — the range
+   * buttons, the area/candle toggle, the states — is unchanged either way,
+   * which is the point of taking a source rather than a second component.
+   */
+  source?: ChartSource | null;
   /** null when the direction is unknown: the chart draws neutral. */
   up?: boolean | null;
   height?: number;
@@ -18,14 +29,18 @@ interface AssetChartProps {
 
 export function AssetChart({
   coingeckoId,
+  source,
   up = true,
   height = 260,
   allowCandles = true,
   defaultType = "area",
 }: AssetChartProps) {
+  const t = useTranslations("common");
   const [range, setRange] = useState<ChartRange>("1M");
   const [type, setType] = useState<"area" | "candles">(defaultType);
-  const { points, loading, error } = useChart(coingeckoId, range, type);
+  const resolved: ChartSource | null =
+    source ?? (coingeckoId ? { kind: "coingecko", id: coingeckoId } : null);
+  const { points, loading, error } = useChart(resolved, range, type);
 
   return (
     <div>

@@ -3,7 +3,7 @@
     "cardLabel": "ARK ID",
     "promoTitle": "Obtém o teu {brand} ID",
     "promoSubtitle": "Envia e recebe Kash",
-    "modalTitle": "Garanta seu {brand} ID",
+    "modalTitle": "Garanta a SUA identidade na nova Economia.",
     "modalSubtitle": "Um nome, sempre seu — envie e receba Kash hoje, e seu dinheiro amanhã.",
     "ownedNameLabel": "SEU ARK ID",
     "expires": "Renove até {date}",
@@ -881,7 +881,9 @@
     "moreLoading": "A carregar mais…",
     "moreStalled": "Ainda faltam algumas moedas.",
     "moreWaiting": "A aguardar para carregar o resto…",
-    "moreResume": "Carregar o resto"
+    "moreResume": "Carregar o resto",
+    "chartUnavailable": "Gráfico indisponível",
+    "chartLoading": "A carregar gráfico…"
   },
   "portfolio": {
     "eyebrow": "Portfólio",

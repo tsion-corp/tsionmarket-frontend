@@ -755,20 +755,22 @@ describe("MemeDesktopBoard sorted metric column", () => {
   // The grid template, whatever else the class list holds.
   const template = (el: Element) => el.className.match(/grid-cols-\[[^\]]+\]/)?.[0];
 
+  // Liquidity is absent from this list on purpose: it has a permanent column of
+  // its own now, so sorting by it must NOT append a sixth. Its own case is the
+  // "already shows" test below.
   it.each([
     ["volume", "1h", "Volume", "$900"],
     ["transactions", "1h", "Transactions", "1,234"],
     ["traders", "1h", "Traders", "56"],
-    ["liquidity", "24h", "Liquidity", "$12.5K"],
     ["age", "24h", "Age", "5m"],
   ] as const)("adds a column for a %s sort", (sortMetric, timeframe, label, value) => {
     renderBoard({ ...slots, tokens: [coin], selected: null, sortMetric, timeframe, now: NOW });
-    expect(header().children).toHaveLength(5);
-    expect(header().children[4]).toHaveTextContent(label);
+    expect(header().children).toHaveLength(6);
+    expect(header().children[5]).toHaveTextContent(label);
     const row = screen.getByRole("button", { name: /HOT coin/ });
-    expect(row.children).toHaveLength(5);
-    expect(row.children[4]).toHaveTextContent(value);
-    expect(template(header())).toBe("grid-cols-[minmax(0,1fr)_88px_110px_121px_96px]");
+    expect(row.children).toHaveLength(6);
+    expect(row.children[5]).toHaveTextContent(value);
+    expect(template(header())).toBe("grid-cols-[minmax(0,1fr)_88px_110px_121px_96px_96px]");
   });
 
   it("says a missing figure is missing rather than zero", () => {
@@ -780,21 +782,43 @@ describe("MemeDesktopBoard sorted metric column", () => {
       timeframe: "5m",
     });
     const row = screen.getByRole("button", { name: /BARE coin/ });
-    expect(row.children[4]).toHaveTextContent(/^—$/);
+    expect(row.children[5]).toHaveTextContent(/^—$/);
   });
 
-  it.each(["price", "marketCap"] as const)(
+  it.each(["price", "marketCap", "liquidity"] as const)(
     "adds no column for a %s sort, which the table already shows",
     (sortMetric) => {
       renderBoard({ ...slots, tokens: [coin], selected: null, sortMetric });
-      expect(header().children).toHaveLength(4);
-      expect(template(header())).toBe("grid-cols-[minmax(0,1fr)_88px_110px_121px]");
+      expect(header().children).toHaveLength(5);
+      expect(template(header())).toBe("grid-cols-[minmax(0,1fr)_88px_110px_121px_96px]");
     }
   );
 
   it("adds no column without a sort", () => {
     renderBoard({ ...slots, tokens: [coin], selected: null, sortMetric: null });
-    expect(header().children).toHaveLength(4);
+    expect(header().children).toHaveLength(5);
+  });
+
+  // The column the maintainer asked for. Permanent, last, sortable from its own
+  // heading, and drawn from the row's liquidityUsd.
+  it("always draws liquidity, whatever the sort", () => {
+    renderBoard({ ...slots, tokens: [coin], selected: null, sortMetric: null });
+
+    expect(header().children[4]).toHaveTextContent("Liquidity");
+    const row = screen.getByRole("button", { name: /HOT coin/ });
+    expect(row.children[4]).toHaveTextContent("$12.5K");
+  });
+
+  it("dashes a token whose liquidity the service did not publish", () => {
+    renderBoard({
+      ...slots,
+      tokens: [memeToken({ symbol: "BARE", liquidityUsd: null })],
+      selected: null,
+      sortMetric: null,
+    });
+
+    const row = screen.getByRole("button", { name: /BARE coin/ });
+    expect(row.children[4]).toHaveTextContent(/^—$/);
   });
 
   it("lays the header and every row on the same template", () => {
@@ -938,9 +962,14 @@ describe("MemeDesktopBoard long figures", () => {
 
   it("approximates a seven-figure transaction count", () => {
     renderBoard({ ...slots, tokens: [whale], selected: null, sortMetric: "transactions" });
-    expect(row().children[4]).toHaveTextContent(/^1\.28M$/);
+    // Index 5: the sorted-metric column sits after liquidity's permanent one.
+    expect(row().children[5]).toHaveTextContent(/^1\.28M$/);
   });
 
+  // Index 4 whatever the sort, because liquidity is a column of its own now.
+  // This used to reach the figure through the sorted-metric column; it reaches
+  // the same figure through its own column, and compactUsd still refuses to
+  // round a real pool down to nothing.
   it("never prints a thin pool's liquidity as $0", () => {
     renderBoard({ ...slots, tokens: [whale], selected: null, sortMetric: "liquidity" });
     expect(row().children[4]).toHaveTextContent(/^<\$0\.01$/);

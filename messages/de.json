@@ -3,7 +3,7 @@
     "cardLabel": "ARK ID",
     "promoTitle": "Hol dir deine {brand} ID",
     "promoSubtitle": "Kash senden und empfangen",
-    "modalTitle": "{brand} ID sichern",
+    "modalTitle": "Sichere DEINE Identität in der neuen Economy.",
     "modalSubtitle": "Ein Name, immer deiner — sende und empfange Kash heute und dein Geld morgen.",
     "ownedNameLabel": "DEINE ARK ID",
     "expires": "Verlängerung bis {date}",
@@ -881,7 +881,9 @@
     "moreLoading": "Mehr wird geladen…",
     "moreStalled": "Einige Coins fehlen noch.",
     "moreWaiting": "Warten auf den Rest…",
-    "moreResume": "Rest laden"
+    "moreResume": "Rest laden",
+    "chartUnavailable": "Chart nicht verfügbar",
+    "chartLoading": "Chart wird geladen…"
   },
   "portfolio": {
     "eyebrow": "Portfolio",

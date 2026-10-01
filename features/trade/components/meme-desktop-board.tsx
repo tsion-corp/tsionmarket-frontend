@@ -179,9 +179,9 @@ export const MEME_LIST_PAGE_SIZE = 10;
 // the truth compounds and fits a row the panel would then have to clip.
 export const MEME_LIST_ROW_HEIGHT = 57;
 
-// The design's four columns: 15px of left padding, the asset column taking the
-// slack, then price, 24h and market cap right-aligned against 26px of right
-// padding.
+// The design's four columns plus liquidity: 15px of left padding, the asset
+// column taking the slack, then price, 24h, market cap and liquidity
+// right-aligned against 26px of right padding.
 //
 // The three figure columns were 95/130/145. They are 51px narrower now, which
 // is the 51px the rail gained, so the chart has room to breathe without the
@@ -191,14 +191,21 @@ export const MEME_LIST_ROW_HEIGHT = 57;
 // horizontally below that, and widening the rail alone would have pushed the
 // scrollbar in at wider screens. The figures still fit: "$0.00₄1234" in 88px,
 // "-12.34%" in 110px, "$103.24B" in 121px.
-const COLUMNS = "grid grid-cols-[minmax(0,1fr)_88px_110px_121px] items-center pr-[26px] pl-[15px]";
-
-// The same four with a 96px column for a sorted metric the table does not
-// already show. Written out whole so Tailwind finds the class. The list's
-// minimum width grows by the column, so the route's horizontal scroll starts
-// 96px sooner while such a sort is applied.
-const COLUMNS_WITH_METRIC =
+//
+// Liquidity takes 96px, the width the sorted-metric column already used to
+// print this same figure. It costs the list 96px of intrinsic minimum, which
+// moves the whole desk's minimum from 856px to 952px — below that the route
+// scrolls the desk horizontally, so the scrollbar now appears on a narrower
+// window than it did. That is the price of the column and it is worth naming.
+const COLUMNS =
   "grid grid-cols-[minmax(0,1fr)_88px_110px_121px_96px] items-center pr-[26px] pl-[15px]";
+
+// The same five with a further 96px column for a sorted metric the table does
+// not already show. Written out whole so Tailwind finds the class. The list's
+// minimum width grows by that column too, so the horizontal scroll starts
+// another 96px sooner while such a sort is applied.
+const COLUMNS_WITH_METRIC =
+  "grid grid-cols-[minmax(0,1fr)_88px_110px_121px_96px_96px] items-center pr-[26px] pl-[15px]";
 
 // One definition per column id. The table is built from these for its row model
 // and its sorting state; every cell is still drawn by the grid below, so these
@@ -209,6 +216,7 @@ const TABLE_COLUMNS = [
   columnHelper.accessor((token) => token.priceUsd ?? "", { id: "price" }),
   columnHelper.accessor((token) => token.priceChange24hPercent ?? "", { id: "change" }),
   columnHelper.accessor((token) => token.marketCapUsd ?? "", { id: "marketCap" }),
+  columnHelper.accessor((token) => token.liquidityUsd ?? "", { id: "liquidity" }),
 ];
 
 const MINUTE_MS = 60_000;
@@ -555,7 +563,9 @@ export function MemeDesktopBoard({
                         ? changeHeading
                         : column.id === "marketCap"
                           ? t("colMcap")
-                          : tScreener(METRIC_KEYS[metricColumn as ScreenerMetric]);
+                          : column.id === "liquidity"
+                            ? t("colLiquidity")
+                            : tScreener(METRIC_KEYS[metricColumn as ScreenerMetric]);
                 const align = column.numeric ? "text-right" : "";
                 const caps = column.id === "asset" ? "" : "capitalize";
                 const truncate = column.id === "metric" ? "truncate" : "";
