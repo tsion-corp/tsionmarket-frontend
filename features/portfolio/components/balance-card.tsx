@@ -9,8 +9,8 @@ import { BalanceCardMobile } from "@/features/portfolio/components/balance-card-
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { usePendingBankDeposit } from "@/hooks/use-ramping";
 import { useGlobalBalance } from "@/hooks/use-global-balance";
-import { useSpendableCash } from "@/features/portfolio/hooks/use-spendable-cash";
-import { isWithdrawHeld } from "@/features/portfolio/lib/ready-to-spend";
+import { readyToSpendUsd } from "@/features/portfolio/lib/breakdown";
+import { isWithdrawHeld, type ReadyToSpend } from "@/features/portfolio/lib/ready-to-spend";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 
 interface BalanceCardProps {
@@ -51,21 +51,19 @@ export function BalanceCard({
   // "withdraw your new money now" and invite repeated attempts.
   const { pending: depositPending } = usePendingBankDeposit();
 
-  // What a purchase can actually draw on. A portfolio can be worth a lot and
-  // still have nothing spendable, which the total alone never shows.
-  //
-  // This one figure, and only this one, reads the user-management balance
-  // endpoint: exact base units of the stablecoins this app can sign for, on
-  // Base, where everything here settles. The total above, the token list and
-  // the breakdown all stay on usePortfolio, which spans six chains and perps
-  // and is the only source that can price them
-  // (ADR-2026-09-23-user-balance-endpoint).
-  //
-  // There is deliberately NO fallback to readyToSpendUsd(tokens) when this is
-  // unavailable. Two sources for one number is how the two quietly disagree,
-  // and a float sum standing in during an outage would hide the outage behind
-  // a figure nobody could tell apart from the real one.
-  const { readyToSpend } = useSpendableCash();
+  // What a purchase can actually draw on: the stablecoins the portfolio
+  // holds, read on-chain through the RPC pool like everything else on this
+  // card. #558 had moved this one figure to the user-management balance
+  // endpoint with no fallback (ADR-2026-09-23-user-balance-endpoint); that
+  // endpoint is down (2026-10-01) and the figure is back on the portfolio by
+  // the maintainer's call. The three states are kept: a figure on its way is
+  // a skeleton, a portfolio that failed with nothing cached is "unavailable",
+  // and neither is ever drawn as a zero.
+  const readyToSpend: ReadyToSpend = useMemo(() => {
+    if (tokens.length === 0 && loading) return { state: "loading" };
+    if (tokens.length === 0 && error) return { state: "unknown" };
+    return { state: "known", usd: readyToSpendUsd(tokens) };
+  }, [tokens, loading, error]);
 
   // Manual refresh: bypass the short server cache, but only for networks the
   // wallet actually holds — never a fresh sweep of every known chain

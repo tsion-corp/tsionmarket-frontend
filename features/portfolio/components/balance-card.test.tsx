@@ -3,15 +3,13 @@ import { QueryClientProvider, type QueryClient } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { createQueryClient } from "@/lib/query-client";
-import { balanceBody, emptyBalanceBody } from "@/lib/balance/fixture";
 import type { TokenBalance } from "@/hooks/use-portfolio";
 
-// A WIRING test, not a mechanism one. Everything between the card and the
-// network stays real — useSpendableCash, useUserBalance, the query, the route
-// constant, the browser parser, lib/balance/spendable — and only the fetch
-// boundary, the session and the OTHER data hooks are stubbed. The complaint this
-// file exists for is that nothing appeared in the network tab, which a test
-// that mocked useUserBalance could never have caught.
+// A WIRING test, not a mechanism one. The card is rendered for real with the
+// fetch boundary, the session and the data hooks stubbed. "Ready to spend" is
+// the stablecoin sum of the portfolio the card already holds (read on-chain
+// through the RPC pool); the user-management balance endpoint, which #558 had
+// put behind this figure with no fallback, is down and is not asked at all.
 
 // Real English, with the one message that takes a value interpolated, so the
 // assertions below read the string a user reads.
@@ -91,9 +89,8 @@ vi.mock("@/components/layout/modals/app-modals", () => ({
   AppModalHost: () => null,
 }));
 
-// The incumbent portfolio path, stubbed at its hook: this card still reads the
-// headline total, the token list and the breakdown from it, and only
-// readyToSpend has moved.
+// The portfolio path, stubbed at its hook: the headline total, the token list,
+// the breakdown and the ready-to-spend figure all read from it.
 const portfolio = vi.hoisted(() => ({ usePortfolio: vi.fn() }));
 vi.mock("@/hooks/use-portfolio", () => portfolio);
 
@@ -139,10 +136,9 @@ function refusal(code: string, status: number) {
   });
 }
 
-// A stablecoin holding on the incumbent float path worth far more than the
-// endpoint reports, so any test that reads the wrong source says so loudly
-// rather than passing on a coincidence.
-const incumbentCash: TokenBalance = {
+// A stablecoin holding in the portfolio. The endpoint fixture, were it ever
+// read, reports 0.128718 USDC; the two cannot be confused on screen.
+const portfolioCash: TokenBalance = {
   symbol: "USDC",
   name: "USD Coin",
   network: "base-mainnet",
@@ -183,7 +179,7 @@ function withdrawButtons() {
   return screen.getAllByRole("button", { name: "Withdraw" }) as HTMLButtonElement[];
 }
 
-describe("BalanceCard spendable cash", () => {
+describe("BalanceCard ready to spend", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     client = createQueryClient();
@@ -193,7 +189,7 @@ describe("BalanceCard spendable cash", () => {
     session.userId = ALICE;
     session.evmAddress = WALLET;
     portfolio.usePortfolio.mockReturnValue({
-      tokens: [incumbentCash],
+      tokens: [portfolioCash],
       loading: false,
       refreshing: false,
       error: null,
@@ -201,115 +197,99 @@ describe("BalanceCard spendable cash", () => {
     });
     globalBalance.useGlobalBalance.mockReturnValue({ totalUsd: 1234 });
     ramping.usePendingBankDeposit.mockReturnValue({ pending: false });
-    apiFetch.mockResolvedValue(answer(balanceBody()));
+    // The endpoint, if anything asked: a refusal, so a read that sneaks back in
+    // shows as "unavailable" rather than passing on its fixture.
+    apiFetch.mockResolvedValue(refusal("UNAVAILABLE", 503));
   });
 
   afterEach(() => {
     client.clear();
   });
 
-  it("asks the balance endpoint for the signed-in account as soon as it mounts", async () => {
-    // The whole complaint: the endpoint had no caller, so nothing appeared in
-    // the network tab. This is the assertion that fails the day it goes quiet
-    // again.
-    renderCard();
-
-    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
-    expect(String(apiFetch.mock.calls[0][0])).toBe(BALANCE_URL);
-    // Authenticated, never anonymous: the gateway scopes this to the token sub.
-    expect(apiFetch.mock.calls[0][2]).toEqual({ requireAuth: true });
-  });
-
-  it("shows the endpoint's cash rather than the incumbent float sum", async () => {
-    // The sample payload holds 0.128718 USDC in the embedded wallet; the
-    // stubbed portfolio holds $999 of the same coin. Only one of those can be
-    // on screen, and it must be the endpoint's.
+  it("shows the portfolio's stablecoin sum and never asks the balance endpoint", async () => {
     renderCard();
 
     await waitFor(() =>
-      expect(readyToSpendRows()).toEqual(expect.arrayContaining(["$0.13 ready to spend"]))
+      expect(readyToSpendRows()).toEqual(["$999.00 ready to spend", "$999.00 ready to spend"])
     );
-    expect(readyToSpendRows()).toEqual(["$0.13 ready to spend", "$0.13 ready to spend"]);
-    expect(screen.queryByText("$999.00 ready to spend")).toBeNull();
+    expect(apiFetch).not.toHaveBeenCalled();
+    expect(String(BALANCE_URL)).toContain("/balance");
   });
 
-  it("leaves the headline total on the portfolio path", async () => {
-    // Only readyToSpend moved. The total still spans six chains and perps,
-    // which this endpoint cannot answer for.
+  it("keeps the headline total on its own path", async () => {
     renderCard();
-
-    await waitFor(() => expect(apiFetch).toHaveBeenCalled());
+    await waitFor(() => expect(readyToSpendRows().length).toBe(2));
     expect(screen.getAllByText("$1234.00").length).toBe(2);
   });
 
-  it("does not hold the withdraw button while the spendable figure is unknown", async () => {
-    // The defect this whole change is gated on. An unloaded balance read as 0
-    // satisfies `readyToSpend < OFFRAMP_MIN_USDC` silently, and the button
-    // shuts on someone who has money and no error to explain it.
-    apiFetch.mockResolvedValue(refusal("UNAUTHORIZED", 401));
-    ramping.usePendingBankDeposit.mockReturnValue({ pending: true });
+  it("counts only stablecoins, not every holding", async () => {
+    portfolio.usePortfolio.mockReturnValue({
+      tokens: [
+        portfolioCash,
+        { ...portfolioCash, symbol: "ETH", name: "Ether", kind: "coin", valueUsd: 500 },
+      ],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderCard();
+    await waitFor(() =>
+      expect(readyToSpendRows()).toEqual(["$999.00 ready to spend", "$999.00 ready to spend"])
+    );
+  });
 
+  // With the figure on the portfolio, "on its way" and "could not load" are
+  // the card's own states: the whole card is a skeleton while the portfolio
+  // loads, and "Couldn't load" when it failed with nothing cached. In neither
+  // is a ready-to-spend row drawn, and in neither is a zero claimed.
+  it("claims no figure while the portfolio is still on its way", async () => {
+    portfolio.usePortfolio.mockReturnValue({
+      tokens: [],
+      loading: true,
+      refreshing: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    renderCard();
+    await waitFor(() => expect(screen.getAllByText("Total balance").length).toBe(2));
+    expect(screen.queryAllByTestId("ready-to-spend")).toHaveLength(0);
+    expect(screen.queryByText("$0.00 ready to spend")).toBeNull();
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
+  it("says it could not load, not zero, when the portfolio failed with nothing cached", async () => {
+    portfolio.usePortfolio.mockReturnValue({
+      tokens: [],
+      loading: false,
+      refreshing: false,
+      error: new Error("rpc down"),
+      refetch: vi.fn(),
+    });
+    ramping.usePendingBankDeposit.mockReturnValue({ pending: true });
     renderCard();
 
-    await waitFor(() =>
-      expect(readyToSpendRows()).toEqual([
-        "Ready to spend unavailable",
-        "Ready to spend unavailable",
-      ])
-    );
+    await waitFor(() => expect(screen.getAllByText("Couldn't load").length).toBe(2));
+    expect(screen.queryAllByTestId("ready-to-spend")).toHaveLength(0);
+    expect(screen.queryByText("$0.00 ready to spend")).toBeNull();
+    // An unknown figure never holds the withdraw button.
     for (const button of withdrawButtons()) expect(button).toBeEnabled();
   });
 
-  it("still holds the withdraw button on a settling deposit when the cash really is zero", async () => {
-    // The hold has to survive the fix, or the fix has traded one defect for
-    // another: a wallet with nothing in it and a deposit on its way is exactly
-    // what the hold is for.
-    apiFetch.mockResolvedValue(answer(emptyBalanceBody()));
+  it("holds the withdraw button on a settling deposit when the cash really is zero", async () => {
+    portfolio.usePortfolio.mockReturnValue({
+      tokens: [{ ...portfolioCash, symbol: "ETH", name: "Ether", kind: "coin", valueUsd: 500 }],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refetch: vi.fn(),
+    });
     ramping.usePendingBankDeposit.mockReturnValue({ pending: true });
-
     renderCard();
 
     await waitFor(() =>
       expect(readyToSpendRows()).toEqual(["$0.00 ready to spend", "$0.00 ready to spend"])
     );
     for (const button of withdrawButtons()) expect(button).toBeDisabled();
-  });
-
-  it("renders nothing-held and not-known differently", async () => {
-    // "You have nothing" and "we could not load it" are different statements
-    // about someone's money, and the card already draws that distinction for
-    // the total (see its `errored` branch). Spendable cash now draws it too.
-    apiFetch.mockResolvedValue(answer(emptyBalanceBody()));
-    const zero = renderCard();
-    await waitFor(() =>
-      expect(readyToSpendRows()).toEqual(["$0.00 ready to spend", "$0.00 ready to spend"])
-    );
-    zero.unmount();
-
-    client.clear();
-    apiFetch.mockResolvedValue(refusal("UNAUTHORIZED", 401));
-    renderCard();
-
-    await waitFor(() =>
-      expect(readyToSpendRows()).toEqual([
-        "Ready to spend unavailable",
-        "Ready to spend unavailable",
-      ])
-    );
-    expect(screen.queryByText("$0.00 ready to spend")).toBeNull();
-  });
-
-  it("asks for nothing, and claims nothing, while there is no signed-in account", async () => {
-    session.userId = null;
-    session.evmAddress = null;
-    session.authenticated = false;
-
-    renderCard();
-
-    await waitFor(() => expect(readyToSpendRows().length).toBe(2));
-    expect(apiFetch).not.toHaveBeenCalled();
-    // Not "$0.00": a card that has not been told whose money it is has not
-    // been told there is none.
-    expect(readyToSpendRows()).not.toContain("$0.00 ready to spend");
   });
 });
