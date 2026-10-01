@@ -101,6 +101,9 @@ vi.mock("../house-slip-store", () => ({
 vi.mock("./category-bet-sidebar", () => ({
   CategoryBetSidebar: () => null,
 }));
+vi.mock("./featured-local-markets", () => ({
+  FeaturedLocalMarkets: () => null,
+}));
 
 export function market(id: string, title: string): DiscoveryMarketSummary {
   return {

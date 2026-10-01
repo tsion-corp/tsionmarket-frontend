@@ -62,7 +62,7 @@ export function BetSlipPanel({
   const [tab, setTab] = useState<"slip" | "tickets">(initialTab);
   const [reviewedFingerprint, setReviewedFingerprint] = useState<string | null>(null);
   const inputId = useId();
-  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const { authenticated } = useAuthSession();
   const router = useRouter();
   const login = () => router.push("/auth");
   const queryClient = useQueryClient();

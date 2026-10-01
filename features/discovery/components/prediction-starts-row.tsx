@@ -379,15 +379,53 @@ function PredictionMarketCard({ market, onHold }: PredictionMarketCardProps) {
   );
 }
 
-// The title-fight market: a red card carrying a white panel, with the cut-out
-// of the two boxers and its pill centred over the panel's lower edge.
-function TitleFightCard() {
+// The two fights on the first-party book, as the row knows them. Static on
+// purpose: the row is dealt by the dashboard route with no prediction feature
+// behind it (see below), and these are the card's words and pictures, not its
+// odds. The slugs are the book's own event slugs, so each card lands on its
+// event; the faces are cut from the matchday poster.
+interface MatchdayFight {
+  slug: string;
+  fighters: readonly [{ name: string; image: string }, { name: string; image: string }];
+}
+
+const MATCHDAY_FIGHTS: readonly MatchdayFight[] = [
+  {
+    slug: "carter-efe-vs-speed-darlington",
+    fighters: [
+      { name: "Carter Efe", image: "/images/prediction/fighters/carter-efe-square.jpg" },
+      {
+        name: "Speed Darlington",
+        image: "/images/prediction/fighters/speed-darlington-square.jpg",
+      },
+    ],
+  },
+  {
+    slug: "phyna-vs-nkechi-blessing",
+    fighters: [
+      { name: "Phyna", image: "/images/prediction/fighters/phyna-square.jpg" },
+      { name: "Nkechi Blessing", image: "/images/prediction/fighters/nkechi-blessing-square.jpg" },
+    ],
+  },
+];
+
+function matchdayHref(fight: MatchdayFight): string {
+  return `/prediction/local?event=${encodeURIComponent(fight.slug)}`;
+}
+
+// A matchday card: the title-fight card's red-and-white design, with the two
+// fighters where the cut-out boxers were. The panel carries the fight as the
+// headline; the two faces hang off the panel's lower edge, tilted towards
+// each other with the VS between them, and the pill sits under them the way
+// it sat under the boxers.
+function MatchdayCard({ fight }: { fight: MatchdayFight }) {
   const t = useTranslations("discovery");
+  const [left, right] = fight.fighters;
+  const name = `${left.name} vs ${right.name}`;
+  const href = matchdayHref(fight);
 
   return (
     <article className={`${CARD_BOX} bg-[linear-gradient(180deg,#ed2b07_0%,#ff846e_100%)]`}>
-      {/* The rays run well past the card on every side in the design. Each
-          edge is a share of the card, so they still overhang it whole. */}
       <img
         src="/market/prediction-sunburst-red.svg"
         alt=""
@@ -395,54 +433,71 @@ function TitleFightCard() {
         className="pointer-events-none absolute top-[-33.5709%] left-[-30.8163%] block h-[205.4856%] w-[136.0680%] max-w-none"
       />
 
-      {/* The white panel runs off the bottom of the card in the design, so
-          its lower corners never show. The right margin really is wider
-          than the left: that is how the designer drew it. */}
+      {/* The whole card leads to the fight, the way the market card leads to
+          its market; the pill below takes its own clicks back. */}
+      <Link
+        href={href}
+        aria-label={t("matchdayAria", { fight: name })}
+        className="absolute inset-0 z-[1] rounded-[15px] outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+      />
+
       <div
-        className={`absolute top-[13px] right-[33px] bottom-[-2px] left-[13px] overflow-hidden rounded-[16px] bg-white ${RED_TITLE_GUTTER} pt-[30px]`}
+        className={`absolute top-[13px] right-[33px] bottom-[-2px] left-[13px] overflow-hidden rounded-[16px] bg-white ${RED_TITLE_GUTTER} pt-[22px]`}
       >
         <h3
           style={{ width: RED_TITLE_WIDTH }}
           className="mx-auto max-w-full text-center font-serif text-[17px] leading-[19px] font-semibold tracking-[-0.34px] break-words text-[#494949]"
         >
-          {t.rich("predictionTwoTitle", {
+          {t.rich("matchdayTitle", {
+            fight: name,
             strong: (chunks) => <strong className="font-bold text-black">{chunks}</strong>,
           })}
         </h3>
       </div>
 
-      {/* The cut-out and the pill move together. At the design width they
-          land where the mockup puts them, the photo at 22,56 and 385x257;
-          wider, they stay centred rather than drifting to one edge. The
-          photo keeps its size: scaling it up would crop the punch away.
-
-          It hangs off the card's foot rather than sitting 56px from its head,
-          which is the same place at the design's 222px and a different one on
-          a card that has grown. The pill was already bottom-anchored, so the
-          two came apart as soon as a longer locale made the row taller, and
-          the boxers walked up into the headline: on a 281px slide the French
-          and Spanish titles landed on their heads. Bottom-anchored, the photo,
-          the pill and the card's foot keep the one relationship the design
-          draws. 91.18 is how far the 257.18px photo overhangs a 222px card. */}
-      <div className="pointer-events-none absolute inset-y-0 left-[calc(50%_-_223.5px)] w-[385px]">
-        <img
-          src="/market/prediction-boxers.png"
-          alt=""
-          aria-hidden
-          width={385}
-          height={257.18}
-          className="absolute -bottom-[91.18px] left-0 block h-[257.18px] w-[385px] max-w-none"
-        />
-        {/* The design puts the pill at 147px in the 385px photo, which is
-            where the boxers themselves centre: their pixels run 26.18px to
-            368.83px across it. Centring there lets a longer label grow both
-            ways instead of off the card. */}
+      {/* The faces and the pill move together and hang off the card's foot,
+          for the reason the boxers did: bottom-anchored, a taller locale
+          cannot walk them up into the headline. Each face is a 118px square
+          tilted 6 degrees towards the other, overlapping the VS roundel. */}
+      <div className="pointer-events-none absolute inset-y-0 left-[calc(50%_-_150px)] w-[300px]">
+        <div className="absolute bottom-[42px] left-0 flex w-full items-end justify-center">
+          <figure className="relative m-0 w-[118px] -rotate-6">
+            <img
+              src={left.image}
+              alt={left.name}
+              width={118}
+              height={118}
+              className="block size-[118px] rounded-[14px] border-[3px] border-white object-cover shadow-[0_8px_18px_rgba(0,0,0,0.25)]"
+            />
+            <figcaption className="mt-[6px] text-center font-serif text-[11px] leading-[12px] font-bold text-[#2b2b2b]">
+              {left.name}
+            </figcaption>
+          </figure>
+          <span
+            aria-hidden
+            className="relative z-[1] mx-[-10px] mb-[38px] grid size-[34px] shrink-0 place-items-center rounded-full border-[2px] border-white bg-[#ed2b07] font-serif text-[12px] font-black tracking-[-0.02em] text-white shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
+          >
+            VS
+          </span>
+          <figure className="relative m-0 w-[118px] rotate-6">
+            <img
+              src={right.image}
+              alt={right.name}
+              width={118}
+              height={118}
+              className="block size-[118px] rounded-[14px] border-[3px] border-white object-cover shadow-[0_8px_18px_rgba(0,0,0,0.25)]"
+            />
+            <figcaption className="mt-[6px] text-center font-serif text-[11px] leading-[12px] font-bold text-[#2b2b2b]">
+              {right.name}
+            </figcaption>
+          </figure>
+        </div>
         <DiscoveryCta
-          href="/prediction"
+          href={href}
           label={t("predictNow")}
           tone="dark"
           size={12}
-          className="pointer-events-auto absolute bottom-[16px] left-[51.3%] w-max -translate-x-1/2 border-[0.5px] border-[#ed2b07] tracking-[-0.12px]"
+          className="pointer-events-auto absolute bottom-[12px] left-1/2 z-[2] w-max -translate-x-1/2 border-[0.5px] border-[#ed2b07] tracking-[-0.12px]"
           icon={
             <img
               src="/market/prediction-coins-white.svg"
@@ -483,13 +538,10 @@ function TitleFightCard() {
 // `ws-pressable`. Nothing on these cards declares a hover of its own, and
 // nothing carries a shadow at rest or on hover.
 //
-// The pair rides a carousel, and two cards cannot cycle, so the market card is
-// dealt twice. It is the only card on the row carrying a clock, so it is the
-// one the heading's "next" actually refers to; the title fight has no deadline
-// on it. The repeat is third rather than second so the first two views are both
-// a genuine pair. Both copies show the same market, which is the one card
-// twice, as it has always been on this row. The shelf then closes on the end
-// cap, which is the only slide here that leaves for the prediction desk.
+// The row rides a carousel: the market card, then one matchday card per fight
+// on the book (2026-10-01: the title-fight card's design, with the fighters on
+// it, in place of the generic belt card it used to deal), then the end cap,
+// which is the only slide here that leaves for the prediction desk.
 export function PredictionStartsRow({ markets = [] }: { markets?: readonly PredictionSpot[] }) {
   const t = useTranslations("discovery");
 
@@ -519,8 +571,9 @@ export function PredictionStartsRow({ markets = [] }: { markets?: readonly Predi
     >
       <Carousel label={t("predictionCarousel")} gapPx={28} trimPx={50}>
         <PredictionMarketCard market={featured} onHold={hold} />
-        <TitleFightCard />
-        <PredictionMarketCard market={featured} onHold={hold} />
+        {MATCHDAY_FIGHTS.map((fight) => (
+          <MatchdayCard key={fight.slug} fight={fight} />
+        ))}
         <SeeMoreCard headline={t("predictionSeeMore")} href="/prediction" className={CARD_BOX} />
       </Carousel>
     </DiscoveryRow>

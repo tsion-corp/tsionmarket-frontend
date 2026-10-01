@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import type { PredictionMarketCategory } from "@/features/prediction/categories";
 import { usePolymarketAccess } from "@/features/prediction/hooks/use-polymarket-access";
@@ -8,11 +9,25 @@ import type { DiscoveryMarketEvent, DiscoveryMarketSort } from "@/features/predi
 import { useDiscoveryEvents } from "@/features/prediction/markets/hooks/use-discovery-markets";
 import { marketPrediction } from "../category-market-presenter";
 import { useHouseSlip } from "../house-slip-store";
+import type { BookPick } from "@/features/prediction/components/book-sportsbook-view";
 import { CategoryEventRow } from "./category-event-row";
 import { CategoryBetSidebar } from "./category-market-shared";
 import { HorizontalNavRail } from "./horizontal-nav-rail";
-import { PredictionPositions } from "./prediction-positions";
+import { PredictionBetSidebarFrame } from "./prediction-bet-sidebar";
+import { PredictionPositions, shouldShowPolymarketPositions } from "./prediction-positions";
 import { PredictionCategoryNav, type PredictionFeedFilter } from "./prediction-category-nav";
+
+const FeaturedLocalMarkets = dynamic(
+  () => import("./featured-local-markets").then((module) => module.FeaturedLocalMarkets),
+  { ssr: false }
+);
+const BookBetPanel = dynamic(
+  () =>
+    import("@/features/prediction/components/book-sportsbook-view").then(
+      (module) => module.BookBetPanel
+    ),
+  { ssr: false }
+);
 
 interface DiscoveryTopic {
   slug: string;
@@ -138,6 +153,7 @@ export function DiscoveryMarketsFeed({
   // nothing: it is plain state plus a refresh callback, so mounting it here
   // costs the prediction service no request until somebody presses Load.
   const positionsCtl = usePolymarketPositionsController();
+  const [localPick, setLocalPick] = useState<BookPick | null>(null);
   const [desktopBetOpen, setDesktopBetOpen] = useState(false);
   const [mobileBetOpen, setMobileBetOpen] = useState(false);
   const viewableEvents = catalog.events.filter((event) =>
@@ -151,7 +167,13 @@ export function DiscoveryMarketsFeed({
     prediction: NonNullable<ReturnType<typeof marketPrediction>>,
     side: "yes" | "no"
   ) => {
+    setLocalPick(null);
     slip.toggle(prediction, side);
+    if (window.matchMedia("(min-width: 1280px)").matches) setDesktopBetOpen(true);
+    else setMobileBetOpen(true);
+  };
+  const openLocalBet = (pick: BookPick) => {
+    setLocalPick(pick);
     if (window.matchMedia("(min-width: 1280px)").matches) setDesktopBetOpen(true);
     else setMobileBetOpen(true);
   };
@@ -171,14 +193,19 @@ export function DiscoveryMarketsFeed({
           label={label}
           onTopicChange={setActiveTopic}
         />
+        {category === "trending" && !activeTopic ? (
+          <FeaturedLocalMarkets pick={localPick} onPick={openLocalBet} />
+        ) : null}
 
         {/* Above the market list rather than under it: somebody who opened
             this page to check an open bet, claim a win or cash out should not
             have to scroll a feed to find it. The panel is its own card, so it
             takes the section's gutter rather than the list's full-bleed rows. */}
-        <div className="mx-auto w-full max-w-[1350px] px-4 pb-7 sm:pb-9 lg:px-6">
-          <PredictionPositions controller={positionsCtl} />
-        </div>
+        {shouldShowPolymarketPositions(positionsCtl.positions) ? (
+          <div className="mx-auto w-full max-w-[1350px] px-4 pb-7 sm:pb-9 lg:px-6">
+            <PredictionPositions controller={positionsCtl} />
+          </div>
+        ) : null}
 
         <section aria-label={`${label} markets`} className="mx-auto w-full max-w-[1350px] pb-16">
           {catalog.loading ? (
@@ -267,15 +294,28 @@ export function DiscoveryMarketsFeed({
         </section>
       </div>
 
-      <CategoryBetSidebar
-        selections={slip.selections}
-        desktopOpen={desktopBetOpen}
-        mobileOpen={mobileBetOpen}
-        onDesktopOpenChange={setDesktopBetOpen}
-        onMobileOpenChange={setMobileBetOpen}
-        onRemove={slip.remove}
-        onClear={slip.clear}
-      />
+      {localPick ? (
+        <PredictionBetSidebarFrame
+          count={1}
+          desktopOpen={desktopBetOpen}
+          mobileOpen={mobileBetOpen}
+          onDesktopOpenChange={setDesktopBetOpen}
+          onMobileOpenChange={setMobileBetOpen}
+          renderPanel={(close) => (
+            <BookBetPanel pick={localPick} onClear={() => setLocalPick(null)} onClose={close} />
+          )}
+        />
+      ) : (
+        <CategoryBetSidebar
+          selections={slip.selections}
+          desktopOpen={desktopBetOpen}
+          mobileOpen={mobileBetOpen}
+          onDesktopOpenChange={setDesktopBetOpen}
+          onMobileOpenChange={setMobileBetOpen}
+          onRemove={slip.remove}
+          onClear={slip.clear}
+        />
+      )}
     </main>
   );
 }

@@ -8,7 +8,8 @@ import { isSafeProxyPath } from "@/lib/server/proxy-path";
 // (metadata, image) only attach off-chain data, so we forward Authorization and
 // the idempotency key untouched and inject no identity of our own.
 // Override for a local prediction service; unset, the shared gateway serves it.
-const BASE = process.env.NEXT_PUBLIC_PREDICTION_API_URL ?? wsapiService("prediction-market");
+const LEGACY_BASE = process.env.NEXT_PUBLIC_PREDICTION_API_URL ?? wsapiService("prediction-market");
+const BOOK_BASE = process.env.PREDICTION_BOOK_API_URL || wsapiService("prediction");
 const NO_STORE = "no-store, max-age=0, must-revalidate";
 
 // Public market/category reads only. Short TTL to collapse concurrent list
@@ -35,7 +36,6 @@ function notConfigured() {
 }
 
 async function forward(req: NextRequest, method: "GET" | "POST") {
-  if (!BASE) return notConfigured();
   const { pathname, search } = req.nextUrl;
   if (!pathname.startsWith("/api/prediction/")) {
     return NextResponse.json(
@@ -51,12 +51,18 @@ async function forward(req: NextRequest, method: "GET" | "POST") {
     );
   }
 
+  // The first-party sportsbook lives in the Rust `prediction` service. The
+  // legacy market API remains a separate `prediction-market` service and can
+  // still be overridden independently during the migration.
+  const base = joined === "book" || joined.startsWith("book/") ? BOOK_BASE : LEGACY_BASE;
+  if (!base) return notConfigured();
+
   const auth = req.headers.get("authorization");
   // The client sends the idempotency key twice (canonical + x-fallback) because
   // browser privacy extensions can strip nonstandard headers; upstream always
   // gets the canonical form.
   const idempotency = req.headers.get("idempotency-key") ?? req.headers.get("x-idem-key");
-  const url = `${BASE}/${joined}${search}`;
+  const url = `${base}/${joined}${search}`;
 
   if (method === "GET" && cacheable(joined, !!auth, search !== "")) {
     const hit = cache.get(url);

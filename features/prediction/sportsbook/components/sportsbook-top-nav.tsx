@@ -37,7 +37,7 @@ export function SportsbookTopNav({
   categoriesOpen: boolean;
   onOpenCategories: () => void;
 }) {
-  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const { authenticated } = useAuthSession();
   const router = useRouter();
   const login = () => router.push("/auth");
   const [search, setSearch] = useState("");

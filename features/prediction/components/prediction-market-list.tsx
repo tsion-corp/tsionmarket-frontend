@@ -12,7 +12,10 @@ import { BetModal } from "@/features/prediction/components/bet-modal";
 import { usePredictions } from "@/features/prediction/hooks/use-predictions";
 import { usePolymarketAccess } from "@/features/prediction/hooks/use-polymarket-access";
 import { usePolymarketPositionsController } from "@/features/prediction/hooks/use-polymarket-positions-controller";
-import { PredictionPositions } from "@/features/prediction/components/prediction-positions";
+import {
+  PredictionPositions,
+  shouldShowPolymarketPositions,
+} from "@/features/prediction/components/prediction-positions";
 import { LocalPredictionView } from "@/features/prediction/components/local-prediction-view";
 import type { Prediction } from "@/lib/types";
 
@@ -292,6 +295,7 @@ export function PredictionMarketList() {
   // The positions flow (claim, sell, cash-out), shared with the desktop view
   // through one hook. Nothing fetches until the reader opens the sheet.
   const positionsCtl = usePolymarketPositionsController();
+  const showPositions = shouldShowPolymarketPositions(positionsCtl.positions);
   // On the phone the positions live behind a button in a sheet, not inline: the
   // tab stays the market list, and "Load positions" opens the sheet and loads.
   const [positionsOpen, setPositionsOpen] = useState(false);
@@ -433,7 +437,7 @@ export function PredictionMarketList() {
               </button>
             ))}
           </div>
-          {source === "polymarket" && access.allowed ? (
+          {source === "polymarket" && access.allowed && showPositions ? (
             <button
               type="button"
               onClick={openPositions}
@@ -449,7 +453,7 @@ export function PredictionMarketList() {
 
       {/* The positions sheet: the same panel the desktop shows, opened from the
           button above rather than sitting inline. */}
-      <ModalShell open={positionsOpen} onClose={() => setPositionsOpen(false)}>
+      <ModalShell open={positionsOpen && showPositions} onClose={() => setPositionsOpen(false)}>
         <PredictionPositions controller={positionsCtl} />
       </ModalShell>
 

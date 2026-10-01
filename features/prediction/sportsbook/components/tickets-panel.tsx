@@ -18,7 +18,7 @@ const POSITIVE = new Set(["won", "redeemable", "redeemed"]);
 const NEGATIVE = new Set(["lost", "rejected", "failed"]);
 
 export function TicketsPanel({ onOpen }: { onOpen: (ticketId: string) => void }) {
-  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const { authenticated } = useAuthSession();
   const router = useRouter();
   const login = () => router.push("/auth");
   const ethPriceUsd = usePrices(["ETH"]).ETH ?? 0;

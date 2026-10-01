@@ -3554,6 +3554,8 @@
     "predictionOneTitle": "Le pasteur Benny Hinn sera-t-il au Healing Stream ?",
     "predictionTwoTitle": "Qui repartira avec la ceinture ? <strong>Prédisez maintenant !</strong>",
     "predictNow": "Prédire",
+    "matchdayTitle": "{fight}, <strong>Prédisez maintenant !</strong>",
+    "matchdayAria": "{fight} : prédisez maintenant",
     "tokenMovesCarousel": "Mouvements des tokens",
     "conversationCarousel": "Conversation et marchés",
     "next100xCarousel": "Prochain 100X",

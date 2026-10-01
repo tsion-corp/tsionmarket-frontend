@@ -116,6 +116,48 @@ function tick(ms: number) {
   });
 }
 
+// The two matchday cards: one per fight on the first-party book, drawn on the
+// title-fight card's own red-and-white design, each leading to its event.
+describe("matchday cards", () => {
+  const fights = [
+    { name: "Carter Efe vs Speed Darlington", slug: "carter-efe-vs-speed-darlington" },
+    { name: "Phyna vs Nkechi Blessing", slug: "phyna-vs-nkechi-blessing" },
+  ];
+
+  it("deals one card per fight, each leading to its own event on the book", () => {
+    renderRow();
+    for (const fight of fights) {
+      const links = screen.getAllByRole("link", { name: new RegExp(fight.name) });
+      expect(links.length).toBeGreaterThan(0);
+      for (const link of links) {
+        expect(link).toHaveAttribute(
+          "href",
+          `/prediction/local?event=${encodeURIComponent(fight.slug)}`
+        );
+      }
+    }
+  });
+
+  it("names both fighters and shows both their faces on each card", () => {
+    renderRow();
+    for (const fight of fights) {
+      const card = screen
+        .getAllByRole("link", { name: new RegExp(fight.name) })[0]
+        .closest("article") as HTMLElement;
+      const [left, right] = fight.name.split(" vs ");
+      expect(within(card).getByText(left)).toBeInTheDocument();
+      expect(within(card).getByText(right)).toBeInTheDocument();
+      const faces = within(card).getAllByRole("img", { name: new RegExp(`${left}|${right}`) });
+      expect(faces).toHaveLength(2);
+    }
+  });
+
+  it("no longer deals the generic belt card", () => {
+    renderRow();
+    expect(screen.queryByText(/take the Belt Home/i)).toBeNull();
+  });
+});
+
 describe("prediction starts row", () => {
   it("opens the featured market from a link named after its question", () => {
     renderRow([first]);

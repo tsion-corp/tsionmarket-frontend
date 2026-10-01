@@ -63,6 +63,9 @@ vi.mock("@/features/prediction/components/prediction-category-nav", () => ({
 vi.mock("@/features/prediction/components/category-market-shared", () => ({
   CategoryBetSidebar: () => null,
 }));
+vi.mock("@/features/prediction/components/featured-local-markets", () => ({
+  FeaturedLocalMarkets: () => null,
+}));
 
 // The positions flow reaches the wallet layer, which has its own suites.
 // `loaded` stays false, which is the state a signed-in user lands on: the

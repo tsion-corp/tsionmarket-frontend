@@ -65,7 +65,7 @@ export function CategoryTopNav({
   categoriesOpen: boolean;
   category: PredictionCategory;
 }) {
-  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const { authenticated } = useAuthSession();
   const router = useRouter();
   const login = () => router.push("/auth");
   return (

@@ -9,7 +9,7 @@ import {
 } from "@/features/prediction/categories";
 import type { DiscoveryMarketSort } from "@/features/prediction/markets/api";
 
-export type PredictionFeedFilter = "trending" | "breaking" | "new";
+export type PredictionFeedFilter = "trending" | "breaking" | "new" | "local";
 
 const FEED_FILTERS: ReadonlyArray<{
   key: PredictionFeedFilter;
@@ -29,6 +29,12 @@ const FEED_FILTERS: ReadonlyArray<{
     label: "New",
     sort: "newest",
     href: "/prediction/markets?category=trending&sort=newest",
+  },
+  {
+    key: "local",
+    label: "ARK Markets",
+    sort: "newest",
+    href: "/prediction/local",
   },
 ];
 

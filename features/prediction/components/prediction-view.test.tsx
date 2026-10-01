@@ -49,6 +49,9 @@ vi.mock("../house-slip-store", () => ({
     selectedSide: () => undefined,
   }),
 }));
+vi.mock("./featured-local-markets", () => ({
+  FeaturedLocalMarkets: () => null,
+}));
 // useMoney reaches for the FX query, which needs a QueryClient this suite does
 // not stand up. The panel only formats with it, so a fixed formatter is enough.
 vi.mock("@/components/ui/currency-select", () => ({
@@ -199,6 +202,7 @@ describe("PredictionView", () => {
       "Trending",
       "Breaking",
       "New",
+      "ARK Markets",
       ...PREDICTION_CATEGORIES.filter(({ key }) => key !== "trending").map(({ label }) => label),
     ]);
     expect(screen.getByRole("link", { name: "Trending" })).toHaveAttribute("href", "/prediction");
@@ -209,6 +213,10 @@ describe("PredictionView", () => {
     expect(screen.getByRole("link", { name: "New" })).toHaveAttribute(
       "href",
       "/prediction/markets?category=trending&sort=newest"
+    );
+    expect(screen.getByRole("link", { name: "ARK Markets" })).toHaveAttribute(
+      "href",
+      "/prediction/local"
     );
     for (const category of PREDICTION_CATEGORIES.filter(({ key }) => key !== "trending")) {
       expect(screen.getByRole("link", { name: category.label })).toHaveAttribute(
