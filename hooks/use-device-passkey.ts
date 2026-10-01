@@ -44,16 +44,22 @@ export function useDevicePasskey(): {
     hasPasskey?: () => Promise<boolean>;
     addPasskey?: () => Promise<void>;
   };
+  // The kit hands back a new object on every render, and every one of its
+  // methods sets the kit's own loading state while it runs. So nothing below
+  // may depend on `wallet` itself: an effect that did re-ran on every call it
+  // made, and the account sheet froze in that loop. The methods are memoised
+  // inside the kit, so they are what the effects and callbacks depend on.
+  const { isConnected, hasPasskey, addPasskey: kitAddPasskey, disconnect, openModal } = wallet;
   const [canAdd, setCanAdd] = useState<boolean | null>(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const supportsDirect = typeof wallet.addPasskey === "function";
+  const supportsDirect = typeof kitAddPasskey === "function";
 
   useEffect(() => {
     let live = true;
     void (async () => {
-      if (!wallet.isConnected) {
+      if (!isConnected) {
         if (live) setCanAdd(false);
         return;
       }
@@ -66,12 +72,12 @@ export function useDevicePasskey(): {
       // upgrade anyway is the safer error: on a device that already has a
       // passkey the direct call is a no-op, and the fallback path is a sign-in
       // the user can simply complete.
-      if (!wallet.hasPasskey) {
+      if (!hasPasskey) {
         if (live) setCanAdd(true);
         return;
       }
       try {
-        const has = await wallet.hasPasskey();
+        const has = await hasPasskey();
         if (live) setCanAdd(!has);
       } catch {
         if (live) setCanAdd(false);
@@ -80,28 +86,28 @@ export function useDevicePasskey(): {
     return () => {
       live = false;
     };
-  }, [wallet, wallet.isConnected]);
+  }, [isConnected, hasPasskey]);
 
   const addPasskey = useCallback(async () => {
     setError(null);
     setAdding(true);
     try {
-      if (wallet.addPasskey) {
-        await wallet.addPasskey();
+      if (kitAddPasskey) {
+        await kitAddPasskey();
         setCanAdd(false);
         return;
       }
       // Fallback: drop this device's share and let the next sign-in provision a
       // fresh one, which registers a passkey because one is reachable now.
-      await wallet.disconnect();
-      wallet.openModal();
+      await disconnect();
+      openModal();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Could not add a passkey. Please try again.");
       throw e;
     } finally {
       setAdding(false);
     }
-  }, [wallet]);
+  }, [kitAddPasskey, disconnect, openModal]);
 
   return { canAdd, needsReauth: !supportsDirect, adding, error, addPasskey };
 }

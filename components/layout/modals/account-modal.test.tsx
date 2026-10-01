@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { AccountModal } from "./account-modal";
 
 vi.mock("next-intl", () => ({
@@ -54,6 +54,9 @@ vi.mock("@/components/ui/language-select", () => ({
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
+const support = vi.hoisted(() => ({ openSupportChat: vi.fn() }));
+vi.mock("@/lib/support-chat/open", () => support);
+
 vi.mock("@/hooks/use-square-avatar", () => ({
   useSquareAvatar: () => null,
   useSquareSeed: () => "seed",
@@ -80,5 +83,15 @@ describe("AccountModal identity", () => {
     } finally {
       arkName.value = null;
     }
+  });
+
+  // It used to only close the sheet, so tapping it on a phone looked like
+  // nothing happened. The desktop menu opens the chat; so does this.
+  it("opens the support chat from Help & support, and closes the sheet", () => {
+    const onClose = vi.fn();
+    render(<AccountModal onClose={onClose} onOpenShine={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /helpSupport/ }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(support.openSupportChat).toHaveBeenCalledTimes(1);
   });
 });

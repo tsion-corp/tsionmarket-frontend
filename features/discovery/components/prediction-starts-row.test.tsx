@@ -152,6 +152,20 @@ describe("matchday cards", () => {
     }
   });
 
+  // The slide, not the viewport, decides the layout: a phone's slide stacks
+  // the faces over the words, the dashboard's puts them at the two ends.
+  it("lays the card out by its own width, faces at the ends from 520px", () => {
+    renderRow();
+    const card = screen
+      .getAllByRole("link", { name: new RegExp(fights[0].name) })[0]
+      .closest("article") as HTMLElement;
+    expect(card.className).toContain("@container");
+    const panel = within(card).getByText(fights[0].name.split(" vs ")[0]).closest("figure")
+      ?.parentElement as HTMLElement;
+    expect(panel.className).toContain("[grid-template-areas:'left_vs_right'");
+    expect(panel.className).toContain("@[520px]:[grid-template-areas:'left_title_right'");
+  });
+
   it("no longer deals the generic belt card", () => {
     renderRow();
     expect(screen.queryByText(/take the Belt Home/i)).toBeNull();

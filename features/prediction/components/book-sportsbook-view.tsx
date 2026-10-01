@@ -83,6 +83,9 @@ function OutcomeButton({
         ? "border-[#ef4055] bg-[#42151b] text-[#ff8291] shadow-[inset_0_0_0_1px_rgba(239,64,85,.25)]"
         : "border-[#7a2933] bg-[#2a1014] text-[#ff687a] hover:border-[#ef4055] hover:bg-[#42151b]";
 
+  // The label sits inside the button, above the odds, and wraps: it is what
+  // tells a person which side of the market they are taking, so it is never
+  // cut. It used to sit above the button on one truncated line.
   return (
     <button
       type="button"
@@ -90,16 +93,30 @@ function OutcomeButton({
       aria-pressed={selected}
       aria-label={`${market.title}: ${outcome.title} at ${outcome.odds}`}
       onClick={() => onPick({ event, market, outcome })}
-      className={`flex h-12 w-full min-w-0 cursor-pointer items-center justify-center rounded-lg border px-3 text-center text-base font-bold tabular-nums transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${toneClass}`}
+      className={`flex min-h-14 w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-lg border px-2.5 py-2 text-center transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${toneClass}`}
     >
-      {outcome.odds}
+      <span className="text-[12px] leading-[15px] font-semibold break-words text-white/75">
+        {outcome.title}
+      </span>
+      <span className="text-base leading-5 font-bold tabular-nums">{outcome.odds}</span>
     </button>
   );
 }
 
-function ParticipantPortrait({ name, imageUrl }: { name: string; imageUrl: string | null }) {
+function ParticipantPortrait({
+  name,
+  imageUrl,
+  size = "md",
+}: {
+  name: string;
+  imageUrl: string | null;
+  size?: "sm" | "md";
+}) {
+  const box = size === "sm" ? "size-8 border-2 border-black" : "size-10 border border-white/10";
   return (
-    <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-[#242424]">
+    <span
+      className={`grid shrink-0 place-items-center overflow-hidden rounded-full bg-[#242424] ${box}`}
+    >
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={imageUrl} alt="" className="size-full object-cover" />
@@ -136,7 +153,7 @@ function MarketArtwork({
   );
 }
 
-function EventRow({
+export function EventRow({
   event,
   market,
   pick,
@@ -150,57 +167,81 @@ function EventRow({
   const time = eventTime(event.startsAt);
   const outcomes = market.outcomes.filter((outcome) => !outcome.hidden).slice(0, 4);
   const columns = outcomes.length === 3 ? "grid-cols-3" : "grid-cols-2";
+  const [first, second] = event.participants;
 
+  // On a phone the row stacks: when and what sport, the market's question as
+  // the row's heading, the fight with both faces, then the outcomes across
+  // the full width. From 1280px it is the desk's two columns again. Nothing
+  // here truncates: these words are what tell a person which bet this is.
   return (
-    <article className="border-b border-white/[0.06] bg-black px-3 py-3 transition-colors hover:bg-white/[0.025] min-[1280px]:px-5">
-      <div className="grid min-w-0 grid-cols-[46%_54%] items-center min-[1280px]:grid-cols-[minmax(0,1fr)_28rem]">
-        <div className="min-w-0 pr-3">
-          <div className="mb-2 flex min-w-0 items-center text-[12px] text-[#999]">
-            <span className="mr-1 font-semibold text-[#adadad]">{time.time}</span>
-            <span className="mr-2">{time.day}</span>
+    <article className="border-b border-white/[0.06] bg-black px-3 py-3.5 transition-colors hover:bg-white/[0.025] min-[1280px]:px-5 min-[1280px]:py-3">
+      <div className="grid min-w-0 grid-cols-1 gap-3 min-[1280px]:grid-cols-[minmax(0,1fr)_28rem] min-[1280px]:items-center min-[1280px]:gap-0">
+        <div className="min-w-0 min-[1280px]:pr-3">
+          <div className="mb-2 flex min-w-0 items-center gap-1.5 text-[12px] text-[#999]">
+            <span className="font-semibold text-[#adadad]">{time.time}</span>
+            <span>{time.day}</span>
             <SportIcon sport={event.sport.slug} name={event.sport.name} className="size-4" />
-            <span className="ml-1 truncate rounded bg-white/[0.06] px-1.5 py-0.5 font-semibold text-[#d7d9de]">
-              {market.title}
-            </span>
+            <span className="break-words text-[#777]">{event.sport.name}</span>
           </div>
-          <div className="mb-2 flex min-w-0 items-center gap-2">
-            <MarketArtwork
-              title={event.title}
-              imageUrl={market.imageUrl}
-              fallbackUrl={event.imageUrl}
-              className="size-6"
-            />
-            <span className="truncate text-[11px] font-bold tracking-[0.01em] text-[#d7d9de]">
+
+          <h3 className="mb-2.5 text-[15px] leading-5 font-semibold break-words text-white min-[1280px]:mb-2 min-[1280px]:text-[13px] min-[1280px]:leading-[18px] min-[1280px]:text-[#d7d9de]">
+            {market.title}
+          </h3>
+
+          {/* Phone: the fight on one line, both faces overlapped before it. */}
+          <div className="flex min-w-0 items-center gap-2.5 min-[1280px]:hidden">
+            <span className="flex shrink-0 -space-x-2">
+              {[first, second].filter(Boolean).map((participant, index) => (
+                <ParticipantPortrait
+                  key={`${participant.name}:${index}`}
+                  name={participant.name}
+                  imageUrl={participant.imageUrl}
+                  size="sm"
+                />
+              ))}
+            </span>
+            <span className="min-w-0 text-[13px] leading-[18px] font-semibold break-words text-[#d7d9de]">
               {event.title}
             </span>
           </div>
-          <div className="flex min-w-0 flex-col gap-1.5">
-            {event.participants.slice(0, 2).map((participant, index) => (
-              <p key={`${participant.name}:${index}`} className="flex min-w-0 items-center">
-                <ParticipantPortrait name={participant.name} imageUrl={participant.imageUrl} />
-                <span className="ml-2 truncate text-[14px] font-semibold text-white min-[1280px]:text-[16px]">
-                  {participant.name}
-                </span>
-              </p>
-            ))}
+
+          {/* Desk: the fight's artwork and title, then a fighter per line. */}
+          <div className="hidden min-[1280px]:block">
+            <div className="mb-2 flex min-w-0 items-center gap-2">
+              <MarketArtwork
+                title={event.title}
+                imageUrl={market.imageUrl}
+                fallbackUrl={event.imageUrl}
+                className="size-6"
+              />
+              <span className="min-w-0 text-[11px] font-bold tracking-[0.01em] break-words text-[#d7d9de]">
+                {event.title}
+              </span>
+            </div>
+            <div className="flex min-w-0 flex-col gap-1.5">
+              {event.participants.slice(0, 2).map((participant, index) => (
+                <p key={`${participant.name}:${index}`} className="flex min-w-0 items-center">
+                  <ParticipantPortrait name={participant.name} imageUrl={participant.imageUrl} />
+                  <span className="ml-2 min-w-0 text-[16px] font-semibold break-words text-white">
+                    {participant.name}
+                  </span>
+                </p>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div className={`grid min-w-0 gap-2 ${columns}`}>
+        <div className={`grid min-w-0 items-stretch gap-2 ${columns}`}>
           {outcomes.map((outcome, index) => (
-            <div key={outcome.id} className="min-w-0">
-              <p className="mb-1 h-4 truncate text-center text-xs font-semibold text-[#999]">
-                {outcome.title}
-              </p>
-              <OutcomeButton
-                event={event}
-                market={market}
-                outcome={outcome}
-                tone={index === 0 ? "green" : "red"}
-                selected={pick?.outcome.id === outcome.id}
-                onPick={onPick}
-              />
-            </div>
+            <OutcomeButton
+              key={outcome.id}
+              event={event}
+              market={market}
+              outcome={outcome}
+              tone={index === 0 ? "green" : "red"}
+              selected={pick?.outcome.id === outcome.id}
+              onPick={onPick}
+            />
           ))}
         </div>
       </div>

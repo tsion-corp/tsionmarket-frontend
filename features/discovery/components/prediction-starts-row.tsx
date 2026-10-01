@@ -414,10 +414,24 @@ function matchdayHref(fight: MatchdayFight): string {
 }
 
 // A matchday card: the title-fight card's red-and-white design, with the two
-// fighters where the cut-out boxers were. The panel carries the fight as the
-// headline; the two faces hang off the panel's lower edge, tilted towards
-// each other with the VS between them, and the pill sits under them the way
-// it sat under the boxers.
+// fighters on it. The boxers' cut-out hung over the panel's lower edge and
+// was measured for a 222px card; dealt at the dashboard's slide size the same
+// placement walked the faces into the headline. So everything lives inside
+// the panel on a named grid, and the grid changes with the card's own width
+// (a container query, because the slide, not the viewport, decides it):
+//
+//   under 520px, a phone's slide      from 520px, the dashboard's
+//     [face]  VS  [face]                 [face] [  headline  ] [face]
+//     [     headline     ]               [face] [     VS     ] [face]
+//     [       pill       ]               [face] [    pill    ] [face]
+//
+// The panel's 20px padding is the gutter that keeps the faces off the card's
+// border at every width.
+const MATCHDAY_PANEL =
+  "pointer-events-none absolute top-[13px] right-[33px] bottom-[-2px] left-[13px] grid items-center gap-x-[12px] gap-y-[10px] overflow-hidden rounded-[16px] bg-white px-[20px] pt-[18px] pb-[20px] " +
+  "grid-cols-[auto_minmax(0,1fr)_auto] [grid-template-areas:'left_vs_right'_'title_title_title'_'pill_pill_pill'] " +
+  "@[520px]:gap-x-[18px] @[520px]:[grid-template-areas:'left_title_right'_'left_vs_right'_'left_pill_right']";
+
 function MatchdayCard({ fight }: { fight: MatchdayFight }) {
   const t = useTranslations("discovery");
   const [left, right] = fight.fighters;
@@ -425,7 +439,9 @@ function MatchdayCard({ fight }: { fight: MatchdayFight }) {
   const href = matchdayHref(fight);
 
   return (
-    <article className={`${CARD_BOX} bg-[linear-gradient(180deg,#ed2b07_0%,#ff846e_100%)]`}>
+    <article
+      className={`${CARD_BOX} @container bg-[linear-gradient(180deg,#ed2b07_0%,#ff846e_100%)]`}
+    >
       <img
         src="/market/prediction-sunburst-red.svg"
         alt=""
@@ -434,70 +450,33 @@ function MatchdayCard({ fight }: { fight: MatchdayFight }) {
       />
 
       {/* The whole card leads to the fight, the way the market card leads to
-          its market; the pill below takes its own clicks back. */}
+          its market; the pill takes its own clicks back. */}
       <Link
         href={href}
         aria-label={t("matchdayAria", { fight: name })}
         className="absolute inset-0 z-[1] rounded-[15px] outline-none focus-visible:ring-2 focus-visible:ring-white/80"
       />
 
-      <div
-        className={`absolute top-[13px] right-[33px] bottom-[-2px] left-[13px] overflow-hidden rounded-[16px] bg-white ${RED_TITLE_GUTTER} pt-[22px]`}
-      >
-        <h3
-          style={{ width: RED_TITLE_WIDTH }}
-          className="mx-auto max-w-full text-center font-serif text-[17px] leading-[19px] font-semibold tracking-[-0.34px] break-words text-[#494949]"
-        >
+      <div className={MATCHDAY_PANEL}>
+        <MatchdayFace fighter={left} area="[grid-area:left]" tilt="-rotate-6" />
+        <h3 className="max-w-full justify-self-center text-center font-serif text-[15px] leading-[18px] font-semibold tracking-[-0.3px] break-words text-[#494949] [grid-area:title] @[520px]:text-[17px] @[520px]:leading-[19px]">
           {t.rich("matchdayTitle", {
             fight: name,
             strong: (chunks) => <strong className="font-bold text-black">{chunks}</strong>,
           })}
         </h3>
-      </div>
-
-      {/* The faces and the pill move together and hang off the card's foot,
-          for the reason the boxers did: bottom-anchored, a taller locale
-          cannot walk them up into the headline. Each face is a 118px square
-          tilted 6 degrees towards the other, overlapping the VS roundel. */}
-      <div className="pointer-events-none absolute inset-y-0 left-[calc(50%_-_150px)] w-[300px]">
-        <div className="absolute bottom-[42px] left-0 flex w-full items-end justify-center">
-          <figure className="relative m-0 w-[118px] -rotate-6">
-            <img
-              src={left.image}
-              alt={left.name}
-              width={118}
-              height={118}
-              className="block size-[118px] rounded-[14px] border-[3px] border-white object-cover shadow-[0_8px_18px_rgba(0,0,0,0.25)]"
-            />
-            <figcaption className="mt-[6px] text-center font-serif text-[11px] leading-[12px] font-bold text-[#2b2b2b]">
-              {left.name}
-            </figcaption>
-          </figure>
-          <span
-            aria-hidden
-            className="relative z-[1] mx-[-10px] mb-[38px] grid size-[34px] shrink-0 place-items-center rounded-full border-[2px] border-white bg-[#ed2b07] font-serif text-[12px] font-black tracking-[-0.02em] text-white shadow-[0_4px_10px_rgba(0,0,0,0.3)]"
-          >
-            VS
-          </span>
-          <figure className="relative m-0 w-[118px] rotate-6">
-            <img
-              src={right.image}
-              alt={right.name}
-              width={118}
-              height={118}
-              className="block size-[118px] rounded-[14px] border-[3px] border-white object-cover shadow-[0_8px_18px_rgba(0,0,0,0.25)]"
-            />
-            <figcaption className="mt-[6px] text-center font-serif text-[11px] leading-[12px] font-bold text-[#2b2b2b]">
-              {right.name}
-            </figcaption>
-          </figure>
-        </div>
+        <span
+          aria-hidden
+          className="grid size-[30px] shrink-0 place-items-center justify-self-center rounded-full border-[2px] border-white bg-[#ed2b07] font-serif text-[12px] font-black tracking-[-0.02em] text-white shadow-[0_4px_10px_rgba(0,0,0,0.3)] [grid-area:vs] @[520px]:size-[34px]"
+        >
+          VS
+        </span>
         <DiscoveryCta
           href={href}
           label={t("predictNow")}
           tone="dark"
           size={12}
-          className="pointer-events-auto absolute bottom-[12px] left-1/2 z-[2] w-max -translate-x-1/2 border-[0.5px] border-[#ed2b07] tracking-[-0.12px]"
+          className="pointer-events-auto relative z-[2] w-max justify-self-center border-[0.5px] border-[#ed2b07] tracking-[-0.12px] [grid-area:pill]"
           icon={
             <img
               src="/market/prediction-coins-white.svg"
@@ -509,8 +488,42 @@ function MatchdayCard({ fight }: { fight: MatchdayFight }) {
             />
           }
         />
+        <MatchdayFace fighter={right} area="[grid-area:right]" tilt="rotate-6" />
       </div>
     </article>
+  );
+}
+
+// One fighter: a square face tilted towards the other, the name under it.
+// Under 520px the two faces and the VS share one row, so each face takes
+// half of what the row leaves: the card's width less the panel's insets and
+// padding (86px), the VS (30px) and the two gaps (24px), floored at 52px and
+// capped at 96px. A 270px phone slide gets 60px faces and nothing touches the
+// border. From 520px the faces sit in the end columns at 118px.
+function MatchdayFace({
+  fighter,
+  area,
+  tilt,
+}: {
+  fighter: { name: string; image: string };
+  area: string;
+  tilt: string;
+}) {
+  return (
+    <figure
+      className={`m-0 w-[clamp(52px,calc((100cqw_-_150px)_/_2),96px)] shrink-0 justify-self-center @[520px]:w-[118px] ${area} ${tilt}`}
+    >
+      <img
+        src={fighter.image}
+        alt={fighter.name}
+        width={118}
+        height={118}
+        className="block aspect-square w-full rounded-[14px] border-[3px] border-white object-cover shadow-[0_8px_18px_rgba(0,0,0,0.25)]"
+      />
+      <figcaption className="mt-[6px] truncate text-center font-serif text-[10px] leading-[12px] font-bold text-[#2b2b2b] @[520px]:text-[11px]">
+        {fighter.name}
+      </figcaption>
+    </figure>
   );
 }
 

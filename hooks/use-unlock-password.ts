@@ -34,30 +34,35 @@ export function useUnlockPassword(): {
     canUnlockWithPassword?: () => Promise<boolean>;
     setUnlockPassword?: (password: string) => Promise<void>;
   };
+  // Depend on the kit's memoised methods, never on `wallet` itself: the kit
+  // returns a new object every render and its methods set its own loading
+  // state, so an effect keyed on the object re-ran on every call it made.
+  // See useDevicePasskey.
+  const { isConnected, hasPasskey, canUnlockWithPassword, setUnlockPassword } = wallet;
   const [canSet, setCanSet] = useState<boolean | null>(null);
   const [isSet, setIsSet] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const supported = typeof wallet.setUnlockPassword === "function";
+  const supported = typeof setUnlockPassword === "function";
 
   useEffect(() => {
     let live = true;
     void (async () => {
-      if (!wallet.isConnected || !supported) {
+      if (!isConnected || !supported) {
         if (live) setCanSet(false);
         return;
       }
       try {
-        const [hasPasskey, hasPassword] = await Promise.all([
-          wallet.hasPasskey?.() ?? Promise.resolve(false),
-          wallet.canUnlockWithPassword?.() ?? Promise.resolve(false),
+        const [passkeyHeld, hasPassword] = await Promise.all([
+          hasPasskey?.() ?? Promise.resolve(false),
+          canUnlockWithPassword?.() ?? Promise.resolve(false),
         ]);
         if (!live) return;
         setIsSet(hasPassword);
         // A passkey is strictly the better path — one biometric versus typing
         // twelve characters — so this is only offered where there isn't one.
-        setCanSet(!hasPasskey);
+        setCanSet(!passkeyHeld);
       } catch {
         if (live) setCanSet(false);
       }
@@ -65,17 +70,17 @@ export function useUnlockPassword(): {
     return () => {
       live = false;
     };
-  }, [wallet, wallet.isConnected, supported]);
+  }, [isConnected, supported, hasPasskey, canUnlockWithPassword]);
 
   const setPassword = useCallback(async () => {
-    if (!wallet.setUnlockPassword) return;
+    if (!setUnlockPassword) return;
     setError(null);
     // Collected by the same dialog host the kit uses, so the secret never
     // passes through a component's state.
     const password = await promptUnlockPassword({ kind: "set" });
     setSaving(true);
     try {
-      await wallet.setUnlockPassword(password);
+      await setUnlockPassword(password);
       setIsSet(true);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Could not set an unlock password.");
@@ -83,7 +88,7 @@ export function useUnlockPassword(): {
     } finally {
       setSaving(false);
     }
-  }, [wallet]);
+  }, [setUnlockPassword]);
 
   return { canSet, isSet, saving, error, setPassword };
 }

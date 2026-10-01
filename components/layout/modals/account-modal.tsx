@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
+import { openSupportChat } from "@/lib/support-chat/open";
 import { openMigration } from "@/features/migrate/lib/migration-card-store";
 import { Avatar } from "@/components/ui/avatar";
 import { SquareAvatar } from "@/components/ui/square-avatar";
@@ -159,7 +160,15 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
           <ShineIcon size={20} />
           {t("shine")}
         </button>
-        <button onClick={onClose} className={`${item} text-white`}>
+        {/* The in-app chat, as on the desktop menu. This used to only close
+            the sheet, which read as a button that did nothing. */}
+        <button
+          onClick={() => {
+            onClose();
+            openSupportChat();
+          }}
+          className={`${item} text-white`}
+        >
           <HelpIcon size={20} />
           {t("helpSupport")}
         </button>
