@@ -8,6 +8,15 @@ import { memeToken } from "@/lib/meme/fixture";
 import { SOLANA_CHAIN_ID } from "@/lib/meme/chain";
 import type { BuyFunding } from "@/lib/meme/funding";
 import type { SwapPreview } from "@/lib/meme/api";
+const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (session.signedIn) return true;
+    session.asked.push(action);
+    return false;
+  },
+}));
 
 // The ticket, on its own. The board's suite covers it in place on the two paths
 // a user takes every day; this one covers the refusals, because each of them is
@@ -64,6 +73,22 @@ function cta() {
     .getAllByRole("button")
     .find((button) => button.textContent !== "Max") as HTMLButtonElement;
 }
+
+describe("the ticket without a session", () => {
+  it("stays pressable and asks for a sign-in instead of trading", () => {
+    session.signedIn = false;
+    session.asked = [];
+    try {
+      const { onSubmit } = renderTicket({ amount: "400" });
+      expect(cta()).toBeEnabled();
+      fireEvent.click(cta());
+      expect(session.asked).toEqual(["buy"]);
+      expect(onSubmit).not.toHaveBeenCalled();
+    } finally {
+      session.signedIn = true;
+    }
+  });
+});
 
 describe("the amounts the ticket refuses to send", () => {
   it("names the minimum instead of the coin when the buy is under it", () => {

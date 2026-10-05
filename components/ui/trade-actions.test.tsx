@@ -237,3 +237,31 @@ describe("TradeActions", () => {
     });
   });
 });
+
+describe("TradeActions without a session", () => {
+  it("keeps Buy pressable and sends the press to onSignIn", () => {
+    const onSignIn = vi.fn();
+    const onAddFunds = vi.fn();
+    const { action, onBuy } = renderActions({
+      side: "buy",
+      amount: OVER_BALANCE,
+      pay: { balance: 0n, decimals: USDC_DECIMALS, symbol: "USDC" },
+      onAddFunds,
+      onSignIn,
+    });
+    expect(action).toBeEnabled();
+    fireEvent.click(action);
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+    expect(onBuy).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: LABELS.addFunds ?? "" })).toBeNull();
+  });
+
+  it("does the same for Sell", () => {
+    const onSignIn = vi.fn();
+    const { action, onSell } = renderActions({ side: "sell", amount: "", sell: undefined, onSignIn });
+    expect(action).toBeEnabled();
+    fireEvent.click(action);
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+    expect(onSell).not.toHaveBeenCalled();
+  });
+});

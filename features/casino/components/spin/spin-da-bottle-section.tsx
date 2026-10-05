@@ -11,6 +11,7 @@ import { SquareAvatar } from "@/components/ui/square-avatar";
 import { GameMoneyInput } from "@/features/casino/components/game-money-input";
 import { useSpinComments } from "@/features/casino/hooks/use-spin-comments";
 import { useSpinDaBottle } from "@/features/casino/hooks/use-spin-da-bottle";
+import { useRequireSession } from "@/hooks/use-require-session";
 import type { SpinOutcome, SpinPick, SpinWager } from "@/features/casino/lib/api/spin";
 import { amountUnits, normalizeArkjetAmount } from "@/features/casino/lib/arkjet-funding";
 import { gameActionError } from "@/features/casino/lib/game-error";
@@ -79,6 +80,7 @@ function resultAsset(wager: SpinWager) {
 
 export function SpinDaBottleSection() {
   const game = useSpinDaBottle();
+  const requireSession = useRequireSession();
   const portfolio = usePortfolio({ scope: "base" });
   const modals = useAppModals();
   const money = useMoney();
@@ -346,6 +348,7 @@ export function SpinDaBottleSection() {
                   type="button"
                   className={styles.addMoneyLink}
                   onClick={() => {
+                    if (!requireSession("fund")) return;
                     setCashierInitialAmount(undefined);
                     setCashierOpen(true);
                   }}

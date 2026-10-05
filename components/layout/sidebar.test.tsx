@@ -14,6 +14,7 @@ import type { DashboardSection } from "@/lib/modal-types";
 // echoing key names: the accessible names under test are then the ones a user
 // reads. An unknown key still surfaces as its path, so a typo fails loudly.
 const MESSAGES: Record<string, Record<string, string>> = {
+  auth: { signIn: "Sign in" },
   topbar: { menu: "Menu", closeMenu: "Close menu" },
   // The rail names the product "Square" (asked for 2026-09-12); the fuller
   // "Market Square" stays the page's own title.
@@ -146,6 +147,7 @@ describe("Sidebar", () => {
   // person by it once the wallet holds one; without one, the profile name.
   it("names the account by its Ark ID when the wallet holds one", () => {
     arkName.value = "signor.ark";
+    privyUser = walletOnlyUser;
     try {
       renderSidebar();
       expect(screen.getByText("signor.ark")).toBeInTheDocument();
@@ -153,6 +155,23 @@ describe("Sidebar", () => {
     } finally {
       arkName.value = null;
     }
+  });
+
+  it("offers Sign in in place of the account button while signed out", async () => {
+    privyUser = null;
+    const { useSignInOpen } = await import("@/hooks/use-sign-in");
+    const { closeSignIn } = await import("@/hooks/use-sign-in");
+    closeSignIn();
+    renderSidebar();
+    expect(screen.queryByText("World Street user")).toBeNull();
+    const signIn = screen.getByRole("button", { name: "Sign in" });
+    signIn.click();
+    function Probe() {
+      return <span data-testid="open">{String(useSignInOpen())}</span>;
+    }
+    render(<Probe />);
+    expect(screen.getByTestId("open").textContent).toBe("true");
+    closeSignIn();
   });
 
   it("offers no Market Square entry while the square is hidden", () => {
@@ -375,17 +394,10 @@ describe("Real assets in the rail", () => {
   }
 
   it("offers the Real assets entry", () => {
-    renderRail(buildNav(null));
+    renderRail(buildNav());
     expect(screen.getByRole("button", { name: "Real assets" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Portfolio" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Spot" })).toBeInTheDocument();
-  });
-
-  // An onboarding interest that leads with Real assets (stocks, gold, yield,
-  // real estate, treasuries) brings the row forward through the reorder.
-  it("offers the entry for the interests that point at it", () => {
-    renderRail(buildNav("stocks"));
-    expect(screen.getByRole("button", { name: "Real assets" })).toBeInTheDocument();
   });
 
   // The switch still works: listing the id takes the row out again without
@@ -400,7 +412,7 @@ describe("Real assets in the rail", () => {
     const { Sidebar: Hidden } = await import("./sidebar");
     return render(
       <Hidden
-        items={buildHidden(null)}
+        items={buildHidden()}
         activeSection={activeSection}
         onNavigate={() => {}}
         open={false}

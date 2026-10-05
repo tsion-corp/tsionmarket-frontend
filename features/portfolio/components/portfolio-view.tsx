@@ -61,6 +61,16 @@ import type { MemeToken } from "@/lib/meme/api";
 import { coingeckoId } from "@/lib/coingecko";
 import { formatQty } from "@/lib/format";
 import type { BuyPayload, DetailPayload, RwaTradePayload, SellPayload } from "@/lib/modal-types";
+import { useRequireSession, type SessionAction } from "@/hooks/use-require-session";
+
+type KashModal = "buy" | "send" | "convert" | "history" | "upgrade";
+const KASH_GATE: Record<KashModal, SessionAction> = {
+  buy: "buy",
+  send: "send",
+  convert: "trade",
+  history: "history",
+  upgrade: "buy",
+};
 
 interface PortfolioViewProps {
   onOpenFunds: () => void;
@@ -116,9 +126,11 @@ export function PortfolioView({
   const tBns = useTranslations("bns");
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
-  const [kashModal, setKashModal] = useState<
-    "buy" | "send" | "convert" | "history" | "upgrade" | null
-  >(null);
+  const [kashModal, showKashModal] = useState<KashModal | null>(null);
+  const requireSession = useRequireSession();
+  const setKashModal = (modal: KashModal | null) => {
+    if (modal === null || requireSession(KASH_GATE[modal])) showKashModal(modal);
+  };
   // Distinguish "we couldn't load it" from "you have nothing". A failed request
   // with no cached tokens is an error, not an empty wallet; if a cached balance
   // survives (persisted), keep showing it rather than an error.

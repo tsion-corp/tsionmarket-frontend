@@ -9,6 +9,7 @@ import {
   RefreshIcon,
   WalletIcon,
 } from "@/components/ui/icons";
+import { openSignIn } from "@/hooks/use-sign-in";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 import { useHoldingsLauncher } from "@/features/portfolio/components/holdings-launcher";
 
@@ -34,6 +35,7 @@ export function BalanceCardMobile({
 }: BalanceCardViewProps) {
   const t = useTranslations("balance");
   const tPortfolio = useTranslations("portfolio");
+  const tAuth = useTranslations("auth");
   const money = useMoney();
   // The holdings list, opened by both the coins button and the Portfolio
   // Allocation control below; shared with the desktop card.
@@ -142,6 +144,14 @@ export function BalanceCardMobile({
                 >
                   {readyToSpend.state === "loading" ? (
                     <span className="mt-1 block h-[10px] w-[110px] animate-pulse rounded-full bg-white/8" />
+                  ) : readyToSpend.state === "signedOut" ? (
+                    <button
+                      type="button"
+                      onClick={openSignIn}
+                      className="cursor-pointer text-white/70 underline-offset-2 hover:underline"
+                    >
+                      {tAuth("signInToSeeBalance")}
+                    </button>
                   ) : readyToSpend.state === "known" ? (
                     t("readyToSpend", { amount: formatMasked(readyToSpend.usd) })
                   ) : (

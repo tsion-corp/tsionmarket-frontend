@@ -2,6 +2,8 @@
 
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 import { useTranslations } from "next-intl";
 
 import {
@@ -212,6 +214,8 @@ function MemeBuyTicket({
   onAddFunds,
 }: MemeBuyTicketProps) {
   const t = useTranslations("meme");
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
   const tErr = useTranslations("tradeErrors");
   const [submitting, setSubmitting] = useState(false);
 
@@ -261,6 +265,7 @@ function MemeBuyTicket({
           : t("ctaBuy", { symbol });
 
   async function submit() {
+    if (!requireSession("buy")) return;
     if (disabled) return;
     setSubmitting(true);
     try {
@@ -397,7 +402,7 @@ function MemeBuyTicket({
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={disabled}
+          disabled={!signedOut && disabled}
           className={`bg-buy h-12 rounded-3xl font-sans text-base font-semibold text-white ${
             showTopUp ? "flex-1" : "w-full"
           } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-90"}`}

@@ -14,6 +14,7 @@ import { slugify } from "@/features/earn/lib/listing-form";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
+import { useRequireSession } from "@/hooks/use-require-session";
 
 const PAGE = "mx-auto w-full max-w-[620px] px-4 pt-6 pb-20 sm:px-6";
 
@@ -250,6 +251,7 @@ function CompanyStep({
 }
 
 function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () => void }) {
+  const requireSession = useRequireSession();
   const create = useCreateSponsor();
   const [state, setState] = useState<ProfileState>({
     firstName: "",
@@ -268,6 +270,7 @@ function ProfileStep({ company, onDone }: { company: CompanyState; onDone: () =>
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!requireSession("submit")) return;
     const next: Partial<Record<keyof ProfileState, string>> = {};
     if (!state.firstName.trim()) next.firstName = "Add your first name.";
     if (!state.lastName.trim()) next.lastName = "Add your last name.";

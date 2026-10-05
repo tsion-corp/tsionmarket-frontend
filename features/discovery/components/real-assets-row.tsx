@@ -12,7 +12,6 @@ import {
 } from "@/features/discovery/components/real-assets-cards";
 import type { RwaSpot } from "@/features/discovery/types";
 import { useRotatingIndex } from "@/hooks/use-rotating-index";
-import { interestToSection } from "@/lib/sections";
 
 export interface RealAssetsRowProps {
   spots: { gold: RwaSpot[]; treasuries: RwaSpot[]; realEstate: RwaSpot[]; stocks: RwaSpot[] };
@@ -23,19 +22,6 @@ export interface RealAssetsRowProps {
    * spot has no `chain`/`address` to trade.
    */
   onBuy?: (spot: RwaSpot) => void;
-}
-
-/**
- * Whether the shelf leads the discovery area for this reader.
- *
- * The shelf is for everyone: a reader from before onboarding asked for an
- * interest has none saved and must still find real assets. The saved interest
- * only decides where it sits: first for the reader who said at onboarding
- * that stocks, gold, yield, real estate or treasuries are what they came for,
- * last for everyone else.
- */
-export function realAssetsLead(interest: string | null): boolean {
-  return interestToSection(interest) === "rwa";
 }
 
 // "Own the Real World": tokenised gold, treasuries, property and stocks, one

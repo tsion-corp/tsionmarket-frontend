@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { motion, useReducedMotion } from "motion/react";
 import { useNow, useTranslations } from "next-intl";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useRequireSession } from "@/hooks/use-require-session";
 import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { Pager } from "@/components/ui/pager";
 import { QrCode } from "@/components/ui/qr-code";
@@ -420,7 +421,8 @@ type PanelTab = "activity" | "rules";
 
 export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionProps) {
   const t = useTranslations("casino.lastStanding");
-  const { evmAddress: address } = useAuthSession();
+  const { evmAddress: address, authenticated } = useAuthSession();
+  const requireSession = useRequireSession();
   // One identity across the ecosystem: the picture this player set on Market
   // Square is their picture here too. Only ever theirs — the backend has no
   // address-to-avatar mapping yet, so every other player keeps the face drawn
@@ -1306,6 +1308,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   };
 
   const onPlay = async () => {
+    if (!requireSession("play")) return;
     if (!canPlay) {
       // The CTA already reads "Add money to play", so pressing it opens the
       // deposit flow. Only without one is there nothing to do but say so.
@@ -1744,7 +1747,8 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                     label: ctaLabel,
                     icon: actionIsStart ? "play" : null,
                     onPress: () => void onPlay(),
-                    disabled: !status || !address,
+                    // Signed out it stays pressable: the press asks for a sign-in.
+                    disabled: !status || (authenticated && !address),
                     busy: wagering,
                   }}
                   ctaRef={playBtnRef}

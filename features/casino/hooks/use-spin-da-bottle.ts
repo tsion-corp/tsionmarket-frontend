@@ -1,7 +1,6 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { ARKADE_CAMPAIGN_QUERY_KEY } from "@/features/casino/lib/api/arkjet";
 import {
   fetchSpinBalance,
@@ -13,6 +12,7 @@ import {
 } from "@/features/casino/lib/api/spin";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { pollUnlessFailing } from "@/lib/query-poll";
+import { useSignInPrompt } from "@/hooks/use-require-session";
 
 const KEYS = {
   rules: ["casino", "spin-da-bottle", "rules"] as const,
@@ -21,7 +21,7 @@ const KEYS = {
 
 export function useSpinDaBottle() {
   const { ready, authenticated, evmAddress, profile } = useAuthSession();
-  const router = useRouter();
+  const login = useSignInPrompt("play");
   const queryClient = useQueryClient();
   const hasSession = ready && authenticated && Boolean(evmAddress);
 
@@ -61,7 +61,7 @@ export function useSpinDaBottle() {
     authenticated,
     authReady: ready,
     profile,
-    login: () => router.push("/auth"),
+    login,
     play: spin.mutateAsync,
     pending: spin.isPending,
     loading: rules.isLoading || (hasSession && balance.isLoading),

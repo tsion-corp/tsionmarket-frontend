@@ -8,6 +8,7 @@ import {
   useNotifications,
 } from "@/features/earn/hooks/use-earn-notifications";
 import type { EarnNotification } from "@/features/earn/lib/api/types";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 // How long ago, in the roughest terms that are still useful. A notification is
 // read at a glance, so "3d" beats a date.
@@ -24,9 +25,12 @@ function ago(iso: string | null): string {
 }
 
 export function NotificationBell() {
+  const signedIn = useEarnSignedIn();
   const { items, unread } = useNotifications();
   const markRead = useMarkNotificationsRead();
   const [open, setOpen] = useState(false);
+
+  if (!signedIn) return null;
 
   return (
     <>

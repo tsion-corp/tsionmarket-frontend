@@ -27,10 +27,8 @@ function Shell({ children }: { children: React.ReactNode }) {
  * mounted per page it could not. Under a layout it survives navigation, and
  * only the route's own content changes.
  *
- * `session` is what the layout verified from the cookie on the server. With
- * it the guard lets the page show before Privy's browser SDK is ready, and
- * hooks that need a wallet address have one to build their query keys from
- * in the meantime. Without it the guard waits for Privy as it always did.
+ * `session` is what the layout verified from the cookie on the server, so
+ * hooks that need a wallet address have one before the browser SDK is ready.
  */
 export function AppShell({
   session,
@@ -41,7 +39,7 @@ export function AppShell({
 }) {
   return (
     <ServerSessionProvider session={session}>
-      <AuthGuard serverVerified={session !== null}>
+      <AuthGuard>
         <AppChromeProvider>
           <Shell>{children}</Shell>
         </AppChromeProvider>

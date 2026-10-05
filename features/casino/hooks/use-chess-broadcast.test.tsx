@@ -28,6 +28,8 @@ const displayStream = vi.hoisted(() => ({
 }));
 const getDisplayMedia = vi.hoisted(() => vi.fn(async () => displayStream));
 
+const authSession = vi.hoisted(() => ({ ready: true, authenticated: true }));
+vi.mock("@/hooks/use-auth-session", () => ({ useAuthSession: () => authSession }));
 vi.mock("livekit-client", () => {
   class LocalVideoTrack {
     mediaStreamTrack: unknown;

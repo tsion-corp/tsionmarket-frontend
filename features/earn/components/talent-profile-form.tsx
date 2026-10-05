@@ -13,6 +13,7 @@ import {
 } from "@/features/earn/lib/api/types";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { useRequireSession } from "@/hooks/use-require-session";
 
 // Lowercase letters, numbers, underscores and hyphens. The same rule the
 // service applies, checked here so a bad handle is caught under the field
@@ -76,6 +77,7 @@ function validate(state: FormState): FormErrors {
 // between a signed-in user and being able to enter a listing at all: the
 // service refuses a submission until this is filled in.
 export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfileFormProps) {
+  const requireSession = useRequireSession();
   const [state, setState] = useState<FormState>(() => initialState(existing));
   const [errors, setErrors] = useState<FormErrors>({});
   const formRef = useRef<HTMLFormElement>(null);
@@ -93,6 +95,7 @@ export function TalentProfileForm({ existing, onDone, submitLabel }: TalentProfi
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!requireSession("submit")) return;
     const found = validate(state);
     setErrors(found);
     if (Object.keys(found).length) return;

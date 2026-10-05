@@ -4,11 +4,10 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { buildNav, type NavItem } from "@/components/layout/nav-items";
-import { useInterest } from "@/hooks/use-interest";
 import { sectionForPathname, type SectionId } from "@/lib/sections";
 
 interface AppChrome {
-  /** The rail's entries, in the order the user's onboarding interest set. */
+  /** The rail's entries, in their fixed order. */
   nav: NavItem[];
   /** The entry the rail highlights. */
   activeSection: SectionId;
@@ -31,8 +30,7 @@ const AppChromeContext = createContext<AppChrome | null>(null);
  */
 export function AppChromeProvider({ children }: { children: React.ReactNode }) {
   const tSections = useTranslations("sections");
-  const interest = useInterest();
-  const nav = useMemo(() => buildNav(interest, tSections), [interest, tSections]);
+  const nav = useMemo(() => buildNav(tSections), [tSections]);
   const pathname = usePathname();
   const [override, setOverride] = useState<SectionId | null>(null);
   const activeSection = override ?? sectionForPathname(pathname);

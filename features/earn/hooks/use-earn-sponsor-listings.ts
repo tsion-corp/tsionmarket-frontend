@@ -19,6 +19,7 @@ import {
 import { LISTING_KEYS } from "@/features/earn/hooks/use-earn-listings";
 import type { ListingType, WinnerSelection } from "@/features/earn/lib/api/types";
 import type { ListingPayload } from "@/features/earn/lib/listing-form";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 export const SPONSOR_LISTING_KEYS = {
   createAllowed: ["earn", "sponsor-dashboard", "create-allowed"] as const,
@@ -31,9 +32,11 @@ export const SPONSOR_LISTING_KEYS = {
 // Whether this sponsor may open another listing. The service decides, based on
 // how many they already have running.
 export function useIsCreateAllowed() {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SPONSOR_LISTING_KEYS.createAllowed,
     queryFn: fetchIsCreateAllowed,
+    enabled: signedIn,
   });
 
   return {
@@ -48,9 +51,11 @@ export function useIsCreateAllowed() {
 // Everything this sponsor owns, published and draft alike. The drafts screen
 // splits them; nothing here filters, so one fetch serves both views.
 export function useSponsorListings() {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SPONSOR_LISTING_KEYS.all,
     queryFn: fetchSponsorListings,
+    enabled: signedIn,
   });
 
   return {
@@ -61,10 +66,11 @@ export function useSponsorListings() {
 }
 
 export function useSponsorListing(slug: string | null, type: ListingType) {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SPONSOR_LISTING_KEYS.listing(slug ?? "none", type),
     queryFn: () => fetchSponsorListing(slug as string, type),
-    enabled: !!slug,
+    enabled: signedIn && !!slug,
   });
 
   return {
@@ -75,10 +81,11 @@ export function useSponsorListing(slug: string | null, type: ListingType) {
 }
 
 export function useSponsorSubmissions(slug: string | null) {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SPONSOR_LISTING_KEYS.submissions(slug ?? "none"),
     queryFn: () => fetchSponsorSubmissions(slug as string),
-    enabled: !!slug,
+    enabled: signedIn && !!slug,
   });
 
   return {
@@ -150,10 +157,11 @@ export function useFundListing() {
 // What escrow still holds. Polled while a listing owes its winners, since the
 // release may land after the page is already open.
 export function useEscrowStatus(listingId: string | null) {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: ["earn", "escrow-status", listingId],
     queryFn: () => fetchEscrowStatus(listingId as string),
-    enabled: !!listingId,
+    enabled: signedIn && !!listingId,
   });
 
   return { status: query.data ?? null, isLoading: query.isLoading };

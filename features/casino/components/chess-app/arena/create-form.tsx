@@ -14,6 +14,7 @@ import type {
 } from "@/features/casino/lib/api/arena";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { useSignInPrompt } from "@/hooks/use-require-session";
 
 const THEME_CSS = "/css/lib.theme.all.ca09c987.css";
 const SITE_CSS = "/css/site.5a4b7c75.css";
@@ -177,7 +178,7 @@ function CheckGroup({
 export function ArenaCreateForm() {
   const router = useRouter();
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("play");
   const wallet = useCasinoWallet();
   const create = useCreateArena();
   const [assetError, setAssetError] = useState<Error | null>(null);

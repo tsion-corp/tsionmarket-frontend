@@ -10,6 +10,8 @@ import { isValidTradeAmount, type MemeToken, type SwapPreview } from "@/lib/meme
 import { platformFeeText } from "@/lib/meme/format";
 import { exceedsHeld } from "@/lib/meme/sell-amount";
 import { fromBaseUnits } from "@/lib/trade/math";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 
 // The sell side of the desktop memecoin trade panel: the quantity field sized
 // off the wallet's holding, the quote's numbers, and the Sell action.
@@ -93,6 +95,8 @@ export function MemeSellPanel({
   phase = "idle",
   error = null,
 }: MemeSellPanelProps) {
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
   const t = useTranslations("meme");
   const tErr = useTranslations("tradeErrors");
   const [submitting, setSubmitting] = useState(false);
@@ -129,6 +133,7 @@ export function MemeSellPanel({
   }
 
   async function submit() {
+    if (!requireSession("sell")) return;
     if (disabled) return;
     setSubmitError(null);
     setSubmitting(true);
@@ -293,7 +298,7 @@ export function MemeSellPanel({
       <button
         type="button"
         onClick={() => void submit()}
-        disabled={disabled}
+        disabled={!signedOut && disabled}
         className={`bg-sell h-12 w-full rounded-3xl font-sans text-base font-semibold text-white ${
           disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-90"
         }`}

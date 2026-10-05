@@ -14,6 +14,15 @@ import type { TokenBalance } from "@/lib/server/alchemy";
 // reports, so the hook is a value rather than a flow.
 let ticket: UseRwaTicketResult;
 
+const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (session.signedIn) return true;
+    session.asked.push(action);
+    return false;
+  },
+}));
 vi.mock("@/features/rwa/hooks/use-rwa-ticket", () => ({
   useRwaTicket: () => ticket,
 }));
@@ -204,6 +213,21 @@ describe("RwaTicket actions", () => {
     expect(ticket.confirm).toHaveBeenCalled();
   });
 
+  it("asks a signed-out visitor to sign in instead of confirming", () => {
+    session.signedIn = false;
+    session.asked = [];
+    try {
+      ticket = stub({ amount: "10", phase: "quoted", quote: QUOTE });
+      renderTicket();
+
+      fireEvent.click(screen.getByRole("button", { name: "Buy" }));
+      expect(session.asked).toEqual(["buy"]);
+      expect(ticket.confirm).not.toHaveBeenCalled();
+    } finally {
+      session.signedIn = true;
+    }
+  });
+
   it("holds the action shut under the purchase minimum and says so", () => {
     ticket = stub({ amount: "0.5", belowMin: true, minBuyUsd: 1 });
     renderTicket();
@@ -314,6 +338,21 @@ describe("RwaTicket empty wallet", () => {
 
     expect(screen.getByText("Add money to start buying")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Add funds" })).toBeNull();
+  });
+});
+
+describe("RwaTicket Solana funding short", () => {
+  it("offers Add funds when Base USDC cannot cover the Solana hop", () => {
+    const onAddFunds = vi.fn();
+    ticket = stub({
+      needsBaseToSolanaFunding: true,
+      canFundSolana: false,
+      solanaFundingAmount: 12,
+    });
+    renderTicket({ onAddFunds });
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Add funds" })[0]);
+    expect(onAddFunds).toHaveBeenCalled();
   });
 });
 

@@ -8,6 +8,8 @@ import { usePredictionConsent } from "@/features/prediction/hooks/use-prediction
 import { priceToCents, toNumber } from "@/features/prediction/lib/format";
 import { toBaseUnits } from "@/lib/trade/math";
 import { USDC_DECIMALS, type Market, type Side } from "@/features/prediction/lib/types";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 
 interface ExecutionPanelProps {
   market: Market;
@@ -23,6 +25,8 @@ const TOLERANCES = [10, 50, 100];
 // streamed reserves; the transaction recomputes its guard from a fresh on-chain
 // read.
 export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelProps) {
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
   const t = useTranslations("prediction");
   const { accepted, accept } = usePredictionConsent();
   const actions = usePredictionActions();
@@ -45,6 +49,7 @@ export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelPr
   const canSubmit = amountUnits > 0n && preview.valid && !actions.busy && !closed;
 
   const submit = async () => {
+    if (!requireSession("bet")) return;
     if (!canSubmit) return;
     const ok = await actions.buyShares({
       marketId: market.marketId,
@@ -146,7 +151,7 @@ export function ExecutionPanel({ market, initialSide = "yes" }: ExecutionPanelPr
 
       <button
         onClick={submit}
-        disabled={!canSubmit}
+        disabled={!signedOut && !canSubmit}
         className="text-ink mt-1 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
       >
         {actions.busy

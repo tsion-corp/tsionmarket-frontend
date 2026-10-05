@@ -70,7 +70,9 @@ export function useKashAccount() {
   // apart from a load that is still in flight.
   const walletMissing = ready && authenticated && !wallet;
 
-  return { ...query, wallet, walletMissing };
+  const signedOut = ready && !authenticated;
+
+  return { ...query, wallet, walletMissing, signedOut };
 }
 
 // The tier catalogue is engine config; it moves on deploys, not minutes.

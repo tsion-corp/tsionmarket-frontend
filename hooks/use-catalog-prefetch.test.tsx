@@ -9,6 +9,9 @@ const deposit = vi.hoisted(() => ({
   fetchDepositTokens: vi.fn(),
 }));
 
+const session = vi.hoisted(() => ({ ready: true, authenticated: true }));
+vi.mock("@/hooks/use-auth-session", () => ({ useAuthSession: () => session }));
+
 vi.mock("@/hooks/use-deposit", () => ({
   DEPOSIT_CHAINS_KEY: ["deposit-chains"],
   MASTER_ELIGIBILITY_KEY: ["deposit-master-eligibility"],
@@ -36,6 +39,18 @@ describe("usePrefetchDepositCatalog", () => {
     deposit.fetchDepositChains.mockReset();
     deposit.fetchMasterEligibility.mockReset();
     deposit.fetchDepositTokens.mockReset();
+    session.authenticated = true;
+  });
+
+  it("reads nothing without a session", async () => {
+    session.authenticated = false;
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    renderHook(() => usePrefetchDepositCatalog(), { wrapper });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(deposit.fetchDepositChains).not.toHaveBeenCalled();
   });
 
   it("warms every settlement chain's tokens at once, not one after another", async () => {

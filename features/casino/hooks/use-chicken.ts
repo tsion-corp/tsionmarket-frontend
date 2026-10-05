@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -31,6 +30,7 @@ import {
 } from "@/features/casino/lib/chicken/live-socket";
 import { chickenShineEvent } from "@/features/casino/lib/shine/arcade";
 import { reportShine } from "@/lib/shine";
+import { useSignInPrompt } from "@/hooks/use-require-session";
 
 const KEYS = {
   rules: ["casino", "chicken", "rules"] as const,
@@ -69,8 +69,7 @@ async function socketFirst<T>(socketAction: () => Promise<T>, httpAction: () => 
 
 export function useChicken() {
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("play");
   const queryClient = useQueryClient();
   const [terminalResult, setTerminalResult] = useState<ChickenSession | null>(null);
   const hasSession = ready && authenticated && Boolean(evmAddress);

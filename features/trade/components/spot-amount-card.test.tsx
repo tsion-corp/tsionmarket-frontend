@@ -413,3 +413,12 @@ describe("SpotTradeActions", () => {
     expect(screen.getByText("You don't own any BTC to sell yet.")).toBeInTheDocument();
   });
 });
+const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (session.signedIn) return true;
+    session.asked.push(action);
+    return false;
+  },
+}));

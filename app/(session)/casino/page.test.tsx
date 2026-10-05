@@ -7,6 +7,10 @@ import enMessages from "@/messages/en.json";
 const push = vi.fn();
 // The campaign banner reads the session and the campaign query; this test is
 // about which catalogue the route mounts, so it is a marker.
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => () => true,
+  useSignInPrompt: () => () => {},
+}));
 vi.mock("@/features/casino/components/campaign/arkade-campaign-banner", () => ({
   ArkadeCampaignBanner: () => null,
 }));

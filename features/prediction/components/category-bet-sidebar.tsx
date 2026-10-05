@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useState } from "react";
@@ -32,6 +31,10 @@ import {
   PredictionBetPanel,
   PredictionBetSidebarFrame,
 } from "./prediction-bet-sidebar";
+import { openSignIn } from "@/hooks/use-sign-in";
+import { useSignInPrompt } from "@/hooks/use-require-session";
+import { isShortBalanceError } from "@/lib/errors";
+import { useAddFundsAction } from "@/hooks/use-funds-modal";
 
 const BASE_USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const MIN_STAKE_E6 = 100_000n;
@@ -136,8 +139,7 @@ async function confirmWithRetry(pending: PendingConfirmation) {
 
 function MyHouseBets({ enabled }: { enabled: boolean }) {
   const { authenticated } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = openSignIn;
   const [selectedTicket, setSelectedTicket] = useState<HouseTicket | null>(null);
   const query = useQuery({
     queryKey: ["house-prediction-tickets"],
@@ -254,8 +256,8 @@ function AccumulatorSlip({
   onBusyChange: (busy: boolean) => void;
 }) {
   const { authenticated } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("bet");
+  const fundsAction = useAddFundsAction();
   const { sendToken } = useSendToken();
   const queryClient = useQueryClient();
   const [stake, setStake] = useState("0.10");
@@ -313,7 +315,10 @@ function AccumulatorSlip({
       toast.success(`Ticket ${ticket.bookingCode} accepted`);
       onAccepted();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "The accumulator could not be placed.");
+      toast.error(
+        error instanceof Error ? error.message : "The accumulator could not be placed.",
+        isShortBalanceError(error) ? { action: fundsAction } : undefined
+      );
     } finally {
       setBusy(false);
       onBusyChange(false);

@@ -32,8 +32,7 @@ export const SECTION_LABEL: Record<SectionId, string> = {
   square: "Square",
 };
 
-// Portfolio is always the account home. The rest follow, led by whatever the
-// user picked during onboarding.
+// Portfolio is always the account home. The rest follow in a fixed order.
 const PINNED: SectionId = "portfolio";
 const REORDERABLE: SectionId[] = [
   "spot",
@@ -111,32 +110,6 @@ export function sectionForPathname(pathname: string | null): SectionId {
   return "portfolio";
 }
 
-// Maps an onboarding interest to the section it should surface first.
-const INTEREST_TO_SECTION: Record<string, SectionId> = {
-  stocks: "rwa",
-  gold: "rwa",
-  crypto: "spot",
-  perps: "perps",
-  meme: "meme",
-  prediction: "prediction",
-  casino: "casino",
-  // Earn is hidden from the nav for now; the interest falls back to the default order.
-  // earn: "earn",
-  yield: "rwa",
-  realestate: "rwa",
-  treasuries: "rwa",
-};
-
-export function interestToSection(interest: string | null): SectionId | null {
-  if (!interest) return null;
-  return INTEREST_TO_SECTION[interest] ?? null;
-}
-
-// The section order for a given preference: portfolio, then the preferred
-// section, then the remaining sections in their default order.
-export function orderedSections(interest: string | null): SectionId[] {
-  const preferred = interestToSection(interest);
-  if (!preferred) return [PINNED, ...REORDERABLE];
-  const rest = REORDERABLE.filter((s) => s !== preferred);
-  return [PINNED, preferred, ...rest];
+export function orderedSections(): SectionId[] {
+  return [PINNED, ...REORDERABLE];
 }

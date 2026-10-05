@@ -30,6 +30,7 @@ import {
 import { usdcTransferData } from "@/features/portfolio/lib/kash-transfer";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { friendlyError } from "@/lib/errors";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 
 // $1 is the floor the engine accepts, and the cheapest way to clear the
 // holding gate — worth being one tap away.
@@ -45,6 +46,8 @@ interface KashBuyModalProps {
 // the amount buys, at what price, and whether it clears the holding gate,
 // before anything moves.
 export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
+  const addFunds = useAddFunds();
+  const tBalance = useTranslations("balance");
   const t = useTranslations("kash");
   const [amount, setAmount] = useState("10");
   const [done, setDone] = useState<{ kash: string; usdc: string; txHash?: string } | null>(null);
@@ -345,9 +348,21 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
             {/* Only when the amount itself is fine — showing both this and the
                 bounds hint at once would give two reasons for one problem. */}
             {valid && !affordable && balanceMicro !== null && (
-              <p className="text-[12.5px] font-normal text-amber-200/80">
-                {t("insufficientUsd", { balance: formatUsdMicro(balanceMicro) })}
-              </p>
+              <div>
+                <p className="text-[12.5px] font-normal text-amber-200/80">
+                  {t("insufficientUsd", { balance: formatUsdMicro(balanceMicro) })}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    addFunds();
+                  }}
+                  className="mt-1 cursor-pointer text-[12.5px] font-semibold text-white underline underline-offset-2"
+                >
+                  {tBalance("addFunds")}
+                </button>
+              </div>
             )}
 
             <button

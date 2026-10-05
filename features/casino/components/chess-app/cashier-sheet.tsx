@@ -16,6 +16,7 @@ import {
 } from "@/features/casino/lib/api/cashier";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 
 const DECIMAL = /^\d*\.?\d*$/;
 
@@ -34,6 +35,8 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
   // Borrowed for the one message this namespace lacks: a deposit larger than
   // the wallet's Base USDC holding.
   const tFund = useTranslations("casino.fund");
+  const tBalance = useTranslations("balance");
+  const addFunds = useAddFunds();
   const cashier = useChessCashier();
   const { tokens, refetch: refetchPortfolio } = usePortfolio({ scope: "base" });
 
@@ -206,7 +209,19 @@ export function CashierSheet({ onClose, initialMode = "deposit", productName }: 
           className="ws-display tnum w-full min-w-0 bg-transparent text-[28px] text-white outline-none placeholder:text-white/30"
         />
         {overWallet ? (
-          <div className="text-down mt-1.5 text-[12px] font-normal">{tFund("overBalance")}</div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px]">
+            <span className="text-down font-normal">{tFund("overBalance")}</span>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                addFunds();
+              }}
+              className="cursor-pointer font-semibold text-white underline underline-offset-2"
+            >
+              {tBalance("addFunds")}
+            </button>
+          </div>
         ) : null}
         {overAvailable ? (
           <div className="text-down mt-1.5 text-[12px] font-normal">{notEnough}</div>

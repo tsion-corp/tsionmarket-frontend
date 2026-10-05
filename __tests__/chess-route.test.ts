@@ -221,6 +221,49 @@ describe("chess proxy route", () => {
     expect(global.fetch).not.toHaveBeenCalled();
   });
 
+  it("shows tournament pages to a visitor without a session", async () => {
+    auth.verifyRequest.mockResolvedValue(null);
+    const { GET } = await loadRoute();
+    const res = await GET(makeReq("https://app.test/api/chess/competition/arenas"), {
+      params: Promise.resolve({ path: ["competition", "arenas"] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, init] = (
+      global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }
+    ).mock.calls.find(([url]) => String(url).includes("competition"))!;
+    expect((init.headers as Record<string, string>)["x-wallet-address"]).toBeUndefined();
+  });
+
+  it("still forwards the wallet on tournament pages when signed in", async () => {
+    auth.verifyRequest.mockResolvedValue({ provider: "decane", userId: "user_1" });
+    auth.getRequestIdentity.mockResolvedValue({
+      userId: "user_1",
+      evmAddress: "0xabc",
+      solanaAddress: null,
+    });
+    const { GET } = await loadRoute();
+    const res = await GET(makeReq("https://app.test/api/chess/competition/arenas"), {
+      params: Promise.resolve({ path: ["competition", "arenas"] }),
+    });
+
+    expect(res.status).toBe(200);
+    const [, init] = (
+      global.fetch as unknown as { mock: { calls: [string, RequestInit][] } }
+    ).mock.calls.find(([url]) => String(url).includes("competition"))!;
+    expect((init.headers as Record<string, string>)["x-wallet-address"]).toBe("0xabc");
+  });
+
+  it("keeps the play lobby behind a session, as the backend does", async () => {
+    auth.verifyRequest.mockResolvedValue(null);
+    const { GET } = await loadRoute();
+    const res = await GET(makeReq("https://app.test/api/chess/play"), {
+      params: Promise.resolve({ path: ["play"] }),
+    });
+
+    expect(res.status).toBe(401);
+  });
+
   it("authenticates server-rendered challenge pages and preserves their route prefix", async () => {
     auth.verifyRequest.mockResolvedValue({ provider: "privy", userId: "user_1" });
     auth.getRequestUser.mockResolvedValue(walletUser("0xabc"));

@@ -30,6 +30,7 @@ import {
   sideToUint,
 } from "@/features/prediction/lib/logic";
 import { USDC_DECIMALS, type Outcome, type Side } from "@/features/prediction/lib/types";
+import { useAddFundsAction } from "@/hooks/use-funds-modal";
 
 // Thrown when a spend would exceed the wallet's on-chain USDC balance. Carries
 // the human-readable required/available amounts for a specific error message.
@@ -102,6 +103,7 @@ export interface CreateMarketInput {
 
 export function usePredictionActions() {
   const t = useTranslations("prediction");
+  const fundsAction = useAddFundsAction();
   const { evmAddress: wallet } = useAuthSession();
   const sendBatch = useEvmSendBatch();
   const send = useEvmSend();
@@ -199,6 +201,7 @@ export function usePredictionActions() {
           toast.error(t("insufficientUsdc", { required: error.required, balance: error.balance }), {
             id: toastId,
             sensitive: true,
+            action: fundsAction,
           });
           return false;
         }
@@ -211,7 +214,7 @@ export function usePredictionActions() {
         setPhase("idle");
       }
     },
-    [wallet, ensureUsdcBalance, approveIfNeeded, runBatch, t]
+    [wallet, ensureUsdcBalance, approveIfNeeded, runBatch, t, fundsAction]
   );
 
   const sellShares = useCallback(
@@ -290,6 +293,7 @@ export function usePredictionActions() {
           toast.error(t("insufficientUsdc", { required: error.required, balance: error.balance }), {
             id: toastId,
             sensitive: true,
+            action: fundsAction,
           });
           return false;
         }
@@ -299,7 +303,7 @@ export function usePredictionActions() {
         setPhase("idle");
       }
     },
-    [wallet, ensureUsdcBalance, approveIfNeeded, runBatch, t]
+    [wallet, ensureUsdcBalance, approveIfNeeded, runBatch, t, fundsAction]
   );
 
   const removeLiquidity = useCallback(
@@ -365,6 +369,7 @@ export function usePredictionActions() {
           toast.error(t("insufficientUsdc", { required: error.required, balance: error.balance }), {
             id: toastId,
             sensitive: true,
+            action: fundsAction,
           });
           return false;
         }
@@ -377,7 +382,7 @@ export function usePredictionActions() {
         setPhase("idle");
       }
     },
-    [wallet, ensureUsdcBalance, approveIfNeeded, runBatch, t]
+    [wallet, ensureUsdcBalance, approveIfNeeded, runBatch, t, fundsAction]
   );
 
   // One-call actions that spend nothing: run through the single send path.

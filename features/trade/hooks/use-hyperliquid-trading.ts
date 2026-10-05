@@ -23,7 +23,7 @@ export function useHyperliquidTrading() {
   const queryClient = useQueryClient();
   const { walletId, address, loading: walletLoading, error: walletError } = useHyperliquidWallet();
   const { assets, loading: assetsLoading } = useHyperliquidAssets();
-  const { prices } = useHyperliquidPrices(authenticated);
+  const { prices } = useHyperliquidPrices();
   const {
     state: clearinghouse,
     loading: clearinghouseLoading,

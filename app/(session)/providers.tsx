@@ -14,6 +14,8 @@ import { SessionCacheGuard } from "@/components/providers/session-cache-guard";
 import { DecaneTokenBridge } from "@/components/providers/decane-token-bridge";
 import { DecaneRecoveryHost } from "@/components/providers/decane-recovery-host";
 import { AddressBarReferral } from "@/components/layout/address-bar-referral";
+import { SignInModalHost } from "@/components/auth/sign-in-modal-host";
+import { FundsModalHost } from "@/components/layout/funds-modal-host";
 import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
 import { AnalyticsSegments } from "@/components/providers/analytics-segments";
 // Deep imports, not the barrels, for the reason given for the casino import
@@ -226,6 +228,10 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
             {/* Keeps the signed-in user's referral code on the address so a
                 link copied from the bar credits them. Renders nothing. */}
             <AddressBarReferral />
+            {/* The sign-in over any page, opened by the Sign in button and by
+                every action that needs a session. */}
+            <SignInModalHost />
+            <FundsModalHost />
           </BroadcastSessionProvider>
         </BalanceVisibilityProvider>
       </NetworkStatusProvider>

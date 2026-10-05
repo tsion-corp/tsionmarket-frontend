@@ -18,7 +18,7 @@ export function useRwaPriceHistory(chain: string | null, address: string | null)
     staleTime: FIVE_MINUTES,
     queryFn: async () => {
       const params = new URLSearchParams({ chain: chain!, address: address! });
-      const res = await apiFetch(`/api/rwa-chart?${params.toString()}`, {}, { requireAuth: true });
+      const res = await apiFetch(`/api/rwa-chart?${params.toString()}`);
       if (!res.ok) throw new Error("Price history request failed");
       return res.json();
     },

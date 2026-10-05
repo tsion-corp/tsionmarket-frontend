@@ -59,6 +59,23 @@ function renderCard() {
 // rather than to an address somebody pasted — which is how people were sending
 // KASH+ to the Dextopus deposit address and losing it. The switch stays, so
 // both states are covered here, including the row's own width.
+
+describe("KashCardMobile signed out", () => {
+  it("asks the visitor to sign in", () => {
+    kashHooks.useKashAccount.mockReturnValue({
+      data: undefined,
+      isError: false,
+      walletMissing: false,
+      signedOut: true,
+    });
+    renderCard();
+    expect(
+      screen.getByRole("button", { name: messages.auth.signInToSeeBalance })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(messages.kash.balanceNoWallet)).not.toBeInTheDocument();
+  });
+});
+
 describe("KashCardMobile actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();

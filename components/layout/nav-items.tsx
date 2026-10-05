@@ -55,15 +55,11 @@ export interface NavItem {
 //
 // HIDDEN_NAV_SECTIONS drops the sections that are hidden for now, Real assets
 // today. The filter sits here rather than in orderedSections so the section
-// order itself is untouched: a hidden section keeps its route, its place in
-// the interest map, and the rail highlight it would get from its path, and
+// order itself is untouched: a hidden section keeps its route and the rail highlight it would get from its path, and
 // only loses its way in. Every nav surface reads this one list, so they hide
 // and return together.
-export function buildNav(
-  interest: string | null,
-  translate?: (id: SectionId) => string
-): NavItem[] {
-  return orderedSections(interest)
+export function buildNav(translate?: (id: SectionId) => string): NavItem[] {
+  return orderedSections()
     .filter((id) => !HIDDEN_NAV_SECTIONS.includes(id))
     .map((id) => ({
       id,

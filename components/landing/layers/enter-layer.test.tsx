@@ -31,6 +31,6 @@ describe("EnterLayer", () => {
 
   it("keeps the app button beside the way in", () => {
     renderEnter();
-    expect(linkFor("Get started")).toHaveAttribute("href", "/auth");
+    expect(linkFor("Get started")).toHaveAttribute("href", "/portfolio");
   });
 });

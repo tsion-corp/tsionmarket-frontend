@@ -8,6 +8,10 @@ import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { openSignIn } from "@/hooks/use-sign-in";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 import { fetchDepositStatus } from "@/hooks/use-deposit";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { usePrices } from "@/hooks/use-prices";
@@ -165,6 +169,11 @@ export function ArkIdView() {
   const t = useTranslations("bns");
   const format = useFormatter();
   const { evmAddress } = useAuthSession();
+  const tAuth = useTranslations("auth");
+  const tBalance = useTranslations("balance");
+  const addFunds = useAddFunds();
+  const requireSession = useRequireSession();
+  const signedOut = useSignedIn() === "no";
   const queryClient = useQueryClient();
   const sendEvm = useEvmSend();
   const { sendUsdc } = useSendUsdc();
@@ -398,6 +407,7 @@ export function ArkIdView() {
   };
 
   const reserveName = async () => {
+    if (!requireSession("buy")) return;
     if (!evmAddress || !label || !lookupReady || !nameAvailability.data?.available) return;
     setWorking(true);
     setError(null);
@@ -865,12 +875,21 @@ export function ArkIdView() {
                   ) : null}
 
                   {insufficientUsdc && !currentFunding && !working ? (
-                    <p className="text-down bg-down/10 rounded-[14px] px-3 py-2 text-[12px] leading-5">
-                      {t("insufficientUsdc", {
-                        price: searchUsdcPrice ?? "",
-                        balance: usdcBalanceLabel,
-                      })}
-                    </p>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-down bg-down/10 rounded-[14px] px-3 py-2 text-[12px] leading-5">
+                        {t("insufficientUsdc", {
+                          price: searchUsdcPrice ?? "",
+                          balance: usdcBalanceLabel,
+                        })}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={addFunds}
+                        className="w-full cursor-pointer rounded-[14px] border border-white/15 bg-white/6 px-4 py-3 text-[13px] font-semibold text-white hover:bg-white/10"
+                      >
+                        {tBalance("addFunds")}
+                      </button>
+                    </div>
                   ) : null}
 
                   {ownsSearchedName && !currentRegistration ? (
@@ -890,7 +909,7 @@ export function ArkIdView() {
                       disabled={
                         !available ||
                         !searchUsdcPrice ||
-                        !evmAddress ||
+                        (!evmAddress && !signedOut) ||
                         working ||
                         insufficientUsdc ||
                         Boolean(currentFunding)
@@ -934,6 +953,14 @@ export function ArkIdView() {
                       {t("payingFrom", { wallet: shortenAddress(evmAddress) })} ·{" "}
                       {t("annualRenewal")}
                     </p>
+                  ) : signedOut ? (
+                    <button
+                      type="button"
+                      onClick={openSignIn}
+                      className="mx-auto block cursor-pointer text-center text-[11px] text-white/70 underline-offset-2 hover:underline"
+                    >
+                      {tAuth("gate.buy")}
+                    </button>
                   ) : (
                     <p className="text-center text-[11px] text-white/50">{t("walletNeeded")}</p>
                   )}

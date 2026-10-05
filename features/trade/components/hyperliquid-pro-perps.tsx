@@ -99,7 +99,7 @@ interface HyperliquidProPerpsProps {
 export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsProps) {
   const t = useTranslations("perps");
   const trading = useHyperliquidTrading();
-  const { contexts } = useHyperliquidMarketContexts(trading.authenticated);
+  const { contexts } = useHyperliquidMarketContexts();
   const [selectedSymbol, setSelectedSymbol] = useState(initialSymbol);
   const [busy, setBusy] = useState(false);
   // The chart's open/closed state. ChartPanelShell and its toggle are both
@@ -685,7 +685,7 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
   const changeDirection: "up" | "down" | null =
     changePct == null ? null : changePct >= 0 ? "up" : "down";
 
-  const marketsPending = signedOut || (trading.assetsLoading && trading.assets.length === 0);
+  const marketsPending = trading.assetsLoading && trading.assets.length === 0;
 
   const buyLiquidation = liquidationFor("long");
   const sellLiquidation = liquidationFor("short");
@@ -795,7 +795,7 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
         }
         marketListFallback={
           <div className="grid size-full place-items-center px-6 py-10 text-center text-sm font-normal text-white/55">
-            {signedOut ? t("signInToTrade") : t("loadingMarkets")}
+            {t("loadingMarkets")}
           </div>
         }
         // SLOT LEFT EMPTY: ticketHeader. The design puts a market-select

@@ -9,6 +9,7 @@ import {
   type LichessPowertip,
 } from "@/features/casino/components/chess-app/lichess-round";
 import { LEARN_EN } from "@/features/casino/components/chess-app/learn/learn-en";
+import { openSignIn } from "@/hooks/use-sign-in";
 
 type LearnModule = {
   initModule(options: {
@@ -65,8 +66,11 @@ function routeLearnLink(href: string, router: ReturnType<typeof useRouter>): boo
     "/training": "/casino/chess/puzzles",
     "/#hook": "/casino/chess",
     "/#ai": "/casino/chess?setup=computer",
-    "/signup": "/auth",
   };
+  if (href === "/signup") {
+    openSignIn();
+    return true;
+  }
   const destination = routes[href];
   if (!destination) return false;
   router.push(destination);

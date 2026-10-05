@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import enMessages from "@/messages/en.json";
-import { RealAssetsRow, realAssetsLead } from "@/features/discovery/components/real-assets-row";
+import { RealAssetsRow } from "@/features/discovery/components/real-assets-row";
 import type { RwaSpot } from "@/features/discovery/types";
 
 beforeAll(() => {
@@ -102,19 +102,5 @@ describe("Own the Real World", () => {
 
     expect(screen.getByRole("link", { name: /Buy PAXG/ })).toHaveAttribute("href", "/rwa");
     expect(screen.queryByRole("button", { name: /Buy PAXG/ })).toBeNull();
-  });
-});
-
-describe("realAssetsLead", () => {
-  it("leads for the interests that point at Real assets", () => {
-    for (const interest of ["stocks", "gold", "yield", "realestate", "treasuries"]) {
-      expect(realAssetsLead(interest)).toBe(true);
-    }
-  });
-
-  it("closes the area for every other interest, and for a reader with none saved", () => {
-    for (const interest of ["crypto", "meme", "prediction", "casino", null]) {
-      expect(realAssetsLead(interest)).toBe(false);
-    }
   });
 });

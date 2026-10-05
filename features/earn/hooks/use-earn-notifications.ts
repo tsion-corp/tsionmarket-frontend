@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchNotifications, markNotificationsRead } from "@/features/earn/lib/api/notifications";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 export const NOTIFICATION_KEYS = {
   feed: ["earn", "notifications"] as const,
@@ -13,12 +14,14 @@ export const NOTIFICATION_KEYS = {
 const POLL_MS = 60_000;
 
 export function useNotifications() {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: NOTIFICATION_KEYS.feed,
     queryFn: fetchNotifications,
     refetchInterval: POLL_MS,
     // A tab left open in the background does not need to keep polling; it
     // refetches when the reader comes back to it.
+    enabled: signedIn,
   });
 
   return {

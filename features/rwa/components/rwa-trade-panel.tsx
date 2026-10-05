@@ -84,6 +84,8 @@ export function RwaTradePanel({
     settlementProgress,
     settlementBusy,
   } = ticket;
+  // A deposit only fixes a buy; a sell over the holding needs a smaller amount.
+  const topUpOffered = overBalance && isBuy && !!onAddFunds;
 
   if (ticket.issuerAccess) {
     return <RwaIssuerCard asset={asset} />;
@@ -269,6 +271,14 @@ export function RwaTradePanel({
               <p className="mt-1 text-[11.5px] leading-[1.5] font-normal text-white/50">
                 {t("fundSolanaShortBody", { amount: formatUsd(solanaFundingAmount) })}
               </p>
+              {onAddFunds ? (
+                <button
+                  onClick={onAddFunds}
+                  className="text-ink mt-2.5 w-full cursor-pointer rounded-[12px] bg-white p-2.5 font-sans text-[13.5px] font-semibold hover:opacity-90"
+                >
+                  {t("addFunds")}
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -298,11 +308,11 @@ export function RwaTradePanel({
           ) : null}
 
           {!walletEmpty ? (
-            <div className={`mt-4 flex gap-3 ${overBalance && onAddFunds ? "" : "flex-col"}`}>
+            <div className={`mt-4 flex gap-3 ${topUpOffered ? "" : "flex-col"}`}>
               <button
                 onClick={() => void confirm()}
                 disabled={!canConfirm}
-                className={`text-ink cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${overBalance && onAddFunds ? "flex-1" : "w-full"}`}
+                className={`text-ink cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 ${topUpOffered ? "flex-1" : "w-full"}`}
               >
                 {busy
                   ? settlementBusy
@@ -326,7 +336,7 @@ export function RwaTradePanel({
                               : t("sellSymbol", { symbol: asset.symbol })
                             : t("enterAmount")}
               </button>
-              {overBalance && onAddFunds && (
+              {topUpOffered && (
                 <button
                   onClick={onAddFunds}
                   className="flex-1 cursor-pointer rounded-[14px] border border-white/15 bg-white/5 p-3.5 font-sans text-[15px] font-semibold text-white transition-opacity hover:bg-white/10"

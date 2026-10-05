@@ -84,3 +84,10 @@ export async function fetchRwaRegistry(): Promise<Record<string, Map<string, Rwa
   }
   return out;
 }
+
+export async function isCatalogAsset(chain: string, address: string): Promise<boolean> {
+  const network = RWA_CHAIN_TO_NETWORK[chain];
+  if (!network) return false;
+  const registry = await fetchRwaRegistry();
+  return registry[network]?.has(address.toLowerCase()) ?? false;
+}

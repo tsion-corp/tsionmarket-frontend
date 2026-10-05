@@ -15,6 +15,7 @@
 // mid-broadcast keeps the stream alive because the room was never here.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { useQuery } from "@tanstack/react-query";
 import { track } from "@/lib/analytics/mixpanel";
 import {
@@ -61,6 +62,8 @@ export interface GameBroadcastState {
   supported: boolean | null;
   isCreator: boolean | null;
   roleUnavailable: boolean;
+  /** No session: the profile and live streams need one. */
+  signedOut: boolean;
   stream: MarketSquareStream | null;
   joinable: MarketSquareStream[];
   discovering: boolean;
@@ -112,6 +115,7 @@ export function useGameBroadcast(
   target: GameBroadcastTarget | null
 ): GameBroadcastState & GameBroadcastActions {
   const session = useBroadcastSession();
+  const { ready, authenticated } = useAuthSession();
   const [applying, setApplying] = useState(false);
   const [resolving, setResolving] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -123,6 +127,7 @@ export function useGameBroadcast(
   const profile = useQuery({
     queryKey: ["market-square", "me"],
     queryFn: fetchMarketSquareProfile,
+    enabled: authenticated,
     staleTime: 5 * 60_000,
     retry: 1,
   });
@@ -134,7 +139,7 @@ export function useGameBroadcast(
   const discovery = useQuery({
     queryKey: ["market-square", "live-for-ref", deepLinkRef],
     queryFn: () => findLiveStreamsForRef(deepLinkRef as string),
-    enabled: deepLinkRef !== null,
+    enabled: authenticated && deepLinkRef !== null,
     refetchInterval: idle ? DISCOVERY_POLL_MS : false,
     staleTime: DISCOVERY_POLL_MS,
     retry: 1,
@@ -333,6 +338,7 @@ export function useGameBroadcast(
     supported: session.supported,
     isCreator,
     roleUnavailable: profile.isError,
+    signedOut: ready && !authenticated,
     stream: session.stream,
     joinable,
     discovering: discovery.isPending && deepLinkRef !== null,

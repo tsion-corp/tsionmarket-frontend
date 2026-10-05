@@ -19,6 +19,7 @@ import type {
   Deliverable,
   EligibilityQuestion,
 } from "@/features/earn/lib/api/types";
+import { useRequireSession } from "@/hooks/use-require-session";
 
 interface SubmitSheetProps {
   open: boolean;
@@ -47,6 +48,7 @@ export function SubmitSheet({
   compensationType = "fixed",
   rewardToken = "USDC",
 }: SubmitSheetProps) {
+  const requireSession = useRequireSession();
   const create = useCreateSubmission();
 
   // Opening the entry form is the start of an application; the pair with
@@ -87,6 +89,7 @@ export function SubmitSheet({
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!requireSession("submit")) return;
     const found: Record<string, string> = {};
     if (!link.trim()) found.link = "Add a link to your work.";
     if (wantsAsk) {

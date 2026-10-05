@@ -12,7 +12,6 @@ import {
   CasinoNavGuardProvider,
   useCasinoNavGuard,
 } from "@/features/casino/components/casino-nav-guard";
-import { useInterest } from "@/hooks/use-interest";
 import { DraughtsSiteHeader } from "@/features/casino/components/draughts/draughts-site-header";
 import { ChessSiteShell } from "@/features/casino/components/chess-app/chess-site-shell";
 
@@ -77,8 +76,7 @@ function BackLink({ pathname, actions }: { pathname: string; actions?: React.Rea
 // desktop sidebar and mobile navigation as Last Man without duplicating them.
 export function CasinoDashboardShell({ children }: { children: React.ReactNode }) {
   const tSections = useTranslations("sections");
-  const interest = useInterest();
-  const nav = useMemo(() => buildNav(interest, tSections), [interest, tSections]);
+  const nav = useMemo(() => buildNav(tSections), [tSections]);
 
   return (
     <AuthGuard>

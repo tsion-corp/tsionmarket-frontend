@@ -7,6 +7,7 @@ import { ordinal } from "@/features/earn/lib/ordinal";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import type { RewardTier, Submission, WinnerSelection } from "@/features/earn/lib/api/types";
+import { useRequireSession } from "@/hooks/use-require-session";
 
 // Assigns entries to paying positions. Every position the listing pays gets a
 // row, so a sponsor can see which are still unfilled rather than having to
@@ -20,6 +21,7 @@ export function WinnerPicker({
   submissions: Submission[];
   rewards: RewardTier[];
 }) {
+  const requireSession = useRequireSession();
   const toggle = useToggleWinners(slug);
 
   // What the service currently says, keyed by position.
@@ -61,6 +63,7 @@ export function WinnerPicker({
   }
 
   async function onSave() {
+    if (!requireSession("submit")) return;
     // Send both the additions and the removals: a position that was filled and
     // is now empty has to be explicitly unset, or the old winner stands.
     const selections: WinnerSelection[] = [];

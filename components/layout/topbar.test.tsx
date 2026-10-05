@@ -5,6 +5,7 @@ import type { User } from "@privy-io/react-auth";
 // Real English rather than echoed keys, so the accessible names asserted below
 // are the ones a user reads. An unknown key still surfaces as its path.
 const MESSAGES: Record<string, Record<string, string>> = {
+  auth: { signIn: "Sign in" },
   topbar: { account: "Account" },
   tour: { replayCta: "Take a tour" },
   // Kept so the "no holdings trigger here" assertion below looks for the real
@@ -69,6 +70,19 @@ vi.mock("@/hooks/use-portfolio", () => portfolio);
 
 import { Topbar } from "@/components/layout/topbar";
 
+const signedInUser = {
+  id: "did:privy:topbar",
+  linkedAccounts: [
+    {
+      type: "wallet",
+      walletClientType: "privy",
+      chainType: "ethereum",
+      address: "0x759f3b2d9e41c7a05f68d4e9b17c3a2f0e5dc61c",
+      delegated: true,
+    },
+  ],
+} as unknown as User;
+
 // Two controls carry the walkthrough: the phone's labelled pill and the desktop
 // circle. Each breakpoint shows exactly one of them, and CSS decides which, so
 // the test picks them apart by the class that hides each.
@@ -99,6 +113,7 @@ describe("Topbar tour button", () => {
 
   it("names the account by its Ark ID when the wallet holds one", () => {
     arkName.value = "signor.ark";
+    privyUser = signedInUser;
     try {
       render(<Topbar onOpenAccount={() => {}} />);
       expect(screen.getByText("signor.ark")).toBeInTheDocument();
@@ -166,6 +181,7 @@ describe("Topbar chrome", () => {
   });
 
   it("keeps the 79px band, the starburst, and the account button", () => {
+    privyUser = signedInUser;
     const { container } = render(<Topbar onOpenAccount={() => {}} />);
     const bar = container.firstElementChild as HTMLElement;
 
@@ -176,7 +192,15 @@ describe("Topbar chrome", () => {
     expect(screen.getByRole("button", { name: "Account" })).toBeInTheDocument();
   });
 
+  it("offers Sign in in place of the account button while signed out", () => {
+    privyUser = null;
+    render(<Topbar onOpenAccount={() => {}} />);
+    expect(screen.queryByRole("button", { name: "Account" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
+  });
+
   it("keeps the account controls in the app topbar on ArkBall", () => {
+    privyUser = signedInUser;
     pathname = "/casino/arkball";
     const { container } = render(<Topbar onOpenAccount={() => {}} />);
     expect(container.firstElementChild).toContainElement(

@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useEffect, useId, useState } from "react";
@@ -26,6 +25,10 @@ import { reconcileSlipSelections } from "../slip-reconciliation";
 import { TicketsPanel } from "./tickets-panel";
 import { track } from "@/lib/analytics/mixpanel";
 import { PREDICTION_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
+import { useSignInPrompt } from "@/hooks/use-require-session";
+import { isShortBalanceError } from "@/lib/errors";
+import { useAddFunds } from "@/hooks/use-funds-modal";
+import { useTranslations } from "next-intl";
 
 const QUICK_STAKES = ["2", "5", "10"];
 
@@ -63,8 +66,9 @@ export function BetSlipPanel({
   const [reviewedFingerprint, setReviewedFingerprint] = useState<string | null>(null);
   const inputId = useId();
   const { authenticated } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("bet");
+  const addFunds = useAddFunds();
+  const tBalance = useTranslations("balance");
   const queryClient = useQueryClient();
   const ethPriceUsd = usePrices(["ETH"]).ETH ?? 0;
   const slip = useSportsbookSlip();
@@ -358,6 +362,15 @@ export function BetSlipPanel({
                 <p className="text-[10px] leading-4 font-medium text-[#f42e52]">
                   {placement.error.message}
                 </p>
+              ) : null}
+              {isShortBalanceError(placement.error) ? (
+                <button
+                  type="button"
+                  onClick={addFunds}
+                  className="mt-2 h-9 w-full cursor-pointer rounded-xl border border-white/15 bg-white/6 text-[12px] font-semibold text-white hover:bg-white/10"
+                >
+                  {tBalance("addFunds")}
+                </button>
               ) : null}
               {!comboNeedsReview && slip.selections.length > 1 && !busy ? (
                 <p className="rounded-lg bg-[#b9fcff]/8 px-3 py-2 text-center text-[10px] font-medium text-[#b9fcff]">

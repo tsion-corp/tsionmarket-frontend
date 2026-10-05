@@ -36,6 +36,8 @@ import {
   CASINO_PRIMARY_BUTTON_CLASS,
   CASINO_SECONDARY_BUTTON_CLASS,
 } from "@/features/casino/lib/surface";
+import { useTranslations } from "next-intl";
+import { openSignIn } from "@/hooks/use-sign-in";
 
 const buttonSize = "px-3.5 py-1.5 font-sans text-[11.5px] font-semibold whitespace-nowrap";
 
@@ -217,6 +219,7 @@ export function GoLivePanel({
   const bare = variant === "bare";
   const buttons = bare ? BARE_BUTTONS : CARD_BUTTONS;
   const [confirming, setConfirming] = useState(false);
+  const tAuth = useTranslations("auth");
 
   if (!context) return null;
   const { broadcast, copy } = context;
@@ -253,7 +256,14 @@ export function GoLivePanel({
         ) : null}
       </div>
 
-      {broadcast.supported === false ? (
+      {broadcast.signedOut ? (
+        <div className="mt-2">
+          <p className="text-[11.5px] leading-[1.55] text-white/52">{tAuth("gate.broadcast")}</p>
+          <button onClick={openSignIn} className={`${buttons.secondary} mt-2.5`}>
+            {tAuth("signIn")}
+          </button>
+        </div>
+      ) : broadcast.supported === false ? (
         <p className="mt-2 text-[11.5px] leading-[1.55] text-white/52">
           This browser cannot share a screen. Screen capture is desktop only, so open this page in a
           desktop browser to broadcast.

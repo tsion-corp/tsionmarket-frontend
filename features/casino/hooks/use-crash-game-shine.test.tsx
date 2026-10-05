@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // comes off the cash-out mutation, and the polled rows that carry the same
 // settlement afterwards say nothing.
 const shine = vi.hoisted(() => ({ reportShine: vi.fn() }));
+vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/lib/shine", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/shine")>()),
   reportShine: shine.reportShine,

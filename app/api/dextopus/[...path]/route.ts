@@ -4,6 +4,7 @@ import {
   cacheSecondsFor,
   dextopusRequest,
   isAllowedPath,
+  isPublicCatalogRead,
   splitPurpose,
 } from "@/lib/server/dextopus";
 
@@ -28,14 +29,13 @@ function providerUnavailableStatus(req: NextRequest) {
 }
 
 async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", body?: unknown) {
-  const claims = await verifyRequest(req);
-  if (!claims) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { purpose, path: joined } = splitPurpose(path.join("/"));
   if (!isAllowedPath(joined)) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  if (!isPublicCatalogRead(joined, method) && !(await verifyRequest(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {

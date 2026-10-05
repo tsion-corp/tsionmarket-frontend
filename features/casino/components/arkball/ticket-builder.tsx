@@ -2,6 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useAddFunds } from "@/hooks/use-funds-modal";
+import { useSignedIn } from "@/hooks/use-signed-in";
 import { DiceIcon } from "@/components/ui/icons";
 import { LotteryBall } from "@/features/casino/components/arkball/lottery-ball";
 import type {
@@ -72,6 +75,10 @@ export function TicketBuilder({
   purchasePhase = "idle",
 }: TicketBuilderProps) {
   const t = useTranslations("casino.arkball");
+  const requireSession = useRequireSession();
+  const addFunds = useAddFunds();
+  const tBalance = useTranslations("balance");
+  const signedOut = useSignedIn() === "no";
   const [step, setStep] = useState<PickerStep>("white");
   const [whiteNumbers, setWhiteNumbers] = useState<number[]>([]);
   const [powerNumber, setPowerNumber] = useState<number | null>(null);
@@ -153,6 +160,7 @@ export function TicketBuilder({
   };
 
   const onQuickPick = async () => {
+    if (!requireSession("play")) return;
     try {
       const picked = await quickPick();
       setWhiteNumbers([...picked.whiteNumbers].sort((a, b) => a - b));
@@ -206,6 +214,7 @@ export function TicketBuilder({
   };
 
   const onPurchase = async () => {
+    if (!requireSession("play")) return;
     if (!selection || !ready) return;
     const fingerprint = lotterySelectionKey(selection);
     const idempotencyKey =
@@ -223,6 +232,13 @@ export function TicketBuilder({
         ? t("funding.confirmingTransfer")
         : t("buyingTicket");
 
+  const shortOfUsdc =
+    salesOpen &&
+    eligible &&
+    !balanceLoading &&
+    !balanceError &&
+    fundingConfigured &&
+    !sufficientBalance;
   const buttonReason = !salesOpen
     ? t("salesClosed")
     : !eligible
@@ -410,10 +426,19 @@ export function TicketBuilder({
             {buttonReason}
           </div>
         ) : null}
+        {shortOfUsdc ? (
+          <button
+            type="button"
+            onClick={addFunds}
+            className="mt-2 w-full cursor-pointer rounded-xl border border-white/15 bg-white/6 px-4 py-3 text-[13px] font-bold text-white hover:bg-white/10"
+          >
+            {tBalance("addFunds")}
+          </button>
+        ) : null}
 
         <button
           type="button"
-          disabled={!ready}
+          disabled={!ready && !signedOut}
           onClick={onPurchase}
           className="mt-4 w-full cursor-pointer rounded-xl bg-[#dc1935] px-4 py-3.5 text-[13px] font-extrabold text-white shadow-[0_12px_30px_rgba(220,25,53,0.25)] transition hover:bg-[#ee2340] disabled:cursor-not-allowed disabled:bg-white/8 disabled:text-white/28 disabled:shadow-none"
         >

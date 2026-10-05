@@ -21,6 +21,9 @@ import { friendlyError } from "@/lib/errors";
 import { formatUsd, fromBaseUnits } from "@/lib/trade/math";
 import { USDC_BY_CHAIN } from "@/lib/trade/usdc";
 import { toast } from "@/lib/toast";
+import { useSignInPrompt } from "@/hooks/use-require-session";
+import { useAddFunds } from "@/hooks/use-funds-modal";
+import { useTranslations } from "next-intl";
 
 type SideSelection = Extract<BetSelection, "white" | "black">;
 
@@ -80,7 +83,9 @@ function BetForm({
 }) {
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
   const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("bet");
+  const addFunds = useAddFunds();
+  const tBalance = useTranslations("balance");
   const viewer = useSessionWallet("ethereum");
   const cashier = useChessCashier();
   const portfolio = usePortfolio({ scope: "base" });
@@ -295,6 +300,11 @@ function BetForm({
       >
         {actionLabel}
       </button>
+      {viewer && overBalance ? (
+        <button type="button" className="ark-spectator-bet-submit" onClick={addFunds}>
+          {tBalance("addFunds")}
+        </button>
+      ) : null}
 
       {market.myBets.length ? (
         <p className="ark-spectator-bet-existing">

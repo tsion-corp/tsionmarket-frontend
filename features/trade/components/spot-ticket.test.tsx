@@ -17,6 +17,15 @@ const portfolioState = vi.hoisted(() => ({
   refetch: vi.fn(),
 }));
 
+const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (session.signedIn) return true;
+    session.asked.push(action);
+    return false;
+  },
+}));
 vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => portfolioState,
 }));

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 import { useTranslations } from "next-intl";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -66,6 +67,8 @@ export function HyperliquidFundModal({
   onFunded,
 }: HyperliquidFundModalProps) {
   const t = useTranslations("perpsFunds");
+  const tBalance = useTranslations("balance");
+  const addFunds = useAddFunds();
   const [amount, setAmount] = useState("");
   const [stage, setStage] = useState<Stage>({ name: "form" });
   const [error, setError] = useState<string | null>(null);
@@ -194,9 +197,21 @@ export function HyperliquidFundModal({
                 {t("available", { amount: usdc(balanceRaw) })}
               </div>
               {exceedsBalance ? (
-                <p className="text-down text-[12px] font-normal">
-                  {t("exceedsBalance", { amount: usdc(balanceRaw) })}
-                </p>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <p className="text-down text-[12px] font-normal">
+                    {t("exceedsBalance", { amount: usdc(balanceRaw) })}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      close();
+                      addFunds();
+                    }}
+                    className="cursor-pointer text-[12px] font-semibold text-white underline underline-offset-2"
+                  >
+                    {tBalance("addFunds")}
+                  </button>
+                </div>
               ) : belowMinimum ? (
                 <p className="text-down text-[12px] font-normal">
                   {t("belowTopUpMinimum", { amount: usdc(MIN_TOPUP) })}

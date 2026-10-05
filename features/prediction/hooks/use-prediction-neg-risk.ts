@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import { readGroupOfMarket, readRedeemableAt } from "@/features/prediction/lib/chain-reads";
 
 // Contract v1.2.0 state that the read-model does not carry yet: whether a market
@@ -18,13 +19,15 @@ const STALE_MS = 60_000;
 // default: callers use it to decide whether to HIDE a per-market resolve, and a
 // failed read should not hide a control the creator legitimately has.
 export function useMarketGroupId(marketId: bigint | null) {
+  const { authenticated } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "groupOfMarket", marketId?.toString() ?? null],
     queryFn: async () => {
       const id = await readGroupOfMarket(marketId as bigint);
       return id === 0n ? null : id;
     },
-    enabled: marketId != null,
+    // The RPC proxy needs a session.
+    enabled: authenticated && marketId != null,
     staleTime: STALE_MS,
   });
 }
@@ -33,10 +36,11 @@ export function useMarketGroupId(marketId: bigint | null) {
 // Redeeming inside the window reverts with "challenge window", so the claim UI
 // reads this before offering the button.
 export function useRedeemableAt(marketId: bigint | null) {
+  const { authenticated } = useAuthSession();
   return useQuery({
     queryKey: ["prediction", "redeemableAt", marketId?.toString() ?? null],
     queryFn: () => readRedeemableAt(marketId as bigint),
-    enabled: marketId != null,
+    enabled: authenticated && marketId != null,
     staleTime: STALE_MS,
   });
 }

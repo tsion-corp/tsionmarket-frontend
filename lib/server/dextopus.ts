@@ -115,8 +115,16 @@ export async function dextopusRequest(
 // The chain and token catalogs barely change, so we cache them server-side to
 // shield the shared Dextopus key from repeated client calls. Live paths like
 // status and quote are never cached.
+const CATALOG_READ = /^deposit\/(chains|tokens|sources|destinations)(\/|$)/;
+
+// The catalog of chains and assets is the same for every caller, so it is
+// readable without a session (the spot markets list is built from it).
+export function isPublicCatalogRead(path: string, method: "GET" | "POST"): boolean {
+  return method === "GET" && CATALOG_READ.test(path);
+}
+
 export function cacheSecondsFor(path: string): number | undefined {
-  if (/^deposit\/(chains|tokens|sources|destinations)/.test(path)) return 600;
+  if (CATALOG_READ.test(path)) return 600;
   // One request can be observed by the trade sheet, dashboard reconciler and
   // another browser tab. A short shared cache coalesces those reads without
   // making a visible settlement meaningfully stale.

@@ -68,6 +68,15 @@ const mockMoney = vi.hoisted(() => {
   };
 });
 
+const gate = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (gate.signedIn) return true;
+    gate.asked.push(action);
+    return false;
+  },
+}));
+
 vi.mock("@/features/casino/hooks/use-spin-da-bottle", () => ({
   useSpinDaBottle: () => mockGame,
 }));
@@ -112,6 +121,19 @@ describe("SpinDaBottleSection", () => {
     mockMoney.currency.code = "USD";
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1024 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 768 });
+  });
+
+  it("asks a signed-out visitor to sign in before the cashier opens", () => {
+    gate.signedIn = false;
+    gate.asked = [];
+    try {
+      render(<SpinDaBottleSection />);
+      fireEvent.click(screen.getByRole("button", { name: "+ Add Money" }));
+      expect(gate.asked).toEqual(["fund"]);
+      expect(screen.queryByText("Cashier")).toBeNull();
+    } finally {
+      gate.signedIn = true;
+    }
   });
 
   it("opens directly on the betting screen without the rejected onboarding", () => {

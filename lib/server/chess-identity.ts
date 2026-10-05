@@ -125,6 +125,12 @@ export function walletOfUser(user: User | null): string | null {
   return wallet && "address" in wallet ? wallet.address : null;
 }
 
+// The backend serves tournament and swiss pages to anyone. Signed-in callers
+// still get their wallet forwarded.
+export function chessReadOpenToVisitors(joined: string): boolean {
+  return /^competition(?:\/|$)/u.test(joined);
+}
+
 export function chessReadNeedsSession(joined: string, searchParams?: URLSearchParams): boolean {
   if (PRIVATE_READ_PATTERNS.some((pattern) => pattern.test(joined))) return true;
   return /^matches\/[^/]+\/chat$/u.test(joined) && searchParams?.get("room") === "player";

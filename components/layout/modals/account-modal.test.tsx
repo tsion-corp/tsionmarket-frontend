@@ -1,11 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AccountModal } from "./account-modal";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
+const logout = vi.hoisted(() => vi.fn(async () => {}));
+const push = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/use-auth-session", () => ({
   useAuthSession: () => ({
     ready: true,
@@ -13,7 +15,7 @@ vi.mock("@/hooks/use-auth-session", () => ({
     evmAddress: "0x0000000000000000000000000000000000000001",
     solanaAddress: null,
     profile: { name: "Test User", email: "test@example.com", avatarSeed: "did:privy:test" },
-    logout: vi.fn(),
+    logout,
   }),
 }));
 
@@ -52,7 +54,7 @@ vi.mock("@/components/ui/language-select", () => ({
   LanguageSelect: () => null,
 }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push }),
 }));
 const support = vi.hoisted(() => ({ openSupportChat: vi.fn() }));
 vi.mock("@/lib/support-chat/open", () => support);
@@ -93,5 +95,16 @@ describe("AccountModal identity", () => {
     fireEvent.click(screen.getByRole("button", { name: /helpSupport/ }));
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(support.openSupportChat).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("AccountModal sign out", () => {
+  it("signs out and closes the sheet, leaving the visitor on the same page", async () => {
+    const onClose = vi.fn();
+    render(<AccountModal onClose={onClose} onOpenShine={() => {}} />);
+    fireEvent.click(screen.getByRole("button", { name: /signOut/ }));
+    await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
+    expect(onClose).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,8 @@ import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 import { truncateAddress } from "@/lib/format";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { useDisplayName } from "@/hooks/use-display-name";
 import { GoLiveControl } from "@/components/broadcast/go-live-control";
 import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
@@ -33,6 +35,7 @@ interface SidebarProps {
 // component for both, so the nav can never differ between the two.
 export function Sidebar({ items, activeSection, onNavigate, open, onClose }: SidebarProps) {
   const { profile, evmAddress: address } = useAuthSession();
+  const signedIn = useSignedIn();
   const displayName = useDisplayName();
   const squareAvatar = useSquareAvatar();
   const squareSeed = useSquareSeed();
@@ -95,9 +98,8 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
     );
   };
 
-  // The design seats the square between Prediction and Arkade. Anchoring it to
-  // the Arkade entry keeps that relationship when an onboarding interest
-  // reorders the sections; with no Arkade entry it falls to the end of the rail.
+  // The design seats the square between Prediction and Arkade. With no Arkade
+  // entry it falls to the end of the rail.
   const arkadeIndex = items.findIndex((n) => n.id === "casino");
   const squareIndex = arkadeIndex === -1 ? items.length : arkadeIndex;
 
@@ -205,31 +207,36 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
         </nav>
 
         <div className="relative mt-auto shrink-0">
-          <button
-            ref={profileButtonRef}
-            type="button"
-            data-tour="profile"
-            aria-haspopup="menu"
-            aria-expanded={accountPopoverOpen}
-            onClick={() => setAccountPopoverOpen((v) => !v)}
-            className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/8 px-2 py-2.5 text-left transition-colors hover:bg-white/4"
-          >
-            <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={32} />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate font-sans text-[13px] font-medium text-white">
-                {displayName}
+          {/* Nothing while the session is starting, so Sign in doesn't flash. */}
+          {signedIn === "no" ? <SignInButton variant="rail" /> : null}
+          {signedIn === "unknown" ? <div className="h-[54px]" aria-hidden /> : null}
+          {signedIn === "yes" ? (
+            <button
+              ref={profileButtonRef}
+              type="button"
+              data-tour="profile"
+              aria-haspopup="menu"
+              aria-expanded={accountPopoverOpen}
+              onClick={() => setAccountPopoverOpen((v) => !v)}
+              className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/8 px-2 py-2.5 text-left transition-colors hover:bg-white/4"
+            >
+              <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={32} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-sans text-[13px] font-medium text-white">
+                  {displayName}
+                </span>
               </span>
-            </span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-              <path
-                d="M8 9l4-4 4 4M8 15l4 4 4-4"
-                stroke="rgba(255,255,255,0.4)"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M8 9l4-4 4 4M8 15l4 4 4-4"
+                  stroke="rgba(255,255,255,0.4)"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          ) : null}
 
           {/* Always mounted: AccountPopover plays its own exit animation off
               the `open` prop, and unmounting it here would skip straight past

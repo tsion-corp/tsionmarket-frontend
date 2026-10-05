@@ -7,6 +7,8 @@ import { toast as sonner } from "sonner";
 export interface ToastOptions {
   id?: string | number;
   duration?: number;
+  /** A button on the toast, e.g. "Sign in" on the session gate. */
+  action?: { label: string; onClick: () => void };
   /**
    * This toast shows money, a balance or a wallet address.
    *

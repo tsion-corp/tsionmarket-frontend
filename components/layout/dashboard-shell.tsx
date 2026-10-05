@@ -17,18 +17,14 @@ import { PortfolioFab } from "@/features/portfolio/components/portfolio-fab";
 import { useClaimReferralFromLink } from "@/features/referrals";
 import { usePrefetchDepositCatalog } from "@/hooks/use-catalog-prefetch";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useAddFunds } from "@/hooks/use-funds-modal";
+import { useSignedIn } from "@/hooks/use-signed-in";
 import type { NavItem } from "@/components/layout/nav-items";
 import type { SectionId } from "@/lib/sections";
 
-// Dynamic, for the same reason AppModalHost loads them that way: both sheets
-// carry the whole deposit and withdraw surface, and the shell mounts them on
-// every page in the app. Imported statically they cost around 60 kB gzipped
-// of first load on every route, for two sheets that render only after the
-// quick-action dial is opened.
-const FundsModal = dynamic(
-  () => import("@/features/funds/components/funds-modal").then((m) => m.FundsModal),
-  { ssr: false, loading: () => <ModalLoading /> }
-);
+// Dynamic, as AppModalHost loads it: statically it would put the whole
+// withdraw surface into every route's first load.
 const WithdrawModal = dynamic(
   () => import("@/features/funds/components/withdraw-modal").then((m) => m.WithdrawModal),
   { ssr: false, loading: () => <ModalLoading /> }
@@ -54,17 +50,16 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
   // this one, and a sheet rendered inside it would close with it.
   const [shineOpen, setShineOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  // Funding from the phone tab bar's round button. The shell owns this one so
-  // the action works on every page, not just the dashboard, which keeps its own
-  // copy for the balance card and the empty states.
-  const [fundsOpen, setFundsOpen] = useState(false);
+  const addFunds = useAddFunds();
+  const requireSession = useRequireSession();
   const [withdrawOpen, setWithdrawOpen] = useState(false);
 
-  // Anyone rendering the shell has an account, including sessions that
-  // predate the flag — so the landing page can greet them with "Log in".
+  // Visitors see the shell too now, so only a real session marks a known user
+  // (the landing page greets those with "Log in").
+  const signedIn = useSignedIn() === "yes";
   useEffect(() => {
-    markKnownUser();
-  }, []);
+    if (signedIn) markKnownUser();
+  }, [signedIn]);
 
   // Warm the deposit network/token catalog into the store as soon as the user
   // is on the platform, on any page — so "Add funds" always opens with
@@ -114,8 +109,10 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       <SupportButton />
 
       <PortfolioFab
-        onOpenFunds={() => setFundsOpen(true)}
-        onOpenWithdraw={() => setWithdrawOpen(true)}
+        onOpenFunds={addFunds}
+        onOpenWithdraw={() => {
+          if (requireSession("withdraw")) setWithdrawOpen(true);
+        }}
       />
 
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
@@ -126,10 +123,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       </ModalShell>
 
       <ShineSheet open={shineOpen} onClose={() => setShineOpen(false)} />
-
-      <ModalShell open={fundsOpen} onClose={() => setFundsOpen(false)} size="lg">
-        <FundsModal onClose={() => setFundsOpen(false)} />
-      </ModalShell>
 
       <ModalShell open={withdrawOpen} onClose={() => setWithdrawOpen(false)} size="lg">
         <WithdrawModal onClose={() => setWithdrawOpen(false)} />

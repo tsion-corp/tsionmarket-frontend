@@ -45,15 +45,11 @@ export function useRwaEnrichedAssets(assets: RwaApiAsset[]): RwaAssetView[] {
     refetchInterval: MARKET_STALE_MS,
     retry: 1,
     queryFn: async () => {
-      const res = await apiFetch(
-        "/api/rwa-prices",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: targets }),
-        },
-        { requireAuth: true }
-      );
+      const res = await apiFetch("/api/rwa-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: targets }),
+      });
       // Throwing lets the retry engage; returning {} would cache "no data"
       // as a success for the whole stale window.
       if (!res.ok) throw new Error("Could not load market data");

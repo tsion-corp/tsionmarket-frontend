@@ -60,6 +60,7 @@ const imagesApi = vi.hoisted(() => ({
   completeImageUpload: vi.fn(),
 }));
 
+vi.mock("@/hooks/use-require-session", () => ({ useRequireSession: () => () => true }));
 vi.mock("@/features/earn/lib/api/listings", () => listingsApi);
 vi.mock("@/features/earn/lib/api/sponsors", () => sponsorsApi);
 vi.mock("@/features/earn/lib/api/submissions", () => submissionsApi);

@@ -48,6 +48,11 @@ const fresh = vi.hoisted(() => ({
 // The screen carries the Shine switch, which reads the account's own
 // preference through React Query and the session. Stubbed: this test is about
 // the screen, not the switch, which has its own suite in components/shine.
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => "yes" }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => () => true,
+  useSignInPrompt: () => () => {},
+}));
 vi.mock("@/hooks/use-shine", () => ({
   useShine: () => ({
     preferences: null,

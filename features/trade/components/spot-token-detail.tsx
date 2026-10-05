@@ -10,6 +10,8 @@ import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { tokenBg } from "@/lib/trade/assets";
 import { formatUsd } from "@/lib/trade/math";
 import type { DetailPayload } from "@/lib/modal-types";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 
 function changeLabel(chg: number): string {
   const v = Number.isFinite(chg) ? chg : 0;
@@ -31,6 +33,8 @@ export function SpotTokenDetail({ id }: { id: string }) {
   const router = useRouter();
   const { markets, loading, error } = useSpotMarkets();
   const [buyOpen, setBuyOpen] = useState(false);
+  const requireSession = useRequireSession();
+  const addFunds = useAddFunds();
 
   const token = useMemo(
     () => markets.find((m) => m.symbol.toLowerCase() === id.toLowerCase()) ?? null,
@@ -67,7 +71,9 @@ export function SpotTokenDetail({ id }: { id: string }) {
           { k: t("marketCap"), v: compactUsd(token.marketCap) },
         ],
         cta: t("buyToken", { name: token.name }),
-        onCta: () => setBuyOpen(true),
+        onCta: () => {
+          if (requireSession("buy")) setBuyOpen(true);
+        },
       }
     : null;
 
@@ -120,6 +126,7 @@ export function SpotTokenDetail({ id }: { id: string }) {
               logo: token.logo,
             }}
             onClose={() => setBuyOpen(false)}
+            onTopUp={addFunds}
           />
         ) : null}
       </ModalShell>

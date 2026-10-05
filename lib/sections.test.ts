@@ -28,30 +28,13 @@ describe("sectionForPathname", () => {
 });
 
 describe("orderedSections", () => {
-  it("pins portfolio first and leads with the chosen interest", () => {
-    const order = orderedSections("meme");
+  it("pins portfolio first, then the rest in their default order", () => {
+    const order = orderedSections();
     expect(order[0]).toBe("portfolio");
-    expect(order[1]).toBe("meme");
     expect(new Set(order).size).toBe(order.length);
-  });
-
-  // Production hides perpetuals (#382). Staging is where the desk is
-  // exercised, so here it is in the nav and the perps interest leads with it.
-  it("offers perpetuals in the navigation on staging", () => {
-    expect(orderedSections(null)).toContain("perps");
-    expect(orderedSections("perps")[1]).toBe("perps");
+    expect(order).toContain("perps");
+    expect(order).toContain("rwa");
     expect(sectionForPathname("/perps")).toBe("perps");
-  });
-});
-
-// Production hides real assets for now; staging shows them, and the
-// interests that point at them lead with them.
-describe("real assets in the navigation on staging", () => {
-  it("is offered, and led with for the interests that point at it", () => {
-    expect(orderedSections(null)).toContain("rwa");
-    for (const interest of ["stocks", "gold", "yield", "realestate", "treasuries"]) {
-      expect(orderedSections(interest)[1]).toBe("rwa");
-    }
   });
 });
 
@@ -65,6 +48,6 @@ describe("the square section", () => {
   });
 
   it("stays out of the reorderable list, which the rail seats by hand", () => {
-    expect(orderedSections(null)).not.toContain("square");
+    expect(orderedSections()).not.toContain("square");
   });
 });

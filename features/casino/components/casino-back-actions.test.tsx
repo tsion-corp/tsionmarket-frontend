@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/casino/arkball" }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@/hooks/use-interest", () => ({ useInterest: () => null }));
 vi.mock("@/components/layout/nav-items", () => ({ buildNav: () => [] }));
 vi.mock("@/components/layout/dashboard-shell", () => ({
   DashboardShell: ({ children }: { children: ReactNode }) => (

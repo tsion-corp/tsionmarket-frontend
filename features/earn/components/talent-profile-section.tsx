@@ -4,14 +4,19 @@ import { useRouter } from "next/navigation";
 import { AsyncError, AsyncLoading } from "@/components/ui/async-state";
 import { TalentProfileForm } from "@/features/earn/components/talent-profile-form";
 import { useTalentProfile } from "@/features/earn/hooks/use-earn-talent";
+import { EarnSignInPrompt } from "@/features/earn/components/earn-sign-in-prompt";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 const PAGE = "mx-auto w-full max-w-[720px] px-4 pt-6 pb-20 sm:px-6";
 
 // Your profile as an entrant, editable on its own rather than only on the way
 // into a listing. Completing it is what lets you enter one at all.
 export function TalentProfileSection() {
+  const signedIn = useEarnSignedIn();
   const router = useRouter();
   const { profile, needsProfile, isLoading, error } = useTalentProfile();
+
+  if (!signedIn) return <EarnSignInPrompt />;
 
   if (error) {
     return (

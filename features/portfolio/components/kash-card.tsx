@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { useTranslations } from "next-intl";
+import { openSignIn } from "@/hooks/use-sign-in";
 import { useQuery } from "@tanstack/react-query";
 import { ButtonSpinner } from "@/components/ui/button-spinner";
 import { CopyButton } from "@/components/ui/copy-button";
@@ -64,12 +65,13 @@ export function KashCard({
   onUpgrade,
 }: KashCardProps) {
   const t = useTranslations("kash");
+  const tAuth = useTranslations("auth");
   const tc = useTranslations("common");
   const { data: engineStatus } = useKashStatus();
   // True only while an action's effects are still landing — not on the
   // background poll, which would leave the card permanently pulsing.
   const syncing = useKashSyncing();
-  const { data: account, isError, walletMissing, wallet } = useKashAccount();
+  const { data: account, isError, signedOut, walletMissing, wallet } = useKashAccount();
   const { data: subscription } = useKashSubscription();
 
   // The wallet's own Ark ID, shown on the card as a copyable identity. Shares
@@ -92,8 +94,8 @@ export function KashCard({
   // An unknown balance must never render as zero: someone who holds KASH would
   // read that as their money gone, and once the "0" fallback is applied the two
   // states are indistinguishable. Say which one this is instead.
-  const unavailable = !account && (isError || walletMissing);
-  const loading = !account && !unavailable;
+  const unavailable = !account && !signedOut && (isError || walletMissing);
+  const loading = !account && !signedOut && !unavailable;
 
   const balance = account?.balance ?? "0";
 
@@ -231,7 +233,15 @@ export function KashCard({
       <div className="mt-[22.5px] flex grow flex-col items-center justify-center">
         {/* Side padding and a wrap, so the ticker drops below a very long
             holding instead of the pair running into the card's edges. */}
-        {loading ? (
+        {signedOut ? (
+          <button
+            type="button"
+            onClick={openSignIn}
+            className="max-w-full px-4 text-center font-serif text-[15px] leading-[1.5] font-medium text-black/70 underline-offset-2 hover:underline"
+          >
+            {tAuth("signInToSeeBalance")}
+          </button>
+        ) : loading ? (
           // Reading in flight: hold the figure's space with a skeleton rather
           // than printing a zero the read has not confirmed.
           <>

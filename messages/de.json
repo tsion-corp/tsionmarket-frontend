@@ -650,7 +650,25 @@
     "unlockContinue": "Weiter",
     "unlockUseAnother": "Anderes Konto verwenden",
     "unlockWithPassword": "Mit Passwort entsperren",
-    "unlockPwWrong": "Das Passwort hat nicht funktioniert. Versuch es erneut."
+    "unlockPwWrong": "Das Passwort hat nicht funktioniert. Versuch es erneut.",
+    "signIn": "Anmelden",
+    "signInToSeeBalance": "Melde dich an, um dein Guthaben zu sehen",
+    "gate": {
+      "play": "Melde dich an, um zu spielen",
+      "buy": "Melde dich an, um zu kaufen",
+      "sell": "Melde dich an, um zu verkaufen",
+      "bet": "Melde dich an, um zu wetten",
+      "trade": "Melde dich an, um zu handeln",
+      "fund": "Melde dich an, um Guthaben aufzuladen",
+      "withdraw": "Melde dich an, um auszuzahlen",
+      "send": "Melde dich an, um zu senden",
+      "claim": "Melde dich an, um es zu sichern",
+      "history": "Melde dich an, um deinen Verlauf zu sehen",
+      "submit": "Melde dich an, um einzureichen",
+      "broadcast": "Melde dich an, um zu streamen"
+    },
+    "signInToInvite": "Melde dich an, um deinen Einladungslink zu erhalten",
+    "signInToContinue": "Melde dich an, um fortzufahren"
   },
   "landingNav": {
     "markets": "Märkte",

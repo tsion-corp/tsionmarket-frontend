@@ -16,8 +16,16 @@ const fundedComputer = vi.hoisted(() => ({
 }));
 const auth = vi.hoisted(() => ({
   logout: vi.fn(() => Promise.resolve()),
+  authenticated: true,
 }));
 
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/toast", () => ({
+  toast: { loading: vi.fn(() => "toast"), error: toastError, success: vi.fn(), info: vi.fn() },
+}));
+const fundsAction = vi.hoisted(() => ({ label: "Add funds", onClick: vi.fn() }));
+vi.mock("@/hooks/use-funds-modal", () => ({ useAddFundsAction: () => fundsAction }));
+vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("next/navigation", () => ({
   useRouter: () => navigation,
 }));
@@ -31,7 +39,7 @@ vi.mock("@privy-io/react-auth", () => ({
 vi.mock("@/hooks/use-auth-session", () => ({
   useAuthSession: () => ({
     ready: true,
-    authenticated: true,
+    authenticated: auth.authenticated,
     evmAddress: null,
     solanaAddress: null,
     profile: { name: "Player", email: "", avatarSeed: "seed" },
@@ -94,6 +102,7 @@ describe("ChessLobbyFrame", () => {
     fundedFriend.fundEntry.mockReset();
     fundedComputer.start.mockReset();
     auth.logout.mockClear();
+    auth.authenticated = true;
   });
 
   it("loads the Lichess page through the application's shared auth guard", () => {
@@ -267,6 +276,37 @@ describe("ChessLobbyFrame", () => {
     });
   });
 
+  it("offers Add funds on the toast when the stake is more than the wallet holds", async () => {
+    const { InsufficientBalanceError } = await import("@/lib/errors");
+    fundedComputer.start.mockRejectedValue(
+      new InsufficientBalanceError("Your Base USDC balance is too low for this stake.")
+    );
+    render(<ChessLobbyFrame source="/api/chess/play?setup=hook" />);
+
+    const frame = screen.getByTitle<HTMLIFrameElement>("Ark Chess");
+    const frameDocument = frame.contentDocument!;
+    frameDocument.open();
+    frameDocument.write(`<body>
+      <form data-lobby-setup>
+        <select name="time_control"><option value="300+3" selected>5+3</option></select>
+        <input name="color" value="white" checked type="radio">
+        <input name="stake_usdc" value="5">
+        <p data-lobby-stake-error hidden></p>
+        <button type="submit"><span class="submit-label">Create a lobby game</span></button>
+      </form>
+    </body>`);
+    frameDocument.close();
+    fireEvent.load(frame);
+    fireEvent.submit(frameDocument.querySelector("form")!);
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ action: fundsAction })
+      )
+    );
+  });
+
   it("does not let a stale iframe load replace the parent setup route", () => {
     render(<ChessLobbyFrame source="/api/chess/play?setup=ai#game-setup" />);
 
@@ -292,7 +332,47 @@ describe("ChessLobbyFrame", () => {
     });
   });
 
-  it("clears an expired session and opens the shared login page", async () => {
+  it("asks a signed-out visitor to sign in instead of sending them away", async () => {
+    auth.authenticated = false;
+    render(<ChessLobbyFrame source="/api/chess/play" />);
+
+    const frame = screen.getByTitle<HTMLIFrameElement>("Ark Chess");
+    const frameDocument = frame.contentDocument!;
+    frameDocument.open();
+    frameDocument.write(
+      '<body>{"success":false,"error":{"code":"UNAUTHORIZED","message":"an access token is required"}}</body>'
+    );
+    frameDocument.close();
+    fireEvent.load(frame);
+
+    expect(await screen.findByRole("button", { name: "signIn" })).toBeInTheDocument();
+    expect(screen.getByText("gate.play")).toBeInTheDocument();
+    expect(auth.logout).not.toHaveBeenCalled();
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("stops a signed-out visitor's game form before it reaches the backend", () => {
+    auth.authenticated = false;
+    render(<ChessLobbyFrame source="/api/chess/competition/arenas" />);
+
+    const frame = screen.getByTitle<HTMLIFrameElement>("Ark Chess");
+    const frameDocument = frame.contentDocument!;
+    frameDocument.open();
+    frameDocument.write(
+      '<body><form method="post" data-computer-setup><input name="stake_usdc" value="1"></form></body>'
+    );
+    frameDocument.close();
+    fireEvent.load(frame);
+
+    const form = frameDocument.querySelector("form")!;
+    const submit = new Event("submit", { bubbles: true, cancelable: true });
+    form.dispatchEvent(submit);
+
+    expect(submit.defaultPrevented).toBe(true);
+    expect(fundedComputer.start).not.toHaveBeenCalled();
+  });
+
+  it("clears an expired session and asks for a sign-in on the same page", async () => {
     render(<ChessLobbyFrame source="/api/chess/play" />);
 
     const frame = screen.getByTitle<HTMLIFrameElement>("Ark Chess");
@@ -305,10 +385,8 @@ describe("ChessLobbyFrame", () => {
     fireEvent.load(frame);
 
     expect(frame).toHaveClass("opacity-0");
-    await waitFor(() => {
-      expect(auth.logout).toHaveBeenCalledOnce();
-      expect(navigation.replace).toHaveBeenCalledWith("/auth");
-    });
+    await waitFor(() => expect(auth.logout).toHaveBeenCalledOnce());
+    expect(navigation.replace).not.toHaveBeenCalled();
   });
 
   it("keeps backend navigation inside the frame for sandbox-safe promotion", () => {

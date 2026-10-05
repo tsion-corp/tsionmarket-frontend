@@ -1,6 +1,5 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,6 +38,7 @@ import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { arkjetPlacedProps, arkjetSettledEvent } from "@/features/casino/lib/arkjet-analytics";
 import { arkjetShineEvent } from "@/features/casino/lib/shine/arcade";
 import { reportShine } from "@/lib/shine";
+import { useSignInPrompt } from "@/hooks/use-require-session";
 
 export const ARKJET_KEYS = {
   current: ["casino", "arkjet", "round", "current"] as const,
@@ -62,8 +62,7 @@ const READ_OPTIONS = {
 
 export function useArkjet() {
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("play");
   const queryClient = useQueryClient();
   const [socketReady, setSocketReady] = useState(false);
   const hasSession = ready && authenticated && Boolean(evmAddress);

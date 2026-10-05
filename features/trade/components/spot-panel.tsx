@@ -36,6 +36,8 @@ import {
   type SpotConfirmRow,
   type SpotOrderPhase,
 } from "@/features/trade/components/spot-confirm-sheet";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 
 // The spot order ticket: buy with USDC or sell a held balance, market orders
 // only (there is no order-monitoring backend for limit or TP/SL yet). The amount
@@ -97,6 +99,8 @@ export function SpotPanel({
   buyRoute,
   swapRoute,
 }: SpotPanelProps) {
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
   const t = useTranslations("spot");
   const tMeme = useTranslations("meme");
   const tErr = useTranslations("tradeErrors");
@@ -318,6 +322,7 @@ export function SpotPanel({
   };
 
   const submit = () => {
+    if (!requireSession(buying ? "buy" : "sell")) return;
     if (invalid) return;
     setConfirmOpen(true);
   };
@@ -550,7 +555,7 @@ export function SpotPanel({
 
       <button
         onClick={submit}
-        disabled={invalid}
+        disabled={!signedOut && invalid}
         className={`mt-3 w-full rounded-[14px] p-[15px] font-sans text-[15px] font-semibold transition-opacity ${
           buying ? "bg-up text-up-ink" : "bg-down text-down-ink"
         } ${invalid ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:opacity-90"}`}

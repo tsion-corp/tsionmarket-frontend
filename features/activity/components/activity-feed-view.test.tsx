@@ -8,6 +8,8 @@ import type { ActivityFeedItem } from "@/lib/activity/feed";
 
 const activity = vi.fn();
 vi.mock("@/features/activity/hooks/use-activity", () => ({ useActivity: () => activity() }));
+const signedIn = vi.hoisted(() => ({ value: "yes" as "yes" | "no" | "unknown" }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => signedIn.value }));
 
 // The detail surface is built separately. Standing it in here keeps this suite
 // about the screen's own job, which is deciding when a detail is open and for
@@ -153,6 +155,7 @@ function openProductMenu() {
 beforeEach(() => {
   activity.mockReset();
   opened.mockReset();
+  signedIn.value = "yes";
   feed();
 });
 
@@ -186,6 +189,15 @@ describe("ActivityFeedView states", () => {
     feed({ items: [] });
     renderView();
     expect(screen.getByText(enMessages.activity.emptyTitle)).toBeInTheDocument();
+  });
+
+  it("asks a signed-out visitor to sign in instead of calling the history empty", () => {
+    signedIn.value = "no";
+    feed({ items: [] });
+    renderView();
+    expect(screen.getByText(enMessages.auth.gate.history)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: enMessages.auth.signIn })).toBeInTheDocument();
+    expect(screen.queryByText(enMessages.activity.emptyTitle)).not.toBeInTheDocument();
   });
 
   it("keeps the rows an incomplete read did return, under a banner saying so", () => {

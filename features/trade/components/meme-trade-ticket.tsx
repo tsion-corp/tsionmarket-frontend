@@ -14,6 +14,8 @@ import { platformFeeText } from "@/lib/meme/format";
 import { estimateReceive, type BuyFunding } from "@/lib/meme/funding";
 import { exceedsHeld, maxSellAmount } from "@/lib/meme/sell-amount";
 import { belowMinimumBuy, minimumBuyUsd } from "@/lib/trade/minimums";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 
 // USDC is the quote currency on both chains, so a buy is entered in USD at six
 // decimals whatever the coin's own precision.
@@ -77,6 +79,8 @@ export function TradeTicket({
   error,
   onAddFunds,
 }: TradeTicketProps) {
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
   const t = useTranslations("meme");
   const tErr = useTranslations("tradeErrors");
   const [submitting, setSubmitting] = useState(false);
@@ -176,6 +180,7 @@ export function TradeTicket({
   }
 
   async function submit() {
+    if (!requireSession(buying ? "buy" : "sell")) return;
     if (disabled) return;
     setSubmitError(null);
     setSubmitting(true);
@@ -330,7 +335,7 @@ export function TradeTicket({
         <button
           type="button"
           onClick={() => void submit()}
-          disabled={disabled}
+          disabled={!signedOut && disabled}
           className={`${buying ? "bg-buy" : "bg-sell"} h-12 rounded-3xl font-[family-name:var(--font-sportsbook)] text-base font-semibold text-white ${
             showTopUp ? "flex-1" : "w-full"
           } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}

@@ -23,6 +23,7 @@ import { toast } from "@/lib/toast";
 import { track } from "@/lib/analytics/mixpanel";
 import type { EarnListingType } from "@/lib/analytics/events";
 import type { Listing } from "@/features/earn/lib/api/types";
+import { useRequireSession } from "@/hooks/use-require-session";
 
 const PAGE = "mx-auto w-full max-w-[720px] px-4 pt-6 pb-20 sm:px-6";
 
@@ -51,6 +52,7 @@ interface ListingEditorProps {
 // first because publish takes the id the draft call returns, so the two steps
 // cannot be collapsed into one.
 export function ListingEditorSection({ existing, initialState }: ListingEditorProps) {
+  const requireSession = useRequireSession();
   const router = useRouter();
   const [state, setState] = useState<ListingFormState>(initialState ?? emptyListingForm());
   const [errors, setErrors] = useState<ListingFormErrors>({});
@@ -76,6 +78,7 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   const isDraft = !!existing && !existing.isPublished;
 
   async function onSaveDraft() {
+    if (!requireSession("submit")) return;
     const found = validateListingForm(state, { forPublish: false });
     setErrors(found);
     if (Object.keys(found).length) {
@@ -121,6 +124,7 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   }
 
   async function onPublish() {
+    if (!requireSession("submit")) return;
     const found = validateListingForm(state, { forPublish: true });
     setErrors(found);
     if (Object.keys(found).length) {
@@ -165,6 +169,7 @@ export function ListingEditorSection({ existing, initialState }: ListingEditorPr
   }
 
   async function onUpdate() {
+    if (!requireSession("submit")) return;
     if (!existing) return;
     const found = validateListingForm(state, { forPublish: true });
     setErrors(found);

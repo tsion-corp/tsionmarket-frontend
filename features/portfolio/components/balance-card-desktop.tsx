@@ -7,6 +7,7 @@ import { Disclosure } from "@/components/ui/disclosure";
 import { EyeOffIcon, RefreshIcon } from "@/components/ui/icons";
 import { useHoldingsLauncher } from "@/features/portfolio/components/holdings-launcher";
 import { PortfolioDonut } from "@/features/portfolio/components/portfolio-donut";
+import { openSignIn } from "@/hooks/use-sign-in";
 import type { BalanceCardViewProps } from "@/features/portfolio/components/balance-card-view";
 
 // The balance card as the Market design draws it: a near-black panel carrying
@@ -34,6 +35,7 @@ export function BalanceCardDesktop({
 }: BalanceCardViewProps) {
   const t = useTranslations("balance");
   const tPortfolio = useTranslations("portfolio");
+  const tAuth = useTranslations("auth");
   const money = useMoney();
   // The breakdown is a disclosure here rather than always-on: the design keeps
   // the card to one screenful and puts the ring behind a tap.
@@ -186,6 +188,14 @@ export function BalanceCardDesktop({
             >
               {readyToSpend.state === "loading" ? (
                 <span className="block h-[12px] w-[130px] animate-pulse rounded-full bg-white/8" />
+              ) : readyToSpend.state === "signedOut" ? (
+                <button
+                  type="button"
+                  onClick={openSignIn}
+                  className="cursor-pointer text-white/70 underline-offset-2 hover:underline"
+                >
+                  {tAuth("signInToSeeBalance")}
+                </button>
               ) : readyToSpend.state === "known" ? (
                 t("readyToSpend", { amount: formatMasked(readyToSpend.usd) })
               ) : (

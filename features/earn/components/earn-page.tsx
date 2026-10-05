@@ -8,7 +8,6 @@ import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { buildNav } from "@/components/layout/nav-items";
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { ChevronLeftIcon } from "@/components/ui/icons";
-import { useInterest } from "@/hooks/use-interest";
 
 // The earn routes that have a page of their own, and what to call them.
 // `/earn/listing` and `/earn/sponsor/listing` are missing on purpose: they are
@@ -51,8 +50,7 @@ function BackLink({ pathname }: { pathname: string }) {
 // the sidebar only points at the feed itself.
 export function EarnPage({ children }: { children: React.ReactNode }) {
   const tSections = useTranslations("sections");
-  const interest = useInterest();
-  const nav = useMemo(() => buildNav(interest, tSections), [interest, tSections]);
+  const nav = useMemo(() => buildNav(tSections), [tSections]);
   const pathname = usePathname();
   const isFeed = pathname === "/earn";
 

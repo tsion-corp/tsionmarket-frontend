@@ -11,6 +11,8 @@ import {
 } from "@/features/earn/hooks/use-earn-sponsor-listings";
 import { deadlineLabel } from "@/features/earn/lib/deadline";
 import type { ListingStatus } from "@/features/earn/lib/api/types";
+import { EarnSignInPrompt } from "@/features/earn/components/earn-sign-in-prompt";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-6 pb-20 sm:px-6";
 
@@ -23,7 +25,10 @@ const STATUSES: { id: ListingStatus; label: string }[] = [
 ];
 
 export function SponsorHomeSection() {
+  const signedIn = useEarnSignedIn();
   const { sponsor, isLoading, error } = useCurrentSponsor();
+
+  if (!signedIn) return <EarnSignInPrompt />;
 
   // A failed lookup must not hide the way to sign up. "We couldn't read your
   // company" and "you don't have one yet" look identical from here, and only

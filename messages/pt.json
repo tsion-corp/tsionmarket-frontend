@@ -650,7 +650,25 @@
     "unlockContinue": "Continuar",
     "unlockUseAnother": "Usar outra conta",
     "unlockWithPassword": "Desbloquear com palavra-passe",
-    "unlockPwWrong": "Essa palavra-passe não funcionou. Tenta de novo."
+    "unlockPwWrong": "Essa palavra-passe não funcionou. Tenta de novo.",
+    "signIn": "Entrar",
+    "signInToSeeBalance": "Entre para ver o seu saldo",
+    "gate": {
+      "play": "Entre para jogar",
+      "buy": "Entre para comprar",
+      "sell": "Entre para vender",
+      "bet": "Entre para apostar",
+      "trade": "Entre para negociar",
+      "fund": "Entre para adicionar fundos",
+      "withdraw": "Entre para levantar",
+      "send": "Entre para enviar",
+      "claim": "Entre para o reclamar",
+      "history": "Entre para ver o seu histórico",
+      "submit": "Entre para submeter",
+      "broadcast": "Entre para transmitir"
+    },
+    "signInToInvite": "Entre para obter o seu link de convite",
+    "signInToContinue": "Entre para continuar"
   },
   "landingNav": {
     "markets": "Mercados",

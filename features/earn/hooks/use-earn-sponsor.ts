@@ -10,6 +10,7 @@ import {
 } from "@/features/earn/lib/api/sponsors";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import type { CreateSponsorInput, SponsorProfileInput } from "@/features/earn/lib/api/types";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 // Long enough that a name is checked once the sponsor stops typing it, not
 // once per keystroke.
@@ -28,9 +29,11 @@ export const SPONSOR_KEYS = {
 // Null is a normal state here, so `sponsor === null` with no error means "show
 // the sign-up prompt", not "something failed".
 export function useCurrentSponsor() {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SPONSOR_KEYS.current,
     queryFn: fetchCurrentSponsor,
+    enabled: signedIn,
   });
 
   return {

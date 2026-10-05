@@ -1,6 +1,8 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 import {
   TradeActions,
   type SellAsset,
@@ -23,6 +25,8 @@ export type SpotTradeActionsProps = Omit<TradeActionsProps, "labels">;
 
 export function SpotTradeActions(props: SpotTradeActionsProps) {
   const t = useTranslations("spot");
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
 
   // Three of the nine messages take arguments. Filling a slot is the
   // catalogue's job and the shared component has no catalogue, so those three
@@ -31,6 +35,7 @@ export function SpotTradeActions(props: SpotTradeActionsProps) {
   return (
     <TradeActions
       {...props}
+      onSignIn={signedOut ? () => requireSession(props.side) : undefined}
       labels={{
         stageWaiting: t("stageWaiting"),
         ctaEnterAmount: t("ctaEnterAmount"),

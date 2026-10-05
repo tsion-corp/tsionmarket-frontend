@@ -11,6 +11,7 @@ vi.mock("next-intl", () => ({
 }));
 
 const mockLogout = vi.fn();
+const mockPush = vi.fn();
 const mockLinkWithPasskey = vi.fn();
 
 // The popover reads the session through the Decane-backed seam and the kit's
@@ -57,7 +58,7 @@ vi.mock("@/components/layout/migration-adapters", () => ({
 }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mockPush }),
 }));
 
 vi.mock("@/features/referrals", () => ({
@@ -125,7 +126,7 @@ describe("AccountPopover", () => {
     }
   });
 
-  it("calls logout when sign out is clicked", () => {
+  it("calls logout when sign out is clicked", async () => {
     const onClose = vi.fn();
     const triggerRef = { current: document.createElement("button") };
     render(
@@ -140,6 +141,9 @@ describe("AccountPopover", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: /signOut/i }));
     expect(mockLogout).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+    // Pages are open without a session, so signing out stays on the page.
+    await waitFor(() => expect(mockLogout).toHaveBeenCalled());
+    expect(mockPush).not.toHaveBeenCalled();
   });
 
   it("closes when Escape key is pressed", () => {

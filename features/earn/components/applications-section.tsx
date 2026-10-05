@@ -10,6 +10,8 @@ import { toast } from "@/lib/toast";
 import { deadlineLabel } from "@/features/earn/lib/deadline";
 import { ordinal } from "@/features/earn/lib/ordinal";
 import type { MySubmission } from "@/features/earn/lib/api/types";
+import { EarnSignInPrompt } from "@/features/earn/components/earn-sign-in-prompt";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-6 pb-20 sm:px-6";
 
@@ -60,7 +62,10 @@ const TONE: Record<Outcome["tone"], string> = {
 };
 
 export function ApplicationsSection() {
+  const signedIn = useEarnSignedIn();
   const { submissions, isLoading, error } = useMySubmissions();
+
+  if (!signedIn) return <EarnSignInPrompt />;
 
   if (error) {
     return (

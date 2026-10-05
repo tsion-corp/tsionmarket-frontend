@@ -15,6 +15,81 @@ vi.mock("@/lib/toast", () => ({
   },
 }));
 
+const gate = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (gate.signedIn) return true;
+    gate.asked.push(action);
+    return false;
+  },
+}));
+const addFunds = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-funds-modal", () => ({ useAddFunds: () => addFunds }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (gate.signedIn ? "yes" : "no") }));
+
+describe("TicketBuilder short on USDC", () => {
+  it("offers Add funds beside the shortfall", async () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+        <TicketBuilder
+          drawId="draw-current"
+          drawStatus="open"
+          salesCloseAt="2099-08-16T18:00:00Z"
+          priceUsdc="0.37"
+          availableUsdc="0"
+          eligibility={null}
+          ownedTickets={[]}
+          quickPick={vi.fn()}
+          purchase={vi.fn()}
+          quickPicking={false}
+          purchasing={false}
+        />
+      </NextIntlClientProvider>
+    );
+    fireEvent.click(await screen.findByRole("button", { name: messages.balance.addFunds }));
+    expect(addFunds).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("TicketBuilder signed out", () => {
+  it("asks for a sign-in on Quick Pick and on Buy, and calls neither", async () => {
+    gate.signedIn = false;
+    gate.asked = [];
+    const quickPick = vi.fn();
+    const purchase = vi.fn();
+    try {
+      render(
+        <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+          <TicketBuilder
+            drawId="draw-current"
+            drawStatus="open"
+            salesCloseAt="2099-08-16T18:00:00Z"
+            priceUsdc="0.37"
+            availableUsdc="0"
+            eligibility={null}
+            ownedTickets={[]}
+            quickPick={quickPick}
+            purchase={purchase}
+            quickPicking={false}
+            purchasing={false}
+          />
+        </NextIntlClientProvider>
+      );
+      const pick = screen.getByRole("button", { name: /quick pick/i });
+      await waitFor(() => expect(pick).toBeEnabled());
+      fireEvent.click(pick);
+      const buy = screen.getByRole("button", { name: "Buy ticket for 0.37 USD" });
+      expect(buy).toBeEnabled();
+      fireEvent.click(buy);
+      expect(gate.asked).toEqual(["play", "play"]);
+      expect(quickPick).not.toHaveBeenCalled();
+      expect(purchase).not.toHaveBeenCalled();
+    } finally {
+      gate.signedIn = true;
+    }
+  });
+});
+
 describe("TicketBuilder", () => {
   it("renders the backend-configured 0.37 USD ticket price", () => {
     render(

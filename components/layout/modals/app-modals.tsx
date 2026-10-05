@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { ModalLoading } from "@/components/layout/modals/modal-loading";
 import { useCallback, useState } from "react";
+import { useRequireSession } from "@/hooks/use-require-session";
 import { ConfirmModal } from "@/components/layout/modals/confirm-modal";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
@@ -93,6 +94,8 @@ export interface AppModals {
 // section components without re-rendering them on each modal change.
 export function useAppModals(): AppModals {
   const [modal, setModal] = useState<DashboardModal>(null);
+  // Money sheets need a session. Detail and confirm don't.
+  const requireSession = useRequireSession();
 
   return {
     modal,
@@ -102,20 +105,48 @@ export function useAppModals(): AppModals {
       (confirm: ConfirmPayload) => setModal({ type: "confirm", confirm }),
       []
     ),
-    openBuy: useCallback((buy: BuyPayload) => setModal({ type: "buy", buy }), []),
-    openSell: useCallback((sell: SellPayload) => setModal({ type: "sell", sell }), []),
+    openBuy: useCallback(
+      (buy: BuyPayload) => {
+        if (requireSession("buy")) setModal({ type: "buy", buy });
+      },
+      [requireSession]
+    ),
+    openSell: useCallback(
+      (sell: SellPayload) => {
+        if (requireSession("sell")) setModal({ type: "sell", sell });
+      },
+      [requireSession]
+    ),
     openMemeSell: useCallback(
-      (memeSell: MemeToken) => setModal({ type: "memeSell", memeSell }),
-      []
+      (memeSell: MemeToken) => {
+        if (requireSession("sell")) setModal({ type: "memeSell", memeSell });
+      },
+      [requireSession]
     ),
-    openMemeBuy: useCallback((memeBuy: MemeToken) => setModal({ type: "memeBuy", memeBuy }), []),
+    openMemeBuy: useCallback(
+      (memeBuy: MemeToken) => {
+        if (requireSession("buy")) setModal({ type: "memeBuy", memeBuy });
+      },
+      [requireSession]
+    ),
     openRwaTrade: useCallback(
-      (rwaTrade: RwaTradePayload) => setModal({ type: "rwaTrade", rwaTrade }),
-      []
+      (rwaTrade: RwaTradePayload) => {
+        if (requireSession("trade")) setModal({ type: "rwaTrade", rwaTrade });
+      },
+      [requireSession]
     ),
-    openFunds: useCallback(() => setModal({ type: "funds" }), []),
-    openDeposit: useCallback((deposit: DepositPrefill) => setModal({ type: "funds", deposit }), []),
-    openWithdraw: useCallback(() => setModal({ type: "withdraw" }), []),
+    openFunds: useCallback(() => {
+      if (requireSession("fund")) setModal({ type: "funds" });
+    }, [requireSession]),
+    openDeposit: useCallback(
+      (deposit: DepositPrefill) => {
+        if (requireSession("fund")) setModal({ type: "funds", deposit });
+      },
+      [requireSession]
+    ),
+    openWithdraw: useCallback(() => {
+      if (requireSession("withdraw")) setModal({ type: "withdraw" });
+    }, [requireSession]),
     showDone: useCallback(
       (title: string, msg: string) => setModal({ type: "done", title, msg }),
       []

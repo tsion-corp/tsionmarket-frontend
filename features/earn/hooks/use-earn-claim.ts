@@ -5,6 +5,7 @@ import { base } from "viem/chains";
 import { useEvmSend } from "@/hooks/use-evm-send";
 import { fetchClaimInfo } from "@/features/earn/lib/api/submissions";
 import { encodeWithdraw } from "@/features/earn/lib/claim";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 export const CLAIM_KEYS = {
   info: (listingId: string) => ["earn", "claim", listingId] as const,
@@ -13,10 +14,11 @@ export const CLAIM_KEYS = {
 // What this user can collect for a listing, read from the contract. Only asked
 // for once winners are out; before that there is nothing to claim.
 export function useClaimInfo(listingId: string | null, enabled: boolean) {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: CLAIM_KEYS.info(listingId ?? "none"),
     queryFn: () => fetchClaimInfo(listingId as string),
-    enabled: !!listingId && enabled,
+    enabled: signedIn && !!listingId && enabled,
   });
 
   return { info: query.data ?? null, isLoading: query.isLoading };

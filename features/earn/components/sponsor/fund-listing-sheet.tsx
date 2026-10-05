@@ -9,8 +9,10 @@ import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { fetchEscrowQuote } from "@/features/earn/lib/api/sponsor-dashboard";
 import { buildDepositCalls } from "@/features/earn/lib/escrow";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, isShortBalanceError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { useAddFundsAction } from "@/hooks/use-funds-modal";
+import { useRequireSession } from "@/hooks/use-require-session";
 
 interface FundListingSheetProps {
   open: boolean;
@@ -26,6 +28,8 @@ interface FundListingSheetProps {
 // reads it back off chain before it will call the listing funded. This service
 // never holds the money and never sees a key.
 export function FundListingSheet({ open, onClose, listingId, onFunded }: FundListingSheetProps) {
+  const requireSession = useRequireSession();
+  const fundsAction = useAddFundsAction();
   const fund = useFundListing();
   const sendBatch = useEvmSendBatch();
   const { evmAddress } = useAuthSession();
@@ -50,6 +54,7 @@ export function FundListingSheet({ open, onClose, listingId, onFunded }: FundLis
   const busy = fund.isPending;
 
   async function onDeposit() {
+    if (!requireSession("fund")) return;
     if (!quote) return;
 
     const alreadyPaid = quote.depositedOnChain === true;
@@ -72,7 +77,10 @@ export function FundListingSheet({ open, onClose, listingId, onFunded }: FundLis
     } catch (error) {
       // Covers both halves: a wallet the sponsor dismissed, and a deposit the
       // service would not accept. Both say what actually went wrong.
-      toast.error(friendlyError(error, "That deposit didn't go through."), { id });
+      toast.error(friendlyError(error, "That deposit didn't go through."), {
+        id,
+        action: isShortBalanceError(error) ? fundsAction : undefined,
+      });
     }
   }
 

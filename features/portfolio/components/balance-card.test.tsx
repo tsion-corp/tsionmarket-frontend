@@ -14,6 +14,12 @@ import type { TokenBalance } from "@/hooks/use-portfolio";
 // Real English, with the one message that takes a value interpolated, so the
 // assertions below read the string a user reads.
 const MESSAGES: Record<string, Record<string, string>> = {
+  auth: {
+    signIn: "Sign in",
+    signInToSeeBalance: "Sign in to see your balance",
+    "gate.fund": "Sign in to add funds",
+    "gate.withdraw": "Sign in to withdraw",
+  },
   balance: {
     totalBalance: "Total balance",
     showBalance: "Show balance",
@@ -156,6 +162,9 @@ const BALANCE_URL = `/api/user-management/users/${encodeURIComponent(ALICE)}/bal
 
 let client: QueryClient;
 
+const onOpenFunds = vi.fn();
+const onOpenWithdraw = vi.fn();
+
 function renderCard() {
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
@@ -163,7 +172,7 @@ function renderCard() {
     </QueryClientProvider>
   );
   return render(
-    <BalanceCard onOpenFunds={vi.fn()} onOpenWithdraw={vi.fn()} onTakeTour={vi.fn()} />,
+    <BalanceCard onOpenFunds={onOpenFunds} onOpenWithdraw={onOpenWithdraw} onTakeTour={vi.fn()} />,
     { wrapper }
   );
 }
@@ -291,5 +300,48 @@ describe("BalanceCard ready to spend", () => {
       expect(readyToSpendRows()).toEqual(["$0.00 ready to spend", "$0.00 ready to spend"])
     );
     for (const button of withdrawButtons()) expect(button).toBeDisabled();
+  });
+});
+
+describe("BalanceCard signed out", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    client = createQueryClient();
+    session.ready = true;
+    session.authenticated = false;
+    session.userId = null;
+    session.evmAddress = null;
+    portfolio.usePortfolio.mockReturnValue({
+      tokens: [],
+      loading: false,
+      refreshing: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+    globalBalance.useGlobalBalance.mockReturnValue({ totalUsd: 0 });
+    ramping.usePendingBankDeposit.mockReturnValue({ pending: false });
+  });
+
+  afterEach(() => {
+    client.clear();
+  });
+
+  it("asks the visitor to sign in instead of claiming an empty wallet", async () => {
+    renderCard();
+    await waitFor(() => expect(readyToSpendRows().length).toBe(2));
+    expect(readyToSpendRows()).toEqual([
+      "Sign in to see your balance",
+      "Sign in to see your balance",
+    ]);
+    expect(screen.queryByText(/ready to spend/)).toBeNull();
+  });
+
+  it("does not open funding or withdrawal without a session", async () => {
+    renderCard();
+    await waitFor(() => expect(readyToSpendRows().length).toBe(2));
+    for (const button of screen.getAllByRole("button", { name: "Add funds" })) button.click();
+    for (const button of withdrawButtons()) button.click();
+    expect(onOpenFunds).not.toHaveBeenCalled();
+    expect(onOpenWithdraw).not.toHaveBeenCalled();
   });
 });

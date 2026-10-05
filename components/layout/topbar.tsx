@@ -9,6 +9,8 @@ import { SquareAvatar } from "@/components/ui/square-avatar";
 import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
 import { HelpIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { SignInButton } from "@/components/auth/sign-in-button";
 import { useDisplayName } from "@/hooks/use-display-name";
 import { requestTourReplay, startDashboardTour } from "@/features/tour";
 
@@ -32,6 +34,7 @@ function CompassIcon({ size = 17 }: { size?: number }) {
 
 export function Topbar({ onOpenAccount }: TopbarProps) {
   const { profile } = useAuthSession();
+  const signedIn = useSignedIn();
   const displayName = useDisplayName();
   const squareAvatar = useSquareAvatar();
   const squareSeed = useSquareSeed();
@@ -81,20 +84,25 @@ export function Topbar({ onOpenAccount }: TopbarProps) {
           MARKET wordmark everywhere else. The wallet address is deliberately
           absent from the chrome entirely; the deposit screen is where an
           address is shown, because that is where one is needed. */}
-      <button
-        type="button"
-        data-tour="profile"
-        onClick={onOpenAccount}
-        aria-label={t("account")}
-        className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left md:hidden md:gap-[8.29px]"
-      >
-        <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={38} />
-        <span className={`min-w-0 flex-col md:flex md:gap-[5.43px] ${isHome ? "flex" : "hidden"}`}>
-          <span className="block truncate font-sans text-[14px] font-semibold text-white md:font-serif md:text-[15px] md:leading-[17.4px] md:tracking-[-0.15px]">
-            {displayName}
+      {signedIn === "no" ? <SignInButton variant="topbar" /> : null}
+      {signedIn === "yes" ? (
+        <button
+          type="button"
+          data-tour="profile"
+          onClick={onOpenAccount}
+          aria-label={t("account")}
+          className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left md:hidden md:gap-[8.29px]"
+        >
+          <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={38} />
+          <span
+            className={`min-w-0 flex-col md:flex md:gap-[5.43px] ${isHome ? "flex" : "hidden"}`}
+          >
+            <span className="block truncate font-sans text-[14px] font-semibold text-white md:font-serif md:text-[15px] md:leading-[17.4px] md:tracking-[-0.15px]">
+              {displayName}
+            </span>
           </span>
-        </span>
-      </button>
+        </button>
+      ) : null}
       {isHome ? null : (
         <MarketLogo className="pointer-events-none absolute top-1/2 left-1/2 h-[14px] w-auto -translate-x-1/2 -translate-y-1/2 md:hidden" />
       )}

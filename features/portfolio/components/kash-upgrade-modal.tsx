@@ -23,6 +23,7 @@ import {
   useKashSubscription,
   useKashSubscriptionTiers,
 } from "@/features/portfolio/hooks/use-kash";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 
 interface KashUpgradeModalProps {
   open: boolean;
@@ -34,6 +35,8 @@ interface KashUpgradeModalProps {
 // is free and tiers lapse at period end rather than auto-renewing — both facts
 // stated in the copy, no dark patterns.
 export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
+  const addFunds = useAddFunds();
+  const tBalance = useTranslations("balance");
   const t = useTranslations("kash");
   const { data: status } = useKashStatus();
   // Read from the engine, never restated here, so the number on a tier row is
@@ -230,9 +233,21 @@ export function KashUpgradeModal({ open, onClose }: KashUpgradeModalProps) {
         {/* A disabled row says "Not enough" but not what would be enough.
             Shown once for the whole list rather than per row. */}
         {balanceMicro !== null && someTierUnaffordable && (
-          <p className="mt-3 text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
-            {t("insufficientUsd", { balance: formatUsdMicro(balanceMicro) })}
-          </p>
+          <div className="mt-3">
+            <p className="text-[12.5px] leading-[1.5] font-normal text-amber-200/80">
+              {t("insufficientUsd", { balance: formatUsdMicro(balanceMicro) })}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                addFunds();
+              }}
+              className="mt-1 cursor-pointer text-[12.5px] font-semibold text-white underline underline-offset-2"
+            >
+              {tBalance("addFunds")}
+            </button>
+          </div>
         )}
         {/* State the cap plainly: it is the single thing that makes a tier
             worth buying, and it is not guessable from a price list. */}

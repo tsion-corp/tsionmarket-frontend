@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useSocialAuth, useSocialWallet } from "decane-connect-kit";
@@ -77,13 +76,10 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
   const displayName = useDisplayName();
   const { canUsePasskey } = useSocialAuth();
   const { addPasskey } = useSocialWallet();
-  const router = useRouter();
   const reduce = useReducedMotion();
 
-  const logout = async () => {
-    await sessionLogout();
-    router.push("/auth");
-  };
+  // Pages are open without a session, so signing out stays on the page.
+  const logout = () => sessionLogout();
 
   // Privy's useLinkWithPasskey → the kit's addPasskey (Promise, throws on error).
   const linkWithPasskey = async () => {

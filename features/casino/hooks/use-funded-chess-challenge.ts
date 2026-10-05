@@ -16,6 +16,7 @@ import type { ChessMatch, CreateChessChallengeInput } from "@/features/casino/li
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { fromBaseUnits } from "@/lib/trade/math";
 import { USDC_BY_CHAIN } from "@/lib/trade/usdc";
+import { InsufficientBalanceError } from "@/lib/errors";
 
 const BASE_NETWORK = "base-mainnet";
 const BASE_USDC = USDC_BY_CHAIN.base.address.toLowerCase();
@@ -71,7 +72,7 @@ export function useFundedChessChallenge() {
       }
       if (portfolio.loading) throw new Error("Your Base USDC balance is still loading.");
       if (exceedsUsdcBalance(stakeUsdc, availableUsdc)) {
-        throw new Error("Your Base USDC balance is too low for this stake.");
+        throw new InsufficientBalanceError("Your Base USDC balance is too low for this stake.");
       }
 
       const pending = pendingDeposit.current;

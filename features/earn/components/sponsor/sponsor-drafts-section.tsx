@@ -8,6 +8,8 @@ import { useCurrentSponsor } from "@/features/earn/hooks/use-earn-sponsor";
 import { useSponsorListings } from "@/features/earn/hooks/use-earn-sponsor-listings";
 import { deadlineLabel } from "@/features/earn/lib/deadline";
 import type { SponsorListing } from "@/features/earn/lib/api/types";
+import { EarnSignInPrompt } from "@/features/earn/components/earn-sign-in-prompt";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 const PAGE = "mx-auto w-full max-w-[1520px] px-4 pt-6 pb-20 sm:px-6";
 
@@ -22,9 +24,12 @@ function draftsOf(listings: SponsorListing[]): SponsorListing[] {
 }
 
 export function SponsorDraftsSection() {
+  const signedIn = useEarnSignedIn();
   const { sponsor, isLoading: sponsorLoading } = useCurrentSponsor();
   const { listings, isLoading, error } = useSponsorListings();
   const drafts = useMemo(() => draftsOf(listings), [listings]);
+
+  if (!signedIn) return <EarnSignInPrompt />;
 
   if (error) {
     return (

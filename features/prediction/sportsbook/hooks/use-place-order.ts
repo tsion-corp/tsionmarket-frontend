@@ -32,6 +32,7 @@ import {
   SPORTSBOOK_CHAIN_ID,
   UNISWAP_V3_ROUTER_ADDRESS,
 } from "../usdc-settlement";
+import { InsufficientBalanceError } from "@/lib/errors";
 
 export type PlaceOrderPhase =
   "idle" | "quoting" | "preparing" | "funding" | "signing" | "submitting";
@@ -148,7 +149,7 @@ export function usePlaceSportsbookOrder() {
           }),
         ]);
         if (usdcBalance < usdcAmount) {
-          throw new Error("Your USDC balance is too low for this stake.");
+          throw new InsufficientBalanceError("Your USDC balance is too low for this stake.");
         }
         const calls: EvmBatchCall[] = [];
         if (routerAllowance < usdcAmount) {

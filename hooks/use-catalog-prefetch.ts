@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuthSession } from "@/hooks/use-auth-session";
 import {
   DEPOSIT_CHAINS_KEY,
   MASTER_ELIGIBILITY_KEY,
@@ -30,8 +31,11 @@ interface MasterEligibility {
 // when the deposit screen mounts (see CATALOG_OPTIONS in use-deposit).
 export function usePrefetchDepositCatalog() {
   const queryClient = useQueryClient();
+  const { ready, authenticated } = useAuthSession();
 
   useEffect(() => {
+    // The catalog reads need a session.
+    if (!ready || !authenticated) return;
     let cancelled = false;
 
     const run = async () => {
@@ -78,5 +82,5 @@ export function usePrefetchDepositCatalog() {
     return () => {
       cancelled = true;
     };
-  }, [queryClient]);
+  }, [queryClient, ready, authenticated]);
 }

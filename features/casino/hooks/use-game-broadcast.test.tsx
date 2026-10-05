@@ -29,6 +29,8 @@ const displayStream = vi.hoisted(() => ({
 }));
 const getDisplayMedia = vi.hoisted(() => vi.fn(async () => displayStream));
 
+const authSession = vi.hoisted(() => ({ ready: true, authenticated: true }));
+vi.mock("@/hooks/use-auth-session", () => ({ useAuthSession: () => authSession }));
 vi.mock("livekit-client", () => {
   class LocalVideoTrack {
     mediaStreamTrack: unknown;
@@ -153,6 +155,7 @@ async function mountReady(target: Target = lastStandingTarget) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  authSession.authenticated = true;
   vi.spyOn(console, "warn").mockImplementation(() => {});
   Object.defineProperty(navigator, "mediaDevices", {
     value: { getDisplayMedia },
@@ -170,6 +173,17 @@ beforeEach(() => {
   client.fetchSpeakerQueue.mockResolvedValue([]);
   client.resolveSpeakerRequest.mockResolvedValue({ id: "r-1", status: "approved" });
   getDisplayMedia.mockResolvedValue(displayStream);
+});
+
+describe("useGameBroadcast without a session", () => {
+  it("reads neither the profile nor the live streams, and says it is signed out", async () => {
+    authSession.authenticated = false;
+    const { result } = renderHook(() => useGameBroadcast(lastStandingTarget), { wrapper });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(result.current.signedOut).toBe(true);
+    expect(client.fetchMarketSquareProfile).not.toHaveBeenCalled();
+    expect(client.findLiveStreamsForRef).not.toHaveBeenCalled();
+  });
 });
 
 describe("useGameBroadcast for a game that is not chess", () => {

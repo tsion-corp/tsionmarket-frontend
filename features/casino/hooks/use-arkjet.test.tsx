@@ -28,6 +28,7 @@ const live = vi.hoisted(() => ({
   sendArkjetCommand: vi.fn(),
   subscribeArkjetTopics: vi.fn(() => () => undefined),
 }));
+vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/features/casino/lib/api/arkjet", () => api);
 vi.mock("@/features/casino/lib/arkjet/live-socket", () => ({
   ARKJET_SOCKET_CLOSED: { type: "__closed" },

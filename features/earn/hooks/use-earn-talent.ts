@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { completeTalentProfile, fetchTalentProfile } from "@/features/earn/lib/api/talent";
 import type { TalentProfileInput } from "@/features/earn/lib/api/types";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 export const TALENT_KEYS = {
   profile: ["earn", "talent", "profile"] as const,
@@ -12,9 +13,11 @@ export const TALENT_KEYS = {
 // the service refuses a submission until it is filled in, so a screen asks this
 // before offering the submit form rather than after a rejected request.
 export function useTalentProfile() {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: TALENT_KEYS.profile,
     queryFn: fetchTalentProfile,
+    enabled: signedIn,
   });
 
   return {

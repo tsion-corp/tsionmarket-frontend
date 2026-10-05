@@ -11,6 +11,15 @@ import {
 import type { MemeTradeInput } from "@/features/trade/hooks/use-meme-trade";
 import type { SwapPreview } from "@/lib/meme/api";
 import { toBaseUnits } from "@/lib/trade/math";
+const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (session.signedIn) return true;
+    session.asked.push(action);
+    return false;
+  },
+}));
 
 // The panel is controlled: the parent owns the amount so it can debounce it
 // into a preview. The harness supplies that state.

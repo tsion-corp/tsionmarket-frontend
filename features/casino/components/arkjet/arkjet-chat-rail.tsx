@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import {
@@ -16,6 +15,7 @@ import { useCasinoPresence } from "@/features/casino/hooks/use-casino-presence";
 import type { ArkjetChatMessage } from "@/features/casino/lib/api/arkjet";
 import { toast } from "@/lib/toast";
 import styles from "./arkjet.module.css";
+import { openSignIn } from "@/hooks/use-sign-in";
 
 const MAX_LENGTH = 160;
 const EMOJIS = [
@@ -188,8 +188,7 @@ function ChatMessage({
 
 export function ArkjetChatRail({ onClose }: { onClose: () => void }) {
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = openSignIn;
   const chat = useArkjetChat(ready && authenticated);
   const presence = useCasinoPresence();
   const displayedOnlineCount = presence.data?.arkjet?.playersOnline ?? chat.onlineCount;

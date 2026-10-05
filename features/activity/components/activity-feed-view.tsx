@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useLocale, useNow, useTranslations } from "next-intl";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { openSignIn } from "@/hooks/use-sign-in";
 import { ClockIcon } from "@/components/ui/icons";
 import { ListPagination } from "@/components/ui/list-pagination";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -92,6 +94,8 @@ interface ActivityFeedViewProps {
 
 export function ActivityFeedView({ gameEntries = NO_GAMES }: ActivityFeedViewProps = {}) {
   const t = useTranslations("activity");
+  const tAuth = useTranslations("auth");
+  const signedOut = useSignedIn() === "no";
   const { items: chainItems, loading, error, partial, refetch } = useActivity();
   const [filters, setFilters] = useState<ActivityFilterState>(INITIAL_FILTERS);
   const [opened, setOpened] = useState<ActivityFeedItem | null>(null);
@@ -147,7 +151,18 @@ export function ActivityFeedView({ gameEntries = NO_GAMES }: ActivityFeedViewPro
         <ActivityFilters value={filters} onChange={setFilters} />
       </div>
 
-      {loading ? (
+      {signedOut ? (
+        <div className="ws-card flex flex-col items-center gap-3 px-6 py-12 text-center">
+          <div className="text-[13.5px] font-normal text-white/55">{tAuth("gate.history")}</div>
+          <button
+            type="button"
+            onClick={openSignIn}
+            className="text-ink cursor-pointer rounded-xl bg-white px-5 py-2.5 font-sans text-[13px] font-semibold hover:opacity-90"
+          >
+            {tAuth("signIn")}
+          </button>
+        </div>
+      ) : loading ? (
         <div className="ws-card px-6 py-12 text-center text-[13.5px] font-normal text-white/45">
           {t("loading")}
         </div>

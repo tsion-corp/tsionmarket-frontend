@@ -6,7 +6,6 @@ import { AuthGuard } from "@/components/auth/auth-guard";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
 import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
 import { buildNav } from "@/components/layout/nav-items";
-import { useInterest } from "@/hooks/use-interest";
 import { useAppNavigate } from "@/hooks/use-app-navigate";
 import { MobileMarketView } from "@/features/trade/components/mobile-market-view";
 import { RwaSection } from "@/features/rwa";
@@ -23,8 +22,7 @@ import { RwaSection } from "@/features/rwa";
 export default function MarketPage() {
   const modals = useAppModals();
   const tSections = useTranslations("sections");
-  const interest = useInterest();
-  const nav = useMemo(() => buildNav(interest, tSections), [interest, tSections]);
+  const nav = useMemo(() => buildNav(tSections), [tSections]);
   const navigate = useAppNavigate();
   return (
     <AuthGuard>

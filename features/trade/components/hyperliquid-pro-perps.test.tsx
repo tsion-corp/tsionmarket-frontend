@@ -838,12 +838,12 @@ describe("HyperliquidProPerps", () => {
     expect(within(list).getByText("Open Interest")).toBeInTheDocument();
   });
 
-  it("keeps the frame and shows the fallbacks when the session is signed out", () => {
+  it("shows a visitor the markets and asks them to sign in to trade", () => {
     trading.authenticated = false;
-    trading.assets = [];
     const { container } = renderDesk();
 
-    expect(region(container, "market-list")).toHaveTextContent("Sign in to trade with leverage.");
+    const list = region(container, "market-list") as HTMLElement;
+    expect(within(list).getByRole("button", { name: /BTC-USDC/ })).toBeInTheDocument();
     expect(region(container, "ticket")).toHaveTextContent("Sign in to trade with leverage.");
     expect(region(container, "order-entry")).toBeNull();
     expect(region(container, "ledger")).toBeNull();

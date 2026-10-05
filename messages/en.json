@@ -650,7 +650,25 @@
     "unlockContinue": "Continue",
     "unlockUseAnother": "Use a different account",
     "unlockWithPassword": "Unlock with password",
-    "unlockPwWrong": "That password didn't work. Try again."
+    "unlockPwWrong": "That password didn't work. Try again.",
+    "signIn": "Sign in",
+    "signInToSeeBalance": "Sign in to see your balance",
+    "gate": {
+      "play": "Sign in to play",
+      "buy": "Sign in to buy",
+      "sell": "Sign in to sell",
+      "bet": "Sign in to place a bet",
+      "trade": "Sign in to trade",
+      "fund": "Sign in to add funds",
+      "withdraw": "Sign in to withdraw",
+      "send": "Sign in to send",
+      "claim": "Sign in to claim it",
+      "history": "Sign in to see your history",
+      "submit": "Sign in to submit",
+      "broadcast": "Sign in to broadcast"
+    },
+    "signInToInvite": "Sign in to get your invite link",
+    "signInToContinue": "Sign in to continue"
   },
   "landingNav": {
     "markets": "Markets",

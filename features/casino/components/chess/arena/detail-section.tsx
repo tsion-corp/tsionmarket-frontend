@@ -15,6 +15,7 @@ import type { ArenaDetail, ArenaPairing, ArenaStanding } from "@/features/casino
 import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
+import { useSignInPrompt } from "@/hooks/use-require-session";
 
 function gameHref(matchId: string, playerName: string): string {
   return `/casino/chess/play?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerName)}`;
@@ -352,6 +353,7 @@ export function ArenaDetailSection({
   showCreatedShare?: boolean;
 }) {
   const router = useRouter();
+  const signInToPlay = useSignInPrompt("play");
   const wallet = useCasinoWallet();
   const arena = useArenaTournament(arenaId);
   const redirectedPairing = useRef<string | null>(null);
@@ -381,7 +383,7 @@ export function ArenaDetailSection({
 
   const handleJoin = async () => {
     if (!wallet.connected) {
-      router.push("/auth");
+      signInToPlay();
       return;
     }
     const toastId = toast.loading(detail.me ? "Rejoining Arena…" : "Joining Arena…");

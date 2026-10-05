@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
 
 // Signed in, through the Decane-backed session seam; "login" is now a route
 // to /auth, so the router is stubbed rather than a Privy login callback.
+vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/hooks/use-auth-session", () => ({
   useAuthSession: () => ({
     ready: true,

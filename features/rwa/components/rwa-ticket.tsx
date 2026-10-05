@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useSignedIn } from "@/hooks/use-signed-in";
 
 import type { ChangeDirection } from "@/components/ui/asset-table-row";
 import { Disclosure } from "@/components/ui/disclosure";
@@ -115,6 +117,8 @@ export function RwaTicket({
   initialAmount,
 }: RwaTicketProps) {
   const t = useTranslations("rwa");
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
   const ticket = useRwaTicket({ asset, initialSide, initialAmount });
   // Open on arrival: the price is the first thing someone checks before a
   // trade, so the ticket shows it rather than hiding it behind "View Chart".
@@ -360,6 +364,8 @@ export function RwaTicket({
           <InfoCard
             title={t("fundSolanaShort")}
             body={t("fundSolanaShortBody", { amount: formatUsd(solanaFundingAmount) })}
+            actionLabel={onAddFunds ? t("addFunds") : undefined}
+            onAction={onAddFunds}
           />
         ) : null}
 
@@ -408,6 +414,7 @@ export function RwaTicket({
             // the actions grow an "Add funds" button beside a disabled Buy
             // rather than leaving the reason line as the only way out.
             onAddFunds={onAddFunds}
+            onSignIn={signedOut ? () => requireSession(side) : undefined}
             pending={busy ? side : null}
             labels={{
               stageWaiting,

@@ -7,6 +7,8 @@ import { Responsive } from "@/components/ui/responsive";
 import { BalanceCardDesktop } from "@/features/portfolio/components/balance-card-desktop";
 import { BalanceCardMobile } from "@/features/portfolio/components/balance-card-mobile";
 import { usePortfolio } from "@/hooks/use-portfolio";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { useRequireSession } from "@/hooks/use-require-session";
 import { usePendingBankDeposit } from "@/hooks/use-ramping";
 import { useGlobalBalance } from "@/hooks/use-global-balance";
 import { readyToSpendUsd } from "@/features/portfolio/lib/breakdown";
@@ -50,6 +52,8 @@ export function BalanceCard({
   // button, so an unchanged balance next to a live button doesn't read as
   // "withdraw your new money now" and invite repeated attempts.
   const { pending: depositPending } = usePendingBankDeposit();
+  const signedOut = useSignedIn() === "no";
+  const requireSession = useRequireSession();
 
   // What a purchase can actually draw on: the stablecoins the portfolio
   // holds, read on-chain through the RPC pool like everything else on this
@@ -60,10 +64,11 @@ export function BalanceCard({
   // a skeleton, a portfolio that failed with nothing cached is "unavailable",
   // and neither is ever drawn as a zero.
   const readyToSpend: ReadyToSpend = useMemo(() => {
+    if (signedOut) return { state: "signedOut" };
     if (tokens.length === 0 && loading) return { state: "loading" };
     if (tokens.length === 0 && error) return { state: "unknown" };
     return { state: "known", usd: readyToSpendUsd(tokens) };
-  }, [tokens, loading, error]);
+  }, [signedOut, tokens, loading, error]);
 
   // Manual refresh: bypass the short server cache, but only for networks the
   // wallet actually holds — never a fresh sweep of every known chain
@@ -102,8 +107,12 @@ export function BalanceCard({
     hidden: hidden || maskForMigration,
     onToggleHidden: toggle,
     formatMasked: (amount) => mask(money.format(amount)),
-    onOpenFunds,
-    onOpenWithdraw,
+    onOpenFunds: () => {
+      if (requireSession("fund")) onOpenFunds();
+    },
+    onOpenWithdraw: () => {
+      if (requireSession("withdraw")) onOpenWithdraw();
+    },
     onRefresh,
     onTakeTour,
     updateBalanceSlot,

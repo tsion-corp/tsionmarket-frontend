@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   fetchHouseTickets: vi.fn(),
 }));
 
+vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@privy-io/react-auth", () => ({
   getAccessToken: vi.fn(),
   getIdentityToken: vi.fn(),

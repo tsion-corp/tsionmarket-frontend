@@ -2,7 +2,6 @@
 
 import { useDeferredValue, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import {
@@ -29,6 +28,11 @@ import {
   PredictionBetSidebarFrame,
 } from "@/features/prediction/components/prediction-bet-sidebar";
 import { SportIcon } from "@/features/prediction/sportsbook/components/sport-icon";
+import { openSignIn } from "@/hooks/use-sign-in";
+import { useSignInPrompt } from "@/hooks/use-require-session";
+import { isShortBalanceError } from "@/lib/errors";
+import { useAddFunds } from "@/hooks/use-funds-modal";
+import { useTranslations } from "next-intl";
 
 export interface BookPick {
   event: BookBoardEvent;
@@ -260,7 +264,9 @@ function BetSlip({
   onAccepted: () => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const router = useRouter();
+  const signInToBet = useSignInPrompt("bet");
+  const addFunds = useAddFunds();
+  const tBalance = useTranslations("balance");
   const queryClient = useQueryClient();
   const { ready, authenticated } = useAuthSession();
   const funding = useBookFunding();
@@ -424,7 +430,18 @@ function BetSlip({
             Your prediction balance is unavailable. Try again in a moment.
           </p>
         ) : bet.error ? (
-          <p className="mt-3 text-[10px] text-[#ef9ca5]">{bet.error.message}</p>
+          <>
+            <p className="mt-3 text-[10px] text-[#ef9ca5]">{bet.error.message}</p>
+            {isShortBalanceError(bet.error) ? (
+              <button
+                type="button"
+                onClick={addFunds}
+                className="mt-2 h-9 w-full cursor-pointer rounded-lg border border-white/15 bg-white/6 text-[11px] font-semibold text-white hover:bg-white/10"
+              >
+                {tBalance("addFunds")}
+              </button>
+            ) : null}
+          </>
         ) : null}
         <button
           type="button"
@@ -438,7 +455,7 @@ function BetSlip({
           }
           onClick={() => {
             if (!authenticated) {
-              router.push("/auth?returnTo=%2Fprediction%2Flocal");
+              signInToBet();
               return;
             }
             bet.mutate();
@@ -456,7 +473,6 @@ function BetSlip({
 }
 
 function MyBookBets({ enabled }: { enabled: boolean }) {
-  const router = useRouter();
   const { authenticated } = useAuthSession();
   const query = useQuery({
     queryKey: ["prediction", "book", "bets"],
@@ -473,7 +489,7 @@ function MyBookBets({ enabled }: { enabled: boolean }) {
         <p className="text-xs text-[#999]">Sign in to view your prediction tickets.</p>
         <button
           type="button"
-          onClick={() => router.push("/auth?returnTo=%2Fprediction%2Flocal")}
+          onClick={openSignIn}
           className="mt-4 cursor-pointer rounded-lg bg-[#b9fcff] px-5 py-2 text-xs font-semibold text-[#171717]"
         >
           Sign in

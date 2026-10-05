@@ -3,6 +3,8 @@
 import { useCallback, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { useAddFunds } from "@/hooks/use-funds-modal";
 import { Tabs, type Tab } from "@/components/ui/tabs";
 import { Eyebrow } from "@/components/ui/eyebrow";
 import { ModalShell } from "@/components/ui/modal-shell";
@@ -54,6 +56,11 @@ export function LastStandingLobby() {
   const games = useMemo(() => publicGames(allGames, privateGameIds()), [allGames]);
 
   const [startOpen, setStartOpen] = useState(false);
+  const requireSession = useRequireSession();
+  const addFunds = useAddFunds();
+  const openStart = () => {
+    if (requireSession("play")) setStartOpen(true);
+  };
   // Every settled game, for the history. The same feed the game pages scope
   // down to one game.
 
@@ -183,7 +190,7 @@ export function LastStandingLobby() {
                 <div>
                   <button
                     type="button"
-                    onClick={() => setStartOpen(true)}
+                    onClick={openStart}
                     className="ws-pressable cursor-pointer rounded-full bg-[#2a1a00] px-5 py-2.5 text-[13.5px] font-semibold text-[#ffd52d] transition-colors hover:bg-[#3a2400]"
                   >
                     {defaultEntry === null
@@ -288,7 +295,7 @@ export function LastStandingLobby() {
         </section>
       ) : (
         <HowItWorks
-          onStart={LAST_MAN_START_LIVE ? () => setStartOpen(true) : undefined}
+          onStart={LAST_MAN_START_LIVE ? openStart : undefined}
           startLabel={
             defaultEntry === null ? t("startTitle") : t("startCtaShort", { amount: defaultEntry })
           }
@@ -300,9 +307,10 @@ export function LastStandingLobby() {
           onClose={() => setStartOpen(false)}
           onStarted={resync}
           formatUsd={formatUsd}
-          // Nothing to hand over to when the balance is short: the stake comes
-          // off the USDC balance, so the sheet says the amount is more than
-          // they hold rather than offering a conversion that no longer exists.
+          onFund={() => {
+            setStartOpen(false);
+            addFunds();
+          }}
         />
       </ModalShell>
 

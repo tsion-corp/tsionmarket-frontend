@@ -364,3 +364,16 @@ export function isStaleBalanceRevert(error: unknown): boolean {
   const raw = error instanceof Error ? error.message : String(error ?? "");
   return /0xdb42144d|0xe450d38c|insufficient[- ]?balance|amount exceeds balance/i.test(raw);
 }
+
+/** Thrown when a pre-check finds the balance too low for the action. */
+export class InsufficientBalanceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InsufficientBalanceError";
+  }
+}
+
+// Whether a failure is the balance being too low, so the UI can offer Add funds.
+export function isShortBalanceError(error: unknown): boolean {
+  return error instanceof InsufficientBalanceError || isStaleBalanceRevert(error);
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { openSignIn } from "@/hooks/use-sign-in";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
 import { useKashAccount, useKashStatus } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount } from "@/features/portfolio/lib/kash";
@@ -55,14 +56,15 @@ interface KashCardMobileProps {
 // price under it, and Buy / Convert along the bottom.
 export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCardMobileProps) {
   const t = useTranslations("kash");
-  const { data: account, isError, walletMissing } = useKashAccount();
+  const tAuth = useTranslations("auth");
+  const { data: account, isError, signedOut, walletMissing } = useKashAccount();
   const { data: status } = useKashStatus();
 
   // An unknown balance must never render as zero: someone who holds KASH would
   // read "0 KASH+" as their money gone, and loading/no-wallet/error all leave
   // account undefined. Distinguish those states instead, like the desktop card.
-  const unavailable = !account && (isError || walletMissing);
-  const loading = !account && !unavailable;
+  const unavailable = !account && !signedOut && (isError || walletMissing);
+  const loading = !account && !signedOut && !unavailable;
 
   const balanceDisplay = formatKashAmount(account?.balance ?? "0");
   const unitPrice = status?.price.kashPriceUsd;
@@ -109,7 +111,15 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
 
         {/* Balance, centered in the space between the header and the actions */}
         <div className="flex flex-1 flex-col items-center justify-center text-center">
-          {loading ? (
+          {signedOut ? (
+            <button
+              type="button"
+              onClick={openSignIn}
+              className="max-w-[82%] cursor-pointer text-[3.25cqw] leading-[1.4] font-medium text-black/70 underline-offset-2 hover:underline"
+            >
+              {tAuth("signInToSeeBalance")}
+            </button>
+          ) : loading ? (
             // Hold the figure's space with a skeleton rather than a "0" the read
             // has not confirmed.
             <div className="h-[9.3cqw] w-[38cqw] animate-pulse rounded-[2cqw] bg-black/10" />

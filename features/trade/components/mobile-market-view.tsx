@@ -1175,6 +1175,7 @@ export function MobileMarketView({ rwaSlot, onAddFunds }: MobileMarketViewProps)
           token={memeSheetToken}
           defaultSide={memeSide}
           onClose={() => setMemeSheetToken(null)}
+          onTopUp={onAddFunds}
         />
       ) : null}
     </div>

@@ -53,6 +53,7 @@ function mount(overrides: Partial<Broadcast>, matchOver = false) {
     supported: true,
     isCreator: true,
     roleUnavailable: false,
+    signedOut: false,
     stream: null,
     sharingScreen: false,
     sharingCamera: false,

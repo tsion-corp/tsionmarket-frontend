@@ -6,6 +6,15 @@ import messages from "@/messages/en.json";
 // tests are about this surface's layout, not about that read, so the control
 // is stubbed and only its placement and its service are checked here. Its own
 // behaviour is covered in components/shine/shine-toggle.test.tsx.
+const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (session.signedIn) return true;
+    session.asked.push(action);
+    return false;
+  },
+}));
 vi.mock("@/components/shine/shine-toggle", () => ({
   ShineToggle: ({ service }: { service: string }) => (
     <div data-testid="shine-toggle" data-service={service} />

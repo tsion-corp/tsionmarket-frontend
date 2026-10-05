@@ -9,6 +9,7 @@ import {
 import {
   chessDisplayNameOfUser,
   chessReadNeedsSession,
+  chessReadOpenToVisitors,
   withChessCountry,
   withChessReadIdentity,
   withChessIdentity,
@@ -233,9 +234,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ path: strin
   if (UPSTREAMS.length === 0) return notConfigured();
   const joined = path.join("/");
   const ttl = cacheTtlMs(joined);
-  const needsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
-  const claims = needsSession ? await verifyRequest(req) : null;
-  if (needsSession && !claims) return unauthorized();
+  const wantsSession = chessReadNeedsSession(joined, req.nextUrl.searchParams);
+  const claims = wantsSession ? await verifyRequest(req) : null;
+  if (wantsSession && !claims && !chessReadOpenToVisitors(joined)) return unauthorized();
+  const needsSession = wantsSession && claims !== null;
   const user =
     needsSession && claims?.provider === "privy" ? await getRequestUser(req, claims) : null;
   // Provider-agnostic wallet: Decane resolves through its address endpoint,

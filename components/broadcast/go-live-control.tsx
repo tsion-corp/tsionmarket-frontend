@@ -17,6 +17,7 @@
 import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useRequireSession } from "@/hooks/use-require-session";
 import { arkBroadcastTarget } from "@/components/broadcast/ark-target";
 import { useBroadcastSession } from "@/components/broadcast/broadcast-session";
 import { ShareFlow } from "@/components/broadcast/share-flow";
@@ -49,6 +50,7 @@ export function GoLiveControl({ variant }: { variant: "tab" | "rail" | "tile" })
   const pathname = usePathname() ?? "/";
   const { profile } = useAuthSession();
   const [sharing, setSharing] = useState(false);
+  const requireSession = useRequireSession();
 
   const target = arkBroadcastTarget(pathname, profile.name);
   const live = session.live;
@@ -72,6 +74,7 @@ export function GoLiveControl({ variant }: { variant: "tab" | "rail" | "tile" })
       setSharing(false);
       return;
     }
+    if (!requireSession("broadcast")) return;
     setSharing(true);
   };
 

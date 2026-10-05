@@ -27,7 +27,9 @@ import { OFFRAMP_MIN_USDC } from "@/lib/ramping/orders";
 export type ReadyToSpend =
   | { readonly state: "known"; readonly usd: number }
   | { readonly state: "loading" }
-  | { readonly state: "unknown" };
+  | { readonly state: "unknown" }
+  // No session, so no wallet to read. Not the same as an empty wallet.
+  | { readonly state: "signedOut" };
 
 const LOADING: ReadyToSpend = { state: "loading" };
 const UNKNOWN: ReadyToSpend = { state: "unknown" };

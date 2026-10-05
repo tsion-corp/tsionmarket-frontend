@@ -97,6 +97,15 @@ vi.mock("@/hooks/use-auth-session", () => ({
   useAuthSession: () => ({ evmAddress: world.address }),
 }));
 
+const gate = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (gate.signedIn) return true;
+    gate.asked.push(action);
+    return false;
+  },
+}));
+
 // The reader's Market Square picture. The real hook reads the square through
 // react-query; what this file cares about is only which faces it reaches.
 vi.mock("@/hooks/use-square-avatar", () => ({
@@ -602,6 +611,22 @@ describe("LastStandingSection rail", () => {
       expect(field()).toHaveValue("$2.50");
       fireEvent.click(screen.getByRole("button", { name: ls.railAddCta }));
       expect(wager).toHaveBeenCalledWith(59, 2_500_000n);
+    });
+
+    it("asks a signed-out visitor to sign in instead of staking", () => {
+      gate.signedIn = false;
+      gate.asked = [];
+      try {
+        renderSection();
+        const cta = screen.getByRole("button", { name: ls.railAddCta });
+        expect(cta).toBeEnabled();
+        fireEvent.click(cta);
+        expect(gate.asked).toEqual(["play"]);
+        expect(wager).not.toHaveBeenCalled();
+        expect(onAddFunds).not.toHaveBeenCalled();
+      } finally {
+        gate.signedIn = true;
+      }
     });
 
     // Both ends are clamped rather than refused: under the game's minimum is

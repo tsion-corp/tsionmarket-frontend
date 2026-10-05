@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { usePrices } from "@/hooks/use-prices";
@@ -13,14 +12,14 @@ import {
 import { isLostSelectionResult } from "../ticket-status";
 import { useSportsbookOrderHistory } from "../hooks/use-sportsbook";
 import { useSportsbookShine } from "../hooks/use-sportsbook-shine";
+import { openSignIn } from "@/hooks/use-sign-in";
 
 const POSITIVE = new Set(["won", "redeemable", "redeemed"]);
 const NEGATIVE = new Set(["lost", "rejected", "failed"]);
 
 export function TicketsPanel({ onOpen }: { onOpen: (ticketId: string) => void }) {
   const { authenticated } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = openSignIn;
   const ethPriceUsd = usePrices(["ETH"]).ETH ?? 0;
   const history = useSportsbookOrderHistory(authenticated);
   // A settled winning ticket is only ever seen here for most people: they do

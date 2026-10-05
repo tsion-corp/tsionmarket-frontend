@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
 import { openSupportChat } from "@/lib/support-chat/open";
@@ -53,11 +52,11 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
   const displayName = useDisplayName();
   const passkey = useDevicePasskey();
   const unlockPassword = useUnlockPassword();
-  const router = useRouter();
 
+  // Pages are open without a session, so signing out stays on the page.
   const signOut = async () => {
+    onClose();
     await logout();
-    router.push("/auth");
   };
   const squareAvatar = useSquareAvatar();
   const squareSeed = useSquareSeed();

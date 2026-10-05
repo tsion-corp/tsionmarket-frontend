@@ -371,14 +371,19 @@ export function useRwaTicket({
   // reschedules it, so a background portfolio refetch never re-quotes.
   useEffect(() => {
     const num = Number.parseFloat(amount);
-    if (!(num > 0) || !quoteSig || (isBuy && belowMinimumBuy(num, asset.chain === "solana"))) {
+    if (
+      !authenticated ||
+      !(num > 0) ||
+      !quoteSig ||
+      (isBuy && belowMinimumBuy(num, asset.chain === "solana"))
+    ) {
       return;
     }
     const timer = setTimeout(() => {
       void runQuoteRef.current(amount);
     }, 700);
     return () => clearTimeout(timer);
-  }, [amount, quoteSig, isBuy, asset.chain]);
+  }, [authenticated, amount, quoteSig, isBuy, asset.chain]);
 
   const setAmount = (value: string) => {
     if (!DECIMAL_INPUT.test(value)) return;
@@ -389,7 +394,7 @@ export function useRwaTicket({
       setPhase("idle");
       setQuote(null);
       setNotice(null);
-    } else if (num > 0) {
+    } else if (num > 0 && authenticated) {
       setPhase("quoting");
       setNotice(null);
     } else {

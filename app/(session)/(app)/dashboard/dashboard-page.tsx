@@ -47,13 +47,12 @@ import { OwnMarketRow } from "@/features/discovery/components/own-market-row";
 import { TokenMovesRow } from "@/features/discovery/components/token-moves-row";
 import { Next100xRow } from "@/features/discovery/components/next-100x-row";
 import { PredictionStartsRow } from "@/features/discovery/components/prediction-starts-row";
-import { RealAssetsRow, realAssetsLead } from "@/features/discovery/components/real-assets-row";
+import { RealAssetsRow } from "@/features/discovery/components/real-assets-row";
 import { useMemeSpots } from "@/app/(session)/(app)/dashboard/discovery/memecoins";
 import { useTokenSpots } from "@/app/(session)/(app)/dashboard/discovery/tokens";
 import { usePredictionSpots } from "@/app/(session)/(app)/dashboard/discovery/predictions";
 import { useRwaSpots } from "@/app/(session)/(app)/dashboard/discovery/real-assets";
 import { useDiscoveryTrade } from "@/app/(session)/(app)/dashboard/discovery/trade-intents";
-import { useInterest } from "@/hooks/use-interest";
 import { useSpotMarkets } from "@/features/trade/hooks/use-spot-markets";
 import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
@@ -211,11 +210,8 @@ export function DashboardPage() {
   // feature slices. Until this was wired the card had no markets prop and
   // showed the design's sample market on every dashboard.
   const predictionSpots = usePredictionSpots();
-  // "Own the Real World" shows for everyone; the saved onboarding interest
-  // only decides whether it leads the discovery area or closes it. Its assets
-  // come from the feed already loaded above.
+  // "Own the Real World": its assets come from the feed already loaded above.
   const rwaSpots = useRwaSpots();
-  const rwaLeads = realAssetsLead(useInterest());
   // The square's feed tab lives here because two siblings drive it: the
   // section's own strip, and the plus sheet's discussions.
   const [squareTab, setTab] = useState<string | undefined>(undefined);
@@ -349,26 +345,20 @@ export function DashboardPage() {
           to a frame on a phone. The conversation row handles a hidden square
           itself: its card goes and its heading falls back to chess. */}
       <div className="flex flex-col gap-6 md:hidden">
-        {/* The Arkade's own shelf, one card per game. It leads the shelves,
-            directly under the balance cards and the promo strip, whatever was
-            picked at onboarding: it is what the platform is putting in front
-            of everyone, so it is not something an interest can push down. */}
+        {/* Same order on every width, set by the team on 2026-10-02. */}
         <div className="px-4">
           <ArkadeRow />
         </div>
-        {rwaLeads ? <div className="px-4">{realAssets}</div> : null}
         <div className="px-4">
           <ConversationRow />
         </div>
-        {/* "Your Next Prediction Starts Here" — the same discovery card the
-            desktop shows, on the phone with its horizontal gutter. The Arkade
-            keeps the lead it was given in #562; this row returns to the slot
-            it held before #517, which is directly above Token Moves. */}
         <div className="px-4">
           <PredictionStartsRow markets={predictionSpots} />
         </div>
-        {/* "Stay Ahead of Token Moves" — the desktop token-moves discovery
-            card, now on the phone too, in the phone's gutter. */}
+        <div className="px-4">{realAssets}</div>
+        <div className="px-4">
+          <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
+        </div>
         <div className="px-4">
           <TokenMovesRow
             tokens={tokenSpots}
@@ -376,44 +366,24 @@ export function DashboardPage() {
             onBuy={discoveryTrade.onBuyToken}
           />
         </div>
-        {/* "Find the next 100X" — the same discovery carousel the desktop shows
-            (the Pepe card, a rotating live memecoin, then Pepe again), now on
-            the phone. The row brings its own header and carousel; it just needs
-            the phone's horizontal gutter, which the desktop shelf gives it too. */}
-        <div className="px-4">
-          <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
-        </div>
-        {/* "Own the market": the perps desk's shelf, the same one the desktop
-            band carries, in the phone's gutter. */}
         <div className="px-4">
           <OwnMarketRow />
         </div>
-        {rwaLeads ? null : <div className="px-4">{realAssets}</div>}
       </div>
 
-      {/* Desktop: the discovery shelves, as the phone design's desktop sibling
-          draws them under the balance cards — the Arkade, Token Moves, Join
-          the Conversation, Own The Market, Find the next 100X, then
-          Prediction starts. */}
+      {/* Desktop: the same shelves in the same order as the phone. */}
       <div className="mx-auto hidden w-full max-w-[1520px] flex-col gap-11 px-4 pb-2 sm:px-6 md:flex lg:px-8">
-        {/* The Arkade's own shelf, one card per game. It leads the shelves,
-            directly under the balance cards and the promo strip, whatever was
-            picked at onboarding: it is what the platform is putting in front
-            of everyone, so it is not something an interest can push down. */}
         <ArkadeRow />
-        {rwaLeads ? realAssets : null}
+        <ConversationRow />
+        <PredictionStartsRow markets={predictionSpots} />
+        {realAssets}
+        <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
         <TokenMovesRow
           tokens={tokenSpots}
           loading={tokenSpotsLoading}
           onBuy={discoveryTrade.onBuyToken}
         />
-        <ConversationRow />
-        {/* "Own The Market.": the perps desk's shelf, as the design draws it
-            beside the conversation band. */}
         <OwnMarketRow />
-        <Next100xRow memecoins={memeSpots} onBuy={discoveryTrade.onBuyMeme} />
-        <PredictionStartsRow markets={predictionSpots} />
-        {rwaLeads ? null : realAssets}
       </div>
 
       {briefs.map((id, index) => {

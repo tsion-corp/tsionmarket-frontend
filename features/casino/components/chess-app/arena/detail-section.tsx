@@ -17,6 +17,7 @@ import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
 import { useShareLink } from "@/hooks/use-share-link";
+import { useSignInPrompt } from "@/hooks/use-require-session";
 
 function gameHref(matchId: string, playerName: string): string {
   return `/casino/chess/play?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerName)}`;
@@ -355,7 +356,7 @@ export function ArenaDetailSection({
 }) {
   const router = useRouter();
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
-  const login = () => router.push("/auth");
+  const login = useSignInPrompt("play");
   const wallet = useCasinoWallet();
   const arena = useArenaTournament(arenaId);
   const redirectedPairing = useRef<string | null>(null);

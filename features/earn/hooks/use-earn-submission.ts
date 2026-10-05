@@ -8,6 +8,7 @@ import {
   fetchMySubmissions,
 } from "@/features/earn/lib/api/submissions";
 import type { CreateSubmissionInput } from "@/features/earn/lib/api/types";
+import { useEarnSignedIn } from "@/features/earn/hooks/use-earn-session";
 
 export const SUBMISSION_KEYS = {
   check: (listingId: string) => ["earn", "submission", "check", listingId] as const,
@@ -19,9 +20,11 @@ export const SUBMISSION_KEYS = {
 // win" in one place, which per-listing checks cannot: they need the listing in
 // hand already.
 export function useMySubmissions() {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SUBMISSION_KEYS.all,
     queryFn: () => fetchMySubmissions(),
+    enabled: signedIn,
   });
 
   return {
@@ -33,10 +36,11 @@ export function useMySubmissions() {
 
 // Whether this user already entered, and once winners are out, how they did.
 export function useSubmissionCheck(listingId: string | null) {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SUBMISSION_KEYS.check(listingId ?? "none"),
     queryFn: () => checkSubmission(listingId as string),
-    enabled: !!listingId,
+    enabled: signedIn && !!listingId,
   });
 
   return {
@@ -47,10 +51,11 @@ export function useSubmissionCheck(listingId: string | null) {
 }
 
 export function useMySubmission(listingId: string | null) {
+  const signedIn = useEarnSignedIn();
   const query = useQuery({
     queryKey: SUBMISSION_KEYS.mine(listingId ?? "none"),
     queryFn: () => fetchMySubmission(listingId as string),
-    enabled: !!listingId,
+    enabled: signedIn && !!listingId,
   });
 
   return {

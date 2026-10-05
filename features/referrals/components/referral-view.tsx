@@ -3,6 +3,8 @@
 import { useState } from "react";
 
 import { useTranslations } from "next-intl";
+import { useSignedIn } from "@/hooks/use-signed-in";
+import { openSignIn } from "@/hooks/use-sign-in";
 import { useReferralStats } from "@/features/referrals/hooks/use-referrals";
 import {
   ClaimScreen,
@@ -23,6 +25,8 @@ import {
  */
 export function ReferralView() {
   const t = useTranslations("referral");
+  const tAuth = useTranslations("auth");
+  const signedOut = useSignedIn() === "no";
   const stats = useReferralStats(true);
 
   // A page, not a sheet, so the column grows with the viewport instead of
@@ -55,7 +59,18 @@ export function ReferralView() {
       </h1>
 
       <div className="mt-4 lg:mt-5">
-        {stats.isPending ? (
+        {signedOut ? (
+          <div className="py-14 text-center">
+            <p className="text-[13.5px] font-normal text-white/55">{tAuth("signInToInvite")}</p>
+            <button
+              type="button"
+              onClick={openSignIn}
+              className="text-ink mt-4 cursor-pointer rounded-full bg-white px-5 py-2.5 text-[13px] font-semibold hover:opacity-90"
+            >
+              {tAuth("signIn")}
+            </button>
+          </div>
+        ) : stats.isPending ? (
           <Spinner />
         ) : stats.isError || !stats.data ? (
           <div className="py-14 text-center">

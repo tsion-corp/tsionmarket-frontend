@@ -45,6 +45,8 @@ const portfolio = vi.hoisted(() => ({
   ],
 }));
 vi.mock("@/hooks/use-portfolio", () => ({ usePortfolio: () => portfolio }));
+const addFunds = vi.hoisted(() => vi.fn());
+vi.mock("@/hooks/use-funds-modal", () => ({ useAddFunds: () => addFunds }));
 
 import { HyperliquidFundModal } from "@/features/trade/components/hyperliquid-fund-modal";
 
@@ -103,6 +105,13 @@ describe("HyperliquidFundModal form", () => {
     fireEvent.change(amountField(), { target: { value: "120.500001" } });
     expect(screen.getByText("More than your available 120.5 USDC.")).toBeInTheDocument();
     expect(topUpButton()).toBeDisabled();
+  });
+
+  it("offers Add funds when the amount is more than the wallet holds", () => {
+    renderModal();
+    fireEvent.change(amountField(), { target: { value: "500" } });
+    fireEvent.click(screen.getByRole("button", { name: messages.balance.addFunds }));
+    expect(addFunds).toHaveBeenCalledTimes(1);
   });
 
   it("says the wallet is not ready rather than letting a top-up start", () => {

@@ -66,6 +66,23 @@ function renderCard() {
 // The bug this guards: the card used to fall back to "0" whenever the account
 // query returned nothing, so a failed read was indistinguishable from an empty
 // wallet and holders were told their balance was zero.
+
+describe("KashCard signed out", () => {
+  it("asks the visitor to sign in", () => {
+    kashHooks.useKashAccount.mockReturnValue({
+      data: undefined,
+      isError: false,
+      walletMissing: false,
+      signedOut: true,
+    });
+    renderCard();
+    expect(
+      screen.getByRole("button", { name: messages.auth.signInToSeeBalance })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(messages.kash.balanceNoWallet)).not.toBeInTheDocument();
+  });
+});
+
 describe("KashCard balance states", () => {
   beforeEach(() => vi.clearAllMocks());
 

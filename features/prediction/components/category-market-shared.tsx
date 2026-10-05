@@ -1,5 +1,4 @@
 "use client";
-import { useRouter } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import Link from "next/link";
@@ -8,6 +7,7 @@ import { MarketLogo } from "@/components/ui/market-logo";
 import { PredictionCategoryButton } from "./prediction-category-drawer";
 import type { PredictionCategory } from "../categories";
 import { usdcVolume, type CategoryPrediction } from "../category-market-presenter";
+import { openSignIn } from "@/hooks/use-sign-in";
 
 export const CategoryBetSidebar = dynamic(
   () => import("./category-bet-sidebar").then((module) => module.CategoryBetSidebar),
@@ -66,8 +66,7 @@ export function CategoryTopNav({
   category: PredictionCategory;
 }) {
   const { authenticated } = useAuthSession();
-  const router = useRouter();
-  const login = () => router.push("/auth");
+  const login = openSignIn;
   return (
     <div className="sticky top-0 z-[100] bg-[#171717] px-3 py-2 md:px-5">
       <div className="flex min-h-10 items-center gap-2 md:gap-4">

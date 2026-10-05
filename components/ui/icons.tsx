@@ -744,18 +744,6 @@ export function RefreshIcon({ size = 16, className }: IconProps) {
   );
 }
 
-export const INTEREST_ICONS: Record<string, (props: IconProps) => React.ReactNode> = {
-  "chart-bars": ChartBarsIcon,
-  gold: GoldIcon,
-  coin: CoinIcon,
-  trend: TrendIcon,
-  flame: FlameIcon,
-  bulb: BulbIcon,
-  yield: YieldIcon,
-  dice: DiceIcon,
-  house: HouseIcon,
-  bond: BondIcon,
-};
 
 export function PasskeyIcon({ size = 20, className }: IconProps) {
   return (

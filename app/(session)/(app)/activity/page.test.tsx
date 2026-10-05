@@ -8,6 +8,7 @@ import type { ActivityFeedItem } from "@/lib/activity/feed";
 
 const chainFeed = vi.fn();
 const gameFeed = vi.fn();
+vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => "yes" }));
 vi.mock("@/features/activity/hooks/use-activity", () => ({ useActivity: () => chainFeed() }));
 vi.mock("@/features/casino/hooks/use-game-activity", () => ({
   useGameActivity: () => gameFeed(),

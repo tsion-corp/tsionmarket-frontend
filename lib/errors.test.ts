@@ -4,6 +4,8 @@ import {
   friendlyError,
   isGasFeeError,
   isAlreadySettledError,
+  InsufficientBalanceError,
+  isShortBalanceError,
   requestIdOf,
   supportDetail,
   tradeErrorKey,
@@ -366,5 +368,19 @@ describe("trade service errors", () => {
     expect(supportDetail(tradeError("FAILED", "The trade didn't complete.", 200, null))).toBe(
       "The trade didn't complete."
     );
+  });
+});
+
+describe("isShortBalanceError", () => {
+  it("is true for our own shortfall and for an on-chain balance revert", () => {
+    expect(isShortBalanceError(new InsufficientBalanceError("Your USDC balance is too low."))).toBe(
+      true
+    );
+    expect(isShortBalanceError(new Error("ERC20: transfer amount exceeds balance"))).toBe(true);
+  });
+
+  it("is false for anything else", () => {
+    expect(isShortBalanceError(new Error("The current odds could not be refreshed."))).toBe(false);
+    expect(isShortBalanceError(null)).toBe(false);
   });
 });

@@ -96,6 +96,9 @@ export interface TradeActionsProps {
   // too-precise amount is the user's to correct, so the button holds off on
   // those.
   onAddFunds?: () => void;
+  // Given when there is no session. The button stays pressable whatever the
+  // balances say, and a press calls this instead of trading.
+  onSignIn?: () => void;
   // The side currently executing, or null when nothing is in flight.
   pending?: TradeSide | null;
   labels: TradeActionsLabels;
@@ -109,6 +112,7 @@ export function TradeActions({
   onBuy,
   onSell,
   onAddFunds,
+  onSignIn,
   pending = null,
   labels,
 }: TradeActionsProps) {
@@ -142,7 +146,7 @@ export function TradeActions({
         : amountReason(sell.balance, sell.decimals, sell.symbol));
 
   const buying = side === "buy";
-  const reason = buying ? buyReason : sellReason;
+  const reason = onSignIn ? null : buying ? buyReason : sellReason;
   const reasonId = `${baseId}-${side}`;
 
   // The one block a deposit clears: a buy whose only problem is that the pay
@@ -151,6 +155,7 @@ export function TradeActions({
   // only when the desk actually handed us a way to add funds.
   const showAddFunds =
     buying &&
+    !onSignIn &&
     !inFlight &&
     onAddFunds != null &&
     labels.addFunds != null &&
@@ -167,7 +172,7 @@ export function TradeActions({
           busy={pending === side}
           disabled={reason !== null}
           describedBy={reasonId}
-          onClick={() => (buying ? onBuy(amount) : onSell(amount))}
+          onClick={() => (onSignIn ? onSignIn() : buying ? onBuy(amount) : onSell(amount))}
           fill={showAddFunds ? "share" : "full"}
         />
         {showAddFunds ? (

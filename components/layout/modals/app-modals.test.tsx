@@ -17,6 +17,32 @@ vi.mock("@/features/trade/components/meme-trade-sheet", () => ({
   },
 }));
 
+const gate = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
+vi.mock("@/hooks/use-require-session", () => ({
+  useRequireSession: () => (action: string) => {
+    if (gate.signedIn) return true;
+    gate.asked.push(action);
+    return false;
+  },
+}));
+
+describe("useAppModals signed out", () => {
+  it("opens no money sheet and names what was asked for", () => {
+    gate.signedIn = false;
+    gate.asked = [];
+    try {
+      const { result } = renderHook(() => useAppModals());
+      act(() => result.current.openFunds());
+      act(() => result.current.openWithdraw());
+      act(() => result.current.openMemeBuy(memeToken({ symbol: "PEPE" })));
+      expect(result.current.modal).toBeNull();
+      expect(gate.asked).toEqual(["fund", "withdraw", "buy"]);
+    } finally {
+      gate.signedIn = true;
+    }
+  });
+});
+
 describe("useAppModals openMemeBuy", () => {
   it("puts a memeBuy variant carrying the token in state", () => {
     const { result } = renderHook(() => useAppModals());

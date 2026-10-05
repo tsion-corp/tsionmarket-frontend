@@ -16,15 +16,18 @@ interface LaunchCtaProps {
    * landing page actually converts.
    */
   placement: string;
+  /** Where the button leads. The app opens without a session, so by default
+   * straight into it; sign-in happens there when an action needs it. */
+  href?: string;
   children: React.ReactNode;
 }
 
-// Every landing CTA that enters the app renders through this. Live, it is the
-// plain /auth link it always was; with the app closed (see lib/launch-gate.ts)
+// Every landing CTA that enters the app renders through this. Live, it is a
+// plain link into the app; with the app closed (see lib/launch-gate.ts)
 // the same button opens a coming-soon notice instead, so the page keeps its
 // energy while the doors are closed. The film only renders once the gate is
 // open, so in practice this is the takedown switch's backstop.
-export function LaunchCta({ className, placement, children }: LaunchCtaProps) {
+export function LaunchCta({ className, placement, href = "/portfolio", children }: LaunchCtaProps) {
   const [open, setOpen] = useState(false);
   // Reported whether or not the doors are open: a press against a closed gate
   // is still someone trying to get in, and the two are told apart by whether
@@ -33,7 +36,7 @@ export function LaunchCta({ className, placement, children }: LaunchCtaProps) {
 
   if (isAppLive()) {
     return (
-      <Link href="/auth" className={className} onClick={clicked}>
+      <Link href={href} className={className} onClick={clicked}>
         {children}
       </Link>
     );

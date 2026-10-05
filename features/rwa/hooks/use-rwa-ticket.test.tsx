@@ -296,6 +296,14 @@ afterEach(() => {
 });
 
 describe("quoting", () => {
+  it("does not quote for a visitor, since the quote route needs a session", async () => {
+    wallets.user = null;
+    const view = mount({ asset: asset() });
+    await type(view, "10");
+    expect(rwaApi.quoteAsync).not.toHaveBeenCalled();
+    expect(view.result.current.phase).not.toBe("quoting");
+  });
+
   it("discards a superseded quote response and keeps the newest request's result", async () => {
     const first = deferred<RwaQuoteResult>();
     const second = deferred<RwaQuoteResult>();

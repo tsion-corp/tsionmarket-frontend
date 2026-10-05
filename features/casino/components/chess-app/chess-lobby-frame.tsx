@@ -4,6 +4,10 @@ import { useAuthSession } from "@/hooks/use-auth-session";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/auth/auth-guard";
+import { useTranslations } from "next-intl";
+import { useRequireSession } from "@/hooks/use-require-session";
+import { openSignIn } from "@/hooks/use-sign-in";
+import { useAddFundsAction } from "@/hooks/use-funds-modal";
 import {
   friendTimeControl,
   useFundedChessChallenge,
@@ -17,7 +21,7 @@ import {
 import type { ChessVariant, CreateComputerMatchInput } from "@/features/casino/lib/api/types";
 import { installChessSetupPersistence } from "@/features/casino/lib/chess/setup-persistence";
 import { copyTextWhenReady } from "@/lib/clipboard";
-import { friendlyError } from "@/lib/errors";
+import { friendlyError, isShortBalanceError } from "@/lib/errors";
 import { shareOrigin } from "@/lib/site-url";
 import { toast } from "@/lib/toast";
 
@@ -300,9 +304,22 @@ export function ChessLobbyFrame({ source }: { source: string }) {
   const { ready, authenticated, evmAddress, solanaAddress, profile, logout } = useAuthSession();
   const wallet = useCasinoWallet();
   const frameRef = useRef<HTMLIFrameElement>(null);
-  const authRedirectingRef = useRef(false);
+  const signingOutRef = useRef(false);
+  const requireSession = useRequireSession();
+  // Read inside the frame's listeners, which are installed once per document.
+  const sessionRef = useRef({ authenticated, requireSession });
+  const fundsAction = useAddFundsAction();
+  const fundsActionRef = useRef(fundsAction);
+  useEffect(() => {
+    fundsActionRef.current = fundsAction;
+  }, [fundsAction]);
+  useEffect(() => {
+    sessionRef.current = { authenticated, requireSession };
+  }, [authenticated, requireSession]);
   const [frameSource, setFrameSource] = useState(source);
   const [frameReady, setFrameReady] = useState(false);
+  const [needsSignIn, setNeedsSignIn] = useState(false);
+  const tAuth = useTranslations("auth");
   const computer = useFundedChessComputer();
   const startComputer = computer.start;
   const baseUsdcBalance = computer.availableUsdc;
@@ -466,6 +483,17 @@ export function ChessLobbyFrame({ source }: { source: string }) {
     let tournamentEntryForm: HTMLFormElement | null = null;
     let detachVariantPickers: () => void = () => undefined;
     let detachSetupPersistence: () => void = () => undefined;
+    // Every game the lobby starts, free ones included, is a POST from inside
+    // the frame. Caught on the document, ahead of the per-form handlers.
+    const gateSubmit = (event: SubmitEvent) => {
+      const form = event.target as HTMLFormElement | null;
+      if (form?.method?.toLowerCase() !== "post") return;
+      if (sessionRef.current.authenticated) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      sessionRef.current.requireSession("play");
+    };
+
     const onComputerSubmit = (event: SubmitEvent) => {
       const form = event.currentTarget as HTMLFormElement;
       const formData = new FormData(form);
@@ -519,7 +547,10 @@ export function ChessLobbyFrame({ source }: { source: string }) {
         .catch((cause) => {
           const message = friendlyError(cause, "Couldn't start the funded computer game.");
           showError(message);
-          toast.error(message, { id: toastId });
+          toast.error(message, {
+            id: toastId,
+            action: isShortBalanceError(cause) ? fundsActionRef.current : undefined,
+          });
           if (submit) submit.disabled = false;
           if (submitLabel) submitLabel.textContent = "Play against computer";
         });
@@ -576,7 +607,10 @@ export function ChessLobbyFrame({ source }: { source: string }) {
         .catch((cause) => {
           const message = friendlyError(cause, "Couldn't start the funded lobby game.");
           showError(message);
-          toast.error(message, { id: toastId });
+          toast.error(message, {
+            id: toastId,
+            action: isShortBalanceError(cause) ? fundsActionRef.current : undefined,
+          });
           if (submit) submit.disabled = false;
           if (submitLabel) submitLabel.textContent = "Play online";
         });
@@ -640,7 +674,10 @@ export function ChessLobbyFrame({ source }: { source: string }) {
         .catch((cause) => {
           const message = friendlyError(cause, "Couldn't fund the friend challenge.");
           showError(message);
-          toast.error(message, { id: toastId });
+          toast.error(message, {
+            id: toastId,
+            action: isShortBalanceError(cause) ? fundsActionRef.current : undefined,
+          });
           if (submit) submit.disabled = false;
           if (submitLabel) submitLabel.textContent = "Challenge a friend";
         });
@@ -689,7 +726,10 @@ export function ChessLobbyFrame({ source }: { source: string }) {
         .catch((cause) => {
           const message = friendlyError(cause, "Couldn't accept the funded challenge.");
           showError(message);
-          toast.error(message, { id: toastId });
+          toast.error(message, {
+            id: toastId,
+            action: isShortBalanceError(cause) ? fundsActionRef.current : undefined,
+          });
           if (submit) submit.disabled = false;
           if (submitLabel) submitLabel.textContent = "▶ Join the game";
         });
@@ -754,7 +794,10 @@ export function ChessLobbyFrame({ source }: { source: string }) {
         .catch((cause) => {
           const message = friendlyError(cause, "Couldn't join this tournament.");
           showStatus(message);
-          toast.error(message, { id: toastId });
+          toast.error(message, {
+            id: toastId,
+            action: isShortBalanceError(cause) ? fundsActionRef.current : undefined,
+          });
           if (submit) submit.disabled = false;
           if (submitLabel) submitLabel.textContent = originalLabel;
         });
@@ -781,12 +824,13 @@ export function ChessLobbyFrame({ source }: { source: string }) {
         }
       }
       if (unauthorized) {
+        // The backend renders the play lobby only for a session, so ask for a
+        // sign-in here. A session the backend refused is signed out first.
         setFrameReady(false);
-        if (!authRedirectingRef.current) {
-          authRedirectingRef.current = true;
-          void logout()
-            .catch(() => undefined)
-            .finally(() => router.replace("/auth"));
+        setNeedsSignIn(true);
+        if (sessionRef.current.authenticated && !signingOutRef.current) {
+          signingOutRef.current = true;
+          void logout().catch(() => undefined);
         }
         return;
       }
@@ -799,6 +843,8 @@ export function ChessLobbyFrame({ source }: { source: string }) {
           wallet.address ?? "anon"
         );
       }
+      frameDocument?.removeEventListener("submit", gateSubmit, true);
+      frameDocument?.addEventListener("submit", gateSubmit, true);
       lobbyForm = frameDocument?.querySelector<HTMLFormElement>("form[data-lobby-setup]") ?? null;
       lobbyForm?.addEventListener("submit", onLobbySubmit, true);
       computerForm =
@@ -836,6 +882,7 @@ export function ChessLobbyFrame({ source }: { source: string }) {
     return () => {
       detachVariantPickers();
       detachSetupPersistence();
+      frameDocument?.removeEventListener("submit", gateSubmit, true);
       frame.removeEventListener("load", onFrameLoad);
       lobbyForm?.removeEventListener("submit", onLobbySubmit, true);
       computerForm?.removeEventListener("submit", onComputerSubmit, true);
@@ -853,6 +900,7 @@ export function ChessLobbyFrame({ source }: { source: string }) {
     friendConfigured,
     friendUsdcBalance,
     fundTournamentEntry,
+    authenticated,
     logout,
     router,
     startComputer,
@@ -861,14 +909,30 @@ export function ChessLobbyFrame({ source }: { source: string }) {
 
   return (
     <AuthGuard>
-      <iframe
-        ref={frameRef}
-        src={frameSource}
-        title="Ark Chess"
-        className={`block h-[calc(100dvh-158px-var(--ws-live-bar,0px))] min-h-[520px] w-full border-0 bg-black transition-opacity duration-150 md:h-[calc(100dvh-79px-var(--ws-live-bar,0px))] md:min-h-0 ${
-          frameReady ? "opacity-100" : "opacity-0"
-        }`}
-      />
+      <div className="relative">
+        {/* Remounted on sign-in, so the page reloads with the session. */}
+        <iframe
+          key={authenticated ? "signed-in" : "signed-out"}
+          ref={frameRef}
+          src={frameSource}
+          title="Ark Chess"
+          className={`block h-[calc(100dvh-158px-var(--ws-live-bar,0px))] min-h-[520px] w-full border-0 bg-black transition-opacity duration-150 md:h-[calc(100dvh-79px-var(--ws-live-bar,0px))] md:min-h-0 ${
+            frameReady ? "opacity-100" : "opacity-0"
+          }`}
+        />
+        {needsSignIn && !authenticated ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black px-4 text-center">
+            <p className="font-serif text-[18px] font-semibold text-white">{tAuth("gate.play")}</p>
+            <button
+              type="button"
+              onClick={openSignIn}
+              className="ws-pressable cursor-pointer rounded-full bg-white px-6 py-2.5 text-[14px] font-semibold text-black"
+            >
+              {tAuth("signIn")}
+            </button>
+          </div>
+        ) : null}
+      </div>
     </AuthGuard>
   );
 }
