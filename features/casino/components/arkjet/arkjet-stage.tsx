@@ -13,6 +13,7 @@ const PLANE_MARGIN_LEFT = 21;
 const PLANE_MARGIN_BOTTOM = 7;
 const MOUNT_TIME_SECONDS = 8;
 const GLIDE_TIME_SECONDS = 4;
+const MULTIPLIER_GROWTH_RATE = 0.0976;
 
 type StageSize = { width: number; height: number };
 type FlightPoint = { x: number; y: number };
@@ -191,6 +192,55 @@ function usePlaneFrame(active: boolean): number {
   return active ? frame : 0;
 }
 
+function useDisplayedMultiplier(round: ArkjetRound): number {
+  const authoritative = Number(round.currentMultiplier ?? round.crashMultiplier ?? "1");
+  const exact = Number.isFinite(authoritative) ? authoritative : 1;
+  const displayedRef = useRef(exact);
+  const anchorRef = useRef({
+    at: 0,
+    roundId: round.roundId,
+    status: round.status,
+    value: exact,
+  });
+  const [displayed, setDisplayed] = useState(exact);
+
+  useEffect(() => {
+    const now = performance.now();
+    if (round.status !== "RUNNING") {
+      anchorRef.current = { at: now, roundId: round.roundId, status: round.status, value: exact };
+      displayedRef.current = exact;
+      return;
+    }
+
+    const anchor = anchorRef.current;
+    const projected =
+      anchor.roundId === round.roundId && anchor.status === "RUNNING"
+        ? anchor.value * Math.exp((MULTIPLIER_GROWTH_RATE * (now - anchor.at)) / 1000)
+        : exact;
+    const next = Math.max(exact, displayedRef.current, projected);
+    anchorRef.current = { at: now, roundId: round.roundId, status: round.status, value: next };
+    displayedRef.current = next;
+  }, [exact, round.roundId, round.status]);
+
+  useEffect(() => {
+    if (round.status !== "RUNNING") return;
+
+    let frame = 0;
+    const tick = (now: number) => {
+      const anchor = anchorRef.current;
+      const next = anchor.value * Math.exp((MULTIPLIER_GROWTH_RATE * (now - anchor.at)) / 1000);
+      displayedRef.current = Math.max(displayedRef.current, next);
+      setDisplayed(displayedRef.current);
+      frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [round.roundId, round.status]);
+
+  return round.status === "RUNNING" ? displayed : exact;
+}
+
 function multiplierClass(value: number): string {
   if (value >= 10) return styles.multiplierHigh;
   if (value >= 2) return styles.multiplierMedium;
@@ -296,7 +346,7 @@ export function ArkjetStage({
     Date.parse(round.bettingClosesAt) - Date.parse(round.committedAt)
   );
   const timerProgress = clamp(closesIn / fullBetTime, 0, 1);
-  const multiplier = Number(round.currentMultiplier ?? round.crashMultiplier ?? "1");
+  const multiplier = useDisplayedMultiplier(round);
   const elapsedSeconds = useFlightTime({
     active: running,
     animationEnabled,

@@ -14,6 +14,7 @@ import { GameMoneyInput } from "../game-money-input";
 import styles from "./arkjet.module.css";
 
 const QUICK_AMOUNTS = [1, 2, 5, 10];
+const DEFAULT_AMOUNT = "1";
 
 function validAmount(value: string): string {
   const cleaned = value.replace(/[^0-9.]/gu, "");
@@ -71,7 +72,9 @@ export function ArkjetBetCard({
   const money = useMoney();
   const [mode, setMode] = useState<"bet" | "auto">("bet");
   const minimum = normalizeArkjetAmount(minimumAmount, 6) ?? "0.1";
-  const [amount, setAmount] = useState(() => stepArkjetAmount("0", minimum, "increase"));
+  const [amount, setAmount] = useState(() =>
+    amountUnits(minimum, 6) <= amountUnits(DEFAULT_AMOUNT, 6) ? DEFAULT_AMOUNT : minimum
+  );
   const [cashout, setCashout] = useState("2.00");
   const idempotency = useRef<{ fingerprint: string; key: string } | null>(null);
   const normalizedAmount = normalizeArkjetAmount(amount, 6);

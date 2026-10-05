@@ -79,6 +79,14 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("USDC ticket controls", () => {
+  it("defaults to 1 USDC while retaining the 0.1 USDC minimum", () => {
+    mountCard();
+    expect(screen.getByLabelText("Ticket 1 amount")).toHaveValue("1");
+
+    fireEvent.change(screen.getByLabelText("Ticket 1 amount"), { target: { value: "0.1" } });
+    expect(screen.getByRole("button", { name: /Submit Ticket/ })).toBeEnabled();
+  });
+
   it("offers exact 1, 2, 5, and 10 USDC presets", () => {
     mountCard();
     for (const amount of ["1", "2", "5", "10"]) {
@@ -109,7 +117,7 @@ describe("USDC ticket controls", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Add funds to play/ }));
 
-    expect(onFund).toHaveBeenCalledWith("0.1");
+    expect(onFund).toHaveBeenCalledWith("1");
     expect(onPlace).not.toHaveBeenCalled();
   });
 });

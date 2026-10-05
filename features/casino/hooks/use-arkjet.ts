@@ -61,10 +61,12 @@ const READ_OPTIONS = {
 } as const;
 
 export function useArkjet() {
-  const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
+  const { ready, authenticated, evmAddress } = useAuthSession();
   const login = useSignInPrompt("play");
   const queryClient = useQueryClient();
   const [socketReady, setSocketReady] = useState(false);
+  const lastRoundFrameAt = useRef(0);
+  const lastRepairAt = useRef(0);
   const hasSession = ready && authenticated && Boolean(evmAddress);
   const current = useQuery({
     ...READ_OPTIONS,
@@ -72,7 +74,7 @@ export function useArkjet() {
     queryFn: fetchArkjetCurrentRound,
     // WebSocket drives live play. This sparse read is authoritative repair if
     // the broker is unavailable while the gateway connection itself stays up.
-    refetchInterval: pollUnlessFailing(socketReady ? 10_000 : 5_000),
+    refetchInterval: pollUnlessFailing(socketReady ? 10_000 : 1_000),
     staleTime: 1_000,
   });
   const history = useQuery({
@@ -229,6 +231,22 @@ export function useArkjet() {
   */
   const playerId = balance.data?.playerId ?? null;
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      const round = queryClient.getQueryData<ArkjetRound>(ARKJET_KEYS.current);
+      if (round?.status !== "RUNNING") return;
+      const now = Date.now();
+      if (now - lastRoundFrameAt.current <= 1_500 || now - lastRepairAt.current <= 1_000) {
+        return;
+      }
+      lastRepairAt.current = now;
+      setSocketReady(false);
+      void queryClient.invalidateQueries({ queryKey: ARKJET_KEYS.current, exact: true });
+    }, 500);
+
+    return () => window.clearInterval(timer);
+  }, [queryClient]);
+
+  useEffect(() => {
     let pendingActivity: ArkjetSimulatedActivityFeed | null = null;
     let activityFlushTimer: ReturnType<typeof setTimeout> | null = null;
     const flushActivity = () => {
@@ -245,7 +263,8 @@ export function useArkjet() {
     };
     const unsubscribe = subscribeArkjetTopics(hasSession ? playerId : null, (frame) => {
       if (frame.type === ARKJET_SOCKET_READY.type) {
-        setSocketReady(true);
+        // A subscription acknowledgement proves the socket opened, not that
+        // live round frames are flowing.
         return;
       }
       if (frame.type === ARKJET_SOCKET_CLOSED.type) {
@@ -264,6 +283,8 @@ export function useArkjet() {
           multiplier?: unknown;
         } | null;
         if (typeof update?.roundId !== "string" || typeof update.multiplier !== "string") return;
+        lastRoundFrameAt.current = Date.now();
+        setSocketReady(true);
         const roundId = update.roundId;
         const multiplier = update.multiplier;
         queryClient.setQueryData<ArkjetRound>(ARKJET_KEYS.current, (round) =>
@@ -272,6 +293,8 @@ export function useArkjet() {
         return;
       }
       if (isArkjetRound(frame.data)) {
+        lastRoundFrameAt.current = Date.now();
+        setSocketReady(true);
         void queryClient.cancelQueries({ queryKey: ARKJET_KEYS.current });
         queryClient.setQueryData(ARKJET_KEYS.current, frame.data);
         return;
