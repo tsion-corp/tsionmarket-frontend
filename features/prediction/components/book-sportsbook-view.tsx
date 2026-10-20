@@ -671,14 +671,14 @@ export function BookSportsbookView() {
       className={`relative min-h-screen bg-black text-white transition-[padding] duration-300 ease-in-out ${desktopSlipOpen ? "xl:pr-[326px]" : ""}`}
     >
       <section
-        aria-label="Ark Matchday"
+        aria-label="Big Brother Naija Season 11"
         className="mx-auto w-full max-w-[1440px] border-x border-b border-white/[0.07] bg-[#080808] p-3 sm:p-4 lg:px-6"
       >
         <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black shadow-[0_18px_50px_rgba(0,0,0,.35)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/assets/images/matchday.png"
-            alt="Ark Matchday: Carter Efe versus Speed Darlington and Phyna versus Nkechi Blessing"
+            src="/assets/images/bbnaija-season-11.png"
+            alt="Big Brother Naija Season 11: Show Ya Sef"
             fetchPriority="high"
             className="block h-auto w-full object-contain"
           />
