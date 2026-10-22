@@ -16,21 +16,6 @@ import {
   type SectionId,
 } from "@/lib/sections";
 
-// The square's mark, the same asset the rail draws for its entry, so the two
-// cannot disagree. Sized like the line icons beside it.
-function SquareMarkIcon({ size = 20 }: { size?: number }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- a local static asset, sized by the caller
-    <img
-      src="/nav/market-square.svg"
-      alt=""
-      width={size}
-      height={size}
-      style={{ width: size * 0.856, height: size * 0.637 }}
-    />
-  );
-}
-
 export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => React.ReactNode> = {
   portfolio: GridIcon,
   spot: ChartBarsIcon,
@@ -41,7 +26,6 @@ export const SECTION_ICONS: Record<SectionId, (props: { size?: number }) => Reac
   earn: BriefcaseIcon,
   casino: DiceIcon,
   activity: ClockIcon,
-  square: SquareMarkIcon,
 };
 
 export interface NavItem {

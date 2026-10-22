@@ -46,17 +46,6 @@ vi.mock("@/components/ui/currency-select", () => ({
   }),
 }));
 
-// The chrome around the list has its own suites. Stubbed so this one is about
-// where the positions panel sits.
-// The Shine switch landed on this page after this suite was written. It is an
-// account preference behind a React Query read, so it stands in as a marker:
-// this suite is about where the positions panel sits, not about Shine.
-vi.mock("@/components/shine/shine-toggle", () => ({
-  ShineToggle: ({ service }: { service: string }) => (
-    <div data-testid="shine-toggle">{service}</div>
-  ),
-}));
-
 vi.mock("@/features/prediction/components/prediction-category-nav", () => ({
   PredictionCategoryNav: () => <div data-testid="category-nav" />,
 }));

@@ -19,11 +19,11 @@ vi.mock("@/features/casino/hooks/use-casino-chess", () => ({
 
 vi.mock("@/features/casino/lib/api/chess", () => api);
 
-vi.mock("@/features/casino/components/chess/broadcast/live-game-list", () => ({
+vi.mock("@/features/casino/components/chess/live-game-list", () => ({
   LiveGameList: () => <div>Live games</div>,
 }));
 
-import { LiveGamesSection } from "@/features/casino/components/chess-app/broadcast/live-games-section";
+import { LiveGamesSection } from "@/features/casino/components/chess-app/live-games-section";
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({

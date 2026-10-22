@@ -4,8 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { MarketLogo } from "@/components/ui/market-logo";
-import { SquareAvatar } from "@/components/ui/square-avatar";
-import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import type { NavItem } from "@/components/layout/nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 import { truncateAddress } from "@/lib/format";
@@ -13,11 +12,7 @@ import { useAuthSession } from "@/hooks/use-auth-session";
 import { useSignedIn } from "@/hooks/use-signed-in";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { useDisplayName } from "@/hooks/use-display-name";
-import { GoLiveControl } from "@/components/broadcast/go-live-control";
-import { MARKET_SQUARE_HIDDEN } from "@/lib/market-square";
-import { SQUARE_ZONE_PATH, openSquareZone } from "@/lib/square-zone";
 import { AccountPopover } from "@/components/layout/account-popover";
-import { ShineSheet } from "@/components/shine/shine-sheet";
 
 interface SidebarProps {
   items: NavItem[];
@@ -37,25 +32,9 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
   const { profile, evmAddress: address } = useAuthSession();
   const signedIn = useSignedIn();
   const displayName = useDisplayName();
-  const squareAvatar = useSquareAvatar();
-  const squareSeed = useSquareSeed();
   const t = useTranslations("topbar");
-  // The square is a product with its own catalog namespace, so the rail reads
-  // its name from there rather than repeating the string. The rail's word is
-  // "Square" (asked for 2026-09-12); the page keeps the fuller title.
-  const tSquare = useTranslations("square");
-  // This reads MARKET_SQUARE_HIDDEN, the way-in switch, and nothing else. A
-  // hidden square (no URL, or an operator takedown) has no page to open, so
-  // the entry goes with it. What the portfolio renders of the square is
-  // SQUARE_SECTIONS_HIDDEN's question, and the rail must not read it: the
-  // entry stands while those sections are off.
-  const squareShown = !MARKET_SQUARE_HIDDEN;
 
   const [accountPopoverOpen, setAccountPopoverOpen] = useState(false);
-  // Held here rather than inside the popover: the popover closes on an outside
-  // click, and the sheet would go with it the moment somebody reached for a
-  // switch inside it.
-  const [shineOpen, setShineOpen] = useState(false);
   const profileButtonRef = useRef<HTMLButtonElement>(null);
 
   // While the drawer is open the page behind it does not scroll, and Escape
@@ -98,11 +77,6 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
     );
   };
 
-  // The design seats the square between Prediction and Arkade. With no Arkade
-  // entry it falls to the end of the rail.
-  const arkadeIndex = items.findIndex((n) => n.id === "casino");
-  const squareIndex = arkadeIndex === -1 ? items.length : arkadeIndex;
-
   return (
     <>
       {/* The dimmed page behind the phone drawer. */}
@@ -144,13 +118,6 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
           </button>
         </div>
 
-        {/* M3 puts the rail's primary action at the top, above a divider.
-            Never a floating overlay on desktop. */}
-        <div className="shrink-0 pb-3">
-          <GoLiveControl variant="rail" />
-        </div>
-        <div className="mb-3 h-px shrink-0 bg-white/8" />
-
         {/* Short viewports, a phone in landscape or 150% zoom on a laptop, leave
             the rail taller than the screen. The nav list is the part that
             scrolls, so the logo above it and the account footer below it stay
@@ -158,52 +125,7 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
             below its content inside the flex column; without it the overflow
             lands back on the rail, which does not scroll. */}
         <nav className="flex min-h-0 flex-col gap-[3px] overflow-x-hidden overflow-y-auto">
-          {items.slice(0, squareIndex).map(renderItem)}
-
-          {/* Market Square lives at /square, and the design gives it an
-              ordinary rail row between Prediction and Arkade. /square is the
-              Square's OWN app (a Next.js Multi-Zone, lib/square-zone), so this
-              is a plain anchor — a full page load — not a next/link, which
-              would ask this build for a route it no longer has. The square is
-              not in the reorderable section list, so it is seated here by
-              hand. With the square hidden it renders nothing rather than a
-              dead entry, and
-              MARKET_SQUARE_HIDDEN in lib/market-square.ts is the off switch.
-              It is not affected by SQUARE_SECTIONS_HIDDEN, which only governs
-              the square's sections on the portfolio. */}
-          {squareShown ? (
-            <a
-              href={SQUARE_ZONE_PATH}
-              // The tap navigates through openSquareZone so the session rides
-              // along (lib/square-zone, SQUARE_HANDOFF_PARAM). The href stays
-              // the bare path: a token has no business sitting in the DOM.
-              onClick={(event) => {
-                event.preventDefault();
-                onClose();
-                openSquareZone(SQUARE_ZONE_PATH);
-              }}
-              data-tour-nav="square"
-              className={`flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-[11px] text-left font-sans text-[14.5px] font-medium transition-colors ${
-                activeSection === "square"
-                  ? "bg-accent/14 text-white"
-                  : "text-white/60 hover:bg-white/6 hover:text-white"
-              }`}
-            >
-              <span className="grid h-5 w-5 place-items-center">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/nav/market-square.svg"
-                  alt=""
-                  width={17}
-                  height={13}
-                  className="h-[12.74px] w-[17.12px]"
-                />
-              </span>
-              <span className="flex-1">{tSquare("navLabel")}</span>
-            </a>
-          ) : null}
-
-          {items.slice(squareIndex).map(renderItem)}
+          {items.map(renderItem)}
         </nav>
 
         <div className="relative mt-auto shrink-0">
@@ -220,7 +142,7 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
               onClick={() => setAccountPopoverOpen((v) => !v)}
               className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl border border-white/8 px-2 py-2.5 text-left transition-colors hover:bg-white/4"
             >
-              <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={32} />
+              <AccountAvatar seed={address ?? ""} name={profile.name} size={32} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-sans text-[13px] font-medium text-white">
                   {displayName}
@@ -241,9 +163,7 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
           {/* Always mounted: AccountPopover plays its own exit animation off
               the `open` prop, and unmounting it here would skip straight past
               that closing frame. */}
-          <ShineSheet open={shineOpen} onClose={() => setShineOpen(false)} />
           <AccountPopover
-            onOpenShine={() => setShineOpen(true)}
             open={accountPopoverOpen}
             onClose={() => setAccountPopoverOpen(false)}
             triggerRef={profileButtonRef}

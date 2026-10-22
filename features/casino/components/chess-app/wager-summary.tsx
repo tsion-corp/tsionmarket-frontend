@@ -47,7 +47,6 @@ export function WagerSummary({
     <div
       className="ws-inset flex flex-col gap-2 rounded-[12px] px-3.5 py-3"
       data-sensitive="balance"
-      data-broadcast-suspend
     >
       <Row label={t("summaryStake")} value={`${stakeUsdc} USDC`} />
       <Row label={t("summaryYouLock")} value={`${b.youLock} USD`} />

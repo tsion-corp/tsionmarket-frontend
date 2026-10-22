@@ -6,11 +6,9 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { markKnownUser } from "@/lib/known-user";
 import { Topbar } from "@/components/layout/topbar";
 import { AccountModal } from "@/components/layout/modals/account-modal";
-import { ShineSheet } from "@/components/shine/shine-sheet";
 import { CurvedTabBar } from "@/components/layout/curved-tab-bar";
 import { ConnectionBanner } from "@/components/layout/connection-banner";
 import { SupportButton } from "@/components/layout/support-button";
-import { BroadcastDock } from "@/components/broadcast/broadcast-dock";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { ModalLoading } from "@/components/layout/modals/modal-loading";
 import { PortfolioFab } from "@/features/portfolio/components/portfolio-fab";
@@ -46,9 +44,6 @@ interface DashboardShellProps {
 // there and otherwise navigates to /dashboard#id first.
 export function DashboardShell({ nav, activeSection, children }: DashboardShellProps) {
   const [accountOpen, setAccountOpen] = useState(false);
-  // Held by the shell, not the account modal: that modal closes on the way to
-  // this one, and a sheet rendered inside it would close with it.
-  const [shineOpen, setShineOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const addFunds = useAddFunds();
   const requireSession = useRequireSession();
@@ -84,11 +79,8 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       />
 
       {/* The tab bar sits at the bottom on a phone, so the last section needs
-          room to clear it. While a broadcast is running the dock adds its own
-          bar above the tab bar, which the root's --ws-live-bar variable
-          reserves, so the live indicator compresses the page instead of
-          covering the last row of it. */}
-      <main className="min-h-screen pb-[calc(92px+var(--ws-live-bar,0px))] md:ml-[248px] md:pb-[var(--ws-live-bar,0px)]">
+          room to clear it. */}
+      <main className="min-h-screen pb-[92px] md:ml-[248px] md:pb-0">
         <div className="sticky top-0 z-[60]">
           <Topbar onOpenAccount={() => setAccountOpen(true)} />
         </div>
@@ -101,11 +93,6 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
 
       <CurvedTabBar items={nav} activeSection={activeSection} onNavigate={navigate} />
 
-      {/* The live indicator and the minimised self-view. Docked, never
-          floating over content: the dock reserves its own height so the page
-          is compressed rather than covered. */}
-      <BroadcastDock />
-
       <SupportButton />
 
       <PortfolioFab
@@ -116,13 +103,8 @@ export function DashboardShell({ nav, activeSection, children }: DashboardShellP
       />
 
       <ModalShell open={accountOpen} onClose={() => setAccountOpen(false)}>
-        <AccountModal
-          onClose={() => setAccountOpen(false)}
-          onOpenShine={() => setShineOpen(true)}
-        />
+        <AccountModal onClose={() => setAccountOpen(false)} />
       </ModalShell>
-
-      <ShineSheet open={shineOpen} onClose={() => setShineOpen(false)} />
 
       <ModalShell open={withdrawOpen} onClose={() => setWithdrawOpen(false)} size="lg">
         <WithdrawModal onClose={() => setWithdrawOpen(false)} />

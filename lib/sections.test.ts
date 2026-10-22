@@ -37,17 +37,3 @@ describe("orderedSections", () => {
     expect(sectionForPathname("/perps")).toBe("perps");
   });
 });
-
-// The Market Square page. Its rail entry keeps its own seat between Prediction
-// and Arkade rather than joining the reorderable list, so the section is a
-// route fact for the highlight and nothing more.
-describe("the square section", () => {
-  it("is a section whose route is /square", () => {
-    expect(SECTION_ROUTES.square).toBe("/square");
-    expect(sectionForPathname("/square")).toBe("square");
-  });
-
-  it("stays out of the reorderable list, which the rail seats by hand", () => {
-    expect(orderedSections()).not.toContain("square");
-  });
-});

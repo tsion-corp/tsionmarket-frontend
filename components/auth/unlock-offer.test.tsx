@@ -23,7 +23,6 @@ vi.mock("@/lib/last-auth-method", () => ({
 vi.mock("@/lib/display-profile", () => ({
   useDisplayProfile: () => device.profile,
 }));
-vi.mock("@/lib/analytics/auth-method", () => ({ recordAuthMethod: vi.fn() }));
 vi.mock("@/lib/toast", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/lib/decane-recovery", () => ({
   promptUnlockPassword: vi.fn(),

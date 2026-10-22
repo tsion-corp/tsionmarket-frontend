@@ -157,9 +157,8 @@ vi.mock("@/lib/toast", () => ({
 }));
 
 import { NextIntlClientProvider } from "next-intl";
-import { BroadcastSessionProvider } from "@/components/broadcast/broadcast-session";
 import { PlaySection } from "@/features/casino/components/chess/play-section";
-import { LiveGamesSection } from "@/features/casino/components/chess/broadcast/live-games-section";
+import { LiveGamesSection } from "@/features/casino/components/chess/live-games-section";
 import messages from "@/messages/en.json";
 
 // The screens read their copy through next-intl, so the wrapper provides the
@@ -171,9 +170,7 @@ function wrapper({ children }: { children: ReactNode }) {
   return (
     <NextIntlClientProvider locale="en" messages={messages}>
       <QueryClientProvider client={client}>
-        {/* The round view offers Go Live, which reads the app-wide broadcast
-            session. In the app that provider is mounted above the router. */}
-        <BroadcastSessionProvider>{children}</BroadcastSessionProvider>
+        {children}
       </QueryClientProvider>
     </NextIntlClientProvider>
   );

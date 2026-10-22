@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { track } from "@/lib/analytics/mixpanel";
 import type { SettlementPlan } from "@/lib/migration/schedule";
 import type { LegacyAddresses, LegacySigner, VenueAdapter } from "@/lib/migration/types";
 import { runSettlement, type RunResult } from "@/features/migrate/lib/run";
@@ -20,8 +19,7 @@ export interface RunProgress {
   total: number;
 }
 
-// Drives one settlement run from the UI: progress for the screen, analytics
-// per step, and a cancel that takes effect between venues (a step already
+// Drives one settlement run from the UI: progress for the screen and a cancel that takes effect between venues (a step already
 // signed is never abandoned midway).
 export function useMigrationRun(input: MigrationRunInput) {
   const { adapters, legacy, current, signer, ethPriceUsd } = input;
@@ -52,18 +50,9 @@ export function useMigrationRun(input: MigrationRunInput) {
             onProgress: (message) => setProgress({ message, done, total }),
           },
           {
-            onStep: (holding, outcome) => {
+            onStep: () => {
               done += 1;
               setProgress((p) => ({ message: p?.message ?? "", done, total }));
-              if (outcome.ok) {
-                track("migration_step_completed", { venue: holding.venue, kind: holding.kind });
-              } else {
-                track("migration_step_failed", {
-                  venue: holding.venue,
-                  kind: holding.kind,
-                  retryable: outcome.retryable,
-                });
-              }
             },
           }
         );

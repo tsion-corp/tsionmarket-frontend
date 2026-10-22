@@ -265,17 +265,6 @@ export interface CreateChessChallengeInput {
   stakeUsdc?: string | null;
 }
 
-export type ChessVideoRole = "player" | "spectator";
-
-export interface ChessVideoAccess {
-  serverUrl: string;
-  participantToken: string;
-  roomName: string;
-  participantIdentity: string;
-  role: ChessVideoRole;
-  expiresAt: string;
-}
-
 export interface CreateComputerMatchInput {
   level: number;
   color: "white" | "black" | "random";

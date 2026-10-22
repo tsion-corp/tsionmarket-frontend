@@ -7,9 +7,6 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { SuccessPanel } from "@/components/ui/success-panel";
 import { toast } from "@/lib/toast";
 import { useEvmSend } from "@/hooks/use-evm-send";
-import { track } from "@/lib/analytics/mixpanel";
-import { KASH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
-import { kashRate } from "@/features/portfolio/lib/kash-analytics";
 import {
   useKashPurchase,
   useKashPurchaseQuote,
@@ -148,19 +145,8 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
       try {
         const result = await deskBuy.mutateAsync({ wallet, usdcAmount: amount });
         const kashOut = deskQuote.data?.kashOut ?? "";
-        track("kash_bought", {
-          amount_usd: Number(amount),
-          kash_amount: Number(kashOut),
-          ...kashRate(amount, kashOut),
-          ...(result.txHash ? { tx_hash: result.txHash } : {}),
-        });
         setDone({ kash: kashOut, usdc: amount, txHash: result.txHash });
       } catch (error) {
-        track("kash_failed", {
-          side: "buy",
-          amount_usd: Number(amount),
-          ...reasonFor(KASH_FAILURE, error),
-        });
         toast.error(friendlyError(error, t("buyFailed")));
       }
       return;
@@ -194,19 +180,8 @@ export function KashBuyModal({ open, wallet, onClose }: KashBuyModalProps) {
       const result = await purchase.mutateAsync({ wallet, usdcAmount: amount, paymentTxHash });
       // Credited — the receipt has been consumed and must not be reused.
       settledPayment.current = null;
-      track("kash_bought", {
-        amount_usd: Number(result.usdcPaid),
-        kash_amount: Number(result.kashReceived),
-        ...kashRate(result.usdcPaid, result.kashReceived),
-        ...(result.mintTxHash ? { tx_hash: result.mintTxHash } : {}),
-      });
       setDone({ kash: result.kashReceived, usdc: result.usdcPaid, txHash: result.mintTxHash });
     } catch (error) {
-      track("kash_failed", {
-        side: "buy",
-        amount_usd: Number(amount),
-        ...reasonFor(KASH_FAILURE, error),
-      });
       // The receipt deliberately survives: the money already moved, and the
       // next attempt must credit that payment rather than make another.
       const message = friendlyError(error, t("buyFailed"));

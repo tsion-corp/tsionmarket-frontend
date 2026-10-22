@@ -27,7 +27,7 @@ export interface RunResult {
 
 export interface RunHooks {
   onStep?(holding: LegacyHolding, outcome: SettleOutcome): void;
-  // Emitted before an irreversible venue step starts, for analytics.
+  // Emitted before an irreversible venue step starts.
   onIrreversible?(holdings: LegacyHolding[]): void;
 }
 

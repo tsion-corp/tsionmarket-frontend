@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError } from "@/lib/errors";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
@@ -129,12 +128,7 @@ export function StartGameSheet({
       if (gameId !== null) {
         followGame(gameId);
         if (visibility === "private") markPrivate(gameId);
-        // Opening a round, which is a different act from buying into one: the
-        // starter takes a share of the pot. A round the contract did not give
-        // an id to cannot be joined to anything, so it is not reported.
-        track("last_man_created", { game_id: String(gameId), entry_fee_usd: sendUsd });
       }
-      track("game_staked", { game: "last_man", amount_usd: sendUsd });
       toast.success(t("toastGameStarted"));
       // A second or two at most, and only when the index trails the receipt.
       if (gameId !== null) await confirmGame(gameId);

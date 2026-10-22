@@ -25,15 +25,6 @@ const mocks = vi.hoisted(() => ({
   clear: vi.fn(),
 }));
 
-// The Shine switch is the account's own preference behind a React Query read
-// and a Privy session. What matters here is that this page carries one, and
-// for which service, so it stands in as a marker naming the service it decides.
-vi.mock("@/components/shine/shine-toggle", () => ({
-  ShineToggle: ({ service }: { service: string }) => (
-    <div data-testid="shine-toggle">{service}</div>
-  ),
-}));
-
 vi.mock("../markets/hooks/use-discovery-markets", () => ({
   useDiscoveryEvents: mocks.catalog,
 }));
@@ -182,14 +173,6 @@ describe("PredictionView", () => {
       loadMore: vi.fn(),
       refetch: vi.fn(),
     });
-  });
-
-  // Shine moved to the account menu on 2026-09-25: one switch panel for all
-  // seven services instead of a card on each page. This asserts the card has
-  // not come back, which is what stops them reappearing one page at a time.
-  it("does not carry a Shine card: Shine lives in the account menu", () => {
-    render(<PredictionView />);
-    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 
   it("renders the Polymarket feed filters backed by discovery sorts", () => {

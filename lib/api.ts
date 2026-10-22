@@ -10,7 +10,6 @@ import {
   recordReadRateLimit,
 } from "@/lib/api/circuit-store";
 import { apiError } from "@/lib/api/envelope";
-import { reportUpstreamFailure } from "@/lib/analytics/watchtower";
 
 export interface ApiFetchOptions {
   // Throw a retryable error instead of firing a token-less request that 401s.
@@ -109,26 +108,12 @@ export async function apiFetch(
   } catch (error) {
     // No status at all: DNS, TCP, CORS, offline. The clearest signal there is.
     recordCircuitFailure(path, undefined);
-    reportUpstreamFailure(path, undefined, error);
     throw error;
   }
   if (response.ok) recordCircuitSuccess(path);
   else {
     if (response.status === 429) recordReadRateLimit(path, response.headers.get("retry-after"));
     recordCircuitFailure(path, response.status);
-    // The reason error reporting sits HERE and not in each caller.
-    //
-    // Every failure in this app is handled: a hook catches it and the screen
-    // shows "Couldn't load" rather than crashing. That is correct behaviour and
-    // it is also why nothing was ever reported. Sentry's global handlers only
-    // see what nobody caught, so an upstream returning 502 to every user in
-    // production raised no alert at all.
-    //
-    // One transport means one place to notice. reportUpstreamFailure decides
-    // what is worth sending (5xx and network failures, not a 401 on a cold
-    // token) and throttles per endpoint, so a hard-polled broken route cannot
-    // flood the project.
-    reportUpstreamFailure(path, response.status, undefined, response.headers.get("x-request-id"));
   }
   return response;
 }

@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modals";
 import { useMoney } from "@/components/ui/currency-select";
-import { SquareAvatar } from "@/components/ui/square-avatar";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import { GameMoneyInput } from "@/features/casino/components/game-money-input";
 import { useSpinComments } from "@/features/casino/hooks/use-spin-comments";
 import { useSpinDaBottle } from "@/features/casino/hooks/use-spin-da-bottle";
@@ -543,8 +543,7 @@ export function SpinDaBottleSection() {
                       ) : (
                         chat.items.map((message) => (
                           <article className={styles.chatMessage} key={message.id}>
-                            <SquareAvatar
-                              src={null}
+                            <AccountAvatar
                               seed={message.avatarSeed}
                               name={message.authorName}
                               size={24}
@@ -592,8 +591,7 @@ export function SpinDaBottleSection() {
                   <aside className={styles.drawer} aria-label="Game menu">
                     <h2>Spin da&apos; Bottle</h2>
                     <div className={styles.playerRow}>
-                      <SquareAvatar
-                        src={null}
+                      <AccountAvatar
                         seed={game.profile.avatarSeed}
                         name={game.profile.name}
                         size={30}
