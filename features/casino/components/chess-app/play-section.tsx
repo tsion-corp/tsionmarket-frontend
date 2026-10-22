@@ -1,5 +1,4 @@
 "use client";
-import dynamic from "next/dynamic";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -11,14 +10,9 @@ import {
 } from "@/features/casino/hooks/use-casino-chess";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessEngine } from "@/features/casino/hooks/use-chess-engine";
-import { useChessShine } from "@/features/casino/hooks/use-arcade-shine";
 import { CASHIER_KEYS, useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
 import { useChessProducts } from "@/features/casino/hooks/use-chess-products";
 import { CashierSheet } from "@/features/casino/components/chess/cashier-sheet";
-import {
-  ChessBroadcastProvider,
-  GoLivePanel,
-} from "@/features/casino/components/chess/go-live-panel";
 import { ChessCashierLauncher } from "@/features/casino/components/chess/chess-cashier-launcher";
 import { ChessBoard } from "@/features/casino/components/chess/chess-board";
 import { CapturedRow } from "@/features/casino/components/chess/captured-row";
@@ -66,8 +60,6 @@ import {
   type Square,
 } from "@/features/casino/lib/chess/engine";
 import { friendlyError, isConflictError } from "@/lib/errors";
-import { track } from "@/lib/analytics/mixpanel";
-import { computerGamePayout, gamePayout } from "@/lib/analytics/game-result";
 import { hasPositiveUsdc, wagerBreakdown } from "@/features/casino/lib/api/cashier";
 import { copyText } from "@/lib/clipboard";
 import { toast } from "@/lib/toast";
@@ -78,9 +70,7 @@ import type {
   ChessMatchComment,
   ChessCoachMoveReview,
   ChessComputerCoachSummary,
-  ChessResult,
 } from "@/features/casino/lib/api/types";
-import type { ChessEndReason } from "@/lib/analytics/events";
 import type { ChessMoveWire } from "@/features/casino/lib/api/chess-wire";
 import {
   RoundDialogPlayer,
@@ -95,14 +85,7 @@ import {
 import { RoundChatFeed } from "@/features/casino/components/chess/round/round-chat";
 import { RoundBoardMenu } from "@/features/casino/components/chess/round/round-board-menu";
 import { shareOrigin } from "@/lib/site-url";
-import { useChessStartReport } from "@/features/casino/hooks/use-chess-start-report";
 import { useShareLink } from "@/hooks/use-share-link";
-
-const LiveVideoPlayer = dynamic(
-  () =>
-    import("@/features/casino/components/chess/broadcast").then((module) => module.LiveVideoPlayer),
-  { ssr: false }
-);
 
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
@@ -311,16 +294,6 @@ const EMPTY_TAKEBACK = { white: false, black: false, takebackable: false } as co
 const EMPTY_REMATCH = { offeredBy: null, nextMatchId: null } as const;
 
 type PromotionOption = "q" | "r" | "b" | "n";
-// How a finished game ended, in the catalog's words. A draw says why it was a
-// draw, and the catalog names two of those causes; the rest are agreements in
-// all but name, since neither side could force a win.
-function chessEndReason(result: ChessResult): ChessEndReason {
-  if (result.kind === "checkmate") return "checkmate";
-  if (result.kind === "resignation") return "resign";
-  if (result.kind === "timeout") return "timeout";
-  return result.reason === "stalemate" ? "stalemate" : "draw_agreed";
-}
-
 type MobileRoundPanel = "moves" | "chat" | "info" | null;
 
 const ROUND_DESKTOP_BREAKPOINT = 900;
@@ -786,13 +759,6 @@ export function PlaySection({
     extendingTime,
     claimingTimeout,
   } = useChessMatch(matchId, seatName);
-  // The start, for whichever seat this player holds. See the hook for why it
-  // is reported here rather than where a challenge is accepted.
-  useChessStartReport(match, you);
-  // Shine: a win or a draw here posts itself to Market Square. `you` is null
-  // for a spectator, and the id is the match id, which is the same id the
-  // lichess round controller reports — the second of the two is a no-op.
-  useChessShine(match, you);
   const [selected, setSelected] = useState<Square | null>(null);
   const [hintGuidance, setHintGuidance] = useState<{
     fen: string;
@@ -965,25 +931,6 @@ export function PlaySection({
     if (!sawInProgress.current || !result) return;
     const outcome = result.kind === "draw" ? "draw" : result.winner === you ? "win" : "loss";
     playGameEndSound(outcome);
-    // Same guards the sound uses: reported once, and only for someone who
-    // watched the game finish rather than opening a settled one.
-    if (you) {
-      const payout = match.computer?.wager
-        ? computerGamePayout(match.computer.wager, outcome)
-        : gamePayout(match.stakeUsdc, outcome, match.wagerFeeBps ?? CHESS_FEE_BPS);
-      track("chess_game_ended", {
-        game_id: match.id,
-        result: outcome,
-        end_reason: chessEndReason(result),
-        // The stake this game was played for, and what the settlement paid the
-        // player. `house_usd` is the platform's cut, reported rather than left
-        // to be derived from a fee rate that has changed before.
-        amount_usd: payout.stake_usd,
-        payout_usd: payout.payout_usd,
-        house_usd: payout.fee_usd,
-        moves: match.moves.length,
-      });
-    }
   }, [inProgress, match, queryClient, result, terminal, wallet.address, you]);
 
   useEffect(() => {
@@ -1518,20 +1465,6 @@ export function PlaySection({
     playerDisplayName(match.black, wallet.name, wallet.address ?? null, t("waitingForOpponent")),
     match.black
   );
-  const videoParticipants = [
-    match.white
-      ? {
-          identities: [match.white.id, match.white.walletAddress, match.white.username],
-          label: whiteDisplayName,
-        }
-      : null,
-    match.black
-      ? {
-          identities: [match.black.id, match.black.walletAddress, match.black.username],
-          label: blackDisplayName,
-        }
-      : null,
-  ].filter((entry): entry is NonNullable<typeof entry> => entry !== null);
   const whiteChatName = playerDisplayName(
     match.white,
     wallet.name,
@@ -1755,13 +1688,8 @@ export function PlaySection({
     clockMode === "unlimited"
       ? 1
       : Math.max(0.04, Math.min((clocks?.[colour] ?? 0) / initialClockSeconds, 1));
-  // Participants only, and never on a game against the computer: there is no
-  // second player and nothing worth spectating. Both players may broadcast at
-  // once, each owning their own Market Square stream.
-  const canBroadcastMatch = you !== null && !isComputerGame && matchId !== null;
-  const goLivePanel = canBroadcastMatch ? <GoLivePanel matchOver={over} /> : null;
 
-  const roundView = (
+  return (
     <div className="round ws-chess-round-root relative mx-auto w-full px-4 pb-8 sm:px-6 lg:px-8">
       <div className="round__layout ws-chess-round-shell grid gap-5">
         <aside className="round__side ws-chess-round-desktop-left order-1 hidden min-h-0 flex-col gap-[15px] overflow-hidden text-[#c9c6c0]">
@@ -1812,15 +1740,6 @@ export function PlaySection({
             ) : null}
           </div>
 
-          {desktopRoundLayout && wideRoundLayout && match.videoEnabled && !over ? (
-            <LiveVideoPlayer
-              matchId={match.id}
-              player={seatName ?? wallet.address ?? undefined}
-              viewer="player"
-              participants={videoParticipants}
-              className="shrink-0"
-            />
-          ) : null}
 
           {waiting && you !== null ? (
             <div
@@ -2058,15 +1977,6 @@ export function PlaySection({
             </div>
 
             <div className="ws-chess-round-mobile-stack mt-4 space-y-3">
-              {!desktopRoundLayout && match.videoEnabled && !over ? (
-                <LiveVideoPlayer
-                  matchId={match.id}
-                  player={seatName ?? wallet.address ?? undefined}
-                  viewer="player"
-                  participants={videoParticipants}
-                  className="shrink-0"
-                />
-              ) : null}
               <div
                 className="rounded-[16px] border border-white/6 px-4 py-4"
                 style={{ background: CHESS_CARD_BG, boxShadow: CHESS_CARD_SHADOW }}
@@ -2216,7 +2126,6 @@ export function PlaySection({
                   </button>
                 </div>
               ) : null}
-              {goLivePanel}
               {over ? (
                 <PostGameActions
                   result={resultLine(t, match, you)}
@@ -2254,16 +2163,6 @@ export function PlaySection({
         </section>
 
         <aside className="round__app__table ws-chess-round-desktop-right order-3 hidden min-h-0 flex-col overflow-hidden text-[#c9c6c0]">
-          {desktopRoundLayout && !wideRoundLayout && match.videoEnabled && !over ? (
-            <LiveVideoPlayer
-              matchId={match.id}
-              player={seatName ?? wallet.address ?? undefined}
-              viewer="player"
-              participants={videoParticipants}
-              desktopPresentation="overlay"
-              className="mb-[10px] shrink-0"
-            />
-          ) : null}
           <div className="ws-chess-round-rail min-h-0 flex-1 overflow-hidden rounded-r-[2px]">
             <div className="ws-chess-round-rail-top min-h-0">
               <RoundTablePlayer
@@ -2462,7 +2361,6 @@ export function PlaySection({
                 </button>
               </div>
             ) : null}
-            <div className="shrink-0 px-4 pb-3">{goLivePanel}</div>
             {over ? (
               <div className="ws-chess-round-rail-controls min-h-0 overflow-y-auto">
                 <PostGameActions
@@ -2777,22 +2675,5 @@ export function PlaySection({
         <CashierSheet onClose={() => setWithdrawWinningsOpen(false)} initialMode="withdraw" />
       </ModalShell>
     </div>
-  );
-
-  // The round view renders the mobile column and the desktop rail at the same
-  // time and hides one with CSS, so the go-live panel appears twice. The
-  // provider is mounted once above both, which keeps one broadcast to one
-  // LiveKit room. Spectators never mount it, so they never ask Market Square
-  // about a role they are not going to use.
-  return canBroadcastMatch ? (
-    <ChessBroadcastProvider
-      matchId={matchId}
-      whiteName={whiteDisplayName}
-      blackName={blackDisplayName}
-    >
-      {roundView}
-    </ChessBroadcastProvider>
-  ) : (
-    roundView
   );
 }

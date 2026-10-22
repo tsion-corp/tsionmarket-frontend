@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { buildRwaAction } from "@/features/rwa/lib/api";
 import type { PendingRwaSettlement } from "@/lib/trade/pending-settlement";
 
-// The Solana leg of a real-asset buy runs here once the USDC has arrived. It
-// reports the trade from the USDC it actually spent.
+// The Solana leg of a real-asset buy runs here once the USDC has arrived, and
+// spends exactly the USDC that arrived.
 
 const captured = vi.hoisted(() => ({
   completePurchase: null as
@@ -29,8 +30,6 @@ vi.mock("@/features/rwa/lib/api", async (importOriginal) => ({
 vi.mock("@/hooks/use-portfolio", () => ({
   usePortfolio: () => ({ refetchFresh: vi.fn(async () => {}), refetchUntilChanged: vi.fn() }),
 }));
-const analytics = vi.hoisted(() => ({ track: vi.fn() }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 vi.mock("@/lib/toast", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/lib/trade/pending-settlement", async (importOriginal) => ({
@@ -40,10 +39,8 @@ vi.mock("@/lib/trade/pending-settlement", async (importOriginal) => ({
 
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 
-describe("RwaSettlementTracker analytics", () => {
-  beforeEach(() => analytics.track.mockClear());
-
-  it("reports the background buy from the USDC it spent, with the settlement's reference", async () => {
+describe("RwaSettlementTracker", () => {
+  it("builds the background buy from the USDC that arrived", async () => {
     renderHook(() => RwaSettlementTracker());
     await captured.completePurchase!(
       {
@@ -56,14 +53,8 @@ describe("RwaSettlementTracker analytics", () => {
       { balance: 12_500_000n, solanaTaker: "S1" }
     );
 
-    expect(analytics.track).toHaveBeenCalledWith("trade_completed", {
-      vertical: "rwa",
-      asset: "ONDO",
-      side: "buy",
-      amount_usd: 12.5,
-      amount_source: "fill",
-      order_id: "dep-8",
-      token_address: "SoLONDO",
-    });
+    expect(buildRwaAction).toHaveBeenCalledWith(
+      expect.objectContaining({ chain: "solana", outputToken: "SoLONDO", amountIn: "12500000" })
+    );
   });
 });

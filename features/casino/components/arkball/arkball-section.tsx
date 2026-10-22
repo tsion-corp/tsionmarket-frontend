@@ -2,27 +2,18 @@
 
 import Image from "next/image";
 import { useTranslations } from "next-intl";
-import { GameGoLive } from "@/features/casino/components/broadcast/go-live-panel";
 import { DrawOverview } from "@/features/casino/components/arkball/draw-overview";
 import { TicketBuilder } from "@/features/casino/components/arkball/ticket-builder";
 import { TicketHistory } from "@/features/casino/components/arkball/ticket-history";
 import { useLottery } from "@/features/casino/hooks/use-lottery";
-import { useArkballReport } from "@/features/casino/hooks/use-arkball-report";
-import { useArkballShine } from "@/features/casino/hooks/use-arcade-shine";
 import { formatLotteryUsdc } from "@/features/casino/lib/lottery";
 import { friendlyError } from "@/lib/errors";
 
 export function ArkBallSection() {
   const t = useTranslations("casino.arkball");
   const lottery = useLottery();
-  // Shine: an ArkBall win is a field on a polled row rather than a moment, so
-  // this is the one arcade game whose post happens with nothing on screen to
-  // explain it. The toggle below is on this page for the same reason.
-  useArkballShine(lottery.tickets);
   const current = lottery.currentDraw;
   const rule = lottery.config?.rule;
-  // Above the early returns below: a hook cannot be called behind a branch.
-  useArkballReport(current);
 
   if (lottery.loading) {
     return (
@@ -115,28 +106,6 @@ export function ArkBallSection() {
             purchasePhase={lottery.purchasePhase}
           />
           <div className="space-y-4">
-            {/* A draw is public, so anyone watching it can stream it. The
-                surface moves (the countdown, then the balls), so it is
-                published for framerate rather than for a still's sharpness.
-                The copy here is English while the rest of the page is
-                translated: the panel carries no message catalogue yet. */}
-            <GameGoLive
-              target={{
-                game: "arkball",
-                ref: current.id,
-                title: `ArkBall draw #${current.sequence}`,
-                watchPath: "/casino/arkball",
-                descriptionLead: "Live ArkBall on Ark. Play the draw:",
-                content: "motion",
-                creatorApplicationNote: "I follow ArkBall draws on Ark and want to broadcast them.",
-              }}
-              copy={{
-                subject: "the draw",
-                finishedNotice:
-                  "This draw has closed. End the broadcast so you are not streaming a finished draw.",
-              }}
-              activityOver={current.status !== "open"}
-            />
             <div className="rounded-[20px] border border-white/8 bg-white/[0.03] p-4">
               <div className="text-[10px] font-semibold tracking-[0.13em] text-white/38 uppercase">
                 {t("drawIntegrity")}

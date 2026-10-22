@@ -10,9 +10,7 @@ import {
 import { readSelfInitiated } from "@/lib/analytics/self-initiated";
 import type { ActivityItem } from "@/lib/server/activity";
 
-// Its own remembered-set, separate from the analytics one: the two answer
-// different questions (has this been reported / has the balance accounted for
-// it) and must not consume each other's arrivals.
+// Arrivals the balance has already accounted for.
 const STORAGE_KEY = "wsws.balance.deposit-seen.v1";
 
 function readSeen(): Set<string> {

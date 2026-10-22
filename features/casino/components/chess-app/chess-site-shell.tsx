@@ -150,8 +150,8 @@ export function ChessSiteShell({
         className={cn(
           "ark-chess-page relative bg-black text-white",
           fixedViewport
-            ? "min-h-[calc(100dvh-158px-var(--ws-live-bar,0px))] overflow-x-hidden md:min-h-[calc(100dvh-79px-var(--ws-live-bar,0px))] xl:flex xl:h-[calc(100dvh-79px-var(--ws-live-bar,0px))] xl:min-h-0 xl:flex-col xl:overflow-hidden"
-            : "min-h-[calc(100dvh-158px-var(--ws-live-bar,0px))] overflow-x-hidden md:min-h-[calc(100dvh-79px-var(--ws-live-bar,0px))]"
+            ? "min-h-[calc(100dvh-158px)] overflow-x-hidden md:min-h-[calc(100dvh-79px)] xl:flex xl:h-[calc(100dvh-79px)] xl:min-h-0 xl:flex-col xl:overflow-hidden"
+            : "min-h-[calc(100dvh-158px)] overflow-x-hidden md:min-h-[calc(100dvh-79px)]"
         )}
       >
         <ChessSiteHeader compact={compact} />

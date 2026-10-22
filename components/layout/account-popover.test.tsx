@@ -65,40 +65,16 @@ vi.mock("@/features/referrals", () => ({
   InviteFriendsModal: () => null,
 }));
 
-// The account face reads the player's square profile. These cover the rail
-// and its chrome, not where the picture comes from, so the read is stubbed
-// out: null is the ordinary answer and leaves the seeded artwork in place.
-vi.mock("@/hooks/use-square-avatar", () => ({
-  useSquareAvatar: () => null,
-  useSquareSeed: () => "seed",
-}));
-
-const onOpenShine = vi.fn();
-
 describe("AccountPopover", () => {
   it("renders nothing when closed", () => {
     const triggerRef = { current: document.createElement("button") };
-    render(
-      <AccountPopover
-        open={false}
-        onOpenShine={onOpenShine}
-        onClose={() => {}}
-        triggerRef={triggerRef}
-      />
-    );
+    render(<AccountPopover open={false} onClose={() => {}} triggerRef={triggerRef} />);
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("renders popover menu with user info and actions when open", () => {
     const triggerRef = { current: document.createElement("button") };
-    render(
-      <AccountPopover
-        open={true}
-        onOpenShine={onOpenShine}
-        onClose={() => {}}
-        triggerRef={triggerRef}
-      />
-    );
+    render(<AccountPopover open={true} onClose={() => {}} triggerRef={triggerRef} />);
 
     expect(screen.getByRole("menu")).toBeInTheDocument();
     expect(screen.getByText("test@example.com")).toBeInTheDocument();
@@ -110,14 +86,7 @@ describe("AccountPopover", () => {
     arkName.value = "signor.ark";
     const triggerRef = { current: document.createElement("button") };
     try {
-      render(
-        <AccountPopover
-          open={true}
-          onOpenShine={onOpenShine}
-          onClose={() => {}}
-          triggerRef={triggerRef}
-        />
-      );
+      render(<AccountPopover open={true} onClose={() => {}} triggerRef={triggerRef} />);
       expect(screen.getByText("signor.ark")).toBeInTheDocument();
       expect(screen.queryByText("Test User")).toBeNull();
       expect(screen.getByText("test@example.com")).toBeInTheDocument();
@@ -129,14 +98,7 @@ describe("AccountPopover", () => {
   it("calls logout when sign out is clicked", async () => {
     const onClose = vi.fn();
     const triggerRef = { current: document.createElement("button") };
-    render(
-      <AccountPopover
-        open={true}
-        onOpenShine={onOpenShine}
-        onClose={onClose}
-        triggerRef={triggerRef}
-      />
-    );
+    render(<AccountPopover open={true} onClose={onClose} triggerRef={triggerRef} />);
 
     fireEvent.click(screen.getByRole("menuitem", { name: /signOut/i }));
     expect(mockLogout).toHaveBeenCalled();
@@ -149,14 +111,7 @@ describe("AccountPopover", () => {
   it("closes when Escape key is pressed", () => {
     const onClose = vi.fn();
     const triggerRef = { current: document.createElement("button") };
-    render(
-      <AccountPopover
-        open={true}
-        onOpenShine={onOpenShine}
-        onClose={onClose}
-        triggerRef={triggerRef}
-      />
-    );
+    render(<AccountPopover open={true} onClose={onClose} triggerRef={triggerRef} />);
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
@@ -170,23 +125,11 @@ describe("AccountPopover", () => {
     // eventually removed once the exit completes.
     const triggerRef = { current: document.createElement("button") };
     const { rerender } = render(
-      <AccountPopover
-        open={true}
-        onOpenShine={onOpenShine}
-        onClose={() => {}}
-        triggerRef={triggerRef}
-      />
+      <AccountPopover open={true} onClose={() => {}} triggerRef={triggerRef} />
     );
     expect(screen.getByRole("menu")).toBeInTheDocument();
 
-    rerender(
-      <AccountPopover
-        open={false}
-        onOpenShine={onOpenShine}
-        onClose={() => {}}
-        triggerRef={triggerRef}
-      />
-    );
+    rerender(<AccountPopover open={false} onClose={() => {}} triggerRef={triggerRef} />);
     await waitFor(() => expect(screen.queryByRole("menu")).not.toBeInTheDocument());
   });
 });
@@ -206,12 +149,7 @@ describe("the migration row", () => {
     const triggerRef = { current: null };
     render(
       <>
-        <AccountPopover
-          open={true}
-          onOpenShine={onOpenShine}
-          onClose={() => {}}
-          triggerRef={triggerRef}
-        />
+        <AccountPopover open={true} onClose={() => {}} triggerRef={triggerRef} />
         <Request />
       </>
     );

@@ -7,7 +7,6 @@ import {
   placeDraughtsBet,
 } from "@/features/casino/lib/api/draughts-betting";
 import type { PlaceBetInput } from "@/features/casino/lib/api/types";
-import { track } from "@/lib/analytics/mixpanel";
 
 const ODDS_POLL_MS = 6_000;
 
@@ -47,13 +46,6 @@ export function usePlaceDraughtsBet() {
   return useMutation({
     mutationFn: (input: PlaceBetInput) => placeDraughtsBet(input),
     onSuccess: (_slip, input) => {
-      track("spectator_bet_placed", {
-        game: "checkers",
-        match_id: input.matchId,
-        game_id: input.matchId,
-        side: input.selection,
-        amount_usd: Number(input.stakeUsdc),
-      });
       void queryClient.invalidateQueries({
         queryKey: DRAUGHTS_BETTING_KEYS.odds(input.matchId),
       });

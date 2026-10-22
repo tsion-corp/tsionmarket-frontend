@@ -6,7 +6,6 @@ import { motion, useReducedMotion } from "motion/react";
 import { useNow, useTranslations } from "next-intl";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useRequireSession } from "@/hooks/use-require-session";
-import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { Pager } from "@/components/ui/pager";
 import { QrCode } from "@/components/ui/qr-code";
 import { useMoney } from "@/components/ui/currency-select";
@@ -23,7 +22,6 @@ import {
 } from "@/features/casino/components/last-standing/stage-card";
 import {
   RailActionCard,
-  RailCardFrame,
   RailClaimCard,
   RailInviteCard,
   RailPager,
@@ -47,16 +45,6 @@ import { rememberRoundLength, secondsUntil } from "@/features/casino/lib/last-st
 import { GAME_ASSET, unitsToUsd, usdToUnits } from "@/features/casino/lib/last-standing/stake";
 import { followGame } from "@/features/casino/lib/last-standing/followed-game";
 import { useGameShare } from "@/features/casino/components/last-standing/share-game";
-import {
-  GameBroadcastProvider,
-  GoLivePanel,
-  isBroadcastOngoing,
-  type BroadcastCopy,
-} from "@/features/casino/components/broadcast";
-import {
-  useGameBroadcast,
-  type GameBroadcastTarget,
-} from "@/features/casino/hooks/use-game-broadcast";
 import type { TokenAmount } from "@/features/casino/lib/vault-api";
 
 // The shape the round visuals below consume, kept local now that the API
@@ -74,7 +62,6 @@ import { useVaultActions } from "@/features/casino/hooks/use-vault-actions";
 import { useVaultPendingWinnings } from "@/features/casino/hooks/use-vault-winnings";
 import { useGameBalance } from "@/features/casino/hooks/use-game-balance";
 import { usePayoutRefresh } from "@/features/casino/hooks/use-payout-refresh";
-import { useVaultShine } from "@/features/casino/hooks/use-arcade-shine";
 import { useVaultParams } from "@/features/casino/hooks/use-vault-params";
 import { usdOf } from "@/features/casino/lib/last-standing/pricing";
 import { activityAmount } from "@/features/casino/lib/last-standing/activity-payout";
@@ -112,8 +99,6 @@ import {
   setSoundEnabled,
 } from "@/features/casino/lib/last-standing/sound";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
-import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 
 const EXPLORER_TX_URL = "https://basescan.org/tx/";
 // How long to keep re-checking after a win, and how often. The settle window
@@ -407,15 +392,8 @@ interface LastStandingSectionProps {
 }
 
 /** Which rail card is on screen. The state decides which of these exist. */
-type RailCardId = "action" | "claim" | "invite" | "broadcast";
+type RailCardId = "action" | "claim" | "invite";
 
-// The copy the broadcast panel needs. It is English while the rest of the page
-// is translated: the panel carries no catalogue yet.
-const BROADCAST_COPY: BroadcastCopy = {
-  subject: "the arena",
-  finishedNotice:
-    "This game has settled. End the broadcast so you are not streaming a finished game.",
-};
 /** Which of the bottom panel's three tabs is open. */
 type PanelTab = "activity" | "rules";
 
@@ -423,12 +401,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   const t = useTranslations("casino.lastStanding");
   const { evmAddress: address, authenticated } = useAuthSession();
   const requireSession = useRequireSession();
-  // One identity across the ecosystem: the picture this player set on Market
-  // Square is their picture here too. Only ever theirs — the backend has no
-  // address-to-avatar mapping yet, so every other player keeps the face drawn
-  // from their address. Null is the ordinary answer (see the hook), which is
-  // why nothing here waits on it or retries: the drawn face is already right.
-  const selfAvatar = useSquareAvatar();
   const money = useMoney();
   // One "now" for every relative time in the table, refreshed on its own slow
   // interval rather than read during render, which would make the render
@@ -527,24 +499,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // round state it was picked in: when the round ends the pick lapses and the
   // rail opens on the new state's first card, which is claim for a winner.
   const [railPick, setRailPick] = useState<{ card: RailCardId; roundOver: boolean } | null>(null);
-
-  // The broadcast lives up here rather than inside its panel: whether this
-  // session is streaming decides whether the rail offers the broadcast card
-  // at all once the round is over. The arena is all motion (the countdown,
-  // the pot, the coin flights), so it is published for framerate.
-  const broadcastTarget = useMemo<GameBroadcastTarget>(
-    () => ({
-      game: "last-standing",
-      ref: String(gameId),
-      title: `The Last Man: game ${gameId}`,
-      watchPath: `/casino/last-standing/${gameId}`,
-      descriptionLead: "Live on Ark. Outlast everyone:",
-      content: "motion",
-      creatorApplicationNote: "I play The Last Man on Ark and want to broadcast my games.",
-    }),
-    [gameId]
-  );
-  const broadcast = useGameBroadcast(broadcastTarget);
 
   const reduce = useReducedMotion();
 
@@ -1045,17 +999,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // The payout, credited the moment the settle frame or the winners row lands.
   usePayoutRefresh(address, winners);
 
-  // Shine: a won round posts itself to Market Square.
-  //
-  // `phase === "won"` is the one point the three announcements converge on —
-  // the live reveal above, the winners-feed fallback above it, and whichever
-  // settlement follows. It is also the first point PAST THE BACK-OUT: the
-  // reveal re-reads the status after its suspense and abandons the round when
-  // a wager landed at the buzzer, and it does that before the phase moves.
-  // Reporting from the round-end signal instead would publish a win that the
-  // next check retracts, with nothing to retract it with.
-  useVaultShine(gameId, phase === "won" && youWon);
-
   // Brief post-round re-check so the settlement row and the reset status
   // appear quickly; self-clearing once the window passes.
   useEffect(() => {
@@ -1107,29 +1050,9 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     claimRef.current = () => void onClaim();
   });
   const wonPendingRef = useRef(false);
-  // Reported once per win. The reveal effect below re-runs as the claim
-  // settles, and a second event would double the pot in any total built on it.
-  const wonReportedRef = useRef(false);
   useEffect(() => {
-    if (phase === "won" && youWon) {
-      wonPendingRef.current = true;
-      if (!wonReportedRef.current) {
-        wonReportedRef.current = true;
-        const pot = lastPotRef.current || potUsd;
-        // The three shares from the contract's live split, not from a rate
-        // written down here: the owner can retune it, and a report that
-        // divided the pot by a hardcoded rate would restate old rounds.
-        // The treasury takes whatever the winner and the starter do not.
-        track("last_man_ended", {
-          game_id: String(gameId),
-          pot_usd: pot,
-          winner_payout_usd: revealPrizeUsd,
-          creator_usd: (pot * splitStarterBps) / 10_000,
-          house_usd: (pot * (10_000 - splitWinnerBps - splitStarterBps)) / 10_000,
-        });
-      }
-    }
-  }, [phase, youWon, potUsd, revealPrizeUsd, gameId, splitWinnerBps, splitStarterBps]);
+    if (phase === "won" && youWon) wonPendingRef.current = true;
+  }, [phase, youWon]);
   useEffect(() => {
     if (wonPendingRef.current && hasPending && !claiming) {
       wonPendingRef.current = false;
@@ -1219,7 +1142,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // at or above the game's minimum; either way the sender becomes last
   // standing and the clock resets, so the two share every step after the
   // amount.
-  const placeWager = async (amountUnits: bigint, amountUsd: number, from: HTMLElement | null) => {
+  const placeWager = async (amountUnits: bigint, from: HTMLElement | null) => {
     // Entering the round starts the arena's audio, unconditionally — placing a
     // wager IS asking for the game, sound and all, and this click is the user
     // gesture autoplay policy wants. The mute button governs everything after;
@@ -1251,9 +1174,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     try {
       await wager(gameId, amountUnits);
       followGame(gameId);
-      // Buying into the round. `game_staked` is not sent beside it any more:
-      // this event carries the money, and both would count one buy-in twice.
-      track("last_man_joined", { game_id: String(gameId), entry_fee_usd: amountUsd });
       toast.success(t("toastYoureIn"), { id: toastId });
       playWagerSound();
       // The wager just landed on-chain, but the backend indexes it a moment
@@ -1267,11 +1187,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
     } catch (e) {
       // It will never land, so it must not hold the verdict back.
       releaseRoundEnd();
-      track("last_man_failed", {
-        game_id: String(gameId),
-        entry_fee_usd: amountUsd,
-        ...reasonFor(GAME_FAILURE, e),
-      });
       toast.error(friendlyError(e, t("toastPlayFailed")), { id: toastId });
       return false;
     }
@@ -1319,7 +1234,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       toast.error(t("toastBalanceShort"));
       return;
     }
-    const ok = await placeWager(stake, stakeUsd, playBtnRef.current);
+    const ok = await placeWager(stake, playBtnRef.current);
     // Back to the minimum, so the next play does not silently repeat a stake
     // the player chose once for one round.
     if (ok) setStakeUnits(null);
@@ -1412,8 +1327,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
             : t("stageLeadingOther"),
         value: iAmKing ? `${t("youLabel")} - ${leaderName}` : leaderName,
         isYou: iAmKing,
-        // Theirs when the king is them; anyone else stays the drawn face.
-        avatarUrl: iAmKing ? selfAvatar : null,
+        avatarUrl: null,
         seed: lastPlayer,
       }
     : status
@@ -1450,19 +1364,14 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
   // the pager's length is the state's own answer to "what can I do here".
   const settleable = roundOver && game?.settled !== true;
   //
-  //   live round:  action, invite, broadcast
-  //   round over:  claim (when there is something to settle or collect),
-  //                invite, and broadcast only while this session is still
-  //                streaming, so a finished game's stream can be ended.
-  const broadcasting = isBroadcastOngoing(broadcast.phase);
+  //   live round:  action, invite
+  //   round over:  claim (when there is something to settle or collect), invite
   const railCards: RailCardId[] = [];
   if (!roundOver && !!status) railCards.push("action");
   if (roundOver && (settleable || hasPending)) railCards.push("claim");
   // Always: a game is worth sharing whatever state it is in, and the starter
   // earns from everyone who joins through the link.
   railCards.push("invite");
-  // A game is public, so anyone in it can stream it.
-  if (!roundOver || broadcasting) railCards.push("broadcast");
   const picked =
     railPick && railPick.roundOver === roundOver && railCards.includes(railPick.card)
       ? railPick.card
@@ -1519,11 +1428,7 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
       id: a.id,
       address: a.address,
       addressLabel: truncateAddress(a.address),
-      // The reader's own rows carry their Market Square picture. No
-      // wallet-to-profile lookup exists on the square yet, so every other face
-      // falls back to the mark derived from the address — when that lookup
-      // lands, this is the line it replaces.
-      avatarUrl: mine ? selfAvatar : null,
+      avatarUrl: null,
       action: a.action === "won" ? t("actionWon") : t("actionPlayed"),
       amount: rawToMoney(shown.raw ?? a.amountWei, shown.decimals),
       time: shortTimeAgo(new Date(a.createdAt), feedNow, t),
@@ -1818,27 +1723,6 @@ export function LastStandingSection({ gameId, onAddFunds }: LastStandingSectionP
                   }}
                   footer={railPager}
                 />
-              ) : null}
-
-              {/* Broadcast to Market Square. No frame of the design draws it,
-                  so it wears the rail's own shell and heading, and the panel
-                  goes in bare so there is one card edge, not two. */}
-              {railCard === "broadcast" ? (
-                <RailCardFrame label={t("railBroadcastHeading")} footer={railPager}>
-                  <div data-rail-card="broadcast">
-                    <GameBroadcastProvider broadcast={broadcast} copy={BROADCAST_COPY}>
-                      <GoLivePanel
-                        variant="bare"
-                        activityOver={game?.settled === true}
-                        header={
-                          <h3 className="ws-display text-[24px] leading-none tracking-[-0.96px] text-[#f4f4f4]">
-                            {t("railBroadcastHeading")}
-                          </h3>
-                        }
-                      />
-                    </GameBroadcastProvider>
-                  </div>
-                </RailCardFrame>
               ) : null}
             </div>
           </div>

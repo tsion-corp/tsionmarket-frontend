@@ -82,7 +82,7 @@ describe("chess dark canvas", () => {
     expect(shell).toContain('"ark-chess-page relative bg-black text-white"');
     expect(shell).not.toContain("linear-gradient(180deg, #0d1012");
     expect(lobbyFrame).toContain(
-      "block h-[calc(100dvh-158px-var(--ws-live-bar,0px))] min-h-[520px] w-full border-0 bg-black transition-opacity duration-150"
+      "block h-[calc(100dvh-158px)] min-h-[520px] w-full border-0 bg-black transition-opacity duration-150"
     );
     expect(lobbyFrame).not.toContain("fixed inset-0 h-dvh");
     expect(siteCss).toMatch(/body \{\s+background: #000;/);

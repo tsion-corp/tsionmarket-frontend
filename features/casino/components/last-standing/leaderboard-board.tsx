@@ -3,9 +3,8 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { Pager } from "@/components/ui/pager";
-import { SquareAvatar } from "@/components/ui/square-avatar";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import { useMoney } from "@/components/ui/currency-select";
-import { useSquareAvatar } from "@/hooks/use-square-avatar";
 import { usePaged } from "@/hooks/use-paged";
 import { truncateAddress } from "@/lib/format";
 import type { LeaderboardEntry } from "@/features/casino/lib/last-standing/leaderboard";
@@ -44,7 +43,6 @@ export function LeaderboardBoard({
 }: LeaderboardBoardProps) {
   const t = useTranslations("casino.lastStanding");
   const money = useMoney();
-  const selfAvatar = useSquareAvatar();
   const mine = address?.toLowerCase() ?? null;
 
   const paged = usePaged(rows, PAGE_SIZE);
@@ -129,7 +127,7 @@ export function LeaderboardBoard({
               </span>
 
               {isMe ? (
-                <SquareAvatar src={selfAvatar} seed={row.address} name={selfName ?? ""} size={32} />
+                <AccountAvatar seed={row.address} name={selfName ?? ""} size={32} />
               ) : (
                 <span
                   aria-hidden

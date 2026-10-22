@@ -207,14 +207,8 @@ export function RwaTicket({
             : null;
 
   return (
-    // The two data attributes travel with the ticket: it prints a position, so
-    // the privacy blur reaches it, and it must not be interrupted by a broadcast
-    // while an order is being signed.
-    <div
-      data-sensitive="position"
-      data-broadcast-suspend
-      className="flex w-full grow flex-col gap-[27px]"
-    >
+    // The ticket prints a position, so the privacy blur reaches it.
+    <div data-sensitive="position" className="flex w-full grow flex-col gap-[27px]">
       <TicketHeader
         symbol={asset.symbol}
         change24h={row.change24h}

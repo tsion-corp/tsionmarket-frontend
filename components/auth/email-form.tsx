@@ -3,11 +3,8 @@
 import { useState } from "react";
 import { useSocialAuth } from "decane-connect-kit";
 import { useTranslations } from "next-intl";
-import { track } from "@/lib/analytics/mixpanel";
-import { AUTH_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { ArrowRightIcon } from "@/components/ui/icons";
 import { OtpInput } from "@/components/auth/otp-input";
-import { recordAuthMethod } from "@/lib/analytics/auth-method";
 import { rememberDisplayProfile } from "@/lib/display-profile";
 import { rememberPending } from "@/lib/last-auth-method";
 
@@ -24,23 +21,17 @@ export function EmailForm() {
   const [error, setError] = useState<string | null>(null);
   const { sendEmailCode, confirmEmailCode, emailLoading } = useSocialAuth();
 
-  // Both legs of the email flow report the same way; only the step differs.
-  const reportFailure = (err: unknown) =>
-    track("login_failed", { method: "email", ...reasonFor(AUTH_FAILURE, err) });
-
   const submitEmail = async () => {
     if (!email.includes("@")) {
       setError(t("emailInvalid"));
       return;
     }
     setError(null);
-    track("auth_method_selected", { method: "email" });
     try {
       await sendEmailCode(email);
       setStep("code");
     } catch (err) {
       console.error("Sending login code failed:", err);
-      reportFailure(err);
       setError(t("emailSendFailed"));
     }
   };
@@ -48,7 +39,6 @@ export function EmailForm() {
   const submitCode = async (value: string) => {
     setError(null);
     try {
-      recordAuthMethod("email");
       rememberPending("email");
       await confirmEmailCode(email, value);
       // Email sign-in returns no profile from Decane, but we hold the one
@@ -56,7 +46,6 @@ export function EmailForm() {
       rememberDisplayProfile({ email });
     } catch (err) {
       console.error("Code verification failed:", err);
-      reportFailure(err);
       setCode("");
       setError(t("codeMismatch"));
     }

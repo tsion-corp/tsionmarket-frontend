@@ -11,10 +11,6 @@ import { useSyncExternalStore } from "react";
 // when they *attempt* a method; the auth page calls promotePending() once a
 // session actually lands, so an abandoned or failed attempt never becomes the
 // remembered method.
-//
-// Deliberately separate from recordAuthMethod() in ./analytics/auth-method:
-// that one is a one-shot in-memory channel owned by AnalyticsIdentity, and
-// folding the two together would have this module consume its value.
 
 export type LastAuthMethod = "google" | "kingschat" | "email" | "passkey" | "x";
 

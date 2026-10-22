@@ -42,8 +42,6 @@ export const QUIET_SERVICES: ReadonlySet<string> = new Set([
   "chess",
   "draughts",
   "vault",
-  "market-square",
-  "square",
   "labs",
   "demo",
   "token-logo",

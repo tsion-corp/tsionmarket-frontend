@@ -47,7 +47,6 @@ export function ComputerWagerSummary({
     <div
       data-testid="computer-wager-summary"
       data-sensitive="balance"
-      data-broadcast-suspend
       className="flex flex-col gap-2 rounded-[8px] border border-white/8 bg-black/12 px-3.5 py-3"
     >
       <SummaryRow label="Your stake" value={`${breakdown.youLock} USD`} />
