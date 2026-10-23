@@ -11,7 +11,8 @@
 # Only variables the app's code mentions are copied; Vercel system variables
 # and the ones removed with Square, Mixpanel and Watchtower are skipped.
 #
-# Vercel returns Sensitive variables as empty strings. If any value is empty,
+# Vercel does not return Sensitive values: it writes them as empty strings or
+# as the placeholder "[SENSITIVE]", and both count as missing. If any is,
 # nothing is uploaded: the script writes a file listing every variable, with
 # the known values filled in, for you to complete and pass back as FILLED.env.
 #
@@ -65,6 +66,8 @@ for (const line of fs.readFileSync(source, "utf8").split("\n")) {
   let value = m[2].trim();
   if (value.startsWith('"')) value = JSON.parse(value);
   else if (value.startsWith("'")) value = value.slice(1, -1);
+  // Vercel's stand-in for a Sensitive value it will not return.
+  if (value === "[SENSITIVE]") value = "";
   vars.set(m[1], value);
 }
 
@@ -82,8 +85,8 @@ const empty = [...kept].filter(([, v]) => v === "").map(([n]) => n);
 const secrets = Object.fromEntries([...kept].filter(([n]) => !isBuild(n)));
 const build = [...kept].filter(([n]) => isBuild(n));
 
-fs.writeFileSync(`${work}/skipped.txt`, skipped.sort().join("\n"));
-fs.writeFileSync(`${work}/empty.txt`, empty.sort().join("\n"));
+fs.writeFileSync(`${work}/skipped.txt`, skipped.sort().map((n) => `${n}\n`).join(""));
+fs.writeFileSync(`${work}/empty.txt`, empty.sort().map((n) => `${n}\n`).join(""));
 fs.writeFileSync(`${work}/secrets.json`, JSON.stringify(secrets), { mode: 0o600 });
 fs.writeFileSync(
   `${work}/build.env`,
