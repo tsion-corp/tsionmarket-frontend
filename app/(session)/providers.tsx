@@ -16,13 +16,10 @@ import { DecaneRecoveryHost } from "@/components/providers/decane-recovery-host"
 import { AddressBarReferral } from "@/components/layout/address-bar-referral";
 import { SignInModalHost } from "@/components/auth/sign-in-modal-host";
 import { FundsModalHost } from "@/components/layout/funds-modal-host";
-import { AnalyticsIdentity } from "@/components/providers/analytics-identity";
-import { AnalyticsSegments } from "@/components/providers/analytics-segments";
-// Deep imports, not the barrels, for the reason given for the casino import
+import { ClarityIdentity } from "@/components/providers/clarity-identity";
+// Deep import, not the barrel, for the reason given for the casino import
 // below: this provider is on every session route.
-import { DepositAnalytics } from "@/features/activity/components/deposit-analytics";
-import { BankDepositAnalytics } from "@/features/funds/components/bank-deposit-analytics";
-import { BankWithdrawAnalytics } from "@/features/funds/components/bank-withdraw-analytics";
+import { DepositBalanceRefresh } from "@/features/activity/components/deposit-balance-refresh";
 import { PredictionCashoutTracker } from "@/features/prediction/components/prediction-cashout-tracker";
 import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 // Deep import, not the barrel. `@/features/casino` re-exports 27 components,
@@ -33,7 +30,6 @@ import { BalanceVisibilityProvider } from "@/components/ui/balance-visibility";
 // the same reason the root providers do: it composes a feature, and only the
 // app layer may. The gate loads the host itself on demand.
 import { MiniTimerGate } from "@/features/casino/components/last-standing/mini-timer-gate";
-import { BroadcastSessionProvider } from "@/components/broadcast/broadcast-session";
 import {
   collectRotatedRecoveryPassword,
   deliverRecoveryFile,
@@ -70,29 +66,19 @@ const MigrationOAuthReturnHost = dynamic(
 const MigrationGateHost = dynamic(() => import("@/components/layout/migration-gate-host"), {
   ssr: false,
 });
-// The Shine runtime, paused while an upgrade is pending. Deferred for the
-// same reason again: the pause reads the migration OFFER, and that hook
-// reaches the sweep's wallet planner and the legacy-funds probe. Imported
-// statically it put 172 kB on /auth and /interests for a runtime that posts
-// nothing until a trade confirms. A trade cannot confirm before this chunk
-// has long since landed.
-const ShineRuntimeUnderMigration = dynamic(
-  () => import("@/features/migrate/components/shine-runtime-under-migration"),
-  { ssr: false }
-);
 
 const DECANE_CHAINS = ["evm:8453", "evm:1", "evm:42161", "evm:10", "evm:137", "solana:mainnet"];
 
 /**
  * Everything a signed-in session needs and a signed-out page does not: the
- * Decane wallet SDK, the broadcast session that holds the LiveKit room, the
- * balance-visibility toggle, the analytics identity, the timer pop-out.
+ * Decane wallet SDK, the balance-visibility toggle, the Clarity identity,
+ * the timer pop-out.
  *
  * Mounted by the layout beside it, so it wraps sign-in, onboarding, the
  * product routes and the games, and persists across every navigation among
- * them. It used to sit in the root providers, which put the wallet SDK, viem
- * and livekit-client, over a megabyte of JavaScript, in front of the landing
- * page and the privacy policy. Neither uses any of it.
+ * them. It used to sit in the root providers, which put the wallet SDK and
+ * viem in front of the landing page and the privacy policy. Neither uses any
+ * of it.
  *
  * Privy is no longer mounted here (ADR-0009). The two surfaces that must still
  * sign with the OLD Privy wallets — the Update Balance sweep and
@@ -165,74 +151,54 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
     >
       <NetworkStatusProvider>
         <BalanceVisibilityProvider>
-          {/* The broadcast session sits above the router on purpose: it holds
-              the LiveKit room and the Market Square stream, so a broadcast
-              started on the chess board survives navigating to the portfolio
-              instead of dying with the page that started it. */}
-          <BroadcastSessionProvider>
-            {children}
-            {/* Empties the persisted query cache when the session ends, so
-                a signed-out browser holds no balances. Needs both the session
-                and query contexts. Renders nothing. */}
-            <SessionCacheGuard />
-            {/* Registers the kit's synchronous getAccessToken with the fetch
-                wrapper, so authed requests carry a Decane bearer. Replaces
-                Privy's IdentityTokenBridge: Decane issues no identity token,
-                and routes resolve the user from verified claims instead.
-                Renders nothing. */}
-            <DecaneTokenBridge />
-            {/* Syncs Mixpanel's identity to auth state; needs to sit inside
-                DecaneKit to read it. Renders nothing. */}
-            <AnalyticsIdentity />
-            <AnalyticsSegments />
-            {/* Renders the recovery, PIN and unlock-password dialogs the kit
-                asks for through the callbacks above. Renders nothing until one
-                is requested. */}
-            <DecaneRecoveryHost />
-            {/* Report money arriving and leaving: settled deposits on either
-                rail, and bank withdrawals to their payout. Here rather than on
-                the dashboard, which a user who deposits and goes straight to
-                trading never returns to. Each waits for a signed-in wallet.
-                Render nothing. */}
-            <DepositAnalytics />
-            <BankDepositAnalytics />
-            <BankWithdrawAnalytics />
-            {/* Installs the Shine runtime, so a confirmed trade anywhere in
-                the session can post itself to Market Square in the language
-                the app is being read in. Needs the session for the account
-                and the query client for the account's own Shine preferences,
-                and mounts here rather than per service page because a swap
-                can confirm long after the page that started it is gone.
-                Paused while an account upgrade is pending (see the wrapper).
-                Renders nothing. */}
-            <ShineRuntimeUnderMigration />
-            {/* Watches open Polymarket cashouts for the market workspace.
-                Needs Privy and the query client. Renders nothing. */}
-            <PredictionCashoutTracker />
-            {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
-                pages, so the floating window survives navigating anywhere in
-                the app. The gate loads the host only on Arkade routes or while
-                a game is followed; the rest of the time nothing is loaded. */}
-            <MiniTimerGate />
-            {/* Google and Twitter sign-in for the OLD account returns the whole
-                page, landing wherever the user started with Privy's credentials
-                in the query string. Privy is no longer a provider on these
-                routes (see above), so with nothing mounted the code is never
-                exchanged: the sign-in quietly does not happen and the
-                credentials stay in the URL and in history. This reopens the
-                sheet on the way back, which both completes the login and puts
-                the user back where they were — about to move their money.
-                Renders nothing on any ordinary page load. */}
-            {returningFromPrivyOAuth ? <MigrationOAuthReturnHost /> : null}
-            <MigrationGateHost />
-            {/* Keeps the signed-in user's referral code on the address so a
-                link copied from the bar credits them. Renders nothing. */}
-            <AddressBarReferral />
-            {/* The sign-in over any page, opened by the Sign in button and by
-                every action that needs a session. */}
-            <SignInModalHost />
-            <FundsModalHost />
-          </BroadcastSessionProvider>
+          {children}
+          {/* Empties the persisted query cache when the session ends, so
+              a signed-out browser holds no balances. Needs both the session
+              and query contexts. Renders nothing. */}
+          <SessionCacheGuard />
+          {/* Registers the kit's synchronous getAccessToken with the fetch
+              wrapper, so authed requests carry a Decane bearer. Replaces
+              Privy's IdentityTokenBridge: Decane issues no identity token,
+              and routes resolve the user from verified claims instead.
+              Renders nothing. */}
+          <DecaneTokenBridge />
+          {/* Tags Clarity recordings with the signed-in account; needs to
+              sit inside DecaneKit to read it. Renders nothing. */}
+          <ClarityIdentity />
+          {/* Renders the recovery, PIN and unlock-password dialogs the kit
+              asks for through the callbacks above. Renders nothing until one
+              is requested. */}
+          <DecaneRecoveryHost />
+          {/* Refreshes the balance when a deposit settles. Here rather than
+              on the dashboard, which a user who deposits and goes straight to
+              trading never returns to. Renders nothing. */}
+          <DepositBalanceRefresh />
+          {/* Watches open Polymarket cashouts for the market workspace.
+              Needs Privy and the query client. Renders nothing. */}
+          <PredictionCashoutTracker />
+          {/* Owns the Last Man Standing pop-out timer. Mounted here, above the
+              pages, so the floating window survives navigating anywhere in
+              the app. The gate loads the host only on Arkade routes or while
+              a game is followed; the rest of the time nothing is loaded. */}
+          <MiniTimerGate />
+          {/* Google and Twitter sign-in for the OLD account returns the whole
+              page, landing wherever the user started with Privy's credentials
+              in the query string. Privy is no longer a provider on these
+              routes (see above), so with nothing mounted the code is never
+              exchanged: the sign-in quietly does not happen and the
+              credentials stay in the URL and in history. This reopens the
+              sheet on the way back, which both completes the login and puts
+              the user back where they were — about to move their money.
+              Renders nothing on any ordinary page load. */}
+          {returningFromPrivyOAuth ? <MigrationOAuthReturnHost /> : null}
+          <MigrationGateHost />
+          {/* Keeps the signed-in user's referral code on the address so a
+              link copied from the bar credits them. Renders nothing. */}
+          <AddressBarReferral />
+          {/* The sign-in over any page, opened by the Sign in button and by
+              every action that needs a session. */}
+          <SignInModalHost />
+          <FundsModalHost />
         </BalanceVisibilityProvider>
       </NetworkStatusProvider>
     </DecaneKit>

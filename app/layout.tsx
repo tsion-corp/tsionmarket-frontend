@@ -52,22 +52,6 @@ const chessClock = localFont({
   variable: "--font-chess-clock",
 });
 
-// The Square's own type, for the Market Square page, which is the Square's
-// Home drawn as the Square draws it: Manrope for its section headings and
-// "View more" pills, Roboto for the name and handle on its people cards.
-// Loaded as their own variables so only that page reads them.
-const squareHeading = localFont({
-  src: "./fonts/manrope-latin.woff2",
-  weight: "200 800",
-  variable: "--font-heading",
-});
-
-const squareRoboto = localFont({
-  src: "./fonts/roboto-latin.woff2",
-  weight: "100 900",
-  variable: "--font-roboto",
-});
-
 // The Arkade's second face. The Last Man's design sets its round label, leader
 // bar, status pills, tab strip and the whole activity table in Quicksand Bold
 // against Mona Sans elsewhere on the same card, so the pair is deliberate and
@@ -109,7 +93,7 @@ export default async function RootLayout({
   return (
     <html
       lang={locale}
-      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased ${squareHeading.variable} ${squareRoboto.variable} ${quicksand.variable}`}
+      className={`${geist.variable} ${monaSans.variable} ${chessSans.variable} ${chessClock.variable} h-full antialiased ${quicksand.variable}`}
     >
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider locale={locale} messages={messages}>

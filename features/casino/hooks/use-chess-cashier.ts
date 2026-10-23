@@ -20,7 +20,6 @@ import {
 import { useSendToken } from "@/hooks/use-withdraw";
 
 import { toBaseUnits } from "@/lib/trade/math";
-import { track } from "@/lib/analytics/mixpanel";
 
 // The chess cashier's balance and money movements. Everything hangs off the
 // config query: while the service reports the cashier unconfigured, nothing
@@ -204,12 +203,6 @@ export function useChessCashier({
         setDepositPhase("idle");
       }
     },
-    onSuccess: (outcome, amountUsdc) => {
-      // The money reached the cashier either way: a late credit is the
-      // service acknowledging slowly, not a failed move. The credited figure
-      // is preferred when there is one, since that is what actually landed.
-      track("arkade_balance_funded", { amount_usd: Number(outcome.credited ?? amountUsdc) });
-    },
     onSettled: invalidateBalance,
   });
 
@@ -218,10 +211,7 @@ export function useChessCashier({
       if (!wallet) throw new Error("Connect your wallet first.");
       return createChessWithdrawal(wallet, amountUsdc);
     },
-    onSuccess: (_withdrawal, amountUsdc) => {
-      track("arkade_balance_withdrawn", { amount_usd: Number(amountUsdc) });
-      invalidateBalance();
-    },
+    onSuccess: invalidateBalance,
   });
 
   return {

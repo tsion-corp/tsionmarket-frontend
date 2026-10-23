@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { fetchMyReferral, MY_REFERRAL_KEY } from "@/lib/referral-me";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
 import {
   type ReferralStats,
   getUsernameAvailability,
@@ -79,10 +78,6 @@ export function useClaimReferralFromLink() {
     postReferralClaim(code).then(
       () => {
         clearRefCode();
-        // The referral is only complete once the service has accepted the
-        // code, never on arriving with one in the URL. The profile's
-        // referral_count follows from this event.
-        track("referral_completed");
         toast.success(t("applied"));
         void queryClient.invalidateQueries({ queryKey: ["referrals"] });
       },

@@ -15,7 +15,6 @@ import {
 } from "@tanstack/react-table";
 import { BalanceCard } from "@/features/portfolio/components/balance-card";
 import { KashBanner } from "@/features/portfolio/components/kash-banner";
-import { MarketSquareBanner } from "@/features/portfolio/components/market-square-banner";
 import { KashCard } from "@/features/portfolio/components/kash-card";
 // The phone's portfolio head: a swipe carousel of the balance and Kash+ cards,
 // then a promo strip. Desktop keeps the side-by-side grid below.
@@ -26,7 +25,6 @@ import Link from "next/link";
 import { PromoCarousel } from "@/components/ui/promo-deck";
 import { PromoBanner, PromoRail } from "@/components/ui/promo-rail";
 import { ARKSTORE_URL, BRAND } from "@/lib/brand";
-import { marketSquareHref } from "@/lib/market-square";
 import { SetTheStakeBanner } from "@/features/portfolio/components/set-the-stake-banner";
 import { ArkStoreBanner } from "@/features/portfolio/components/ark-store-banner";
 import { KashBuyModal } from "@/features/portfolio/components/kash-buy-modal";
@@ -42,7 +40,6 @@ import { TypeChip } from "@/features/portfolio/components/type-chip";
 import { displayNetworkIconKey, displayNetworkLabel } from "@/features/portfolio/lib/network-label";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { tokenBg } from "@/lib/trade/assets";
-import { track } from "@/lib/analytics/mixpanel";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { useMoney } from "@/components/ui/currency-select";
 import { SearchIcon, WalletIcon } from "@/components/ui/icons";
@@ -278,14 +275,6 @@ export function PortfolioView({
     });
   };
 
-  // The Market Square banner, or nothing when the square has no URL configured.
-  // The square is a sibling deployment rather than a route here, so without a
-  // destination there is no banner to draw, which is the rule the sidebar entry
-  // follows too. `squareBanner` is the placeholder the duplicate stake banner
-  // below was standing in for.
-  const squareHref = marketSquareHref();
-  const squareBanner = squareHref ? <MarketSquareBanner href={squareHref} /> : null;
-
   // The ArkStore ticket, first on both strips: the deck a phone swipes and the
   // rail the desk carries. The store is another deployment, so it is a plain
   // anchor into a new tab rather than a route.
@@ -317,9 +306,8 @@ export function PortfolioView({
     />
   );
 
-  // The stake banner, and the third rail stop it used to fill on its own. With
-  // the square switched off there is still no Market Square banner, so it
-  // repeats as it always did and the carousel keeps something to move to.
+  // The stake banner. It fills the rail's last stop too, so the carousel keeps
+  // something to move to.
   const stakeBanner = (
     <PromoBanner
       href="/casino"
@@ -422,7 +410,6 @@ export function PortfolioView({
             {/* The same banner the desk shows, not a flat export of it: its
                 words are real text in the app's own faces, and they translate. */}
             <KashBanner onBuy={() => setKashModal("buy")} />
-            {squareBanner}
           </PromoCarousel>
         </div>
       </div>
@@ -440,20 +427,7 @@ export function PortfolioView({
         <KashCard
           onBuy={() => setKashModal("buy")}
           onSend={() => setKashModal("send")}
-          onClaim={
-            kashWallet
-              ? () =>
-                  claimPoints.mutate(
-                    { wallet: kashWallet },
-                    {
-                      // Reported on settlement, so the figure is what the engine
-                      // actually minted rather than what was claimable.
-                      onSuccess: (result) =>
-                        track("kash_earned", { kash_amount: Number(result.kashMinted) }),
-                    }
-                  )
-              : undefined
-          }
+          onClaim={kashWallet ? () => claimPoints.mutate({ wallet: kashWallet }) : undefined}
           claiming={claimPoints.isPending}
           onConvert={() => setKashModal("convert")}
           onHistory={() => setKashModal("history")}
@@ -470,7 +444,7 @@ export function PortfolioView({
           {arkIdBanner}
           {stakeBanner}
           <KashBanner onBuy={() => setKashModal("buy")} />
-          {squareBanner ?? stakeBanner}
+          {stakeBanner}
         </PromoRail>
       </div>
 

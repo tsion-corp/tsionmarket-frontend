@@ -679,12 +679,9 @@ function MemeDesk() {
     // it, and the `self-stretch` inside the board had no height to stretch to.
     //
     // The figure is the window less what is above and below the desk in the
-    // shell: the topbar is 79px from md up, and main reserves whatever the
-    // broadcast dock is holding at the foot of the page in --ws-live-bar, which
-    // the dock rewrites on the root element as a broadcast starts and stops, so
-    // reading it here keeps the desk correct without measuring anything. The
-    // desk's own padding is inside the figure, border-box, so the card keeps the
-    // same gutter under it as it has beside it.
+    // shell: the topbar is 79px from md up. The desk's own padding is inside
+    // the figure, border-box, so the card keeps the same gutter under it as it
+    // has beside it.
     //
     // A floor, not a fixed height: a rail with the chart and the metrics both
     // open is taller than a short window, and the desk has to grow and let the
@@ -697,7 +694,7 @@ function MemeDesk() {
     // the page hands off to the phone Market page.
     <div
       data-region="meme-desk"
-      className="mx-auto flex w-full max-w-[1520px] flex-col overflow-x-auto p-4 sm:p-6 md:min-h-[calc(100dvh-79px-var(--ws-live-bar,0px))] lg:p-8"
+      className="mx-auto flex w-full max-w-[1520px] flex-col overflow-x-auto p-4 sm:p-6 md:min-h-[calc(100dvh-79px)] lg:p-8"
     >
       <MemeDesktopBoard
         tokens={pageRows}

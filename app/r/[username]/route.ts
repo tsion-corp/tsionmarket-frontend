@@ -16,8 +16,6 @@ const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
 export async function GET(req: NextRequest, ctx: { params: Promise<{ username: string }> }) {
   const { username } = await ctx.params;
   const code = username.toLowerCase();
-  // The link's query rides along: its utm_* tags are how Mixpanel attributes
-  // the visit, and it reads them off the page the visitor lands on.
   const auth = new URL("/auth", req.url);
   auth.search = req.nextUrl.search;
   const res = NextResponse.redirect(auth);

@@ -6,12 +6,8 @@ import { ModalShell } from "@/components/ui/modal-shell";
 import { useMoney } from "@/components/ui/currency-select";
 import { useBet } from "@/features/prediction/hooks/use-bet";
 import { usePredictionConsent } from "@/features/prediction/hooks/use-prediction-consent";
-import { predictionShineEvent } from "@/features/prediction/lib/shine";
 import { predictionPayout } from "@/lib/format";
-import { reportShine } from "@/lib/shine";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
-import { PREDICTION_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import type { Prediction } from "@/lib/types";
 import { isValidPredictionStake, PREDICTION_MIN_STAKE_USD } from "@/features/prediction/lib/stake";
 
@@ -93,55 +89,11 @@ export function PredictionBetForm({
   const submit = async () => {
     if (!tokenId || !validAmount) return;
     const toastId = toast.loading(t("placingBet"));
-    // A direct Polymarket bet is a slip of one. Reported in the slip's shape
-    // so single bets and combos count in the same series; the market itself is
-    // named by the prediction_selection_added that precedes it.
-    // The label reads like "62¢"; a share paying $1 at that price is worth
-    // 100/cents, which is the decimal odds the catalog asks for.
-    const cents = Number(priceCents.replace(/[^0-9.]/gu, ""));
-    const odds = cents > 0 ? Math.round((100 / cents) * 1e4) / 1e4 : undefined;
-    const legs = {
-      leg_count: 1,
-      stake_usd: amountUsd,
-      ...(odds !== undefined
-        ? {
-            combined_odds: odds,
-            potential_payout_usd: Math.round(amountUsd * odds * 100) / 100,
-          }
-        : {}),
-    };
-    track("prediction_selection_added", {
-      // This modal trades the curated Polymarket set; the user-created markets
-      // have their own flow.
-      market_id: prediction?.conditionId ?? tokenId,
-      outcome: side,
-      ...(odds !== undefined ? { odds } : {}),
-      slip_size: 1,
-    });
-    track("prediction_slip_submitted", {
-      ...legs,
-      market_ids: prediction?.conditionId ?? tokenId,
-    });
     try {
-      const fill = await placeBet({ tokenId, amountUsd });
       // A fill-and-kill order that came back ok matched rather than rested, so
       // this is the confirmation. The button is disabled while `busy`, so the
       // handler cannot run twice for one order.
-      //
-      // "Yes" and "No" are the venue's own outcome names, not this page's
-      // labels. The event carries market data, which the composer quotes as
-      // it stands: the question is not translated either, and a multi-outcome
-      // market would name a candidate here, which could not be. The sentence
-      // around them is the composer's to write in the author's locale.
-      const shineEvent = predictionShineEvent({
-        orderId: fill.orderId,
-        question: prediction?.q,
-        outcome: side === "yes" ? "Yes" : "No",
-        makingAmount: fill.makingAmount,
-        takingAmount: fill.takingAmount,
-      });
-      if (shineEvent) reportShine(shineEvent);
-      track("prediction_bet_placed", legs);
+      await placeBet({ tokenId, amountUsd });
       toast.success(
         side === "yes"
           ? t("betPlacedYes", { amount: money.formatExact(amountUsd) })
@@ -150,15 +102,14 @@ export function PredictionBetForm({
       );
       onPlaced?.();
       onClose();
-    } catch (error) {
-      track("prediction_bet_failed", { ...legs, ...reasonFor(PREDICTION_FAILURE, error) });
+    } catch {
       // Error is surfaced inline below; keep the modal open to retry.
       toast.error(t("betFailed"), { id: toastId });
     }
   };
 
   return (
-    <div className={compact ? "p-3" : "p-5 sm:p-6"} data-sensitive="other" data-broadcast-suspend>
+    <div className={compact ? "p-3" : "p-5 sm:p-6"} data-sensitive="other">
       {!accepted ? (
         <div className="flex flex-col gap-3">
           <div className="ws-display text-[22px]">{t("beforeYouTrade")}</div>

@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
-
 import { useTranslations } from "next-intl";
 import { openSignIn } from "@/hooks/use-sign-in";
 import { useQuery } from "@tanstack/react-query";
@@ -18,7 +16,6 @@ import {
 } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount, gateProgress, pointsToKash } from "@/features/portfolio/lib/kash";
 import { KASH_POINTS_LIVE } from "@/features/portfolio/lib/kash-launch";
-import { setProfile } from "@/lib/analytics/mixpanel";
 import { KASH_SEND_ENABLED } from "@/features/portfolio/lib/kash-send";
 
 // The design's Kash+ coin. A bitmap in Figma too, so it stays one.
@@ -99,17 +96,6 @@ export function KashCard({
 
   const balance = account?.balance ?? "0";
 
-  // The engine holds the authoritative Kash figures, so the profile mirrors
-  // them rather than accumulating its own totals from events. Runs whenever the
-  // card has fresh data; re-setting the same values is cheap and idempotent.
-  useEffect(() => {
-    if (!account) return;
-    setProfile({
-      kash_balance: Number(account.balance),
-      lifetime_kash_earned: Number(account.lifetimeEarned),
-      kash_active: Number(account.balance) > 0 || Number(account.lifetimeEarned) > 0,
-    });
-  }, [account]);
   const balanceDisplay = formatKashAmount(balance);
   // Step the type down as the number grows so a six-figure balance stays on one
   // line instead of wrapping under the KASH suffix or overflowing the card. Each

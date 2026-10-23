@@ -288,7 +288,7 @@ describe("supportDetail", () => {
 // The trade service's failures arrive with a machine code and a requestId.
 // The code is what the copy is chosen by, in the reader's language. The
 // requestId is a support token, not a sentence, so it stays out of the
-// message and reaches support through Watchtower and supportDetail. The
+// message and reaches support through supportDetail. The
 // service's own message never reaches the screen: it is written for its
 // logs, and one day it will be a stack trace.
 describe("trade service errors", () => {

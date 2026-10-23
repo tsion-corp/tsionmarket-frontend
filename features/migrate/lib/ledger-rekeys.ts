@@ -21,7 +21,6 @@ const LEDGER_QUERY_PREFIXES: Record<string, readonly (readonly string[])[]> = {
   lottery: [["casino"]],
   arkjet: [["casino"]],
   prediction: [["prediction"]],
-  square: [["market-square"]],
 };
 
 /** A ledger is settled once the service has answered, whatever it answered. */

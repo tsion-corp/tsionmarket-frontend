@@ -37,8 +37,6 @@ import { AppModalHost, useAppModals } from "@/components/layout/modals/app-modal
 import { CrossBorderBanner } from "@/features/remit/components/cross-border-banner";
 import { RwaSettlementTracker } from "@/features/rwa/components/rwa-settlement-tracker";
 import { MemeSettlementTracker } from "@/features/trade/components/meme-settlement-tracker";
-import { SquareComposeFab, SquareSection } from "@/features/square";
-import { SquareLivePromo, SquarePeoplePromo, SquarePostsPromo } from "@/features/square";
 // The desktop discovery shelves. Each falls back to a static editorial card
 // when the route has nothing live to feed it.
 import { ConversationRow } from "@/features/discovery/components/conversation-row";
@@ -58,10 +56,6 @@ import { useScrollSpy } from "@/hooks/use-scroll-spy";
 import { useDepositPrefill } from "@/hooks/use-deposit-prefill";
 import { startDashboardTour, useDashboardTour } from "@/features/tour";
 import { useMigrationGateActive } from "@/features/migrate/lib/gate-state";
-// This page reads the square's SECTIONS switch, not the rail's. The rail links
-// out to the square's own deployment and follows MARKET_SQUARE_HIDDEN; what
-// renders here is the square's content, which is off on its own switch.
-import { SQUARE_SECTIONS_HIDDEN } from "@/lib/market-square";
 import type { SectionId } from "@/lib/sections";
 import type { DashboardModal } from "@/lib/modal-types";
 import type { DepositPrefill } from "@/lib/voice/intent";
@@ -106,29 +100,6 @@ const INTERLEAVED_BANNERS: readonly ("prediction" | "casino" | undefined)[] = [
   "prediction",
   undefined,
   "casino",
-];
-
-/**
- * Market Square blocks, by the same index — a SECOND track rather than entries
- * in the one above.
- *
- * Keeping them separate is the point: a square block can sit in a gap that
- * already has a product doorway without evicting it, and a new dashboard
- * section brings a new gap that either track can fill without renumbering the
- * other. The alternative — one array where a slot holds exactly one thing —
- * means every square block costs a doorway, which is a trade nobody wanted to
- * make.
- *
- * Live leads because it is perishable: it earns an early position that a post
- * does not. Posts follow it, and People sits at the foot of the briefs. Each
- * block renders nothing when it has nothing, so a quiet deployment simply
- * closes back up.
- */
-const INTERLEAVED_SQUARE: readonly ("live" | "posts" | "people" | undefined)[] = [
-  "live",
-  undefined,
-  "posts",
-  "people",
 ];
 
 // Portfolio is the only section still rendered in full here, so it is the only
@@ -182,20 +153,9 @@ export function DashboardPage() {
     [nav]
   );
   const buyParam = useSearchParams().get("buy");
-  // The tradeable universe, so a $TICKER in a square post can open the real
-  // buy sheet. Only gathered while something can use it: the square's sections,
-  // when they are shown, or a ?buy= deep link. The brief above reads the
-  // dashboard feed now, so without one of those this would have been a price
-  // poll under a page that already had its numbers.
-  //
-  // The gate follows SQUARE_SECTIONS_HIDDEN, not MARKET_SQUARE_HIDDEN. The two
-  // readers of `spotMarkets` are the square section and the compose button
-  // below, both of which that switch governs, plus the ?buy= handler. Pointing
-  // it at the rail's switch instead would start this poll for everyone who can
-  // see the rail entry, which is everyone, to feed sections that do not render.
-  const { markets: spotMarkets } = useSpotMarkets({
-    enabled: !SQUARE_SECTIONS_HIDDEN || buyParam !== null,
-  });
+  // The tradeable universe, only gathered for a ?buy= deep link, so the page
+  // does not poll prices it already has from the dashboard feed.
+  const { markets: spotMarkets } = useSpotMarkets({ enabled: buyParam !== null });
   // The live trending memecoins the "Find the next 100X" row cycles through.
   // Sourced at the route so discovery stays clear of the trade slice; the row
   // falls back to its editorial cards when this is empty.
@@ -212,19 +172,6 @@ export function DashboardPage() {
   const predictionSpots = usePredictionSpots();
   // "Own the Real World": its assets come from the feed already loaded above.
   const rwaSpots = useRwaSpots();
-  // The square's feed tab lives here because two siblings drive it: the
-  // section's own strip, and the plus sheet's discussions.
-  const [squareTab, setTab] = useState<string | undefined>(undefined);
-  const openTopic = useCallback((key: string) => {
-    setTab(`topic:${key}`);
-    // Otherwise the tab changes off-screen and the tap reads as doing nothing.
-    document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
-  }, []);
-  const openDiscussion = useCallback((tag: string) => {
-    setTab(`tag:${tag}`);
-    // Otherwise the tab changes off-screen and the tap reads as doing nothing.
-    document.getElementById("market-square")?.scrollIntoView({ behavior: "smooth" });
-  }, []);
   // Hold the product tour until the migration gate is finished — it is a
   // full-screen overlay and the tour must not open on top of it.
   useDashboardTour({ suppressed: useMigrationGateActive() });
@@ -262,19 +209,14 @@ export function DashboardPage() {
   /**
    * `?buy=ETH` opens the buy sheet for that symbol.
    *
-   * Market Square posts are full of $TICKER, and tapping one should land where
-   * Ark would put you: the sheet that buys it. Without a URL for that, a
-   * cross-product link could only drop somebody on a page and leave them to
-   * find the coin themselves.
-   *
    * DERIVED, not set in an effect. The catalogue arrives asynchronously, so an
    * effect would have to setState once it lands and trigger a second render
    * pass; deriving means the sheet is simply part of what this render already
    * knows. Dismissal is explicit rather than implied by clearing state, or the
    * derivation would immediately reopen what was just closed.
    *
-   * An unknown symbol opens nothing: the square cannot know what this
-   * deployment lists, and an empty sheet is worse than no sheet.
+   * An unknown symbol opens nothing: a link cannot know what this deployment
+   * lists, and an empty sheet is worse than no sheet.
    */
   const [deepLinkDismissed, setDeepLinkDismissed] = useState(false);
   const deepLinkBuy = useMemo((): DashboardModal => {
@@ -342,8 +284,7 @@ export function DashboardPage() {
           mobile sections where the desktop shelf is a fixed composition, and
           the desktop shelf itself where it reflows: "Join the Conversation"
           and "Find the next 100X" are the same rows as on desktop, one card
-          to a frame on a phone. The conversation row handles a hidden square
-          itself: its card goes and its heading falls back to chess. */}
+          to a frame on a phone. */}
       <div className="flex flex-col gap-6 md:hidden">
         {/* Same order on every width, set by the team on 2026-10-02. */}
         <div className="px-4">
@@ -423,44 +364,9 @@ export function DashboardPage() {
             ) : INTERLEAVED_BANNERS[index] ? (
               <ExploreBanners only={INTERLEAVED_BANNERS[index]} />
             ) : null}
-            {/* Square content between the briefs, so closed by the sections
-                  switch. The gaps close up and the doorway track above is
-                  unaffected. */}
-            {SQUARE_SECTIONS_HIDDEN ? null : (
-              <>
-                {INTERLEAVED_SQUARE[index] === "live" ? <SquareLivePromo /> : null}
-                {INTERLEAVED_SQUARE[index] === "posts" ? <SquarePostsPromo /> : null}
-                {INTERLEAVED_SQUARE[index] === "people" ? <SquarePeoplePromo /> : null}
-              </>
-            )}
           </Fragment>
         );
       })}
-
-      {/* The social floor of the dashboard. It sits AFTER the markets on
-            purpose: someone opening Ark came for their money, and the square
-            is what they scroll into once they are done reading it — met by
-            browsing rather than by deciding to leave for another deployment.
-            Off for now: SQUARE_SECTIONS_HIDDEN in lib/market-square.ts is the
-            switch, and the rail's link out to the square is unaffected by it. */}
-      {SQUARE_SECTIONS_HIDDEN ? null : (
-        <SquareSection
-          onOpenBuy={modals.openBuy}
-          markets={spotMarkets}
-          tab={squareTab}
-          onTabChange={setTab}
-        />
-      )}
-      {/* Fixed to the viewport, so it sits the same wherever it renders. It
-          reveals itself once the square is in reach, so it goes with the
-          section above rather than with the rail's link out. */}
-      {SQUARE_SECTIONS_HIDDEN ? null : (
-        <SquareComposeFab
-          markets={spotMarkets}
-          onPickTopic={openTopic}
-          onPickDiscussion={openDiscussion}
-        />
-      )}
 
       <AppModalHost
         active={active}

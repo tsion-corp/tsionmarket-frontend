@@ -37,7 +37,6 @@ vi.mock("@/features/portfolio/hooks/use-kash-desk", () => deskHooks);
 vi.mock("@/features/portfolio/hooks/use-kash-permit", () => ({
   useKashPermitSigner: () => vi.fn(),
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 
 import { KashConvertModal } from "@/features/portfolio/components/kash-convert-modal";
 

@@ -5,11 +5,10 @@ import { PerpsMenuDrawer } from "./perps-menu-drawer";
 
 // The drawer is the real Sidebar mounted on the perps screen, so the rail's
 // own neighbours are stubbed the way components/layout/sidebar.test.tsx stubs
-// them: labels from a provider, the profile from Privy, Go Live from a
-// broadcast session, next/link from a router no test mounts.
+// them: labels from a provider, the profile from Privy, next/link from a
+// router no test mounts.
 const MESSAGES: Record<string, Record<string, string>> = {
   topbar: { menu: "Menu", closeMenu: "Close menu" },
-  square: { title: "Market Square" },
   sections: {
     portfolio: "Portfolio",
     spot: "Spot",
@@ -42,9 +41,6 @@ vi.mock("@/hooks/use-auth-session", () => ({
     logout: vi.fn(),
   }),
 }));
-vi.mock("@/components/broadcast/go-live-control", () => ({
-  GoLiveControl: () => <button type="button">Go Live</button>,
-}));
 // The rail always mounts its account popover, which pulls in a react-query
 // hook. The drawer is what is under test, so the popover is stubbed the way
 // the rail's own suite stubs it.
@@ -64,10 +60,6 @@ vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   ),
-}));
-vi.mock("@/lib/market-square", () => ({
-  MARKET_SQUARE_HIDDEN: true,
-  marketSquareHref: () => "https://square.test",
 }));
 
 const push = vi.fn();
@@ -93,14 +85,6 @@ function PerpsScreen() {
 function hamburger() {
   return screen.getByRole("button", { name: "Menu" });
 }
-
-// The account face reads the player's square profile. These cover the rail
-// and its chrome, not where the picture comes from, so the read is stubbed
-// out: null is the ordinary answer and leaves the seeded artwork in place.
-vi.mock("@/hooks/use-square-avatar", () => ({
-  useSquareAvatar: () => null,
-  useSquareSeed: () => "seed",
-}));
 
 describe("PerpsMenuDrawer", () => {
   beforeEach(() => {

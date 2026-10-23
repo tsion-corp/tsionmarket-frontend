@@ -14,7 +14,6 @@ import { MatchChat } from "@/features/casino/components/draughts/match-chat";
 import { MatchComments } from "@/features/casino/components/draughts/match-comments";
 import { SpectatorBetting } from "@/features/casino/components/draughts/spectator-betting";
 import { ChessCashierLauncher } from "@/features/casino/components/chess-app/chess-cashier-launcher";
-import { GameGoLive } from "@/features/casino/components/broadcast";
 import { armAudioUnlock, playGameEndSound, playMoveSound } from "@/features/casino/lib/chess/sound";
 import {
   remainingSeconds,
@@ -23,7 +22,6 @@ import {
 } from "@/features/casino/hooks/use-draughts-match";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { useChessCashierStatus } from "@/features/casino/hooks/use-chess-cashier";
-import { useDraughtsShine } from "@/features/casino/hooks/use-arcade-shine";
 import {
   abortMatch,
   claimTimeout,
@@ -67,8 +65,6 @@ import type {
   DraughtsMatch,
   DraughtsPlayerRating,
 } from "@/features/casino/lib/draughts/types";
-import { computerGamePayout, gamePayout } from "@/lib/analytics/game-result";
-import { track } from "@/lib/analytics/mixpanel";
 import { copyText } from "@/lib/clipboard";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
@@ -304,11 +300,6 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
   const wallet = address ?? null;
   const { match, loading, error, now, live, refresh, apply } = useDraughtsMatch(matchId);
   const { seat, myTurn, spectating } = useSeat(match, wallet);
-  // Shine: a win or a draw posts itself to Market Square, keyed on match.id.
-  // The hook keeps its own "was I here when it ended" flag rather than
-  // borrowing `reportedResult` below, which fires for a settled match opened
-  // cold — harmless for an analytics event, a published backlog for a post.
-  useDraughtsShine(match, seat);
   const cashier = useChessCashierStatus();
   const joinStake = match?.wager?.stakeUsdc ?? null;
   const shortForJoin = !!joinStake && exceedsUsdcBalance(joinStake, cashier.available);
@@ -338,37 +329,6 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
       match.result.kind === "draw" ? "draw" : match.result.winner === seat ? "win" : "loss";
     playGameEndSound(outcome);
   }, [match?.id, match?.result, match?.state, seat]);
-
-  const reportedResult = useRef<string | null>(null);
-  useEffect(() => {
-    if (!match?.result || !seat) return;
-    if (match.state !== "settled" && match.state !== "cancelled") return;
-    if (reportedResult.current === match.id) return;
-    reportedResult.current = match.id;
-    const outcome =
-      match.result.kind === "draw" ? "draw" : match.result.winner === seat ? "win" : "loss";
-    const reason =
-      match.result.kind === "draw"
-        ? ("draw" as const)
-        : match.result.reason === "resignation"
-          ? ("resign" as const)
-          : match.result.reason === "timeout"
-            ? ("timeout" as const)
-            : match.result.reason === "abandoned"
-              ? ("abandoned" as const)
-              : ("no_moves" as const);
-    const payout = match.computer?.wager
-      ? computerGamePayout(match.computer.wager, outcome)
-      : gamePayout(match.wager?.stakeUsdc, outcome, match.wager?.feeBps ?? 500);
-    track("game_result", {
-      game: "checkers",
-      result: outcome,
-      reason,
-      ...payout,
-      amount_usd: payout.payout_usd,
-      game_id: match.id,
-    });
-  }, [seat, match?.id, match?.state, match?.result, match?.wager, match?.computer?.wager]);
 
   const [busy, setBusy] = useState(false);
   const [panelTab, setPanelTab] = useState<PanelTab>("game");
@@ -920,28 +880,6 @@ export function CheckersPlay({ matchId }: { matchId: string }) {
           </div>
           {match.wager || match.computer?.wager ? (
             <ChessCashierLauncher compact productName="Checkers" />
-          ) : null}
-          {/* Participants only, and never against the computer: there is no
-              second player and nothing worth spectating. Both players may
-              broadcast at once, each owning their own Market Square stream. */}
-          {seat && !match.computer ? (
-            <GameGoLive
-              target={{
-                game: "checkers",
-                ref: match.id,
-                title: `Checkers: ${whiteName} vs ${blackName}`,
-                watchPath: `/casino/checkers/play?match=${encodeURIComponent(match.id)}`,
-                descriptionLead: "Live checkers on Ark. Watch the match:",
-                content: "detail",
-                creatorApplicationNote: "I play checkers on Ark and want to broadcast my matches.",
-              }}
-              copy={{
-                subject: "the board",
-                finishedNotice:
-                  "The game is over. End the broadcast so you are not streaming a finished board.",
-              }}
-              activityOver={settled}
-            />
           ) : null}
         </div>
       }

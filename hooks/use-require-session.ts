@@ -18,8 +18,7 @@ export type SessionAction =
   | "send"
   | "claim"
   | "history"
-  | "submit"
-  | "broadcast";
+  | "submit";
 
 // Call before any money or play action. Returns false and shows a "Sign in to
 // ..." toast when there is no session. A session that is still starting counts

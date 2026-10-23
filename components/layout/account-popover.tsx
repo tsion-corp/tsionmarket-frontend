@@ -7,21 +7,18 @@ import { useSocialAuth, useSocialWallet } from "decane-connect-kit";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useDisplayName } from "@/hooks/use-display-name";
 import { Avatar } from "@/components/ui/avatar";
-import { SquareAvatar } from "@/components/ui/square-avatar";
-import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import Link from "next/link";
 // Deep import: the @/features/migrate barrel re-exports UpdateBalanceButton,
 // which mounts the whole Privy SDK. The row itself is light; the sheet is not,
 // so only the sheet is deferred — and this popover is mounted on every route.
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
-import { HelpIcon, ShineIcon, SignOutIcon } from "@/components/ui/icons";
+import { HelpIcon, SignOutIcon } from "@/components/ui/icons";
 import { openSupportChat } from "@/lib/support-chat/open";
 import { toast } from "@/lib/toast";
 import { openMigration } from "@/features/migrate/lib/migration-card-store";
 
 interface AccountPopoverProps {
-  /** Opens the Shine sheet. Hosted by the sidebar, so it outlives this menu. */
-  onOpenShine: () => void;
   open: boolean;
   onClose: () => void;
   triggerRef: React.RefObject<HTMLElement | null>;
@@ -69,10 +66,10 @@ function InviteIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: AccountPopoverProps) {
+export function AccountPopover({ open, onClose, triggerRef }: AccountPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("account");
-  const { profile, logout: sessionLogout } = useAuthSession();
+  const { profile, evmAddress, logout: sessionLogout } = useAuthSession();
   const displayName = useDisplayName();
   const { canUsePasskey } = useSocialAuth();
   const { addPasskey } = useSocialWallet();
@@ -93,8 +90,6 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
   };
 
   const hasPasskey = canUsePasskey;
-  const squareAvatar = useSquareAvatar();
-  const squareSeed = useSquareSeed();
 
   useEffect(() => {
     if (!open) return;
@@ -146,7 +141,7 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
           >
             {/* User Identity Header */}
             <div className="flex items-center gap-2.5 px-1 pb-2">
-              <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={36} />
+              <AccountAvatar seed={evmAddress ?? ""} name={profile.name} size={36} />
               <div className="min-w-0 flex-1" data-sensitive="other">
                 <div className="truncate text-[13.5px] font-medium text-white">{displayName}</div>
                 <div className="truncate text-[11.5px] font-normal text-white/50">
@@ -196,24 +191,6 @@ export function AccountPopover({ open, onClose, triggerRef, onOpenShine }: Accou
                 onClick={() => openMigration("account_modal")}
                 className={itemClass}
               />
-
-              {/* Shine, in the one place it lives now. It used to be a card on
-                  each of the seven service pages; this is the door to all
-                  seven. */}
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  onClose();
-                  onOpenShine();
-                }}
-                className={itemClass}
-              >
-                <span className="text-accent">
-                  <ShineIcon size={18} />
-                </span>
-                <span>{t("shine")}</span>
-              </button>
 
               {/* The in-app chat, not a form in a new tab: support is a
                   conversation the shell already carries. */}
