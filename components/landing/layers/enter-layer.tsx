@@ -23,7 +23,7 @@ export function EnterLayer() {
         </div>
       </RevealItem>
       <RevealItem className="pointer-events-auto mt-11 flex flex-wrap items-center justify-center gap-3">
-        <LaunchCta placement="enter" className={CTA_CLASS}>
+        <LaunchCta className={CTA_CLASS}>
           {tNav("getStarted")}
           <ArrowUpRightIcon className="text-[#d4d4d8]" />
         </LaunchCta>

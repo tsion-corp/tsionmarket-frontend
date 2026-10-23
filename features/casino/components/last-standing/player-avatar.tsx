@@ -3,7 +3,7 @@
 import { useState, type JSX } from "react";
 
 export interface PlayerAvatarProps {
-  /** A Market Square profile picture when we have one. */
+  /** A profile picture when we have one. */
   src: string | null;
   /** The wallet address, used to derive a stable fallback. */
   seed: string;
@@ -78,7 +78,7 @@ export function PlayerAvatar({ src, seed, size = 29, alt }: PlayerAvatarProps): 
     >
       <span className="font-semibold tracking-tight tabular-nums">{markOf(seed)}</span>
       {showPicture ? (
-        /* A Market Square profile picture sits on an arbitrary host, which
+        /* A profile picture sits on an arbitrary host, which
            next/image would need declared one by one, and these are 28px
            thumbnails that gain nothing from the optimiser. */
         // eslint-disable-next-line @next/next/no-img-element

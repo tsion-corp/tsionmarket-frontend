@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { MethodTile } from "@/features/funds/components/method-tile";
-import { track } from "@/lib/analytics/mixpanel";
 import { CryptoWithdrawScreen } from "@/features/funds/components/crypto-withdraw-screen";
 import { BankWithdrawScreen } from "@/features/funds/components/bank-withdraw-screen";
 import { SwapIcon, BankIcon } from "@/components/ui/icons";
@@ -15,11 +14,6 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
   const t = useTranslations("withdrawModal");
   const [step, setStep] = useState<Step>("chooser");
   const back = () => setStep("chooser");
-
-  // Reported once per open, at the top of the withdraw funnel.
-  useEffect(() => {
-    track("withdraw_opened");
-  }, []);
 
   if (step === "crypto") return <CryptoWithdrawScreen onBack={back} />;
   if (step === "bank") return <BankWithdrawScreen onBack={back} />;
@@ -34,20 +28,14 @@ export function WithdrawModal({ onClose }: { onClose: () => void }) {
           title={t("cryptoTitle")}
           subtitle={t("cryptoSubtitle")}
           badge={t("popular")}
-          onClick={() => {
-            track("withdraw_method_selected", { method: "wallet" });
-            setStep("crypto");
-          }}
+          onClick={() => setStep("crypto")}
         />
         {BANK_WITHDRAW_ENABLED && (
           <MethodTile
             icon={<BankIcon size={22} />}
             title={t("bankTitle")}
             subtitle={t("bankSubtitle")}
-            onClick={() => {
-              track("withdraw_method_selected", { method: "bank" });
-              setStep("bank");
-            }}
+            onClick={() => setStep("bank")}
           />
         )}
       </div>

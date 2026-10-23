@@ -15,9 +15,7 @@ import {
   useRampOrder,
 } from "@/hooks/use-ramping";
 import { copyText } from "@/lib/clipboard";
-import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
-import { track } from "@/lib/analytics/mixpanel";
-import { DEPOSIT_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
+import { MASK_ATTRIBUTE } from "@/lib/analytics/clarity";
 import { friendlyError } from "@/lib/errors";
 import { errorCode } from "@/lib/api/envelope";
 
@@ -28,7 +26,6 @@ import {
   usdcForNgnExact,
   type OnrampOrder,
 } from "@/lib/ramping/orders";
-import { openOnrampWatch } from "@/lib/ramping/onramp-watch";
 import { clearPendingBankDeposit, savePendingBankDeposit } from "@/lib/ramping/pending";
 import {
   clearCachedOnrampAccount,
@@ -194,13 +191,6 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
     if (orderGone) clearCachedOnrampAccount(walletAddress);
   }, [reused, walletAddress, orderGone]);
 
-  // No completion event is reported here. This screen is unmounted the moment
-  // the funds sheet closes, so a user who pays their bank and walks away was
-  // never seen finishing, and a deposit that fired here fired a second time as
-  // a crypto one when the money landed on chain. `deposit_completed` is now
-  // reported once, from the arrival, with the rail named by the watch opened
-  // below. See lib/ramping/onramp-watch.
-
   // Move to the "on its way" screen only when the backend actually reports the
   // payment is processing or completed — not on a fixed timer. A 3-minute
   // fallback covers the case where the poll never surfaces "processing" (e.g.
@@ -297,33 +287,6 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
             const cached = loadCachedOnrampAccount(walletAddress);
             if (cached) {
               setReused(cached);
-              // Reused, so the rail cannot be polled for this deposit: its
-              // order completed on an earlier one and never moves again. The
-              // amount and rate below are what the arrival gets matched
-              // against instead.
-              openOnrampWatch(
-                {
-                  wallet: walletAddress,
-                  orderId: cached.orderId,
-                  reused: true,
-                  expectedNgn: ngnAmount,
-                  quotedRate: Number(rate) || 0,
-                  provider: cached.account.bankName,
-                },
-                Date.now()
-              );
-              track("bank_account_requested", {
-                provider: cached.account.bankName,
-                amount_ngn: ngnAmount,
-                fx_rate: Number(rate) || 0,
-                reused: true,
-              });
-              // The account is already in hand, so it is generated in the same
-              // breath it is asked for.
-              track("bank_account_generated", {
-                provider: cached.account.bankName,
-                bank: cached.account.bankName,
-              });
               return;
             }
             // A fresh key per press: retries inside this mutation replay the
@@ -342,54 +305,6 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
                   if (result.paymentAccount) {
                     saveCachedOnrampAccount(walletAddress, result.id, result.paymentAccount);
                   }
-                  // A fresh order can be followed to settlement, so the money
-                  // that lands is named from the rail's own figures rather
-                  // than from the quote.
-                  openOnrampWatch(
-                    {
-                      wallet: walletAddress,
-                      orderId: result.id,
-                      reused: false,
-                      expectedNgn: ngnAmount,
-                      quotedRate: Number(rate) || 0,
-                      provider: result.paymentAccount?.bankName ?? "",
-                    },
-                    Date.now()
-                  );
-                  // The amount and the rate the user accepted. Never the
-                  // account number that came back with them.
-                  track("bank_account_requested", {
-                    provider: result.paymentAccount?.bankName ?? "",
-                    amount_ngn: ngnAmount,
-                    fx_rate: Number(rate) || 0,
-                    reused: false,
-                  });
-                  if (result.paymentAccount) {
-                    track("bank_account_generated", {
-                      provider: result.paymentAccount.bankName,
-                      bank: result.paymentAccount.bankName,
-                    });
-                  } else {
-                    // The order was created but carries no account to pay
-                    // into, so there is nothing for the user to do with it.
-                    track("bank_account_failed", {
-                      provider: "",
-                      reason: "account_generation_failed",
-                    });
-                  }
-                },
-                onError: (error) => {
-                  track("bank_account_failed", {
-                    provider: "",
-                    ...reasonFor(DEPOSIT_FAILURE, error),
-                  });
-                  // The dollar value is not known here: the user entered naira
-                  // and no order came back to convert it, so it is left out
-                  // rather than guessed from the quoted rate.
-                  track("deposit_failed", {
-                    method: "bank",
-                    ...reasonFor(DEPOSIT_FAILURE, error),
-                  });
                 },
               }
             );
@@ -543,10 +458,7 @@ export function BankTransferScreen({ onBack, onClose }: BankTransferScreenProps)
           {/* The virtual account number is account-drainage grade: a session
               replay showing it is the same breach as sending it, so the whole
               block is masked rather than the rows individually. */}
-          <div
-            className={`ws-inset mt-3 divide-y divide-white/6 ${NO_AUTOCAPTURE_CLASS}`}
-            {...MASK_ATTRIBUTE}
-          >
+          <div className="ws-inset mt-3 divide-y divide-white/6" {...MASK_ATTRIBUTE}>
             <DetailRow label={t("bank")} value={account.bankName} />
             <CopyRow
               label={t("accountNumber")}

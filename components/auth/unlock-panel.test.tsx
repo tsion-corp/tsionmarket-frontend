@@ -30,7 +30,6 @@ vi.mock("@/lib/last-auth-method", () => ({
 vi.mock("@/lib/display-profile", () => ({
   useDisplayProfile: () => ({ name: "Korex", email: "korex@example.com" }),
 }));
-vi.mock("@/lib/analytics/auth-method", () => ({ recordAuthMethod: vi.fn() }));
 vi.mock("@/lib/toast", () => ({ toast }));
 vi.mock("@/lib/decane-recovery", () => ({
   promptUnlockPassword: vi.fn(),

@@ -336,11 +336,7 @@ function BetSlip({
           : "Place bet";
 
   return (
-    <div
-      className="flex min-h-0 flex-1 flex-col overflow-y-auto"
-      data-sensitive="other"
-      data-broadcast-suspend
-    >
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto" data-sensitive="other">
       <div className="flex items-center justify-between px-4 pt-3 text-[10px] text-[#999]">
         <span className="rounded-md bg-[#3b3b3b] px-2 py-1">Single</span>
         <button

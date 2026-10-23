@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { LegacyPrivyProvider } from "@/components/providers/legacy-privy-provider";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { track } from "@/lib/analytics/mixpanel";
 import type { VenueAdapter } from "@/lib/migration/types";
 import { useOfferMigration } from "@/features/migrate/hooks/use-offer-migration";
 import { MoveOldMoneyFrame } from "@/features/migrate/components/move-old-money-frame";
@@ -142,18 +141,16 @@ export function MigrationGate({ adapters }: { adapters: readonly VenueAdapter[] 
   // now" that did not continue.
   const leave = useCallback(() => {
     writeGateSnooze(snoozeKey, Date.now() + SNOOZE_NO_ACCESS_MS);
-    track("migration_gate_snoozed", { reason: "blocked", stage });
     closeMigration();
-  }, [snoozeKey, stage]);
+  }, [snoozeKey]);
 
   const snooze = useCallback(
     (reason: SnoozeReason) => {
       const span = reason === "no_access" ? SNOOZE_NO_ACCESS_MS : SNOOZE_FAILING_MS;
       writeGateSnooze(snoozeKey, Date.now() + span);
-      track("migration_gate_snoozed", { reason, stage });
       closeMigration();
     },
-    [snoozeKey, stage]
+    [snoozeKey]
   );
 
   const ignore = useCallback(() => {}, []);
@@ -170,7 +167,6 @@ export function MigrationGate({ adapters }: { adapters: readonly VenueAdapter[] 
         <div className="px-[26px] pt-5 pb-[26px]">
           <MoveOldMoneyPanel
             adapters={adapters}
-            entry={locked ? "gate" : (request?.entry ?? "gate")}
             locked={locked}
             onProgress={setProgress}
             // The panel's own close buttons are hidden while locked, and no

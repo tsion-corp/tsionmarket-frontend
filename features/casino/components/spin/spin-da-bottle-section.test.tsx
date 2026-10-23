@@ -110,8 +110,8 @@ vi.mock("@/features/casino/components/arkjet/arkjet-cashier", () => ({
   ArkjetCashier: () => <div>Cashier</div>,
 }));
 
-vi.mock("@/components/ui/square-avatar", () => ({
-  SquareAvatar: () => <span aria-hidden />,
+vi.mock("@/components/ui/account-avatar", () => ({
+  AccountAvatar: () => <span aria-hidden />,
 }));
 
 describe("SpinDaBottleSection", () => {

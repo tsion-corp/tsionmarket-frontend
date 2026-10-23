@@ -9,7 +9,6 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 vi.mock("@/features/migrate/hooks/use-offer-migration", () => ({
   useOfferMigration: () => state.offer,
 }));

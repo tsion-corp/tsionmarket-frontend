@@ -5,8 +5,7 @@ import { useTranslations } from "next-intl";
 import { LanguageSelect } from "@/components/ui/language-select";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { MarketLogo } from "@/components/ui/market-logo";
-import { SquareAvatar } from "@/components/ui/square-avatar";
-import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import { HelpIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useSignedIn } from "@/hooks/use-signed-in";
@@ -33,11 +32,9 @@ function CompassIcon({ size = 17 }: { size?: number }) {
 }
 
 export function Topbar({ onOpenAccount }: TopbarProps) {
-  const { profile } = useAuthSession();
+  const { profile, evmAddress } = useAuthSession();
   const signedIn = useSignedIn();
   const displayName = useDisplayName();
-  const squareAvatar = useSquareAvatar();
-  const squareSeed = useSquareSeed();
   const t = useTranslations("topbar");
   const tTour = useTranslations("tour");
   const router = useRouter();
@@ -93,7 +90,7 @@ export function Topbar({ onOpenAccount }: TopbarProps) {
           aria-label={t("account")}
           className="flex min-w-0 cursor-pointer items-center gap-2.5 text-left md:hidden md:gap-[8.29px]"
         >
-          <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={38} />
+          <AccountAvatar seed={evmAddress ?? ""} name={profile.name} size={38} />
           <span
             className={`min-w-0 flex-col md:flex md:gap-[5.43px] ${isHome ? "flex" : "hidden"}`}
           >

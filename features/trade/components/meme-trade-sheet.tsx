@@ -1,7 +1,7 @@
 "use client";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
-import { SOLANA_CHAIN_ID, chainSlug, networkOf } from "@/lib/meme/chain";
+import { SOLANA_CHAIN_ID, networkOf } from "@/lib/meme/chain";
 import { scopeOf } from "@/lib/portfolio/fresh-scope";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -39,16 +39,6 @@ import { platformFeeText } from "@/lib/meme/format";
 import { buyFunding, estimateReceive } from "@/lib/meme/funding";
 import { exceedsHeld, maxSellAmount } from "@/lib/meme/sell-amount";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
-import { TRADE_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
-import {
-  pricedTradeAmounts,
-  swapTradeAmounts,
-  tradeAmounts,
-  USDC_DECIMALS,
-  type TradeAmounts,
-} from "@/lib/analytics/trade-amounts";
-import { swapTradeFacts } from "@/features/trade/lib/trade-analytics";
 import { formatAmount, formatUsd, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { belowMinimumBuy, minimumBuyUsd } from "@/lib/trade/minimums";
 import {
@@ -387,10 +377,6 @@ export function MemeTradeSheet({
 
   // Toasts fire even after the sheet is dismissed mid-confirmation, so the
   // terminal result always reaches the user.
-  useEffect(() => {
-    track("market_viewed", { vertical: "memecoin", asset: token.symbol ?? token.address });
-  }, [token.symbol, token.address]);
-
   // Id of the loading toast opened on confirm — same pattern as the Dextopus
   // sell/buy sheets, so a spot asset routed through this engine (cbBTC,
   // cbDOGE) gives the same "something is happening" feedback atop the screen
@@ -452,12 +438,6 @@ export function MemeTradeSheet({
           slippageBps: 100,
         })
       );
-      track("trade_previewed", {
-        vertical: "memecoin",
-        asset: token.symbol ?? token.address,
-        side: "buy",
-        amount_usd: payValue,
-      });
       inFlightRef.current = false;
       toast.success(t("purchaseQueued", { symbol: displaySym }), { id: toastRef.current });
       toastRef.current = undefined;
@@ -474,45 +454,9 @@ export function MemeTradeSheet({
     }
   }
 
-  // What the trade is worth, from the quote on screen: the USDC leg is the
-  // dollar figure on both sides and the token leg is the quantity. Without a
-  // quote in USDC, a buy is its exact USDC input and a sale is priced at the
-  // token's listed price. Null when neither exists, so nothing is reported
-  // rather than a dollar figure nobody knows.
-  function tradeValue(): TradeAmounts | null {
-    const fromQuote = quote ? swapTradeAmounts({ ...quote, chainId: token.chainId }, null) : null;
-    if (fromQuote) return fromQuote;
-    if (buying) {
-      return tradeAmounts({
-        usdRaw: toBaseUnits(debouncedAmount, USDC_DECIMALS),
-        usdDecimals: USDC_DECIMALS,
-        tokenRaw: null,
-        tokenDecimals: null,
-        source: "quote",
-      });
-    }
-    const price = Number(token.priceUsd);
-    if (!token.priceUsd || !Number.isFinite(price) || price <= 0) {
-      console.warn(`[analytics] no price for ${token.address}; this sale is not reported`);
-      return null;
-    }
-    return pricedTradeAmounts(toBaseUnits(debouncedAmount, heldDecimals), heldDecimals, price);
-  }
-
   async function onTrade() {
     if (submitDisabled) return;
     setStuckFlag(false);
-    // The field holds tokens on a sell, so it is never the dollar figure.
-    const quoted = tradeValue();
-    if (quoted) {
-      track("trade_previewed", {
-        vertical: "memecoin",
-        asset: token.symbol ?? token.address,
-        side: buying ? "buy" : "sell",
-        amount_usd: quoted.amount_usd,
-        token_quantity: quoted.token_quantity,
-      });
-    }
     inFlightRef.current = true;
     toastRef.current = toast.loading(
       buying ? t("buyingToast", { symbol: displaySym }) : t("sellingToast", { symbol: displaySym })
@@ -544,37 +488,8 @@ export function MemeTradeSheet({
         tokenAddress: token.address,
         amount: debouncedAmount,
         chainId: token.chainId,
-        onSubmitted: (swapId) => {
-          if (!quoted) return;
-          track("trade_submitted", {
-            vertical: "memecoin",
-            asset: token.symbol ?? token.address,
-            side: buying ? "buy" : "sell",
-            amount_usd: quoted.amount_usd,
-            token_quantity: quoted.token_quantity,
-            order_id: swapId,
-          });
-        },
-        // The Solana path has no quote to read a ticker off, so the sheet
-        // hands down the one it is already showing. The Base path ignores
-        // this and takes the symbol from its own quote.
-        tokenSymbol: displaySym,
       });
       inFlightRef.current = false;
-      // Settles on the token's own chain. A delivered swap counts: the receipt
-      // proves the money moved, whatever the service recorded.
-      const facts = result ? swapTradeFacts(result, quoted) : null;
-      if (facts) {
-        track("trade_completed", {
-          vertical: "memecoin",
-          asset: token.symbol ?? token.address,
-          side: buying ? "buy" : "sell",
-          ...facts,
-          network: chainSlug(token.chainId) ?? "base",
-          token_address: token.address,
-          chain_id: token.chainId === SOLANA_CHAIN_ID ? undefined : token.chainId,
-        });
-      }
       // Only the service's CONFIRMED is "bought" or "sold". Delivered and
       // pending say so, with the reference, and never claim more.
       if (result?.outcome === "delivered" || result?.outcome === "pending") {
@@ -606,13 +521,6 @@ export function MemeTradeSheet({
       // fresh so the form does not argue with an amount the wallet no longer
       // holds, or refuse one it now does.
       void portfolio.refetchFresh(tradedNetworks);
-      track("trade_failed", {
-        vertical: "memecoin",
-        asset: token.symbol ?? token.address,
-        side: buying ? "buy" : "sell",
-        ...reasonFor(TRADE_FAILURE, e),
-        amount_usd: quoted?.amount_usd,
-      });
       toast.error(friendlyError(e, t("orderFailed"), tErr), { id: toastRef.current });
       toastRef.current = undefined;
     }

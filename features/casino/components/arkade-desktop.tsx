@@ -181,11 +181,6 @@ export function ArkadeDesktop({
         </div>
       </div>
 
-      {/* Shine sits between the head and the catalogue, at full width, because
-          it is on by default and posts publicly without asking each time. The
-          place someone finds that out has to be the page they play on, not a
-          settings sheet. One switch covers every game here. */}
-
       {/* ── Tab bar + search (2234:11148) ── */}
       <div className="flex w-full items-center justify-between gap-6">
         <div role="group" aria-label={t("categoriesLabel")} className="shrink-0">

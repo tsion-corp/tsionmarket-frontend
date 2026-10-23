@@ -3,10 +3,8 @@
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { track } from "@/lib/analytics/mixpanel";
 import {
   CASINO_GAMES,
-  TRACKED_GAMES,
   filterGames,
   type CasinoGame,
   type GameCategoryFilter,
@@ -78,15 +76,6 @@ const SKELETON_COUNT = 3;
 // never outgrows the desktop card on a large phone.
 const RAIL_CARD = "w-[78vw] max-w-[330px] shrink-0";
 
-// Analytics rides on the card's own click, as it did before: the phone
-// navigates with a real anchor, so there is no route push to hang the event on.
-// Both surfaces read the id from the one map in the catalogue, so neither can
-// invent one nor go missing when the surface around it changes.
-function reportGameOpened(game: CasinoGame) {
-  const id = TRACKED_GAMES[game.id];
-  if (id) track("game_opened", { game: id });
-}
-
 // One horizontal, snapping rail of desktop cards. Bleeds to the screen edges
 // with a 16px lead-in kept as padding so the peeking card runs to the edge.
 function ArkadeRail({
@@ -115,7 +104,6 @@ function ArkadeRail({
             render="link"
             presence={presenceByGame?.[game.id as keyof CasinoPresenceByGame]}
             badge={index === 0 && firstBadge ? firstBadge : badge}
-            onActivate={reportGameOpened}
           />
         </li>
       ))}
@@ -199,9 +187,6 @@ export function ArkadeMobile({
           </span>
         </button>
       </div>
-
-      {/* Shine, above the fold for the same reason as on the desktop hub: it
-          is on by default and posts without asking. */}
 
       {/* The weekly campaign, above the featured game. Resting layout only,
           like the featured banner; nothing without a session or a campaign. */}

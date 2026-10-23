@@ -17,7 +17,6 @@ import {
 } from "@/features/casino/lib/draughts/variants";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
 
 const STAKES = [null, "1", "5", "10"] as const;
 
@@ -59,9 +58,6 @@ export function CheckersLobby() {
         },
         address
       );
-      if (stake) {
-        track("game_staked", { game: "checkers", amount_usd: Number(stake), game_id: match.id });
-      }
       router.push(`/casino/checkers/play?match=${match.id}`);
     } catch (cause) {
       toast.error(friendlyError(cause, "Couldn't start that game."));

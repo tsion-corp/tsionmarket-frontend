@@ -18,7 +18,7 @@ export { ChessRoundPageShell } from "./components/chess-app/chess-round-page-she
 export { LichessRound } from "./components/chess-app/lichess-round";
 export { PlaySection } from "./components/chess-app/play-section";
 export { LichessAnalysis } from "./components/chess-app/lichess-analysis";
-export { LiveGamesSection } from "./components/chess-app/broadcast";
+export { LiveGamesSection } from "./components/chess-app/live-games-section";
 export { ArenaCreateForm } from "./components/chess-app/arena/create-form";
 export { ArenaDetailSection } from "./components/chess-app/arena/detail-section";
 export { SwissDetailSection } from "./components/chess-app/swiss/detail-section";

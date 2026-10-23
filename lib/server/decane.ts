@@ -25,11 +25,11 @@ export function decaneConfigured(): boolean {
 //
 // Decane keeps a flat per-user `preferences` record (strings, numbers and
 // booleans under short keys), written with the user's own access token. It is
-// what Privy's custom metadata was for the account-stored settings here —
-// Shine and the consent record — now that a Decane session has no Privy user
-// to hang them on. decane-node 1.4.0 makes the two calls; this wraps them so
-// a route can tell "the token was refused" (sign in again) from "Decane is
-// down" (try later) by one status, whichever call it was.
+// what Privy's custom metadata was for the account-stored consent record, now
+// that a Decane session has no Privy user to hang it on. decane-node 1.4.0
+// makes the two calls; this wraps them so a route can tell "the token was
+// refused" (sign in again) from "Decane is down" (try later) by one status,
+// whichever call it was.
 
 export type DecaneRecord = Record<string, string | number | boolean>;
 export type DecaneRecordPatch = Record<string, string | number | boolean | null>;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { ModalShell } from "@/components/ui/modal-shell";
 import { TextAreaField, TextField } from "@/features/earn/components/form-field";
 import { TalentProfileForm } from "@/features/earn/components/talent-profile-form";
@@ -12,7 +12,6 @@ import { useScrollToFirstError } from "@/hooks/use-scroll-to-first-error";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { friendlyError } from "@/lib/errors";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
 import type {
   Attachment,
   CompensationType,
@@ -51,11 +50,6 @@ export function SubmitSheet({
   const requireSession = useRequireSession();
   const create = useCreateSubmission();
 
-  // Opening the entry form is the start of an application; the pair with
-  // earn_application_submitted is what makes the drop-off measurable.
-  useEffect(() => {
-    if (open) track("earn_application_started", { listing_id: listingId });
-  }, [open, listingId]);
   const { profile, needsProfile, isLoading: profileLoading } = useTalentProfile();
   const { evmAddress } = useAuthSession();
   // Recorded with the entry so a winner can be paid without having opened the
@@ -124,7 +118,6 @@ export function SubmitSheet({
         ...(attachments.length ? { attachments } : {}),
         ...(wantsAsk ? { ask: Number(ask) } : {}),
       });
-      track("earn_application_submitted", { listing_id: listingId });
       toast.success("Your entry is in. Good luck.", { id });
       reset();
       onClose();

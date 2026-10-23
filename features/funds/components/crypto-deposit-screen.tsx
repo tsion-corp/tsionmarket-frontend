@@ -1,7 +1,7 @@
 "use client";
 import { useAuthSession } from "@/hooks/use-auth-session";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { NetworkList } from "@/features/funds/components/network-list";
@@ -10,7 +10,6 @@ import { QrCode } from "@/components/ui/qr-code";
 import { SearchIcon } from "@/components/ui/icons";
 import { useModalScreen } from "@/components/ui/modal-shell";
 import { filterChains, filterTokens } from "@/features/funds/lib/search";
-import { track } from "@/lib/analytics/mixpanel";
 import { useDepositChains, useDepositTokens, useStaticDepositAddress } from "@/hooks/use-deposit";
 import { usePortfolio } from "@/hooks/use-portfolio";
 
@@ -110,7 +109,6 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
   }, [allChains]);
 
   const selectChain = (chain: DepositChain) => {
-    track("deposit_network_selected", { network: chain.name });
     saveToHistory(chain.chainId);
     setOriginChain(chain);
     setOriginToken(null);
@@ -396,37 +394,6 @@ function DepositAddressView({
   // The address, the code and the warnings are the whole screen: it takes the
   // phone and fits inside it, so nobody has to scroll to reach the address.
   useModalScreen({ back: onBack, fullScreen: true, fits: true });
-
-  // The pair being funded, so a failing chain or token shows up as one.
-  const selectedNetwork = chain.name;
-  const selectedAsset = token.symbol;
-  // Whether the address came back. The catalog wants both outcomes: the gap
-  // between deposit_network_selected and an address is where a funding attempt
-  // dies without the user ever seeing somewhere to send money.
-  const addressReported = useRef(false);
-  useEffect(() => {
-    if (addressReported.current) return;
-    if (staticAddr.isError) {
-      addressReported.current = true;
-      track("deposit_address_failed", {
-        network: selectedNetwork,
-        reason: "address_unavailable",
-      });
-      // Still a failed deposit attempt, and the funding funnel counts it as
-      // one. The pair is on both so either can be grouped by it.
-      track("deposit_failed", {
-        method: "crypto",
-        reason: "address_unavailable",
-        network: selectedNetwork,
-        asset: selectedAsset,
-      });
-      return;
-    }
-    if (staticAddr.data) {
-      addressReported.current = true;
-      track("deposit_address_generated", { network: selectedNetwork, asset: selectedAsset });
-    }
-  }, [staticAddr.isError, staticAddr.data, selectedNetwork, selectedAsset]);
 
   // Loading
   if (!staticAddr.data && !staticAddr.isError) {

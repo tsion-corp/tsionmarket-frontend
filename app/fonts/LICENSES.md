@@ -10,5 +10,4 @@ saved so the build never fetches one. All are under the SIL Open Font License
 | `noto-sans-latin.woff2` | Noto Sans | fonts.google.com/specimen/Noto+Sans |
 | `roboto-latin.woff2`    | Roboto    | fonts.google.com/specimen/Roboto    |
 | `quicksand-latin.woff2` | Quicksand | fonts.google.com/specimen/Quicksand |
-| `manrope-latin.woff2`   | Manrope   | fonts.google.com/specimen/Manrope   |
 | `mona-sans-latin.woff2` | Mona Sans | github.com/github/mona-sans         |

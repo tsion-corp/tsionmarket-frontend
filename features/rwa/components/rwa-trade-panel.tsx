@@ -115,7 +115,6 @@ export function RwaTradePanel({
   return (
     <div
       data-sensitive="position"
-      data-broadcast-suspend
       className={
         bare
           ? ""

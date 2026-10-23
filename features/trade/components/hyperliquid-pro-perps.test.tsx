@@ -32,15 +32,6 @@ vi.mock("@/features/trade/components/perp-order-ticket", () => ({
     );
   },
 }));
-// The Shine toggle reads the account's preference through React Query. These
-// tests are about this surface's layout, not about that read, so the control
-// is stubbed and only its placement and its service are checked here. Its own
-// behaviour is covered in components/shine/shine-toggle.test.tsx.
-vi.mock("@/components/shine/shine-toggle", () => ({
-  ShineToggle: ({ service }: { service: string }) => (
-    <div data-testid="shine-toggle" data-service={service} />
-  ),
-}));
 
 vi.mock("@/features/trade/components/hyperliquid-positions-list", () => ({
   HyperliquidPositionsList: (props: Record<string, unknown>) => {
@@ -139,10 +130,8 @@ const trading = {
   refetchAll: vi.fn(),
   refetchOrders: vi.fn(),
   refreshBalances: vi.fn(),
-  // Both resolve: the desk consumes the positions watcher now (it is the fill
-  // Shine reports on), so a stub returning undefined is not a stand-in for the
-  // real hook. False is "nothing changed inside the window", which is what the
-  // tests below expect of a stub that is never fed a fresh row.
+  // False is "nothing changed inside the window", which is what the tests
+  // below expect of a stub that is never fed a fresh row.
   waitForPositionsChange: vi.fn(async () => false),
   waitForOrdersChange: vi.fn(async () => false),
   actions: {
@@ -196,8 +185,6 @@ vi.mock("decane-connect-kit", () => ({
   }),
   useSocialAuth: () => ({ canUsePasskey: false }),
 }));
-const analytics = vi.hoisted(() => ({ track: vi.fn() }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
 
 const { HyperliquidProPerps } = await import("@/features/trade/components/hyperliquid-pro-perps");
 
@@ -584,95 +571,6 @@ describe("HyperliquidProPerps", () => {
     });
   });
 
-  // The desk used to report nothing to Mixpanel: the perp events were wired to
-  // the previous venue and never moved across.
-  describe("what the desk reports", () => {
-    const reported = (event: string) =>
-      analytics.track.mock.calls.filter(([name]) => name === event).map(([, p]) => p);
-
-    beforeEach(() => analytics.track.mockClear());
-
-    it("reports the market on screen once, however often the desk re-renders", () => {
-      const view = renderDesk();
-      view.rerender(
-        <NextIntlClientProvider locale="en" messages={messages}>
-          <HyperliquidProPerps />
-        </NextIntlClientProvider>
-      );
-      expect(reported("perp_market_viewed")).toEqual([
-        { pair: "BTC", market_type: "crypto", venue: "hyperliquid" },
-      ]);
-    });
-
-    it("reports a position the user closed", async () => {
-      trading.actions.closePosition.mockResolvedValue({ id: "close-1", status: "filled" });
-      renderDesk();
-      const props = positionsListProps.mock.calls.at(-1)?.[0] as {
-        onClosePosition: (p: unknown, siblings: string[]) => Promise<void>;
-      };
-      await act(async () =>
-        props.onClosePosition(
-          {
-            id: "pos-1",
-            assetId: "asset-btc",
-            side: "long",
-            size: "0.01",
-            entryPrice: "64000",
-            leverage: 10,
-            markPrice: "65000",
-            unrealizedPnlUsdc: "10",
-          },
-          []
-        )
-      );
-      expect(reported("perp_trade_closed")).toEqual([
-        expect.objectContaining({
-          pair: "BTC",
-          direction: "long",
-          position_id: "pos-1",
-          close_reason: "manual",
-          exit_price: 65000,
-          pnl_usd: 10,
-          notional_usd: 650,
-          order_id: "close-1",
-          venue: "hyperliquid",
-        }),
-      ]);
-    });
-
-    it("reports an order that failed, in the agreed vocabulary", async () => {
-      trading.actions.placeOrder.mockRejectedValue(new Error("User rejected the request."));
-      renderDesk();
-      const ticket = () =>
-        ticketProps.mock.calls.at(-1)?.[0] as {
-          onQuantityChange: (v: string) => void;
-          onBuy: () => void;
-        };
-      act(() => ticket().onQuantityChange("100"));
-      await act(async () => ticket().onBuy());
-      expect(reported("perp_trade_failed")).toEqual([
-        expect.objectContaining({ pair: "BTC", direction: "long", reason: "user_cancelled" }),
-      ]);
-    });
-
-    it("reports the order as submitted before the venue answers", async () => {
-      // An order that is rejected, or never comes back at all, is still an
-      // order someone placed. Without this the funnel loses it entirely.
-      trading.actions.placeOrder.mockRejectedValue(new Error("User rejected the request."));
-      renderDesk();
-      const ticket = () =>
-        ticketProps.mock.calls.at(-1)?.[0] as {
-          onQuantityChange: (v: string) => void;
-          onBuy: () => void;
-        };
-      act(() => ticket().onQuantityChange("100"));
-      await act(async () => ticket().onBuy());
-      expect(reported("perp_order_submitted")).toEqual([
-        expect.objectContaining({ pair: "BTC", direction: "long", order_type: "market" }),
-      ]);
-    });
-  });
-
   describe("top up and withdraw", () => {
     const topUp = () => screen.getByRole("button", { name: "Top up" });
     const withdraw = () => screen.getByRole("button", { name: "Withdraw" });
@@ -856,19 +754,5 @@ describe("HyperliquidProPerps", () => {
     const { container } = renderDesk();
 
     expect(region(container, "market-list")).toHaveTextContent("Loading markets…");
-  });
-});
-
-// Shine is on by default and posts a filled order publicly with no per-post
-// confirmation. This is the app's only perps interface, so this one placement
-// is what puts the control in front of every perps trader.
-describe("HyperliquidProPerps Shine", () => {
-  // Shine moved to the account menu on 2026-09-25: one switch panel for all
-  // seven services instead of a card on each page. This asserts the card has
-  // not come back, which is what stops them reappearing one page at a time.
-  it("does not carry a Shine card: Shine lives in the account menu", () => {
-    renderDesk();
-
-    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 });

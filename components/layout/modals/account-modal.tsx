@@ -6,14 +6,13 @@ import { toast } from "@/lib/toast";
 import { openSupportChat } from "@/lib/support-chat/open";
 import { openMigration } from "@/features/migrate/lib/migration-card-store";
 import { Avatar } from "@/components/ui/avatar";
-import { SquareAvatar } from "@/components/ui/square-avatar";
-import { useSquareAvatar, useSquareSeed } from "@/hooks/use-square-avatar";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import { LanguageSelect } from "@/components/ui/language-select";
 // Deep import: the @/features/migrate barrel re-exports UpdateBalanceButton,
 // which mounts the whole Privy SDK. The row is light; the sheet it opens is
 // deferred below.
 import { MoveOldMoneyButton } from "@/features/migrate/components/move-old-money-entry";
-import { HelpIcon, LockIcon, PasskeyIcon, ShineIcon, SignOutIcon } from "@/components/ui/icons";
+import { HelpIcon, LockIcon, PasskeyIcon, SignOutIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useDisplayName } from "@/hooks/use-display-name";
 import { useDevicePasskey } from "@/hooks/use-device-passkey";
@@ -21,8 +20,6 @@ import { useUnlockPassword } from "@/hooks/use-unlock-password";
 
 interface AccountModalProps {
   onClose: () => void;
-  /** Opens the Shine sheet. Hosted by the shell, so it outlives this modal. */
-  onOpenShine: () => void;
 }
 
 function InviteIcon({ size = 20 }: { size?: number }) {
@@ -45,10 +42,10 @@ function InviteIcon({ size = 20 }: { size?: number }) {
   );
 }
 
-export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
+export function AccountModal({ onClose }: AccountModalProps) {
   const t = useTranslations("account");
   const tLanguage = useTranslations("language");
-  const { profile, logout } = useAuthSession();
+  const { profile, evmAddress, logout } = useAuthSession();
   const displayName = useDisplayName();
   const passkey = useDevicePasskey();
   const unlockPassword = useUnlockPassword();
@@ -58,8 +55,6 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
     onClose();
     await logout();
   };
-  const squareAvatar = useSquareAvatar();
-  const squareSeed = useSquareSeed();
 
   const item =
     "flex items-center gap-3 rounded-xl border border-white/8 bg-white/4 px-3.5 py-3 font-sans text-[14.5px] font-medium hover:bg-white/8 transition-colors cursor-pointer w-full text-left";
@@ -67,7 +62,7 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
   return (
     <div>
       <div className="flex items-center gap-[13px]">
-        <SquareAvatar src={squareAvatar} seed={squareSeed} name={profile.name} size={46} />
+        <AccountAvatar seed={evmAddress ?? ""} name={profile.name} size={46} />
         <div className="min-w-0" data-sensitive="other">
           <div className="ws-display truncate text-[21px]">{displayName}</div>
           {profile.email ? (
@@ -147,18 +142,6 @@ export function AccountModal({ onClose, onOpenShine }: AccountModalProps) {
             </span>
           </button>
         ) : null}
-        {/* Shine, the same single home the desktop account menu offers. The
-            phone had no way to reach it at all. */}
-        <button
-          onClick={() => {
-            onClose();
-            onOpenShine();
-          }}
-          className={`${item} text-white`}
-        >
-          <ShineIcon size={20} />
-          {t("shine")}
-        </button>
         {/* The in-app chat, as on the desktop menu. This used to only close
             the sheet, which read as a button that did nothing. */}
         <button

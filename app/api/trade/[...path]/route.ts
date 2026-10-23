@@ -35,8 +35,8 @@ function safeJson(text: string): unknown | null {
 // to preserve it in client logs and support reports. The relay's OWN failures
 // (nothing upstream answered, or what answered was not understood) mint one
 // too, so a support screenshot always has a reference whichever side failed.
-// The id is also echoed as a header so the one transport (lib/api.ts) can tag
-// its Watchtower report without consuming the body.
+// The id is also echoed as a header, so it can be read without consuming the
+// body.
 const REQUEST_ID_HEADER = "x-request-id";
 
 function relayError(code: string, message: string, status: number) {

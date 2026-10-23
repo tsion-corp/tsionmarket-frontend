@@ -50,8 +50,6 @@ let world: {
   winners: VaultWinner[];
   balanceUsd: number;
   pending: { token: string; raw: bigint; amount: { decimals: number } }[];
-  broadcastPhase: string;
-  squareAvatar: string | null;
 };
 
 const settle = vi.fn(async () => {});
@@ -106,12 +104,6 @@ vi.mock("@/hooks/use-require-session", () => ({
   },
 }));
 
-// The reader's Market Square picture. The real hook reads the square through
-// react-query; what this file cares about is only which faces it reaches.
-vi.mock("@/hooks/use-square-avatar", () => ({
-  useSquareAvatar: () => world.squareAvatar,
-}));
-
 vi.mock("@/features/casino/hooks/use-vault-game", () => ({
   useVaultGame: () => ({
     game: world.game,
@@ -161,7 +153,6 @@ vi.mock("@/features/casino/hooks/use-game-balance", () => ({
 }));
 
 vi.mock("@/features/casino/hooks/use-payout-refresh", () => ({ usePayoutRefresh: () => {} }));
-vi.mock("@/features/casino/hooks/use-arcade-shine", () => ({ useVaultShine: () => {} }));
 vi.mock("@/features/casino/hooks/use-vault-params", () => ({
   useVaultParams: () => ({ split: { winner: 5000, starter: 1000 } }),
 }));
@@ -188,8 +179,8 @@ vi.mock("@/components/ui/currency-select", () => ({
   }),
 }));
 
-// Web Audio, confetti and the analytics transport have no place in jsdom, and
-// none of them is what this file is about.
+// Web Audio and confetti have no place in jsdom, and neither is what this
+// file is about.
 vi.mock("@/features/casino/lib/last-standing/music", () => ({
   isMusicPlaying: () => false,
   setUrgentMode: () => {},
@@ -208,7 +199,6 @@ vi.mock("@/features/casino/lib/last-standing/sound", () => ({
   setSoundEnabled: () => {},
 }));
 vi.mock("canvas-confetti", () => ({ default: () => {} }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: () => {} }));
 vi.mock("@/lib/toast", () => ({
   toast: {
     loading: () => "toast",
@@ -217,23 +207,6 @@ vi.mock("@/lib/toast", () => ({
     info: () => {},
     dismiss: () => {},
   },
-}));
-
-// The broadcast carries its own session, queries and socket. This file only
-// cares which phase it reports, which decides whether the rail offers it, and
-// where the panel lands.
-vi.mock("@/features/casino/hooks/use-game-broadcast", () => ({
-  useGameBroadcast: () => ({ phase: world.broadcastPhase }),
-}));
-vi.mock("@/features/casino/components/broadcast", () => ({
-  GameBroadcastProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  GoLivePanel: ({ variant, header }: { variant?: string; header?: React.ReactNode }) => (
-    <div data-testid="go-live" data-variant={variant}>
-      {header}
-    </div>
-  ),
-  isBroadcastOngoing: (phase: string) =>
-    ["starting", "live", "share-stopped", "joining", "ending", "end-failed"].includes(phase),
 }));
 
 // The pop-out's store and launcher, faked. Picture-in-picture has no
@@ -291,7 +264,7 @@ function renderSection() {
   );
 }
 
-type RailKind = "action" | "invite" | "claim" | "broadcast";
+type RailKind = "action" | "invite" | "claim";
 
 function railCard(kind: RailKind): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-rail-card="${kind}"]`);
@@ -328,8 +301,6 @@ beforeEach(() => {
     winners: [],
     balanceUsd: 25,
     pending: [],
-    broadcastPhase: "idle",
-    squareAvatar: null,
   };
   // jsdom under this Node ships no matchMedia, and both the stage card and
   // motion's reduced-motion hook read it on mount.
@@ -736,7 +707,7 @@ describe("LastStandingSection rail", () => {
 
 /** The rail's cards in pager order, read by visiting each dot. */
 function railOrder(): RailKind[] {
-  const kinds: RailKind[] = ["action", "claim", "invite", "broadcast"];
+  const kinds: RailKind[] = ["action", "claim", "invite"];
   const current = () => kinds.find((kind) => railCard(kind) !== null);
   const dots = screen.queryAllByRole("button", { name: /Go to card/u });
   if (dots.length === 0) return [current()!];
@@ -747,18 +718,18 @@ function railOrder(): RailKind[] {
 }
 
 describe("LastStandingSection rail slides by state", () => {
-  it("offers play, invite and broadcast while a round runs", () => {
+  it("offers play and invite while a round runs", () => {
     renderSection();
-    expect(railOrder()).toEqual(["action", "invite", "broadcast"]);
+    expect(railOrder()).toEqual(["action", "invite"]);
   });
 
   it("offers a live round's slides even to a wallet owed a payout elsewhere", () => {
     world.pending = [{ token: ZERO, raw: 580000n, amount: { decimals: 6 } }];
     renderSection();
-    expect(railOrder()).toEqual(["action", "invite", "broadcast"]);
+    expect(railOrder()).toEqual(["action", "invite"]);
   });
 
-  it("opens an ended round on claim for the winner, then invite, and no broadcast", () => {
+  it("opens an ended round on claim for the winner, then invite", () => {
     world.game = makeGame({ active: false, settled: false, king: ME });
     renderSection();
 
@@ -781,14 +752,6 @@ describe("LastStandingSection rail slides by state", () => {
     expect(screen.queryAllByRole("button", { name: /Go to card/u })).toHaveLength(0);
   });
 
-  it("keeps the broadcast after the round ends while this session is still streaming", () => {
-    world.game = makeGame({ active: false, settled: true });
-    world.broadcastPhase = "live";
-    renderSection();
-
-    expect(railOrder()).toEqual(["invite", "broadcast"]);
-  });
-
   it("moves to claim when the round ends under a player who had paged away", () => {
     world.game = makeGame({ king: ME });
     const view = renderSection();
@@ -808,24 +771,10 @@ describe("LastStandingSection rail slides by state", () => {
     renderSection();
 
     const action = railCard("action")!;
-    expect(within(action).getAllByRole("button", { name: /Go to card/u })).toHaveLength(3);
+    expect(within(action).getAllByRole("button", { name: /Go to card/u })).toHaveLength(2);
 
-    const broadcast = openRailCard("broadcast");
-    // The broadcast slide's marker sits inside the shared frame, so the dots
-    // are its frame's, not the marker's.
-    const frame = broadcast.closest("section") ?? broadcast.parentElement!;
-    expect(within(frame).getAllByRole("button", { name: /Go to card/u })).toHaveLength(3);
-  });
-
-  it("renders the broadcast only as a rail slide, bare, never as a card under the rail", () => {
-    renderSection();
-
-    expect(screen.queryByTestId("go-live")).toBeNull();
-    const slide = openRailCard("broadcast");
-    const panel = within(slide).getByTestId("go-live");
-    expect(panel).toHaveAttribute("data-variant", "bare");
-    expect(within(panel).getByText(ls.railBroadcastHeading)).toBeInTheDocument();
-    expect(screen.getAllByTestId("go-live")).toHaveLength(1);
+    const invite = openRailCard("invite");
+    expect(within(invite).getAllByRole("button", { name: /Go to card/u })).toHaveLength(2);
   });
 });
 
@@ -956,74 +905,5 @@ describe("LastStandingSection activity panel", () => {
       ls.tabActivity,
       ls.tabRules,
     ]);
-  });
-});
-
-// The reader's Market Square picture is theirs alone. Every other player is
-// still the mark drawn from their address: the backend has no wallet-to-avatar
-// mapping yet, and inventing one here would put a face on the wrong wallet.
-describe("LastStandingSection player faces", () => {
-  const MY_PICTURE = "https://square.example/me.png";
-
-  /** The picture a face is showing, or null when it is the drawn fallback. */
-  function pictureIn(scope: HTMLElement): string | null {
-    return scope.querySelector("img")?.getAttribute("src") ?? null;
-  }
-
-  function tableRows(selector: string): HTMLElement[] {
-    return Array.from(document.querySelectorAll<HTMLElement>(`tbody tr${selector}`));
-  }
-
-  it("puts the reader's own picture on the leader strip while they are king", () => {
-    world.squareAvatar = MY_PICTURE;
-    world.game = makeGame({ king: ME });
-    renderSection();
-
-    expect(pictureIn(screen.getByTestId("stage-avatar"))).toBe(MY_PICTURE);
-  });
-
-  it("leaves another player's lead to the face drawn from their address", () => {
-    world.squareAvatar = MY_PICTURE;
-    world.game = makeGame({ king: THEM });
-    renderSection();
-
-    expect(pictureIn(screen.getByTestId("stage-avatar"))).toBeNull();
-  });
-
-  // The strip that says nobody leads draws a plain disc from an empty seed.
-  // There is no player, so there is no picture to be anyone's.
-  it("puts no picture on the strip before anyone has played", () => {
-    world.squareAvatar = MY_PICTURE;
-    world.game = makeGame({ king: ZERO });
-    renderSection();
-
-    expect(pictureIn(screen.getByTestId("stage-avatar"))).toBeNull();
-  });
-
-  it("puts the reader's picture on their own activity rows and nobody else's", () => {
-    world.squareAvatar = MY_PICTURE;
-    world.activities = [
-      play("started", THEM, "2026-09-25T18:57:00.000Z"),
-      play("joined", ME, "2026-09-25T18:58:00.000Z"),
-    ];
-    renderSection();
-
-    const mine = tableRows('[data-you="true"]');
-    expect(mine).toHaveLength(1);
-    expect(mine.map((row) => pictureIn(row))).toEqual([MY_PICTURE]);
-
-    const theirs = tableRows(":not([data-you])");
-    expect(theirs).toHaveLength(1);
-    expect(theirs.map((row) => pictureIn(row))).toEqual([null]);
-  });
-
-  // Null is the ordinary answer from the square, not a failure: it means the
-  // seeded face IS this person's face. Nothing should look broken.
-  it("falls back to the drawn face when the square holds no picture", () => {
-    world.squareAvatar = null;
-    world.game = makeGame({ king: ME });
-    renderSection();
-
-    expect(pictureIn(screen.getByTestId("stage-avatar"))).toBeNull();
   });
 });

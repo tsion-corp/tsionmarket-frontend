@@ -54,7 +54,6 @@ import type {
   ChessMatch,
   ChessMatchComment,
   ChessMatchNote,
-  ChessVideoAccess,
   ChessWeaknessProfile,
   ChessStudy,
   ChessStudyList,
@@ -398,16 +397,6 @@ export async function createChallenge(
           }
         : null,
   };
-}
-
-export async function issueMatchVideoToken(
-  matchId: string,
-  player?: string
-): Promise<ChessVideoAccess> {
-  return chessPost<ChessVideoAccess>(
-    `/matches/${requireMatchId(matchId)}/video/token`,
-    player ? { player } : {}
-  );
 }
 
 export async function createComputerMatch(

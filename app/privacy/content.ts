@@ -10,7 +10,7 @@ import type { PolicySection } from "@/components/ui/legal-document";
 // are the ones our route handlers actually call. If a data flow changes, this
 // file changes with it.
 
-export const LAST_UPDATED = "5 September 2026";
+export const LAST_UPDATED = "22 October 2026";
 // One inbox for the whole product; the privacy page must never name another.
 export { SUPPORT_EMAIL };
 
@@ -21,7 +21,7 @@ export const SECTIONS: PolicySection[] = [
     id: "who-we-are",
     title: "Who we are and what this covers",
     body: [
-      "Ark is a platform for global markets. Through it you can hold and move crypto, trade spot and perpetual markets, buy tokenised real world assets, take positions in prediction markets, play games in Arkade, earn and convert Kash+ rewards, and take part in Market Square, our social and streaming layer.",
+      "Ark is a platform for global markets. Through it you can hold and move crypto, trade spot and perpetual markets, buy tokenised real world assets, take positions in prediction markets, play games in Arkade, and earn and convert Kash+ rewards.",
       "This policy explains what personal information we collect when you use Ark, why we collect it, who we share it with, and what you can ask us to do with it. It covers the Ark website and web application at tsionark.com and the services reachable from them.",
       "It does not cover the independent services you may reach through Ark. Public blockchains, the venues that execute your trades, and the payment providers that move your local currency each handle data on their own terms. Where that matters we say so, and we name them.",
       'In this policy, "we" and "us" mean Ark and the company operating it. "You" means anyone using the platform.',
@@ -36,7 +36,6 @@ export const SECTIONS: PolicySection[] = [
       "Financial and transactional. The wallet addresses associated with your account, the assets you hold, the trades, deposits, withdrawals, wagers and predictions you make, and the state those transactions reach. Some of this we store. Much of it we read from public blockchains at the moment you look at it, and never hold at all.",
       "Identity verification, where the law requires it. To deposit or withdraw Nigerian naira, our provider Pouch Finance must verify your identity. The fields depend on what they ask for at the time and typically include your full name, date of birth, a national identification number, an email address confirmed with a one time code, and your bank account details. We send these to Pouch to be checked. We do not use them for anything else.",
       "Usage and device. Pages you open, features you use, approximate location derived from your IP address, and standard technical details such as browser type, device type, language and time zone. Some of our services are restricted by country, and this is how that restriction is applied.",
-      "Content you create. If you use Market Square, that includes your profile, posts, comments, messages, streams, and who you follow. Content you post publicly is visible to other people by design.",
     ],
   },
   {
@@ -79,11 +78,10 @@ export const SECTIONS: PolicySection[] = [
     id: "analytics",
     title: "Analytics and session recording",
     body: [
-      "We use two analytics tools, and one of them records what happens on your screen. That deserves a section of its own.",
-      "Mixpanel tells us which features are used and where flows are abandoned. Microsoft Clarity records anonymised session replays and heatmaps, so we can see that a button was pressed four times and never worked rather than waiting for someone to report it.",
-      "Both identify a session by your EVM wallet address, never by your email address. The address is already the identifier your on chain activity carries, so using it adds nothing that the chain does not already expose, and it keeps your email out of an analytics vendor.",
-      "Screens that handle sensitive data are excluded from recording at the source. Identity verification, bank withdrawal, and bank transfer screens are marked so that Clarity records a placeholder in place of the values you type. Mixpanel does not capture what you type or click at all: it receives only named events, such as a completed deposit or trade, with amounts and never account numbers. Your identity documents, bank details and account numbers are not in any replay or event.",
-      "Mixpanel events are sent through our own website address and stored in Mixpanel's United States data centre.",
+      "We use one analytics tool, Microsoft Clarity, and it records what happens on your screen. That deserves a section of its own.",
+      "Clarity records anonymised session replays and heatmaps, so we can see that a button was pressed four times and never worked rather than waiting for someone to report it.",
+      "It identifies a session by your EVM wallet address, never by your email address. The address is already the identifier your on chain activity carries, so using it adds nothing that the chain does not already expose, and it keeps your email out of an analytics vendor.",
+      "Screens that handle sensitive data are excluded from recording at the source. Identity verification, bank withdrawal, and bank transfer screens are marked so that Clarity records a placeholder in place of the values you type. Your identity documents, bank details and account numbers are not in any replay.",
       "Analytics only runs when it is configured for the environment you are using, and a failure in it never affects the platform.",
     ],
   },
@@ -103,15 +101,13 @@ export const SECTIONS: PolicySection[] = [
           "Jupiter, for Solana swap routing.",
           "CoinGecko and GeckoTerminal, for market prices and token data.",
           "IPinfo, for the country lookup that applies our regional restrictions.",
-          "Mixpanel and Microsoft Clarity, for analytics and session replay, as described above.",
+          "Microsoft Clarity, for session replay and heatmaps, as described above.",
           "SendGrid, for email we send you.",
-          "LiveKit, for live video and audio in Market Square.",
           "Cloudinary, for images you upload.",
           "ElevenLabs, for generated speech in features that use it.",
         ],
       },
       "We also share information where we are legally required to: with regulators, law enforcement, or a court, on a valid request. And if our business is ever restructured, sold or merged, personal information may transfer as part of it. We would tell you before that changed how your information is handled.",
-      "Anything you post publicly in Market Square is shared with everyone who can see it. That is the point of it, but it is worth remembering before you post.",
     ],
   },
   {

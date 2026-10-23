@@ -23,7 +23,6 @@ import { parseTimeControl } from "@/features/casino/lib/api/chess-wire";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
 import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
 import type { ChessTimeControl } from "@/features/casino/lib/api/types";
-import { track } from "@/lib/analytics/mixpanel";
 
 // Like the rest of chess, tournaments have no socket, so polling is the live
 // path. The list can lag a little; a detail page someone is playing from
@@ -211,24 +210,6 @@ export function useSwissTournament(tournamentId: string | null) {
       setNameVersion((v) => v + 1);
       applyDetail(next);
       refreshBalance();
-      // Swiss is one service feature shared by both board games, so the game
-      // comes off the tournament rather than being assumed. It used to be
-      // hardcoded to chess, which reported every draughts entry as a chess one.
-      const entryFee = Number(next.entryFeeUsdc) || 0;
-      if (next.game === "draughts") {
-        track("tournament_joined", {
-          game: "checkers",
-          entry_usd: entryFee,
-          amount_usd: entryFee,
-          tournament_id: tournamentId as string,
-        });
-      } else {
-        track("chess_tournament_joined", {
-          tournament_id: tournamentId as string,
-          tournament_type: "swiss",
-          entry_fee_usd: entryFee,
-        });
-      }
     },
   });
 

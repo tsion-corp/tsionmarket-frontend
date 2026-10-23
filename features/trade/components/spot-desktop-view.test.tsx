@@ -2,10 +2,6 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
-// The Shine toggle reads the account's preference through React Query. These
-// tests are about this surface's layout, not about that read, so the control
-// is stubbed and only its placement and its service are checked here. Its own
-// behaviour is covered in components/shine/shine-toggle.test.tsx.
 const session = vi.hoisted(() => ({ signedIn: true, asked: [] as string[] }));
 vi.mock("@/hooks/use-signed-in", () => ({ useSignedIn: () => (session.signedIn ? "yes" : "no") }));
 vi.mock("@/hooks/use-require-session", () => ({
@@ -14,11 +10,6 @@ vi.mock("@/hooks/use-require-session", () => ({
     session.asked.push(action);
     return false;
   },
-}));
-vi.mock("@/components/shine/shine-toggle", () => ({
-  ShineToggle: ({ service }: { service: string }) => (
-    <div data-testid="shine-toggle" data-service={service} />
-  ),
 }));
 
 import { SpotDesktopView } from "@/features/trade/components/spot-desktop-view";
@@ -218,19 +209,5 @@ describe("SpotDesktopView loading skeleton", () => {
 
     const status = screen.getByRole("status");
     expect(status.querySelectorAll("[data-skeleton-row]")).toHaveLength(13);
-  });
-});
-
-// Shine is on by default and posts a filled buy publicly with no per-post
-// confirmation, so the desk someone trades from is where the control has to
-// be.
-describe("SpotDesktopView Shine", () => {
-  // Shine moved to the account menu on 2026-09-25: one switch panel for all
-  // seven services instead of a card on each page. This asserts the card has
-  // not come back, which is what stops them reappearing one page at a time.
-  it("does not carry a Shine card: Shine lives in the account menu", () => {
-    renderDesk();
-
-    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 });

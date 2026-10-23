@@ -56,9 +56,8 @@ export const TICKET_PANEL =
 //
 // The subtraction is short because this box is the one the height is set on.
 // Border-box sizing puts its own padding inside the figure, so the padding is
-// spent from the screen rather than added to it, and the shell's main already
-// reserves the broadcast bar as its own bottom padding, so only the topbar
-// (79px from md up, in flow above this) and that same bar come off.
+// spent from the screen rather than added to it, so only the topbar (79px from
+// md up, in flow above this) comes off.
 //
 // dvh, not vh: on a mobile browser vh is the tallest the viewport ever gets and
 // would run the desk under the browser's own chrome. min-h, not h, so a window
@@ -67,7 +66,7 @@ export const TICKET_PANEL =
 // stack, and a stacked desk pinned to the viewport would put the ticket
 // permanently below the fold.
 export const DESK_CONTAINER =
-  "mx-auto flex w-full max-w-[1520px] flex-col p-4 sm:p-6 lg:p-8 xl:min-h-[calc(100dvh-79px-var(--ws-live-bar,0px))]";
+  "mx-auto flex w-full max-w-[1520px] flex-col p-4 sm:p-6 lg:p-8 xl:min-h-[calc(100dvh-79px)]";
 
 // The outer height of one asset row, border included. Read off the rendered
 // table in Chrome rather than taken from the design: the 33px asset chip in

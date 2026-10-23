@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
@@ -283,20 +281,6 @@ describe("ArkadeGameCard", () => {
       expect(onActivate).toHaveBeenCalledTimes(1);
       expect(onActivate).toHaveBeenCalledWith(chess);
     });
-  });
-
-  it("keeps the analytics call out of the card entirely", () => {
-    // The two surfaces fire game_opened from different places on purpose, and
-    // both read TRACKED_GAMES from the one map in the catalogue. A copy of that
-    // map, or a track() call, in here would double-report or invent a second id
-    // list. That regression has shipped once.
-    const source = readFileSync(
-      join(process.cwd(), "features/casino/components/arkade-game-card.tsx"),
-      "utf8"
-    );
-    expect(source).not.toContain("TRACKED_GAMES");
-    expect(source).not.toContain("lib/analytics");
-    expect(source).not.toMatch(/\btrack\(/);
   });
 
   it("exports a frame class a surface can shape a placeholder with", () => {

@@ -31,8 +31,8 @@ async function fetchPerpsBalance(address: string): Promise<number> {
 // A wallet's balance across everything it holds today: spot/token holdings
 // (usePortfolio's own totalUsd, untouched) plus its perps wallet
 // balance. Deliberately a separate figure rather than folded into
-// usePortfolio itself — that total already feeds analytics
-// (components/providers/analytics-segments.tsx) and the remit flow's
+// usePortfolio itself — that total already feeds Clarity's user tier
+// (components/providers/clarity-identity.tsx) and the remit flow's
 // spendable-amount check (features/remit/components/amount-step.tsx), where
 // perps margin would be the wrong number: it isn't spendable there without
 // first withdrawing it back, a multi-minute round trip.

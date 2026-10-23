@@ -352,8 +352,8 @@ Recorded so they are chosen rather than defaulted into.
    no loading boundary anywhere and one error boundary at the root, above the
    shell, so a crashing page took the navigation down with it.
 
-   Above `(app)` sits `(session)`, whose layout mounts the Privy wallet SDK,
-   the broadcast session and the analytics identity: everything a signed-in
+   Above `(app)` sits `(session)`, whose layout mounts the Privy wallet SDK
+   and the Clarity identity: everything a signed-in
    session needs and a signed-out page does not. Those used to be root
    providers, which put Privy, viem and livekit-client in front of the
    landing page and the privacy policy. Measured on the first-load path,

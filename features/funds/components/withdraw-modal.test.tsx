@@ -14,7 +14,6 @@ vi.mock("@/features/funds/components/crypto-withdraw-screen", () => ({
 vi.mock("@/features/funds/components/bank-withdraw-screen", () => ({
   BankWithdrawScreen: () => <div>bank screen</div>,
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 
 const flag = vi.hoisted(() => ({ enabled: false }));
 vi.mock("@/features/funds/lib/flags", () => ({

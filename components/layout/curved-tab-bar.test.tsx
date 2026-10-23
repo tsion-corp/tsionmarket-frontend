@@ -42,15 +42,11 @@ vi.mock("motion/react", () => {
   };
 });
 
-vi.mock("@/lib/market-square", () => ({
-  marketSquareHref: () => "https://square.example",
-}));
-
 const { CurvedTabBar } = await import("./curved-tab-bar");
 
 // Stands in for buildNav's output: the dock reads the active section's localized
-// name off these. The bar's own icon labels (Home, Market, Square, Arkade,
-// Activity) are its own, and are what the tests click by.
+// name off these. The bar's own icon labels (Home, Market, Arkade, Activity)
+// are its own, and are what the tests click by.
 const NAV: NavItem[] = [
   { id: "portfolio", label: "Portfolio", icon: () => null },
   { id: "spot", label: "Spot", icon: () => null },
@@ -71,9 +67,9 @@ beforeEach(() => {
 });
 
 describe("CurvedTabBar", () => {
-  it("draws five seats over the dome", () => {
+  it("draws four seats over the dome", () => {
     renderBar();
-    expect(screen.getAllByRole("button")).toHaveLength(5);
+    expect(screen.getAllByRole("button")).toHaveLength(4);
   });
 
   it("sends the Market seat to the phone Market page", () => {
@@ -83,32 +79,6 @@ describe("CurvedTabBar", () => {
     expect(onNavigate).not.toHaveBeenCalled();
   });
 
-  it("sends the Square seat to /square in this tab, as a full page load", () => {
-    // /square is the Square's own app (lib/square-zone): a client push would
-    // ask this build for a route it no longer has, and a new tab loses Ark.
-    const open = vi.spyOn(window, "open").mockImplementation(() => null);
-    const assign = vi.fn();
-    const original = window.location;
-    Object.defineProperty(window, "location", {
-      configurable: true,
-      value: { ...original, assign },
-    });
-    const { onNavigate } = renderBar();
-    fireEvent.click(screen.getByRole("button", { name: "Square" }));
-    expect(assign).toHaveBeenCalledWith("/square");
-    expect(router.push).not.toHaveBeenCalledWith("/square");
-    expect(open).not.toHaveBeenCalled();
-    expect(onNavigate).not.toHaveBeenCalled();
-    Object.defineProperty(window, "location", { configurable: true, value: original });
-    open.mockRestore();
-  });
-
-  it("raises the Square seat to the centre while on /square", () => {
-    renderBar(vi.fn(), "square");
-    // The seat is marked current, as the active seat is on every other route.
-    expect(screen.getByRole("button", { name: "Square" })).toHaveAttribute("aria-current", "page");
-  });
-
   it("sends the Activity seat to Activity, since the phone has no drawer", () => {
     renderBar();
     fireEvent.click(screen.getByRole("button", { name: "Activity" }));
@@ -116,7 +86,7 @@ describe("CurvedTabBar", () => {
   });
 
   it("raises the active section's icon into the centre seat", () => {
-    // The centre seat is SEATS[2] = { x: 50, y: 30 }, and the stub folds the
+    // The centre seat is ACTIVE_SEATS[2] = { x: 50, y: 30 }, and the stub folds the
     // animated position into the element's style. Whichever section owns the
     // page rides up there and reads as the current page.
     const home = within(renderBar(vi.fn(), "portfolio").container).getByRole("button", {
@@ -143,6 +113,12 @@ describe("CurvedTabBar", () => {
     expect(container.querySelector('[aria-current="page"]')).toBeNull();
     // No section owns the page, so the dock carries no name.
     expect(screen.queryByText("Memecoins")).toBeNull();
+  });
+
+  it("rests the four seats mirrored about the centre when none is active", () => {
+    renderBar(vi.fn(), "meme");
+    const xs = screen.getAllByRole("button").map((b) => parseFloat(b.style.left));
+    expect(xs.map((x, i) => x + xs[xs.length - 1 - i])).toEqual([100, 100, 100, 100]);
   });
 
   it("scroll-spies portfolio and casino, which are sections of the shell", () => {

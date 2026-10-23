@@ -29,7 +29,6 @@ import {
   fetchLobbyChallenges,
   fetchLiveMatches,
   fetchOpenChallenges,
-  issueMatchVideoToken,
   extendMatchTime,
   postMatchChatMessage,
   requestComputerCoachMove,
@@ -249,24 +248,6 @@ describe("human challenge creation", () => {
     );
     expect(result.match.videoEnabled).toBe(true);
     expect(result.challenge.videoEnabled).toBe(true);
-  });
-
-  it("requests a short-lived room token with the tournament seat when present", async () => {
-    chessClient.chessPost.mockResolvedValue({
-      serverUrl: "wss://video.example.test",
-      participantToken: "token",
-      roomName: "chess-video-game",
-      participantIdentity: "0xabc",
-      role: "player",
-      expiresAt: "2026-08-01T18:10:00.000Z",
-    });
-
-    await issueMatchVideoToken("3f2504e0-4f89-11d3-9a0c-0305e82c3301", "Player-abcd");
-
-    expect(chessClient.chessPost).toHaveBeenCalledWith(
-      "/matches/3f2504e0-4f89-11d3-9a0c-0305e82c3301/video/token",
-      { player: "Player-abcd" }
-    );
   });
 });
 

@@ -1,19 +1,7 @@
 // Spot and perpetuals are separate sections with their own sidebar entries;
 // each carries its own simple/pro interface switch inside.
 export type SectionId =
-  | "portfolio"
-  | "spot"
-  | "perps"
-  | "meme"
-  | "rwa"
-  | "prediction"
-  | "earn"
-  | "casino"
-  | "activity"
-  // The Market Square page. A section for the rail's highlight and the
-  // route map only: the rail seats its entry by hand between Prediction and
-  // Arkade, so it is not in the reorderable list below.
-  | "square";
+  "portfolio" | "spot" | "perps" | "meme" | "rwa" | "prediction" | "earn" | "casino" | "activity";
 
 export const SECTION_LABEL: Record<SectionId, string> = {
   portfolio: "Portfolio",
@@ -29,7 +17,6 @@ export const SECTION_LABEL: Record<SectionId, string> = {
   // called without a translate function, so it must not disagree with the
   // translated string it is standing in for.
   activity: "Arkivity",
-  square: "Square",
 };
 
 // Portfolio is always the account home. The rest follow in a fixed order.
@@ -51,8 +38,7 @@ const REORDERABLE: SectionId[] = [
 /**
  * Sections kept out of the navigation.
  *
- * A visibility switch, not a removal, the way MARKET_SQUARE_HIDDEN in
- * lib/market-square.ts is. Everything behind a listed id stays wired: its
+ * A visibility switch, not a removal. Everything behind a listed id stays wired: its
  * route, its slice, its holdings in the portfolio breakdown. The id is only
  * not offered as a way in.
  *
@@ -94,7 +80,6 @@ export const SECTION_ROUTES: Partial<Record<SectionId, string>> = {
   earn: "/earn",
   prediction: "/prediction",
   activity: "/activity",
-  square: "/square",
 };
 
 // The section a path belongs to, for the rail's highlight: the route whose

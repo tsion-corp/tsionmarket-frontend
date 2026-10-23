@@ -9,7 +9,7 @@ import type { PolicySection } from "@/components/ui/legal-document";
 // out the way described, and the fees named are the ones the code charges.
 // If a product changes, this file changes with it.
 
-export const LAST_UPDATED = "10 September 2026";
+export const LAST_UPDATED = "22 October 2026";
 // One inbox for the whole product; this page must never name another.
 export { SUPPORT_EMAIL };
 
@@ -18,7 +18,7 @@ export const SECTIONS: PolicySection[] = [
     id: "about-these-terms",
     title: "About these terms",
     body: [
-      "These are the terms on which you use Ark. Ark is a platform for global markets. Through it you can hold and move crypto, trade spot markets, buy memecoins, trade perpetual futures, buy tokenised real world assets, take positions in prediction markets, play games in Arkade, earn and convert Kash+ rewards, move money between a bank account and your wallet, and take part in Market Square, our social and streaming layer.",
+      "These are the terms on which you use Ark. Ark is a platform for global markets. Through it you can hold and move crypto, trade spot markets, buy memecoins, trade perpetual futures, buy tokenised real world assets, take positions in prediction markets, play games in Arkade, earn and convert Kash+ rewards, and move money between a bank account and your wallet.",
       "By creating an account or using any part of Ark you agree to these terms. If you do not agree, do not use Ark.",
       'In these terms, "we" and "us" mean Ark and the company operating it. "You" means anyone who uses the platform. "The platform" means the Ark website and web application at tsionark.com and the services reachable from them.',
       "Our Privacy Policy explains how we handle personal information. It is a separate document and it forms part of these terms.",
@@ -123,21 +123,11 @@ export const SECTIONS: PolicySection[] = [
           "Manipulate a market, a game, a reward or a rating, whether by wash trading, collusion, bots, engines, exploits or any other means.",
           "Attack, probe, overload or interfere with the platform, its providers or the blockchains it uses.",
           "Copy, scrape, reverse engineer or resell the platform or its data.",
-          "Impersonate anyone, or post content in Market Square that is illegal, abusive, sexual, threatening, deceptive, infringing or spam.",
+          "Impersonate anyone, or post content on Ark that is illegal, abusive, sexual, threatening, deceptive, infringing or spam.",
           "Create more than one account, or share an account with someone else.",
           "Get around a country restriction or an age check.",
         ],
       },
-    ],
-  },
-  {
-    id: "market-square",
-    title: "Content you post",
-    body: [
-      "Market Square lets you post, comment, message, stream and tip. What you post is yours. By posting it you give us permission to store it, show it to other users, and use it to run and promote the platform, for as long as it is on the platform.",
-      "You are responsible for what you post. Do not post anything you do not have the right to post, and do not post anything that breaks the conduct rules above. We can remove content and suspend accounts that break them, with or without warning.",
-      "Anything you post publicly can be seen, saved and shared by other people. Once it is out, we cannot get it back for you.",
-      "Tips and gifts you send in Market Square are payments between you and the person receiving them. We do not hold them, and we cannot reverse them.",
     ],
   },
   {

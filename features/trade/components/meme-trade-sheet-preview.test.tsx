@@ -81,7 +81,6 @@ vi.mock("@/hooks/use-auth-session", () => ({
     logout: vi.fn(),
   }),
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 
 import { MemeTradeSheet } from "@/features/trade/components/meme-trade-sheet";
 

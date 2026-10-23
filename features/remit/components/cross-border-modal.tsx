@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { DestinationStep } from "@/features/remit/components/destination-step";
-import { track } from "@/lib/analytics/mixpanel";
 import { StatusStep } from "@/features/remit/components/status-step";
 import {
   clearPendingRemit,
@@ -31,11 +30,6 @@ import type { PayoutBank } from "@/features/remit/lib/offramp";
 // the step components stay presentational and testable.
 export function CrossBorderModal() {
   const [step, setStep] = useState<RemitStep>("destination");
-
-  // The modal only mounts when the user opens it, so mount is the open.
-  useEffect(() => {
-    track("send_money_opened");
-  }, []);
   const [form, setForm] = useState<RemitForm>(EMPTY_REMIT_FORM);
   // An order from a previous session that is still in flight. Only a funded
   // one is worth resuming — money moved; an unfunded leftover (a crash between
@@ -68,7 +62,6 @@ export function CrossBorderModal() {
   };
 
   const setCountry = (country: PayoutCountry) => {
-    track("send_destination_selected", { country: country.code, currency: country.currency });
     // A new country invalidates the chosen network and bank, so clear both.
     setForm((f) => ({ ...f, country, network: null, bank: null }));
   };

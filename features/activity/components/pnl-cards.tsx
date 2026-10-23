@@ -1,11 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { useMoney } from "@/components/ui/currency-select";
-import { ShareToSquare, type ShareDraft } from "@/components/share/share-to-square";
-import { closedPositions, realisedPercent, type AssetPnl, shareRef } from "@/lib/pnl";
+import { closedPositions, realisedPercent, type AssetPnl } from "@/lib/pnl";
 import { tokenBg } from "@/lib/trade/assets";
 import { displaySymbol } from "@/lib/buy";
 import { formatQty } from "@/lib/format";
@@ -24,7 +22,7 @@ import type { ActivityEntry } from "@/lib/activity/entries";
  * no result yet, and showing it at zero would read as break-even rather than
  * as unfinished.
  */
-function PnlCard({ asset, onShare }: { asset: AssetPnl; onShare: () => void }) {
+function PnlCard({ asset }: { asset: AssetPnl }) {
   const t = useTranslations("activity");
   const money = useMoney();
   const percent = realisedPercent(asset);
@@ -36,14 +34,6 @@ function PnlCard({ asset, onShare }: { asset: AssetPnl; onShare: () => void }) {
       <div className="flex items-center gap-2.5">
         <AssetIcon sym={symbol} bg={tokenBg(symbol)} fallback="gradient" size={28} />
         <span className="truncate font-sans text-[14px] font-medium">{symbol}</span>
-        <button
-          type="button"
-          onClick={onShare}
-          aria-label={`Share ${symbol} result to Market Square`}
-          className="ml-auto shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-semibold text-white/55 transition-colors hover:bg-white/8 hover:text-white"
-        >
-          {t("share")}
-        </button>
       </div>
 
       <div>
@@ -76,42 +66,21 @@ function PnlCard({ asset, onShare }: { asset: AssetPnl; onShare: () => void }) {
 
 export function PnlCards({ entries }: { entries: ActivityEntry[] }) {
   const t = useTranslations("activity");
-  const money = useMoney();
-  const [sharing, setSharing] = useState<AssetPnl | null>(null);
   const closed = closedPositions(entries);
   if (closed.length === 0) return null;
 
-  const draft = (asset: AssetPnl): ShareDraft => {
-    const percent = realisedPercent(asset);
-    const up = asset.realised >= 0;
-    const symbol = displaySymbol(asset.symbol);
-    return {
-      title: t(up ? "pnlShareWin" : "pnlShareLoss", { symbol }),
-      subtitle: percent === null ? symbol : `${up ? "+" : "−"}${Math.abs(percent).toFixed(1)}%`,
-      deepLink: { kind: "activity", ref: shareRef(asset) },
-      suggestedText: "",
-      // The money stays behind the same opt-in every other share uses: one
-      // careless tap must not publish what somebody's trade was worth.
-      amount: money.format(Math.abs(asset.realised)),
-    };
-  };
-
   return (
-    <>
-      <div className="mt-[18px]">
-        <div className="mb-2 px-1 text-[11.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
-          {t("pnlHeading")}
-        </div>
-        {/* A rail, not a grid: results are glanced at, and a grid of them would
-            outweigh the timeline they belong to. */}
-        <div className="flex [scrollbar-width:none] gap-3 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
-          {closed.map((asset) => (
-            <PnlCard key={asset.symbol} asset={asset} onShare={() => setSharing(asset)} />
-          ))}
-        </div>
+    <div className="mt-[18px]">
+      <div className="mb-2 px-1 text-[11.5px] font-normal tracking-[0.04em] text-white/40 uppercase">
+        {t("pnlHeading")}
       </div>
-
-      {sharing && <ShareToSquare draft={draft(sharing)} open onClose={() => setSharing(null)} />}
-    </>
+      {/* A rail, not a grid: results are glanced at, and a grid of them would
+            outweigh the timeline they belong to. */}
+      <div className="flex [scrollbar-width:none] gap-3 overflow-x-auto pb-1 [&::-webkit-scrollbar]:hidden">
+        {closed.map((asset) => (
+          <PnlCard key={asset.symbol} asset={asset} />
+        ))}
+      </div>
+    </div>
   );
 }

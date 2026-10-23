@@ -16,7 +16,6 @@ vi.mock("@/features/portfolio/hooks/use-kash-sync", () => ({ useKashSyncing: () 
 vi.mock("@/features/portfolio/components/add-to-metamask-button", () => ({
   AddToMetaMaskButton: () => null,
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ setProfile: vi.fn() }));
 
 const sendFlag = { enabled: true };
 vi.mock("@/features/portfolio/lib/kash-send", () => ({

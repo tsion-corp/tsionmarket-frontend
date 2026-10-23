@@ -5,7 +5,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchMarketOdds, fetchMyBets, placeBet } from "@/features/casino/lib/api/betting";
 import type { PlaceBetInput } from "@/features/casino/lib/api/types";
 import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
-import { track } from "@/lib/analytics/mixpanel";
 
 // Pari-mutuel odds move as money enters the pools, so they are polled while a
 // spectator watches. The match already streams over the socket, so this stays
@@ -71,15 +70,6 @@ export function usePlaceBet() {
   return useMutation({
     mutationFn: (input: PlaceBetInput) => placeBet(input),
     onSuccess: (_slip, input) => {
-      // Spectator stakes are placed from both game surfaces; the market is
-      // keyed by match, which is what identifies the game being watched.
-      track("spectator_bet_placed", {
-        game: "chess",
-        match_id: input.matchId,
-        game_id: input.matchId,
-        side: input.selection,
-        amount_usd: Number(input.stakeUsdc),
-      });
       void queryClient.invalidateQueries({ queryKey: BETTING_KEYS.odds(input.matchId) });
       void queryClient.invalidateQueries({
         queryKey: BETTING_KEYS.myBets(input.matchId, input.bettor),

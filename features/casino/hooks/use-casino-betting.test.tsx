@@ -15,7 +15,6 @@ vi.mock("@/features/casino/hooks/use-chess-cashier", () => ({
     balance: (wallet: string) => ["casino", "chess", "cashier", "balance", wallet],
   },
 }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: vi.fn() }));
 
 import { BETTING_KEYS, useMatchMarket } from "@/features/casino/hooks/use-casino-betting";
 

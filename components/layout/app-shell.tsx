@@ -21,7 +21,7 @@ function Shell({ children }: { children: React.ReactNode }) {
  *
  * Until this existed each page mounted the shell itself, so moving from the
  * dashboard to the perps desk tore down and rebuilt the sidebar, the topbar,
- * the tab bar, the funds modal and the broadcast dock, then re-ran every
+ * the tab bar and the funds modal, then re-ran every
  * effect in them: the catalog prefetch, the referral claim, the known-user
  * mark. The shell's own comment said it made the pages "feel like one app";
  * mounted per page it could not. Under a layout it survives navigation, and

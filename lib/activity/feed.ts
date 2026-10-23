@@ -19,9 +19,9 @@ import {
   isGameKind,
   isStable,
   type ActivityEntry,
+  type ActivityGameId,
   type ActivityKind,
 } from "@/lib/activity/entries";
-import type { BroadcastGameId } from "@/lib/broadcast/deep-link";
 import { displaySymbol } from "@/lib/buy";
 import { truncateAddress } from "@/lib/format";
 
@@ -132,7 +132,7 @@ export interface ActivityChainRef {
  * different references, and a row has at most one of them.
  */
 export interface ActivityGameRef {
-  readonly game: BroadcastGameId;
+  readonly game: ActivityGameId;
   readonly matchId: string;
 }
 

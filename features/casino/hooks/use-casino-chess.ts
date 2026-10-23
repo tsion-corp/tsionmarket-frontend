@@ -41,8 +41,6 @@ import {
   upsertMatchComment,
 } from "@/features/casino/lib/api/chess";
 import { useCasinoWallet } from "@/features/casino/hooks/use-casino-wallet";
-import { track } from "@/lib/analytics/mixpanel";
-import { GAME_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
 import { newChessIdempotencyKey } from "@/features/casino/lib/api/chess-idempotency";
 import { CHESS_PRODUCT_KEYS } from "@/features/casino/hooks/use-chess-products";
 import { CASHIER_KEYS } from "@/features/casino/hooks/use-chess-cashier";
@@ -953,44 +951,15 @@ export function useChessMatchSocial(
   };
 }
 
-// A requested stake as the event's amount, left out when there is none to
-// report rather than sent as a nought the player never staked.
-function stakeOf(stakeUsdc: string | number | null | undefined): { amount_usd?: number } {
-  const stake = Number(stakeUsdc ?? 0);
-  return Number.isFinite(stake) && stake > 0 ? { amount_usd: stake } : {};
-}
-
 export function useCreateChallenge() {
   const queryClient = useQueryClient();
   const wallet = useCasinoWallet();
   return useMutation({
     mutationFn: (input: CreateChessChallengeInput) =>
       createChallenge({ ...input, creator: requireWallet(wallet.address) }),
-    onSuccess: ({ match }, input) => {
-      const stake = Number(match.stakeUsdc ?? 0);
-      // This app's "auto" is the catalog's play_online, and "invite" is
-      // challenge_friend. game_staked is not sent for chess any more: the
-      // chess_* events carry the money, and both would count one stake twice.
-      const mode = input.mode === "auto" ? "play_online" : "challenge_friend";
-      track("chess_game_created", {
-        game_id: match.id,
-        mode,
-        staked: stake > 0,
-        amount_usd: stake,
-        ...(input.timeControl ? { time_control: input.timeControl } : {}),
-      });
-      // An invite is a challenge sent to somebody; an auto-paired game is not.
-      if (mode === "challenge_friend") {
-        track("chess_challenge_sent", { game_id: match.id, amount_usd: stake });
-      }
+    onSuccess: ({ match }) => {
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
-    },
-    onError: (error, input) => {
-      track("chess_game_failed", {
-        ...stakeOf(input.stakeUsdc),
-        ...reasonFor(GAME_FAILURE, error),
-      });
     },
   });
 }
@@ -1014,12 +983,6 @@ export function useCreateComputerMatch() {
         void queryClient.invalidateQueries({ queryKey: CASHIER_KEYS.balance(wallet.address) });
       }
     },
-    onError: (error, input) => {
-      track("chess_game_failed", {
-        ...stakeOf(input.stakeUsdc),
-        ...reasonFor(GAME_FAILURE, error),
-      });
-    },
   });
 }
 
@@ -1030,22 +993,8 @@ export function useAcceptChallenge() {
     mutationFn: (challengeId: string) =>
       acceptChallenge(challengeId, requireWallet(wallet.address)),
     onSuccess: (match) => {
-      const stake = Number(match.stakeUsdc ?? 0);
-      track("chess_challenge_accepted", {
-        game_id: match.id,
-        amount_usd: stake,
-        ...(match.timeControl ? { time_control: match.timeControl } : {}),
-      });
-      // chess_game_started is reported by the play screen, for both players
-      // (see use-chess-start-report); reporting it here too would count the
-      // accepter twice and the creator never.
       queryClient.setQueryData(CHESS_KEYS.match(match.id), match);
       void queryClient.invalidateQueries({ queryKey: CHESS_KEYS.challenges });
-    },
-    // The challenge is known by its id here; its stake is not, because the
-    // accept never came back with the match that carries it.
-    onError: (error, challengeId) => {
-      track("chess_game_failed", { game_id: challengeId, ...reasonFor(GAME_FAILURE, error) });
     },
   });
 }

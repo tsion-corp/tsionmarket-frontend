@@ -11,7 +11,6 @@ import { ProgressBar } from "@/components/ui/progress-bar";
 import { CheckIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { usePortfolio } from "@/hooks/use-portfolio";
-import { track } from "@/lib/analytics/mixpanel";
 import { errorCode, errorStatus, isUnconfigured } from "@/lib/api/envelope";
 import { formatUsd } from "@/lib/currency";
 import { scheduleSettlement, sumValueUsd } from "@/lib/migration/schedule";
@@ -123,7 +122,6 @@ export interface MigrationProgress {
 
 export interface MoveOldMoneyPanelProps {
   adapters: readonly VenueAdapter[];
-  entry: MigrationEntry;
   onClose: () => void;
   /**
    * Gate mode: hides the panel's own "leave" affordances. The host owns the
@@ -176,7 +174,6 @@ const NO_OPT_IN: ReadonlySet<string> = new Set();
 // their own.
 export function MoveOldMoneyPanel({
   adapters,
-  entry,
   onClose,
   locked = false,
   onProgress,
@@ -251,11 +248,6 @@ export function MoveOldMoneyPanel({
     () => void queryClient.invalidateQueries({ queryKey: [...queryKeys.activity.all, "legacy"] }),
     [queryClient]
   );
-  // What the link did to the person's Square profile, once known. `none` is
-  // an account that never had one, and says nothing; a service that does not
-  // report the ledger says nothing either.
-  const squareOutcome = status.data?.rekey.square;
-  const squareRekey = squareOutcome && squareOutcome !== "none" ? squareOutcome : null;
 
   const ethPriceUsd = ethPriceFromPortfolio(newPortfolio.tokens);
   // Before the old sign-in, a linked account's addresses come from the
@@ -288,7 +280,6 @@ export function MoveOldMoneyPanel({
     linkExpired ||
     isSessionExpired(holdingsQuery.data?.failures, holdingsQuery.error, status.error);
   const backToSignIn = useCallback(() => {
-    track("migration_session_expired");
     void session.logout().finally(() => router.push("/auth"));
   }, [session, router]);
   useEffect(() => {
@@ -318,10 +309,6 @@ export function MoveOldMoneyPanel({
     (r) => r !== null && [...r.results.values()].some((o) => !o.ok && isWalletWindowError(o.error))
   );
   const walletBlocked = walletWindowBlocked || runBlocked;
-
-  useEffect(() => {
-    track("migration_started", { entry });
-  }, [entry]);
 
   // Link the two accounts the moment the old sign-in lands. Idempotent
   // upstream, so every opening may post it; a service that is not deployed
@@ -356,7 +343,6 @@ export function MoveOldMoneyPanel({
           setLinkedHere(true);
           setLinkBlocked(null);
           setLinkFailures(0);
-          track("migration_linked");
           void refetchStatus();
           // The old wallet's history comes across with the account: taken
           // now, and again once the sweep has moved the money (below), so
@@ -368,7 +354,6 @@ export function MoveOldMoneyPanel({
           const code = errorCode(error);
           if (code && TERMINAL_LINK_CODES.has(code)) {
             setLinkBlocked(code);
-            track("migration_link_blocked", { code });
             return;
           }
           if (errorStatus(error) === 401) {
@@ -563,17 +548,10 @@ export function MoveOldMoneyPanel({
           `, worth $${sumValueUsd(plan.phases.flatMap((ph) => ph.holdings)).toFixed(2)}` +
           `${plan.settleLater.length ? `, ${plan.settleLater.length} left for later` : ""}`
       );
-      track("migration_reviewed", {
-        holdings: remaining.length,
-        opted_in: opted.size,
-        settle_later: plan.settleLater.length,
-        value_usd: sumValueUsd(plan.phases.flatMap((p) => p.holdings)),
-      });
       const outcome = await runner.run(plan);
       console.log(
         `[migrate] moved: ${outcome.outcome}, $${outcome.movedUsd.toFixed(2)} across ${outcome.movedCount} item(s)`
       );
-      track("migration_completed", { outcome: outcome.outcome, moved_usd: outcome.movedUsd });
       const coreFailed = plan.phases
         .flatMap((ph) => ph.holdings)
         .filter(isCoreAsset)
@@ -697,15 +675,6 @@ export function MoveOldMoneyPanel({
           title={t("summary.complete")}
           body={t("walletlessDone")}
         >
-          {squareRekey ? (
-            <p
-              className={`mt-3 text-[13px] leading-normal ${
-                squareRekey === "failed" ? "text-down" : "text-white/65"
-              }`}
-            >
-              {t(`square.${squareRekey}`)}
-            </p>
-          ) : null}
           {locked || compact ? null : (
             <button onClick={onClose} className={SECONDARY}>
               {t("close")}
@@ -882,19 +851,6 @@ export function MoveOldMoneyPanel({
             />
           </div>
         )}
-        {/* The same link moves the person's Square profile — a wsws user who
-            upgrades here has upgraded there too. The service says whether
-            that landed, and the one answer that must not be swallowed is
-            "failed": a split Square account looks fine from this side. */}
-        {squareRekey ? (
-          <p
-            className={`mt-3 text-[13px] leading-normal ${
-              squareRekey === "failed" ? "text-down" : "text-white/65"
-            }`}
-          >
-            {t(`square.${squareRekey}`)}
-          </p>
-        ) : null}
         {runBlocked ? (
           <p className="mt-3 text-[13px] leading-normal text-white/65">{t("walletBlockedBody")}</p>
         ) : failed.length > 0 && !compact ? (

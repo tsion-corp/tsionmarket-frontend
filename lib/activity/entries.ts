@@ -10,7 +10,6 @@
 // Pure: no framework, no network, so every branch here is unit tested.
 
 import type { ActivityDirection, ActivityItem } from "@/lib/server/activity";
-import type { BroadcastGameId } from "@/lib/broadcast/deep-link";
 
 // The plain-transfer kinds, plus the named actions the server tags when a
 // transfer's counterparty is one of our own contracts (see lib/server/
@@ -66,11 +65,13 @@ export function isDrawKind(kind: ActivityKind): boolean {
   return DRAW_KINDS.has(kind);
 }
 
-// Which broadcast game an off-chain game kind belongs to, so a played game can
+export type ActivityGameId = "chess" | "checkers" | "arkball";
+
+// Which game an off-chain game kind belongs to, so a played game can
 // be shared with a link back to the game itself rather than to the casino
 // index. Returns null for anything that is not a game, which is what keeps the
 // caller from building a game link for a token transfer.
-const GAME_FOR_KIND: Partial<Record<ActivityKind, BroadcastGameId>> = {
+const GAME_FOR_KIND: Partial<Record<ActivityKind, ActivityGameId>> = {
   won_chess: "chess",
   lost_chess: "chess",
   drew_chess: "chess",
@@ -81,7 +82,7 @@ const GAME_FOR_KIND: Partial<Record<ActivityKind, BroadcastGameId>> = {
   arkball_won: "arkball",
 };
 
-export function gameForKind(kind: ActivityKind): BroadcastGameId | null {
+export function gameForKind(kind: ActivityKind): ActivityGameId | null {
   return GAME_FOR_KIND[kind] ?? null;
 }
 
@@ -126,7 +127,7 @@ export function isStable(symbol: string): boolean {
 // A stablecoin movement worth less than a cent is dust: the change a
 // settlement or a route hands back, not something the user did. Shown, it read
 // as "Deposited USDC +0" after every withdrawal, in the feed and in the bell,
-// and it counted as an arrival for the deposit analytics. Only standalone
+// and it counted as a deposit arrival. Only standalone
 // stablecoin movements are judged; a trade is kept whole, and other assets are
 // left alone because their price is not known here.
 export const DUST_STABLE_AMOUNT = 0.01;

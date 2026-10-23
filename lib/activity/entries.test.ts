@@ -164,7 +164,7 @@ describe("platform actions", () => {
 describe("gameForKind", () => {
   // A played game is the most shareable thing on the platform, and every game
   // kind must resolve to a game or its row cannot link back to the match.
-  it("maps every game kind to its broadcast game", () => {
+  it("maps every game kind to its game", () => {
     const expected: Array<[ActivityKind, string]> = [
       ["won_chess", "chess"],
       ["lost_chess", "chess"],

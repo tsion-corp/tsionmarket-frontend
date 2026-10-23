@@ -1,8 +1,6 @@
 // Microsoft Clarity: session replay, heatmaps, rage and dead clicks, and JS
-// errors. It captures those on its own, so unlike Mixpanel there is no event
-// catalog here. What this module adds is the tagging that makes a recording
-// findable: the same identity and the same segments Mixpanel uses, so a drop
-// spotted in one tool can be watched in the other.
+// errors. It captures those on its own; this module adds the identity and
+// segment tags that make a recording findable.
 //
 // Masking is not optional. Any field holding a NIN, BVN, bank account or
 // virtual account number, transfer reference or OTP must carry
@@ -10,7 +8,8 @@
 // breach as sending it. Use the MASK_ATTRIBUTE export below so the intent is
 // searchable rather than a bare string spread across screens.
 
-import type { KycStatus, UserTier } from "@/lib/analytics/events";
+export type KycStatus = "none" | "pending" | "verified";
+export type UserTier = "new" | "activated" | "power";
 
 const PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID;
 
@@ -24,14 +23,6 @@ let initialized = false;
  * scattered inline does not.
  */
 export const MASK_ATTRIBUTE = { "data-clarity-mask": "true" } as const;
-
-/**
- * The class Mixpanel's autocapture honours to skip an element and everything
- * inside it. Put it on the same containers that carry MASK_ATTRIBUTE: the two
- * tools record different things, but the screens that must not be recorded are
- * the same ones, and autocapture reaches DOM that no `track` call names.
- */
-export const NO_AUTOCAPTURE_CLASS = "mp-no-track";
 
 // Call once, client-side. A no-op without a project id, so local dev records
 // nothing and never contacts Clarity.
@@ -50,10 +41,7 @@ export async function initClarity(): Promise<void> {
   }
 }
 
-/**
- * Ties a recording to the same id Mixpanel uses, so a session found in one
- * tool can be looked up in the other.
- */
+/** Ties a recording to the account's EVM wallet address. */
 export async function identifyClarity(walletEvm: string): Promise<void> {
   if (!initialized || !walletEvm) return;
   try {
@@ -65,8 +53,8 @@ export async function identifyClarity(walletEvm: string): Promise<void> {
 }
 
 /**
- * Tags the session with the segments Mixpanel slices by, so "60% drop at KYC"
- * in Mixpanel becomes "watch those sessions" in Clarity.
+ * Tags the session with segments, so a drop at a step can be followed into
+ * the recordings of the people who hit it.
  *
  * Never put contact details or document numbers in a tag.
  */

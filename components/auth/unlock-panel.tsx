@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useSocialAuth, useSocialWallet } from "decane-connect-kit";
 import { useTranslations } from "next-intl";
-import { recordAuthMethod } from "@/lib/analytics/auth-method";
 import { rememberPending, useLastAuthMethod } from "@/lib/last-auth-method";
 import { useDisplayProfile, type DisplayProfile } from "@/lib/display-profile";
 import { toast } from "@/lib/toast";
@@ -176,7 +175,6 @@ export function UnlockPanel({
     setBusy(true);
     try {
       const method = offer.kind === "password" ? "passkey" : offer.kind;
-      recordAuthMethod(method);
       rememberPending(method);
       if (offer.kind === "passkey") await signInWithPasskey();
       else if (offer.kind === "password") await unlockWithRetries();

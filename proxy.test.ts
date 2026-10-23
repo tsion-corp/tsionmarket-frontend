@@ -13,8 +13,8 @@ function visit(url: string, cookie?: string) {
 }
 
 // Stubbed here and cleared after, never cleared first: unstubbing at the START
-// of a test wipes whatever another file had set, which is what made
-// lib/market-square fail in a batch run and pass on its own.
+// of a test wipes whatever another file had set, so a file that relies on it
+// fails in a batch run and passes on its own.
 beforeEach(() => {
   vi.stubEnv("NEXT_PUBLIC_LAUNCH_AT", "");
   vi.stubEnv("MAINTENANCE", "");

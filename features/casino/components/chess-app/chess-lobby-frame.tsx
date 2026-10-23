@@ -916,7 +916,7 @@ export function ChessLobbyFrame({ source }: { source: string }) {
           ref={frameRef}
           src={frameSource}
           title="Ark Chess"
-          className={`block h-[calc(100dvh-158px-var(--ws-live-bar,0px))] min-h-[520px] w-full border-0 bg-black transition-opacity duration-150 md:h-[calc(100dvh-79px-var(--ws-live-bar,0px))] md:min-h-0 ${
+          className={`block h-[calc(100dvh-158px)] min-h-[520px] w-full border-0 bg-black transition-opacity duration-150 md:h-[calc(100dvh-79px)] md:min-h-0 ${
             frameReady ? "opacity-100" : "opacity-0"
           }`}
         />

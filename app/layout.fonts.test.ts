@@ -16,7 +16,7 @@ describe("app fonts", () => {
 
   it("points every local face at a file in app/fonts", () => {
     const files = [...layout.matchAll(/src:\s*"\.\/fonts\/([^"]+)"/g)].map((m) => m[1]);
-    expect(files.length).toBeGreaterThanOrEqual(6);
+    expect(files.length).toBeGreaterThanOrEqual(5);
     for (const file of files) {
       expect(existsSync(join(__dirname, "fonts", file)), file).toBe(true);
     }

@@ -4,8 +4,7 @@
 // lazily, and not every sign-up reached that step). Signed in to one, the
 // panel found no signer and read it as "an account that was never on the old
 // app" — nothing to upgrade, switch accounts. But the ledgers keyed on the
-// old identity rather than on a wallet — Kash points, the Square profile,
-// referrals, chess — are still there, and the service re-keys them from the
+// old identity rather than on a wallet — Kash points, referrals, chess — are still there, and the service re-keys them from the
 // link alone; it needs no wallet for that. So such an account is linked, and
 // the upgrade is complete the moment the link lands: there is no money to
 // discover or move.

@@ -6,19 +6,15 @@ import { buildNav, type NavItem } from "./nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
 
 // The rail's own markup is what is under test, so its neighbours are stubbed:
-// labels come from a provider, the profile from Privy, Go Live from a
-// broadcast session, and next/link from a router that no test mounts.
+// labels come from a provider, the profile from Privy, and next/link from a
+// router that no test mounts.
 //
-// The rail reads two message namespaces, and one of them supplies the square's
-// visible label, so the stub returns the real English strings rather than
-// echoing key names: the accessible names under test are then the ones a user
-// reads. An unknown key still surfaces as its path, so a typo fails loudly.
+// The stub returns the real English strings rather than echoing key names, so
+// the accessible names under test are the ones a user reads. An unknown key
+// still surfaces as its path, so a typo fails loudly.
 const MESSAGES: Record<string, Record<string, string>> = {
   auth: { signIn: "Sign in" },
   topbar: { menu: "Menu", closeMenu: "Close menu" },
-  // The rail names the product "Square" (asked for 2026-09-12); the fuller
-  // "Market Square" stays the page's own title.
-  square: { title: "Market Square", navLabel: "Square" },
 };
 vi.mock("next-intl", () => ({
   useTranslations: (namespace: string) => (key: string) =>
@@ -52,9 +48,6 @@ vi.mock("@/hooks/use-ark-name", () => ({
   useArkName: () => arkName.value,
 }));
 
-vi.mock("@/components/broadcast/go-live-control", () => ({
-  GoLiveControl: () => <button type="button">Go Live</button>,
-}));
 // AccountPopover is now always mounted (it plays its own exit animation off
 // its `open` prop), which pulls in InviteFriendsModal and its react-query
 // hook. The rail's own markup is what is under test here, not the popover, so
@@ -70,7 +63,6 @@ vi.mock("@/features/bns/components/ark-id-modal", () => ({ ArkIdModal: () => nul
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
 }));
-// The stub keeps the class so the square entry's highlight can be read off it.
 vi.mock("next/link", () => ({
   default: ({
     children,
@@ -86,15 +78,6 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
-// Both switches are stubbed even though the rail reads only the first: the
-// factory replaces the whole module, so a missing export would read as false
-// and quietly stand in for "shown" if the rail ever reached for it.
-vi.mock("@/lib/market-square", () => ({
-  MARKET_SQUARE_HIDDEN: true,
-  SQUARE_SECTIONS_HIDDEN: true,
-  marketSquareHref: () => "https://square.test",
-}));
-
 // Signed in with a wallet alone: no Google, no email, no Twitter, which is
 // what an SMS or wallet sign-in looks like once Privy has minted the embedded
 // wallet. The address truncates to the 0x759f…c61c the design shows.
@@ -123,26 +106,11 @@ function renderSidebar() {
   );
 }
 
-// The account face reads the player's square profile. These cover the rail
-// and its chrome, not where the picture comes from, so the read is stubbed
-// out: null is the ordinary answer and leaves the seeded artwork in place.
-vi.mock("@/hooks/use-square-avatar", () => ({
-  useSquareAvatar: () => null,
-  useSquareSeed: () => "seed",
-}));
-
 describe("Sidebar", () => {
   beforeEach(() => {
     privyUser = null;
   });
 
-  /**
-   * A deployment with no square to link to, which is what an unset
-   * NEXT_PUBLIC_MARKET_SQUARE_URL and what an operator takedown both produce,
-   * offers no way in from the rail rather than a link that goes nowhere. The
-   * module reads its environment at import, and the test run loads no .env, so
-   * this is also the state the suite sees by default.
-   */
   // The Ark ID is the identity people hand out, so the footer names the
   // person by it once the wallet holds one; without one, the profile name.
   it("names the account by its Ark ID when the wallet holds one", () => {
@@ -174,103 +142,9 @@ describe("Sidebar", () => {
     closeSignIn();
   });
 
-  it("offers no Market Square entry while the square is hidden", () => {
-    renderSidebar();
-    expect(screen.queryByRole("link", { name: /^square$/i })).toBeNull();
-    // The rest of the rail is untouched by the hide.
-    expect(screen.getByRole("button", { name: "Portfolio" })).toBeInTheDocument();
-  });
-
-  it("puts the entry back above the sections when the square is shown again", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/market-square", () => ({
-      MARKET_SQUARE_HIDDEN: false,
-      marketSquareHref: () => "https://square.test",
-    }));
-    const { Sidebar: Shown } = await import("./sidebar");
-    render(
-      <Shown
-        items={[{ id: "portfolio", label: "Portfolio", icon: () => null }]}
-        activeSection="portfolio"
-        onNavigate={() => {}}
-        open={false}
-        onClose={() => {}}
-      />
-    );
-    expect(screen.getByRole("link", { name: /^square$/i })).toHaveAttribute("href", "/square");
-  });
-
-  /**
-   * The entry is a page in this app now, not a link out. It opens /square in
-   * the same tab like every other rail row; the outbound "Open the Square"
-   * lives on that page's header. And it lights up on its route the way the
-   * other rows do on theirs.
-   */
-  it("opens the Square page in the same tab, and lights up on it", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/market-square", () => ({
-      MARKET_SQUARE_HIDDEN: false,
-      marketSquareHref: () => "https://square.test",
-    }));
-    const { Sidebar: Shown } = await import("./sidebar");
-    render(
-      <Shown
-        items={[{ id: "portfolio", label: "Portfolio", icon: () => null }]}
-        activeSection="square"
-        onNavigate={() => {}}
-        open={false}
-        onClose={() => {}}
-      />
-    );
-    const entry = screen.getByRole("link", { name: /^square$/i });
-    expect(entry).toHaveAttribute("href", "/square");
-    expect(entry).not.toHaveAttribute("target");
-    expect(entry.className).toContain("bg-accent/14");
-    expect(screen.queryByRole("link", { name: /square\.test/ })).toBeNull();
-  });
-
-  /**
-   * The shipped configuration: the square's deployment is configured and open,
-   * so the rail links out to it, while the square's own sections inside the
-   * app are off. The two are separate switches, and this asserts the rail
-   * reads only the first. Gating the rail on the sections switch would take
-   * the entry away with them, which is the state this replaced.
-   */
-  it("keeps the rail entry while the square's in-app sections are hidden", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/market-square", () => ({
-      MARKET_SQUARE_HIDDEN: false,
-      SQUARE_SECTIONS_HIDDEN: true,
-      marketSquareHref: () => "https://square.test",
-    }));
-    const { Sidebar: Shown } = await import("./sidebar");
-    render(
-      <Shown
-        items={[{ id: "portfolio", label: "Portfolio", icon: () => null }]}
-        activeSection="portfolio"
-        onNavigate={() => {}}
-        open={false}
-        onClose={() => {}}
-      />
-    );
-    expect(screen.getByRole("link", { name: /^square$/i })).toHaveAttribute("href", "/square");
-  });
-
-  /**
-   * The 2.0 rail seats the square between Prediction and Arkade rather than in
-   * a promoted block of its own, so its position is part of the design and is
-   * asserted against the rendered order, not against the markup that produces
-   * it.
-   */
-  it("seats the square between Prediction and Arkade", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/market-square", () => ({
-      MARKET_SQUARE_HIDDEN: false,
-      marketSquareHref: () => "https://square.test",
-    }));
-    const { Sidebar: Shown } = await import("./sidebar");
+  it("renders the sections in the order it is given", () => {
     const { container } = render(
-      <Shown
+      <Sidebar
         items={[
           { id: "prediction", label: "Prediction", icon: () => null },
           { id: "casino", label: "Arkade", icon: () => null },
@@ -285,28 +159,7 @@ describe("Sidebar", () => {
     const rail = container.querySelector("nav");
     if (rail === null) throw new Error("the rail rendered no nav element");
     const rows = [...rail.children].map((el) => el.textContent);
-    expect(rows).toEqual(["Prediction", "Square", "Arkade", "Arktivity"]);
-  });
-
-  // With no Arkade entry to sit above, the square must still appear rather
-  // than fall out of the rail entirely.
-  it("keeps the square in the rail when there is no Arkade entry", async () => {
-    vi.resetModules();
-    vi.doMock("@/lib/market-square", () => ({
-      MARKET_SQUARE_HIDDEN: false,
-      marketSquareHref: () => "https://square.test",
-    }));
-    const { Sidebar: Shown } = await import("./sidebar");
-    render(
-      <Shown
-        items={[{ id: "portfolio", label: "Portfolio", icon: () => null }]}
-        activeSection="portfolio"
-        onNavigate={() => {}}
-        open={false}
-        onClose={() => {}}
-      />
-    );
-    expect(screen.getByRole("link", { name: /^square$/i })).toBeInTheDocument();
+    expect(rows).toEqual(["Prediction", "Arkade", "Arktivity"]);
   });
 
   /**

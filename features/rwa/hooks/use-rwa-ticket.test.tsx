@@ -100,15 +100,6 @@ const toasts = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/toast", () => ({ toast: toasts }));
 
-const analytics = vi.hoisted(() => ({ track: vi.fn() }));
-vi.mock("@/lib/analytics/mixpanel", () => ({ track: analytics.track }));
-
-// Shine is fire-and-forget and owns its own gate, dedup and posting. What this
-// suite pins is what the ticket hands it, and on which trades it hands it
-// anything at all.
-const shine = vi.hoisted(() => ({ reportShine: vi.fn() }));
-vi.mock("@/lib/shine", () => ({ reportShine: shine.reportShine }));
-
 // Which chains have a pinned read client, and therefore a confirmation. Every
 // chain the desk lists has one against the real registry, so the case the ADR
 // excludes — a trade whose await resolves on submission alone — can only be
@@ -741,132 +732,8 @@ describe("switching side", () => {
   });
 });
 
-// A real-asset trade reports its value in dollars on both sides. The field
-// holds tokens on a sell, and sending it as amount_usd is the units bug.
-describe("what a trade reports", () => {
-  const reported = (event: string) =>
-    analytics.track.mock.calls.filter(([name]) => name === event).map(([, p]) => p);
-
-  it("reports a sale at the USDC the quote expects, with the tokens as the quantity", async () => {
-    portfolio.tokens = [
-      usdc("solana-mainnet", 1.5, SOLANA_USDC_MINT),
-      token({
-        symbol: "ONDO",
-        network: "solana-mainnet",
-        address: "solondo",
-        decimals: 9,
-        balance: 5,
-        rawBalance: "5000000000",
-        priceUsd: 2,
-        valueUsd: 10,
-      }),
-    ];
-    rwaApi.quoteAsync.mockResolvedValue(quoteResult("12000000", "11400000"));
-    rwaApi.buildAsync.mockResolvedValue(
-      action({ chain: "solana", quote: quoteResult("12000000", "11400000").best ?? undefined })
-    );
-    const view = mount({
-      asset: asset({ chain: "solana", address: "SoLONDO", id: "ondo-solana" }),
-      initialSide: "sell",
-    });
-    await type(view, "5");
-    await act(async () => {
-      await view.result.current.confirm();
-    });
-
-    expect(reported("trade_previewed")).toEqual([
-      { vertical: "rwa", asset: "ONDO", side: "sell", amount_usd: 12, token_quantity: 5 },
-    ]);
-    expect(reported("trade_completed")).toEqual([
-      {
-        vertical: "rwa",
-        asset: "ONDO",
-        side: "sell",
-        amount_usd: 12,
-        token_quantity: 5,
-        // The two amounts divided, so it cannot disagree with them.
-        fill_price_usd: 2.4,
-        amount_source: "quote",
-        // The same id its trade_submitted carried, so the two join.
-        order_id: "action-1",
-        issuer: "Ondo",
-        // Solana has no chain id both of our services agree on, so none is sent.
-        token_address: "SoLONDO",
-      },
-    ]);
-  });
-
-  it("reports a buy as the USDC it spent", async () => {
-    const view = mount({ asset: asset() });
-    await type(view, "10");
-    await act(async () => {
-      await view.result.current.confirm();
-    });
-
-    expect(reported("trade_completed")).toEqual([
-      expect.objectContaining({
-        vertical: "rwa",
-        asset: "ONDO",
-        side: "buy",
-        amount_usd: 10,
-        amount_source: "fill",
-      }),
-    ]);
-  });
-});
-
-describe("what the ticket reports to Shine", () => {
-  it("reports a confirmed buy once, keyed by the asset and the action it executed", async () => {
-    const view = mount({ asset: asset() });
-    await type(view, "10");
-    await act(async () => {
-      await view.result.current.confirm();
-    });
-
-    expect(rwaApi.execute).toHaveBeenCalledTimes(1);
-    expect(shine.reportShine).toHaveBeenCalledTimes(1);
-    expect(shine.reportShine).toHaveBeenCalledWith({
-      service: "rwa",
-      kind: "buy",
-      id: "ondo-base:action-1",
-      symbol: "ONDO",
-      price: "$2.00",
-    });
-  });
-
-  it("reports a confirmed sale with no return, because there is no cost basis", async () => {
-    portfolio.tokens = [
-      usdc("base-mainnet", 500),
-      token({
-        symbol: "ONDO",
-        network: "base-mainnet",
-        address: "0xONDO",
-        decimals: 18,
-        balance: 3,
-        rawBalance: "3000000000000000000",
-        priceUsd: 2,
-        valueUsd: 6,
-      }),
-    ];
-
-    const view = mount({ asset: asset(), initialSide: "sell" });
-    await type(view, "1");
-    await act(async () => {
-      await view.result.current.confirm();
-    });
-
-    expect(shine.reportShine).toHaveBeenCalledTimes(1);
-    expect(shine.reportShine).toHaveBeenCalledWith({
-      service: "rwa",
-      kind: "sell",
-      id: "ondo-base:action-1",
-      symbol: "ONDO",
-      price: "$2.00",
-      pnl: null,
-    });
-  });
-
-  it("reports nothing on a chain where the await resolves on submission alone", async () => {
+describe("a chain where the await resolves on submission alone", () => {
+  it("still runs the trade", async () => {
     const arbitrum = asset({ id: "ondo-arb", chain: "arbitrum", address: "0xARBONDO" });
     rwaApi.buildAsync.mockResolvedValue(action({ chain: "arbitrum" }));
     portfolio.tokens = [usdc("arb-mainnet", 500)];
@@ -877,20 +744,6 @@ describe("what the ticket reports to Shine", () => {
       await view.result.current.confirm();
     });
 
-    // The trade itself still ran; only the post is withheld.
     expect(rwaApi.execute).toHaveBeenCalledTimes(1);
-    expect(shine.reportShine).not.toHaveBeenCalled();
-  });
-
-  it("reports nothing when the trade failed", async () => {
-    rwaApi.execute.mockRejectedValueOnce(new Error("wallet rejected"));
-
-    const view = mount({ asset: asset() });
-    await type(view, "10");
-    await act(async () => {
-      await view.result.current.confirm();
-    });
-
-    expect(shine.reportShine).not.toHaveBeenCalled();
   });
 });

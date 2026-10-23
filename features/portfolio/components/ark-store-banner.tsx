@@ -9,7 +9,7 @@ const DIVIDER = "/casino/set-the-stake/divider.svg";
 
 // The deck's artboard: drawn once at this size in real pixels and scaled as one
 // piece, so every position and font size keeps its ratio at any width instead
-// of stretching. Same geometry as the casino and square cards beside it. The
+// of stretching. Same geometry as the casino cards beside it. The
 // deck was cut like a ticket, with a column of bumps at each end, and the art
 // was measured from the fill those left inside; the edges are straight now
 // (2026-09-29), the fill is the card, and the art keeps its box.
@@ -32,8 +32,8 @@ const TILES = [
 /**
  * The ArkStore promo, first in the deck.
  *
- * The three tickets beside it are each a colour: the casino's red, Kash's gold,
- * the square's purple. This one is the app itself, so it is the brand's own
+ * The tickets beside it are each a colour: the casino's red, Kash's gold.
+ * This one is the app itself, so it is the brand's own
  * ink and white rather than a fourth hue, and the motif is the thing being
  * offered: a phone's home screen with the Ark tile lit, and the download badge
  * that puts it there. Drawn in CSS rather than exported, so it needs no

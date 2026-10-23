@@ -19,13 +19,7 @@ import {
   type RwaQuote,
   type RwaQuoteRequest,
 } from "@/features/rwa/lib/api";
-import { rwaEntryPrice, rwaShineEvent, rwaTradeId } from "@/features/rwa/lib/shine";
-import { reportShine } from "@/lib/shine";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
-import { TRADE_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
-import { tradeAmounts, type TradeAmounts } from "@/lib/analytics/trade-amounts";
-import { chainIdOfNetwork } from "@/lib/meme/chain";
 import { depositProgress, quoteFee, settlementFor, type DepositProgress } from "@/lib/deposit";
 import {
   clearPendingRwaSettlement,
@@ -442,10 +436,6 @@ export function useRwaTicket({
     setAmount((Math.floor(spendableUsd * 100) / 100).toFixed(2));
   };
 
-  useEffect(() => {
-    track("market_viewed", { vertical: "rwa", asset: asset.symbol });
-  }, [asset.symbol]);
-
   // Refresh the portfolio as the Dextopus request advances. These reads use
   // `fresh=1`, so the Base debit and Solana/Base credit show in the UI without
   // waiting for the ordinary portfolio polling cadence.
@@ -466,9 +456,6 @@ export function useRwaTicket({
     }
 
     if (settlementStage === "settled") {
-      // Nothing is reported to Shine from here. This poll follows the proceeds
-      // of a sale that was already confirmed, and posted, at the execute above;
-      // the leg it is watching moves USDC between chains and is not a trade.
       // Base-to-Solana purchases are owned by the dashboard-level settlement
       // worker. It survives this ticket closing and completes the sponsored RWA
       // transaction without exposing a second bridge step to the user.
@@ -508,51 +495,11 @@ export function useRwaTicket({
     }
   }, [amount, portfolio, refreshPortfolio, settlementRequest, settlementStage, t, tradedNetworks]);
 
-  // A trade's dollar value and token quantity from its request and quote. The
-  // pay and proceeds leg is always the chain's USDC (see payInput). Null when
-  // the leg the dollar figure comes from is missing, so nothing is reported
-  // rather than a figure nobody knows.
-  function rwaTradeAmounts(amountIn: string, q: RwaQuote | null | undefined): TradeAmounts | null {
-    const usdcDecimals = USDC_BY_CHAIN[asset.chain].decimals;
-    const output = q?.output.amount;
-    if (isBuy) {
-      return tradeAmounts({
-        usdRaw: BigInt(amountIn),
-        usdDecimals: usdcDecimals,
-        tokenRaw: output && /^\d+$/.test(output) && holding ? BigInt(output) : null,
-        tokenDecimals: holding?.decimals ?? null,
-        source: "quote",
-      });
-    }
-    if (!output || !/^\d+$/.test(output) || !holding) return null;
-    return tradeAmounts({
-      usdRaw: BigInt(output),
-      usdDecimals: usdcDecimals,
-      tokenRaw: BigInt(amountIn),
-      tokenDecimals: holding.decimals,
-      source: "quote",
-    });
-  }
-
   // The trade itself. The build re-prices server-side, while the staleness
   // gate ensures the user never executes against an old displayed quote.
   async function executeTrade() {
     const req = buildReq(amount);
     if (!req) return;
-
-    // The attempt. `trade_completed` below only counts the ones that execute.
-    // Priced from the quote's legs: the field holds tokens on a sell, so it is
-    // never the dollar figure itself.
-    const quoted = rwaTradeAmounts(req.amountIn, quote);
-    if (quoted) {
-      track("trade_previewed", {
-        vertical: "rwa",
-        asset: asset.symbol,
-        side: isBuy ? "buy" : "sell",
-        amount_usd: quoted.amount_usd,
-        token_quantity: quoted.token_quantity,
-      });
-    }
 
     // Sponsored chains never gate on native gas; the check only applies where
     // the wallet really pays its own fee.
@@ -627,53 +574,9 @@ export function useRwaTicket({
           },
         });
       }
-      // The built action is the order: its id is what support and the venue
-      // know it by, and nothing is signed before this point.
-      if (quoted) {
-        track("trade_submitted", {
-          vertical: "rwa",
-          asset: asset.symbol,
-          side: isBuy ? "buy" : "sell",
-          amount_usd: quoted.amount_usd,
-          token_quantity: quoted.token_quantity,
-          order_id: action.actionId,
-        });
-      }
       await execute(action, asset.chain, (index, step) => {
         setSignStep({ index, total: action.steps.length, label: step.description });
       });
-      // The await returning IS the confirmation, on the chains that give one.
-      // Once per action, so nothing here can re-fire; rwaShineEvent withholds
-      // the post on a chain where that await resolves on submission alone.
-      const shineEvent = rwaShineEvent({
-        id: rwaTradeId(asset.id, action.actionId),
-        symbol: asset.symbol,
-        chain: asset.chain,
-        side: isBuy ? "buy" : "sell",
-        price: rwaEntryPrice(asset),
-        stepCount: action.steps.length,
-      });
-      if (shineEvent) reportShine(shineEvent);
-      // The build re-prices server-side, so its quote is the latest word on
-      // what the trade moves. A buy's input is exact USDC, so once executed its
-      // dollar figure is what was spent; a sale's proceeds are still expected.
-      const executed = rwaTradeAmounts(req.amountIn, action.quote ?? quote);
-      if (executed) {
-        track("trade_completed", {
-          vertical: "rwa",
-          asset: asset.symbol,
-          side: isBuy ? "buy" : "sell",
-          ...executed,
-          amount_source: isBuy ? "fill" : "quote",
-          order_id: action.actionId,
-          issuer: asset.issuer,
-          token_address: asset.address,
-          chain_id:
-            asset.chain === "solana"
-              ? undefined
-              : (chainIdOfNetwork(chainNetwork(asset.chain)) ?? undefined),
-        });
-      }
       toast.success(
         isBuy
           ? t("boughtSymbol", { symbol: asset.symbol })
@@ -696,15 +599,6 @@ export function useRwaTicket({
     } catch (e) {
       if (saleHandoffId) clearPendingRwaSettlement(saleHandoffId);
       const info = rwaErrorInfo(errorCode(e), e instanceof Error ? e.message : undefined);
-      // The provider's own code, which is already a coded string. The raw
-      // message is never sent: it can quote back what the user typed.
-      track("trade_failed", {
-        vertical: "rwa",
-        asset: asset.symbol,
-        side: isBuy ? "buy" : "sell",
-        ...reasonFor(TRADE_FAILURE, e),
-        amount_usd: quoted?.amount_usd,
-      });
       setSignStep(null);
       setNotice({ kind: "error", message: info.message });
       toast.error(info.message, { id: toastId });

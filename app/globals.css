@@ -1440,56 +1440,6 @@ body:has([data-chess-setup-open]) [data-support-launcher] {
   }
 }
 
-/* Financial-data guard. While a broadcast is running and the "blur balances"
-   choice is on, anything marked data-sensitive is blurred in the outgoing
-   capture as well as on screen: a screen share sends the rendered pixels, so
-   blurring here is what actually protects the number. Opt out per element by
-   not marking it; never dependent on the user remembering. */
-:root.broadcasting.broadcasting-blur [data-sensitive] {
-  filter: blur(7px);
-  transition: filter 120ms ease-out;
-}
-
-/* Toasts render in a portal outside the page, so a container marker cannot
-   reach them. A toast that names an amount opts in through toast({ sensitive })
-   and is blurred here with everything else. */
-:root.broadcasting.broadcasting-blur .ws-toast-sensitive {
-  filter: blur(7px);
-  transition: filter 120ms ease-out;
-}
-
-/* Deliberately no hover or focus reveal. A screen share sends the rendered
-   pixels, so un-blurring on hover would push a balance to every viewer on an
-   accidental mouse-over. Reading your own numbers means turning the blur off
-   in the console, which is a decision rather than a gesture. */
-
-/* The wink face on the Square's people deck: the open-eyed frame blinks over
-   the winking one on the file's own 2.2s clock. Rests on the wink under
-   reduced motion. Carried over from the Square's globals. */
-@keyframes ws-wink-blink {
-  0%,
-  36.36% {
-    opacity: 0;
-  }
-  50%,
-  86.36% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-
-@utility ws-wink-blink {
-  animation: ws-wink-blink 2.2s linear infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .ws-wink-blink {
-    animation: none;
-  }
-}
-
 /* The example names drifting behind the Ark ID search. Each pill sets its own
    duration, delay and resting angle, so the group never moves as one block. */
 @keyframes ws-name-float {

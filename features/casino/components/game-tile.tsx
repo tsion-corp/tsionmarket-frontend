@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { track } from "@/lib/analytics/mixpanel";
-import { TRACKED_GAMES, type CasinoGame, type TileSize } from "@/features/casino/lib/games";
+import { type CasinoGame, type TileSize } from "@/features/casino/lib/games";
 import type { GamePresence } from "@/features/casino/lib/api/types";
 
 // A next-intl t scoped to "casino.hub", passed into the label helpers.
@@ -181,13 +180,6 @@ export function GameTile({ game, presence, headline }: GameTileProps) {
   return (
     <Link
       href={game.href}
-      // Only the games the catalog names report an open; the other tiles
-      // (ayo, poker, racing, and anything added later) have no agreed name, so
-      // they send nothing rather than inventing one.
-      onClick={() => {
-        const game_id = TRACKED_GAMES[game.id];
-        if (game_id) track("game_opened", { game: game_id });
-      }}
       className={`${frame} hover:border-accent/60 cursor-pointer hover:-translate-y-0.5`}
     >
       {body}

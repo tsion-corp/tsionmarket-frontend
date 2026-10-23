@@ -204,9 +204,8 @@ export function friendlyError(
   // Trade service failures are decided by code, before any text rule below
   // could keep a "safe-looking" upstream sentence.
   // The message is the sentence alone. The request id is a support token, not
-  // something to read: it already rides to Watchtower on every upstream
-  // failure, and the surfaces that want it on screen render it as fine print
-  // through supportDetail rather than inside the sentence.
+  // something to read: the surfaces that want it on screen render it as fine
+  // print through supportDetail rather than inside the sentence.
   const tradeKey = tradeErrorKey(e);
   if (tradeKey) return translate ? translate(tradeKey) : fallback;
 

@@ -23,15 +23,6 @@ import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { depositProgress, usdcBaseUnits, type DepositStage } from "@/lib/deposit";
 import { formatAmount, fromBaseUnits } from "@/lib/trade/math";
 import { toast } from "@/lib/toast";
-import { tradeShareRef } from "@/lib/trade-share";
-import { useMoney } from "@/components/ui/currency-select";
-import { ShareToSquare } from "@/components/share/share-to-square";
-import { reportShine } from "@/lib/shine";
-import { track } from "@/lib/analytics/mixpanel";
-import { TRADE_FAILURE, failureReasonForStage, reasonFor } from "@/lib/analytics/failure-reason";
-import { tradeAmounts, USDC_DECIMALS, type TradeAmounts } from "@/lib/analytics/trade-amounts";
-import { swapTradeFacts } from "@/features/trade/lib/trade-analytics";
-import { useSpotMode } from "@/features/trade/components/spot-mode";
 import { friendlyError } from "@/lib/errors";
 import type { BuyPayload } from "@/lib/modal-types";
 
@@ -128,8 +119,6 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   const [requestId, setRequestId] = useState<string | null>(null);
   // The settled transaction for the order path. The swap path carries its own
   // on the trade hook, since only it knows which of its calls was the swap.
-  const [settledTx, setSettledTx] = useState<{ txHash: string; chainId: number } | null>(null);
-  const [sharing, setSharing] = useState(false);
   const [bought, setBought] = useState<string>("");
   const [picking, setPicking] = useState(false);
   const status = useDepositStatus(requestId, "trade");
@@ -144,9 +133,6 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   );
 
   const value = Number(amount) || 0;
-  // The same formatter the activity rows use, so a shared figure reads
-  // identically wherever it is shared from.
-  const money = useMoney();
   // Only flag a shortfall once the balance has actually loaded; until then we
   // don't know it, and a zero must block like any other insufficient balance.
   const notEnough = !portfolio.loading && value > balance;
@@ -169,9 +155,6 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   // unit price. This is a preview; the exact amount is quoted at buy time and
   // confirmed on the receipt.
   const preview = value > 0 && payload.priceUsd > 0 ? formatAmount(value / payload.priceUsd) : "";
-
-  // Which spot screen the fill came from, so the two can be compared.
-  const { mode: spotMode } = useSpotMode();
 
   const dextopusProgress = useMemo(
     () =>
@@ -218,72 +201,17 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
   //
   // The order this mount has already settled, not a bare "has settled": the
   // effect fires from a cached terminal status row rather than from an event,
-  // and a boolean says nothing about WHICH order it was. It is still only a
-  // ref — a remount starts with a clean one and re-reads the same terminal
-  // row — and the Shine dedup store is what stops that becoming a second
-  // public post.
+  // and a boolean says nothing about WHICH order it was.
   const settledRef = useRef<string | null>(null);
   // Identifies the order this settlement belongs to. A swap-market buy has no
   // Dextopus request, so its own swap id stands in.
   const settlementKey = isSwapMarket ? memeTrade.swapId : requestId;
   // Id of the processing toast opened on confirm, resolved when the order settles.
   const toastRef = useRef<string | number | undefined>(undefined);
-  // What the order in flight spends, fixed when it is placed: the field may
-  // hold a different amount by the time it settles.
-  const spentRef = useRef<TradeAmounts | null>(null);
   useEffect(() => {
     if (!showTracking || (settlementKey !== null && settledRef.current === settlementKey)) return;
     if (stage === "settled") {
       settledRef.current = settlementKey;
-      // A swap-market buy is reported to Shine by the engine itself, from the
-      // one place it reaches CONFIRMED (see useMemeTrade), where the quote's
-      // symbol and price are in hand. Only the Dextopus path is reported
-      // here, and only once there is a request id to key the dedup store on.
-      //
-      // WHY THIS CANNOT SERVE A BACKLOG, AND WHAT WOULD BREAK THAT
-      //
-      // useDepositStatus stops polling on a terminal stage but keeps the row
-      // CACHED, so reading one is not the same as watching one land. The only
-      // reason a week-old buy cannot be republished here is that `requestId`
-      // is component state: a sheet opened fresh starts it null, showTracking
-      // is false, and the cached row is never looked at. Every settlement
-      // reported here was placed by THIS mount of the sheet.
-      //
-      // Shine's dedup store stops the second post of something and does
-      // nothing about the first, and on the day Shine ships every store is
-      // empty while the app is full of settled orders. Lifting `requestId`
-      // into a store or a URL param would quietly turn this into a backlog
-      // publisher with no test failing, and would have to bring a freshness
-      // bound with it (SHINE_MAX_SETTLEMENT_AGE_MS, features/trade/lib/
-      // shine-trade.ts).
-      if (!isSwapMarket && requestId !== null) {
-        reportShine({
-          service: "spot",
-          id: requestId,
-          kind: "buy",
-          symbol: payload.symbol,
-          // DepositStatusResult carries a status, an execution status and the
-          // transaction hashes — no execution price. `bought` above is a
-          // quantity and the dollars entered are an amount; neither is a
-          // price, and neither may reach a post.
-          price: null,
-        });
-      }
-      // Reported on settlement rather than on confirm, so the number counts
-      // filled orders and not attempts. A swap-market buy is reported from its
-      // own result in confirm() instead, where the amounts and the reference
-      // are, and where a delivered swap is counted too.
-      if (!isSwapMarket && spentRef.current) {
-        track("trade_completed", {
-          vertical: "spot",
-          asset: payload.symbol,
-          side: "buy",
-          ...spentRef.current,
-          network: route?.chainName,
-          mode: spotMode,
-          order_id: requestId ?? undefined,
-        });
-      }
       toast.success(t("boughtToast", { name: payload.name }), { id: toastRef.current });
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged(
@@ -294,18 +222,6 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
       );
     } else if (stage === "failed" || stage === "refunded") {
       settledRef.current = settlementKey;
-      // A swap-market failure carries the error it failed with; a Dextopus
-      // order only says which stage it ended in.
-      track("trade_failed", {
-        vertical: "spot",
-        asset: payload.symbol,
-        side: "buy",
-        ...(isSwapMarket
-          ? reasonFor(TRADE_FAILURE, memeTrade.error)
-          : failureReasonForStage(TRADE_FAILURE, stage)),
-        amount_usd: spentRef.current?.amount_usd,
-        order_id: isSwapMarket ? undefined : (requestId ?? undefined),
-      });
       // A swap-market failure is already toasted, with the real reason, from
       // confirm()'s own catch below — trade() only resolves or rejects once
       // the whole flow (including confirmation polling) is done, so there is
@@ -321,16 +237,11 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
     showTracking,
     stage,
     isSwapMarket,
-    memeTrade.error,
     settlementKey,
     payload.name,
-    payload.symbol,
-    route?.chainName,
     route?.destinationChainId,
-    requestId,
     portfolio,
     t,
-    spotMode,
   ]);
 
   // A loading toast never times out, and closing the sheet unmounts the settle
@@ -344,32 +255,9 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
     []
   );
 
-  // Opening the sheet is opening that market. Keyed by symbol so it reports
-  // once per asset rather than on every re-render of the same sheet.
-  useEffect(() => {
-    track("market_viewed", { vertical: "spot", asset: payload.symbol });
-  }, [payload.symbol]);
-
   const confirm = async () => {
     if (!route && !swapRoute) return;
     if (isSwapMarket && (!swapTradable || !swapConsent.consented)) return;
-    // The attempt, as opposed to the fill reported on settlement. The two
-    // together are what make the drop-off between them visible.
-    track("trade_previewed", {
-      vertical: "spot",
-      asset: payload.symbol,
-      side: "buy",
-      amount_usd: value,
-    });
-    // A buy's input is exact USDC, so what it spends is known up front.
-    const spent = tradeAmounts({
-      usdRaw: usdcBaseUnits(amount),
-      usdDecimals: USDC_DECIMALS,
-      tokenRaw: null,
-      tokenDecimals: null,
-      source: "fill",
-    });
-    spentRef.current = spent;
     toastRef.current = toast.loading(t("buyingToast", { name: payload.name }));
     if (swapRoute) {
       try {
@@ -379,30 +267,7 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
           tokenAddress: swapRoute.tokenAddress,
           amount,
           slippageBps: SLIPPAGE_BPS,
-          onSubmitted: (swapId) =>
-            track("trade_submitted", {
-              vertical: "spot",
-              asset: payload.symbol,
-              side: "buy",
-              amount_usd: spent.amount_usd,
-              order_id: swapId,
-            }),
-          // A spot buy that settles through the swap engine: spot's Shine
-          // decides it and spot's voice writes it. The engine posts it from
-          // its own CONFIRMED branch, so the settle effect above leaves the
-          // swap path alone and one buy makes one post.
-          shineService: "spot",
         });
-        const facts = swapTradeFacts(result, spent);
-        if (facts) {
-          track("trade_completed", {
-            vertical: "spot",
-            asset: payload.symbol,
-            side: "buy",
-            ...facts,
-            mode: spotMode,
-          });
-        }
         // CONFIRMED is toasted "bought" by the settlement effect above.
         // Delivered and pending are not settled and say so, with the
         // reference support will ask for.
@@ -441,17 +306,7 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
         slippageBps: SLIPPAGE_BPS,
       });
       setBought(formatAmount(Number(fromBaseUnits(result.estimatedOutput, route.decimals))));
-      track("trade_submitted", {
-        vertical: "spot",
-        asset: payload.symbol,
-        side: "buy",
-        amount_usd: spent.amount_usd,
-        order_id: result.requestId,
-      });
       setRequestId(result.requestId);
-      // Kept so the confirmation can offer to share it. It was discarded
-      // before, which is why the settled screen had nothing to point at.
-      setSettledTx({ txHash: result.txHash, chainId: route.destinationChainId });
     } catch {
       // The detailed message is surfaced from buy.error below; resolve the toast.
       toast.error(t("buyFailedToast", { name: payload.name }), { id: toastRef.current });
@@ -466,10 +321,6 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
     const unrecorded = isSwapMarket && swapUnrecorded;
     // The support reference for a trade the service has not recorded yet.
     const unrecordedRef = tradeRef(memeTrade.swapId, memeTrade.requestId);
-    // Whichever path settled. Null means the trade cannot be pointed at, and
-    // then no share is offered at all.
-    const settlement = isSwapMarket ? memeTrade.settled : settledTx;
-    const shareRef = tradeShareRef(settlement?.chainId ?? null, settlement?.txHash ?? null);
     // Green marks money that verifiably moved; pending stays neutral.
     const color = failed
       ? "#f6a5a5"
@@ -534,46 +385,12 @@ export function BuySheet({ payload, onClose, onTopUp }: BuySheetProps) {
           )}
         </div>
 
-        {/* Offered at the moment it happened, which is the only moment somebody
-            actually wants to post about it. Until now the only way to share a
-            trade was to leave, open the activity list and find the row.
-
-            Only when the trade can be pointed at: an unknown chain or a hash
-            that is not one yields no ref and no button, because a share that
-            posts a dead link is worse than no share. */}
-        {done && shareRef && (
-          <button
-            onClick={() => setSharing(true)}
-            className="ws-press mt-5 w-full cursor-pointer rounded-[14px] border border-white/20 p-3.5 font-sans text-[15px] font-semibold text-white hover:bg-white/8"
-          >
-            {t("shareToSquare")}
-          </button>
-        )}
-
         <button
           onClick={onClose}
-          className={`ws-chrome text-ink w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90 ${
-            done && shareRef ? "mt-3" : "mt-5"
-          }`}
+          className="ws-chrome text-ink mt-5 w-full cursor-pointer rounded-[14px] bg-white p-3.5 font-sans text-[15px] font-semibold hover:opacity-90"
         >
           {t("done")}
         </button>
-
-        {sharing && shareRef && (
-          <ShareToSquare
-            draft={{
-              title: t("boughtShareTitle", { name: payload.name }),
-              subtitle: boughtAmount ? `${boughtAmount} ${payload.symbol}` : payload.symbol,
-              deepLink: { kind: "trade", ref: shareRef },
-              suggestedText: "",
-              // Same rule the activity rows follow: the figure is opt-in,
-              // never carried into the card because the sharing code knew it.
-              amount: value > 0 ? money.format(value) : undefined,
-            }}
-            open
-            onClose={() => setSharing(false)}
-          />
-        )}
       </div>
     );
   }

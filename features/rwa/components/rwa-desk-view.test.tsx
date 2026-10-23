@@ -16,15 +16,6 @@ vi.mock("@/hooks/use-fitted-row-count", () => ({
   useFittedRowCount: () => ({ ref: () => {}, rows: fittedRows }),
 }));
 
-// The Shine switch is the account's own preference behind a React Query read
-// and a Privy session. What matters here is that this page carries one, and
-// for which service, so it stands in as a marker naming the service it decides.
-vi.mock("@/components/shine/shine-toggle", () => ({
-  ShineToggle: ({ service }: { service: string }) => (
-    <div data-testid="shine-toggle">{service}</div>
-  ),
-}));
-
 const registry = {
   assets: [] as RwaAssetView[],
   loading: false,
@@ -158,16 +149,6 @@ describe("RwaDeskView layout", () => {
     expect(deskGrid()).toHaveClass("items-stretch");
     const panel = screen.getByRole("grid").parentElement?.parentElement;
     expect(panel).toHaveClass("self-stretch");
-  });
-});
-
-describe("RwaDeskView Shine", () => {
-  // Shine moved to the account menu on 2026-09-25: one switch panel for all
-  // seven services instead of a card on each page. This asserts the card has
-  // not come back, which is what stops them reappearing one page at a time.
-  it("does not carry a Shine card: Shine lives in the account menu", () => {
-    renderDesk();
-    expect(screen.queryByTestId("shine-toggle")).toBeNull();
   });
 });
 
