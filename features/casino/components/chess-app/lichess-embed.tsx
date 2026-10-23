@@ -68,7 +68,7 @@ export function LichessGameEmbed({
         const [rawPgn, match, module] = await Promise.all([
           fetchPgn(matchId),
           fetchMatch(matchId),
-          import(/* webpackIgnore: true */ LPV_MODULE) as Promise<LpvModule>,
+          import(/* webpackIgnore: true */ new URL(LPV_MODULE, window.location.origin).href) as Promise<LpvModule>,
           loadLichessStyle(THEME_CSS),
           loadLichessStyle(EMBED_CSS),
         ]);
