@@ -20,10 +20,6 @@ import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
-import { TRADE_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
-import { pricedTradeAmounts } from "@/lib/analytics/trade-amounts";
-import { swapTradeFacts } from "@/features/trade/lib/trade-analytics";
 import { friendlyError, supportDetail, isStaleBalanceRevert } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
@@ -186,21 +182,6 @@ export function useSpotSell({
     if (value <= 0 || blockedReason !== null) return;
 
     setBusy(true);
-    // What the sale is worth at the price on screen. The swap engine replaces
-    // it with what the receipt proves; Dextopus reports no proceeds when it
-    // accepts the order, so there it stays the figure reported.
-    const priced = pricedTradeAmounts(
-      toBaseUnits(entered, holding.decimals),
-      holding.decimals,
-      holding.priceUsd
-    );
-    track("trade_previewed", {
-      vertical: "spot",
-      asset: holding.symbol,
-      side: "sell",
-      amount_usd: priced.amount_usd,
-      token_quantity: priced.token_quantity,
-    });
     toastRef.current = toast.loading(t("sellingToast", { symbol: holding.symbol }));
 
     if (swapRoute) {
@@ -211,15 +192,6 @@ export function useSpotSell({
           tokenAddress: swapRoute.tokenAddress,
           amount: entered,
           slippageBps: SLIPPAGE_BPS,
-          onSubmitted: (swapId) =>
-            track("trade_submitted", {
-              vertical: "spot",
-              asset: holding.symbol,
-              side: "sell",
-              amount_usd: priced.amount_usd,
-              token_quantity: priced.token_quantity,
-              order_id: swapId,
-            }),
         });
         // Only the service's CONFIRMED is "sold". Delivered-but-unrecorded and
         // pending say so, with the reference support will ask for.
@@ -233,25 +205,9 @@ export function useSpotSell({
           { id: toastRef.current }
         );
         toastRef.current = undefined;
-        const facts = swapTradeFacts(result, priced);
-        if (facts) {
-          track("trade_completed", {
-            vertical: "spot",
-            asset: holding.symbol,
-            side: "sell",
-            ...facts,
-          });
-        }
         onSold();
         void portfolio.refetchUntilChanged(scopeOf(networkForChainId(BASE_CHAIN_ID)));
       } catch (error) {
-        track("trade_failed", {
-          vertical: "spot",
-          asset: holding.symbol,
-          side: "sell",
-          ...reasonFor(TRADE_FAILURE, error),
-          amount_usd: priced.amount_usd,
-        });
         toast.error(
           `${friendlyError(error, t("sellFailedToast", { symbol: holding.symbol }))} ${supportDetail(error)}`.trim(),
           { id: toastRef.current }
@@ -277,28 +233,11 @@ export function useSpotSell({
         slippageBps: SLIPPAGE_BPS,
         maxRequested,
       });
-      // Accepted, not yet settled: Dextopus reports the sale's proceeds later.
-      const soldValue = pricedTradeAmounts(sold, holding.decimals, holding.priceUsd);
-      track("trade_submitted", {
-        vertical: "spot",
-        asset: holding.symbol,
-        side: "sell",
-        amount_usd: soldValue.amount_usd,
-        token_quantity: soldValue.token_quantity,
-        order_id: result.requestId,
-      });
       savePendingRwaSettlement({
         requestId: result.requestId,
         direction: "solana-to-base",
         assetSymbol: holding.symbol,
         createdAt: Date.now(),
-      });
-      track("trade_completed", {
-        vertical: "spot",
-        asset: holding.symbol,
-        side: "sell",
-        ...soldValue,
-        order_id: result.requestId,
       });
       toast.success(t("takesAMoment"), { id: toastRef.current });
       toastRef.current = undefined;
@@ -317,13 +256,6 @@ export function useSpotSell({
         // Refused for the balance itself, so our snapshot is behind the chain.
         void portfolio.refetch();
       }
-      track("trade_failed", {
-        vertical: "spot",
-        asset: holding.symbol,
-        side: "sell",
-        ...reasonFor(TRADE_FAILURE, error),
-        amount_usd: priced.amount_usd,
-      });
       // The raw reason travels with the friendly line: a screenshot of this
       // toast has to be enough for someone to act on, which is what
       // supportDetail exists for.

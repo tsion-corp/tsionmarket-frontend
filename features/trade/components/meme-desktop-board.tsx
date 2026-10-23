@@ -470,11 +470,6 @@ export function MemeDesktopBoard({
         {listControls ? <div data-region="list-controls">{listControls}</div> : null}
       </div>
 
-      {/* Shine, at the head of the desk rather than behind a settings sheet.
-          It is on by default and posts a confirmed trade publicly without
-          asking each time, so the desk someone is trading on is where they
-          have to be able to see and change it. */}
-
       {/* The two columns sit side by side from lg. Below that they stack: the
           rail alone is 468px and the table asks for about 360px, so on a tablet
           they cannot share a row without the page scrolling sideways. Stacked,

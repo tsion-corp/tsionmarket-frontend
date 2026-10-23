@@ -15,7 +15,6 @@ import { PasskeyStep } from "@/components/auth/passkey-step";
 import { useDevicePasskey } from "@/hooks/use-device-passkey";
 import { usePasskeyNudgeDue } from "@/lib/passkey-nudge";
 import { useAuthSession } from "@/hooks/use-auth-session";
-import { track } from "@/lib/analytics/mixpanel";
 
 // How long the redirect waits on the "can this device hold a passkey?" check
 // before giving up and routing anyway.
@@ -92,21 +91,6 @@ export function SignInPanel({ variant, onSignedIn }: SignInPanelProps) {
   // succeeded.
   const offerPasskey = signedIn && canAdd === true && !needsReauth && nudgeDue;
   const holdRedirect = passkeyCheckPending || offerPasskey;
-
-  // The top of the funnel: the sign-in screen was reached by someone signing
-  // in. Reported once per mount, before any method is chosen, so the drop-off
-  // to a completed sign-in is measurable. Not for a visitor with a live session:
-  // this page forwards them straight on, and counting them inflated the top of
-  // the funnel with people who were never signing in.
-  const authStartedReported = useRef(false);
-  useEffect(() => {
-    if (!ready || authenticated || authStartedReported.current) return;
-    authStartedReported.current = true;
-    // `intent` is which door was used, not what the visitor turns out to be:
-    // this screen is one form for both, so everyone arriving at it is reported
-    // as signing in until a completed signup says otherwise.
-    track("auth_started", { intent: "login" });
-  }, [ready, authenticated]);
 
   // Runs after any sign-in completes and for already-signed-in visitors.
   // Decane provisions the wallets during sign-in itself (no separate creation

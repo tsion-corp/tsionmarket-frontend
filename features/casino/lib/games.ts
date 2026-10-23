@@ -1,5 +1,3 @@
-import type { Game } from "@/lib/analytics/events";
-
 // The casino's game catalogue: which games exist, where they live, and how
 // their tile is laid out. This is static product structure, not game data.
 // Everything that changes (jackpots, who is playing, queue depth) comes from
@@ -209,21 +207,3 @@ export function filterGames(
     return inCategory && (!q || nameOf(g).toLowerCase().includes(q));
   });
 }
-
-// The three games the catalogue names to the analytics layer. Anything else has
-// no agreed id, so opening it reports nothing rather than inventing one.
-//
-// This lives here, beside the ids it maps, because three call sites need it:
-// the phone tiles, the desktop hub's tiles, and the casino route, which fires
-// the event itself now that ArkadeDesktop is presentational. It was duplicated
-// in two of those before, and the desktop copy silently stopped firing when the
-// hub it lived in was replaced.
-export const TRACKED_GAMES: Record<string, Game | undefined> = {
-  chess: "chess",
-  checkers: "checkers",
-  "last-standing": "last_man",
-  arkball: "arkball",
-  arkjet: "arkjet",
-  // The catalog's name for the game this app routes at /casino/chicken.
-  chicken: "pilot_chicken",
-};

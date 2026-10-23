@@ -369,9 +369,8 @@ export function SpotDesktopView({ onAddFunds }: SpotDesktopViewProps = {}) {
   //
   // The subtraction is short because this box is the one the height is set
   // on. Border-box sizing puts its own p-8 inside the figure, so the padding
-  // is spent from the screen rather than added to it, and the shell's main
-  // already reserves the broadcast bar as its own bottom padding, so only the
-  // topbar (79px from md up, in flow above this) and that same bar come off.
+  // is spent from the screen rather than added to it, so only the topbar
+  // (79px from md up, in flow above this) comes off.
   // Topbar plus this container then comes to exactly main's content box, and
   // the page does not scroll when nothing overflows.
   //
@@ -382,7 +381,7 @@ export function SpotDesktopView({ onAddFunds }: SpotDesktopViewProps = {}) {
   // the two columns stack, and a stacked desk pinned to the viewport would put
   // the ticket permanently below the fold.
   return (
-    <div className="mx-auto flex w-full max-w-[1520px] flex-col p-4 sm:p-6 lg:p-8 xl:min-h-[calc(100dvh-79px-var(--ws-live-bar,0px))]">
+    <div className="mx-auto flex w-full max-w-[1520px] flex-col p-4 sm:p-6 lg:p-8 xl:min-h-[calc(100dvh-79px)]">
       <div className="flex grow flex-col gap-4">
         <SearchField
           value={query}
@@ -392,11 +391,6 @@ export function SpotDesktopView({ onAddFunds }: SpotDesktopViewProps = {}) {
           disabled={loading || error}
           className="max-w-[394px]"
         />
-
-        {/* Shine, at the head of the desk rather than behind a settings
-            sheet. It is on by default and posts a filled buy publicly without
-            asking each time, so the screen someone is trading on is where
-            they have to be able to see and change it. */}
 
         {error ? (
           <AsyncError

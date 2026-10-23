@@ -20,7 +20,6 @@ import { SolanaBalanceChangedError } from "@/lib/trade/solana-balance";
 import { hasGasPolicyForNetwork } from "@/lib/trade/sponsored-evm";
 import { nativeSymbol, networkLabel } from "@/lib/trade/networks";
 import { toast } from "@/lib/toast";
-import { track } from "@/lib/analytics/mixpanel";
 import { friendlyError, isGasFeeError, supportDetail, isStaleBalanceRevert } from "@/lib/errors";
 import type { SellPayload } from "@/lib/modal-types";
 
@@ -132,22 +131,7 @@ export function SellSheet({ payload, onClose, initialAmount = "" }: SellSheetPro
     []
   );
 
-  useEffect(() => {
-    track("market_viewed", { vertical: "spot", asset: payload.symbol });
-  }, [payload.symbol]);
-
   const confirm = async () => {
-    track("trade_previewed", {
-      vertical: "spot",
-      asset: payload.symbol,
-      side: "sell",
-      amount_usd: proceedsUsd,
-      // The schema requires the quantity on a sell (see lib/analytics/schema);
-      // without it the validator throws in development, before the sale even
-      // starts — which is how HYPE, APE and MON "would not sell" locally.
-      token_quantity: value,
-      network: payload.network,
-    });
     toastRef.current = toast.loading(t("sellingToast", { symbol: payload.symbol }));
     try {
       // Clamp to the exact on-chain balance so a "max" never sends more than the

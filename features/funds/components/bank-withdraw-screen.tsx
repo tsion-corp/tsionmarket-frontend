@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { SheetNav } from "@/components/ui/sheet-nav";
 import { useModalScreen } from "@/components/ui/modal-shell";
-import { MASK_ATTRIBUTE, NO_AUTOCAPTURE_CLASS } from "@/lib/analytics/clarity";
+import { MASK_ATTRIBUTE } from "@/lib/analytics/clarity";
 import { ArrowUpRightIcon, CheckIcon, SearchIcon, SwapIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSendToken } from "@/hooks/use-withdraw";
@@ -19,7 +19,6 @@ import {
 } from "@/hooks/use-ramping";
 import { friendlyError } from "@/lib/errors";
 import { FormFeedback, asError, asNotice, type Feedback } from "@/components/ui/form-feedback";
-import { openOfframpWatch } from "@/lib/ramping/offramp-watch";
 import { formatAmount, fromBaseUnits, toBaseUnits } from "@/lib/trade/math";
 import { SETTLE_CHAINS } from "@/lib/deposit";
 import {
@@ -109,15 +108,6 @@ interface SelectedBank {
   // What the picker shows. The popular tiles use a short, recognisable label
   // ("OPay", "First Bank") rather than the registry's full legal name.
   name: string;
-  /**
-   * The bank registry's own name for the same institution.
-   *
-   * The two lists reached the same bank by different names: a popular tile
-   * carried our label, a search result carried the registry's, so one bank
-   * arrived at analytics as both "OPay" and "Opay" and split every breakdown
-   * in two. This is the one name that is reported.
-   */
-  railName: string;
   initials: string;
   color: string;
 }
@@ -254,10 +244,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
   // the pre-send estimate until then.
   const paidNgn = order?.amountNgn ?? payoutNgn;
 
-  // Completion is reported by use-offramp-settlement, which follows the order
-  // from every signed-in page. Reporting it here too would count a payout
-  // twice whenever this screen was still open.
-
   // Popular banks resolved to real uuids against the live list.
   const popularBanks = useMemo(() => {
     const list = banks.data ?? [];
@@ -267,7 +253,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         ? {
             uuid: match.uuid,
             name: p.label,
-            railName: match.name,
             initials: p.initials,
             color: p.color,
           }
@@ -285,7 +270,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
       .map((n: RampBank) => ({
         uuid: n.uuid,
         name: n.name,
-        railName: n.name,
         initials: initialsForName(n.name),
         color: colorForName(n.name),
       }));
@@ -400,20 +384,6 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
         amount: toBaseUnits(amountUsdcText, BASE.decimals),
       });
       setTxHash(hash);
-      // The payout is now the rail's to make. Remembered so it is reported
-      // when it ends, whether or not this screen is still open (see
-      // use-offramp-settlement). Not before the send: an order the user never
-      // funded is not a withdrawal that failed.
-      openOfframpWatch(
-        {
-          wallet: walletAddress,
-          orderId: result.id,
-          // The registry's name, not the tile's label, so one bank is one row.
-          bank: bank.railName,
-          amountUsd: Number(amountUsdcText),
-        },
-        Date.now()
-      );
     } catch (e) {
       // Past broadcast, a failure can't be reported as "not sent": the transfer
       // may already be on-chain. Surface an unconfirmed note instead.
@@ -667,7 +637,7 @@ export function BankWithdrawScreen({ onBack }: BankWithdrawScreenProps) {
             maxLength={10}
             onChange={(e) => onAccountChange(e.target.value)}
             placeholder={t("accountLabel")}
-            className={`tnum w-full bg-transparent font-sans text-[13px] font-medium text-white outline-none placeholder:text-white/50 ${NO_AUTOCAPTURE_CLASS}`}
+            className="tnum w-full bg-transparent font-sans text-[13px] font-medium text-white outline-none placeholder:text-white/50"
           />
           {resolve.isPending ? (
             <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />

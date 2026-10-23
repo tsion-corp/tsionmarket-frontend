@@ -36,17 +36,7 @@ import {
   projectTriggerPnl,
   toBaseUnits,
 } from "@/lib/trade/math";
-import { entryPriceFromUsdString, reportShine } from "@/lib/shine";
 import { friendlyError } from "@/lib/errors";
-import { track } from "@/lib/analytics/mixpanel";
-import { PERP_FAILURE, reasonFor } from "@/lib/analytics/failure-reason";
-import {
-  marketTypeOf,
-  perpClosedProps,
-  perpOpenedProps,
-  perpOrderProps,
-  type PerpTicket,
-} from "@/features/trade/lib/perp-analytics";
 import { scrubVenue } from "@/features/trade/lib/venue-scrub";
 import type { GatewayApiError } from "@/lib/api/envelope";
 import {
@@ -236,21 +226,6 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
     trading.assets.find((a) => a.symbol === "BTC") ??
     trading.assets[0] ??
     null;
-  // The market on screen, reported once per market. Keyed by symbol alone:
-  // the desk re-renders on every price tick, and the old desk re-sent this on
-  // each data refresh, which is how a view count reached 94,707.
-  const viewedMarket = useRef<string | null>(null);
-  const viewedSymbol = asset?.symbol ?? null;
-  const viewedCategory = asset?.category ?? null;
-  useEffect(() => {
-    if (!viewedSymbol || viewedMarket.current === viewedSymbol) return;
-    viewedMarket.current = viewedSymbol;
-    track("perp_market_viewed", {
-      pair: viewedSymbol,
-      market_type: marketTypeOf(viewedCategory),
-      venue: "hyperliquid",
-    });
-  }, [viewedSymbol, viewedCategory]);
   const markPrice = asset ? Number(trading.prices[asset.symbol] ?? 0) : 0;
   const currentPosition = asset
     ? (trading.positions.find((p) => p.assetId === asset.id && p.status === "open") ?? null)
@@ -428,17 +403,7 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
   const handleClosePosition = (position: HlPositionView, siblingOrderIdsToCancel: string[]) =>
     withBusy(async () => {
       try {
-        const closeOrder = await trading.actions.closePosition(
-          position.id,
-          siblingOrderIdsToCancel
-        );
-        // Reported only with the close order in hand: it is what the event
-        // is keyed by, and a close must never fail on its report.
-        if (closeOrder) {
-          const market =
-            trading.assets.find((a) => a.id === position.assetId)?.symbol ?? position.assetId;
-          track("perp_trade_closed", perpClosedProps(position, market, closeOrder));
-        }
+        await trading.actions.closePosition(position.id, siblingOrderIdsToCancel);
       } finally {
         trading.refetchAll();
         // The immediate refetch above usually already shows the close (a
@@ -448,14 +413,6 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
         // position, or a sibling TP/SL still shown as resting after being
         // cancelled, self-corrects within a few seconds instead of sitting
         // there until the next unrelated refetch.
-        //
-        // Shine does NOT listen here. This watcher only says the position is
-        // gone; the record that says what it closed at and what it returned
-        // (HlClosedPositionView) is written by the venue's fill event some
-        // seconds later, and HyperliquidPositionsList is already waiting for
-        // exactly that row to raise its share card. The close is reported
-        // from there, off the record that has the figures, so a post and the
-        // share card for the same trade cannot disagree.
         void trading.waitForPositionsChange((rows) => rows.every((p) => p.id !== position.id));
         if (siblingOrderIdsToCancel.length > 0) {
           void trading.waitForOrdersChange((rows) =>
@@ -513,28 +470,10 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
     setOrderStatus(null);
     setPendingSide(side);
     void withBusy(async () => {
-      // What the ticket asked for, fixed before the fields are cleared.
-      const ticket: PerpTicket = {
-        market: asset.symbol,
-        side,
-        orderMode,
-        leverage: clampedLeverage,
-        marginMode,
-        collateralUsd: collateralUsdcNum,
-        notionalUsd: notionalUsdc,
-        markPrice,
-        limitPrice,
-        takeProfitPrice: triggersOpen ? takeProfitPrice : "",
-        stopLossPrice: triggersOpen ? stopLossPrice : "",
-      };
-      // The order as it is about to be sent. Reported before the venue has
-      // said anything, so an order that never comes back is still counted.
-      const order = perpOrderProps(ticket);
       try {
         setPendingStatus(t("preparingTrade"));
         await trading.actions.updateLeverage(asset.symbol, clampedLeverage, marginMode);
         setPendingStatus(t("placingOrder"));
-        track("perp_order_submitted", order);
         const before = JSON.stringify(trading.positions.map((p) => [p.id, p.size]).sort());
         const result = await trading.actions.placeOrder(
           {
@@ -548,53 +487,9 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
           (text) => setPendingStatus(text)
         );
         trading.refetchAll();
-        // The same poll, and the same predicate — but its answer is the fill,
-        // not just a cue to refresh, and it used to be discarded. The order
-        // response above says the entry was ACCEPTED; a position appearing
-        // under that entry order's id is what says it FILLED.
-        //
-        // Awaited in a `then`, never inline: the busy state and the order
-        // status below must not wait thirty seconds on a poll.
-        //
-        // A limit order that only rests never produces a position under its
-        // id, so it posts nothing, which is exactly what ADR-2026-09-24
-        // section 4 asks for. A TP or SL leg rejected beside a filled entry
-        // still posts, because the entry still filled.
-        const pair = hlPairLabel(asset.symbol);
-        const entryOrderId = result.entryOrder.id;
-        let filledRows: HlPositionView[] | null = null;
-        void trading
-          .waitForPositionsChange((rows) => {
-            const changed = JSON.stringify(rows.map((p) => [p.id, p.size]).sort()) !== before;
-            if (changed) filledRows = rows;
-            return changed;
-          })
-          .then((changed) => {
-            if (!changed || filledRows === null) return;
-            const opened = filledRows.find((p) => p.entryOrderId === entryOrderId);
-            // The snapshot moved for some other reason — a trigger firing on
-            // another market, the backend's reconciliation sweep. This order
-            // did not fill, so nothing is claimed for it.
-            if (!opened) return;
-            reportShine({
-              service: "perps",
-              // The entry order id, which is also what the venue keys the
-              // position's own entryOrderId on.
-              id: entryOrderId,
-              kind: "open",
-              symbol: pair,
-              side: opened.side,
-              // A multiplier, not money: the venue's own record of what this
-              // position was opened at, rather than what the ticket asked for.
-              leverage: opened.leverage,
-              price: entryPriceFromUsdString(opened.entryPrice),
-            });
-          });
         void trading.waitForPositionsChange(
           (rows) => JSON.stringify(rows.map((p) => [p.id, p.size]).sort()) !== before
         );
-        const openedProps = perpOpenedProps(ticket, result.entryOrder);
-        if (openedProps) track("perp_trade_opened", openedProps);
 
         const rejectedLegs = [
           result.takeProfitOrder?.status === "rejected" ? t("takeProfit") : null,
@@ -623,18 +518,6 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
         setStopLossPrice("");
       } catch (error) {
         const details = (error as GatewayApiError)?.details;
-        track("perp_trade_failed", {
-          pair: order.pair,
-          direction: order.direction,
-          // The desk checks the margin itself and gets a structured answer, so
-          // it says so outright rather than reading it back off the message.
-          ...(isInsufficientMarginDetails(details)
-            ? { reason: "insufficient_margin" as const }
-            : reasonFor(PERP_FAILURE, error)),
-          leverage: order.leverage,
-          margin_mode: order.margin_mode,
-          collateral_usd: order.collateral_usd,
-        });
         if (isInsufficientMarginDetails(details)) {
           setOrderStatus({
             text: t("stillShortAfterTopUp", {
@@ -734,15 +617,8 @@ export function HyperliquidProPerps({ initialSymbol = "" }: HyperliquidProPerpsP
     : undefined;
 
   return (
-    // Kept from the previous layout: broadcast mode blurs anything marked
-    // sensitive, and this whole desk is position data.
+    // This whole desk is position data.
     <div data-sensitive="position">
-      {/* Shine, above the desk rather than behind a settings sheet. It is on
-          by default and posts a filled order publicly without asking each
-          time, so the place someone finds out about it has to be the screen
-          they are trading on. This is the only perps interface in the app, so
-          one placement here covers /perps, the deep-linked terminal and the
-          phone Market tab. */}
       <LeverageDesktopLayout
         // The design's ticket is a fixed 924px. Held as a floor rather than a
         // fixed height, because the order form grows with margin mode, TP/SL

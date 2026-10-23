@@ -16,11 +16,6 @@ import { swapRouteForSymbol } from "@/lib/spot-swap";
 import { TERMINAL_STAGES, depositProgress, usdcBaseUnits } from "@/lib/deposit";
 import { toast } from "@/lib/toast";
 import { friendlyError } from "@/lib/errors";
-import { track } from "@/lib/analytics/mixpanel";
-import { TRADE_FAILURE, failureReasonForStage, reasonFor } from "@/lib/analytics/failure-reason";
-import { tradeAmounts, USDC_DECIMALS, type TradeAmounts } from "@/lib/analytics/trade-amounts";
-import { swapTradeFacts } from "@/features/trade/lib/trade-analytics";
-import { reportShine } from "@/lib/shine";
 
 // 1% price tolerance, kept out of the UI — the same value the buy sheet uses.
 const SLIPPAGE_BPS = 100;
@@ -119,13 +114,7 @@ export function useSpotBuy({ symbol, name, amount }: SpotBuyArgs): SpotBuyState 
   // Keyed, because the effect below fires from a cached terminal status row
   // rather than from an event: a boolean says nothing about WHICH order it
   // was, so a second order in the same mount could read as already handled.
-  // It is still only a ref — a remount starts with a clean one and re-reads
-  // the same terminal row, and the Shine dedup store is what stops that
-  // becoming a second public post.
   const settledRef = useRef<string | null>(null);
-  // What the order in flight is spending, for the report when it settles.
-  const spentRef = useRef<TradeAmounts | null>(null);
-
   // Settlement tracking for the Dextopus order path: place resolves early, and
   // the order settles (or fails) later, detected here — the same effect the
   // sheet runs, minus its progress UI.
@@ -152,64 +141,14 @@ export function useSpotBuy({ symbol, name, amount }: SpotBuyArgs): SpotBuyState 
       // has: place() resolves as soon as the order is accepted, and the
       // deposit-status poll flipping to a terminal settled stage is what says
       // it landed.
-      //
-      // WHY THIS CANNOT SERVE A BACKLOG, AND WHAT WOULD BREAK THAT
-      //
-      // useDepositStatus stops polling on a terminal stage but keeps the row
-      // CACHED, so reading one is not the same as watching one land. The only
-      // reason this effect cannot republish a week-old buy is that
-      // `requestId` is component state: a fresh mount starts it null, the
-      // guard above returns, and the cached row is never looked at. Every
-      // settlement reported here was therefore placed by THIS mount.
-      //
-      // That matters because Shine's dedup store stops the second post of
-      // something and does nothing about the first, and on the day Shine
-      // ships every store is empty while the app is full of settled orders.
-      // Lifting `requestId` into a store, a URL param or anything else that
-      // survives a mount would silently turn this into a backlog publisher,
-      // and no test would fail. Anything that does so has to bring a
-      // freshness bound with it — see SHINE_MAX_SETTLEMENT_AGE_MS in
-      // features/trade/lib/shine-trade.ts, which is what the polled perps
-      // close uses.
-      reportShine({
-        service: "spot",
-        id: requestId,
-        kind: "buy",
-        symbol,
-        // DepositStatusResult carries a status, an execution status and the
-        // transaction hashes — no execution price — and nothing else on this
-        // path knows what the order filled at. The dollars entered are an
-        // amount, not a price, and an amount may never reach a post.
-        price: null,
-      });
-      // The USDC this order spent, fixed when it was placed: the field may
-      // hold a different amount by the time the order settles.
-      if (spentRef.current) {
-        track("trade_completed", {
-          vertical: "spot",
-          asset: symbol,
-          side: "buy",
-          ...spentRef.current,
-          order_id: requestId,
-        });
-      }
       toast.success(t("boughtToast", { name }), { id: toastRef.current });
       toastRef.current = undefined;
       void portfolio.refetchUntilChanged(settledNetworks);
       return;
     }
-    // Refunded or failed. The stage carries which, so the report says so.
-    track("trade_failed", {
-      vertical: "spot",
-      asset: symbol,
-      side: "buy",
-      ...failureReasonForStage(TRADE_FAILURE, stage),
-      amount_usd: spentRef.current?.amount_usd,
-      order_id: requestId,
-    });
     toast.error(t("purchaseRefundedToast"), { id: toastRef.current });
     toastRef.current = undefined;
-  }, [requestId, status.data, symbol, name, portfolio, settledNetworks, t]);
+  }, [requestId, status.data, name, portfolio, settledNetworks, t]);
 
   // A loading toast never times out, so dismiss any orphan on unmount.
   useEffect(
@@ -221,18 +160,7 @@ export function useSpotBuy({ symbol, name, amount }: SpotBuyArgs): SpotBuyState 
 
   const submit = async () => {
     if (!canBuy) return;
-    track("trade_previewed", { vertical: "spot", asset: symbol, side: "buy", amount_usd: value });
     settledRef.current = null;
-    // A buy's input is exact USDC, so what it spends is known up front. The
-    // tokens it buys are not, and are left out rather than guessed.
-    const spent = tradeAmounts({
-      usdRaw: usdcBaseUnits(amount),
-      usdDecimals: USDC_DECIMALS,
-      tokenRaw: null,
-      tokenDecimals: null,
-      source: "fill",
-    });
-    spentRef.current = spent;
     toastRef.current = toast.loading(t("buyingToast", { name }));
 
     // A swap-market token settles through the meme swap engine, which resolves
@@ -245,25 +173,7 @@ export function useSpotBuy({ symbol, name, amount }: SpotBuyArgs): SpotBuyState 
           tokenAddress: swapRoute.tokenAddress,
           amount,
           slippageBps: SLIPPAGE_BPS,
-          onSubmitted: (swapId) =>
-            track("trade_submitted", {
-              vertical: "spot",
-              asset: symbol,
-              side: "buy",
-              amount_usd: spent.amount_usd,
-              order_id: swapId,
-            }),
-          // This is a spot buy that happens to settle through the swap
-          // engine, so it is spot's Shine that decides it and spot's voice
-          // that writes it. The engine reports it from the one place it
-          // reaches CONFIRMED, where the quote's symbol and price are in
-          // hand; nothing is reported from here, so there is one post.
-          shineService: "spot",
         });
-        const facts = swapTradeFacts(result, spent);
-        if (facts) {
-          track("trade_completed", { vertical: "spot", asset: symbol, side: "buy", ...facts });
-        }
         // Only the service's CONFIRMED is "bought". Delivered-but-unrecorded
         // and pending say so, with the reference support will ask for.
         if (result.outcome === "delivered" || result.outcome === "pending") {
@@ -282,13 +192,6 @@ export function useSpotBuy({ symbol, name, amount }: SpotBuyArgs): SpotBuyState 
         toastRef.current = undefined;
         void portfolio.refetchUntilChanged(settledNetworks);
       } catch (e) {
-        track("trade_failed", {
-          vertical: "spot",
-          asset: symbol,
-          side: "buy",
-          ...reasonFor(TRADE_FAILURE, e),
-          amount_usd: spent.amount_usd,
-        });
         toast.error(friendlyError(e, t("buyFailedToast", { name }), tErr), {
           id: toastRef.current,
         });
@@ -310,15 +213,6 @@ export function useSpotBuy({ symbol, name, amount }: SpotBuyArgs): SpotBuyState 
         route,
         amount: usdcBaseUnits(amount),
         slippageBps: SLIPPAGE_BPS,
-      });
-      // The order is placed; settlement (success or refund) is reported by the
-      // effect above once the deposit status lands.
-      track("trade_submitted", {
-        vertical: "spot",
-        asset: symbol,
-        side: "buy",
-        amount_usd: spent.amount_usd,
-        order_id: result.requestId,
       });
       setRequestId(result.requestId);
     } catch (e) {

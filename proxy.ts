@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { RELAY_PATH } from "@/lib/analytics/relay";
 import { isReferralCode } from "@/lib/referral-code";
 
 // The route guard behind the launch gate (see lib/launch-gate.ts). While the
@@ -59,13 +58,6 @@ function closedResponse(request: NextRequest): NextResponse {
   return response;
 }
 
-// Analytics from whatever page the closed site serves (the landing page, the
-// maintenance notice) goes through the relay. Turned away, the SDK would get
-// HTML back instead of Mixpanel's answer and retry the batch forever.
-function isAnalyticsRelay(pathname: string): boolean {
-  return pathname === RELAY_PATH || pathname.startsWith(`${RELAY_PATH}/`);
-}
-
 // A shared link carries its sharer's referral code as ?ref=<code>, on whatever
 // page it points at: a market, a Last Man round, a gist room. The /r/<code>
 // landing route is only one way in, and it is the one nobody uses when they
@@ -98,8 +90,6 @@ function referralToStore(request: NextRequest): string | null {
 
 function route(request: NextRequest): NextResponse {
   const { pathname } = request.nextUrl;
-  if (isAnalyticsRelay(pathname)) return NextResponse.next();
-
   if (underMaintenance()) {
     if (MAINTENANCE_OPEN_PATHS.has(pathname)) return NextResponse.next();
     return closedResponse(request);
@@ -107,8 +97,7 @@ function route(request: NextRequest): NextResponse {
 
   if (!beforeLaunch()) return NextResponse.next();
   if (OPEN_PATHS.has(pathname)) return NextResponse.next();
-  // The query rides along: a campaign link's utm_* tags are what Mixpanel
-  // attributes the visit by, and the landing page is where it reads them.
+  // The query rides along, so a campaign link keeps its tags.
   const home = new URL("/", request.url);
   home.search = request.nextUrl.search;
   return NextResponse.redirect(home);

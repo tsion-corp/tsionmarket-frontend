@@ -120,10 +120,6 @@ export function RwaDeskView({ onAddFunds }: RwaDeskViewProps) {
   return (
     <div className={DESK_CONTAINER}>
       <div className="flex grow flex-col gap-4">
-        {/* Above the search field and the desk, because Shine posts a trade
-            made here without asking each time: the place someone finds out
-            about that has to be the page they are trading on. */}
-
         <SearchField
           value={query}
           onChange={setQuery}
