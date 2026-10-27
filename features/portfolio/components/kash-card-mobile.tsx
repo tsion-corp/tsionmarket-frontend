@@ -5,6 +5,7 @@ import { openSignIn } from "@/hooks/use-sign-in";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
 import { useKashAccount, useKashStatus } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount } from "@/features/portfolio/lib/kash";
+import { KASH_BUY_ENABLED } from "@/features/portfolio/lib/kash-buy";
 import { KASH_SEND_ENABLED } from "@/features/portfolio/lib/kash-send";
 
 // The whole card background from the mobile comp (node 1:1565): the yellow
@@ -13,6 +14,12 @@ import { KASH_SEND_ENABLED } from "@/features/portfolio/lib/kash-send";
 const DECOR = "/kash/kash-card-decor.png";
 // The Kash+ coin, the same gold mark the desktop card and banner use.
 const COIN = "/kash/kash-plus-coin.png";
+// Literal class names, so Tailwind sees each one.
+const ACTION_COLUMNS: Record<number, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+};
 
 // The comp's icons, kept as their exact vectors. currentColor lets one glyph
 // serve the black pills and the white Convert pill. The card is 431px wide, so
@@ -57,6 +64,7 @@ interface KashCardMobileProps {
 export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCardMobileProps) {
   const t = useTranslations("kash");
   const tAuth = useTranslations("auth");
+  const actionCount = 1 + Number(KASH_SEND_ENABLED) + Number(KASH_BUY_ENABLED);
   const { data: account, isError, signedOut, walletMissing } = useKashAccount();
   const { data: status } = useKashStatus();
 
@@ -149,14 +157,16 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
             and the labels are one short word each. The type is a share of the
             card's width with a floor, and a pill may shrink below its label:
             at 15px fixed, "Convert" ran past the card on a narrow slide. */}
-        <div className={`grid gap-[1.9cqw] ${KASH_SEND_ENABLED ? "grid-cols-3" : "grid-cols-2"}`}>
-          <button
-            onClick={onBuy}
-            className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-white px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
-          >
-            <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw]" />
-            {t("buy")}
-          </button>
+        <div className={`grid gap-[1.9cqw] ${ACTION_COLUMNS[actionCount]}`}>
+          {KASH_BUY_ENABLED ? (
+            <button
+              onClick={onBuy}
+              className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-white px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
+            >
+              <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw]" />
+              {t("buy")}
+            </button>
+          ) : null}
           {/* Ink on the card's own gold, so Buy stays the one bright pill. */}
           {KASH_SEND_ENABLED ? (
             <button
