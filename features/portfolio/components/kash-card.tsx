@@ -16,6 +16,7 @@ import {
 } from "@/features/portfolio/hooks/use-kash";
 import { formatKashAmount, gateProgress, pointsToKash } from "@/features/portfolio/lib/kash";
 import { KASH_POINTS_LIVE } from "@/features/portfolio/lib/kash-launch";
+import { KASH_BUY_ENABLED } from "@/features/portfolio/lib/kash-buy";
 import { KASH_SEND_ENABLED } from "@/features/portfolio/lib/kash-send";
 
 // The design's Kash+ coin. A bitmap in Figma too, so it stays one.
@@ -297,15 +298,17 @@ export function KashCard({
           the row wraps instead of squeezing them. min-h rather than h so a
           wrapped row still cannot clip a label. */}
       <div className="mt-[24px] flex flex-wrap gap-[10.23px] sm:ml-[2.18px]">
-        <button
-          onClick={onBuy}
-          className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
-        >
-          {/* Buy brings Kash IN, so the arrow points down into the balance,
-              the deposit convention every wallet shares. */}
-          <ButtonIcon src="/market/kash-icon-arrow-buy.svg" />
-          {t("buy")}
-        </button>
+        {KASH_BUY_ENABLED ? (
+          <button
+            onClick={onBuy}
+            className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
+          >
+            {/* Buy brings Kash IN, so the arrow points down into the balance,
+                the deposit convention every wallet shares. */}
+            <ButtonIcon src="/market/kash-icon-arrow-buy.svg" />
+            {t("buy")}
+          </button>
+        ) : null}
         {/* Send sits between Buy and Convert: the three are what you can do
             with a balance, in the order you would do them. Ink on the card's
             own gold rather than a third fill, so Buy stays the one bright

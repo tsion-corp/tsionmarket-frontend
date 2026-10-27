@@ -23,6 +23,13 @@ vi.mock("@/features/portfolio/lib/kash-send", () => ({
   },
 }));
 
+const buyFlag = { enabled: true };
+vi.mock("@/features/portfolio/lib/kash-buy", () => ({
+  get KASH_BUY_ENABLED() {
+    return buyFlag.enabled;
+  },
+}));
+
 import { KashCardMobile } from "@/features/portfolio/components/kash-card-mobile";
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -80,6 +87,7 @@ describe("KashCardMobile actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendFlag.enabled = true;
+    buyFlag.enabled = true;
     kashHooks.useKashAccount.mockReturnValue({
       data: account(),
       isError: false,
@@ -132,5 +140,34 @@ describe("KashCardMobile actions", () => {
       expect(row?.className).toContain("grid-cols-2");
       expect(row?.className).not.toContain("grid-cols-3");
     });
+  });
+});
+
+// Buying Kash is off on production for now (2026-10-27).
+describe("KashCardMobile with Buy taken down", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sendFlag.enabled = true;
+    buyFlag.enabled = false;
+    kashHooks.useKashAccount.mockReturnValue({
+      data: account(),
+      isError: false,
+      walletMissing: false,
+    });
+    kashHooks.useKashStatus.mockReturnValue({ data: undefined });
+  });
+
+  it("offers Send and Convert in a row sized for two", () => {
+    renderCard();
+    expect(screen.queryByRole("button", { name: "Buy" })).toBeNull();
+    const row = screen.getByRole("button", { name: "Send" }).parentElement;
+    expect(row?.className).toContain("grid-cols-2");
+  });
+
+  it("gives Convert the whole row when Send is down too", () => {
+    sendFlag.enabled = false;
+    renderCard();
+    const row = screen.getByRole("button", { name: "Convert" }).parentElement;
+    expect(row?.className).toContain("grid-cols-1");
   });
 });
