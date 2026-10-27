@@ -82,3 +82,8 @@ config/legacy-directory.csv
 cctp-run.mjs
 cctp-hypercore-run.mjs
 cctp-arb-to-base.mjs
+
+# Cloudflare Workers (OpenNext) build output and local secrets
+.open-next/
+.wrangler/
+.dev.vars

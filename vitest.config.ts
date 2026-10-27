@@ -8,6 +8,8 @@ const shared = {
   exclude: [
     "node_modules",
     ".next",
+    ".open-next",
+    ".wrangler",
     "out",
     "build",
     ".worktrees/**",

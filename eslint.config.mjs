@@ -13,6 +13,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // OpenNext and wrangler build output for Cloudflare.
+    ".open-next/**",
+    ".wrangler/**",
     // Design handoff bundles are reference material, not code we lint.
     "design_handoff_*/**",
     // Upstream source snapshots are documentation, not application code.
