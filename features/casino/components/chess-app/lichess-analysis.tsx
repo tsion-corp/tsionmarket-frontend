@@ -391,8 +391,8 @@ async function openDialog(
 ): Promise<void> {
   await loadLichessStyle(DIALOG_CSS);
   const [dialogModule, pubsubModule] = await Promise.all([
-    import(/* webpackIgnore: true */ DIALOG_MODULE) as Promise<LichessDialogModule>,
-    import(/* webpackIgnore: true */ PUBSUB_MODULE) as Promise<LichessPubsubModule>,
+    import(/* webpackIgnore: true */ new URL(DIALOG_MODULE, window.location.origin).href) as Promise<LichessDialogModule>,
+    import(/* webpackIgnore: true */ new URL(PUBSUB_MODULE, window.location.origin).href) as Promise<LichessPubsubModule>,
   ]);
   pubsubModule.pubsub.complete("polyfill.dialog");
   await dialogModule.domDialog({

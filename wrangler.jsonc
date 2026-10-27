@@ -1,0 +1,25 @@
+// Cloudflare Workers (Free plan) config, see
+// docs/adr/ADR-2026-10-22-cloudflare-workers-hosting.md.
+// Top level is production (Worker "tsionmarket", branch main); env.staging is
+// the Worker "tsionmarket-staging" (branch staging). Bindings are not
+// inherited by environments, so each one repeats its own.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "main": ".open-next/worker.js",
+  "name": "tsionmarket",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "observability": {
+    "enabled": true,
+  },
+  "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "tsionmarket" }],
+  "env": {
+    "staging": {
+      "services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "tsionmarket-staging" }],
+    },
+  },
+}
