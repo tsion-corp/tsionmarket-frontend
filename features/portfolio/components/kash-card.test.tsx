@@ -24,6 +24,13 @@ vi.mock("@/features/portfolio/lib/kash-send", () => ({
   },
 }));
 
+const buyFlag = { enabled: true };
+vi.mock("@/features/portfolio/lib/kash-buy", () => ({
+  get KASH_BUY_ENABLED() {
+    return buyFlag.enabled;
+  },
+}));
+
 import { KashCard } from "@/features/portfolio/components/kash-card";
 
 const onSend = vi.fn();
@@ -150,6 +157,7 @@ describe("KashCard actions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sendFlag.enabled = true;
+    buyFlag.enabled = true;
   });
 
   it("puts Send between Buy and Convert", () => {
@@ -184,5 +192,27 @@ describe("KashCard actions", () => {
       for (const button of screen.getAllByRole("button")) fireEvent.click(button);
       expect(onSend).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Buying Kash is off on production for now (2026-10-27); the switch keeps the
+// button and its modal one flag away from coming back.
+describe("KashCard with Buy taken down", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    sendFlag.enabled = true;
+    buyFlag.enabled = false;
+    kashHooks.useKashAccount.mockReturnValue({
+      data: account(),
+      isError: false,
+      walletMissing: false,
+    });
+  });
+
+  it("offers Send and Convert, and no way to buy", () => {
+    renderCard();
+    expect(screen.queryByRole("button", { name: "Buy" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Convert" })).toBeInTheDocument();
   });
 });
