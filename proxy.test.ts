@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { proxy } from "./proxy";
+import { gate } from "./proxy";
 
 // A shared link carries ?ref=<code> on whatever page it points at. Nothing read
 // it before: only /r/<code> set the cookie, so attaching a code to a market or
@@ -9,7 +9,7 @@ import { proxy } from "./proxy";
 function visit(url: string, cookie?: string) {
   const request = new NextRequest(new URL(url));
   if (cookie) request.cookies.set("ark_ref", cookie);
-  return proxy(request);
+  return gate(request);
 }
 
 // Stubbed here and cleared after, never cleared first: unstubbing at the START

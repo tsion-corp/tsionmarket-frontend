@@ -1,0 +1,87 @@
+# Wallet upgrade: development and production
+
+The wallet upgrade moves a person from their Decane wallet to our own wallet. It moves real money out of real wallets, so the two environments are kept apart and the safety rules **fail closed**: if the configuration is wrong, the upgrade switches itself off and says why.
+
+The plan is `docs/CLERK_AND_WALLET_MIGRATION_PLAN.md` in the backend repo. This file is the operator's view of the environments.
+
+## The split
+
+| | Development | Production |
+|---|---|---|
+| Purpose | Build and rehearse | Real users |
+| Clerk instance | **Development** (`pk_test_…`) | **Production** (`pk_live_…`, own domain) |
+| Clerk users | Throwaway test users | Real users |
+| `NEXT_PUBLIC_DEPLOY_ENV` | `development` | `production` |
+| Moves | **Always a dry run.** Nothing real is sent. | Real. A staged rollout can start as a dry run (`…_DRY_RUN=true`). |
+| Wallet service | Testnets / devnet | Mainnet, behind its own release gates |
+| Decane | A development project (see "Open item") | The production project |
+| Who can see `/upgrade` | Anyone with the dev flag on | Behind the rollout cohort |
+
+Users in one Clerk instance do not exist in the other. Deleting a user in development cannot affect production.
+
+## Guard rails (code: `features/wallet-upgrade/lib/environment.ts`)
+
+| Situation | Result |
+|---|---|
+| Flag not set | `/upgrade` is a 404 |
+| Production build with `pk_test_` keys | Upgrade off, page says why |
+| Development build with `pk_live_` keys | Upgrade off, page says why (it would touch real users) |
+| No Clerk keys | Upgrade off |
+| Development, any dry-run setting | Always dry run |
+| Production, dry-run unset | Real |
+| Moving funds | Needs its own flag **and** the wallet-service flag |
+
+## Environment variables
+
+| Variable | Dev | Prod | Meaning |
+|---|---|---|---|
+| `NEXT_PUBLIC_DEPLOY_ENV` | `development` | `production` | Which environment this is. Falls back to the build mode if unset. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_…` | `pk_live_…` | Must match the environment |
+| `CLERK_SECRET_KEY` | dev secret | prod secret | Server only |
+| `NEXT_PUBLIC_WALLET_UPGRADE_ENABLED` | `true` | `true` when rolling out | Master switch |
+| `NEXT_PUBLIC_WALLET_UPGRADE_DRY_RUN` | ignored | `true` while rehearsing in prod | Nothing real moves |
+| `NEXT_PUBLIC_WALLET_UPGRADE_LINK_ENABLED` | `true` once the link service is deployed | same | Enables the "connect the two" step |
+| `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED` | `true` once the wallet service is deployed | same | Enables wallet creation and recovery |
+| `NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS` | `true` when built | same | Enables the move-funds step |
+
+`NEXT_PUBLIC_*` values are inlined at build time. Set them before building, and rebuild after changing them.
+
+## Setting each environment up
+
+**Development**
+1. Clerk development instance (already created by `clerk init`). Keys live in `.env.local`.
+2. Set `NEXT_PUBLIC_DEPLOY_ENV=development` and `NEXT_PUBLIC_WALLET_UPGRADE_ENABLED=true`.
+3. Run the app and open `/upgrade`. Sign in at `/sign-in`; Clerk returns you to `/upgrade`.
+
+**Production**
+1. Create the production instance: `npx -y clerk@latest deploy --mode agent --domain <your domain>`. This needs a domain you control with DNS access, not a hosting URL.
+2. Follow the report's `nextAction` (DNS records, then OAuth credentials for Google and Apple).
+3. Put the production keys on the host (not in the repo), and set `NEXT_PUBLIC_DEPLOY_ENV=production`.
+4. Start with `NEXT_PUBLIC_WALLET_UPGRADE_DRY_RUN=true`, run the staff rehearsal, then remove it.
+
+## Deleting users
+
+Clerk users can be deleted from the Clerk Dashboard (Users), the Backend API (`DELETE /v1/users/{id}`), or the CLI. Deleting a Clerk user does **not** delete:
+- data keyed on their user id in our services,
+- an encrypted wallet package stored for them (once the wallet service exists).
+
+Handle deletions through the `user.deleted` webhook so mappings and packages are cleaned up deliberately. Deleting a **production** user who has already linked a Decane account removes their way back into the new account; their funds are unaffected because the keys are encrypted for them, but they would need support to relink. Delete freely in development.
+
+## What exists today, and what does not
+
+| Step | State |
+|---|---|
+| Clerk sign-in, profile button, `/upgrade` page | Built |
+| Decane stays mounted for the legacy sign-in and signing | Built (untouched) |
+| Environment split and guard rails | Built, tested |
+| Identity link service (`user-management`) | Not built |
+| Wallet service and the encrypted wallet module (Argon2id) | Not built |
+| Move-funds flow | Not built |
+
+Steps that depend on an unbuilt service say so on the page and cannot be clicked.
+
+## Open items
+
+1. **Decane development project.** The local `.env.local` currently holds live Decane credentials. Even as a dry run, signing in to Decane in development reaches real Decane users. Use a Decane development project for development if one exists.
+2. **Launch gate.** While the site is closed by `proxy.ts`, `/sign-in` and `/upgrade` are closed too. Add them to the open paths if staff need them before launch.
+3. **Clerk app name.** The application is named "Tsion Ark" in Clerk; rename it if it should read TsionMarket.

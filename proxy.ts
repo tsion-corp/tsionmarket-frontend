@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
 import { isReferralCode } from "@/lib/referral-code";
 
 // The route guard behind the launch gate (see lib/launch-gate.ts). While the
@@ -105,7 +106,7 @@ function route(request: NextRequest): NextResponse {
 
 // The gates decide the response; the referral cookie rides on whichever one
 // they chose, so a code on a closed site is still kept.
-export function proxy(request: NextRequest) {
+export function gate(request: NextRequest): NextResponse {
   const response = route(request);
   const code = referralToStore(request);
   if (code) {
@@ -117,6 +118,20 @@ export function proxy(request: NextRequest) {
     });
   }
   return response;
+}
+
+// Clerk runs only on deployments that have its keys, so a build without them
+// behaves exactly as before. Clerk is additive during the Decane window: it
+// reads the session and attaches its headers, but it protects nothing here
+// (routes stay public by default), and the gates above still decide the
+// response. See docs/CLERK_AND_WALLET_MIGRATION_PLAN.md.
+const clerkEnabled = Boolean(
+  process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+);
+const withClerk = clerkEnabled ? clerkMiddleware((_auth, request) => gate(request)) : null;
+
+export function proxy(request: NextRequest, event: NextFetchEvent) {
+  return withClerk ? withClerk(request, event) : gate(request);
 }
 
 export const config = {

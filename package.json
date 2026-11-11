@@ -37,6 +37,7 @@
   "dependencies": {
     "@badrap/result": "^0.3.1",
     "@base-ui/react": "^1.6.0",
+    "@clerk/nextjs": "^7.9.25",
     "@esotericsoftware/spine-player": "4.1.56",
     "@lichess-org/chessground": "^10.1.1",
     "@microsoft/clarity": "^1.0.2",
