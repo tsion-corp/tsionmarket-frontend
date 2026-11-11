@@ -21,8 +21,9 @@ import {
   type Argon2Params,
 } from "./argon2";
 import { OpenError, hkdfSha256, open, seal, sha256 } from "./crypto";
-import { fromBase64Url, randomBytes, toBase64Url, utf8, wipeBytes } from "./encoding";
+import { fromBase64Url, toBase64Url, utf8, wipeBytes } from "./encoding";
 import { assertStrongPassphrase, normalizePassphrase } from "./passphrase";
+import { isValidEntropyLength } from "./phrase";
 
 /**
  * Envelopes: the ways of unlocking the one wallet key (the DEK).
@@ -32,7 +33,7 @@ import { assertStrongPassphrase, normalizePassphrase } from "./passphrase";
  * them as opaque text and can open none of them.
  *
  *   passphrase  Argon2id(passphrase) → HKDF → AES-GCM       (methodVersion 2)
- *   recovery    HKDF(recovery secret) → AES-GCM, plus an Ed25519 key that
+ *   recovery    HKDF(recovery phrase) → AES-GCM, plus an Ed25519 key that
  *               signs the server's one-time recovery challenge (methodVersion 1)
  *   device      HKDF(device secret) → AES-GCM, for a device that has already
  *               unlocked once (methodVersion 1)
@@ -64,7 +65,7 @@ export interface PassphraseEnvelope extends EnvelopeBase {
 export interface RecoveryEnvelope extends EnvelopeBase {
   purpose: "recovery";
   methodVersion: 1;
-  keyDerivationMetadata: { kind: "hkdf-sha256"; version: 1; source: "recovery-secret" };
+  keyDerivationMetadata: { kind: "hkdf-sha256"; version: 1; source: "recovery-phrase" };
   recoveryPublicKey: string;
   verificationFingerprint: string;
 }
@@ -186,16 +187,25 @@ export async function openPassphraseEnvelope(input: {
 
 // ── recovery ────────────────────────────────────────────────────────────────
 
-export const RECOVERY_SECRET_BYTES = 32;
+/**
+ * The recovery envelope is opened by the recovery PHRASE (its raw bytes). The
+ * phrase is already the master secret of the wallet's keys, so deriving the
+ * unlock key from it adds no new exposure: whoever holds the phrase owns the
+ * funds anyway. It is high entropy, so HKDF is the right tool, not Argon2.
+ *
+ * Two independent keys come out of it, by separate HKDF labels: one wraps the
+ * wallet key, the other is an Ed25519 key that signs the server's one-time
+ * recovery challenge, so the phrase itself never leaves the device.
+ */
 
-export function generateRecoverySecret(): Uint8Array {
-  return randomBytes(RECOVERY_SECRET_BYTES);
+function assertEntropy(entropy: Uint8Array): void {
+  if (!isValidEntropyLength(entropy.length)) throw new OpenError();
 }
 
-async function recoveryKeys(secret: Uint8Array, walletId: string, envelopeId: string) {
-  if (secret.length !== RECOVERY_SECRET_BYTES) throw new OpenError();
-  const wrapKey = await hkdfSha256(secret, SALT_WRAP, infoRecovery(walletId, envelopeId));
-  const signingSeed = await hkdfSha256(secret, SALT_RECOVERY_SIGNING, RECOVERY_SIGNING_INFO);
+async function recoveryKeys(entropy: Uint8Array, walletId: string, envelopeId: string) {
+  assertEntropy(entropy);
+  const wrapKey = await hkdfSha256(entropy, SALT_WRAP, infoRecovery(walletId, envelopeId));
+  const signingSeed = await hkdfSha256(entropy, SALT_RECOVERY_SIGNING, RECOVERY_SIGNING_INFO);
   return { wrapKey, signingSeed, publicKey: ed25519.getPublicKey(signingSeed) };
 }
 
@@ -203,11 +213,12 @@ export async function createRecoveryEnvelope(input: {
   walletId: string;
   envelopeId: string;
   dek: Uint8Array;
-  recoverySecret: Uint8Array;
+  /** The recovery phrase's raw bytes. */
+  entropy: Uint8Array;
 }): Promise<RecoveryEnvelope> {
   checkDek(input.dek);
   const { wrapKey, signingSeed, publicKey } = await recoveryKeys(
-    input.recoverySecret,
+    input.entropy,
     input.walletId,
     input.envelopeId
   );
@@ -222,7 +233,7 @@ export async function createRecoveryEnvelope(input: {
     wrappedDek: sealed.ciphertext,
     iv: sealed.iv,
     aad,
-    keyDerivationMetadata: { kind: "hkdf-sha256", version: 1, source: "recovery-secret" },
+    keyDerivationMetadata: { kind: "hkdf-sha256", version: 1, source: "recovery-phrase" },
     recoveryPublicKey: toBase64Url(publicKey),
     verificationFingerprint: toBase64Url(fingerprint),
   };
@@ -231,18 +242,18 @@ export async function createRecoveryEnvelope(input: {
 export async function openRecoveryEnvelope(input: {
   walletId: string;
   envelope: RecoveryEnvelope;
-  recoverySecret: Uint8Array;
+  entropy: Uint8Array;
 }): Promise<Uint8Array> {
   const { envelope } = input;
   if (envelope.purpose !== "recovery" || envelope.methodVersion !== 1) throw new OpenError();
   if (envelope.aad !== aadRecovery(input.walletId, envelope.envelopeId)) throw new OpenError();
   const { wrapKey, signingSeed, publicKey } = await recoveryKeys(
-    input.recoverySecret,
+    input.entropy,
     input.walletId,
     envelope.envelopeId
   );
   try {
-    // A secret that derives a different recovery key is not this wallet's.
+    // A phrase that derives a different recovery key is not this wallet's.
     if (toBase64Url(publicKey) !== envelope.recoveryPublicKey) throw new OpenError();
     const dek = await open(
       wrapKey,
@@ -258,16 +269,13 @@ export async function openRecoveryEnvelope(input: {
 
 const RECOVERY_CHALLENGE_PREFIX = "tsion-recovery-challenge:v1:";
 
-/** Prove possession of the recovery secret to the server without sending it. */
+/** Prove possession of the recovery phrase to the server without sending it. */
 export async function signRecoveryChallenge(
-  recoverySecret: Uint8Array,
+  entropy: Uint8Array,
   challenge: string
 ): Promise<string> {
-  const signingSeed = await hkdfSha256(
-    recoverySecret,
-    SALT_RECOVERY_SIGNING,
-    RECOVERY_SIGNING_INFO
-  );
+  assertEntropy(entropy);
+  const signingSeed = await hkdfSha256(entropy, SALT_RECOVERY_SIGNING, RECOVERY_SIGNING_INFO);
   const signature = ed25519.sign(utf8(RECOVERY_CHALLENGE_PREFIX + challenge), signingSeed);
   wipeBytes(signingSeed);
   return toBase64Url(signature);

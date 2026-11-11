@@ -2,11 +2,12 @@ import { z } from "zod";
 import {
   PACKAGE_FORMAT,
   PACKAGE_VERSION,
-  aadAccount,
   aadDevice,
   aadPassphrase,
   aadRecovery,
+  aadRoot,
 } from "./aad";
+import { DERIVATION_PATHS } from "./derive";
 import { Argon2ParamsError, assertSafeArgon2Params } from "./argon2";
 import type { Envelope } from "./envelope";
 
@@ -67,7 +68,7 @@ const recoveryEnvelope = z.strictObject({
   keyDerivationMetadata: z.strictObject({
     kind: z.literal("hkdf-sha256"),
     version: z.literal(1),
-    source: z.literal("recovery-secret"),
+    source: z.literal("recovery-phrase"),
   }),
   recoveryPublicKey: b64,
   verificationFingerprint: b64,
@@ -89,7 +90,12 @@ const account = z.strictObject({
   accountId: id,
   family: z.enum(["evm", "solana"]),
   algorithm: z.enum(["secp256k1", "ed25519"]),
-  keyType: z.literal("private-key"),
+  // Derived from the recovery phrase, never stored as a separate secret.
+  keyType: z.literal("bip39-derived"),
+  derivationPath: z
+    .string()
+    .regex(/^m(\/\d+'?)+$/)
+    .max(64),
   publicKey: b64,
   canonicalAddress: z.string().min(1).max(128),
   addresses: z
@@ -102,13 +108,14 @@ const account = z.strictObject({
     )
     .min(1)
     .max(32),
-  encryptedKeyMaterial: z.strictObject({
-    ciphertext: b64,
-    iv: b64,
-    aad,
-    dekVersion: z.literal(1),
-    encoding: z.literal("base64url"),
-  }),
+});
+
+const encryptedRoot = z.strictObject({
+  ciphertext: b64,
+  iv: b64,
+  aad,
+  dekVersion: z.literal(1),
+  encoding: z.literal("base64url"),
 });
 
 const walletPackage = z.strictObject({
@@ -118,6 +125,7 @@ const walletPackage = z.strictObject({
   version: z.number().int().min(1),
   baseVersion: z.number().int().min(0),
   securityVersion: z.number().int().min(1),
+  encryptedRoot,
   accounts: z.array(account).min(1).max(8),
   envelopes: z
     .array(z.discriminatedUnion("purpose", [passphraseEnvelope, recoveryEnvelope, deviceEnvelope]))
@@ -174,8 +182,8 @@ export function validateWalletPackage(input: unknown): WalletPackage {
     const algorithm = item.family === "evm" ? "secp256k1" : "ed25519";
     if (item.algorithm !== algorithm)
       issues.push(`account ${item.accountId}: wrong algorithm for family`);
-    if (item.encryptedKeyMaterial.aad !== aadAccount(pkg.walletId, item.accountId, item.family)) {
-      issues.push(`account ${item.accountId}: associated data does not match`);
+    if (item.derivationPath !== DERIVATION_PATHS[item.family]) {
+      issues.push(`account ${item.accountId}: unexpected derivation path`);
     }
     // One EVM address serves every EVM network, so several entries may be
     // canonical. What matters is that each canonical entry IS the account's
@@ -187,6 +195,10 @@ export function validateWalletPackage(input: unknown): WalletPackage {
     if (new Set(item.addresses.map((a) => a.networkId)).size !== item.addresses.length) {
       issues.push(`account ${item.accountId}: a network is listed twice`);
     }
+  }
+
+  if (pkg.encryptedRoot.aad !== aadRoot(pkg.walletId)) {
+    issues.push("encrypted root: associated data does not match");
   }
 
   for (const envelope of pkg.envelopes) {

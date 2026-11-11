@@ -14,7 +14,7 @@ import type { Argon2Params } from "./argon2";
  */
 
 export const PACKAGE_FORMAT = "tsion-wallet-package";
-export const PACKAGE_VERSION = 2;
+export const PACKAGE_VERSION = 3;
 const PREFIX = `tsion:v${PACKAGE_VERSION}`;
 
 const ID = /^[A-Za-z0-9_.-]{1,128}$/;
@@ -25,10 +25,10 @@ export function assertId(value: string, what: string): void {
 
 export type ChainFamily = "evm" | "solana";
 
-export function aadAccount(walletId: string, accountId: string, family: ChainFamily): string {
+/** Binds the encrypted recovery phrase to its wallet. */
+export function aadRoot(walletId: string): string {
   assertId(walletId, "wallet id");
-  assertId(accountId, "account id");
-  return `${PREFIX}:wallet:${walletId}:account:${accountId}:${family}`;
+  return `${PREFIX}:wallet:${walletId}:root`;
 }
 
 export function aadPassphrase(walletId: string, envelopeId: string, p: Argon2Params): string {

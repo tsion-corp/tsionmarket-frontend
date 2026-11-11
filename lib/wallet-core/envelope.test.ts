@@ -7,7 +7,6 @@ import {
   createDeviceEnvelope,
   createPassphraseEnvelope,
   createRecoveryEnvelope,
-  generateRecoverySecret,
   openDeviceEnvelope,
   openPassphraseEnvelope,
   openRecoveryEnvelope,
@@ -15,6 +14,7 @@ import {
   verifyRecoverySignature,
 } from "./envelope";
 import { WeakPassphraseError } from "./passphrase";
+import { generatePhrase } from "./phrase";
 
 // The floor: the cheapest parameters the code will accept, so these tests stay fast.
 const FAST: Argon2Params = { memoryKiB: 32_768, iterations: 2, parallelism: 1, hashLength: 32 };
@@ -208,61 +208,77 @@ describe("tampering with a passphrase envelope", () => {
 describe("recovery envelope", () => {
   const build = async () => {
     const dek = randomBytes(32);
-    const recoverySecret = generateRecoverySecret();
+    const entropy = generatePhrase().entropy;
     const envelope = await createRecoveryEnvelope({
       walletId: WALLET,
       envelopeId: "rec-1",
       dek,
-      recoverySecret,
+      entropy,
     });
-    return { dek, recoverySecret, envelope };
+    return { dek, entropy, envelope };
   };
 
-  it("opens with the recovery secret and only with it", async () => {
-    const { dek, recoverySecret, envelope } = await build();
-    expect(await openRecoveryEnvelope({ walletId: WALLET, envelope, recoverySecret })).toEqual(dek);
+  it("opens with the recovery phrase and only with it", async () => {
+    const { dek, entropy, envelope } = await build();
+    expect(await openRecoveryEnvelope({ walletId: WALLET, envelope, entropy })).toEqual(dek);
     await expect(
-      openRecoveryEnvelope({ walletId: WALLET, envelope, recoverySecret: generateRecoverySecret() })
+      openRecoveryEnvelope({ walletId: WALLET, envelope, entropy: generatePhrase().entropy })
+    ).rejects.toBeInstanceOf(OpenError);
+    // A valid length of the wrong bytes, and an invalid length altogether.
+    await expect(
+      openRecoveryEnvelope({ walletId: WALLET, envelope, entropy: new Uint8Array(32) })
     ).rejects.toBeInstanceOf(OpenError);
     await expect(
-      openRecoveryEnvelope({ walletId: WALLET, envelope, recoverySecret: new Uint8Array(16) })
+      openRecoveryEnvelope({ walletId: WALLET, envelope, entropy: new Uint8Array(15) })
     ).rejects.toBeInstanceOf(OpenError);
   });
 
+  it("works for a 12-word phrase brought from another wallet", async () => {
+    const dek = randomBytes(32);
+    const entropy = generatePhrase(12).entropy;
+    const envelope = await createRecoveryEnvelope({
+      walletId: WALLET,
+      envelopeId: "rec-1",
+      dek,
+      entropy,
+    });
+    expect(await openRecoveryEnvelope({ walletId: WALLET, envelope, entropy })).toEqual(dek);
+  });
+
   it("is bound to its wallet and its id", async () => {
-    const { recoverySecret, envelope } = await build();
+    const { entropy, envelope } = await build();
     await expect(
-      openRecoveryEnvelope({ walletId: OTHER_WALLET, envelope, recoverySecret })
+      openRecoveryEnvelope({ walletId: OTHER_WALLET, envelope, entropy })
     ).rejects.toBeInstanceOf(OpenError);
     await expect(
       openRecoveryEnvelope({
         walletId: WALLET,
         envelope: { ...envelope, envelopeId: "rec-2" },
-        recoverySecret,
+        entropy,
       })
     ).rejects.toBeInstanceOf(OpenError);
   });
 
   it("rejects an envelope whose recovery public key was swapped", async () => {
-    const { recoverySecret, envelope } = await build();
+    const { entropy, envelope } = await build();
     const other = await createRecoveryEnvelope({
       walletId: WALLET,
       envelopeId: "rec-1",
       dek: randomBytes(32),
-      recoverySecret: generateRecoverySecret(),
+      entropy: generatePhrase().entropy,
     });
     await expect(
       openRecoveryEnvelope({
         walletId: WALLET,
         envelope: { ...envelope, recoveryPublicKey: other.recoveryPublicKey },
-        recoverySecret,
+        entropy,
       })
     ).rejects.toBeInstanceOf(OpenError);
   });
 
-  it("signs the server's challenge without revealing the secret", async () => {
-    const { recoverySecret, envelope } = await build();
-    const signature = await signRecoveryChallenge(recoverySecret, "challenge-abc");
+  it("signs the server's challenge without revealing the phrase", async () => {
+    const { entropy, envelope } = await build();
+    const signature = await signRecoveryChallenge(entropy, "challenge-abc");
     expect(verifyRecoverySignature(envelope.recoveryPublicKey, "challenge-abc", signature)).toBe(
       true
     );
@@ -273,13 +289,21 @@ describe("recovery envelope", () => {
       false
     );
     expect(verifyRecoverySignature("not base64 !", "challenge-abc", signature)).toBe(false);
-    expect(signature).not.toContain(toBase64Url(recoverySecret));
+    expect(signature).not.toContain(toBase64Url(entropy));
+    await expect(signRecoveryChallenge(new Uint8Array(15), "c")).rejects.toBeInstanceOf(OpenError);
   });
 
   it("publishes a fingerprint that identifies the key without being it", async () => {
     const { envelope } = await build();
     expect(fromBase64Url(envelope.verificationFingerprint)).toHaveLength(32);
     expect(envelope.verificationFingerprint).not.toBe(envelope.recoveryPublicKey);
+  });
+
+  it("derives different keys for the wrapping and for signing (independent labels)", async () => {
+    const { entropy, envelope } = await build();
+    // Signing with the phrase must not be possible with only the wrapped blob.
+    expect(envelope.recoveryPublicKey).not.toContain(toBase64Url(entropy));
+    expect(envelope.wrappedDek).not.toContain(envelope.recoveryPublicKey);
   });
 });
 

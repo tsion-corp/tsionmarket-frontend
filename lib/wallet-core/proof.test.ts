@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { generateAccount, parseKeyMaterial } from "./keygen";
+import { deriveAccount } from "./derive";
+import { generatePhrase, seedFromEntropy } from "./phrase";
 import { possessionMessage, signPossession, verifyPossession } from "./proof";
 
 const NONCE = "nonce-0123456789abcdef";
@@ -7,8 +8,8 @@ const WALLET = "wallet-1";
 const ACCOUNT = "account-1";
 
 const accountOf = (family: "evm" | "solana") => {
-  const generated = generateAccount(family);
-  return { address: generated.address, material: parseKeyMaterial(generated.plaintext) };
+  const derived = deriveAccount(family, seedFromEntropy(generatePhrase().entropy));
+  return { address: derived.address, material: derived.material };
 };
 
 describe.each(["evm", "solana"] as const)("possession proof (%s)", (family) => {

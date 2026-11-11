@@ -3,8 +3,8 @@ import { base58 } from "@scure/base";
 import { verifyMessage } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { assertId, type ChainFamily } from "./aad";
-import { fromBase64Url, toBase64Url, utf8, wipeBytes } from "./encoding";
-import { solanaSeed, type KeyMaterial } from "./keygen";
+import type { KeyMaterial } from "./derive";
+import { fromBase64Url, toBase64Url, utf8 } from "./encoding";
 
 /**
  * Proof that the person controls the key behind an address.
@@ -38,10 +38,7 @@ export async function signPossession(
   if (material.family === "evm") {
     return privateKeyToAccount(material.privateKey).signMessage({ message });
   }
-  const seed = solanaSeed(material);
-  const signature = ed25519.sign(utf8(message), seed);
-  wipeBytes(seed);
-  return toBase64Url(signature);
+  return toBase64Url(ed25519.sign(utf8(message), material.seed));
 }
 
 export async function verifyPossession(input: {
