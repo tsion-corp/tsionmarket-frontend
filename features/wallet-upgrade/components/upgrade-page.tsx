@@ -11,6 +11,7 @@ import type { WalletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 import { linkErrorMessage } from "../lib/link-errors";
 import { EMPTY_PROGRESS, deriveSteps, nextStep } from "../lib/steps";
 import type { Step, StepState } from "../lib/steps";
+import { WalletPanel, useWalletState } from "./wallet-panel";
 
 /**
  * The wallet upgrade, start to finish, on one page.
@@ -96,8 +97,15 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
   const link = useMutation({ mutationFn: linkAccounts, onSuccess: refresh });
   const provision = useMutation({ mutationFn: provisionAccount, onSuccess: refresh });
 
+  const uid = status.data?.uid ?? null;
+  const wallet = useWalletState(uid, config.walletAvailable && Boolean(status.data?.linked));
+  const hasWallet = wallet.data ? wallet.data.kind !== "none" : false;
+
   const progress = {
     ...EMPTY_PROGRESS,
+    walletCreated: hasWallet,
+    // A wallet is only saved after the recovery phrase was copied down and checked.
+    recoveryConfirmed: hasWallet,
     clerkSignedIn: Boolean(clerk.isSignedIn),
     decaneSignedIn: decane.authenticated,
     linked: status.data?.linked ?? false,
@@ -136,6 +144,8 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
           <StepCard key={step.id} step={step} index={index + 1} />
         ))}
       </ol>
+
+      {config.walletAvailable && status.data?.linked && uid ? <WalletPanel uid={uid} /> : null}
 
       <NextAction
         step={next}
@@ -221,6 +231,8 @@ function NextAction({
       </button>
     );
   }
+  // Creating and opening the wallet happen in the panel above.
+  if ((step.id === "wallet" || step.id === "recovery") && step.state === "ready") return null;
   if (step.id === "link" && step.state === "ready") {
     return (
       <div className="flex flex-col gap-2">

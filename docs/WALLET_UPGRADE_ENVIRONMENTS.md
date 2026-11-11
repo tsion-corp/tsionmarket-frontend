@@ -52,6 +52,7 @@ Server-side settings the link routes also read:
 |---|---|
 | `MIGRATION_SERVICE_ENABLED` | `1` turns the migration proxies on (already used by the Privy → Decane flow) |
 | `MIGRATION_API_URL` | The `user-management` service to call. **In development it must not be the production gateway**; the routes refuse (503 `NOT_AVAILABLE`) unless you also set the next variable. |
+| `CRYPTO_WALLET_API_URL` | The wallet service (`crypto-wallet`) the `/api/wallet-upgrade/wallet/*` routes call. Needs `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED=true` too. Subject to the same development-vs-production guard. |
 | `WALLET_UPGRADE_ALLOW_PROD_UPSTREAM` | `true` lets a development build call a production service. Almost never what you want: it writes development Clerk users into production data and could claim a real Decane account for a test user. |
 
 Service-side (`user-management`): `AUTH_PROVIDERS` must include `clerk`, plus `CLERK_ISSUER_URL`, `CLERK_AUTHORIZED_PARTIES`, `CLERK_SECRET_KEY` and `CLERK_WEBHOOK_SECRET` (see the backend repo).
@@ -93,7 +94,8 @@ Handle deletions through the `user.deleted` webhook so mappings and packages are
 | Identity link, new-user provisioning and Clerk deletion webhook (`user-management`) | Built and tested in the monorepo (local branch `feat/clerk-verifier`, **not deployed**) |
 | Frontend routes `/api/wallet-upgrade/{link,status,provision}` and the link step on `/upgrade` | Built, tested; works once the service above is deployed and the flags below are on |
 | Clerk `uid` session-token claim | Set on the **development** instance; production needs the same (see below) |
-| Wallet service and the encrypted wallet module (Argon2id) | Not built |
+| Wallet service (`crypto-wallet`, monorepo branch `feat/clerk-verifier`, **not deployed**) | Built and tested; stores encrypted packages, gates every change by device/recovery signature |
+| Wallet UI: create (passphrase, recovery phrase, check), unlock, recovery on a new browser, show phrase | Built, tested; works once the service is deployed and the flags are on |
 | Move-funds flow | Not built |
 
 Steps that depend on an unbuilt service say so on the page and cannot be clicked.
