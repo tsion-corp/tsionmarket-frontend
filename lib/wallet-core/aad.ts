@@ -84,3 +84,11 @@ export const SALT_WRAP = "tsion-dek-wrap-v2";
 export const SALT_RECOVERY_SIGNING = "tsion-recovery-signing-v1";
 export const SALT_PIN = "tsion-pin-wrap-v2";
 export const RECOVERY_SIGNING_INFO = "tsion-recovery-ed25519:v1";
+
+/** HKDF label for the signing key a device uses to authorise changes to the package. */
+export const SALT_DEVICE_SIGNING = "tsion-device-signing-v1";
+export const infoDeviceSigning = (walletId: string, deviceId: string) => {
+  assertId(walletId, "wallet id");
+  assertId(deviceId, "device id");
+  return `${PREFIX}:wallet:${walletId}:device-signing:${deviceId}`;
+};
