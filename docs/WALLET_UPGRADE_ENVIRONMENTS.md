@@ -46,6 +46,22 @@ Users in one Clerk instance do not exist in the other. Deleting a user in develo
 
 `NEXT_PUBLIC_*` values are inlined at build time. Set them before building, and rebuild after changing them.
 
+Server-side settings the link routes also read:
+
+| Variable | Meaning |
+|---|---|
+| `MIGRATION_SERVICE_ENABLED` | `1` turns the migration proxies on (already used by the Privy → Decane flow) |
+| `MIGRATION_API_URL` | The `user-management` service to call. **In development it must not be the production gateway**; the routes refuse (503 `NOT_AVAILABLE`) unless you also set the next variable. |
+| `WALLET_UPGRADE_ALLOW_PROD_UPSTREAM` | `true` lets a development build call a production service. Almost never what you want: it writes development Clerk users into production data and could claim a real Decane account for a test user. |
+
+Service-side (`user-management`): `AUTH_PROVIDERS` must include `clerk`, plus `CLERK_ISSUER_URL`, `CLERK_AUTHORIZED_PARTIES`, `CLERK_SECRET_KEY` and `CLERK_WEBHOOK_SECRET` (see the backend repo).
+
+### Clerk instance settings (done once per instance)
+
+- **Session token claim:** `session.claims = { "uid": "{{user.external_id}}" }`. Applied to the development instance with `clerk config patch`; the production instance needs the same patch (`--instance prod`) before launch.
+- **Webhook:** point a Clerk webhook endpoint at the service's `/webhooks/clerk/events` and subscribe to `user.deleted`. It needs a public URL, so it is added where the service is deployed (not on localhost).
+- Nothing is auto-provisioned on `user.created`, on purpose: a person migrating from Decane must arrive with no id so the link can give them their existing one.
+
 ## Setting each environment up
 
 **Development**
@@ -74,7 +90,9 @@ Handle deletions through the `user.deleted` webhook so mappings and packages are
 | Clerk sign-in, profile button, `/upgrade` page | Built |
 | Decane stays mounted for the legacy sign-in and signing | Built (untouched) |
 | Environment split and guard rails | Built, tested |
-| Identity link service (`user-management`) | Not built |
+| Identity link, new-user provisioning and Clerk deletion webhook (`user-management`) | Built and tested in the monorepo (local branch `feat/clerk-verifier`, **not deployed**) |
+| Frontend routes `/api/wallet-upgrade/{link,status,provision}` and the link step on `/upgrade` | Built, tested; works once the service above is deployed and the flags below are on |
+| Clerk `uid` session-token claim | Set on the **development** instance; production needs the same (see below) |
 | Wallet service and the encrypted wallet module (Argon2id) | Not built |
 | Move-funds flow | Not built |
 

@@ -1,6 +1,6 @@
 import { SignIn } from "@clerk/nextjs";
 import { notFound } from "next/navigation";
-import { readUpgradeEnv, walletUpgradeConfig } from "@/features/wallet-upgrade/lib/environment";
+import { readUpgradeEnv, walletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 import { Suspense } from "react";
 
 export default function SignInPage() {

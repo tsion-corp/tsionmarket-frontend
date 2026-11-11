@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { walletUpgradeConfig } from "./environment";
+import { walletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 import { EMPTY_PROGRESS, deriveSteps, nextStep } from "./steps";
 
 const config = (extra: Record<string, string> = {}) =>
@@ -10,7 +10,8 @@ const config = (extra: Record<string, string> = {}) =>
     ...extra,
   });
 
-const states = (steps: ReturnType<typeof deriveSteps>) => Object.fromEntries(steps.map((s) => [s.id, s.state]));
+const states = (steps: ReturnType<typeof deriveSteps>) =>
+  Object.fromEntries(steps.map((s) => [s.id, s.state]));
 
 describe("deriveSteps", () => {
   it("starts with the two sign-ins ready and nothing after them offered", () => {
@@ -25,7 +26,11 @@ describe("deriveSteps", () => {
   });
 
   it("marks signed-in steps done", () => {
-    const steps = deriveSteps(config(), { ...EMPTY_PROGRESS, clerkSignedIn: true, decaneSignedIn: true });
+    const steps = deriveSteps(config(), {
+      ...EMPTY_PROGRESS,
+      clerkSignedIn: true,
+      decaneSignedIn: true,
+    });
     expect(states(steps).clerk).toBe("done");
     expect(states(steps).decane).toBe("done");
   });
@@ -41,7 +46,9 @@ describe("deriveSteps", () => {
       linkService: "true",
     });
     expect(states(deriveSteps(withService, both)).link).toBe("ready");
-    expect(states(deriveSteps(withService, { ...both, decaneSignedIn: false })).link).toBe("blocked");
+    expect(states(deriveSteps(withService, { ...both, decaneSignedIn: false })).link).toBe(
+      "blocked"
+    );
   });
 
   it("explains what a blocked step is waiting on", () => {
@@ -51,7 +58,9 @@ describe("deriveSteps", () => {
       enabled: "true",
       linkService: "true",
     });
-    const link = deriveSteps(withService, { ...EMPTY_PROGRESS, clerkSignedIn: true }).find((s) => s.id === "link");
+    const link = deriveSteps(withService, { ...EMPTY_PROGRESS, clerkSignedIn: true }).find(
+      (s) => s.id === "link"
+    );
     expect(link?.state).toBe("blocked");
     expect(link?.reason).toMatch(/current account/i);
   });
@@ -77,6 +86,27 @@ describe("deriveSteps", () => {
   });
 });
 
+describe("a person with no old account", () => {
+  it("skips signing in to the old account and connecting to it", () => {
+    const withService = walletUpgradeConfig({
+      deployEnv: "development",
+      clerkPublishableKey: "pk_test_x",
+      enabled: "true",
+      linkService: "true",
+      cryptoBackend: "true",
+    });
+    const steps = deriveSteps(withService, {
+      ...EMPTY_PROGRESS,
+      clerkSignedIn: true,
+      linked: true,
+      noLegacyAccount: true,
+    });
+    expect(states(steps).decane).toBe("done");
+    expect(states(steps).link).toBe("done");
+    expect(states(steps).wallet).toBe("ready");
+  });
+});
+
 describe("nextStep", () => {
   it("is the first unfinished step, and null at the end", () => {
     const steps = deriveSteps(config(), { ...EMPTY_PROGRESS, clerkSignedIn: true });
@@ -85,6 +115,7 @@ describe("nextStep", () => {
       clerkSignedIn: true,
       decaneSignedIn: true,
       linked: true,
+      noLegacyAccount: false,
       walletCreated: true,
       recoveryConfirmed: true,
       fundsMoved: true,

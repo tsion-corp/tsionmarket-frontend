@@ -1,4 +1,4 @@
-import type { WalletUpgradeConfig } from "./environment";
+import type { WalletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 
 /**
  * The upgrade as an ordered list of steps, each with a state the page can
@@ -23,6 +23,8 @@ export interface UpgradeProgress {
   clerkSignedIn: boolean;
   decaneSignedIn: boolean;
   linked: boolean;
+  /** Set up fresh, with no old account to bring across: those steps do not apply. */
+  noLegacyAccount: boolean;
   walletCreated: boolean;
   recoveryConfirmed: boolean;
   fundsMoved: boolean;
@@ -32,6 +34,7 @@ export const EMPTY_PROGRESS: UpgradeProgress = {
   clerkSignedIn: false,
   decaneSignedIn: false,
   linked: false,
+  noLegacyAccount: false,
   walletCreated: false,
   recoveryConfirmed: false,
   fundsMoved: false,
@@ -59,8 +62,9 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
     {
       id: "decane",
       title: "Sign in to your current account",
-      description: "We need to see your existing wallet to move it. Nothing is changed by signing in.",
-      done: progress.decaneSignedIn,
+      description:
+        "We need to see your existing wallet to move it. Nothing is changed by signing in.",
+      done: progress.decaneSignedIn || progress.noLegacyAccount,
       service: true,
       unavailableReason: "",
       needs: [],
@@ -68,7 +72,8 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
     {
       id: "link",
       title: "Connect the two",
-      description: "Proves both accounts are yours, so your balances, history and rewards carry over.",
+      description:
+        "Proves both accounts are yours, so your balances, history and rewards carry over.",
       done: progress.linked,
       service: config.linkAvailable,
       unavailableReason: "The account-linking service is not switched on yet.",
@@ -89,7 +94,8 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
     {
       id: "recovery",
       title: "Save your recovery secret",
-      description: "The only way back in if you forget your passphrase. We cannot recover it for you.",
+      description:
+        "The only way back in if you forget your passphrase. We cannot recover it for you.",
       done: progress.recoveryConfirmed,
       service: config.walletAvailable,
       unavailableReason: "The wallet service is not switched on yet.",

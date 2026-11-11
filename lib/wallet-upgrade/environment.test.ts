@@ -93,7 +93,12 @@ describe("walletUpgradeConfig", () => {
   });
 
   it("needs the wallet backend as well as its own switch to offer moving funds", () => {
-    const base = { deployEnv: "development", clerkPublishableKey: DEV_KEY, enabled: "true", moveFunds: "true" };
+    const base = {
+      deployEnv: "development",
+      clerkPublishableKey: DEV_KEY,
+      enabled: "true",
+      moveFunds: "true",
+    };
     expect(walletUpgradeConfig(base).moveFundsAvailable).toBe(false);
     expect(walletUpgradeConfig({ ...base, cryptoBackend: "true" }).moveFundsAvailable).toBe(true);
   });

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { UpgradePage } from "@/features/wallet-upgrade/components/upgrade-page";
-import { readUpgradeEnv, walletUpgradeConfig } from "@/features/wallet-upgrade/lib/environment";
+import { readUpgradeEnv, walletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 
 export const metadata: Metadata = { title: "Upgrade your wallet", robots: { index: false } };
 
