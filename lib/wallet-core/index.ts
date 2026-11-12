@@ -8,7 +8,7 @@ export * from "./encoding";
 export * from "./envelope";
 export * from "./package";
 export * from "./passphrase";
-export * from "./phrase";
+export * from "./recovery-secret";
 export * from "./proof";
 export * from "./root";
 export * from "./unlock-state";

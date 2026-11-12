@@ -13,7 +13,7 @@ import { fromBase64Url, toBase64Url, utf8, wipeBytes } from "./encoding";
  * package and a one-time server nonce, by one of:
  *
  *   - an enrolled DEVICE key (derived from that device's own secret), or
- *   - the RECOVERY key (derived from the recovery phrase).
+ *   - the RECOVERY key (derived from the recovery secret).
  *
  * The signed message is also domain-separated per operation, so a signature
  * made for one thing cannot be replayed as another.

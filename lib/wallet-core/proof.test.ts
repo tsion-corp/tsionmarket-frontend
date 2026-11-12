@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { deriveAccount } from "./derive";
-import { generatePhrase, seedFromEntropy } from "./phrase";
+import { randomBytes } from "./encoding";
 import { possessionMessage, signPossession, verifyPossession } from "./proof";
 
 const NONCE = "nonce-0123456789abcdef";
@@ -8,7 +8,7 @@ const WALLET = "wallet-1";
 const ACCOUNT = "account-1";
 
 const accountOf = (family: "evm" | "solana") => {
-  const derived = deriveAccount(family, seedFromEntropy(generatePhrase().entropy));
+  const derived = deriveAccount(family, randomBytes(64));
   return { address: derived.address, material: derived.material };
 };
 

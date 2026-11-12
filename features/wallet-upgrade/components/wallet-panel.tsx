@@ -9,7 +9,6 @@ import {
   loadWalletState,
   lockWallet,
   recoverOnThisDevice,
-  showRecoveryPhrase,
   unlockWallet,
   type Deps,
   type WalletState,
@@ -19,7 +18,6 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { LockIcon } from "@/components/ui/icons";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { CreateWallet } from "./create-wallet";
-import { PhraseGrid } from "./phrase-grid";
 import { BODY, FIELD, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, SMALL, TITLE, WELL } from "./ui";
 
 const deps: Deps = { api: walletApi, devices: indexedDbDeviceStore() };
@@ -87,7 +85,7 @@ function Locked({
 }) {
   const [passphrase, setPassphrase] = useState("");
   const [recovering, setRecovering] = useState(false);
-  const [phrase, setPhrase] = useState("");
+  const [secret, setSecret] = useState("");
 
   const unlock = useMutation({
     mutationFn: () => unlockWallet(deps, uid, passphrase),
@@ -97,35 +95,36 @@ function Locked({
     },
   });
   const recover = useMutation({
-    mutationFn: () => recoverOnThisDevice(deps, uid, phrase),
+    mutationFn: () => recoverOnThisDevice(deps, uid, secret),
     onSuccess: () => {
-      setPhrase("");
+      setSecret("");
       onChange();
     },
   });
 
   if (recovering) {
     return (
-      <Card title="Use your recovery phrase">
+      <Card title="Use your recovery secret">
         <p className={BODY}>
-          Enter your 24 words in order, separated by spaces. This opens your wallet and registers
-          this device.
+          Enter the recovery secret you saved when you made this wallet: 14 groups of four
+          characters. This opens your wallet and registers this device.
         </p>
         <textarea
-          aria-label="Recovery phrase"
-          rows={4}
+          aria-label="Recovery secret"
+          rows={3}
           autoComplete="off"
-          autoCapitalize="none"
+          autoCapitalize="characters"
           autoCorrect="off"
           spellCheck={false}
+          placeholder="XXXX-XXXX-XXXX-…"
           className={`${FIELD} font-mono`}
-          value={phrase}
-          onChange={(e) => setPhrase(e.target.value)}
+          value={secret}
+          onChange={(e) => setSecret(e.target.value)}
         />
         <button
           type="button"
           className={PRIMARY}
-          disabled={!phrase.trim() || recover.isPending}
+          disabled={!secret.trim() || recover.isPending}
           onClick={() => recover.mutate()}
         >
           {recover.isPending ? "Checking…" : "Open my wallet"}
@@ -154,7 +153,7 @@ function Locked({
       {!state.deviceEnrolled ? (
         <p className={NOTICE.warn}>
           This browser isn&apos;t registered with your wallet yet. You can still unlock it with your
-          passphrase; use your recovery phrase to register this browser.
+          passphrase; use your recovery secret to register this browser.
         </p>
       ) : (
         <p className={BODY}>Enter your passphrase to open your wallet on this device.</p>
@@ -198,18 +197,7 @@ function Unlocked({
   state: Extract<WalletState, { kind: "unlocked" }>;
   onChange: () => void;
 }) {
-  const [asking, setAsking] = useState(false);
-  const [passphrase, setPassphrase] = useState("");
-  const [words, setWords] = useState<Array<string> | null>(null);
   const addresses = addressesOf(state.wallet);
-
-  const reveal = useMutation({
-    mutationFn: () => showRecoveryPhrase(deps, passphrase),
-    onSuccess: (result) => {
-      setPassphrase("");
-      setWords(result);
-    },
-  });
 
   return (
     <Card
@@ -241,51 +229,16 @@ function Unlocked({
         ))}
       </ul>
 
-      {words ? (
-        <div className="flex flex-col gap-3">
-          <PhraseGrid words={words} />
-          <button type="button" className={LINK} onClick={() => setWords(null)}>
-            Hide the words
-          </button>
-        </div>
-      ) : asking ? (
-        <form
-          className="flex flex-col gap-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (passphrase) reveal.mutate();
-          }}
-        >
-          <input
-            type="password"
-            autoComplete="current-password"
-            aria-label="Passphrase to show the recovery phrase"
-            placeholder="Enter your passphrase to continue"
-            className={FIELD}
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-          />
-          <button type="submit" className={PRIMARY} disabled={!passphrase || reveal.isPending}>
-            {reveal.isPending ? "Checking…" : "Show my recovery phrase"}
-          </button>
-          {reveal.error ? (
-            <p role="alert" className={NOTICE.error}>
-              {walletErrorMessage(reveal.error)}
-            </p>
-          ) : null}
-        </form>
-      ) : (
-        <button type="button" className={`${LINK} self-center`} onClick={() => setAsking(true)}>
-          Show my recovery phrase
-        </button>
-      )}
+      <p className={SMALL}>
+        Your recovery secret was shown once, when you made this wallet. It can&apos;t be shown
+        again, so keep what you saved.
+      </p>
 
       <button
         type="button"
         className={`${SECONDARY} sm:w-auto sm:self-center sm:px-8`}
         onClick={() => {
           lockWallet();
-          setWords(null);
           onChange();
         }}
       >

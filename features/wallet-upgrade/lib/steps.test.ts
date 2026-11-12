@@ -134,7 +134,7 @@ describe("nextStep", () => {
 });
 
 describe("deriveSteps (Decane mode, the default)", () => {
-  it("is four steps: sign in, wallet, recovery phrase, move funds", () => {
+  it("is four steps: sign in, wallet, recovery secret, move funds", () => {
     const steps = deriveSteps(decaneConfig(), EMPTY_PROGRESS);
     expect(steps.map((s) => s.id)).toEqual(["decane", "wallet", "recovery", "funds"]);
     expect(steps.map((s) => s.id)).not.toContain("clerk");

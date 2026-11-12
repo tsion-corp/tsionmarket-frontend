@@ -1,15 +1,17 @@
-import { aadRoot } from "./aad";
-import { OpenError, open, seal } from "./crypto";
+import { SALT_ROOT_SEED, INFO_ROOT_SEED, aadRoot } from "./aad";
+import { OpenError, hkdfSha256, open, seal } from "./crypto";
 import { fromBase64Url, toBase64Url, utf8, wipeBytes } from "./encoding";
-import { isValidEntropyLength } from "./phrase";
 
 /**
- * The encrypted phrase: the only secret the package stores, sealed under the
- * wallet key. Everything else (every account key) is derived from it on use.
+ * The sealed root: the one random seed every account key is derived from, kept in
+ * the package encrypted under the wallet key. Account keys are derived from it on
+ * use and dropped straight after, so the package holds exactly one key secret.
  *
  * The plaintext is a small strict JSON document so a blob that opens to
  * something unexpected is rejected rather than used.
  */
+
+export const ROOT_BYTES = 32;
 
 export interface SealedRoot {
   ciphertext: string;
@@ -21,7 +23,7 @@ export interface SealedRoot {
 
 export class RootError extends Error {
   constructor() {
-    super("The stored recovery phrase is not in a recognised format.");
+    super("The stored wallet key is not in a recognised format.");
     this.name = "RootError";
   }
 }
@@ -29,13 +31,11 @@ export class RootError extends Error {
 export async function sealRoot(
   dek: Uint8Array,
   walletId: string,
-  entropy: Uint8Array
+  root: Uint8Array
 ): Promise<SealedRoot> {
-  if (!isValidEntropyLength(entropy.length)) throw new RootError();
+  if (root.length !== ROOT_BYTES) throw new RootError();
   const aad = aadRoot(walletId);
-  const plaintext = utf8(
-    JSON.stringify({ v: 1, kind: "bip39", language: "english", entropy: toBase64Url(entropy) })
-  );
+  const plaintext = utf8(JSON.stringify({ v: 1, kind: "root-seed", seed: toBase64Url(root) }));
   const sealed = await seal(dek, plaintext, aad);
   wipeBytes(plaintext);
   return {
@@ -47,7 +47,7 @@ export async function sealRoot(
   };
 }
 
-/** The phrase as raw bytes. A secret: the caller wipes it. */
+/** The root as raw bytes. A secret: the caller wipes it. */
 export async function openRoot(
   dek: Uint8Array,
   walletId: string,
@@ -63,21 +63,26 @@ export async function openRoot(
     if (
       typeof value !== "object" ||
       value === null ||
-      Object.keys(value).sort().join(",") !== "entropy,kind,language,v" ||
+      Object.keys(value).sort().join(",") !== "kind,seed,v" ||
       value.v !== 1 ||
-      value.kind !== "bip39" ||
-      value.language !== "english" ||
-      typeof value.entropy !== "string"
+      value.kind !== "root-seed" ||
+      typeof value.seed !== "string"
     ) {
       throw new RootError();
     }
-    const entropy = fromBase64Url(value.entropy);
-    if (!isValidEntropyLength(entropy.length)) throw new RootError();
-    return entropy;
+    const root = fromBase64Url(value.seed);
+    if (root.length !== ROOT_BYTES) throw new RootError();
+    return root;
   } catch (error) {
     if (error instanceof RootError) throw error;
     throw new RootError();
   } finally {
     wipeBytes(plaintext);
   }
+}
+
+/** The 64-byte seed the account keys are derived from. A secret: the caller wipes it. */
+export function seedFromRoot(root: Uint8Array): Promise<Uint8Array> {
+  if (root.length !== ROOT_BYTES) throw new RootError();
+  return hkdfSha256(root, SALT_ROOT_SEED, INFO_ROOT_SEED, 64);
 }

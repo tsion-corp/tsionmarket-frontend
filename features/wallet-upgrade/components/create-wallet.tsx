@@ -4,9 +4,9 @@ import { useState } from "react";
 import { CheckIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import {
-  NEW_PHRASE_WORDS,
+  RECOVERY_SECRET_GROUPS,
   checkPassphrase,
-  confirmPhraseWords,
+  confirmSecretGroups,
   passphraseProblem,
   pickConfirmationPositions,
   wipeBytes,
@@ -14,19 +14,19 @@ import {
 } from "@/lib/wallet-core";
 import { prepareWallet, saveWallet, type Deps } from "../lib/wallet-flow";
 import { walletErrorMessage } from "../lib/wallet-errors";
-import { PhraseGrid } from "./phrase-grid";
+import { SecretDisplay } from "./secret-display";
 import { BODY, FIELD, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, TITLE } from "./ui";
 
 /**
- * Three short stages: choose a passphrase, write the recovery phrase down, prove
- * it was copied right. Nothing is sent anywhere until the last button, and the
- * phrase is dropped from memory as soon as the wallet is saved.
+ * Three short stages: choose a passphrase, save the recovery secret, prove it was
+ * copied right. Nothing is sent anywhere until the last button, and the
+ * secret is dropped from memory as soon as the wallet is saved.
  */
 
-type Step = "passphrase" | "phrase" | "confirm";
+type Step = "passphrase" | "secret" | "confirm";
 const STAGES: ReadonlyArray<{ id: Step; label: string }> = [
   { id: "passphrase", label: "Passphrase" },
-  { id: "phrase", label: "Write it down" },
+  { id: "secret", label: "Save it" },
   { id: "confirm", label: "Check" },
 ];
 
@@ -60,11 +60,11 @@ export function CreateWallet({
     setError(null);
     try {
       const made = await prepareWallet(passphrase);
-      setPositions(pickConfirmationPositions(3, NEW_PHRASE_WORDS));
+      setPositions(pickConfirmationPositions(3, RECOVERY_SECRET_GROUPS));
       setWallet(made);
       setPassphrase("");
       setAgain("");
-      setStep("phrase");
+      setStep("secret");
     } catch (e) {
       setError(walletErrorMessage(e));
     } finally {
@@ -97,7 +97,9 @@ export function CreateWallet({
     setError(null);
   }
 
-  const confirmed = wallet ? confirmPhraseWords(wallet.phrase, positions, answers) : false;
+  const confirmed = wallet
+    ? confirmSecretGroups(wallet.recoverySecret.split("-"), positions, answers)
+    : false;
 
   return (
     <section aria-label="Create your wallet" className={PANEL}>
@@ -166,20 +168,21 @@ export function CreateWallet({
         </>
       ) : null}
 
-      {step === "phrase" && wallet ? (
+      {step === "secret" && wallet ? (
         <>
           <div className="flex flex-col gap-2.5">
-            <h2 className={TITLE}>Write down your recovery phrase</h2>
+            <h2 className={TITLE}>Save your recovery secret</h2>
             <p className={BODY}>
-              These {NEW_PHRASE_WORDS} words are the only way back in if you forget your passphrase
-              or lose this device. Anyone who has them can take your funds.
+              This is the only way back in if you forget your passphrase or lose this device. It is
+              shown once: we don&apos;t keep it, so we can&apos;t show it again or recover it for
+              you.
             </p>
           </div>
           <p className={NOTICE.warn}>
-            Write them on paper, in order, and keep them somewhere private. Don&apos;t screenshot
-            them or store them online.
+            Keep it somewhere private, like a password manager or on paper. Don&apos;t share it and
+            don&apos;t screenshot it.
           </p>
-          <PhraseGrid words={wallet.phrase} testId="phrase-words" />
+          <SecretDisplay secret={wallet.recoverySecret} testId="secret-groups" />
           <label className="flex cursor-pointer items-start gap-3 text-[14px] text-white/75">
             <input
               type="checkbox"
@@ -187,7 +190,7 @@ export function CreateWallet({
               checked={wroteDown}
               onChange={(e) => setWroteDown(e.target.checked)}
             />
-            I have written all {NEW_PHRASE_WORDS} words down, in order.
+            I have saved all {RECOVERY_SECRET_GROUPS} groups, in order.
           </label>
           <button
             type="button"
@@ -208,13 +211,13 @@ export function CreateWallet({
           <div className="flex flex-col gap-2.5">
             <h2 className={TITLE}>Check your copy</h2>
             <p className={BODY}>
-              Type these words from what you wrote down, to be sure it&apos;s right.
+              Type these groups from what you saved, to be sure it&apos;s right.
             </p>
           </div>
           <div className="flex flex-col gap-3">
             {positions.map((position, i) => (
               <label key={position} className="flex flex-col gap-1.5 text-[13px] text-white/60">
-                Word {position + 1}
+                Group {position + 1}
                 <input
                   type="text"
                   autoComplete="off"
@@ -237,9 +240,9 @@ export function CreateWallet({
             type="button"
             className={SECONDARY}
             disabled={busy}
-            onClick={() => setStep("phrase")}
+            onClick={() => setStep("secret")}
           >
-            Show the words again
+            Show the secret again
           </button>
         </>
       ) : null}

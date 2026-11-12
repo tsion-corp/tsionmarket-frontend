@@ -15,7 +15,7 @@ const SHORT: Record<StepId, string> = {
   decane: "Current account",
   link: "Connect",
   wallet: "Create wallet",
-  recovery: "Recovery phrase",
+  recovery: "Recovery secret",
   funds: "Move funds",
 };
 

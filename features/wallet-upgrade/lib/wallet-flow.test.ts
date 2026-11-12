@@ -5,7 +5,9 @@ import {
   enrollMessage,
   isUnlocked,
   OpenError,
-  PhraseFormatError,
+  RecoverySecretFormatError,
+  encodeRecoverySecret,
+  generateRecoverySecret,
   verifyDeviceSignature,
   verifyPossession,
   verifyRecoverySignature,
@@ -19,7 +21,6 @@ import {
   prepareWallet,
   recoverOnThisDevice,
   saveWallet,
-  showRecoveryPhrase,
   unlockWallet,
   addressesOf,
   type Deps,
@@ -115,9 +116,9 @@ const PASSPHRASE = "correct horse battery staple";
 
 async function created(deps: Deps) {
   const made = await prepareWallet(PASSPHRASE);
-  const phrase = [...made.phrase];
+  const secret = made.recoverySecret;
   await saveWallet(deps, UID, made);
-  return phrase;
+  return secret;
 }
 
 afterEach(() => clearUnlocked());
@@ -128,16 +129,18 @@ describe("the wallet flow", () => {
     const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
     expect((await loadWalletState(deps, UID)).kind).toBe("none");
 
-    const phrase = await created(deps);
-    expect(phrase).toHaveLength(24);
+    const secret = await created(deps);
+    expect(secret.split("-")).toHaveLength(14);
     const state = await loadWalletState(deps, UID);
     expect(state).toMatchObject({ kind: "unlocked", deviceEnrolled: true });
     expect(service.log).toEqual(["create"]);
     const record = await deps.devices.get(UID);
     expect(record?.walletId).toBe(service.wallet?.walletId);
-    // The service got ciphertext only: no phrase word appears anywhere in what it stored.
-    const stored = JSON.stringify(service.wallet);
-    for (const word of phrase.slice(0, 6)) expect(stored.includes(`"${word}"`)).toBe(false);
+    // The service got ciphertext only: the secret appears nowhere in what it stored.
+    const stored = JSON.stringify(service.wallet).toUpperCase();
+    expect(stored.includes(secret)).toBe(false);
+    expect(stored.includes(secret.replace(/-/g, ""))).toBe(false);
+    for (const group of secret.split("-")) expect(stored.includes(`"${group}"`)).toBe(false);
   }, 60_000);
 
   it("locks, and opens again only with the right passphrase", async () => {
@@ -156,20 +159,10 @@ describe("the wallet flow", () => {
     expect(isUnlocked(UID, service.wallet!.walletId)).toBe(true);
   }, 60_000);
 
-  it("shows the phrase again only to someone who knows the passphrase", async () => {
-    const service = fakeService();
-    const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
-    const phrase = await created(deps);
-    await expect(showRecoveryPhrase(deps, "wrong passphrase here")).rejects.toBeInstanceOf(
-      OpenError
-    );
-    expect(await showRecoveryPhrase(deps, PASSPHRASE)).toEqual(phrase);
-  }, 60_000);
-
-  it("registers a new browser with the recovery phrase, and opens the wallet", async () => {
+  it("registers a new browser with the recovery secret, and opens the wallet", async () => {
     const service = fakeService();
     const first: Deps = { api: service.api, devices: memoryDeviceStore() };
-    const phrase = await created(first);
+    const secret = await created(first);
     lockWallet();
 
     const fresh: Deps = { api: service.api, devices: memoryDeviceStore() };
@@ -177,7 +170,8 @@ describe("the wallet flow", () => {
       kind: "locked",
       deviceEnrolled: false,
     });
-    await recoverOnThisDevice(fresh, UID, phrase.join(" "));
+    // Typed any way a person might: lower case, spaces instead of dashes.
+    await recoverOnThisDevice(fresh, UID, secret.toLowerCase().replace(/-/g, " "));
     expect(service.log).toEqual(["create", "enroll"]);
     expect(await loadWalletState(fresh, UID)).toMatchObject({
       kind: "unlocked",
@@ -186,19 +180,27 @@ describe("the wallet flow", () => {
     expect(service.wallet?.devices).toHaveLength(2);
   }, 60_000);
 
-  it("rejects a wrong or malformed recovery phrase without registering anything", async () => {
+  it("rejects a mistyped, wrong or malformed recovery secret without registering anything", async () => {
     const service = fakeService();
     const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
-    const phrase = await created(deps);
+    const secret = await created(deps);
     lockWallet();
     const fresh: Deps = { api: service.api, devices: memoryDeviceStore() };
 
-    await expect(recoverOnThisDevice(fresh, UID, "not a phrase")).rejects.toBeInstanceOf(
-      PhraseFormatError
+    await expect(recoverOnThisDevice(fresh, UID, "not a secret")).rejects.toBeInstanceOf(
+      RecoverySecretFormatError
     );
-    const swapped = [...phrase];
-    [swapped[0], swapped[1]] = [swapped[1]!, swapped[0]!];
-    await expect(recoverOnThisDevice(fresh, UID, swapped.join(" "))).rejects.toThrow();
+    // One character wrong: caught by the checksum, so the person is told to fix a typo.
+    const chars = secret.split("");
+    const at = chars.findIndex((c) => c !== "-");
+    chars[at] = chars[at] === "0" ? "1" : "0";
+    await expect(recoverOnThisDevice(fresh, UID, chars.join(""))).rejects.toBeInstanceOf(
+      RecoverySecretFormatError
+    );
+    // A well-formed secret that belongs to nobody here.
+    await expect(
+      recoverOnThisDevice(fresh, UID, encodeRecoverySecret(generateRecoverySecret()))
+    ).rejects.toBeInstanceOf(OpenError);
     expect(service.log).toEqual(["create"]);
     expect(await fresh.devices.get(UID)).toBeNull();
   }, 60_000);

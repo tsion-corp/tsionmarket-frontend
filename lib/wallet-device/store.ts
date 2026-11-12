@@ -5,7 +5,7 @@ import { type WalletDeviceRecord } from "./types";
  *
  * The device secret signs package changes (with a Clerk session as well) and can
  * wrap this device's envelope. It cannot decrypt the wallet on its own: the
- * passphrase or recovery phrase does that. It lives in IndexedDB, per user, so
+ * passphrase or recovery secret does that. It lives in IndexedDB, per user, so
  * signing out and in as someone else never reaches it.
  */
 export interface DeviceStore {

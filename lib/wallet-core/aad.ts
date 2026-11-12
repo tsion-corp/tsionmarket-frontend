@@ -14,7 +14,9 @@ import type { Argon2Params } from "./argon2";
  */
 
 export const PACKAGE_FORMAT = "tsion-wallet-package";
-export const PACKAGE_VERSION = 3;
+// 4: the keys are random and sealed in the package; the recovery secret only opens the
+// envelope that holds the key to that seal (it is no longer the root of the keys).
+export const PACKAGE_VERSION = 4;
 const PREFIX = `tsion:v${PACKAGE_VERSION}`;
 
 const ID = /^[A-Za-z0-9_.-]{1,128}$/;
@@ -25,7 +27,7 @@ export function assertId(value: string, what: string): void {
 
 export type ChainFamily = "evm" | "solana";
 
-/** Binds the encrypted recovery phrase to its wallet. */
+/** Binds the sealed root key (the seed every account key is derived from) to its wallet. */
 export function aadRoot(walletId: string): string {
   assertId(walletId, "wallet id");
   return `${PREFIX}:wallet:${walletId}:root`;
@@ -92,3 +94,7 @@ export const infoDeviceSigning = (walletId: string, deviceId: string) => {
   assertId(deviceId, "device id");
   return `${PREFIX}:wallet:${walletId}:device-signing:${deviceId}`;
 };
+
+/** Expands the random 32-byte root into the 64-byte seed the account keys are derived from. */
+export const SALT_ROOT_SEED = "tsion-root-seed-v1";
+export const INFO_ROOT_SEED = "tsion-root-seed:v1";

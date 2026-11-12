@@ -11,9 +11,13 @@ import {
   passphraseParams,
   type PassphraseEnvelope,
 } from "./envelope";
-import { entropyToWords, generatePhrase, parsePhrase, seedFromEntropy } from "./phrase";
+import {
+  encodeRecoverySecret,
+  generateRecoverySecret,
+  parseRecoverySecret,
+} from "./recovery-secret";
 import { validateWalletPackage, type PackageAccount, type WalletPackage } from "./package";
-import { openRoot, sealRoot } from "./root";
+import { ROOT_BYTES, openRoot, sealRoot, seedFromRoot } from "./root";
 
 /**
  * The wallet lifecycle, as pure functions over a package.
@@ -23,8 +27,9 @@ import { openRoot, sealRoot } from "./root";
  * secrets to show once). That keeps every security property testable, and lets
  * the same code run on a device and in a server-side validator.
  *
- * The package stores ONE secret, the recovery phrase, encrypted. Account keys
- * are derived from it on use and dropped straight after.
+ * The package stores ONE key secret, a random root, sealed under the wallet key.
+ * Account keys are derived from it on use and dropped straight after. The recovery
+ * secret is not that root: it only opens an envelope holding the wallet key.
  */
 
 const newId = () => crypto.randomUUID();
@@ -46,21 +51,25 @@ export interface NewAccount {
 export interface CreatedWallet {
   /** Ciphertext only: safe to send to the server and to cache. */
   package: WalletPackage;
-  /** The recovery phrase to show once (never stored in the clear). */
-  phrase: Array<string>;
-  /** True when the person brought their own phrase instead of getting a new one. */
-  imported: boolean;
+  /**
+   * The recovery secret, as written down: 14 groups of four. Shown once and never
+   * stored (the package holds only an envelope that it opens), so it cannot be
+   * shown again.
+   */
+  recoverySecret: string;
   /** The wallet key, for the unlocked session. Wipe when the session ends. */
   dek: Uint8Array;
   addresses: Array<{ accountId: string; family: ChainFamily; address: string }>;
 }
 
 /**
- * Create a wallet, or import one from an existing phrase.
+ * Create a wallet.
  *
- * With `phrase`, the same keys the person already has elsewhere are derived,
- * and the phrase they typed becomes this wallet's recovery phrase. Without
- * one, a fresh 24-word phrase is generated.
+ * Three independent random values are made: the wallet key (DEK), the root every
+ * account key is derived from, and the recovery secret. The root is sealed under the
+ * DEK; the DEK is wrapped once by the passphrase and once by the recovery secret.
+ * Nothing but the passphrase and the recovery secret can open the DEK, and the
+ * recovery secret alone reaches no key without the package.
  */
 export async function createWallet(input: {
   walletId: string;
@@ -68,11 +77,11 @@ export async function createWallet(input: {
   passphrase: string;
   params?: Argon2Params;
   securityVersion?: number;
-  phrase?: string | ReadonlyArray<string>;
 }): Promise<CreatedWallet> {
   assertId(input.walletId, "wallet id");
-  const parsed = input.phrase !== undefined ? parsePhrase(input.phrase) : generatePhrase();
-  const seed = seedFromEntropy(parsed.entropy);
+  const root = randomBytes(ROOT_BYTES);
+  const secret = generateRecoverySecret();
+  const seed = await seedFromRoot(root);
   const dek = randomBytes(32);
   try {
     const accounts: Array<PackageAccount> = [];
@@ -85,7 +94,7 @@ export async function createWallet(input: {
         accountId: spec.accountId,
         family: spec.family,
         algorithm: derived.algorithm,
-        keyType: "bip39-derived",
+        keyType: "root-derived",
         derivationPath: derived.derivationPath,
         publicKey: derived.publicKey,
         canonicalAddress: derived.address,
@@ -111,9 +120,9 @@ export async function createWallet(input: {
       walletId: input.walletId,
       envelopeId: newId(),
       dek,
-      entropy: parsed.entropy,
+      secret,
     });
-    const encryptedRoot = await sealRoot(dek, input.walletId, parsed.entropy);
+    const encryptedRoot = await sealRoot(dek, input.walletId, root);
 
     const pkg = validateWalletPackage({
       format: PACKAGE_FORMAT,
@@ -126,18 +135,12 @@ export async function createWallet(input: {
       accounts,
       envelopes: [passphrase, recovery],
     });
-    return {
-      package: pkg,
-      phrase: parsed.words,
-      imported: input.phrase !== undefined,
-      dek,
-      addresses,
-    };
+    return { package: pkg, recoverySecret: encodeRecoverySecret(secret), dek, addresses };
   } catch (error) {
     wipeBytes(dek);
     throw error;
   } finally {
-    wipeBytes(seed, parsed.entropy);
+    wipeBytes(root, seed, secret);
   }
 }
 
@@ -157,34 +160,29 @@ export async function unlockWithPassphrase(
   throw new OpenError();
 }
 
-/** Unlock with the recovery phrase (the way back in when the passphrase is forgotten). */
-export async function unlockWithPhrase(
+/**
+ * Unlock with the recovery secret, as written down (any case or spacing): the way
+ * back in when the passphrase is forgotten. Throws RecoverySecretFormatError for
+ * something that is not a valid secret, and OpenError for a valid one that is not
+ * this wallet's.
+ */
+export async function unlockWithRecoverySecret(
   pkg: WalletPackage,
-  phrase: string | ReadonlyArray<string>
+  written: string
 ): Promise<Uint8Array> {
-  const { entropy } = parsePhrase(phrase);
+  const secret = parseRecoverySecret(written);
   try {
     for (const envelope of pkg.envelopes) {
       if (envelope.purpose !== "recovery") continue;
       try {
-        return await openRecoveryEnvelope({ walletId: pkg.walletId, envelope, entropy });
+        return await openRecoveryEnvelope({ walletId: pkg.walletId, envelope, secret });
       } catch (error) {
         if (!(error instanceof OpenError)) throw error;
       }
     }
     throw new OpenError();
   } finally {
-    wipeBytes(entropy);
-  }
-}
-
-/** Show the phrase again. The caller must require a fresh unlock first. */
-export async function revealPhrase(pkg: WalletPackage, dek: Uint8Array): Promise<Array<string>> {
-  const entropy = await openRoot(dek, pkg.walletId, pkg.encryptedRoot);
-  try {
-    return entropyToWords(entropy);
-  } finally {
-    wipeBytes(entropy);
+    wipeBytes(secret);
   }
 }
 
@@ -192,7 +190,7 @@ export async function revealPhrase(pkg: WalletPackage, dek: Uint8Array): Promise
  * Derive one account's key for the duration of `run`, then wipe it.
  *
  * The derived key must produce the address the package claims for the account;
- * a package whose claim does not match its phrase is rejected, never used.
+ * a package whose claim does not match its root is rejected, never used.
  */
 export async function withAccountKey<T>(
   pkg: WalletPackage,
@@ -202,8 +200,8 @@ export async function withAccountKey<T>(
 ): Promise<T> {
   const account = pkg.accounts.find((item) => item.accountId === accountId);
   if (!account) throw new AccountError();
-  const entropy = await openRoot(dek, pkg.walletId, pkg.encryptedRoot);
-  const seed = seedFromEntropy(entropy);
+  const root = await openRoot(dek, pkg.walletId, pkg.encryptedRoot);
+  const seed = await seedFromRoot(root);
   const derived = deriveAccount(account.family, seed);
   try {
     if (
@@ -215,7 +213,7 @@ export async function withAccountKey<T>(
     return await run(derived.material);
   } finally {
     wipeMaterial(derived.material);
-    wipeBytes(entropy, seed);
+    wipeBytes(root, seed);
   }
 }
 
@@ -228,7 +226,7 @@ function next(pkg: WalletPackage, envelopes: WalletPackage["envelopes"]): Wallet
   });
 }
 
-/** Replace the passphrase (fresh salt, current parameters). The recovery phrase still works. */
+/** Replace the passphrase (fresh salt, current parameters). The recovery secret still works. */
 export async function changePassphrase(
   pkg: WalletPackage,
   dek: Uint8Array,

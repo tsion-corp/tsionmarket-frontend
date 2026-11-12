@@ -5,16 +5,15 @@ import {
   deviceSigningKey,
   enrollMessage,
   isUnlocked,
-  parsePhrase,
+  parseRecoverySecret,
   randomBytes,
-  revealPhrase,
   setUnlocked,
   signAsDevice,
   signPossession,
   signRecoveryChallenge,
   toBase64Url,
   unlockWithPassphrase,
-  unlockWithPhrase,
+  unlockWithRecoverySecret,
   validateWalletPackage,
   withAccountKey,
   wipeBytes,
@@ -77,7 +76,7 @@ function newDevice(): { deviceId: string; secret: Uint8Array } {
 
 /**
  * Register the wallet. Call only after the person has confirmed their recovery
- * phrase: from here on the service holds the only copy of the encrypted keys.
+ * secret: from here on the service holds the only copy of the encrypted keys.
  */
 export async function saveWallet(deps: Deps, uid: string, created: CreatedWallet): Promise<void> {
   const pkg = created.package;
@@ -128,14 +127,14 @@ export async function unlockWallet(deps: Deps, uid: string, passphrase: string):
 }
 
 /**
- * Register this browser using the recovery phrase: the way back after losing the
+ * Register this browser using the recovery secret: the way back after losing the
  * device, or the passphrase. It also opens the wallet.
  */
-export async function recoverOnThisDevice(deps: Deps, uid: string, phrase: string): Promise<void> {
+export async function recoverOnThisDevice(deps: Deps, uid: string, written: string): Promise<void> {
   const wallet = await fetchWallet(deps);
   const pkg = checked(wallet);
-  const dek = await unlockWithPhrase(pkg, phrase);
-  const { entropy } = parsePhrase(phrase);
+  const dek = await unlockWithRecoverySecret(pkg, written);
+  const secret = parseRecoverySecret(written);
   const device = newDevice();
   try {
     const signing = await deviceSigningKey(device.secret, pkg.walletId, device.deviceId);
@@ -148,7 +147,7 @@ export async function recoverOnThisDevice(deps: Deps, uid: string, phrase: strin
       enrollMessage(pkg.walletId, device.deviceId, signing.publicKey, nonce)
     );
     const approval = await signRecoveryChallenge(
-      entropy,
+      secret,
       authorizeDeviceMessage(pkg.walletId, device.deviceId, signing.publicKey, nonce)
     );
     await deps.api.enrollDevice({
@@ -166,19 +165,7 @@ export async function recoverOnThisDevice(deps: Deps, uid: string, phrase: strin
     });
     setUnlocked(uid, pkg.walletId, dek);
   } finally {
-    wipeBytes(dek, entropy, device.secret);
-  }
-}
-
-/** Show the phrase again. Always asks for the passphrase afresh, however recently it was entered. */
-export async function showRecoveryPhrase(deps: Deps, passphrase: string): Promise<Array<string>> {
-  const wallet = await fetchWallet(deps);
-  const pkg = checked(wallet);
-  const dek = await unlockWithPassphrase(pkg, passphrase);
-  try {
-    return await revealPhrase(pkg, dek);
-  } finally {
-    wipeBytes(dek);
+    wipeBytes(dek, secret, device.secret);
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { addressOf, deriveAccount, DERIVATION_PATHS, slip10Ed25519 } from "./derive";
-import { parsePhrase, seedFromEntropy } from "./phrase";
+import { mnemonicToSeedSync } from "@scure/bip39";
 
 const hex = (bytes: Uint8Array) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
 const fromHex = (text: string) =>
@@ -10,7 +10,9 @@ const ABANDON =
   "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const HARDHAT = "test test test test test test test test test test test junk";
 
-const seedOf = (phrase: string) => seedFromEntropy(parsePhrase(phrase).entropy);
+// Standard BIP-39 seeds. The wallet no longer uses a phrase, but these published phrases
+// give published addresses, which is how the BIP-32 and SLIP-10 derivation is proven correct.
+const seedOf = (phrase: string) => mnemonicToSeedSync(phrase, "");
 
 describe("SLIP-0010 ed25519 (published test vector 1)", () => {
   const seed = fromHex("000102030405060708090a0b0c0d0e0f");
@@ -26,7 +28,7 @@ describe("SLIP-0010 ed25519 (published test vector 1)", () => {
 });
 
 describe("EVM account (m/44'/60'/0'/0/0)", () => {
-  it("matches the well-known address for the standard test phrase", () => {
+  it("matches the well-known address for the standard test seed", () => {
     expect(deriveAccount("evm", seedOf(ABANDON)).address).toBe(
       "0x9858EfFD232B4033E47d90003D41EC34EcaEda94"
     );
@@ -43,7 +45,7 @@ describe("EVM account (m/44'/60'/0'/0/0)", () => {
 });
 
 describe("Solana account (m/44'/501'/0'/0')", () => {
-  it("matches the address Phantom shows for the standard test phrase", () => {
+  it("matches the address Phantom shows for the standard test seed", () => {
     expect(deriveAccount("solana", seedOf(ABANDON)).address).toBe(
       "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk"
     );
@@ -63,7 +65,7 @@ describe("derived accounts", () => {
     });
   });
 
-  it("is deterministic, and different phrases give different accounts", () => {
+  it("is deterministic, and different seeds give different accounts", () => {
     const a = deriveAccount("evm", seedOf(ABANDON));
     expect(deriveAccount("evm", seedOf(ABANDON)).address).toBe(a.address);
     expect(deriveAccount("evm", seedOf(HARDHAT)).address).not.toBe(a.address);

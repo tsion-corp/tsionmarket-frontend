@@ -68,7 +68,7 @@ const recoveryEnvelope = z.strictObject({
   keyDerivationMetadata: z.strictObject({
     kind: z.literal("hkdf-sha256"),
     version: z.literal(1),
-    source: z.literal("recovery-phrase"),
+    source: z.literal("recovery-secret"),
   }),
   recoveryPublicKey: b64,
   verificationFingerprint: b64,
@@ -90,8 +90,8 @@ const account = z.strictObject({
   accountId: id,
   family: z.enum(["evm", "solana"]),
   algorithm: z.enum(["secp256k1", "ed25519"]),
-  // Derived from the recovery phrase, never stored as a separate secret.
-  keyType: z.literal("bip39-derived"),
+  // Derived from the sealed root on use; the package stores no key but the root.
+  keyType: z.literal("root-derived"),
   derivationPath: z
     .string()
     .regex(/^m(\/\d+'?)+$/)

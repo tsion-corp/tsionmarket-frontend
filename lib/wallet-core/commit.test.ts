@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { randomBytes } from "./encoding";
 import { signRecoveryChallenge, verifyRecoverySignature, createRecoveryEnvelope } from "./envelope";
-import { generatePhrase } from "./phrase";
+import { generateRecoverySecret } from "./recovery-secret";
 import {
   authorizeDeviceMessage,
   canonicalJson,
@@ -117,19 +117,19 @@ describe("device signatures", () => {
   });
 
   it("are not interchangeable with recovery signatures", async () => {
-    const entropy = generatePhrase().entropy;
-    const secret = randomBytes(32);
+    const recoverySecret = generateRecoverySecret();
+    const secret = randomBytes(32); // the device's own secret
     const { publicKey: devicePublic } = await deviceSigningKey(secret, WALLET, "dev-1");
     const recovery = await createRecoveryEnvelope({
       walletId: WALLET,
       envelopeId: "rec-1",
       dek: randomBytes(32),
-      entropy,
+      secret: recoverySecret,
     });
     const message = commitMessage(WALLET, 1, await packageDigest({ x: 1 }), NONCE);
 
     const deviceSig = await signAsDevice(secret, WALLET, "dev-1", message);
-    const recoverySig = await signRecoveryChallenge(entropy, message);
+    const recoverySig = await signRecoveryChallenge(recoverySecret, message);
     expect(verifyRecoverySignature(recovery.recoveryPublicKey, message, recoverySig)).toBe(true);
     expect(verifyDeviceSignature(devicePublic, message, deviceSig)).toBe(true);
     // Each is rejected under the other's rules, even over the same message.
@@ -138,15 +138,15 @@ describe("device signatures", () => {
   });
 
   it("a recovery signature over a commit message verifies under the recovery public key", async () => {
-    const entropy = generatePhrase().entropy;
+    const secret = generateRecoverySecret();
     const recovery = await createRecoveryEnvelope({
       walletId: WALLET,
       envelopeId: "rec-1",
       dek: randomBytes(32),
-      entropy,
+      secret,
     });
     const message = commitMessage(WALLET, 4, await packageDigest({ p: 1 }), NONCE);
-    const signature = await signRecoveryChallenge(entropy, message);
+    const signature = await signRecoveryChallenge(secret, message);
     expect(verifyRecoverySignature(recovery.recoveryPublicKey, message, signature)).toBe(true);
     expect(
       verifyRecoverySignature(recovery.recoveryPublicKey, message.replace(":4:", ":5:"), signature)

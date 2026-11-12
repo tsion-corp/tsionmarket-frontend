@@ -7,15 +7,20 @@ import { passphraseParams } from "./envelope";
 import { toBase64Url } from "./encoding";
 import { PackageValidationError, validateWalletPackage, type WalletPackage } from "./package";
 import { WeakPassphraseError } from "./passphrase";
-import { PhraseFormatError, generatePhrase, parsePhrase, seedFromEntropy } from "./phrase";
+import {
+  RecoverySecretFormatError,
+  encodeRecoverySecret,
+  generateRecoverySecret,
+  parseRecoverySecret,
+} from "./recovery-secret";
+import { openRoot, seedFromRoot } from "./root";
 import { signPossession, verifyPossession } from "./proof";
 import {
   AccountError,
   changePassphrase,
   createWallet,
-  revealPhrase,
   unlockWithPassphrase,
-  unlockWithPhrase,
+  unlockWithRecoverySecret,
   upgradePassphraseIfWeak,
   withAccountKey,
 } from "./wallet";
@@ -23,8 +28,6 @@ import {
 const FAST: Argon2Params = { memoryKiB: 32_768, iterations: 2, parallelism: 1, hashLength: 32 };
 const WALLET = "wallet-1";
 const PHRASE_PASSPHRASE = "correct horse battery staple";
-const ABANDON =
-  "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 const ACCOUNTS = [
   {
     accountId: "acc-evm",
@@ -44,11 +47,12 @@ const create = (extra: Partial<Parameters<typeof createWallet>[0]> = {}) =>
   });
 
 describe("creating a wallet", () => {
-  it("produces a valid ciphertext-only package and a 24-word recovery phrase", async () => {
+  it("produces a valid ciphertext-only package and a written-down recovery secret", async () => {
     const wallet = await create();
     const pkg = validateWalletPackage(JSON.parse(JSON.stringify(wallet.package)));
-    expect(wallet.phrase).toHaveLength(24);
-    expect(wallet.imported).toBe(false);
+    // 14 groups of four: 52 characters of secret and a 4-character checksum.
+    expect(wallet.recoverySecret).toMatch(/^([0-9A-HJKMNP-TV-Z]{4}-){13}[0-9A-HJKMNP-TV-Z]{4}$/);
+    expect(pkg.formatVersion).toBe(4);
     expect(pkg.version).toBe(1);
     expect(pkg.baseVersion).toBe(0);
     expect(pkg.accounts.map((a) => a.family).sort()).toEqual(["evm", "solana"]);
@@ -76,43 +80,46 @@ describe("creating a wallet", () => {
   }, 30_000);
 });
 
-describe("portability: the same phrase gives the same wallet anywhere", () => {
-  it("reports the addresses any other wallet derives from the same words", async () => {
+describe("the recovery secret and the keys are independent", () => {
+  it("derives the keys from a random root, not from the secret", async () => {
     const wallet = await create();
-    const seed = seedFromEntropy(parsePhrase(wallet.phrase).entropy);
-    for (const { accountId, family, address } of wallet.addresses) {
-      expect(accountId).toBeDefined();
-      expect(deriveAccount(family, seed).address).toBe(address);
+    const secret = parseRecoverySecret(wallet.recoverySecret);
+    const root = await openRoot(wallet.dek, WALLET, wallet.package.encryptedRoot);
+    expect(root).toHaveLength(32);
+    expect(root).not.toEqual(secret);
+
+    // The addresses come from the root...
+    const fromRoot = await seedFromRoot(root);
+    for (const family of ["evm", "solana"] as const) {
+      expect(deriveAccount(family, fromRoot).address).toBe(
+        wallet.addresses.find((a) => a.family === family)!.address
+      );
+    }
+    // ...and the secret, run through the same derivation, reaches none of them.
+    const fromSecret = await seedFromRoot(secret);
+    for (const family of ["evm", "solana"] as const) {
+      expect(deriveAccount(family, fromSecret).address).not.toBe(
+        wallet.addresses.find((a) => a.family === family)!.address
+      );
     }
   });
 
-  it("imports an existing phrase and arrives at the addresses MetaMask and Phantom show", async () => {
-    const wallet = await create({ phrase: ABANDON });
-    expect(wallet.imported).toBe(true);
-    expect(wallet.phrase.join(" ")).toBe(ABANDON);
-    const byFamily = Object.fromEntries(wallet.addresses.map((a) => [a.family, a.address]));
-    expect(byFamily.evm).toBe("0x9858EfFD232B4033E47d90003D41EC34EcaEda94");
-    expect(byFamily.solana).toBe("HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk");
+  it("gives every wallet its own keys, even on the same passphrase", async () => {
+    const a = await create();
+    const b = await create();
+    expect(a.addresses.map((x) => x.address)).not.toEqual(b.addresses.map((x) => x.address));
+    expect(a.recoverySecret).not.toBe(b.recoverySecret);
   });
 
-  it("makes the imported phrase this wallet's recovery phrase", async () => {
-    const wallet = await create({ phrase: ABANDON });
-    expect(await unlockWithPhrase(wallet.package, ABANDON)).toEqual(wallet.dek);
-    expect(await unlockWithPassphrase(wallet.package, PHRASE_PASSPHRASE)).toEqual(wallet.dek);
-  });
-
-  it("imports a 12-word phrase and a differently spaced, upper-case one", async () => {
-    const twelve = generatePhrase(12);
-    const wallet = await create({ phrase: twelve.words.join("   ").toUpperCase() });
-    expect(wallet.phrase).toEqual(twelve.words);
-    expect(await unlockWithPhrase(wallet.package, twelve.words)).toEqual(wallet.dek);
-  });
-
-  it("refuses to import a phrase that fails its checksum, leaving nothing behind", async () => {
-    const words = generatePhrase().words;
-    const bad = [words[0] === "abandon" ? "ability" : "abandon", ...words.slice(1)];
-    await expect(create({ phrase: bad })).rejects.toBeInstanceOf(PhraseFormatError);
-    await expect(create({ phrase: "not a phrase" })).rejects.toBeInstanceOf(PhraseFormatError);
+  it("shows the secret as the text to write down, and only that: it is not kept anywhere", async () => {
+    const wallet = await create();
+    // Nothing on the returned wallet other than this one string holds the secret.
+    const holders = Object.entries(wallet).filter(([, value]) =>
+      JSON.stringify(value, (_k, v) => (v instanceof Uint8Array ? toBase64Url(v) : v)).includes(
+        toBase64Url(parseRecoverySecret(wallet.recoverySecret))
+      )
+    );
+    expect(holders).toEqual([]);
   });
 });
 
@@ -121,32 +128,47 @@ describe("what the server is allowed to see", () => {
     const wallet = await create();
     const json = JSON.stringify(wallet.package);
     const lower = json.toLowerCase();
-    const parsed = parsePhrase(wallet.phrase);
+    const secretBytes = parseRecoverySecret(wallet.recoverySecret);
+    const hexOf = (bytes: Uint8Array) =>
+      [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const root = await openRoot(wallet.dek, WALLET, wallet.package.encryptedRoot);
 
     expect(json).not.toContain(PHRASE_PASSPHRASE);
-    expect(lower).not.toContain(wallet.phrase.join(" "));
-    // No run of three consecutive phrase words, however they are joined.
-    for (let i = 0; i + 2 < wallet.phrase.length; i += 1) {
-      expect(lower).not.toContain(wallet.phrase.slice(i, i + 3).join(""));
-      expect(lower).not.toContain(wallet.phrase.slice(i, i + 3).join(" "));
+    // The recovery secret, however it might be spelled.
+    for (const form of [
+      wallet.recoverySecret,
+      wallet.recoverySecret.replace(/-/g, ""),
+      toBase64Url(secretBytes),
+      hexOf(secretBytes),
+    ]) {
+      expect(lower).not.toContain(form.toLowerCase());
     }
-    expect(json).not.toContain(toBase64Url(parsed.entropy));
-    expect(json).not.toContain(toBase64Url(wallet.dek));
+    // No two consecutive groups of it either.
+    const groups = wallet.recoverySecret.split("-");
+    for (let i = 0; i + 1 < groups.length; i += 1) {
+      expect(lower).not.toContain(
+        groups
+          .slice(i, i + 2)
+          .join("")
+          .toLowerCase()
+      );
+    }
+    // The root and the wallet key.
+    for (const secret of [root, wallet.dek]) {
+      expect(json).not.toContain(toBase64Url(secret));
+      expect(lower).not.toContain(hexOf(secret));
+    }
     // Every derived private key and seed, found by the owner and then searched for.
     for (const { accountId } of ACCOUNTS) {
       await withAccountKey(wallet.package, wallet.dek, accountId, (material) => {
         const secret =
           material.family === "evm" ? material.privateKey.slice(2) : toBase64Url(material.seed);
         expect(lower).not.toContain(secret.toLowerCase());
-        if (material.family === "solana") {
-          expect(lower).not.toContain(
-            [...material.seed].map((b) => b.toString(16).padStart(2, "0")).join("")
-          );
-        }
+        if (material.family === "solana") expect(lower).not.toContain(hexOf(material.seed));
       });
     }
     expect(json).not.toMatch(
-      /"(passphrase|pin|privateKey|secretKey|mnemonic|seed|dek|phrase|entropy)"\s*:/i
+      /"(passphrase|pin|privateKey|secretKey|mnemonic|seed|root|dek|phrase|entropy|recoverySecret|secret)"\s*:/i
     );
     // The old per-chain key storage no longer exists.
     expect(json).not.toContain("encryptedKeyMaterial");
@@ -157,51 +179,45 @@ describe("what the server is allowed to see", () => {
     await expect(
       unlockWithPassphrase(wallet.package, "some other passphrase entirely")
     ).rejects.toBeInstanceOf(OpenError);
-    await expect(unlockWithPhrase(wallet.package, generatePhrase().words)).rejects.toBeInstanceOf(
-      OpenError
-    );
+    await expect(
+      unlockWithRecoverySecret(wallet.package, encodeRecoverySecret(generateRecoverySecret()))
+    ).rejects.toBeInstanceOf(OpenError);
   });
 });
 
 describe("unlocking", () => {
-  it("opens with the passphrase and with the phrase, to the same key", async () => {
+  it("opens with the passphrase and with the recovery secret, to the same key", async () => {
     const wallet = await create();
     expect(await unlockWithPassphrase(wallet.package, PHRASE_PASSPHRASE)).toEqual(wallet.dek);
-    expect(await unlockWithPhrase(wallet.package, wallet.phrase)).toEqual(wallet.dek);
-    expect(await unlockWithPhrase(wallet.package, wallet.phrase.join(" "))).toEqual(wallet.dek);
+    expect(await unlockWithRecoverySecret(wallet.package, wallet.recoverySecret)).toEqual(
+      wallet.dek
+    );
+    // However it was typed: lower case, spaces, no dashes.
+    const typed = wallet.recoverySecret.toLowerCase().replace(/-/g, " ");
+    expect(await unlockWithRecoverySecret(wallet.package, typed)).toEqual(wallet.dek);
   });
 
   it("survives being stored and read back as JSON", async () => {
     const wallet = await create();
     const pkg = validateWalletPackage(JSON.parse(JSON.stringify(wallet.package)));
     expect(await unlockWithPassphrase(pkg, PHRASE_PASSPHRASE)).toEqual(wallet.dek);
-    expect(await unlockWithPhrase(pkg, wallet.phrase)).toEqual(wallet.dek);
+    expect(await unlockWithRecoverySecret(pkg, wallet.recoverySecret)).toEqual(wallet.dek);
   });
 
-  it("separates a mistyped phrase (fix the typo) from the wrong wallet's phrase", async () => {
+  it("separates a mistyped secret (fix the typo) from the wrong wallet's secret", async () => {
     const wallet = await create();
-    const words = wallet.phrase;
-    const typo = [words[0] === "abandon" ? "ability" : "abandon", ...words.slice(1)];
-    await expect(unlockWithPhrase(wallet.package, typo)).rejects.toBeInstanceOf(PhraseFormatError);
-    await expect(unlockWithPhrase(wallet.package, generatePhrase().words)).rejects.toBeInstanceOf(
-      OpenError
+    const chars = wallet.recoverySecret.split("");
+    const at = chars.findIndex((c) => c !== "-");
+    chars[at] = chars[at] === "0" ? "1" : "0";
+    await expect(unlockWithRecoverySecret(wallet.package, chars.join(""))).rejects.toBeInstanceOf(
+      RecoverySecretFormatError
     );
-  });
-});
-
-describe("showing the phrase again", () => {
-  it("returns the same words once the wallet is unlocked", async () => {
-    const wallet = await create();
-    expect(await revealPhrase(wallet.package, wallet.dek)).toEqual(wallet.phrase);
-    const viaPassphrase = await unlockWithPassphrase(wallet.package, PHRASE_PASSPHRASE);
-    expect(await revealPhrase(wallet.package, viaPassphrase)).toEqual(wallet.phrase);
-  });
-
-  it("does not work without the real wallet key", async () => {
-    const wallet = await create();
-    await expect(revealPhrase(wallet.package, new Uint8Array(32))).rejects.toBeInstanceOf(
-      OpenError
+    await expect(unlockWithRecoverySecret(wallet.package, "not a secret")).rejects.toBeInstanceOf(
+      RecoverySecretFormatError
     );
+    await expect(
+      unlockWithRecoverySecret(wallet.package, encodeRecoverySecret(generateRecoverySecret()))
+    ).rejects.toBeInstanceOf(OpenError);
   });
 });
 
@@ -235,9 +251,9 @@ describe("using an account key", () => {
     expect(kept).toEqual(new Uint8Array(32));
   });
 
-  it("refuses a package whose address claim does not match its phrase", async () => {
+  it("refuses a package whose address claim does not match its root", async () => {
     const wallet = await create();
-    const other = await create({ phrase: ABANDON });
+    const other = await create();
     const swapped = {
       ...wallet.package,
       accounts: wallet.package.accounts.map((a) =>
@@ -251,9 +267,9 @@ describe("using an account key", () => {
     ).rejects.toBeInstanceOf(AccountError);
   });
 
-  it("refuses a root swapped in from a different phrase", async () => {
+  it("refuses a root swapped in from a different wallet", async () => {
     const wallet = await create();
-    const other = await create({ phrase: ABANDON });
+    const other = await create();
     // Same wallet id, so the other root opens under its own wallet key, but it
     // derives different addresses from the ones this package claims.
     const swapped = {
@@ -292,7 +308,7 @@ const createWalletWithId = (walletId: string) =>
   createWallet({ walletId, accounts: ACCOUNTS, passphrase: PHRASE_PASSPHRASE, params: FAST });
 
 describe("changing the passphrase", () => {
-  it("retires the old passphrase, accepts the new one, and keeps the phrase working", async () => {
+  it("retires the old passphrase, accepts the new one, and keeps the recovery secret working", async () => {
     const wallet = await create();
     const NEW = "a completely different passphrase";
     const changed = await changePassphrase(wallet.package, wallet.dek, NEW, FAST);
@@ -304,9 +320,9 @@ describe("changing the passphrase", () => {
       OpenError
     );
     expect(await unlockWithPassphrase(changed, NEW)).toEqual(wallet.dek);
-    expect(await unlockWithPhrase(changed, wallet.phrase)).toEqual(wallet.dek);
-    // The phrase and the accounts are untouched.
-    expect(await revealPhrase(changed, wallet.dek)).toEqual(wallet.phrase);
+    expect(await unlockWithRecoverySecret(changed, wallet.recoverySecret)).toEqual(wallet.dek);
+    // The root and the accounts are untouched.
+    expect(changed.encryptedRoot).toEqual(wallet.package.encryptedRoot);
     expect(changed.accounts).toEqual(wallet.package.accounts);
   });
 
@@ -329,7 +345,7 @@ describe("upgrading weak key stretching on unlock", () => {
     expect(passphraseParams(envelope)).toEqual(DEFAULT_ARGON2);
     expect(upgraded!.version).toBe(2);
     expect(await unlockWithPassphrase(upgraded!, PHRASE_PASSPHRASE)).toEqual(wallet.dek);
-    expect(await unlockWithPhrase(upgraded!, wallet.phrase)).toEqual(wallet.dek);
+    expect(await unlockWithRecoverySecret(upgraded!, wallet.recoverySecret)).toEqual(wallet.dek);
   }, 60_000);
 
   it("does nothing when the parameters are already current", async () => {
@@ -425,10 +441,10 @@ describe("rejecting bad packages", () => {
     ).toThrow(PackageValidationError);
   });
 
-  it("rejects a recovery envelope that claims the old random-secret source", async () => {
+  it("rejects a recovery envelope that claims the old phrase source", async () => {
     const pkg = await stored();
     const index = pkg.envelopes.findIndex((e: any) => e.purpose === "recovery");
-    pkg.envelopes[index].keyDerivationMetadata.source = "recovery-secret";
+    pkg.envelopes[index].keyDerivationMetadata.source = "recovery-phrase";
     expect(() => validateWalletPackage(pkg)).toThrow(PackageValidationError);
   });
 

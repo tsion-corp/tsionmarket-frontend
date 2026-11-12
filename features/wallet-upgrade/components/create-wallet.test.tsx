@@ -47,17 +47,17 @@ describe("CreateWallet", () => {
     expect(button).toBeEnabled();
   });
 
-  it("shows the phrase, asks to confirm three of its words, and only then saves", async () => {
+  it("shows the secret once, asks for three of its groups back, and only then saves", async () => {
     const { create, onCreated } = setup();
     type("Passphrase", "a long enough passphrase");
     type("Repeat passphrase", "a long enough passphrase");
     fireEvent.click(screen.getByRole("button", { name: /create my wallet/i }));
 
-    const grid = await screen.findByTestId("phrase-words", undefined, { timeout: 30_000 });
-    const words = Array.from(grid.querySelectorAll("li")).map(
+    const grid = await screen.findByTestId("secret-groups", undefined, { timeout: 30_000 });
+    const groups = Array.from(grid.querySelectorAll("li")).map(
       (li) => li.querySelector(".font-mono")!.textContent!
     );
-    expect(words).toHaveLength(24);
+    expect(groups).toHaveLength(14);
     // Nothing has been sent yet.
     expect(create).not.toHaveBeenCalled();
 
@@ -70,13 +70,13 @@ describe("CreateWallet", () => {
     const boxes = screen.getAllByRole("textbox");
     expect(boxes).toHaveLength(3);
     const position = (box: HTMLElement) =>
-      Number(box.closest("label")!.textContent!.match(/Word (\d+)/)![1]) - 1;
+      Number(box.closest("label")!.textContent!.match(/Group (\d+)/)![1]) - 1;
 
-    // Wrong words keep it closed.
+    // Wrong groups keep it closed.
     boxes.forEach((box) => fireEvent.change(box, { target: { value: "wrong" } }));
     expect(save).toBeDisabled();
-    // The right ones open it.
-    boxes.forEach((box) => fireEvent.change(box, { target: { value: words[position(box)]! } }));
+    // The right ones open it, typed any way.
+    boxes.forEach((box) => fireEvent.change(box, { target: { value: groups[position(box)]! } }));
     expect(save).toBeEnabled();
     fireEvent.click(save);
 
@@ -84,7 +84,7 @@ describe("CreateWallet", () => {
     expect(create).toHaveBeenCalledTimes(1);
   }, 60_000);
 
-  it("keeps the words and says what went wrong when saving fails", async () => {
+  it("keeps the secret and says what went wrong when saving fails", async () => {
     const create = vi.fn(async () => {
       throw Object.assign(new Error("x"), { code: "SERVICE_UNAVAILABLE" });
     });
@@ -102,15 +102,15 @@ describe("CreateWallet", () => {
     type("Passphrase", "a long enough passphrase");
     type("Repeat passphrase", "a long enough passphrase");
     fireEvent.click(screen.getByRole("button", { name: /create my wallet/i }));
-    const grid = await screen.findByTestId("phrase-words", undefined, { timeout: 30_000 });
-    const words = Array.from(grid.querySelectorAll("li")).map(
+    const grid = await screen.findByTestId("secret-groups", undefined, { timeout: 30_000 });
+    const groups = Array.from(grid.querySelectorAll("li")).map(
       (li) => li.querySelector(".font-mono")!.textContent!
     );
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(screen.getByRole("button", { name: /^continue$/i }));
     for (const box of screen.getAllByRole("textbox")) {
-      const n = Number(box.closest("label")!.textContent!.match(/Word (\d+)/)![1]) - 1;
-      fireEvent.change(box, { target: { value: words[n]! } });
+      const n = Number(box.closest("label")!.textContent!.match(/Group (\d+)/)![1]) - 1;
+      fireEvent.change(box, { target: { value: groups[n]! } });
     }
     fireEvent.click(screen.getByRole("button", { name: /save my wallet/i }));
 

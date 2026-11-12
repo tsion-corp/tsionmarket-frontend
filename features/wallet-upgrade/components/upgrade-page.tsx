@@ -187,7 +187,7 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
   const progress = {
     ...EMPTY_PROGRESS,
     walletCreated: hasWallet,
-    // A wallet is only saved after the recovery phrase was copied down and checked.
+    // A wallet is only saved after the recovery secret was written down and checked.
     recoveryConfirmed: hasWallet,
     fundsMoved,
     clerkSignedIn: Boolean(clerk.isSignedIn),
@@ -308,7 +308,7 @@ function DecaneFlow({ config }: { config: WalletUpgradeConfig }) {
     ...EMPTY_PROGRESS,
     decaneSignedIn: session.authenticated,
     walletCreated: hasWallet,
-    // A wallet is only saved after the recovery phrase was copied down and checked.
+    // A wallet is only saved after the recovery secret was written down and checked.
     recoveryConfirmed: hasWallet,
     fundsMoved,
   });
