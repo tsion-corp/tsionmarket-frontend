@@ -6,14 +6,19 @@ const config = (extra: Record<string, string> = {}) =>
   walletUpgradeConfig({
     deployEnv: "development",
     clerkPublishableKey: "pk_test_x",
+    auth: "clerk",
     enabled: "true",
     ...extra,
   });
 
+// The default: Decane is the sign-in, there is one account and nothing to link.
+const decaneConfig = (extra: Record<string, string> = {}) =>
+  walletUpgradeConfig({ deployEnv: "development", enabled: "true", ...extra });
+
 const states = (steps: ReturnType<typeof deriveSteps>) =>
   Object.fromEntries(steps.map((s) => [s.id, s.state]));
 
-describe("deriveSteps", () => {
+describe("deriveSteps (Clerk mode)", () => {
   it("starts with the two sign-ins ready and nothing after them offered", () => {
     expect(states(deriveSteps(config(), EMPTY_PROGRESS))).toEqual({
       clerk: "ready",
@@ -40,6 +45,7 @@ describe("deriveSteps", () => {
     expect(states(deriveSteps(config(), both)).link).toBe("unavailable");
 
     const withService = walletUpgradeConfig({
+      auth: "clerk",
       deployEnv: "development",
       clerkPublishableKey: "pk_test_x",
       enabled: "true",
@@ -53,6 +59,7 @@ describe("deriveSteps", () => {
 
   it("explains what a blocked step is waiting on", () => {
     const withService = walletUpgradeConfig({
+      auth: "clerk",
       deployEnv: "development",
       clerkPublishableKey: "pk_test_x",
       enabled: "true",
@@ -67,6 +74,7 @@ describe("deriveSteps", () => {
 
   it("keeps funds locked behind the recovery secret", () => {
     const all = walletUpgradeConfig({
+      auth: "clerk",
       deployEnv: "development",
       clerkPublishableKey: "pk_test_x",
       enabled: "true",
@@ -89,6 +97,7 @@ describe("deriveSteps", () => {
 describe("a person with no old account", () => {
   it("skips signing in to the old account and connecting to it", () => {
     const withService = walletUpgradeConfig({
+      auth: "clerk",
       deployEnv: "development",
       clerkPublishableKey: "pk_test_x",
       enabled: "true",
@@ -121,5 +130,49 @@ describe("nextStep", () => {
       fundsMoved: true,
     });
     expect(nextStep(finished)).toBeNull();
+  });
+});
+
+describe("deriveSteps (Decane mode, the default)", () => {
+  it("is four steps: sign in, wallet, recovery phrase, move funds", () => {
+    const steps = deriveSteps(decaneConfig(), EMPTY_PROGRESS);
+    expect(steps.map((s) => s.id)).toEqual(["decane", "wallet", "recovery", "funds"]);
+    expect(steps.map((s) => s.id)).not.toContain("clerk");
+    expect(steps.map((s) => s.id)).not.toContain("link");
+    expect(steps[0]?.title).toBe("Sign in to your account");
+  });
+
+  it("offers the wallet as soon as the person is signed in, with no linking", () => {
+    const config = decaneConfig({ cryptoBackend: "true", moveFunds: "true" });
+    expect(states(deriveSteps(config, EMPTY_PROGRESS))).toMatchObject({
+      decane: "ready",
+      wallet: "blocked",
+    });
+    const signedIn = { ...EMPTY_PROGRESS, decaneSignedIn: true };
+    expect(states(deriveSteps(config, signedIn))).toMatchObject({
+      decane: "done",
+      wallet: "ready",
+      recovery: "blocked",
+    });
+    expect(deriveSteps(config, EMPTY_PROGRESS)[1]?.reason).toBe("Sign in to your account first.");
+  });
+
+  it("walks through to the move, then finishes", () => {
+    const config = decaneConfig({ cryptoBackend: "true", moveFunds: "true" });
+    const walletMade = {
+      ...EMPTY_PROGRESS,
+      decaneSignedIn: true,
+      walletCreated: true,
+      recoveryConfirmed: true,
+    };
+    const steps = deriveSteps(config, walletMade);
+    expect(nextStep(steps)?.id).toBe("funds");
+    expect(nextStep(deriveSteps(config, { ...walletMade, fundsMoved: true }))).toBeNull();
+  });
+
+  it("does not treat a new-user flag from the Clerk path as skipping anything", () => {
+    const config = decaneConfig({ cryptoBackend: "true", moveFunds: "true" });
+    const steps = deriveSteps(config, { ...EMPTY_PROGRESS, noLegacyAccount: true });
+    expect(states(steps)).toMatchObject({ decane: "ready", funds: "blocked" });
   });
 });

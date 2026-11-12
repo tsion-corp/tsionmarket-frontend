@@ -1,5 +1,6 @@
 import { CheckIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
+import type { AuthMode } from "@/lib/wallet-upgrade/environment";
 import type { Step, StepId } from "../lib/steps";
 
 /**
@@ -18,14 +19,18 @@ const SHORT: Record<StepId, string> = {
   funds: "Move funds",
 };
 
-export const shortLabel = (id: StepId): string => SHORT[id];
+// Under Decane the one sign-in is simply "Sign in", not the second of two accounts.
+export const shortLabel = (id: StepId, auth: AuthMode = "clerk"): string =>
+  id === "decane" && auth === "decane" ? "Sign in" : SHORT[id];
 
 export function UpgradeStepper({
   steps,
   currentId,
+  auth = "clerk",
 }: {
   steps: ReadonlyArray<Step>;
   currentId: StepId | null;
+  auth?: AuthMode;
 }) {
   const done = steps.filter((step) => step.state === "done").length;
   const currentIndex = steps.findIndex((step) => step.id === currentId);
@@ -36,7 +41,7 @@ export function UpgradeStepper({
       <div className="lg:hidden">
         <div className="flex items-baseline justify-between text-[13px]">
           <span className="font-medium text-white">
-            {currentId ? shortLabel(currentId) : "All done"}
+            {currentId ? shortLabel(currentId, auth) : "All done"}
           </span>
           <span className="text-white/45">
             {currentId
@@ -44,7 +49,11 @@ export function UpgradeStepper({
               : `${done} of ${steps.length}`}
           </span>
         </div>
-        <ol className="mt-3 grid grid-cols-6 gap-1.5" aria-hidden>
+        <ol
+          className="mt-3 grid gap-1.5"
+          style={{ gridTemplateColumns: `repeat(${steps.length}, minmax(0, 1fr))` }}
+          aria-hidden
+        >
           {steps.map((step) => (
             <li
               key={step.id}
@@ -94,7 +103,7 @@ export function UpgradeStepper({
                       !isCurrent && step.state !== "done" && "text-white/40"
                     )}
                   >
-                    {shortLabel(step.id)}
+                    {shortLabel(step.id, auth)}
                   </div>
                   {step.state === "unavailable" ? (
                     <div className="mt-1 text-[12px] text-white/35">Not available yet</div>

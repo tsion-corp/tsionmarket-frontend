@@ -16,6 +16,12 @@
 
 export type DeployTarget = "development" | "production";
 export type ClerkInstanceKind = "development" | "production" | "none";
+/**
+ * Who signs the person in. `decane` (the default) keeps Decane as the one sign-in:
+ * the wallet service reads the same session the rest of the app uses, and there is
+ * nothing to link. `clerk` is the parked Clerk path, kept behind this switch.
+ */
+export type AuthMode = "decane" | "clerk";
 
 export interface UpgradeEnv {
   deployEnv?: string | undefined;
@@ -26,6 +32,7 @@ export interface UpgradeEnv {
   moveFunds?: string | undefined;
   cryptoBackend?: string | undefined;
   linkService?: string | undefined;
+  auth?: string | undefined;
 }
 
 export function readUpgradeEnv(): UpgradeEnv {
@@ -38,10 +45,13 @@ export function readUpgradeEnv(): UpgradeEnv {
     moveFunds: process.env.NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS,
     cryptoBackend: process.env.NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED,
     linkService: process.env.NEXT_PUBLIC_WALLET_UPGRADE_LINK_ENABLED,
+    auth: process.env.NEXT_PUBLIC_WALLET_UPGRADE_AUTH,
   };
 }
 
 export interface WalletUpgradeConfig {
+  /** Who signs the person in. */
+  auth: AuthMode;
   target: DeployTarget;
   clerk: ClerkInstanceKind;
   /** The upgrade page and flow are on. False whenever `blockedReason` is set. */
@@ -75,12 +85,22 @@ export function deployTarget(env: UpgradeEnv): DeployTarget {
   return env.nodeEnv === "production" ? "production" : "development";
 }
 
+export function authMode(env: UpgradeEnv): AuthMode {
+  // Anything but an explicit "clerk" is Decane, the sign-in that is live.
+  return env.auth?.trim().toLowerCase() === "clerk" ? "clerk" : "decane";
+}
+
 export function walletUpgradeConfig(env: UpgradeEnv): WalletUpgradeConfig {
+  const auth = authMode(env);
   const target = deployTarget(env);
   const clerk = clerkInstanceKind(env.clerkPublishableKey);
 
+  // The Clerk rules (right instance for the environment, keys present) only apply
+  // when Clerk is the sign-in. With Decane there are no Clerk keys to check.
   let blockedReason: string | null = null;
-  if (clerk === "none") {
+  if (auth === "decane") {
+    blockedReason = null;
+  } else if (clerk === "none") {
     blockedReason = "Clerk is not configured for this deployment.";
   } else if (target === "production" && clerk === "development") {
     blockedReason = "Production is using Clerk development keys. Use the production instance.";
@@ -96,11 +116,14 @@ export function walletUpgradeConfig(env: UpgradeEnv): WalletUpgradeConfig {
   const dryRun = target === "development" || on(env.dryRun);
 
   return {
+    auth,
     target,
     clerk,
     enabled,
     dryRun,
-    linkAvailable: enabled && on(env.linkService),
+    // Linking joins a Clerk account to a Decane one. With Decane as the sign-in
+    // there is one account, so there is nothing to join.
+    linkAvailable: enabled && auth === "clerk" && on(env.linkService),
     walletAvailable: enabled && on(env.cryptoBackend),
     moveFundsAvailable: enabled && on(env.moveFunds) && on(env.cryptoBackend),
     blockedReason: requested ? blockedReason : null,

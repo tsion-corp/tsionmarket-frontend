@@ -42,11 +42,16 @@ export function upstreamBlocked(): NextResponse | null {
   const config = walletUpgradeConfig(readUpgradeEnv());
   const reason = !config.enabled
     ? (config.blockedReason ?? "The wallet upgrade is not switched on.")
-    : upstreamProblem({
-        target: config.target,
-        base: migrationBase(),
-        allowProduction: process.env.WALLET_UPGRADE_ALLOW_PROD_UPSTREAM === "true",
-      });
+    : // These routes join a Clerk account to a Decane one. With Decane as the sign-in
+      // there is one account and nothing to join, so they stay shut rather than
+      // writing links nobody asked for.
+      config.auth !== "clerk"
+      ? "Account linking isn't used with this sign-in."
+      : upstreamProblem({
+          target: config.target,
+          base: migrationBase(),
+          allowProduction: process.env.WALLET_UPGRADE_ALLOW_PROD_UPSTREAM === "true",
+        });
   if (!reason) return null;
   return NextResponse.json(
     { success: false, error: { code: "NOT_AVAILABLE", message: reason } },

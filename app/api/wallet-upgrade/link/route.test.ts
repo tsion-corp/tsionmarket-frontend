@@ -31,6 +31,7 @@ function env(overrides: Record<string, string> = {}) {
   const values: Record<string, string> = {
     NEXT_PUBLIC_DEPLOY_ENV: "development",
     NEXT_PUBLIC_WALLET_UPGRADE_ENABLED: "true",
+    NEXT_PUBLIC_WALLET_UPGRADE_AUTH: "clerk",
     NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test_abc",
     MIGRATION_SERVICE_ENABLED: "1",
     MIGRATION_API_URL: "http://localhost:8094",
@@ -142,5 +143,13 @@ describe("POST /api/wallet-upgrade/link", () => {
     const response = await POST(request());
     expect(response.status).toBe(502);
     expect(((await response.json()) as { success: boolean }).success).toBe(false);
+  });
+
+  it("stays shut when Decane is the sign-in: there is nothing to link", async () => {
+    env({ NEXT_PUBLIC_WALLET_UPGRADE_AUTH: "decane" });
+    const res = await POST(request({ authorization: `Bearer ${DECANE}`, "x-clerk": "1" }));
+    expect(res.status).toBe(503);
+    expect((await res.json()).error.message).toMatch(/isn't used with this sign-in/i);
+    expect(mocks.fetch).not.toHaveBeenCalled();
   });
 });

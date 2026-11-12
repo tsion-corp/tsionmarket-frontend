@@ -3,10 +3,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { readUpgradeEnv, walletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 import { unauthorized } from "@/lib/server/migration";
 import { MAX_WALLET_BODY_BYTES, walletPath, walletServiceBase } from "@/lib/server/wallet-service";
-import { upstreamProblem } from "@/lib/server/wallet-upgrade";
+import { decaneBearer, upstreamProblem } from "@/lib/server/wallet-upgrade";
 
-// The browser's only way to the wallet service. Clerk session in, Clerk bearer
-// out; the service itself decides what that session may do (it can read the
+// The browser's only way to the wallet service. The caller's session in (Decane's
+// by default, Clerk's when that path is on), the same bearer out; the service itself decides what that session may do (it can read the
 // encrypted package but change nothing without a device or recovery signature).
 
 function refuse(status: number, code: string, message: string): NextResponse {
@@ -35,9 +35,15 @@ async function handle(req: NextRequest, ctx: { params: Promise<{ path?: string[]
   const upstream = walletPath(req.method, path);
   if (!upstream) return refuse(404, "NOT_FOUND", "Not found.");
 
-  const { userId, getToken } = await auth();
-  if (!userId) return unauthorized();
-  const token = await getToken();
+  // Whose session vouches for the caller: Decane's, the live sign-in, unless the
+  // parked Clerk path is switched on. The wallet service verifies it either way.
+  let token: string | null;
+  if (config.auth === "decane") {
+    token = decaneBearer(req);
+  } else {
+    const { userId, getToken } = await auth();
+    token = userId ? await getToken() : null;
+  }
   if (!token) return unauthorized();
 
   const body = req.method === "GET" ? undefined : await req.text();

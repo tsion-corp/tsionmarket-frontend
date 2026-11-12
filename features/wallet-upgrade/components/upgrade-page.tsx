@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { UserButton, useAuth, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AccountAvatar } from "@/components/ui/account-avatar";
 import { ArkMark } from "@/components/ui/ark-mark";
 import { BRAND } from "@/lib/brand";
 import { ArrowRightIcon, CheckIcon, LockIcon, ShieldIcon, WalletIcon } from "@/components/ui/icons";
@@ -41,7 +42,13 @@ export function UpgradePage({ config }: { config: WalletUpgradeConfig }) {
         className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(70%_100%_at_50%_0%,rgba(212,212,216,0.14),transparent_72%)]"
       />
       <div className="relative mx-auto w-full max-w-[1080px] px-5 pt-6 pb-24 sm:px-8 lg:pt-9">
-        {config.blockedReason ? <Blocked config={config} /> : <Flow config={config} />}
+        {config.blockedReason ? (
+          <Blocked config={config} />
+        ) : config.auth === "clerk" ? (
+          <Flow config={config} />
+        ) : (
+          <DecaneFlow config={config} />
+        )}
       </div>
     </main>
   );
@@ -213,24 +220,180 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
   const showWalletBelow = hasWallet && !walletIsFocus && Boolean(uid);
 
   return (
-    <>
-      <TopBar
-        config={config}
-        right={
-          <div className="flex items-center gap-2.5" data-testid="clerk-profile">
-            {clerk.isLoaded && clerk.isSignedIn ? (
-              <>
-                {email ? (
-                  <span className="hidden max-w-[11rem] truncate text-[12.5px] text-white/50 md:block">
-                    {email}
-                  </span>
-                ) : null}
-                <UserButton />
-              </>
-            ) : null}
-          </div>
-        }
+    <Layout
+      config={config}
+      steps={steps}
+      next={next}
+      right={
+        <div className="flex items-center gap-2.5" data-testid="clerk-profile">
+          {clerk.isLoaded && clerk.isSignedIn ? (
+            <>
+              {email ? (
+                <span className="hidden max-w-[11rem] truncate text-[12.5px] text-white/50 md:block">
+                  {email}
+                </span>
+              ) : null}
+              <UserButton />
+            </>
+          ) : null}
+        </div>
+      }
+    >
+      {loading ? (
+        <Skeleton />
+      ) : (
+        <>
+          <Focus
+            config={config}
+            step={next}
+            stepNumber={stepNumber}
+            total={steps.length}
+            uid={uid}
+            link={{ pending: link.isPending, error: link.error, run: () => link.mutate() }}
+            moveFunds={
+              config.moveFundsAvailable && hasWallet && destinations && decane.authenticated ? (
+                <MoveFundsPanel
+                  config={config}
+                  linked={linkedAddresses}
+                  destinations={destinations}
+                />
+              ) : null
+            }
+          />
+          {next && ["clerk", "decane", "link"].includes(next.id) ? <Trust /> : null}
+          {showStartFresh ? (
+            <StartFresh
+              pending={provision.isPending}
+              error={provision.error}
+              run={() => provision.mutate()}
+            />
+          ) : null}
+          {showWalletBelow && uid ? <WalletPanel uid={uid} /> : null}
+          {status.isError ? (
+            <p role="alert" className={NOTICE.warn}>
+              {linkErrorMessage(status.error)}
+            </p>
+          ) : null}
+        </>
+      )}
+    </Layout>
+  );
+}
+
+/**
+ * The upgrade with Decane as the one sign-in (the default). There is a single
+ * account: the Decane session already carries the platform id, so the wallet
+ * service reads it directly and nothing needs linking.
+ */
+function DecaneFlow({ config }: { config: WalletUpgradeConfig }) {
+  const session = useAuthSession();
+  const uid = session.userId;
+
+  const wallet = useWalletState(uid, config.walletAvailable && session.authenticated);
+  const hasWallet = wallet.data ? wallet.data.kind !== "none" : false;
+  const newWallet = wallet.data && wallet.data.kind !== "none" ? wallet.data.wallet : null;
+  const destinations = newWallet ? destinationsFromWallet(addressesOf(newWallet)) : null;
+
+  // What is read and what is spent are the same Decane session, so there is no
+  // second account to compare it against.
+  const sources = { evm: session.evmAddress, solana: session.solanaAddress };
+  const moveScan = useMoveScan(
+    sources,
+    config.moveFundsAvailable && hasWallet && session.authenticated
+  );
+  const fundsMoved =
+    !config.dryRun && moveScan.data !== undefined && nothingToMove(moveScan.data.plan);
+
+  const steps = deriveSteps(config, {
+    ...EMPTY_PROGRESS,
+    decaneSignedIn: session.authenticated,
+    walletCreated: hasWallet,
+    // A wallet is only saved after the recovery phrase was copied down and checked.
+    recoveryConfirmed: hasWallet,
+    fundsMoved,
+  });
+  const next = nextStep(steps);
+  const stepNumber = next ? steps.findIndex((s) => s.id === next.id) + 1 : steps.length;
+
+  const loading =
+    !session.ready || (session.authenticated && config.walletAvailable && wallet.isPending);
+  const walletIsFocus = next?.id === "wallet" || next?.id === "recovery";
+  const showWalletBelow = hasWallet && !walletIsFocus && Boolean(uid);
+
+  return (
+    <Layout
+      config={config}
+      steps={steps}
+      next={next}
+      right={session.authenticated ? <AccountChip session={session} /> : null}
+    >
+      {loading ? (
+        <Skeleton />
+      ) : (
+        <>
+          <Focus
+            config={config}
+            step={next}
+            stepNumber={stepNumber}
+            total={steps.length}
+            uid={uid}
+            link={{ pending: false, error: null, run: () => undefined }}
+            moveFunds={
+              config.moveFundsAvailable && hasWallet && destinations && session.authenticated ? (
+                <MoveFundsPanel config={config} linked={sources} destinations={destinations} />
+              ) : null
+            }
+          />
+          {next?.id === "decane" ? <Trust /> : null}
+          {showWalletBelow && uid ? <WalletPanel uid={uid} /> : null}
+        </>
+      )}
+    </Layout>
+  );
+}
+
+function AccountChip({ session }: { session: ReturnType<typeof useAuthSession> }) {
+  const label = session.profile.name || session.profile.email;
+  return (
+    <div className="flex items-center gap-2.5" data-testid="account-chip">
+      <AccountAvatar
+        seed={session.userId ?? session.evmAddress ?? "account"}
+        name={label}
+        size={28}
       />
+      {label ? (
+        <span className="hidden max-w-[11rem] truncate text-[12.5px] text-white/60 md:block">
+          {label}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        onClick={() => void session.logout()}
+        className="text-[12.5px] text-white/45 underline underline-offset-4 transition-colors hover:text-white"
+      >
+        Sign out
+      </button>
+    </div>
+  );
+}
+
+/** The frame both flows share: the rail on the left, the current step on the right. */
+function Layout({
+  config,
+  steps,
+  next,
+  right,
+  children,
+}: {
+  config: WalletUpgradeConfig;
+  steps: ReadonlyArray<Step>;
+  next: Step | null;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <TopBar config={config} right={right} />
 
       <div className="mt-9 grid gap-9 lg:mt-14 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-16">
         <aside className="flex flex-col gap-8 lg:sticky lg:top-10 lg:self-start">
@@ -245,47 +408,11 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
             </p>
           </div>
 
-          <UpgradeStepper steps={steps} currentId={next?.id ?? null} />
+          <UpgradeStepper steps={steps} currentId={next?.id ?? null} auth={config.auth} />
         </aside>
 
         <section className="flex min-w-0 flex-col gap-5" aria-live="polite">
-          {loading ? (
-            <Skeleton />
-          ) : (
-            <>
-              <Focus
-                config={config}
-                step={next}
-                stepNumber={stepNumber}
-                total={steps.length}
-                uid={uid}
-                link={{ pending: link.isPending, error: link.error, run: () => link.mutate() }}
-                moveFunds={
-                  config.moveFundsAvailable && hasWallet && destinations && decane.authenticated ? (
-                    <MoveFundsPanel
-                      config={config}
-                      linked={linkedAddresses}
-                      destinations={destinations}
-                    />
-                  ) : null
-                }
-              />
-              {next && ["clerk", "decane", "link"].includes(next.id) ? <Trust /> : null}
-              {showStartFresh ? (
-                <StartFresh
-                  pending={provision.isPending}
-                  error={provision.error}
-                  run={() => provision.mutate()}
-                />
-              ) : null}
-              {showWalletBelow && uid ? <WalletPanel uid={uid} /> : null}
-              {status.isError ? (
-                <p role="alert" className={NOTICE.warn}>
-                  {linkErrorMessage(status.error)}
-                </p>
-              ) : null}
-            </>
-          )}
+          {children}
         </section>
       </div>
     </>
@@ -394,7 +521,7 @@ function Action({ step, link }: { step: Step; link: LinkAction }) {
   if (step.id === "decane") {
     return (
       <button type="button" onClick={openSignIn} className={PRIMARY}>
-        Sign in to your current account <ArrowRightIcon size={15} />
+        {step.title} <ArrowRightIcon size={15} />
       </button>
     );
   }

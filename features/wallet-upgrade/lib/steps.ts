@@ -41,6 +41,10 @@ export const EMPTY_PROGRESS: UpgradeProgress = {
 };
 
 export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgress): Array<Step> {
+  const clerkMode = config.auth === "clerk";
+  // Who vouches for the person before a wallet can be made: the link between the
+  // two accounts under Clerk, simply the Decane sign-in under Decane.
+  const identityReady = clerkMode ? progress.linked : progress.decaneSignedIn;
   const defs: Array<{
     id: StepId;
     title: string;
@@ -61,10 +65,11 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
     },
     {
       id: "decane",
-      title: "Sign in to your current account",
-      description:
-        "We need to see your existing wallet to move it. Nothing is changed by signing in.",
-      done: progress.decaneSignedIn || progress.noLegacyAccount,
+      title: clerkMode ? "Sign in to your current account" : "Sign in to your account",
+      description: clerkMode
+        ? "We need to see your existing wallet to move it. Nothing is changed by signing in."
+        : "Use the account you already have. We need it to see your current wallet and to move it. Nothing is changed by signing in.",
+      done: progress.decaneSignedIn || (clerkMode && progress.noLegacyAccount),
       service: true,
       unavailableReason: "",
       needs: [],
@@ -89,7 +94,12 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
       done: progress.walletCreated,
       service: config.walletAvailable,
       unavailableReason: "The wallet service is not switched on yet.",
-      needs: [{ ok: progress.linked, reason: "Connect your accounts first." }],
+      needs: [
+        {
+          ok: identityReady,
+          reason: clerkMode ? "Connect your accounts first." : "Sign in to your account first.",
+        },
+      ],
     },
     {
       id: "recovery",
@@ -106,7 +116,7 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
       title: "Move your funds",
       description:
         "You see exactly what moves and where, then press one button. Your own wallet signs each transfer, and we cover the network fee where it is cheap.",
-      done: progress.fundsMoved || progress.noLegacyAccount,
+      done: progress.fundsMoved || (clerkMode && progress.noLegacyAccount),
       service: config.moveFundsAvailable,
       unavailableReason: "Moving funds is not switched on yet.",
       needs: [
@@ -119,7 +129,10 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
     },
   ];
 
-  return defs.map((def): Step => {
+  // With Decane as the sign-in there is no second account to create or connect.
+  const visible = clerkMode ? defs : defs.filter((def) => def.id !== "clerk" && def.id !== "link");
+
+  return visible.map((def): Step => {
     const base = { id: def.id, title: def.title, description: def.description };
     if (def.done) return { ...base, state: "done" };
     if (!def.service) return { ...base, state: "unavailable", reason: def.unavailableReason };

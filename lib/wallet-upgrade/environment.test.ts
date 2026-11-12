@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clerkInstanceKind, deployTarget, walletUpgradeConfig } from "./environment";
+import {
+  authMode,
+  clerkInstanceKind,
+  deployTarget,
+  walletUpgradeConfig as baseConfig,
+} from "./environment";
 
 const DEV_KEY = "pk_test_abc";
 const LIVE_KEY = "pk_live_abc";
@@ -25,7 +30,10 @@ describe("deployTarget", () => {
   });
 });
 
-describe("walletUpgradeConfig", () => {
+describe("walletUpgradeConfig (Clerk mode)", () => {
+  const walletUpgradeConfig = (env: Parameters<typeof baseConfig>[0]) =>
+    baseConfig({ ...env, auth: "clerk" });
+
   it("is off unless it is switched on", () => {
     const config = walletUpgradeConfig({ deployEnv: "development", clerkPublishableKey: DEV_KEY });
     expect(config.enabled).toBe(false);
@@ -101,5 +109,48 @@ describe("walletUpgradeConfig", () => {
     };
     expect(walletUpgradeConfig(base).moveFundsAvailable).toBe(false);
     expect(walletUpgradeConfig({ ...base, cryptoBackend: "true" }).moveFundsAvailable).toBe(true);
+  });
+});
+
+describe("walletUpgradeConfig (Decane mode, the default)", () => {
+  const base = { deployEnv: "development", enabled: "true" };
+
+  it("is Decane unless Clerk is asked for by name", () => {
+    expect(authMode({})).toBe("decane");
+    expect(authMode({ auth: "anything else" })).toBe("decane");
+    expect(authMode({ auth: " Clerk " })).toBe("clerk");
+    expect(baseConfig(base).auth).toBe("decane");
+  });
+
+  it("needs no Clerk keys, and ignores a mismatched one", () => {
+    expect(baseConfig(base)).toMatchObject({ enabled: true, blockedReason: null });
+    expect(baseConfig({ ...base, clerkPublishableKey: "pk_live_abc" })).toMatchObject({
+      enabled: true,
+      blockedReason: null,
+    });
+    expect(
+      baseConfig({ deployEnv: "production", enabled: "true", clerkPublishableKey: "pk_test_abc" })
+        .enabled
+    ).toBe(true);
+  });
+
+  it("has nothing to link, even with the link switch on", () => {
+    expect(baseConfig({ ...base, linkService: "true" }).linkAvailable).toBe(false);
+  });
+
+  it("still keeps development a rehearsal, and offers the wallet and the move on their own switches", () => {
+    const config = baseConfig({
+      ...base,
+      dryRun: "false",
+      cryptoBackend: "true",
+      moveFunds: "true",
+    });
+    expect(config).toMatchObject({ dryRun: true, walletAvailable: true, moveFundsAvailable: true });
+    expect(baseConfig({ ...base, moveFunds: "true" }).moveFundsAvailable).toBe(false);
+    expect(baseConfig({ deployEnv: "production", enabled: "true" }).dryRun).toBe(false);
+  });
+
+  it("is off unless it is switched on", () => {
+    expect(baseConfig({ deployEnv: "development" })).toMatchObject({ enabled: false });
   });
 });

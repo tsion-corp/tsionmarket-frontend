@@ -1,6 +1,8 @@
 "use client";
 
+import { apiFetch } from "@/lib/api";
 import { unwrap } from "@/lib/api/envelope";
+import { authMode, readUpgradeEnv } from "@/lib/wallet-upgrade/environment";
 import type { WalletPackage } from "@/lib/wallet-core";
 
 const MESSAGE = "The wallet service is unavailable.";
@@ -45,14 +47,23 @@ export interface WalletApi {
   }): Promise<void>;
 }
 
+// Under Decane the call carries the Decane access token (apiFetch attaches it, and
+// waits for it rather than firing a request that would 401). Under Clerk the session
+// cookie rides along and the route reads that instead.
+const needsDecaneToken = authMode(readUpgradeEnv()) === "decane";
+
 async function call<T>(path: string, method: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    method,
-    cache: "no-store",
-    ...(body === undefined
-      ? {}
-      : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
-  });
+  const res = await apiFetch(
+    `${BASE}${path}`,
+    {
+      method,
+      cache: "no-store",
+      ...(body === undefined
+        ? {}
+        : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+    },
+    { requireAuth: needsDecaneToken }
+  );
   return unwrap<T>(res, MESSAGE);
 }
 
