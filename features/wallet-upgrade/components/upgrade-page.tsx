@@ -12,6 +12,10 @@ import { linkErrorMessage } from "../lib/link-errors";
 import { EMPTY_PROGRESS, deriveSteps, nextStep } from "../lib/steps";
 import type { Step, StepState } from "../lib/steps";
 import { WalletPanel, useWalletState } from "./wallet-panel";
+import { MoveFundsPanel } from "./move-funds-panel";
+import { useMoveScan } from "../hooks/use-move-funds";
+import { addressesOf } from "../lib/wallet-flow";
+import { destinationsFromWallet, nothingToMove, sourcesMatchLink } from "../lib/move-funds";
 
 /**
  * The wallet upgrade, start to finish, on one page.
@@ -100,12 +104,28 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
   const uid = status.data?.uid ?? null;
   const wallet = useWalletState(uid, config.walletAvailable && Boolean(status.data?.linked));
   const hasWallet = wallet.data ? wallet.data.kind !== "none" : false;
+  const newWallet = wallet.data && wallet.data.kind !== "none" ? wallet.data.wallet : null;
+  const destinations = newWallet ? destinationsFromWallet(addressesOf(newWallet)) : null;
+
+  // The funds step is done once nothing is left to move, never from a rehearsal.
+  const linkedAddresses = status.data?.legacy ?? null;
+  const sources = { evm: decane.evmAddress, solana: decane.solanaAddress };
+  const moveScan = useMoveScan(
+    sources,
+    config.moveFundsAvailable &&
+      hasWallet &&
+      decane.authenticated &&
+      sourcesMatchLink(sources, linkedAddresses)
+  );
+  const fundsMoved =
+    !config.dryRun && moveScan.data !== undefined && nothingToMove(moveScan.data.plan);
 
   const progress = {
     ...EMPTY_PROGRESS,
     walletCreated: hasWallet,
     // A wallet is only saved after the recovery phrase was copied down and checked.
     recoveryConfirmed: hasWallet,
+    fundsMoved,
     clerkSignedIn: Boolean(clerk.isSignedIn),
     decaneSignedIn: decane.authenticated,
     linked: status.data?.linked ?? false,
@@ -146,6 +166,10 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
       </ol>
 
       {config.walletAvailable && status.data?.linked && uid ? <WalletPanel uid={uid} /> : null}
+
+      {config.moveFundsAvailable && hasWallet && destinations && decane.authenticated ? (
+        <MoveFundsPanel config={config} linked={linkedAddresses} destinations={destinations} />
+      ) : null}
 
       <NextAction
         step={next}
@@ -233,6 +257,8 @@ function NextAction({
   }
   // Creating and opening the wallet happen in the panel above.
   if ((step.id === "wallet" || step.id === "recovery") && step.state === "ready") return null;
+  // Moving funds happens in its own panel, which shows exactly what will move.
+  if (step.id === "funds" && step.state === "ready") return null;
   if (step.id === "link" && step.state === "ready") {
     return (
       <div className="flex flex-col gap-2">

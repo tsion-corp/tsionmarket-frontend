@@ -106,10 +106,16 @@ export function deriveSteps(config: WalletUpgradeConfig, progress: UpgradeProgre
       title: "Move your funds",
       description:
         "You see exactly what moves and where, then press one button. Your own wallet signs each transfer, and we cover the network fee where it is cheap.",
-      done: progress.fundsMoved,
+      done: progress.fundsMoved || progress.noLegacyAccount,
       service: config.moveFundsAvailable,
       unavailableReason: "Moving funds is not switched on yet.",
-      needs: [{ ok: progress.recoveryConfirmed, reason: "Save your recovery secret first." }],
+      needs: [
+        { ok: progress.recoveryConfirmed, reason: "Save your recovery secret first." },
+        {
+          ok: progress.decaneSignedIn,
+          reason: "Sign in to your current account to see what can move.",
+        },
+      ],
     },
   ];
 

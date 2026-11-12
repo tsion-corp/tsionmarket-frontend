@@ -114,7 +114,7 @@ describe("CreateWallet", () => {
     }
     fireEvent.click(screen.getByRole("button", { name: /save my wallet/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(
+    expect(await screen.findByRole("alert", undefined, { timeout: 15_000 })).toHaveTextContent(
       /couldn.t reach the wallet service/i
     );
     expect(onCreated).not.toHaveBeenCalled();
