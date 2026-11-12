@@ -4,83 +4,140 @@ import { useState } from "react";
 import Link from "next/link";
 import { UserButton, useAuth, useUser } from "@clerk/nextjs";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ArkMark } from "@/components/ui/ark-mark";
+import { BRAND } from "@/lib/brand";
+import { ArrowRightIcon, CheckIcon, LockIcon, ShieldIcon, WalletIcon } from "@/components/ui/icons";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { openSignIn } from "@/hooks/use-sign-in";
-import { UPGRADE_STATUS_KEY, getUpgradeStatus, linkAccounts, provisionAccount } from "../lib/api";
 import type { WalletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
-import { linkErrorMessage } from "../lib/link-errors";
-import { EMPTY_PROGRESS, deriveSteps, nextStep } from "../lib/steps";
-import type { Step, StepState } from "../lib/steps";
-import { WalletPanel, useWalletState } from "./wallet-panel";
-import { MoveFundsPanel } from "./move-funds-panel";
 import { useMoveScan } from "../hooks/use-move-funds";
-import { addressesOf } from "../lib/wallet-flow";
+import { UPGRADE_STATUS_KEY, getUpgradeStatus, linkAccounts, provisionAccount } from "../lib/api";
+import { linkErrorMessage } from "../lib/link-errors";
 import { destinationsFromWallet, nothingToMove, sourcesMatchLink } from "../lib/move-funds";
+import { EMPTY_PROGRESS, deriveSteps, nextStep, type Step } from "../lib/steps";
+import { addressesOf } from "../lib/wallet-flow";
+import { MoveFundsPanel } from "./move-funds-panel";
+import { KICKER, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, SMALL, TITLE, BODY } from "./ui";
+import { UpgradeStepper, shortLabel } from "./upgrade-stepper";
+import { WalletPanel, useWalletState } from "./wallet-panel";
 
 /**
  * The wallet upgrade, start to finish, on one page.
  *
- * Clerk lands people here after they sign in, so this is also where the profile
- * button lives: the rest of the app still reads Decane, and a Clerk-only
- * session cannot use those pages yet. Decane stays mounted on purpose. It is
- * how a person proves the old wallet is theirs and how the move is signed.
+ * One thing to do at a time: the rail shows where you are, the card beside it
+ * shows only the current step. Clerk lands people here after they sign in, so
+ * this is also where the profile button lives. Decane stays mounted on purpose:
+ * it is how a person proves the old wallet is theirs and how the move is signed.
  *
- * Only the steps that really work are active. The others say what they are
- * waiting on instead of looking clickable.
+ * Only the steps that really work are active; the others say what they wait on.
  */
-
-const STATE_LABEL: Record<StepState, string> = {
-  done: "Done",
-  ready: "Ready",
-  blocked: "Waiting",
-  unavailable: "Not available yet",
-};
-
-const STATE_STYLE: Record<StepState, string> = {
-  done: "bg-emerald-400/15 text-emerald-300",
-  ready: "bg-white text-black",
-  blocked: "bg-white/8 text-white/60",
-  unavailable: "bg-white/6 text-white/40",
-};
 
 export function UpgradePage({ config }: { config: WalletUpgradeConfig }) {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col gap-6 px-5 py-10 text-white">
-      {config.blockedReason ? <Blocked config={config} /> : <Flow config={config} />}
+    <main className="relative min-h-screen overflow-hidden bg-black text-white">
+      {/* A soft light from above, so the page has depth without a picture. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-[560px] bg-[radial-gradient(70%_100%_at_50%_0%,rgba(212,212,216,0.14),transparent_72%)]"
+      />
+      <div className="relative mx-auto w-full max-w-[1080px] px-5 pt-6 pb-24 sm:px-8 lg:pt-9">
+        {config.blockedReason ? <Blocked config={config} /> : <Flow config={config} />}
+      </div>
     </main>
   );
 }
 
-function EnvironmentBadge({ config }: { config: WalletUpgradeConfig }) {
-  const label =
+function EnvironmentPill({ config }: { config: WalletUpgradeConfig }) {
+  const rehearsal = config.target === "development" || config.dryRun;
+  // Long on a wide screen, a word on a phone, where the logo needs the room.
+  const [long, short] =
     config.target === "development"
-      ? "Development · rehearsal only, nothing real moves"
+      ? ["Development · nothing real moves", "Rehearsal"]
       : config.dryRun
-        ? "Production · dry run"
-        : "Production";
-  const tone =
-    config.target === "development" || config.dryRun
-      ? "bg-amber-400/15 text-amber-200"
-      : "bg-white/8 text-white/70";
+        ? ["Production · dry run", "Dry run"]
+        : ["Production", "Live"];
   return (
-    <span className={`self-start rounded-full px-3 py-1 text-[12px] font-medium ${tone}`}>
-      {label}
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[12px] font-medium whitespace-nowrap ${
+        rehearsal
+          ? "border-amber-300/25 bg-amber-300/10 text-amber-100"
+          : "border-white/12 bg-white/5 text-white/70"
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`size-1.5 rounded-full ${rehearsal ? "bg-amber-300" : "bg-emerald-300"}`}
+      />
+      <span className="sm:hidden">{short}</span>
+      <span className="hidden sm:inline">{long}</span>
     </span>
+  );
+}
+
+function TopBar({ config, right }: { config: WalletUpgradeConfig; right?: React.ReactNode }) {
+  return (
+    <header className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
+        <ArkMark height={20} />
+        <span className="hidden h-4 w-px bg-white/15 sm:block" />
+        <span className="hidden text-[13px] text-white/45 sm:block">Wallet upgrade</span>
+      </div>
+      <div className="flex items-center gap-3">
+        <EnvironmentPill config={config} />
+        {right}
+      </div>
+    </header>
   );
 }
 
 function Blocked({ config }: { config: WalletUpgradeConfig }) {
   return (
     <>
-      <EnvironmentBadge config={config} />
-      <h1 className="font-serif text-3xl">Wallet upgrade is switched off</h1>
-      <p
-        role="alert"
-        className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100"
-      >
-        {config.blockedReason}
-      </p>
+      <TopBar config={config} />
+      <div className="mx-auto mt-24 max-w-md text-center">
+        <h1 className={TITLE}>The wallet upgrade is switched off</h1>
+        <p role="alert" className={`${NOTICE.error} mt-6 text-left`}>
+          {config.blockedReason}
+        </p>
+      </div>
     </>
+  );
+}
+
+const TRUST = [
+  {
+    icon: LockIcon,
+    title: "Locked on your device",
+    text: "Your keys are made here and sealed with a passphrase only you know.",
+  },
+  {
+    icon: ShieldIcon,
+    title: "We can't touch your funds",
+    text: "We never see your keys, so we have nothing that could move your money.",
+  },
+  {
+    icon: WalletIcon,
+    title: "Nothing changes until you say",
+    text: "Your current wallet stays exactly as it is until you press move.",
+  },
+] as const;
+
+function Trust() {
+  return (
+    <ul className="grid gap-3 sm:grid-cols-3">
+      {TRUST.map(({ icon: Icon, title, text }) => (
+        <li
+          key={title}
+          className="flex flex-col gap-2.5 rounded-2xl border border-white/8 bg-white/[0.025] p-4"
+        >
+          <span className="grid size-8 place-items-center rounded-full bg-white/8 text-white/80">
+            <Icon size={15} />
+          </span>
+          <div className="text-[14px] font-medium text-white">{title}</div>
+          <p className="text-[12.5px] leading-snug text-white/50">{text}</p>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -135,86 +192,115 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
   const next = nextStep(steps);
   const email = user?.primaryEmailAddress?.emailAddress;
 
+  // Until Clerk and the link status have answered, the steps would flash "sign
+  // in" for someone who is already signed in. Show a placeholder instead.
+  const loading =
+    !clerk.isLoaded ||
+    (config.linkAvailable && Boolean(clerk.isSignedIn) && status.isPending) ||
+    (Boolean(status.data?.linked) && config.walletAvailable && wallet.isPending);
+
+  const showStartFresh =
+    config.linkAvailable &&
+    clerk.isSignedIn &&
+    !decane.authenticated &&
+    status.isSuccess &&
+    !status.data.linked;
+
+  const stepNumber = next ? steps.findIndex((s) => s.id === next.id) + 1 : steps.length;
+  // The wallet card stays on screen once it exists, as a quiet summary beside
+  // whatever the current step is.
+  const walletIsFocus = next?.id === "wallet" || next?.id === "recovery";
+  const showWalletBelow = hasWallet && !walletIsFocus && Boolean(uid);
+
   return (
     <>
-      <header className="flex items-start justify-between gap-4">
-        <div className="flex flex-col gap-3">
-          <EnvironmentBadge config={config} />
-          <h1 className="font-serif text-3xl leading-tight">Upgrade to your own wallet</h1>
-          <p className="max-w-md text-sm text-white/60">
-            A wallet only you can open: locked on your device, with a recovery secret only you hold.
-            Your current wallet stays as it is until you decide to move.
-          </p>
-        </div>
-        {/* The profile. Shown as soon as Clerk has a session. */}
-        <div className="flex shrink-0 flex-col items-end gap-1" data-testid="clerk-profile">
-          {clerk.isLoaded && clerk.isSignedIn ? (
+      <TopBar
+        config={config}
+        right={
+          <div className="flex items-center gap-2.5" data-testid="clerk-profile">
+            {clerk.isLoaded && clerk.isSignedIn ? (
+              <>
+                {email ? (
+                  <span className="hidden max-w-[11rem] truncate text-[12.5px] text-white/50 md:block">
+                    {email}
+                  </span>
+                ) : null}
+                <UserButton />
+              </>
+            ) : null}
+          </div>
+        }
+      />
+
+      <div className="mt-9 grid gap-9 lg:mt-14 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-16">
+        <aside className="flex flex-col gap-8 lg:sticky lg:top-10 lg:self-start">
+          <div className="flex flex-col gap-4">
+            <div className={KICKER}>Wallet upgrade</div>
+            <h1 className="ws-display text-[34px] leading-[1.04] tracking-[-0.03em] sm:text-[42px] lg:text-[40px]">
+              A wallet only <span className="text-white/55">you</span> can open.
+            </h1>
+            <p className={BODY}>
+              Move to a wallet whose keys are made and locked on your device. It takes a few
+              minutes, and you stay in control the whole way.
+            </p>
+          </div>
+
+          <UpgradeStepper steps={steps} currentId={next?.id ?? null} />
+        </aside>
+
+        <section className="flex min-w-0 flex-col gap-5" aria-live="polite">
+          {loading ? (
+            <Skeleton />
+          ) : (
             <>
-              <UserButton />
-              {email ? (
-                <span className="max-w-[10rem] truncate text-[11px] text-white/50">{email}</span>
+              <Focus
+                config={config}
+                step={next}
+                stepNumber={stepNumber}
+                total={steps.length}
+                uid={uid}
+                link={{ pending: link.isPending, error: link.error, run: () => link.mutate() }}
+                moveFunds={
+                  config.moveFundsAvailable && hasWallet && destinations && decane.authenticated ? (
+                    <MoveFundsPanel
+                      config={config}
+                      linked={linkedAddresses}
+                      destinations={destinations}
+                    />
+                  ) : null
+                }
+              />
+              {next && ["clerk", "decane", "link"].includes(next.id) ? <Trust /> : null}
+              {showStartFresh ? (
+                <StartFresh
+                  pending={provision.isPending}
+                  error={provision.error}
+                  run={() => provision.mutate()}
+                />
+              ) : null}
+              {showWalletBelow && uid ? <WalletPanel uid={uid} /> : null}
+              {status.isError ? (
+                <p role="alert" className={NOTICE.warn}>
+                  {linkErrorMessage(status.error)}
+                </p>
               ) : null}
             </>
-          ) : null}
-        </div>
-      </header>
-
-      <ol className="flex flex-col gap-3">
-        {steps.map((step, index) => (
-          <StepCard key={step.id} step={step} index={index + 1} />
-        ))}
-      </ol>
-
-      {config.walletAvailable && status.data?.linked && uid ? <WalletPanel uid={uid} /> : null}
-
-      {config.moveFundsAvailable && hasWallet && destinations && decane.authenticated ? (
-        <MoveFundsPanel config={config} linked={linkedAddresses} destinations={destinations} />
-      ) : null}
-
-      <NextAction
-        step={next}
-        clerkReady={Boolean(clerk.isLoaded)}
-        link={{ pending: link.isPending, error: link.error, run: () => link.mutate() }}
-      />
-      {config.linkAvailable &&
-      clerk.isSignedIn &&
-      !decane.authenticated &&
-      status.isSuccess &&
-      !status.data.linked ? (
-        <StartFresh
-          pending={provision.isPending}
-          error={provision.error}
-          run={() => provision.mutate()}
-        />
-      ) : null}
-      {status.isError ? (
-        <p role="alert" className="text-center text-xs text-white/50">
-          {linkErrorMessage(status.error)}
-        </p>
-      ) : null}
+          )}
+        </section>
+      </div>
     </>
   );
 }
 
-function StepCard({ step, index }: { step: Step; index: number }) {
+function Skeleton() {
   return (
-    <li className="flex gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-white/10 text-[13px] font-semibold">
-        {step.state === "done" ? "✓" : index}
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-[15px] font-semibold">{step.title}</h2>
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-medium ${STATE_STYLE[step.state]}`}
-          >
-            {STATE_LABEL[step.state]}
-          </span>
-        </div>
-        <p className="text-[13px] leading-relaxed text-white/55">{step.description}</p>
-        {step.reason ? <p className="text-[12px] text-white/40">{step.reason}</p> : null}
-      </div>
-    </li>
+    <div className={`${PANEL} animate-pulse`} aria-busy aria-label="Loading">
+      <div className="h-3 w-24 rounded-full bg-white/10" />
+      <div className="h-8 w-2/3 rounded-xl bg-white/10" />
+      <div className="h-4 w-full rounded-full bg-white/8" />
+      <div className="h-4 w-4/5 rounded-full bg-white/8" />
+      <div className="mt-4 h-12 w-full rounded-full bg-white/10" />
+    </div>
   );
 }
 
@@ -224,70 +310,133 @@ interface LinkAction {
   run: () => void;
 }
 
-function NextAction({
+function Focus({
+  config,
   step,
-  clerkReady,
+  stepNumber,
+  total,
+  uid,
   link,
+  moveFunds,
 }: {
+  config: WalletUpgradeConfig;
   step: Step | null;
-  clerkReady: boolean;
+  stepNumber: number;
+  total: number;
+  uid: string | null;
   link: LinkAction;
+  moveFunds: React.ReactNode;
 }) {
-  if (!clerkReady) return null;
-  if (!step) {
-    return <p className="text-center text-sm text-emerald-300">Your upgrade is complete.</p>;
+  if (!step) return <Complete config={config} />;
+
+  // The wallet and the funds have their own panels, which carry their own
+  // headings; the step only adds a small line of context above them.
+  if (step.state === "ready" && (step.id === "wallet" || step.id === "recovery") && uid) {
+    return (
+      <>
+        <Context stepNumber={stepNumber} total={total} step={step} />
+        <WalletPanel uid={uid} />
+      </>
+    );
+  }
+  if (step.state === "ready" && step.id === "funds" && moveFunds) {
+    return (
+      <>
+        <Context stepNumber={stepNumber} total={total} step={step} />
+        {moveFunds}
+      </>
+    );
   }
 
-  const button =
-    "w-full rounded-full bg-white px-5 py-3 text-center text-[15px] font-semibold text-black transition-colors hover:bg-white/90";
+  return (
+    <article className={PANEL}>
+      <div className="flex flex-col gap-3">
+        <div className={KICKER}>
+          Step {stepNumber} of {total}
+        </div>
+        <h2 className={TITLE}>{step.title}</h2>
+        <p className={BODY}>{step.description}</p>
+      </div>
+      <Action step={step} link={link} />
+    </article>
+  );
+}
 
-  if (step.id === "clerk" && step.state === "ready") {
+function Context({ stepNumber, total, step }: { stepNumber: number; total: number; step: Step }) {
+  return (
+    <div className="flex items-center gap-3 px-1">
+      <span className={KICKER}>
+        Step {stepNumber} of {total}
+      </span>
+      <span className="h-px flex-1 bg-white/10" />
+      <span className="text-[12.5px] text-white/45">{shortLabel(step.id)}</span>
+    </div>
+  );
+}
+
+function Action({ step, link }: { step: Step; link: LinkAction }) {
+  if (step.state !== "ready") {
     return (
-      <Link href="/sign-in" className={button}>
-        Sign in to your new account
+      <div
+        className={`${SMALL} rounded-2xl border border-dashed border-white/12 px-4 py-3.5 text-[13.5px]`}
+      >
+        {step.reason ?? "Not available yet."}
+      </div>
+    );
+  }
+  if (step.id === "clerk") {
+    return (
+      <Link href="/sign-in" className={PRIMARY}>
+        Sign in to your new account <ArrowRightIcon size={15} />
       </Link>
     );
   }
-  if (step.id === "decane" && step.state === "ready") {
+  if (step.id === "decane") {
     return (
-      <button type="button" onClick={openSignIn} className={button}>
-        Sign in to your current account
+      <button type="button" onClick={openSignIn} className={PRIMARY}>
+        Sign in to your current account <ArrowRightIcon size={15} />
       </button>
     );
   }
-  // Creating and opening the wallet happen in the panel above.
-  if ((step.id === "wallet" || step.id === "recovery") && step.state === "ready") return null;
-  // Moving funds happens in its own panel, which shows exactly what will move.
-  if (step.id === "funds" && step.state === "ready") return null;
-  if (step.id === "link" && step.state === "ready") {
+  if (step.id === "link") {
     return (
-      <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          disabled={link.pending}
-          onClick={link.run}
-          className={`${button} disabled:opacity-60`}
-        >
+      <div className="flex flex-col gap-3">
+        <button type="button" disabled={link.pending} onClick={link.run} className={PRIMARY}>
           {link.pending ? "Connecting…" : "Connect your two accounts"}
         </button>
         {link.error ? (
-          <p role="alert" className="text-center text-sm text-red-200">
+          <p role="alert" className={NOTICE.error}>
             {linkErrorMessage(link.error)}
           </p>
         ) : null}
       </div>
     );
   }
+  return null;
+}
+
+function Complete({ config }: { config: WalletUpgradeConfig }) {
   return (
-    <button type="button" disabled className={`${button} cursor-not-allowed opacity-40`}>
-      {step.reason ?? "Not available yet"}
-    </button>
+    <article className={`${PANEL} items-center text-center`}>
+      <span className="bg-upgrade text-ink grid size-14 place-items-center rounded-full">
+        <CheckIcon size={26} />
+      </span>
+      <h2 className={TITLE}>Your upgrade is complete</h2>
+      <p className={`${BODY} max-w-sm`}>
+        {config.dryRun
+          ? "That was a rehearsal: nothing was sent."
+          : "Your wallet is yours alone now, and your funds are in it."}
+      </p>
+      <Link href="/" className={`${SECONDARY} max-w-xs`}>
+        Back to your account
+      </Link>
+    </article>
   );
 }
 
-// For someone who has never used TsionMarket. Two steps on purpose: starting
-// fresh can't be undone, and anyone who HAS an old account must connect it
-// instead, or its balances can never be brought across.
+// For someone who has never used the app. Two steps on purpose: starting fresh
+// can't be undone, and anyone who HAS an old account must connect it instead,
+// or its balances can never be brought across.
 function StartFresh({
   pending,
   error,
@@ -300,41 +449,27 @@ function StartFresh({
   const [confirming, setConfirming] = useState(false);
   if (!confirming) {
     return (
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="self-center text-[13px] text-white/50 underline underline-offset-4 hover:text-white/80"
-      >
-        I have never used TsionMarket before
+      <button type="button" onClick={() => setConfirming(true)} className={`${LINK} self-start`}>
+        I have never used {BRAND} before
       </button>
     );
   }
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-sm">
-      <p className="text-amber-100">
+    <div className="flex flex-col gap-4">
+      <p className={NOTICE.warn}>
         Starting fresh means you can&apos;t connect an old account later. If you have ever signed in
-        to TsionMarket before, sign in to that account above instead, or its balances can&apos;t be
-        brought across.
+        before, sign in to that account above instead, or its balances can&apos;t be brought across.
       </p>
       <div className="flex gap-3">
-        <button
-          type="button"
-          disabled={pending}
-          onClick={run}
-          className="flex-1 rounded-full bg-white px-4 py-2.5 font-semibold text-black disabled:opacity-60"
-        >
+        <button type="button" disabled={pending} onClick={run} className={PRIMARY}>
           {pending ? "Setting up…" : "Start fresh"}
         </button>
-        <button
-          type="button"
-          onClick={() => setConfirming(false)}
-          className="flex-1 rounded-full border border-white/20 px-4 py-2.5 text-white/80"
-        >
+        <button type="button" onClick={() => setConfirming(false)} className={SECONDARY}>
           Cancel
         </button>
       </div>
       {error ? (
-        <p role="alert" className="text-red-200">
+        <p role="alert" className={NOTICE.error}>
           {linkErrorMessage(error)}
         </p>
       ) : null}

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { LockIcon } from "@/components/ui/icons";
+import { NetworkIcon } from "@/components/ui/network-icon";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import type { WalletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
 import { useMoveScan, useRunMove } from "../hooks/use-move-funds";
@@ -13,15 +15,10 @@ import {
   type StuckView,
 } from "../lib/move-funds";
 import { walletErrorMessage } from "../lib/wallet-errors";
+import { BODY, KICKER, LINK, NOTICE, PANEL, PRIMARY, SMALL, SUBTITLE, TITLE, WELL } from "./ui";
 
 const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const short = (value: string | null) => (value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "—");
-
-const card = "flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5";
-const primary =
-  "w-full rounded-full bg-white px-5 py-3 text-center text-[15px] font-semibold text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50";
-const link =
-  "self-center text-[13px] text-white/50 underline underline-offset-4 hover:text-white/80";
 
 export function MoveFundsPanel({
   config,
@@ -43,19 +40,17 @@ export function MoveFundsPanel({
 
   if (!session.authenticated) {
     return (
-      <section className={card} aria-label="Move your funds">
-        <h2 className="text-lg font-semibold">Move your funds</h2>
-        <p className="text-[13px] text-white/60">
-          Sign in to your current account to see what can move.
-        </p>
+      <section className={PANEL} aria-label="Move your funds">
+        <h2 className={TITLE}>Move your funds</h2>
+        <p className={BODY}>Sign in to your current account to see what can move.</p>
       </section>
     );
   }
   if (!matches) {
     return (
-      <section className={card} aria-label="Move your funds">
-        <h2 className="text-lg font-semibold">Move your funds</h2>
-        <p role="alert" className="text-sm text-amber-200">
+      <section className={PANEL} aria-label="Move your funds">
+        <h2 className={TITLE}>Move your funds</h2>
+        <p role="alert" className={NOTICE.warn}>
           You&apos;re signed in to a different current account than the one you connected. Sign out
           and sign in to the right one.
         </p>
@@ -68,19 +63,30 @@ export function MoveFundsPanel({
   const result = run.data;
 
   return (
-    <section className={card} aria-label="Move your funds">
-      <h2 className="text-lg font-semibold">Move your funds</h2>
+    <section className={PANEL} aria-label="Move your funds">
+      <div className="flex flex-col gap-2.5">
+        <h2 className={TITLE}>Move your funds</h2>
+        <p className={BODY}>
+          Here&apos;s everything that can move to your new wallet. You press one button, and your
+          wallet signs each transfer.
+        </p>
+      </div>
+
       {config.dryRun ? (
-        <p className="rounded-xl bg-amber-400/15 px-3 py-2 text-[13px] text-amber-100">
+        <p className={NOTICE.warn}>
           Rehearsal. Nothing will be sent. This shows exactly what would move.
         </p>
       ) : null}
 
       {scan.isPending ? (
-        <p className="text-sm text-white/50">Checking your current wallet…</p>
+        <div className="flex animate-pulse flex-col gap-2.5" aria-busy>
+          <div className={`${WELL} h-[88px]`} />
+          <div className={`${WELL} h-[88px]`} />
+          <span className="sr-only">Checking your current wallet…</span>
+        </div>
       ) : null}
       {scan.isError ? (
-        <p role="alert" className="text-sm text-red-200">
+        <p role="alert" className={NOTICE.error}>
           {walletErrorMessage(scan.error)}
         </p>
       ) : null}
@@ -88,20 +94,20 @@ export function MoveFundsPanel({
       {plan ? (
         <>
           {scan.data && scan.data.missing.length > 0 ? (
-            <p className="text-[12px] text-amber-200">
+            <p className={NOTICE.warn}>
               We couldn&apos;t read {scan.data.missing.length} network
               {scan.data.missing.length === 1 ? "" : "s"} just now, so this may be more than shown.
             </p>
           ) : null}
 
           {plan.view.length > 0 ? (
-            <ul className="flex flex-col gap-2" aria-label="Will move">
+            <ul className="flex flex-col gap-2.5" aria-label="Will move">
               {plan.view.map((chain) => (
                 <ChainRow key={chain.network} chain={chain} />
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-emerald-300">
+            <p className={NOTICE.good}>
               {result
                 ? "All of it is across."
                 : "There's nothing to move from the networks that are switched on."}
@@ -109,9 +115,9 @@ export function MoveFundsPanel({
           )}
 
           {plan.locked.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-[12px] tracking-wide text-white/40 uppercase">
-                Not available yet
+            <div className="flex flex-col gap-2.5">
+              <h3 className={`${KICKER} flex items-center gap-2`}>
+                <LockIcon size={11} /> Not available yet
               </h3>
               <ul className="flex flex-col gap-2" aria-label="Not available yet">
                 {plan.locked.map((chain) => (
@@ -122,10 +128,8 @@ export function MoveFundsPanel({
           ) : null}
 
           {plan.stuck.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="text-[12px] tracking-wide text-white/40 uppercase">
-                Can&apos;t move from here
-              </h3>
+            <div className="flex flex-col gap-2.5">
+              <h3 className={KICKER}>Can&apos;t move from here</h3>
               <ul className="flex flex-col gap-2">
                 {plan.stuck.map((chain) => (
                   <LockedRow key={chain.network} chain={chain} />
@@ -135,25 +139,31 @@ export function MoveFundsPanel({
           ) : null}
 
           {!nothingToMove(plan) ? (
-            <>
-              <div className="flex items-center justify-between text-[14px]">
-                <span className="text-white/60">Total to move</span>
-                <span className="font-semibold">{usd.format(plan.totalUsd)}</span>
+            <div className="flex flex-col gap-4 border-t border-white/8 pt-5">
+              <div className="flex items-baseline justify-between">
+                <span className={BODY}>Total to move</span>
+                <span className="ws-display text-[28px] tracking-[-0.02em] tabular-nums">
+                  {usd.format(plan.totalUsd)}
+                </span>
               </div>
-              <div className="rounded-xl border border-white/10 bg-black/30 px-3.5 py-3 text-[12px] text-white/60">
-                <div className="mb-1 text-white/40">Goes to your new wallet</div>
-                <div className="font-mono">Ethereum, Arbitrum: {short(destinations.evm)}</div>
-                <div className="font-mono">Solana: {short(destinations.solana)}</div>
+              <div className={`${WELL} flex flex-col gap-1.5 px-4 py-3.5`}>
+                <div className={SMALL}>Goes to your new wallet</div>
+                <div className="font-mono text-[12.5px] text-white/80">
+                  Ethereum, Arbitrum: {short(destinations.evm)}
+                </div>
+                <div className="font-mono text-[12.5px] text-white/80">
+                  Solana: {short(destinations.solana)}
+                </div>
               </div>
               {problems.length > 0 ? (
-                <p role="alert" className="text-sm text-red-200">
+                <p role="alert" className={NOTICE.error}>
                   {problems[0]}
                 </p>
               ) : (
-                <label className="flex items-start gap-2 text-[13px] text-white/70">
+                <label className="flex cursor-pointer items-start gap-3 text-[14px] text-white/75">
                   <input
                     type="checkbox"
-                    className="mt-0.5"
+                    className="mt-1 size-4 accent-white"
                     checked={checked}
                     onChange={(e) => setChecked(e.target.checked)}
                   />
@@ -162,7 +172,7 @@ export function MoveFundsPanel({
               )}
               <button
                 type="button"
-                className={primary}
+                className={PRIMARY}
                 disabled={!checked || problems.length > 0 || run.isPending}
                 onClick={() => run.mutate({ config, linked, destinations, plan })}
               >
@@ -172,22 +182,19 @@ export function MoveFundsPanel({
                     ? "Rehearse the move"
                     : `Move ${usd.format(plan.totalUsd)} to my new wallet`}
               </button>
-            </>
+            </div>
           ) : null}
         </>
       ) : null}
 
       {run.error ? (
-        <p role="alert" className="text-sm text-red-200">
+        <p role="alert" className={NOTICE.error}>
           {run.error.message || walletErrorMessage(run.error)}
         </p>
       ) : null}
 
       {result ? (
-        <div
-          role="status"
-          className={`rounded-xl px-3 py-2 text-[13px] ${result.failed ? "bg-amber-400/15 text-amber-100" : "bg-emerald-400/15 text-emerald-200"}`}
-        >
+        <div role="status" className={result.failed ? NOTICE.warn : NOTICE.good}>
           {config.dryRun ? "Rehearsal: " : ""}
           {result.moved} moved{result.failed ? `, ${result.failed} didn't` : ""} (
           {usd.format(result.usdMoved)}).
@@ -198,7 +205,7 @@ export function MoveFundsPanel({
 
       <button
         type="button"
-        className={link}
+        className={LINK}
         onClick={() => void scan.refetch()}
         disabled={scan.isFetching}
       >
@@ -210,20 +217,25 @@ export function MoveFundsPanel({
 
 function ChainRow({ chain }: { chain: MoveChainView }) {
   return (
-    <li className="rounded-xl border border-white/10 bg-black/30 px-3.5 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[14px] font-medium">{chain.label}</span>
-        <span className="text-[11px] text-white/50">
-          {chain.sponsored ? "We cover the fee" : "Fee comes from your balance"}
+    <li className={`${WELL} px-4 py-3.5`}>
+      <div className="flex items-center gap-3">
+        <NetworkIcon network={chain.network} size={32} />
+        <span className={`${SUBTITLE} flex-1`}>{chain.label}</span>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
+            chain.sponsored ? "bg-emerald-300/10 text-emerald-200" : "bg-white/8 text-white/60"
+          }`}
+        >
+          {chain.sponsored ? "We cover the fee" : "Fee from your balance"}
         </span>
       </div>
-      <ul className="mt-2 flex flex-col gap-1">
+      <ul className="mt-3 flex flex-col divide-y divide-white/6 border-t border-white/6">
         {chain.assets.map((asset) => (
-          <li key={asset.id} className="flex justify-between text-[13px] text-white/80">
-            <span>
+          <li key={asset.id} className="flex items-center justify-between py-2 text-[13.5px]">
+            <span className="text-white/85 tabular-nums">
               {asset.amountText} {asset.symbol}
             </span>
-            <span className="text-white/50">{usd.format(asset.valueUsd)}</span>
+            <span className="text-white/45 tabular-nums">{usd.format(asset.valueUsd)}</span>
           </li>
         ))}
       </ul>
@@ -236,15 +248,16 @@ function LockedRow({ chain }: { chain: StuckView }) {
   return (
     <li
       data-disabled="true"
-      className="pointer-events-none rounded-xl border border-white/5 bg-white/[0.02] px-3.5 py-3 opacity-40 select-none"
+      className="pointer-events-none rounded-2xl border border-white/5 bg-white/[0.02] px-4 py-3 opacity-40 select-none"
     >
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[14px] font-medium">{chain.label}</span>
+      <div className="flex items-center gap-3">
+        <NetworkIcon network={chain.network} size={28} />
+        <span className="flex-1 text-[14px] font-medium">{chain.label}</span>
         <span className="text-[11px]">{chain.reason}</span>
       </div>
-      <ul className="mt-2 flex flex-col gap-1">
+      <ul className="mt-2 flex flex-col gap-1 pl-10">
         {chain.assets.map((asset) => (
-          <li key={asset.id} className="flex justify-between text-[13px]">
+          <li key={asset.id} className="flex justify-between text-[12.5px] tabular-nums">
             <span>
               {asset.amountText} {asset.symbol}
             </span>

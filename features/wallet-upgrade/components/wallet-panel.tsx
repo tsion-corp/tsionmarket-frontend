@@ -15,16 +15,14 @@ import {
   type WalletState,
 } from "../lib/wallet-flow";
 import { walletErrorMessage } from "../lib/wallet-errors";
+import { CopyButton } from "@/components/ui/copy-button";
+import { LockIcon } from "@/components/ui/icons";
+import { NetworkIcon } from "@/components/ui/network-icon";
 import { CreateWallet } from "./create-wallet";
+import { PhraseGrid } from "./phrase-grid";
+import { BODY, FIELD, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, SMALL, TITLE, WELL } from "./ui";
 
 const deps: Deps = { api: walletApi, devices: indexedDbDeviceStore() };
-
-const field =
-  "w-full rounded-xl border border-white/15 bg-white/[0.05] px-3.5 py-3 text-[15px] text-white outline-none placeholder:text-white/30 focus:border-white/40";
-const primary =
-  "w-full rounded-full bg-white px-5 py-3 text-center text-[15px] font-semibold text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50";
-const link =
-  "self-center text-[13px] text-white/50 underline underline-offset-4 hover:text-white/80";
 
 export const walletStateKey = (uid: string) => ["walletState", uid] as const;
 
@@ -58,13 +56,21 @@ export function WalletPanel({ uid }: { uid: string }) {
   return <Unlocked state={data} onChange={refresh} />;
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Card({
+  title,
+  children,
+  badge,
+}: {
+  title: string;
+  children: React.ReactNode;
+  badge?: React.ReactNode;
+}) {
   return (
-    <section
-      aria-label={title}
-      className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5"
-    >
-      <h2 className="text-lg font-semibold">{title}</h2>
+    <section aria-label={title} className={PANEL}>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className={TITLE}>{title}</h2>
+        {badge}
+      </div>
       {children}
     </section>
   );
@@ -101,7 +107,7 @@ function Locked({
   if (recovering) {
     return (
       <Card title="Use your recovery phrase">
-        <p className="text-[13px] leading-relaxed text-white/60">
+        <p className={BODY}>
           Enter your 24 words in order, separated by spaces. This opens your wallet and registers
           this device.
         </p>
@@ -112,24 +118,24 @@ function Locked({
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
-          className={`${field} font-mono`}
+          className={`${FIELD} font-mono`}
           value={phrase}
           onChange={(e) => setPhrase(e.target.value)}
         />
         <button
           type="button"
-          className={primary}
+          className={PRIMARY}
           disabled={!phrase.trim() || recover.isPending}
           onClick={() => recover.mutate()}
         >
           {recover.isPending ? "Checking…" : "Open my wallet"}
         </button>
         {recover.error ? (
-          <p role="alert" className="text-sm text-red-200">
+          <p role="alert" className={NOTICE.error}>
             {walletErrorMessage(recover.error)}
           </p>
         ) : null}
-        <button type="button" className={link} onClick={() => setRecovering(false)}>
+        <button type="button" className={LINK} onClick={() => setRecovering(false)}>
           Use my passphrase instead
         </button>
       </Card>
@@ -137,13 +143,22 @@ function Locked({
   }
 
   return (
-    <Card title="Unlock your wallet">
+    <Card
+      title="Unlock your wallet"
+      badge={
+        <span className="grid size-9 shrink-0 place-items-center rounded-full border border-white/12 bg-white/5 text-white/70">
+          <LockIcon size={15} />
+        </span>
+      }
+    >
       {!state.deviceEnrolled ? (
-        <p className="text-[13px] text-white/60">
+        <p className={NOTICE.warn}>
           This browser isn&apos;t registered with your wallet yet. You can still unlock it with your
           passphrase; use your recovery phrase to register this browser.
         </p>
-      ) : null}
+      ) : (
+        <p className={BODY}>Enter your passphrase to open your wallet on this device.</p>
+      )}
       <form
         className="flex flex-col gap-3"
         onSubmit={(e) => {
@@ -156,20 +171,20 @@ function Locked({
           autoComplete="current-password"
           aria-label="Passphrase"
           placeholder="Passphrase"
-          className={field}
+          className={FIELD}
           value={passphrase}
           onChange={(e) => setPassphrase(e.target.value)}
         />
-        <button type="submit" className={primary} disabled={!passphrase || unlock.isPending}>
+        <button type="submit" className={PRIMARY} disabled={!passphrase || unlock.isPending}>
           {unlock.isPending ? "Unlocking…" : "Unlock"}
         </button>
       </form>
       {unlock.error ? (
-        <p role="alert" className="text-sm text-red-200">
+        <p role="alert" className={NOTICE.error}>
           {walletErrorMessage(unlock.error)}
         </p>
       ) : null}
-      <button type="button" className={link} onClick={() => setRecovering(true)}>
+      <button type="button" className={LINK} onClick={() => setRecovering(true)}>
         Forgot your passphrase, or on a new device?
       </button>
     </Card>
@@ -197,35 +212,39 @@ function Unlocked({
   });
 
   return (
-    <Card title="Your wallet is ready">
-      <ul className="flex flex-col gap-2">
+    <Card
+      title="Your wallet is ready"
+      badge={
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-2.5 py-1 text-[11.5px] font-medium text-emerald-200">
+          <span aria-hidden className="size-1.5 rounded-full bg-emerald-300" />
+          Unlocked
+        </span>
+      }
+    >
+      <ul className="flex flex-col gap-2.5">
         {addresses.map((item) => (
-          <li
-            key={item.family}
-            className="rounded-xl border border-white/10 bg-black/30 px-3.5 py-3"
-          >
-            <div className="text-[11px] tracking-wide text-white/40 uppercase">
-              {item.family === "evm" ? "EVM chains (one address)" : "Solana"}
+          <li key={item.family} className={`${WELL} flex items-center gap-3.5 px-4 py-3.5`}>
+            <NetworkIcon
+              network={item.family === "evm" ? "eth-mainnet" : "solana-mainnet"}
+              size={36}
+            />
+            <div className="min-w-0 flex-1">
+              <div className={SMALL}>
+                {item.family === "evm" ? "Ethereum and other EVM chains" : "Solana"}
+              </div>
+              <div className="truncate font-mono text-[13px] text-white" title={item.address}>
+                {item.address}
+              </div>
             </div>
-            <div className="font-mono text-[13px] break-all">{item.address}</div>
+            <CopyButton value={item.address} />
           </li>
         ))}
       </ul>
 
       {words ? (
         <div className="flex flex-col gap-3">
-          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {words.map((word, index) => (
-              <li
-                key={index}
-                className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-[14px]"
-              >
-                <span className="w-5 text-right text-[11px] text-white/40">{index + 1}</span>
-                <span className="font-mono">{word}</span>
-              </li>
-            ))}
-          </ol>
-          <button type="button" className={link} onClick={() => setWords(null)}>
+          <PhraseGrid words={words} />
+          <button type="button" className={LINK} onClick={() => setWords(null)}>
             Hide the words
           </button>
         </div>
@@ -242,28 +261,28 @@ function Unlocked({
             autoComplete="current-password"
             aria-label="Passphrase to show the recovery phrase"
             placeholder="Enter your passphrase to continue"
-            className={field}
+            className={FIELD}
             value={passphrase}
             onChange={(e) => setPassphrase(e.target.value)}
           />
-          <button type="submit" className={primary} disabled={!passphrase || reveal.isPending}>
+          <button type="submit" className={PRIMARY} disabled={!passphrase || reveal.isPending}>
             {reveal.isPending ? "Checking…" : "Show my recovery phrase"}
           </button>
           {reveal.error ? (
-            <p role="alert" className="text-sm text-red-200">
+            <p role="alert" className={NOTICE.error}>
               {walletErrorMessage(reveal.error)}
             </p>
           ) : null}
         </form>
       ) : (
-        <button type="button" className={link} onClick={() => setAsking(true)}>
+        <button type="button" className={`${LINK} self-center`} onClick={() => setAsking(true)}>
           Show my recovery phrase
         </button>
       )}
 
       <button
         type="button"
-        className={link}
+        className={`${SECONDARY} sm:w-auto sm:self-center sm:px-8`}
         onClick={() => {
           lockWallet();
           setWords(null);

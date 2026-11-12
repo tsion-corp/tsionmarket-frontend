@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { CheckIcon } from "@/components/ui/icons";
+import { cn } from "@/lib/utils";
 import {
   NEW_PHRASE_WORDS,
   checkPassphrase,
@@ -12,21 +14,21 @@ import {
 } from "@/lib/wallet-core";
 import { prepareWallet, saveWallet, type Deps } from "../lib/wallet-flow";
 import { walletErrorMessage } from "../lib/wallet-errors";
+import { PhraseGrid } from "./phrase-grid";
+import { BODY, FIELD, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, TITLE } from "./ui";
 
 /**
- * Four short steps: choose a passphrase, see the recovery phrase, prove it was
- * copied down, then save. Nothing is sent anywhere until the last step, and the
+ * Three short stages: choose a passphrase, write the recovery phrase down, prove
+ * it was copied right. Nothing is sent anywhere until the last button, and the
  * phrase is dropped from memory as soon as the wallet is saved.
  */
 
 type Step = "passphrase" | "phrase" | "confirm";
-
-const field =
-  "w-full rounded-xl border border-white/15 bg-white/[0.05] px-3.5 py-3 text-[15px] text-white outline-none placeholder:text-white/30 focus:border-white/40";
-const primary =
-  "w-full rounded-full bg-white px-5 py-3 text-center text-[15px] font-semibold text-black transition-colors hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50";
-const secondary =
-  "w-full rounded-full border border-white/20 px-5 py-3 text-[15px] text-white/80 hover:bg-white/5";
+const STAGES: ReadonlyArray<{ id: Step; label: string }> = [
+  { id: "passphrase", label: "Passphrase" },
+  { id: "phrase", label: "Write it down" },
+  { id: "confirm", label: "Check" },
+];
 
 export function CreateWallet({
   deps,
@@ -51,6 +53,7 @@ export function CreateWallet({
   const problem = passphrase && !check.ok ? passphraseProblem(check.reason) : null;
   const mismatch = again.length > 0 && again !== passphrase;
   const ready = check.ok && again === passphrase;
+  const stageIndex = STAGES.findIndex((stage) => stage.id === step);
 
   async function prepare() {
     setBusy(true);
@@ -97,40 +100,67 @@ export function CreateWallet({
   const confirmed = wallet ? confirmPhraseWords(wallet.phrase, positions, answers) : false;
 
   return (
-    <section
-      aria-label="Create your wallet"
-      className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5"
-    >
+    <section aria-label="Create your wallet" className={PANEL}>
+      <ol className="flex items-center gap-2 text-[12px]" aria-label="Wallet creation stages">
+        {STAGES.map((stage, index) => (
+          <li key={stage.id} className="flex flex-1 items-center gap-2">
+            <span
+              className={cn(
+                "grid size-5 shrink-0 place-items-center rounded-full text-[10.5px] font-semibold",
+                index < stageIndex && "bg-upgrade text-ink",
+                index === stageIndex && "text-ink bg-white",
+                index > stageIndex && "border border-white/15 text-white/40"
+              )}
+            >
+              {index < stageIndex ? <CheckIcon size={11} /> : index + 1}
+            </span>
+            <span
+              className={cn(
+                "truncate",
+                index === stageIndex ? "font-medium text-white" : "text-white/40"
+              )}
+            >
+              {stage.label}
+            </span>
+            {index < STAGES.length - 1 ? <span className="h-px flex-1 bg-white/10" /> : null}
+          </li>
+        ))}
+      </ol>
+
       {step === "passphrase" ? (
         <>
-          <h2 className="text-lg font-semibold">Choose a passphrase</h2>
-          <p className="text-[13px] leading-relaxed text-white/60">
-            It locks your wallet on this device. We never see it and can&apos;t reset it, so pick
-            something you will remember: a few ordinary words strung together works well.
-          </p>
-          <input
-            type="password"
-            autoComplete="new-password"
-            aria-label="Passphrase"
-            placeholder="Passphrase"
-            className={field}
-            value={passphrase}
-            onChange={(e) => setPassphrase(e.target.value)}
-          />
-          {problem ? <p className="text-[12px] text-amber-200">{problem}</p> : null}
-          <input
-            type="password"
-            autoComplete="new-password"
-            aria-label="Repeat passphrase"
-            placeholder="Repeat passphrase"
-            className={field}
-            value={again}
-            onChange={(e) => setAgain(e.target.value)}
-          />
-          {mismatch ? (
-            <p className="text-[12px] text-amber-200">These don&apos;t match yet.</p>
-          ) : null}
-          <button type="button" className={primary} disabled={!ready || busy} onClick={prepare}>
+          <div className="flex flex-col gap-2.5">
+            <h2 className={TITLE}>Choose a passphrase</h2>
+            <p className={BODY}>
+              It locks your wallet on this device. We never see it and can&apos;t reset it, so pick
+              something you will remember: a few ordinary words strung together works well.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            <input
+              type="password"
+              autoComplete="new-password"
+              aria-label="Passphrase"
+              placeholder="Passphrase"
+              className={FIELD}
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+            />
+            {problem ? <p className="px-1 text-[12.5px] text-amber-200">{problem}</p> : null}
+            <input
+              type="password"
+              autoComplete="new-password"
+              aria-label="Repeat passphrase"
+              placeholder="Repeat passphrase"
+              className={FIELD}
+              value={again}
+              onChange={(e) => setAgain(e.target.value)}
+            />
+            {mismatch ? (
+              <p className="px-1 text-[12.5px] text-amber-200">These don&apos;t match yet.</p>
+            ) : null}
+          </div>
+          <button type="button" className={PRIMARY} disabled={!ready || busy} onClick={prepare}>
             {busy ? "Locking your keys… a few seconds" : "Create my wallet"}
           </button>
         </>
@@ -138,27 +168,22 @@ export function CreateWallet({
 
       {step === "phrase" && wallet ? (
         <>
-          <h2 className="text-lg font-semibold">Write down your recovery phrase</h2>
-          <p className="text-[13px] leading-relaxed text-white/60">
-            These {NEW_PHRASE_WORDS} words are the only way back in if you forget your passphrase or
-            lose this device. Anyone who has them can take your funds. Write them on paper, in
-            order, and keep them somewhere private. Don&apos;t screenshot them or store them online.
+          <div className="flex flex-col gap-2.5">
+            <h2 className={TITLE}>Write down your recovery phrase</h2>
+            <p className={BODY}>
+              These {NEW_PHRASE_WORDS} words are the only way back in if you forget your passphrase
+              or lose this device. Anyone who has them can take your funds.
+            </p>
+          </div>
+          <p className={NOTICE.warn}>
+            Write them on paper, in order, and keep them somewhere private. Don&apos;t screenshot
+            them or store them online.
           </p>
-          <ol className="grid grid-cols-2 gap-2 sm:grid-cols-3" data-testid="phrase-words">
-            {wallet.phrase.map((word, index) => (
-              <li
-                key={index}
-                className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-[14px]"
-              >
-                <span className="w-5 text-right text-[11px] text-white/40">{index + 1}</span>
-                <span className="font-mono">{word}</span>
-              </li>
-            ))}
-          </ol>
-          <label className="flex items-start gap-2 text-[13px] text-white/70">
+          <PhraseGrid words={wallet.phrase} testId="phrase-words" />
+          <label className="flex cursor-pointer items-start gap-3 text-[14px] text-white/75">
             <input
               type="checkbox"
-              className="mt-0.5"
+              className="mt-1 size-4 accent-white"
               checked={wroteDown}
               onChange={(e) => setWroteDown(e.target.checked)}
             />
@@ -166,13 +191,13 @@ export function CreateWallet({
           </label>
           <button
             type="button"
-            className={primary}
+            className={PRIMARY}
             disabled={!wroteDown}
             onClick={() => setStep("confirm")}
           >
             Continue
           </button>
-          <button type="button" className={secondary} onClick={abandon}>
+          <button type="button" className={LINK} onClick={abandon}>
             Start over
           </button>
         </>
@@ -180,33 +205,37 @@ export function CreateWallet({
 
       {step === "confirm" && wallet ? (
         <>
-          <h2 className="text-lg font-semibold">Check your copy</h2>
-          <p className="text-[13px] text-white/60">
-            Type these words from what you wrote down, to be sure it&apos;s right.
-          </p>
-          {positions.map((position, i) => (
-            <label key={position} className="flex flex-col gap-1 text-[13px] text-white/70">
-              Word {position + 1}
-              <input
-                type="text"
-                autoComplete="off"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-                className={field}
-                value={answers[i] ?? ""}
-                onChange={(e) =>
-                  setAnswers((prev) => prev.map((value, j) => (j === i ? e.target.value : value)))
-                }
-              />
-            </label>
-          ))}
-          <button type="button" className={primary} disabled={!confirmed || busy} onClick={save}>
+          <div className="flex flex-col gap-2.5">
+            <h2 className={TITLE}>Check your copy</h2>
+            <p className={BODY}>
+              Type these words from what you wrote down, to be sure it&apos;s right.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3">
+            {positions.map((position, i) => (
+              <label key={position} className="flex flex-col gap-1.5 text-[13px] text-white/60">
+                Word {position + 1}
+                <input
+                  type="text"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  className={FIELD}
+                  value={answers[i] ?? ""}
+                  onChange={(e) =>
+                    setAnswers((prev) => prev.map((value, j) => (j === i ? e.target.value : value)))
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <button type="button" className={PRIMARY} disabled={!confirmed || busy} onClick={save}>
             {busy ? "Saving…" : "Save my wallet"}
           </button>
           <button
             type="button"
-            className={secondary}
+            className={SECONDARY}
             disabled={busy}
             onClick={() => setStep("phrase")}
           >
@@ -216,7 +245,7 @@ export function CreateWallet({
       ) : null}
 
       {error ? (
-        <p role="alert" className="text-sm text-red-200">
+        <p role="alert" className={NOTICE.error}>
           {error}
         </p>
       ) : null}
