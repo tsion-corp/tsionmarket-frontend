@@ -6,53 +6,53 @@ The plan is `docs/CLERK_AND_WALLET_MIGRATION_PLAN.md` in the backend repo. This 
 
 ## The split
 
-| | Development | Production |
-|---|---|---|
-| Purpose | Build and rehearse | Real users |
-| Clerk instance | **Development** (`pk_test_…`) | **Production** (`pk_live_…`, own domain) |
-| Clerk users | Throwaway test users | Real users |
-| `NEXT_PUBLIC_DEPLOY_ENV` | `development` | `production` |
-| Moves | **Always a dry run.** Nothing real is sent. | Real. A staged rollout can start as a dry run (`…_DRY_RUN=true`). |
-| Wallet service | Testnets / devnet | Mainnet, behind its own release gates |
-| Decane | A development project (see "Open item") | The production project |
-| Who can see `/upgrade` | Anyone with the dev flag on | Behind the rollout cohort |
+|                          | Development                                 | Production                                                        |
+| ------------------------ | ------------------------------------------- | ----------------------------------------------------------------- |
+| Purpose                  | Build and rehearse                          | Real users                                                        |
+| Clerk instance           | **Development** (`pk_test_…`)               | **Production** (`pk_live_…`, own domain)                          |
+| Clerk users              | Throwaway test users                        | Real users                                                        |
+| `NEXT_PUBLIC_DEPLOY_ENV` | `development`                               | `production`                                                      |
+| Moves                    | **Always a dry run.** Nothing real is sent. | Real. A staged rollout can start as a dry run (`…_DRY_RUN=true`). |
+| Wallet service           | Testnets / devnet                           | Mainnet, behind its own release gates                             |
+| Decane                   | A development project (see "Open item")     | The production project                                            |
+| Who can see `/upgrade`   | Anyone with the dev flag on                 | Behind the rollout cohort                                         |
 
 Users in one Clerk instance do not exist in the other. Deleting a user in development cannot affect production.
 
 ## Guard rails (code: `features/wallet-upgrade/lib/environment.ts`)
 
-| Situation | Result |
-|---|---|
-| Flag not set | `/upgrade` is a 404 |
-| Production build with `pk_test_` keys | Upgrade off, page says why |
+| Situation                              | Result                                                 |
+| -------------------------------------- | ------------------------------------------------------ |
+| Flag not set                           | `/upgrade` is a 404                                    |
+| Production build with `pk_test_` keys  | Upgrade off, page says why                             |
 | Development build with `pk_live_` keys | Upgrade off, page says why (it would touch real users) |
-| No Clerk keys | Upgrade off |
-| Development, any dry-run setting | Always dry run |
-| Production, dry-run unset | Real |
-| Moving funds | Needs its own flag **and** the wallet-service flag |
+| No Clerk keys                          | Upgrade off                                            |
+| Development, any dry-run setting       | Always dry run                                         |
+| Production, dry-run unset              | Real                                                   |
+| Moving funds                           | Needs its own flag **and** the wallet-service flag     |
 
 ## Environment variables
 
-| Variable | Dev | Prod | Meaning |
-|---|---|---|---|
-| `NEXT_PUBLIC_DEPLOY_ENV` | `development` | `production` | Which environment this is. Falls back to the build mode if unset. |
-| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | `pk_test_…` | `pk_live_…` | Must match the environment |
-| `CLERK_SECRET_KEY` | dev secret | prod secret | Server only |
-| `NEXT_PUBLIC_WALLET_UPGRADE_ENABLED` | `true` | `true` when rolling out | Master switch |
-| `NEXT_PUBLIC_WALLET_UPGRADE_DRY_RUN` | ignored | `true` while rehearsing in prod | Nothing real moves |
-| `NEXT_PUBLIC_WALLET_UPGRADE_LINK_ENABLED` | `true` once the link service is deployed | same | Enables the "connect the two" step |
-| `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED` | `true` once the wallet service is deployed | same | Enables wallet creation and recovery |
-| `NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS` | `true` when built | same | Enables the move-funds step |
+| Variable                                  | Dev                                        | Prod                            | Meaning                                                           |
+| ----------------------------------------- | ------------------------------------------ | ------------------------------- | ----------------------------------------------------------------- |
+| `NEXT_PUBLIC_DEPLOY_ENV`                  | `development`                              | `production`                    | Which environment this is. Falls back to the build mode if unset. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`       | `pk_test_…`                                | `pk_live_…`                     | Must match the environment                                        |
+| `CLERK_SECRET_KEY`                        | dev secret                                 | prod secret                     | Server only                                                       |
+| `NEXT_PUBLIC_WALLET_UPGRADE_ENABLED`      | `true`                                     | `true` when rolling out         | Master switch                                                     |
+| `NEXT_PUBLIC_WALLET_UPGRADE_DRY_RUN`      | ignored                                    | `true` while rehearsing in prod | Nothing real moves                                                |
+| `NEXT_PUBLIC_WALLET_UPGRADE_LINK_ENABLED` | `true` once the link service is deployed   | same                            | Enables the "connect the two" step                                |
+| `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED`      | `true` once the wallet service is deployed | same                            | Enables wallet creation and recovery                              |
+| `NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS`   | `true` when built                          | same                            | Enables the move-funds step                                       |
 
 `NEXT_PUBLIC_*` values are inlined at build time. Set them before building, and rebuild after changing them.
 
 Server-side settings the link routes also read:
 
-| Variable | Meaning |
-|---|---|
-| `MIGRATION_SERVICE_ENABLED` | `1` turns the migration proxies on (already used by the Privy → Decane flow) |
-| `MIGRATION_API_URL` | The `user-management` service to call. **In development it must not be the production gateway**; the routes refuse (503 `NOT_AVAILABLE`) unless you also set the next variable. |
-| `CRYPTO_WALLET_API_URL` | The wallet service (`crypto-wallet`) the `/api/wallet-upgrade/wallet/*` routes call. Needs `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED=true` too. Subject to the same development-vs-production guard. |
+| Variable                             | Meaning                                                                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MIGRATION_SERVICE_ENABLED`          | `1` turns the migration proxies on (already used by the Privy → Decane flow)                                                                                                                         |
+| `MIGRATION_API_URL`                  | The `user-management` service to call. **In development it must not be the production gateway**; the routes refuse (503 `NOT_AVAILABLE`) unless you also set the next variable.                      |
+| `CRYPTO_WALLET_API_URL`              | The wallet service (`crypto-wallet`) the `/api/wallet-upgrade/wallet/*` routes call. Needs `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED=true` too. Subject to the same development-vs-production guard.       |
 | `WALLET_UPGRADE_ALLOW_PROD_UPSTREAM` | `true` lets a development build call a production service. Almost never what you want: it writes development Clerk users into production data and could claim a real Decane account for a test user. |
 
 Service-side (`user-management`): `AUTH_PROVIDERS` must include `clerk`, plus `CLERK_ISSUER_URL`, `CLERK_AUTHORIZED_PARTIES`, `CLERK_SECRET_KEY` and `CLERK_WEBHOOK_SECRET` (see the backend repo).
@@ -66,11 +66,13 @@ Service-side (`user-management`): `AUTH_PROVIDERS` must include `clerk`, plus `C
 ## Setting each environment up
 
 **Development**
+
 1. Clerk development instance (already created by `clerk init`). Keys live in `.env.local`.
 2. Set `NEXT_PUBLIC_DEPLOY_ENV=development` and `NEXT_PUBLIC_WALLET_UPGRADE_ENABLED=true`.
 3. Run the app and open `/upgrade`. Sign in at `/sign-in`; Clerk returns you to `/upgrade`.
 
 **Production**
+
 1. Create the production instance: `npx -y clerk@latest deploy --mode agent --domain <your domain>`. This needs a domain you control with DNS access, not a hosting URL.
 2. Follow the report's `nextAction` (DNS records, then OAuth credentials for Google and Apple).
 3. Put the production keys on the host (not in the repo), and set `NEXT_PUBLIC_DEPLOY_ENV=production`.
@@ -79,6 +81,7 @@ Service-side (`user-management`): `AUTH_PROVIDERS` must include `clerk`, plus `C
 ## Deleting users
 
 Clerk users can be deleted from the Clerk Dashboard (Users), the Backend API (`DELETE /v1/users/{id}`), or the CLI. Deleting a Clerk user does **not** delete:
+
 - data keyed on their user id in our services,
 - an encrypted wallet package stored for them (once the wallet service exists).
 
@@ -86,17 +89,17 @@ Handle deletions through the `user.deleted` webhook so mappings and packages are
 
 ## What exists today, and what does not
 
-| Step | State |
-|---|---|
-| Clerk sign-in, profile button, `/upgrade` page | Built |
-| Decane stays mounted for the legacy sign-in and signing | Built (untouched) |
-| Environment split and guard rails | Built, tested |
-| Identity link, new-user provisioning and Clerk deletion webhook (`user-management`) | Built and tested in the monorepo (local branch `feat/clerk-verifier`, **not deployed**) |
-| Frontend routes `/api/wallet-upgrade/{link,status,provision}` and the link step on `/upgrade` | Built, tested; works once the service above is deployed and the flags below are on |
-| Clerk `uid` session-token claim | Set on the **development** instance; production needs the same (see below) |
-| Wallet service (`crypto-wallet`, monorepo branch `feat/clerk-verifier`, **not deployed**) | Built and tested; stores encrypted packages, gates every change by device/recovery signature |
-| Wallet UI: create (passphrase, recovery phrase, check), unlock, recovery on a new browser, show phrase | Built, tested; works once the service is deployed and the flags are on |
-| Move-funds flow (`NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS`) | Built and tested. **Only Ethereum, Arbitrum and Solana can move**; every other chain is shown greyed out and is never planned or sent (`MOVABLE_NETWORKS` in `features/wallet-upgrade/lib/move-funds.ts`). Reuses the existing sweep with the Decane wallet as signer. Always a rehearsal in development. Not yet run against real funds. |
+| Step                                                                                                   | State                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Clerk sign-in, profile button, `/upgrade` page                                                         | Built                                                                                                                                                                                                                                                                                                                                     |
+| Decane stays mounted for the legacy sign-in and signing                                                | Built (untouched)                                                                                                                                                                                                                                                                                                                         |
+| Environment split and guard rails                                                                      | Built, tested                                                                                                                                                                                                                                                                                                                             |
+| Identity link, new-user provisioning and Clerk deletion webhook (`user-management`)                    | Built and tested in the monorepo (local branch `feat/clerk-verifier`, **not deployed**)                                                                                                                                                                                                                                                   |
+| Frontend routes `/api/wallet-upgrade/{link,status,provision}` and the link step on `/upgrade`          | Built, tested; works once the service above is deployed and the flags below are on                                                                                                                                                                                                                                                        |
+| Clerk `uid` session-token claim                                                                        | Set on the **development** instance; production needs the same (see below)                                                                                                                                                                                                                                                                |
+| Wallet service (`crypto-wallet`, monorepo branch `feat/clerk-verifier`, **not deployed**)              | Built and tested; stores encrypted packages, gates every change by device/recovery signature                                                                                                                                                                                                                                              |
+| Wallet UI: create (passphrase, recovery phrase, check), unlock, recovery on a new browser, show phrase | Built, tested; works once the service is deployed and the flags are on                                                                                                                                                                                                                                                                    |
+| Move-funds flow (`NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS`)                                              | Built and tested. **Only Ethereum, Arbitrum and Solana can move**; every other chain is shown greyed out and is never planned or sent (`MOVABLE_NETWORKS` in `features/wallet-upgrade/lib/move-funds.ts`). Reuses the existing sweep with the Decane wallet as signer. Always a rehearsal in development. Not yet run against real funds. |
 
 Steps that depend on an unbuilt service say so on the page and cannot be clicked.
 

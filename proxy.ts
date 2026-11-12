@@ -126,7 +126,7 @@ export function gate(request: NextRequest): NextResponse {
 // (routes stay public by default), and the gates above still decide the
 // response. See docs/CLERK_AND_WALLET_MIGRATION_PLAN.md.
 const clerkEnabled = Boolean(
-  process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
+  process.env.CLERK_SECRET_KEY && process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 );
 const withClerk = clerkEnabled ? clerkMiddleware((_auth, request) => gate(request)) : null;
 
