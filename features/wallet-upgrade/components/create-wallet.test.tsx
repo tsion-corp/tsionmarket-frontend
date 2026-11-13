@@ -20,6 +20,7 @@ function setup() {
     create,
     commit: async () => undefined,
     enrollDevice: async () => undefined,
+    restore: async () => undefined,
   };
   const onCreated = vi.fn();
   render(
@@ -94,6 +95,7 @@ describe("CreateWallet", () => {
       create,
       commit: async () => undefined,
       enrollDevice: async () => undefined,
+      restore: async () => undefined,
     };
     const onCreated = vi.fn();
     render(

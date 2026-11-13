@@ -1,5 +1,6 @@
 export * from "./aad";
 export * from "./argon2";
+export * from "./backup";
 export * from "./commit";
 export * from "./crypto";
 export * from "./derive";

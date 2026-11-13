@@ -1,5 +1,6 @@
 import {
   Argon2UnavailableError,
+  BackupError,
   OpenError,
   RecoverySecretFormatError,
   WeakPassphraseError,
@@ -34,6 +35,7 @@ export function walletErrorMessage(error: unknown): string {
   if (error instanceof OpenError) return "That doesn't match. Check it and try again.";
   if (error instanceof WeakPassphraseError) return passphraseProblem(error.reason);
   if (error instanceof RecoverySecretFormatError) return error.message;
+  if (error instanceof BackupError) return error.message;
   if (error instanceof Argon2UnavailableError) return error.message;
   const code = (error as { code?: unknown } | null)?.code;
   return (typeof code === "string" && MESSAGES[code]) || GENERIC;

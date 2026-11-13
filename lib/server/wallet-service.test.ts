@@ -8,6 +8,7 @@ describe("walletPath", () => {
   it("maps the calls the client makes", () => {
     expect(walletPath("GET", ["me"])).toBe("/wallets/me");
     expect(walletPath("POST", [])).toBe("/wallets");
+    expect(walletPath("POST", ["restore"])).toBe("/wallets/restore");
     expect(walletPath("POST", ["me", "challenges"])).toBe("/wallets/me/challenges");
     expect(walletPath("PUT", ["me", "package"])).toBe("/wallets/me/package");
     expect(walletPath("POST", ["me", "devices"])).toBe("/wallets/me/devices");
@@ -23,6 +24,8 @@ describe("walletPath", () => {
     expect(walletPath("GET", ["internal", "users", "x", "wallet-addresses"])).toBeNull();
     expect(walletPath("GET", ["health"])).toBeNull();
     expect(walletPath("POST", ["me", "devices", "d"])).toBeNull();
+    expect(walletPath("GET", ["restore"])).toBeNull();
+    expect(walletPath("PUT", ["restore"])).toBeNull();
   });
 
   it("refuses anything that could climb out of the path", () => {

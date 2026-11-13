@@ -1,10 +1,12 @@
 import {
+  createBackup,
   createWallet,
   authorizeDeviceMessage,
   clearUnlocked,
   deviceSigningKey,
   enrollMessage,
   isUnlocked,
+  parseBackup,
   parseRecoverySecret,
   randomBytes,
   setUnlocked,
@@ -22,6 +24,7 @@ import {
   type NewAccount,
   type WalletPackage,
 } from "@/lib/wallet-core";
+import { setCustomWalletSession } from "@/lib/signer/session";
 import type { DeviceStore } from "@/lib/wallet-device/store";
 import type { ServerWallet, WalletApi } from "./wallet-api";
 
@@ -52,6 +55,7 @@ export type WalletState =
 export async function loadWalletState(deps: Deps, uid: string): Promise<WalletState> {
   const wallet = await deps.api.get();
   if (!wallet) return { kind: "none" };
+  remember(uid, wallet);
   const record = await deps.devices.get(uid);
   const deviceEnrolled =
     record?.walletId === wallet.walletId &&
@@ -74,12 +78,20 @@ function newDevice(): { deviceId: string; secret: Uint8Array } {
   return { deviceId: crypto.randomUUID(), secret: randomBytes(32) };
 }
 
+type RegisterBody = Parameters<WalletApi["create"]>[0];
+
 /**
- * Register the wallet. Call only after the person has confirmed their recovery
- * secret: from here on the service holds the only copy of the encrypted keys.
+ * Register a wallet package with the service and this browser as its first device:
+ * every account's key signs the challenge (proof it is theirs), and this browser's
+ * own key is registered beside it. Shared by creating a wallet and restoring one.
  */
-export async function saveWallet(deps: Deps, uid: string, created: CreatedWallet): Promise<void> {
-  const pkg = created.package;
+async function register(
+  deps: Deps,
+  uid: string,
+  pkg: WalletPackage,
+  dek: Uint8Array,
+  send: (body: RegisterBody) => Promise<void>
+): Promise<void> {
   const device = newDevice();
   const signing = await deviceSigningKey(device.secret, pkg.walletId, device.deviceId);
   wipeBytes(signing.seed);
@@ -87,12 +99,12 @@ export async function saveWallet(deps: Deps, uid: string, created: CreatedWallet
   const nonce = await deps.api.challenge("create");
   const proofs: Array<{ accountId: string; signature: string }> = [];
   for (const account of pkg.accounts) {
-    const signature = await withAccountKey(pkg, created.dek, account.accountId, (material) =>
+    const signature = await withAccountKey(pkg, dek, account.accountId, (material) =>
       signPossession(material, pkg.walletId, account.accountId, nonce)
     );
     proofs.push({ accountId: account.accountId, signature });
   }
-  await deps.api.create({
+  await send({
     package: pkg,
     nonce,
     proofs,
@@ -104,8 +116,68 @@ export async function saveWallet(deps: Deps, uid: string, created: CreatedWallet
     deviceId: device.deviceId,
     secret: toBase64Url(device.secret),
   });
-  setUnlocked(uid, pkg.walletId, created.dek);
-  wipeBytes(created.dek, device.secret);
+  setUnlocked(uid, pkg.walletId, dek);
+  setCustomWalletSession({ uid, pkg });
+  wipeBytes(device.secret);
+}
+
+/**
+ * Register the wallet. Call only after the person has confirmed their recovery
+ * secret: from here on the service holds the only copy of the encrypted keys.
+ */
+export async function saveWallet(deps: Deps, uid: string, created: CreatedWallet): Promise<void> {
+  try {
+    await register(deps, uid, created.package, created.dek, (body) => deps.api.create(body));
+  } finally {
+    wipeBytes(created.dek);
+  }
+}
+
+/** What opens a backup: the passphrase it was made with, or the recovery secret. */
+export type BackupCredential =
+  { kind: "passphrase"; value: string } | { kind: "secret"; value: string };
+
+/**
+ * Put a wallet back from a backup file, for an account the service has no wallet
+ * for. The file is opened here, in the browser, with the passphrase or the recovery
+ * secret, and every account key then proves itself to the service: a file nobody can
+ * open restores nothing. The service never sees either secret.
+ */
+export async function restoreFromBackup(
+  deps: Deps,
+  uid: string,
+  backupText: string,
+  credential: BackupCredential
+): Promise<void> {
+  const pkg = parseBackup(backupText);
+  const dek =
+    credential.kind === "passphrase"
+      ? await unlockWithPassphrase(pkg, credential.value)
+      : await unlockWithRecoverySecret(pkg, credential.value);
+  try {
+    await register(deps, uid, pkg, dek, (body) => deps.api.restore(body));
+  } finally {
+    wipeBytes(dek);
+  }
+}
+
+/** The signed-in wallet's encrypted package as a backup file to download. */
+export async function backupFile(deps: Deps): Promise<{ filename: string; text: string }> {
+  const wallet = await fetchWallet(deps);
+  return createBackup(checked(wallet));
+}
+
+/**
+ * Note this account's package (ciphertext only) for the signer, so the app can show the
+ * wallet's addresses and sign with it once the person unlocks it. A package that does not
+ * validate is not remembered.
+ */
+function remember(uid: string, wallet: ServerWallet): void {
+  try {
+    setCustomWalletSession({ uid, pkg: checked(wallet) });
+  } catch {
+    // Never use a package that fails its own checks.
+  }
 }
 
 /** The service's copy, checked here too so a bad answer is never trusted. */
@@ -123,6 +195,7 @@ export async function unlockWallet(deps: Deps, uid: string, passphrase: string):
   const wallet = await fetchWallet(deps);
   const dek = await unlockWithPassphrase(checked(wallet), passphrase);
   setUnlocked(uid, wallet.walletId, dek);
+  remember(uid, wallet);
   wipeBytes(dek);
 }
 
@@ -164,6 +237,7 @@ export async function recoverOnThisDevice(deps: Deps, uid: string, written: stri
       secret: toBase64Url(device.secret),
     });
     setUnlocked(uid, pkg.walletId, dek);
+    setCustomWalletSession({ uid, pkg });
   } finally {
     wipeBytes(dek, secret, device.secret);
   }

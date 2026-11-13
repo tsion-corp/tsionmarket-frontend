@@ -5,8 +5,10 @@ import {
   clearUnlocked,
   getUnlockedKey,
   isUnlocked,
+  peekUnlocked,
   setClockForTests,
   setUnlocked,
+  subscribeUnlocked,
 } from "./unlock-state";
 
 let now = 1_000_000;
@@ -86,5 +88,43 @@ describe("unlock state", () => {
     expect(first).toEqual(new Uint8Array(4));
     expect(getUnlockedKey("user-1", "wallet-1")).toBeUndefined();
     expect(getUnlockedKey("user-2", "wallet-9")).toEqual(Uint8Array.of(2, 2, 2, 2));
+  });
+});
+
+describe("following lock and unlock", () => {
+  it("tells a listener when the wallet is unlocked, locked, and when it expires", async () => {
+    let now = 1_000;
+    setClockForTests(() => now);
+    const seen: boolean[] = [];
+    const unsubscribe = subscribeUnlocked(() => seen.push(isUnlocked("u", "w")));
+    setUnlocked("u", "w", new Uint8Array(32).fill(7), 10_000, 60_000);
+    clearUnlocked();
+    setUnlocked("u", "w", new Uint8Array(32).fill(7), 10_000, 60_000);
+    now += 11_000; // idle past the window
+    expect(getUnlockedKey("u", "w")).toBeUndefined();
+    await Promise.resolve(); // the expiry is announced after the read, not during it
+    unsubscribe();
+    setUnlocked("u", "w", new Uint8Array(32).fill(7));
+    expect(seen).toEqual([true, false, true, false]);
+    clearUnlocked();
+    setClockForTests(null);
+  });
+});
+
+describe("peeking at the lock", () => {
+  it("shows whether it is open without keeping it open", () => {
+    now = 1_000_000;
+    setClockForTests(clock);
+    setUnlocked("u", "w", new Uint8Array(32).fill(1), 10_000, 60_000);
+    expect(peekUnlocked("u", "w")).toBe(true);
+    expect(peekUnlocked("other", "w")).toBe(false);
+    expect(peekUnlocked("u", "other")).toBe(false);
+    // Looking does not extend the idle window: the original deadline still applies.
+    now += 6_000;
+    expect(peekUnlocked("u", "w")).toBe(true);
+    now += 6_000; // 12s after unlock: past the 10s idle window, and nothing used it
+    expect(peekUnlocked("u", "w")).toBe(false);
+    clearUnlocked();
+    setClockForTests(null);
   });
 });

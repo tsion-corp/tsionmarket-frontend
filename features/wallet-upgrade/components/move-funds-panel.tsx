@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { LockIcon } from "@/components/ui/icons";
 import { NetworkIcon } from "@/components/ui/network-icon";
-import { useAuthSession } from "@/hooks/use-auth-session";
 import type { WalletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
+import { useDecaneAccount } from "../hooks/use-decane-account";
 import { useMoveScan, useRunMove } from "../hooks/use-move-funds";
 import {
   destinationProblems,
@@ -31,7 +31,8 @@ export function MoveFundsPanel({
   /** Your NEW wallet, from its validated package. */
   destinations: Addresses;
 }) {
-  const session = useAuthSession();
+  // The funds being moved are in the Decane wallet, whichever wallet the app is using.
+  const session = useDecaneAccount();
   const sources: Addresses = { evm: session.evmAddress, solana: session.solanaAddress };
   const matches = sourcesMatchLink(sources, linked);
   const scan = useMoveScan(sources, session.authenticated && matches);
@@ -149,7 +150,7 @@ export function MoveFundsPanel({
               <div className={`${WELL} flex flex-col gap-1.5 px-4 py-3.5`}>
                 <div className={SMALL}>Goes to your new wallet</div>
                 <div className="font-mono text-[12.5px] text-white/80">
-                  Ethereum, Arbitrum: {short(destinations.evm)}
+                  Ethereum, Arbitrum, Base: {short(destinations.evm)}
                 </div>
                 <div className="font-mono text-[12.5px] text-white/80">
                   Solana: {short(destinations.solana)}

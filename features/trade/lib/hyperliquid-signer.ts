@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import type { EIP1193Provider } from "viem";
 import {
   signL1Action,
@@ -128,7 +128,7 @@ export function createHyperliquidSigner({
 
 /** The signer for the signed-in account's own embedded wallet. */
 export function useHyperliquidSigner(address: string | undefined): HyperliquidSigner {
-  const { getEthereumProvider } = useSocialWallet();
+  const { getEthereumProvider } = useWalletSigner();
   return useMemo(
     () => createHyperliquidSigner({ address, getEthereumProvider }),
     [address, getEthereumProvider]

@@ -11,8 +11,8 @@ const NEW_SOL = "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk";
 const mutate = vi.fn();
 let scanData: { plan: ReturnType<typeof planMove>; missing: string[] } | undefined;
 
-vi.mock("@/hooks/use-auth-session", () => ({
-  useAuthSession: () => ({ authenticated: true, evmAddress: OLD_EVM, solanaAddress: OLD_SOL }),
+vi.mock("../hooks/use-decane-account", () => ({
+  useDecaneAccount: () => ({ authenticated: true, evmAddress: OLD_EVM, solanaAddress: OLD_SOL }),
 }));
 vi.mock("../hooks/use-move-funds", () => ({
   useMoveScan: () => ({
@@ -67,8 +67,8 @@ function mount(dryRun = true) {
         rawBalance: "10000000",
       }),
       tok({
-        network: "base-mainnet",
-        symbol: "AERO",
+        network: "opt-mainnet",
+        symbol: "OP",
         valueUsd: 99,
         balance: 99,
         rawBalance: "99000000",
@@ -88,15 +88,15 @@ function mount(dryRun = true) {
 }
 
 describe("MoveFundsPanel", () => {
-  it("lists Ethereum and Arbitrum to move, and greys out every other chain", () => {
+  it("lists Ethereum, Arbitrum and Base to move, and greys out every other chain", () => {
     mount();
     const moving = screen.getByLabelText("Will move");
     expect(within(moving).getByText("Ethereum")).toBeInTheDocument();
     expect(within(moving).getByText("Arbitrum")).toBeInTheDocument();
-    expect(within(moving).queryByText("Base")).not.toBeInTheDocument();
+    expect(within(moving).queryByText("Optimism")).not.toBeInTheDocument();
 
     const locked = screen.getByLabelText("Not available yet");
-    for (const chain of ["Base", "Polygon"])
+    for (const chain of ["Optimism", "Polygon"])
       expect(within(locked).getByText(chain)).toBeInTheDocument();
     for (const row of Array.from(locked.querySelectorAll(":scope > li"))) {
       expect(row).toHaveAttribute("data-disabled", "true");
@@ -133,7 +133,7 @@ describe("MoveFundsPanel", () => {
 
   it("shows where it is going, and refuses an address that is the old one", () => {
     mount();
-    expect(screen.getByText(/Ethereum, Arbitrum: 0x412f…57f8/)).toBeInTheDocument();
+    expect(screen.getByText(/Ethereum, Arbitrum, Base: 0x412f…57f8/)).toBeInTheDocument();
     cleanup();
     render(
       <MoveFundsPanel

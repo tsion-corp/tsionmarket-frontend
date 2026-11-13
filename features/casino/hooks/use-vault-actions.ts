@@ -2,7 +2,7 @@
 import { useAuthSession } from "@/hooks/use-auth-session";
 
 import { useCallback, useState } from "react";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { decodeEventLog } from "viem";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
@@ -63,7 +63,7 @@ export function useVaultActions() {
   // and the second call reverts on an allowance that is already standing.
   // Nothing here prompts the player: signing is headless.
   const sendBatch = useEvmSendBatch();
-  const socialWallet = useSocialWallet();
+  const socialWallet = useWalletSigner();
   // The start button's phases. "sending" is the wallet doing its work,
   // "confirming" is Base accepting it. They were one boolean, which made a
   // twelve second wait look like a button that had stopped responding.

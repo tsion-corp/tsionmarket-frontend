@@ -18,13 +18,14 @@ import { networkLabel } from "@/lib/trade/networks";
  */
 
 /**
- * The only networks funds can be moved from for now. Everything else is still
+ * The only networks funds can be moved from for now: Ethereum, Arbitrum, Base and Solana. Everything else is still
  * shown, greyed out, so people can see it is there and is not being forgotten,
  * but it is never planned and never sent. Widening this is one line.
  */
 export const MOVABLE_NETWORKS: ReadonlySet<string> = new Set([
   "eth-mainnet",
   "arb-mainnet",
+  "base-mainnet",
   SOLANA_NETWORK,
 ]);
 

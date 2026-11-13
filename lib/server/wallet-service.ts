@@ -24,6 +24,7 @@ export function walletPath(method: string, segments: ReadonlyArray<string>): str
   const m = method.toUpperCase();
   if (path === "me" && m === "GET") return "/wallets/me";
   if (path === "" && m === "POST") return "/wallets";
+  if (path === "restore" && m === "POST") return "/wallets/restore";
   if (path === "me/challenges" && m === "POST") return "/wallets/me/challenges";
   if (path === "me/package" && m === "PUT") return "/wallets/me/package";
   if (path === "me/devices" && m === "POST") return "/wallets/me/devices";

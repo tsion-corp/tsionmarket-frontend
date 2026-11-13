@@ -3,12 +3,13 @@
 import { useMemo } from "react";
 import { useSocialWallet } from "decane-connect-kit";
 import type { EIP1193Provider } from "viem";
-import { useAuthSession } from "@/hooks/use-auth-session";
 import { useEvmSendBatch } from "@/hooks/use-evm-send";
 import { useSendToken } from "@/hooks/use-withdraw";
 import { ensureUnlocked } from "@/lib/decane";
 import type { LegacySigner } from "@/lib/migration/types";
+import type { WalletSigner } from "@/lib/signer/types";
 import { toDecaneTransaction } from "../lib/decane-tx";
+import { useDecaneAccount } from "./use-decane-account";
 
 // The refusal that may degrade a sponsored send to a user-paid one, and only
 // this one. Anything broader would charge the person for a send meant to be
@@ -22,11 +23,16 @@ const EIP7702_REFUSED = /EIP-7702 is not supported/i;
  * can go out from a different wallet than the one that was read.
  */
 export function useDecaneSigner(): LegacySigner | null {
+  // Always the Decane wallet, whichever wallet the rest of the app is using: this is how
+  // funds leave it. So its sends, and the addresses they are checked against, are named.
   const wallet = useSocialWallet();
-  const session = useAuthSession();
-  const sendBatch = useEvmSendBatch();
-  const { sendToken } = useSendToken();
-  const { authenticated, evmAddress, solanaAddress } = session;
+  const { authenticated, evmAddress, solanaAddress } = useDecaneAccount();
+  const decane = wallet as unknown as WalletSigner;
+  const sendBatch = useEvmSendBatch({ wallet: decane });
+  const { sendToken } = useSendToken({
+    wallet: decane,
+    addresses: { evm: evmAddress, solana: solanaAddress },
+  });
 
   return useMemo(() => {
     if (!authenticated || (!evmAddress && !solanaAddress)) return null;

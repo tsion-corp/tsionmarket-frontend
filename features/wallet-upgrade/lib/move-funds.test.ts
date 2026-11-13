@@ -176,7 +176,7 @@ describe("planMove", () => {
   });
 });
 
-describe("only Ethereum, Arbitrum and Solana can move", () => {
+describe("only Ethereum, Arbitrum, Base and Solana can move", () => {
   const everywhere = [
     "eth-mainnet",
     "arb-mainnet",
@@ -190,8 +190,13 @@ describe("only Ethereum, Arbitrum and Solana can move", () => {
     token({ network, symbol: "USDC", address: "0x00000000000000000000000000000000000000aa" })
   );
 
-  it("names exactly those three", () => {
-    expect([...MOVABLE_NETWORKS].sort()).toEqual(["arb-mainnet", "eth-mainnet", "solana-mainnet"]);
+  it("names exactly those four", () => {
+    expect([...MOVABLE_NETWORKS].sort()).toEqual([
+      "arb-mainnet",
+      "base-mainnet",
+      "eth-mainnet",
+      "solana-mainnet",
+    ]);
   });
 
   it("plans only those, and lists every other chain greyed out with why", () => {
@@ -210,11 +215,11 @@ describe("only Ethereum, Arbitrum and Solana can move", () => {
     ]);
     expect(plan.chains.map((c) => c.network).sort()).toEqual([
       "arb-mainnet",
+      "base-mainnet",
       "eth-mainnet",
       "solana-mainnet",
     ]);
     expect(plan.locked.map((c) => c.network).sort()).toEqual([
-      "base-mainnet",
       "bnb-mainnet",
       "hyperliquid-mainnet",
       "monad-mainnet",
@@ -223,19 +228,19 @@ describe("only Ethereum, Arbitrum and Solana can move", () => {
     ]);
     expect(plan.locked.every((c) => c.reason === LOCKED_REASON && c.assets.length > 0)).toBe(true);
     // What is locked is not counted as movable money.
-    expect(plan.totalUsd).toBeCloseTo(25 + 25 + 150, 5);
+    expect(plan.totalUsd).toBeCloseTo(25 + 25 + 25 + 150, 5);
   });
 
   it("moves nothing when the only holdings are on locked chains", () => {
-    const plan = planMove(everywhere.slice(2));
+    const plan = planMove(everywhere.slice(3));
     expect(nothingToMove(plan)).toBe(true);
     expect(plan.locked.length).toBeGreaterThan(0);
   });
 
   it("refuses to send a locked chain even if one reaches the sender", () => {
-    const locked = planMove(everywhere.slice(2));
+    const locked = planMove(everywhere.slice(3));
     expect(() =>
-      assertMovable(planMove(everywhere.slice(2), new Set(["base-mainnet"])).chains)
+      assertMovable(planMove(everywhere.slice(3), new Set(["polygon-mainnet"])).chains)
     ).toThrow(/isn't switched on/);
     expect(() => assertMovable(planMove(everywhere).chains)).not.toThrow();
     expect(locked.chains).toEqual([]);

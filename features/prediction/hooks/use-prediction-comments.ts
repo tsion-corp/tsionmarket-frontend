@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { useQueryClient } from "@tanstack/react-query";
 import type { EIP1193Provider } from "viem";
 import { likeComment, postComment } from "@/features/prediction/lib/api";
@@ -31,7 +31,7 @@ async function personalSign(
 
 export function usePredictionComments(target: Scope) {
   const { evmAddress: wallet } = useAuthSession();
-  const socialWallet = useSocialWallet();
+  const socialWallet = useWalletSigner();
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
 

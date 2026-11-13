@@ -11,6 +11,7 @@ import { ArrowRightIcon, CheckIcon, LockIcon, ShieldIcon, WalletIcon } from "@/c
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { openSignIn } from "@/hooks/use-sign-in";
 import type { WalletUpgradeConfig } from "@/lib/wallet-upgrade/environment";
+import { useDecaneAccount } from "../hooks/use-decane-account";
 import { useMoveScan } from "../hooks/use-move-funds";
 import { UPGRADE_STATUS_KEY, getUpgradeStatus, linkAccounts, provisionAccount } from "../lib/api";
 import { linkErrorMessage } from "../lib/link-errors";
@@ -152,6 +153,7 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
   const clerk = useAuth();
   const { user } = useUser();
   const decane = useAuthSession();
+  const decaneAccount = useDecaneAccount();
   const queryClient = useQueryClient();
 
   const status = useQuery({
@@ -173,7 +175,7 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
 
   // The funds step is done once nothing is left to move, never from a rehearsal.
   const linkedAddresses = status.data?.legacy ?? null;
-  const sources = { evm: decane.evmAddress, solana: decane.solanaAddress };
+  const sources = { evm: decaneAccount.evmAddress, solana: decaneAccount.solanaAddress };
   const moveScan = useMoveScan(
     sources,
     config.moveFundsAvailable &&
@@ -287,6 +289,7 @@ function Flow({ config }: { config: WalletUpgradeConfig }) {
  */
 function DecaneFlow({ config }: { config: WalletUpgradeConfig }) {
   const session = useAuthSession();
+  const account = useDecaneAccount();
   const uid = session.userId;
 
   const wallet = useWalletState(uid, config.walletAvailable && session.authenticated);
@@ -296,7 +299,7 @@ function DecaneFlow({ config }: { config: WalletUpgradeConfig }) {
 
   // What is read and what is spent are the same Decane session, so there is no
   // second account to compare it against.
-  const sources = { evm: session.evmAddress, solana: session.solanaAddress };
+  const sources = { evm: account.evmAddress, solana: account.solanaAddress };
   const moveScan = useMoveScan(
     sources,
     config.moveFundsAvailable && hasWallet && session.authenticated

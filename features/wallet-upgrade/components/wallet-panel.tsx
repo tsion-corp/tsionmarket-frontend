@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { indexedDbDeviceStore } from "@/lib/wallet-device/store";
 import { walletApi } from "../lib/wallet-api";
 import {
   addressesOf,
+  backupFile,
   loadWalletState,
   lockWallet,
   recoverOnThisDevice,
@@ -18,6 +19,13 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { LockIcon } from "@/components/ui/icons";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { CreateWallet } from "./create-wallet";
+import {
+  getActiveWalletKind,
+  setActiveWalletKind,
+  subscribeActiveWalletKind,
+  walletSwitchEnabled,
+} from "@/lib/signer/preference";
+import { RestoreWallet } from "./restore-wallet";
 import { BODY, FIELD, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, SMALL, TITLE, WELL } from "./ui";
 
 const deps: Deps = { api: walletApi, devices: indexedDbDeviceStore() };
@@ -49,9 +57,32 @@ export function WalletPanel({ uid }: { uid: string }) {
     );
   }
   const data: WalletState = state.data;
-  if (data.kind === "none") return <CreateWallet deps={deps} uid={uid} onCreated={refresh} />;
+  if (data.kind === "none") return <NoWallet uid={uid} onChange={refresh} />;
   if (data.kind === "locked") return <Locked uid={uid} state={data} onChange={refresh} />;
-  return <Unlocked state={data} onChange={refresh} />;
+  return <Unlocked uid={uid} state={data} onChange={refresh} />;
+}
+
+/** No wallet yet: make a new one, or put one back from a backup file. */
+function NoWallet({ uid, onChange }: { uid: string; onChange: () => void }) {
+  const [restoring, setRestoring] = useState(false);
+  if (restoring) {
+    return (
+      <RestoreWallet
+        deps={deps}
+        uid={uid}
+        onRestored={onChange}
+        onBack={() => setRestoring(false)}
+      />
+    );
+  }
+  return (
+    <>
+      <CreateWallet deps={deps} uid={uid} onCreated={onChange} />
+      <button type="button" className={`${LINK} self-center`} onClick={() => setRestoring(true)}>
+        I already have a backup file
+      </button>
+    </>
+  );
 }
 
 function Card({
@@ -190,14 +221,88 @@ function Locked({
   );
 }
 
+/**
+ * Choose which wallet the whole app uses. Off unless the switch is built in. Switching is
+ * a real change (what the app shows and spends from), so it is asked for plainly, and it
+ * can be undone from here at any time.
+ */
+function UseInApp({ uid }: { uid: string }) {
+  const kind = useSyncExternalStore(
+    subscribeActiveWalletKind,
+    () => getActiveWalletKind(uid),
+    () => "decane" as const
+  );
+  const [confirming, setConfirming] = useState(false);
+  if (!walletSwitchEnabled()) return null;
+
+  if (kind === "custom") {
+    return (
+      <div className={`${WELL} flex flex-col gap-3 px-4 py-4`}>
+        <p className={BODY}>The app is using this wallet.</p>
+        <button
+          type="button"
+          className={SECONDARY}
+          onClick={() => setActiveWalletKind(uid, "decane")}
+        >
+          Go back to my old wallet
+        </button>
+      </div>
+    );
+  }
+  if (!confirming) {
+    return (
+      <button type="button" className={SECONDARY} onClick={() => setConfirming(true)}>
+        Use this wallet in the app
+      </button>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <p className={NOTICE.warn}>
+        The app will show and spend from this wallet instead of your old one. Money you haven&apos;t
+        moved across stays in the old wallet, and balances the app keeps in its own accounts (game
+        credits, rewards) stay with it until they are carried over. You can switch back any time.
+      </p>
+      <button
+        type="button"
+        className={PRIMARY}
+        onClick={() => {
+          setActiveWalletKind(uid, "custom");
+          setConfirming(false);
+        }}
+      >
+        Switch to this wallet
+      </button>
+      <button type="button" className={LINK} onClick={() => setConfirming(false)}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 function Unlocked({
+  uid,
   state,
   onChange,
 }: {
+  uid: string;
   state: Extract<WalletState, { kind: "unlocked" }>;
   onChange: () => void;
 }) {
   const addresses = addressesOf(state.wallet);
+  const backup = useMutation({
+    mutationFn: async () => {
+      const { filename, text } = await backupFile(deps);
+      const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  });
 
   return (
     <Card
@@ -233,6 +338,29 @@ function Unlocked({
         Your recovery secret was shown once, when you made this wallet. It can&apos;t be shown
         again, so keep what you saved.
       </p>
+
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          className={`${SECONDARY} sm:w-auto sm:self-center sm:px-8`}
+          disabled={backup.isPending}
+          onClick={() => backup.mutate()}
+        >
+          {backup.isPending ? "Preparing…" : "Download an encrypted backup"}
+        </button>
+        <p className={`${SMALL} text-center`}>
+          A file that only opens with your passphrase or recovery secret. Keep a copy somewhere
+          other than this device: it&apos;s how you get your wallet back if this account is ever
+          reset.
+        </p>
+        {backup.error ? (
+          <p role="alert" className={NOTICE.error}>
+            {walletErrorMessage(backup.error)}
+          </p>
+        ) : null}
+      </div>
+
+      <UseInApp uid={uid} />
 
       <button
         type="button"

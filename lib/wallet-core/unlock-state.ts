@@ -29,9 +29,20 @@ export function setClockForTests(now: (() => number) | null): void {
   clock = now ?? (() => Date.now());
 }
 
+const listeners = new Set<() => void>();
+const notify = () => listeners.forEach((listener) => listener());
+
+/** Follow lock and unlock (for React's useSyncExternalStore). Returns the unsubscribe. */
+export function subscribeUnlocked(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => void listeners.delete(listener);
+}
+
 export function clearUnlocked(): void {
+  const was = state !== undefined;
   if (state) wipeBytes(state.dek);
   state = undefined;
+  if (was) notify();
 }
 
 export function setUnlocked(
@@ -51,6 +62,7 @@ export function setUnlocked(
     maxExpiresAt: now + maxLifetimeMs,
     expiresAt: Math.min(now + idleTimeoutMs, now + maxLifetimeMs),
   };
+  notify();
 }
 
 /** The key, if this user and wallet are unlocked and unexpired. Counts as activity. */
@@ -58,11 +70,25 @@ export function getUnlockedKey(userId: string, walletId: string): Uint8Array | u
   if (!state || state.userId !== userId || state.walletId !== walletId) return undefined;
   const now = clock();
   if (state.expiresAt <= now || state.maxExpiresAt <= now) {
-    clearUnlocked();
+    // Read during a render, possibly: wipe now, but tell listeners after it.
+    wipeBytes(state.dek);
+    state = undefined;
+    queueMicrotask(notify);
     return undefined;
   }
   state.expiresAt = Math.min(now + state.idleTimeoutMs, state.maxExpiresAt);
   return state.dek;
+}
+
+/**
+ * Whether the wallet is unlocked right now, WITHOUT counting as activity. For showing
+ * state on screen: reading it must not keep an idle wallet open. Use getUnlockedKey
+ * when something is actually about to be signed.
+ */
+export function peekUnlocked(userId: string, walletId: string): boolean {
+  if (!state || state.userId !== userId || state.walletId !== walletId) return false;
+  const now = clock();
+  return state.expiresAt > now && state.maxExpiresAt > now;
 }
 
 export const isUnlocked = (userId: string, walletId: string): boolean =>

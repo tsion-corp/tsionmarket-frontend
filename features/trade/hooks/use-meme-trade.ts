@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { useEvmSendWithReceipt } from "@/hooks/use-evm-send";
 import { usePortfolio } from "@/hooks/use-portfolio";
 import { useSponsoredSolanaSend } from "@/hooks/use-sponsored-solana";
@@ -210,7 +211,9 @@ function markLinked(key: string) {
 
 export function useMemeTrade() {
   const { evmAddress: wallet, solanaAddress: solanaWallet } = useAuthSession();
-  const socialWallet = useSocialWallet();
+  // Signing is the active wallet's; who the user is stays Decane's session.
+  const socialWallet = useWalletSigner();
+  const decaneSession = useSocialWallet();
   const evmSend = useEvmSendWithReceipt();
   const { applyReceipt } = usePortfolio();
   const sendSponsoredSolana = useSponsoredSolanaSend();
@@ -259,7 +262,7 @@ export function useMemeTrade() {
       if (!wallet) throw new Error("Sign in first.");
       // No subject means no safe way to say who a cached entry belongs to, so
       // the link is simply re-run rather than trusted.
-      const subject = decaneUserId(socialWallet.getAccessToken?.() ?? null);
+      const subject = decaneUserId(decaneSession.getAccessToken?.() ?? null);
       if (chainId === SOLANA_CHAIN_ID) {
         // The Solana sibling: the same challenge shape, signed as raw bytes
         // by the embedded Solana wallet, and sent back as base58. The address
@@ -293,7 +296,7 @@ export function useMemeTrade() {
       await verifyWallet(challenge.challengeId, signature);
       if (key) markLinked(key);
     },
-    [wallet, solanaWallet, socialWallet]
+    [wallet, solanaWallet, socialWallet, decaneSession]
   );
 
   // Standalone linking for the preview path: the backend requires the wallet

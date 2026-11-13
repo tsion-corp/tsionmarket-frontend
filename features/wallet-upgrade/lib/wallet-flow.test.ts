@@ -5,6 +5,7 @@ import {
   enrollMessage,
   isUnlocked,
   OpenError,
+  BackupError,
   RecoverySecretFormatError,
   encodeRecoverySecret,
   generateRecoverySecret,
@@ -18,8 +19,10 @@ import type { Authorization, ServerWallet, WalletApi } from "./wallet-api";
 import {
   loadWalletState,
   lockWallet,
+  backupFile,
   prepareWallet,
   recoverOnThisDevice,
+  restoreFromBackup,
   saveWallet,
   unlockWallet,
   addressesOf,
@@ -50,35 +53,8 @@ function fakeService() {
   const api: WalletApi = {
     get: async () => (wallet ? structuredClone(wallet) : null),
     challenge: async () => issue(),
-    async create(body) {
-      spend(body.nonce);
-      const pkg = body.package;
-      for (const account of pkg.accounts) {
-        const proof = body.proofs.find((p) => p.accountId === account.accountId);
-        const ok =
-          proof &&
-          (await verifyPossession({
-            family: account.family,
-            address: account.canonicalAddress,
-            walletId: pkg.walletId,
-            accountId: account.accountId,
-            nonce: body.nonce,
-            signature: proof.signature,
-          }));
-        if (!ok) throw Object.assign(new Error("x"), { code: "PROOF_INVALID" });
-      }
-      const recovery = pkg.envelopes.find((e) => e.purpose === "recovery");
-      recoveryKey = recovery && "recoveryPublicKey" in recovery ? recovery.recoveryPublicKey : "";
-      wallet = {
-        walletId: pkg.walletId,
-        version: 1,
-        securityVersion: 1,
-        digest: "d",
-        package: pkg,
-        devices: [body.device],
-      };
-      log.push("create");
-    },
+    create: (body) => accept(body, "create"),
+    restore: (body) => accept(body, "restore"),
     async commit() {
       throw new Error("not used");
     },
@@ -103,9 +79,52 @@ function fakeService() {
       log.push("enroll");
     },
   };
+
+  // What the real service checks when a wallet is made or put back: the challenge, then
+  // every account's own proof; a restored wallet starts with no devices of its own.
+  async function accept(body: Parameters<WalletApi["create"]>[0], mode: "create" | "restore") {
+    {
+      if (wallet) throw Object.assign(new Error("x"), { code: "WALLET_EXISTS" });
+      spend(body.nonce);
+      const pkg = body.package;
+      if (mode === "restore" && pkg.envelopes.some((e) => e.purpose === "device")) {
+        throw Object.assign(new Error("x"), { code: "INVALID_PACKAGE" });
+      }
+      for (const account of pkg.accounts) {
+        const proof = body.proofs.find((p) => p.accountId === account.accountId);
+        const ok =
+          proof &&
+          (await verifyPossession({
+            family: account.family,
+            address: account.canonicalAddress,
+            walletId: pkg.walletId,
+            accountId: account.accountId,
+            nonce: body.nonce,
+            signature: proof.signature,
+          }));
+        if (!ok) throw Object.assign(new Error("x"), { code: "PROOF_INVALID" });
+      }
+      const recovery = pkg.envelopes.find((e) => e.purpose === "recovery");
+      recoveryKey = recovery && "recoveryPublicKey" in recovery ? recovery.recoveryPublicKey : "";
+      wallet = {
+        walletId: pkg.walletId,
+        version: pkg.version,
+        securityVersion: pkg.securityVersion,
+        digest: "d",
+        package: pkg,
+        devices: [body.device],
+      };
+      log.push(mode);
+    }
+  }
   return {
     api,
     log,
+    /** The service loses the account's wallet: a reset, or a lost database. */
+    forget() {
+      wallet = null;
+      recoveryKey = "";
+    },
     get wallet() {
       return wallet;
     },
@@ -228,5 +247,92 @@ describe("the wallet flow", () => {
     const list = addressesOf(service.wallet!);
     expect(list.map((a) => a.family).sort()).toEqual(["evm", "solana"]);
     expect(list.find((a) => a.family === "evm")!.address).toMatch(/^0x[0-9a-fA-F]{40}$/);
+  }, 60_000);
+});
+
+describe("backing up and restoring", () => {
+  it("restores a wallet the service lost, from a backup file, with the passphrase", async () => {
+    const service = fakeService();
+    const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
+    await created(deps);
+    const walletId = service.wallet!.walletId;
+    const addresses = addressesOf(service.wallet!);
+    const { text, filename } = await backupFile(deps);
+    expect(filename).toMatch(/^ark-wallet-backup-[0-9a-f]{8}-\d{4}-\d{2}-\d{2}\.json$/);
+
+    // The service loses it, and the browser is a fresh one.
+    service.forget();
+    lockWallet();
+    const fresh: Deps = { api: service.api, devices: memoryDeviceStore() };
+    expect((await loadWalletState(fresh, UID)).kind).toBe("none");
+
+    await restoreFromBackup(fresh, UID, text, { kind: "passphrase", value: PASSPHRASE });
+    expect(service.log).toEqual(["create", "restore"]);
+    expect(await loadWalletState(fresh, UID)).toMatchObject({
+      kind: "unlocked",
+      deviceEnrolled: true,
+    });
+    // The very same wallet: same id, same addresses.
+    expect(service.wallet!.walletId).toBe(walletId);
+    expect(addressesOf(service.wallet!)).toEqual(addresses);
+    expect(service.wallet!.devices).toHaveLength(1);
+  }, 60_000);
+
+  it("restores with the recovery secret instead, typed any way", async () => {
+    const service = fakeService();
+    const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
+    const secret = await created(deps);
+    const { text } = await backupFile(deps);
+    service.forget();
+    lockWallet();
+    const fresh: Deps = { api: service.api, devices: memoryDeviceStore() };
+    await restoreFromBackup(fresh, UID, text, {
+      kind: "secret",
+      value: secret.toLowerCase().replace(/-/g, " "),
+    });
+    expect(await loadWalletState(fresh, UID)).toMatchObject({ kind: "unlocked" });
+  }, 60_000);
+
+  it("registers nothing for a wrong passphrase, a wrong secret or a file that is not a backup", async () => {
+    const service = fakeService();
+    const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
+    await created(deps);
+    const { text } = await backupFile(deps);
+    service.forget();
+    lockWallet();
+    const fresh: Deps = { api: service.api, devices: memoryDeviceStore() };
+
+    await expect(
+      restoreFromBackup(fresh, UID, text, {
+        kind: "passphrase",
+        value: "not the passphrase at all",
+      })
+    ).rejects.toBeInstanceOf(OpenError);
+    await expect(
+      restoreFromBackup(fresh, UID, text, {
+        kind: "secret",
+        value: encodeRecoverySecret(generateRecoverySecret()),
+      })
+    ).rejects.toBeInstanceOf(OpenError);
+    await expect(
+      restoreFromBackup(fresh, UID, text, { kind: "secret", value: "not a secret" })
+    ).rejects.toBeInstanceOf(RecoverySecretFormatError);
+    await expect(
+      restoreFromBackup(fresh, UID, "not a backup", { kind: "passphrase", value: PASSPHRASE })
+    ).rejects.toBeInstanceOf(BackupError);
+    expect(service.log).toEqual(["create"]);
+    expect(await fresh.devices.get(UID)).toBeNull();
+    expect((await loadWalletState(fresh, UID)).kind).toBe("none");
+  }, 120_000);
+
+  it("will not restore over an account that already has a wallet", async () => {
+    const service = fakeService();
+    const deps: Deps = { api: service.api, devices: memoryDeviceStore() };
+    await created(deps);
+    const { text } = await backupFile(deps);
+    await expect(
+      restoreFromBackup(deps, UID, text, { kind: "passphrase", value: PASSPHRASE })
+    ).rejects.toMatchObject({ code: "WALLET_EXISTS" });
+    expect(service.log).toEqual(["create"]);
   }, 60_000);
 });
