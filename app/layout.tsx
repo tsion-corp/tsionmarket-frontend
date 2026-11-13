@@ -90,6 +90,11 @@ export default async function RootLayout({
   const locale = await getLocale();
   const messages = await getMessages();
 
+  // Clerk is not mounted here: only sign-in, sign-up and the wallet upgrade use it,
+  // and each mounts its own (components/auth/clerk-scope.tsx), so every other page
+  // stays free of its code. Decane is still the live sign-in; Clerk is additive
+  // until the cutover (docs/CLERK_AND_WALLET_MIGRATION_PLAN.md).
+
   return (
     <html
       lang={locale}

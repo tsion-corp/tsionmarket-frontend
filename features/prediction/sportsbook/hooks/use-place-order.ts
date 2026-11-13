@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import {
   encodeFunctionData,
@@ -58,7 +58,7 @@ function withDomainType(typedData: Eip712TypedData): Eip712TypedData {
 export function usePlaceSportsbookOrder() {
   const [phase, setPhase] = useState<PlaceOrderPhase>("idle");
   const { evmAddress } = useAuthSession();
-  const { getEthereumProvider } = useSocialWallet();
+  const { getEthereumProvider } = useWalletSigner();
   const sendEvmBatch = useEvmSendBatch();
   const queryClient = useQueryClient();
 

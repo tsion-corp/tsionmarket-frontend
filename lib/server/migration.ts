@@ -25,6 +25,11 @@ function base(): string {
   return process.env.MIGRATION_API_URL ?? wsapiService("user-management");
 }
 
+/** The base URL the migration proxies call, for guards that need to inspect it. */
+export function migrationBase(): string {
+  return base();
+}
+
 // The OLD identity's credentials, sent alongside the Decane bearer on the link
 // call: `x-legacy-authorization: Bearer <privy access token>` plus the Privy
 // identity token so the service can read the old account's wallets.
