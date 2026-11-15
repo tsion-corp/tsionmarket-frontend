@@ -19,6 +19,14 @@ const BRIDGE_LOG = {
     "77736b31713964756e70666364666a3839687132773972613371347171677270776d786d767530307a3637660000000000000000000000000000000000000000",
 };
 
+const EXTERNAL = "0xFbA9b1c09AB9a76BF35C3df9DCd30adb635DdDfF";
+const metamaskSend = vi.fn(async (_from: string, _call: unknown) => "0x" + "ee".repeat(32));
+vi.mock("@/lib/intertrain/browser-wallet", () => ({
+  browserWalletAvailable: () => true,
+  connectBrowserWallet: async () => EXTERNAL,
+  sendFromBrowserWallet: (from: string, call: unknown) => metamaskSend(from, call),
+}));
+
 const state = {
   kind: "custom" as "custom" | undefined,
   address: DEST as string | null,
@@ -66,13 +74,12 @@ vi.mock("@/lib/trade/receipt", () => ({
 
 import { AddWskScreen } from "./add-wsk-screen";
 
-function show(onAddUsdc = vi.fn()) {
+function show() {
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <AddWskScreen onBack={vi.fn()} onAddUsdc={onAddUsdc} />
+      <AddWskScreen onBack={vi.fn()} />
     </QueryClientProvider>
   );
-  return { onAddUsdc };
 }
 const type = (value: string) =>
   fireEvent.change(screen.getByLabelText("Amount in USDC"), { target: { value } });
@@ -84,6 +91,7 @@ beforeEach(() => {
   state.paused = false;
   state.allowance = 0n;
   sendBatch.mockClear();
+  metamaskSend.mockClear();
   status.mockClear();
   unlock.mockClear();
   window.localStorage.clear();
@@ -105,13 +113,29 @@ describe("AddWskScreen", () => {
     expect(unlock).toHaveBeenCalled();
   });
 
-  it("offers Arbitrum USDC when the amount is more than the wallet holds", () => {
-    const { onAddUsdc } = show();
-    type("9");
+  it("offers to connect MetaMask, and is not payable from this wallet's empty Arbitrum balance", () => {
+    state.usdc = "0";
+    show();
+    type("1");
     expect(screen.getByRole("button", { name: /^add kash$/i })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: /add usdc on arbitrum/i }));
-    expect(onAddUsdc).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /connect metamask/i })).toBeInTheDocument();
   });
+
+  it("pays from the connected MetaMask: approve, then deposit to the Intertrain address, each confirmed there", async () => {
+    show();
+    fireEvent.click(screen.getByRole("button", { name: /connect metamask/i }));
+    await screen.findByText(/paying from/i);
+    type("1");
+    fireEvent.click(screen.getByRole("button", { name: /^add kash$/i }));
+    await waitFor(() => expect(metamaskSend).toHaveBeenCalledTimes(2));
+    expect(
+      metamaskSend.mock.calls.map((c) => (c[1] as { data: string }).data.slice(0, 10))
+    ).toEqual(["0x095ea7b3", "0xbf1bf299"]);
+    expect(metamaskSend.mock.calls[0]![0]).toBe(EXTERNAL);
+    // Not the app's own sponsored path.
+    expect(sendBatch).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Kash added/, undefined, { timeout: 8000 })).toBeInTheDocument();
+  }, 20_000);
 
   it("approves and deposits in one go, then follows the deposit to the credit", async () => {
     show();

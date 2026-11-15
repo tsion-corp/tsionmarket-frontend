@@ -11,7 +11,7 @@ import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowRightIcon, BankIcon } from "@/components/ui/icons";
 import type { DepositPrefill } from "@/lib/voice/intent";
 
-type Step = "chooser" | "crypto" | "bank" | "wsk" | "wskUsdc" | "naira";
+type Step = "chooser" | "crypto" | "bank" | "wsk" | "naira";
 
 // USDC brand blue — only the fallback tint; AssetIcon renders the platform's
 // own USDC coin for "USDC".
@@ -34,10 +34,8 @@ export function FundsModal({
   if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
   if (step === "bank") return <BankTransferScreen onBack={back} onClose={onClose} />;
   if (step === "naira") return <BuyKashNairaScreen onBack={back} />;
-  if (step === "wsk") return <AddWskScreen onBack={back} onAddUsdc={() => setStep("wskUsdc")} />;
-  // Getting USDC onto Arbitrum for Add WSK: the same deposit flow, settling there instead of Base.
-  if (step === "wskUsdc")
-    return <CryptoDepositScreen onBack={() => setStep("wsk")} settleKey="arbitrum" />;
+  if (step === "wsk") return <AddWskScreen onBack={back} />;
+  return <CryptoDepositScreen onBack={() => setStep("wsk")} settleKey="arbitrum" />;
 
   return (
     <div>

@@ -27,6 +27,11 @@ import {
   type EvmCall,
 } from "@/lib/intertrain/bridge";
 import { getBridgeOperationStatus } from "@/lib/intertrain/rpc";
+import {
+  browserWalletAvailable,
+  connectBrowserWallet,
+  sendFromBrowserWallet,
+} from "@/lib/intertrain/browser-wallet";
 import { requestWalletUnlock } from "@/lib/signer/unlock-request";
 import { awaitReceipt, publicClientForChain } from "@/lib/trade/receipt";
 
@@ -78,14 +83,7 @@ function friendly(error: unknown): string {
   return message || "Something went wrong.";
 }
 
-export function AddWskScreen({
-  onBack,
-  onAddUsdc,
-}: {
-  onBack: () => void;
-  /** Opens the deposit flow set to settle USDC on Arbitrum. */
-  onAddUsdc: () => void;
-}) {
+export function AddWskScreen({ onBack }: { onBack: () => void }) {
   useModalScreen({ back: onBack });
   const queryClient = useQueryClient();
   const wallet = useWalletSigner();
@@ -95,6 +93,9 @@ export function AddWskScreen({
   const wsk = useWskBalance(account.address);
 
   const [amount, setAmount] = useState("");
+  // A wallet in the browser (MetaMask) the person pays from, once connected.
+  const [ext, setExt] = useState<{ account: `0x${string}`; usdc: bigint } | null>(null);
+  const [connecting, setConnecting] = useState(false);
   const [phase, setPhase] = useState<Phase>("form");
   const [step, setStep] = useState("");
   const [error, setError] = useState("");
@@ -115,7 +116,9 @@ export function AddWskScreen({
       token.network === ARBITRUM_NETWORK &&
       token.address?.toLowerCase() === ARBITRUM_USDC.toLowerCase()
   );
-  const have = BigInt(arbUsdc?.rawBalance ?? "0");
+  const appHave = BigInt(arbUsdc?.rawBalance ?? "0");
+  // What the payer holds on Arbitrum: the connected browser wallet if there is one.
+  const have = ext ? ext.usdc : appHave;
 
   let wanted: bigint | null = null;
   let amountProblem = "";
@@ -125,6 +128,25 @@ export function AddWskScreen({
       if (wanted > have) amountProblem = `You have ${formatUsdc(have)} USDC on Arbitrum.`;
     } catch (e) {
       amountProblem = friendly(e);
+    }
+  }
+
+  async function connectExternal() {
+    setError("");
+    setConnecting(true);
+    try {
+      const account = await connectBrowserWallet();
+      const usdc = await publicClientForChain(ARBITRUM_CHAIN_ID).readContract({
+        address: ARBITRUM_USDC,
+        abi: BRIDGE_ABI,
+        functionName: "balanceOf",
+        args: [account],
+      });
+      if (alive.current) setExt({ account, usdc });
+    } catch (e) {
+      if (alive.current) setError(friendly(e));
+    } finally {
+      if (alive.current) setConnecting(false);
     }
   }
 
@@ -226,6 +248,8 @@ export function AddWskScreen({
       setPhase("working");
       setStep("Checking the bridge…");
       const client = publicClientForChain(ARBITRUM_CHAIN_ID);
+      // Who pays: the connected browser wallet if there is one, otherwise this wallet.
+      const payer = (ext?.account ?? owner) as `0x${string}`;
       const [paused, balance, allowance] = await Promise.all([
         client.readContract({
           address: ARBITRUM_WSK_BRIDGE,
@@ -236,13 +260,13 @@ export function AddWskScreen({
           address: ARBITRUM_USDC,
           abi: BRIDGE_ABI,
           functionName: "balanceOf",
-          args: [owner as `0x${string}`],
+          args: [payer],
         }),
         client.readContract({
           address: ARBITRUM_USDC,
           abi: BRIDGE_ABI,
           functionName: "allowance",
-          args: [owner as `0x${string}`, ARBITRUM_WSK_BRIDGE],
+          args: [payer, ARBITRUM_WSK_BRIDGE],
         }),
       ]);
       if (paused) throw new Error("The Arbitrum bridge is paused right now.");
@@ -251,12 +275,28 @@ export function AddWskScreen({
           `You have ${formatUsdc(balance)} USDC on Arbitrum. You need ${formatUsdc(value)}.`
         );
       }
-      const calls: EvmCall[] = [];
-      if (allowance < value) calls.push(approveCall(value));
-      calls.push(depositCall(value, account.address));
-
-      setStep("Confirm in your wallet…");
-      const txHash = await sendBatch(calls, ARBITRUM_CHAIN_ID, owner);
+      let txHash: `0x${string}`;
+      if (ext) {
+        // From a wallet in the browser: the person confirms each step there and pays its gas.
+        if (allowance < value) {
+          setStep("Approve USDC in your wallet (step 1 of 2)…");
+          const approval = await sendFromBrowserWallet(ext.account, approveCall(value));
+          setStep("Waiting for the approval to confirm…");
+          await awaitReceipt(client, approval, "The approval");
+        }
+        setStep(
+          allowance < value
+            ? "Confirm the deposit in your wallet (step 2 of 2)…"
+            : "Confirm the deposit in your wallet…"
+        );
+        txHash = await sendFromBrowserWallet(ext.account, depositCall(value, account.address));
+      } else {
+        const calls: EvmCall[] = [];
+        if (allowance < value) calls.push(approveCall(value));
+        calls.push(depositCall(value, account.address));
+        setStep("Confirm in your wallet…");
+        txHash = await sendBatch(calls, ARBITRUM_CHAIN_ID, owner);
+      }
       sent = txHash;
       setHash(txHash);
       writePending(owner, { hash: txHash, amount: formatUsdc(value) });
@@ -379,19 +419,40 @@ export function AddWskScreen({
           />
         </div>
 
-        {shortfall ? (
-          <div className="flex flex-col gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-[13px] text-amber-100">
-            {amountProblem} Add USDC on Arbitrum first; it arrives in your wallet and you can come
-            straight back.
-            <button
-              type="button"
-              onClick={onAddUsdc}
-              className="self-start rounded-full bg-amber-200 px-3.5 py-1.5 text-[12.5px] font-semibold text-black"
-            >
-              Add USDC on Arbitrum
-            </button>
-          </div>
-        ) : null}
+        <div className="flex flex-col gap-2 rounded-2xl border border-white/8 bg-white/3 px-4 py-3 text-[13px] text-white/70">
+          {ext ? (
+            <>
+              <span>
+                Paying from <span className="font-mono text-white">{short(ext.account, 6, 4)}</span>{" "}
+                (MetaMask). You confirm there and pay a little ETH for gas.
+              </span>
+              <button
+                type="button"
+                onClick={() => setExt(null)}
+                className="self-start text-[12.5px] text-white/50 underline underline-offset-2"
+              >
+                Use this wallet instead
+              </button>
+            </>
+          ) : (
+            <>
+              <span>
+                {shortfall
+                  ? `${amountProblem} `
+                  : "Your money here is on Base, so pay with USDC on Arbitrum from a wallet of your own. "}
+                {browserWalletAvailable() ? "" : "Open this page in a browser with MetaMask."}
+              </span>
+              <button
+                type="button"
+                disabled={connecting}
+                onClick={() => void connectExternal()}
+                className="self-start rounded-full bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-black disabled:opacity-50"
+              >
+                {connecting ? "Connecting…" : "Connect MetaMask"}
+              </button>
+            </>
+          )}
+        </div>
 
         {error ? (
           <p
