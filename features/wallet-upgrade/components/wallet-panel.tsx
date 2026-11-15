@@ -342,7 +342,7 @@ function Unlocked({
           <div className="min-w-0 flex-1">
             <div className={SMALL}>
               Intertrain
-              {intertrain.address && wsk.data !== undefined ? ` · ${formatWsk(wsk.data)} WSK` : ""}
+              {intertrain.address && wsk.data !== undefined ? ` · ${formatWsk(wsk.data)} Kash` : ""}
             </div>
             <div
               className="truncate font-mono text-[13px] text-white"

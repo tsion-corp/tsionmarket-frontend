@@ -26,6 +26,7 @@ describe("useIntertrainKash", () => {
     const { result } = renderHook(() => useIntertrainKash());
     expect(result.current).toEqual({
       active: true,
+      address: "wsk1abc",
       balance: "2.5",
       loading: false,
       unavailable: false,

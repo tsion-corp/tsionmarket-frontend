@@ -12,6 +12,8 @@ import { formatWsk } from "@/lib/intertrain/bridge";
 export interface IntertrainKash {
   /** The card is showing Intertrain Kash. */
   active: boolean;
+  /** The Intertrain address, once known on this device. */
+  address: string | null;
   /** The balance, as text, once read. */
   balance: string | null;
   /** The read is in flight. */
@@ -24,9 +26,10 @@ export function useIntertrainKash(): IntertrainKash {
   const account = useIntertrainAccount();
   const wsk = useWskBalance(account.address);
   if (!account.hasWallet)
-    return { active: false, balance: null, loading: false, unavailable: false };
+    return { active: false, address: null, balance: null, loading: false, unavailable: false };
   return {
     active: true,
+    address: account.address,
     balance: wsk.data !== undefined ? formatWsk(wsk.data) : null,
     loading: account.address !== null && wsk.isLoading,
     unavailable: account.address === null || wsk.isError,

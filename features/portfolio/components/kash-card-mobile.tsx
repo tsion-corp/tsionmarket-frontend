@@ -52,6 +52,16 @@ function ApproxEqualsGlyph({ className }: { className?: string }) {
   );
 }
 
+// Where Kash history lives: the account's page on the Intertrain explorer.
+const openExplorer = (address: string | null) => {
+  if (address)
+    window.open(
+      `https://explorer.intertrain.online/address/${address}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+};
+
 interface KashCardMobileProps {
   onBuy: () => void;
   /** Opens the Send Kash modal: a wallet address and an amount. */
@@ -85,7 +95,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
   const balanceDisplay = ik.active
     ? (ik.balance ?? "0")
     : formatKashAmount(account?.balance ?? "0");
-  const unitPrice = status?.price.kashPriceUsd;
+  const unitPrice = ik.active ? "1" : status?.price.kashPriceUsd;
 
   return (
     <div
@@ -118,7 +128,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
           </span>
           <span className="flex items-center gap-[2.3cqw]">
             <button
-              onClick={onHistory}
+              onClick={ik.active ? () => openExplorer(ik.address) : onHistory}
               className="cursor-pointer text-[3.25cqw] font-medium transition-opacity hover:opacity-70"
             >
               {t("history")}
@@ -148,8 +158,10 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
           ) : (
             <>
               <div className="tnum ws-display text-[9.3cqw] leading-none font-bold tracking-[-0.02em] whitespace-nowrap">
-                {balanceDisplay} KASH+{" "}
-                <span className="ml-[1.5cqw] text-[0.42em] font-normal">ESP</span>
+                {balanceDisplay} {ik.active ? "KASH" : "KASH+"}{" "}
+                {ik.active ? null : (
+                  <span className="ml-[1.5cqw] text-[0.42em] font-normal">ESP</span>
+                )}
               </div>
               {unitPrice && (
                 <div className="mt-[3.5cqw] flex items-center justify-center gap-[1cqw] text-[2.7cqw] font-medium text-black/55">

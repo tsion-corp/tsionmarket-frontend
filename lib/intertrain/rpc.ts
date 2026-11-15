@@ -5,7 +5,10 @@
 
 const RPC_URL = process.env.NEXT_PUBLIC_INTERTRAIN_RPC_URL || "https://rpc.intertrain.online/rpc";
 
-async function call<T>(method: string, params: Record<string, unknown>): Promise<T> {
+export async function intertrainRpc<T>(
+  method: string,
+  params: Record<string, unknown>
+): Promise<T> {
   const response = await fetch(RPC_URL, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -23,7 +26,7 @@ async function call<T>(method: string, params: Record<string, unknown>): Promise
 /** Native WSK in base units (6 decimals). An account the chain has never seen holds 0. */
 export async function getWskBalance(address: string): Promise<bigint> {
   try {
-    const account = await call<{ balance?: unknown }>("account_get", { address });
+    const account = await intertrainRpc<{ balance?: unknown }>("account_get", { address });
     const balance = account.balance;
     if (typeof balance === "string" && /^\d+$/.test(balance)) return BigInt(balance);
     if (typeof balance === "number" && Number.isSafeInteger(balance) && balance >= 0) {
@@ -44,7 +47,7 @@ export async function getWskBalance(address: string): Promise<bigint> {
 
 /** "confirmed" once the relayer's mint has landed; "not_found" until it has picked the deposit up. */
 export async function getBridgeOperationStatus(operationId: string): Promise<string> {
-  const result = await call<{ status?: unknown }>("bridge_operation_status", {
+  const result = await intertrainRpc<{ status?: unknown }>("bridge_operation_status", {
     operation_id: operationId,
   });
   return typeof result.status === "string" ? result.status : "unknown";

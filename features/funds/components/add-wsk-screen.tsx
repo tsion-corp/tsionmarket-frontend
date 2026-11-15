@@ -150,7 +150,7 @@ export function AddWskScreen({
               operationId = operationIdFor(deposit.depositId);
               if (alive.current) {
                 setStep(
-                  "Deposit confirmed on Arbitrum. Waiting for Intertrain to credit your WSK…"
+                  "Deposit confirmed on Arbitrum. Waiting for Intertrain to credit your Kash…"
                 );
               }
             }
@@ -263,7 +263,7 @@ export function AddWskScreen({
       setStep("Waiting for Arbitrum to confirm…");
       await awaitReceipt(client, txHash, "Your deposit");
       setPhase("waiting");
-      setStep("Deposit confirmed on Arbitrum. Waiting for Intertrain to credit your WSK…");
+      setStep("Deposit confirmed on Arbitrum. Waiting for Intertrain to credit your Kash…");
       await finishFollowing(txHash, owner, formatUsdc(value));
     } catch (e) {
       if (!alive.current) return;
@@ -277,7 +277,7 @@ export function AddWskScreen({
   if (!account.hasWallet || !usingNewWallet) {
     body = (
       <Notice>
-        Add WSK needs your new wallet, because that is where your WSK lives.{" "}
+        Add Kash needs your new wallet, because that is where your Kash lives.{" "}
         <Link href="/upgrade" className="underline underline-offset-2">
           Set it up and switch to it
         </Link>
@@ -303,9 +303,9 @@ export function AddWskScreen({
         <span className="grid size-12 place-items-center rounded-full bg-[#5dd9a3]/15 text-[#5dd9a3]">
           <CheckIcon size={22} />
         </span>
-        <p className="text-[15px] font-medium text-white">{credited} WSK added</p>
+        <p className="text-[15px] font-medium text-white">{credited} Kash added</p>
         <p className="text-[13px] text-white/55">
-          It is in your wallet now: {formatWsk(wsk.data ?? 0n)} WSK in total.
+          It is in your wallet now: {formatWsk(wsk.data ?? 0n)} Kash in total.
         </p>
         {hash ? (
           <a
@@ -364,13 +364,17 @@ export function AddWskScreen({
         <div className="flex flex-col gap-1.5 rounded-2xl border border-white/8 bg-white/3 px-4 py-3 text-[13px]">
           <Row
             label="You receive"
-            value={wanted !== null ? `${formatWsk(wanted)} WSK` : "1 USDC = 1 WSK"}
+            value={wanted !== null ? `${formatWsk(wanted)} Kash` : "1 USDC = 1 Kash"}
           />
           <Row label="Into" value={short(account.address, 12, 6)} mono />
           <Row
-            label="Your WSK balance"
+            label="Your Kash balance"
             value={
-              wsk.isLoading ? "…" : wsk.isError ? "Unavailable" : `${formatWsk(wsk.data ?? 0n)} WSK`
+              wsk.isLoading
+                ? "…"
+                : wsk.isError
+                  ? "Unavailable"
+                  : `${formatWsk(wsk.data ?? 0n)} Kash`
             }
           />
         </div>
@@ -404,7 +408,7 @@ export function AddWskScreen({
           onClick={run}
           className="cursor-pointer rounded-full bg-[#5dd9a3] py-3.5 text-[14.5px] font-semibold text-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          Add WSK
+          Add Kash
         </button>
         {phase === "error" && hash ? (
           <a
@@ -423,9 +427,9 @@ export function AddWskScreen({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="ws-display text-[24px] tracking-[-0.01em]">Add WSK</div>
+        <div className="ws-display text-[24px] tracking-[-0.01em]">Add Kash</div>
         <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">
-          Turn USDC on Arbitrum into WSK on Intertrain, one for one. It arrives in your wallet in a
+          Turn USDC on Arbitrum into Kash on Intertrain, one for one. It arrives in your wallet in a
           few minutes.
         </p>
       </div>

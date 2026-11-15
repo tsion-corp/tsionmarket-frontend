@@ -38,6 +38,16 @@ function ButtonIcon({ src, flip }: { src: string; flip?: "vertical" | "both" }) 
   );
 }
 
+// Where Kash history lives: the account's page on the Intertrain explorer.
+const openExplorer = (address: string | null) => {
+  if (address)
+    window.open(
+      `https://explorer.intertrain.online/address/${address}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+};
+
 interface KashCardProps {
   onBuy: () => void;
   /** Opens the Send Kash modal: a wallet address and an amount. */
@@ -209,7 +219,7 @@ export function KashCard({
               </span>
             ) : (
               <button
-                onClick={onHistory}
+                onClick={ik.active ? () => openExplorer(ik.address) : onHistory}
                 className="ws-pressable cursor-pointer rounded-full px-[10px] py-[5px] font-sans text-[19px] leading-[1.3] font-normal whitespace-nowrap text-black"
               >
                 {t("history")}
@@ -255,20 +265,22 @@ export function KashCard({
               className={`tnum flex max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-1 px-2 py-[16.63px] font-serif leading-[1.1] font-bold tracking-[-0.05em] ${balanceTextSize}`}
             >
               <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>
-              <span className="whitespace-nowrap">KASH +</span>
-              <span className="ml-2 text-[0.38em] font-normal">ESP</span>
+              <span className="whitespace-nowrap">{ik.active ? "KASH" : "KASH +"}</span>
+              {ik.active ? null : <span className="ml-2 text-[0.38em] font-normal">ESP</span>}
             </div>
             <div className="flex max-w-full flex-wrap items-center justify-center gap-[6.05px] px-2 font-serif text-[16px] leading-[21.93px] font-medium tracking-[-0.08px] text-black/80">
               {/* The unit price, so the holding above is checkable rather than a
                   number the user has to trust. */}
-              {engineStatus ? (
+              {ik.active || engineStatus ? (
                 <>
                   <span className="tnum">1 KASH</span>
                   <span className="block size-[24.19px] shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/market/kash-icon-approx-equals.svg" alt="≈" className="size-full" />
                   </span>
-                  <span className="tnum">${engineStatus.price.kashPriceUsd}</span>
+                  <span className="tnum">
+                    ${ik.active ? "1" : engineStatus?.price.kashPriceUsd}
+                  </span>
                 </>
               ) : null}
             </div>
@@ -424,7 +436,7 @@ export function KashCard({
                 history rather than stacked onto the live number. */}
               {claimedKash !== null && (
                 <button
-                  onClick={onHistory}
+                  onClick={ik.active ? () => openExplorer(ik.address) : onHistory}
                   className="ws-pressable mt-3 flex w-full cursor-pointer items-center justify-between gap-3 border-t border-black/10 pt-3 text-[12px] leading-[1.4]"
                 >
                   <span className="font-normal text-black/50">{t("claimedSoFar")}</span>

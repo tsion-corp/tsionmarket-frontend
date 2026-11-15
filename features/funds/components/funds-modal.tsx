@@ -75,9 +75,9 @@ export function FundsModal({
         {/* Not translated yet: it is new, and the locale files follow with the rest of the
             wallet upgrade's copy. */}
         <MethodTile
-          icon={<span className="text-[11px] font-bold tracking-wide">WSK</span>}
-          title="Add WSK"
-          subtitle="Turn USDC on Arbitrum into WSK on Intertrain, one for one."
+          icon={<span className="text-[11px] font-bold tracking-wide">Kash</span>}
+          title="Add Kash"
+          subtitle="Turn USDC on Arbitrum into Kash on Intertrain, one for one."
           onClick={() => setStep("wsk")}
         />
       </div>

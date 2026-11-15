@@ -108,7 +108,7 @@ describe("AddWskScreen", () => {
   it("offers Arbitrum USDC when the amount is more than the wallet holds", () => {
     const { onAddUsdc } = show();
     type("9");
-    expect(screen.getByRole("button", { name: /^add wsk$/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^add kash$/i })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: /add usdc on arbitrum/i }));
     expect(onAddUsdc).toHaveBeenCalled();
   });
@@ -116,8 +116,8 @@ describe("AddWskScreen", () => {
   it("approves and deposits in one go, then follows the deposit to the credit", async () => {
     show();
     type("1");
-    expect(screen.getByText(/1 WSK/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /^add wsk$/i }));
+    expect(screen.getByText(/1 Kash/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^add kash$/i }));
 
     await waitFor(() => expect(sendBatch).toHaveBeenCalledTimes(1));
     const [calls, chain, owner] = sendBatch.mock.calls[0]!;
@@ -128,7 +128,7 @@ describe("AddWskScreen", () => {
       "0x095ea7b3",
       "0xbf1bf299",
     ]);
-    expect(await screen.findByText(/WSK added/, undefined, { timeout: 8000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Kash added/, undefined, { timeout: 8000 })).toBeInTheDocument();
     // The relayer's operation id for the deposit, not anything the screen made up.
     expect(status).toHaveBeenCalledWith(
       "f6aa386e921f1c22c93908954b2a053338558b0d76b4316a1cfd643f93938aad"
@@ -140,7 +140,7 @@ describe("AddWskScreen", () => {
     state.allowance = 10_000_000n;
     show();
     type("1");
-    fireEvent.click(screen.getByRole("button", { name: /^add wsk$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^add kash$/i }));
     await waitFor(() => expect(sendBatch).toHaveBeenCalled());
     expect(
       (sendBatch.mock.calls[0]![0] as Array<{ data: string }>).map((c) => c.data.slice(0, 10))
@@ -151,7 +151,7 @@ describe("AddWskScreen", () => {
     state.paused = true;
     show();
     type("1");
-    fireEvent.click(screen.getByRole("button", { name: /^add wsk$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^add kash$/i }));
     expect(await screen.findByRole("alert")).toHaveTextContent(/paused/i);
     expect(sendBatch).not.toHaveBeenCalled();
   });
@@ -161,10 +161,10 @@ describe("AddWskScreen", () => {
     sendBatch.mockResolvedValueOnce("0x" + "cd".repeat(32));
     show();
     type("1");
-    fireEvent.click(screen.getByRole("button", { name: /^add wsk$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^add kash$/i }));
     await waitFor(() => expect(sendBatch).toHaveBeenCalled());
     // A node that is briefly unreachable is not a failed deposit: still waiting, no second button to press.
     await screen.findByText(/waiting for intertrain|picking up/i);
-    expect(screen.queryByRole("button", { name: /^add wsk$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^add kash$/i })).not.toBeInTheDocument();
   });
 });
