@@ -17,9 +17,9 @@ vi.mock("@/features/prediction/book/api", async (importOriginal) => {
 function market(id: string, title: string): BookBoardMarket {
   return {
     id,
-    eventId: `event-${id}`,
+    eventId: "event-1",
     title,
-    imageUrl: null,
+    imageUrl: `https://images.example/${id}.jpg`,
     currency: "USDC",
     minStakeE6: "100000",
     maxStakeE6: "9223372036854775807",
@@ -27,51 +27,31 @@ function market(id: string, title: string): BookBoardMarket {
     minOddsE6: "1050000",
     oddsMode: "dynamic_parimutuel",
     state: "active",
-    category: title,
+    category: "Winner",
     expressForbidden: true,
     hidden: false,
     outcomes: [
-      {
-        id: `${id}-a`,
-        title: "Fighter A",
-        odds: "1.50",
-        point: null,
-        state: "active",
-        hidden: false,
-      },
-      {
-        id: `${id}-b`,
-        title: "Fighter B",
-        odds: "2.30",
-        point: null,
-        state: "active",
-        hidden: false,
-      },
+      { id: `${id}-yes`, title: "Yes", odds: "1.05", point: null, state: "active", hidden: false },
+      { id: `${id}-no`, title: "No", odds: "1.05", point: null, state: "active", hidden: false },
     ],
   };
 }
 
-function event(
-  id: string,
-  title: string,
-  trendingRank: number,
-  primaryMarket: BookBoardMarket,
-  secondaryMarket?: BookBoardMarket
-): BookBoardEvent {
+function event(markets: BookBoardMarket[]): BookBoardEvent {
   return {
-    id,
-    slug: id,
-    title,
+    id: "event-1",
+    slug: "bbnaija-finale",
+    title: "BBNaija Season 11 Finale",
     startsAt: Date.now() + 60_000,
     state: "prematch",
-    sport: { id: "boxing", slug: "boxing", name: "Boxing", hub: "local" },
+    sport: { id: "entertainment", slug: "entertainment", name: "Entertainment", hub: "local" },
     country: { id: "ng", slug: "nigeria", name: "Nigeria" },
-    league: { id: "fight-night", slug: "fight-night", name: "Fight Night" },
-    trendingRank,
-    primaryMarketId: primaryMarket.id,
+    league: { id: "bbnaija", slug: "big-brother-naija", name: "Big Brother Naija" },
+    trendingRank: 1,
+    primaryMarketId: null,
     participants: [],
-    imageUrl: "/assets/images/matchday.png",
-    markets: secondaryMarket ? [secondaryMarket, primaryMarket] : [primaryMarket],
+    imageUrl: "https://images.example/event.jpg",
+    markets,
   };
 }
 
@@ -87,50 +67,40 @@ function renderFeatured() {
 describe("FeaturedLocalMarkets", () => {
   beforeEach(() => {
     mocks.onPick.mockReset();
-    const carterPrimary = market("carter-winner", "Fight Winner");
-    const carterSecondary = market("carter-distance", "Fight Goes the Distance");
-    const phynaPrimary = market("phyna-winner", "Fight Winner");
     mocks.listBookBoard.mockResolvedValue({
       provider: "local",
       environment: "first-party",
-      events: [
-        event("phyna", "Phyna vs Nkechi Blessing", 2, phynaPrimary),
-        event("carter", "Carter Efe vs Speed Darlington", 1, carterPrimary, carterSecondary),
-      ],
+      events: [event([market("aikou", "Will Aikou win?"), market("temi", "Will Temi win?")])],
       limit: 24,
       offset: 0,
-      total: 2,
+      total: 1,
       nextOffset: null,
     });
   });
 
-  it("ranks featured events and exposes only each primary market", async () => {
-    renderFeatured();
+  it("renders every active market as its own scrolling card", async () => {
+    const { container } = renderFeatured();
 
     const cards = await screen.findAllByRole("article");
     expect(cards).toHaveLength(2);
-    expect(within(cards[0]).getByText("Carter Efe vs Speed Darlington")).toBeInTheDocument();
-    expect(within(cards[1]).getByText("Phyna vs Nkechi Blessing")).toBeInTheDocument();
-    expect(screen.queryByText("Fight Goes the Distance")).not.toBeInTheDocument();
-    expect(within(cards[0]).getByText("View all 2")).toBeInTheDocument();
-    expect(cards[0].querySelector("img")).toHaveClass("left-0");
-    expect(cards[1].querySelector("img")).toHaveClass("right-0");
+    expect(within(cards[0]).getByText("Will Aikou win?")).toBeInTheDocument();
+    expect(within(cards[1]).getByText("Will Temi win?")).toBeInTheDocument();
+    expect(container.querySelector(".overflow-x-auto")).not.toBeNull();
   });
 
-  it("opens a local ticket for the selected primary outcome", async () => {
+  it("opens the local ticket for the selected outcome", async () => {
     renderFeatured();
 
     fireEvent.click(
       await screen.findByRole("button", {
-        name: "Carter Efe vs Speed Darlington, Fight Winner, Fighter A at 1.50",
+        name: "BBNaija Season 11 Finale, Will Aikou win?, Yes at 1.05",
       })
     );
 
     expect(mocks.onPick).toHaveBeenCalledWith(
       expect.objectContaining({
-        event: expect.objectContaining({ id: "carter" }),
-        market: expect.objectContaining({ id: "carter-winner" }),
-        outcome: expect.objectContaining({ id: "carter-winner-a" }),
+        market: expect.objectContaining({ id: "aikou" }),
+        outcome: expect.objectContaining({ id: "aikou-yes" }),
       })
     );
   });
