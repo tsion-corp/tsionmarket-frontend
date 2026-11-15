@@ -149,9 +149,10 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
                   <span className="tnum">${unitPrice}</span>
                 </div>
               )}
-              <WskAddressPill className="mt-[3cqw] max-w-[88%]" />
             </>
           )}
+          {/* Outside the balance states: the address does not depend on the Kash+ read. */}
+          {!signedOut ? <WskAddressPill className="mt-[3cqw] max-w-[88%]" /> : null}
         </div>
 
         {/* Actions, above the cloud bank. Three across on a phone rather than
