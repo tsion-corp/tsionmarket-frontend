@@ -32,6 +32,8 @@ import { KashConvertModal } from "@/features/portfolio/components/kash-convert-m
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
 import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-modal";
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
+import { KashSendIntertrainModal } from "@/features/portfolio/components/kash-send-intertrain-modal";
+import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
 import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
 import { Switch } from "@/components/ui/switch";
 import { SkeletonLine } from "@/components/ui/skeleton-line";
@@ -124,6 +126,7 @@ export function PortfolioView({
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
   const [kashModal, showKashModal] = useState<KashModal | null>(null);
+  const intertrainKash = useIntertrainKash();
   const requireSession = useRequireSession();
   const setKashModal = (modal: KashModal | null) => {
     if (modal === null || requireSession(KASH_GATE[modal])) showKashModal(modal);
@@ -352,7 +355,11 @@ export function PortfolioView({
       <KashConvertModal open={kashModal === "convert"} onClose={() => setKashModal(null)} />
       <KashHistoryModal open={kashModal === "history"} onClose={() => setKashModal(null)} />
       <KashUpgradeModal open={kashModal === "upgrade"} onClose={() => setKashModal(null)} />
-      <KashSendModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
+      {intertrainKash.active ? (
+        <KashSendIntertrainModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
+      ) : (
+        <KashSendModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
+      )}
 
       {/* Phone head: the two starfield cards, then the promo strip. The
           carousel gives the h-full cards their height.

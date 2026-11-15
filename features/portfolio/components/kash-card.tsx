@@ -321,7 +321,7 @@ export function KashCard({
           the row wraps instead of squeezing them. min-h rather than h so a
           wrapped row still cannot clip a label. */}
       <div className="mt-[24px] flex flex-wrap gap-[10.23px] sm:ml-[2.18px]">
-        {KASH_BUY_ENABLED ? (
+        {KASH_BUY_ENABLED || ik.active ? (
           <button
             onClick={ik.active ? modals.openFunds : onBuy}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
@@ -336,7 +336,7 @@ export function KashCard({
             with a balance, in the order you would do them. Ink on the card's
             own gold rather than a third fill, so Buy stays the one bright
             pill and the row does not read as three equal shouts. */}
-        {KASH_SEND_ENABLED && !ik.active ? (
+        {KASH_SEND_ENABLED || ik.active ? (
           <button
             onClick={onSend}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-black/25 bg-black/[0.07] px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"

@@ -79,7 +79,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
   const tAuth = useTranslations("auth");
   const ik = useIntertrainKash();
   const modals = useAppModals();
-  // With the new wallet Kash is native WSK: only Add WSK applies for now (no send or convert).
+  // With the new wallet Kash is native on Intertrain: Add Kash and Send, no convert.
   const actionCount = ik.active ? 1 : 1 + Number(KASH_SEND_ENABLED) + Number(KASH_BUY_ENABLED);
   const { data: account, isError, signedOut, walletMissing } = useKashAccount();
   const { data: status } = useKashStatus();
@@ -182,7 +182,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
             card's width with a floor, and a pill may shrink below its label:
             at 15px fixed, "Convert" ran past the card on a narrow slide. */}
         <div className={`grid gap-[1.9cqw] ${ACTION_COLUMNS[actionCount]}`}>
-          {KASH_BUY_ENABLED ? (
+          {KASH_BUY_ENABLED || ik.active ? (
             <button
               onClick={ik.active ? modals.openFunds : onBuy}
               className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-white px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
@@ -192,7 +192,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
             </button>
           ) : null}
           {/* Ink on the card's own gold, so Buy stays the one bright pill. */}
-          {KASH_SEND_ENABLED && !ik.active ? (
+          {KASH_SEND_ENABLED || ik.active ? (
             <button
               onClick={onSend}
               className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full border border-black/20 bg-black/[0.07] px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black transition-transform active:scale-[0.98]"
