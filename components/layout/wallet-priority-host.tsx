@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { getCustomWalletSession } from "@/lib/signer/session";
+import { touchUnlocked } from "@/lib/wallet-core/unlock-state";
 import { hasCustomWallet, markHasCustomWallet, walletSwitchEnabled } from "@/lib/signer/preference";
 
 /**
@@ -24,5 +25,25 @@ export function WalletPriorityHost() {
       live = false;
     };
   }, [authenticated, userId]);
+
+  // Using the app keeps an unlocked wallet unlocked. Real interaction only (a tap, a key, a
+  // scroll), throttled, and only while the tab is visible: a tab left open and untouched still
+  // runs out its idle time and locks.
+  useEffect(() => {
+    if (!walletSwitchEnabled() || !userId) return;
+    let last = 0;
+    const onActivity = () => {
+      const now = Date.now();
+      if (now - last < 15_000 || document.visibilityState !== "visible") return;
+      last = now;
+      const session = getCustomWalletSession();
+      if (session && session.uid === userId) touchUnlocked(userId, session.pkg.walletId);
+    };
+    const events = ["pointerdown", "keydown", "scroll", "touchstart"] as const;
+    for (const name of events) window.addEventListener(name, onActivity, { passive: true });
+    return () => {
+      for (const name of events) window.removeEventListener(name, onActivity);
+    };
+  }, [userId]);
   return null;
 }

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   IDLE_TIMEOUT_MS,
+  touchUnlocked,
   MAX_LIFETIME_MS,
   clearUnlocked,
   getUnlockedKey,
@@ -126,5 +127,37 @@ describe("peeking at the lock", () => {
     expect(peekUnlocked("u", "w")).toBe(false);
     clearUnlocked();
     setClockForTests(null);
+  });
+});
+
+describe("touchUnlocked", () => {
+  it("keeps an in-use wallet unlocked past the idle time, but never past the absolute lifetime", () => {
+    let now = 1_000_000;
+    setClockForTests(() => now);
+    setUnlocked("u", "w", new Uint8Array(32).fill(1));
+    // Active every hour (inside the idle window) for most of a day: still unlocked.
+    for (let i = 0; i < 20; i += 1) {
+      now += 60 * 60_000;
+      touchUnlocked("u", "w");
+    }
+    expect(peekUnlocked("u", "w")).toBe(true);
+    // The absolute lifetime still ends it, whatever the activity.
+    now = 1_000_000 + MAX_LIFETIME_MS + 1;
+    touchUnlocked("u", "w");
+    expect(peekUnlocked("u", "w")).toBe(false);
+    setClockForTests(null);
+    clearUnlocked();
+  });
+
+  it("does not reopen a locked or expired wallet, nor another user's", () => {
+    let now = 1_000_000;
+    setClockForTests(() => now);
+    setUnlocked("u", "w", new Uint8Array(32).fill(1));
+    touchUnlocked("someone-else", "w");
+    now += IDLE_TIMEOUT_MS + 1;
+    touchUnlocked("u", "w");
+    expect(peekUnlocked("u", "w")).toBe(false);
+    setClockForTests(null);
+    clearUnlocked();
   });
 });

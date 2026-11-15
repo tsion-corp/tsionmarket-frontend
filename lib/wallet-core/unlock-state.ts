@@ -9,7 +9,9 @@ import { wipeBytes } from "./encoding";
  * does. Switching to a different user or wallet clears it.
  */
 
-export const IDLE_TIMEOUT_MS = 30 * 60_000;
+// Two hours with nobody using the app. Using the app counts (see touchUnlocked), so someone
+// who is active never gets locked out mid-task; it is the absolute lifetime below that ends it.
+export const IDLE_TIMEOUT_MS = 2 * 60 * 60_000;
 export const MAX_LIFETIME_MS = 24 * 60 * 60_000;
 
 interface Unlocked {
@@ -78,6 +80,18 @@ export function getUnlockedKey(userId: string, walletId: string): Uint8Array | u
   }
   state.expiresAt = Math.min(now + state.idleTimeoutMs, state.maxExpiresAt);
   return state.dek;
+}
+
+/**
+ * Counts as activity without handing out the key: a person is using the app, so an unlocked
+ * wallet stays unlocked. Never extends the absolute lifetime, and does nothing for a wallet
+ * that is already locked or expired (activity cannot reopen it).
+ */
+export function touchUnlocked(userId: string, walletId: string): void {
+  if (!state || state.userId !== userId || state.walletId !== walletId) return;
+  const now = clock();
+  if (state.expiresAt <= now || state.maxExpiresAt <= now) return;
+  state.expiresAt = Math.min(now + state.idleTimeoutMs, state.maxExpiresAt);
 }
 
 /**
