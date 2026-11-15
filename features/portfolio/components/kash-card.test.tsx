@@ -37,9 +37,6 @@ import { KashCard } from "@/features/portfolio/components/kash-card";
 vi.mock("@/features/portfolio/hooks/use-intertrain-kash", () => ({
   useIntertrainKash: () => ({ active: false, balance: null, loading: false, unavailable: false }),
 }));
-vi.mock("@/components/layout/modals/app-modals", () => ({
-  useAppModals: () => ({ openFunds: () => undefined }),
-}));
 vi.mock("@/features/portfolio/components/wsk-address-pill", () => ({ WskAddressPill: () => null }));
 
 const onSend = vi.fn();

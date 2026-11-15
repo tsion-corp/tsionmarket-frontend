@@ -1,7 +1,6 @@
 "use client";
 
 import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
-import { useAppModals } from "@/components/layout/modals/app-modals";
 import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useTranslations } from "next-intl";
 import { openSignIn } from "@/hooks/use-sign-in";
@@ -78,7 +77,6 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
   const t = useTranslations("kash");
   const tAuth = useTranslations("auth");
   const ik = useIntertrainKash();
-  const modals = useAppModals();
   // With the new wallet Kash is native on Intertrain: Add Kash and Send, no convert.
   const actionCount = ik.active ? 1 : 1 + Number(KASH_SEND_ENABLED) + Number(KASH_BUY_ENABLED);
   const { data: account, isError, signedOut, walletMissing } = useKashAccount();
@@ -184,7 +182,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
         <div className={`grid gap-[1.9cqw] ${ACTION_COLUMNS[actionCount]}`}>
           {KASH_BUY_ENABLED || ik.active ? (
             <button
-              onClick={ik.active ? modals.openFunds : onBuy}
+              onClick={onBuy}
               className="flex min-w-0 cursor-pointer items-center justify-center gap-[1.4cqw] rounded-full bg-white px-[1.5cqw] py-[14px] text-[clamp(11px,4.1cqw,15px)] font-semibold text-black shadow-[0_1.6px_3.3px_rgba(90,60,0,0.18)] transition-transform active:scale-[0.98]"
             >
               <ArrowDownGlyph className="h-[3.7cqw] w-[3.7cqw]" />

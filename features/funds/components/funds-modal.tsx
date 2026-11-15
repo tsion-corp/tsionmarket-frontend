@@ -7,11 +7,12 @@ import { CryptoDepositScreen } from "@/features/funds/components/crypto-deposit-
 import { BankTransferScreen } from "@/features/funds/components/bank-transfer-screen";
 import { BuyKashNairaScreen } from "@/features/funds/components/buy-kash-naira-screen";
 import { AddWskScreen } from "@/features/funds/components/add-wsk-screen";
+import { useModalScreen } from "@/components/ui/modal-shell";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowRightIcon, BankIcon } from "@/components/ui/icons";
 import type { DepositPrefill } from "@/lib/voice/intent";
 
-type Step = "chooser" | "crypto" | "bank" | "wsk" | "naira";
+type Step = "chooser" | "crypto" | "bank" | "kash" | "wsk" | "naira";
 
 // USDC brand blue — only the fallback tint; AssetIcon renders the platform's
 // own USDC coin for "USDC".
@@ -23,19 +24,26 @@ const USDC_BLUE = "#2775CA";
 export function FundsModal({
   onClose,
   deposit,
+  startAt,
 }: {
   onClose: () => void;
   deposit?: DepositPrefill;
+  /** Open on the ways to add Kash, for the Kash card's own button. */
+  startAt?: "kash";
 }) {
   const t = useTranslations("funds");
-  const [step, setStep] = useState<Step>(deposit ? "crypto" : "chooser");
+  const [step, setStep] = useState<Step>(deposit ? "crypto" : (startAt ?? "chooser"));
+  // Back from a Kash screen goes to the Kash options when that is where it started.
   const back = () => setStep("chooser");
+  const backToKash = () => setStep("kash");
 
   if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
   if (step === "bank") return <BankTransferScreen onBack={back} onClose={onClose} />;
-  if (step === "naira") return <BuyKashNairaScreen onBack={back} />;
-  if (step === "wsk") return <AddWskScreen onBack={back} />;
-  return <CryptoDepositScreen onBack={() => setStep("wsk")} settleKey="arbitrum" />;
+  if (step === "kash") {
+    return <KashOptions onBack={startAt ? undefined : back} onChoose={setStep} />;
+  }
+  if (step === "naira") return <BuyKashNairaScreen onBack={backToKash} />;
+  if (step === "wsk") return <AddWskScreen onBack={backToKash} />;
 
   return (
     <div>
@@ -77,14 +85,8 @@ export function FundsModal({
         <MethodTile
           icon={<span className="text-[11px] font-bold tracking-wide">Kash</span>}
           title="Add Kash"
-          subtitle="Turn USDC on Arbitrum into Kash on Intertrain, one for one."
-          onClick={() => setStep("wsk")}
-        />
-        <MethodTile
-          icon={<span className="text-[13px] font-bold">₦</span>}
-          title="Buy Kash with naira"
-          subtitle="Pay by bank transfer in naira. The Kash is added to your wallet."
-          onClick={() => setStep("naira")}
+          subtitle="With USDC from a wallet of your own, or with naira."
+          onClick={() => setStep("kash")}
         />
       </div>
       {/* <button
@@ -93,6 +95,40 @@ export function FundsModal({
       >
         {t("close")}
       </button> */}
+    </div>
+  );
+}
+
+// The ways to add Kash, one choice each: USDC on Arbitrum from the person's own wallet, or naira
+// by bank transfer. Opened from the Add funds sheet, or straight from the Kash card.
+function KashOptions({
+  onBack,
+  onChoose,
+}: {
+  onBack?: () => void;
+  onChoose: (step: Step) => void;
+}) {
+  useModalScreen({ back: onBack });
+  return (
+    <div>
+      <div className="ws-display text-[24px] tracking-[-0.01em]">Add Kash</div>
+      <p className="mt-2 text-[13.5px] leading-normal font-normal text-white/65">
+        One Kash is one dollar. Choose how you want to pay.
+      </p>
+      <div className="mt-[18px] flex flex-col gap-2">
+        <MethodTile
+          icon={<AssetIcon sym="USDC" bg={USDC_BLUE} size={42} />}
+          title="Pay with USDC"
+          subtitle="USDC on Arbitrum, from your own wallet such as MetaMask."
+          onClick={() => onChoose("wsk")}
+        />
+        <MethodTile
+          icon={<span className="text-[15px] font-bold">₦</span>}
+          title="Pay with naira"
+          subtitle="Bank transfer in naira. The Kash is added automatically."
+          onClick={() => onChoose("naira")}
+        />
+      </div>
     </div>
   );
 }

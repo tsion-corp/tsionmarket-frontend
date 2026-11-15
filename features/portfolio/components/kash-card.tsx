@@ -9,7 +9,6 @@ import { SyncingValue } from "@/components/ui/syncing-value";
 import { reverseResolveArkAddress } from "@/lib/bns/api";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
 import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
-import { useAppModals } from "@/components/layout/modals/app-modals";
 import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
@@ -106,7 +105,6 @@ export function KashCard({
   // read that as their money gone, and once the "0" fallback is applied the two
   // states are indistinguishable. Say which one this is instead.
   const ik = useIntertrainKash();
-  const modals = useAppModals();
   const unavailable = ik.active
     ? ik.unavailable
     : !account && !signedOut && (isError || walletMissing);
@@ -323,7 +321,7 @@ export function KashCard({
       <div className="mt-[24px] flex flex-wrap gap-[10.23px] sm:ml-[2.18px]">
         {KASH_BUY_ENABLED || ik.active ? (
           <button
-            onClick={ik.active ? modals.openFunds : onBuy}
+            onClick={onBuy}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
           >
             {/* Buy brings Kash IN, so the arrow points down into the balance,
