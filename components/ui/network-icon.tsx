@@ -31,6 +31,10 @@ interface NetworkIconProps {
 }
 
 export function NetworkIcon({ network, size = 36 }: NetworkIconProps) {
+  // Intertrain has no icon in the set: its own mark is the WSK lettering.
+  if (network === "intertrain-mainnet" || network === "Intertrain") {
+    return <CoinBadge sym="WSK" bg="#0f2a20" size={size} />;
+  }
   const Icon = NETWORK_ICONS[network];
   if (!Icon) return <CoinBadge sym={network.slice(0, 2).toUpperCase()} bg="#26262b" size={size} />;
   const round = size > 24 ? 11 : 999;

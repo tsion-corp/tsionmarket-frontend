@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useCustomWallet } from "@/hooks/use-custom-wallet";
+import { onWalletUnlockRequested } from "@/lib/signer/unlock-request";
 
 // Loaded only when the button is pressed: it carries the wallet's crypto, which the
 // first paint of every page must not pay for.
@@ -27,6 +28,15 @@ export function CustomWalletBanner() {
   const { userId } = useAuthSession();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  // Other screens (Add WSK, say) can ask for the unlock sheet without leaving where they are.
+  useEffect(
+    () =>
+      onWalletUnlockRequested(() => {
+        setMounted(true);
+        setOpen(true);
+      }),
+    []
+  );
   if (custom.status !== "locked" || pathname.startsWith("/upgrade")) return null;
   return (
     <>

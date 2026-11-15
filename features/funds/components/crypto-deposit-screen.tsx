@@ -29,15 +29,21 @@ interface CryptoDepositScreenProps {
   onBack: () => void;
   // Optional voice prefill: pre-select this chain (and token, when it matches).
   initialDeposit?: DepositPrefill;
+  // The chain the deposit settles USDC on. Base unless a flow needs another.
+  settleKey?: "base" | "arbitrum";
 }
 
-// Deposits always settle to USDC on Base, so every user gets one deposit
+// Deposits settle to USDC on Base unless a flow asks for another chain (Add WSK wants
+// Arbitrum), so every user gets one deposit
 // address per origin token regardless of which chain they send from.
-const settle = SETTLE_CHAINS.base;
 const POPULAR = ["ethereum", "base", "polygon", "arbitrum", "optimism", "avalanche"];
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScreenProps) {
+export function CryptoDepositScreen({
+  onBack,
+  initialDeposit,
+  settleKey = "base",
+}: CryptoDepositScreenProps) {
   const [originChain, setOriginChain] = useState<DepositChain | null>(null);
   const [originToken, setOriginToken] = useState<DepositToken | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -136,7 +142,14 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 
   // Step 3: Address view (separate component — mounts wallet hooks)
   if (originToken && originChain) {
-    return <DepositAddressView chain={originChain} token={originToken} onBack={resetToken} />;
+    return (
+      <DepositAddressView
+        chain={originChain}
+        token={originToken}
+        onBack={resetToken}
+        settle={SETTLE_CHAINS[settleKey]}
+      />
+    );
   }
 
   // Steps 1 & 2: Network picker → Token picker, same modal, content swaps
@@ -361,10 +374,12 @@ function DepositAddressView({
   chain,
   token,
   onBack,
+  settle,
 }: {
   chain: DepositChain;
   token: DepositToken;
   onBack: () => void;
+  settle: (typeof SETTLE_CHAINS)[keyof typeof SETTLE_CHAINS];
 }) {
   const t = useTranslations("fundsFlow");
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();

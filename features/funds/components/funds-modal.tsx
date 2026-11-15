@@ -5,11 +5,12 @@ import { useTranslations } from "next-intl";
 import { MethodTile } from "@/features/funds/components/method-tile";
 import { CryptoDepositScreen } from "@/features/funds/components/crypto-deposit-screen";
 import { BankTransferScreen } from "@/features/funds/components/bank-transfer-screen";
+import { AddWskScreen } from "@/features/funds/components/add-wsk-screen";
 import { AssetIcon } from "@/components/ui/asset-icon";
 import { ArrowRightIcon, BankIcon } from "@/components/ui/icons";
 import type { DepositPrefill } from "@/lib/voice/intent";
 
-type Step = "chooser" | "crypto" | "bank";
+type Step = "chooser" | "crypto" | "bank" | "wsk" | "wskUsdc";
 
 // USDC brand blue — only the fallback tint; AssetIcon renders the platform's
 // own USDC coin for "USDC".
@@ -31,6 +32,10 @@ export function FundsModal({
 
   if (step === "crypto") return <CryptoDepositScreen onBack={back} initialDeposit={deposit} />;
   if (step === "bank") return <BankTransferScreen onBack={back} onClose={onClose} />;
+  if (step === "wsk") return <AddWskScreen onBack={back} onAddUsdc={() => setStep("wskUsdc")} />;
+  // Getting USDC onto Arbitrum for Add WSK: the same deposit flow, settling there instead of Base.
+  if (step === "wskUsdc")
+    return <CryptoDepositScreen onBack={() => setStep("wsk")} settleKey="arbitrum" />;
 
   return (
     <div>
@@ -66,6 +71,14 @@ export function FundsModal({
           title={t("bankTitle")}
           subtitle={t("bankSubtitle")}
           onClick={() => setStep("bank")}
+        />
+        {/* Not translated yet: it is new, and the locale files follow with the rest of the
+            wallet upgrade's copy. */}
+        <MethodTile
+          icon={<span className="text-[11px] font-bold tracking-wide">WSK</span>}
+          title="Add WSK"
+          subtitle="Turn USDC on Arbitrum into WSK on Intertrain, one for one."
+          onClick={() => setStep("wsk")}
         />
       </div>
       {/* <button

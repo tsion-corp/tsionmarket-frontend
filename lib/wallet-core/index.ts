@@ -14,3 +14,4 @@ export * from "./proof";
 export * from "./root";
 export * from "./unlock-state";
 export * from "./wallet";
+export * from "./intertrain";

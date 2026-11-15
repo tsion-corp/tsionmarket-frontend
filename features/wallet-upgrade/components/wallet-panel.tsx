@@ -16,6 +16,9 @@ import {
 } from "../lib/wallet-flow";
 import { walletErrorMessage } from "../lib/wallet-errors";
 import { CopyButton } from "@/components/ui/copy-button";
+import { useIntertrainAccount } from "@/hooks/use-intertrain-account";
+import { useWskBalance } from "@/hooks/use-wsk-balance";
+import { formatWsk } from "@/lib/intertrain/bridge";
 import { LockIcon } from "@/components/ui/icons";
 import { NetworkIcon } from "@/components/ui/network-icon";
 import { CreateWallet } from "./create-wallet";
@@ -290,6 +293,8 @@ function Unlocked({
   onChange: () => void;
 }) {
   const addresses = addressesOf(state.wallet);
+  const intertrain = useIntertrainAccount();
+  const wsk = useWskBalance(intertrain.address);
   const backup = useMutation({
     mutationFn: async () => {
       const { filename, text } = await backupFile(deps);
@@ -332,6 +337,22 @@ function Unlocked({
             <CopyButton value={item.address} />
           </li>
         ))}
+        <li className={`${WELL} flex items-center gap-3.5 px-4 py-3.5`}>
+          <NetworkIcon network="intertrain-mainnet" size={36} />
+          <div className="min-w-0 flex-1">
+            <div className={SMALL}>
+              Intertrain
+              {intertrain.address && wsk.data !== undefined ? ` · ${formatWsk(wsk.data)} WSK` : ""}
+            </div>
+            <div
+              className="truncate font-mono text-[13px] text-white"
+              title={intertrain.address ?? undefined}
+            >
+              {intertrain.address ?? "Working it out…"}
+            </div>
+          </div>
+          {intertrain.address ? <CopyButton value={intertrain.address} /> : null}
+        </li>
       </ul>
 
       <p className={SMALL}>
