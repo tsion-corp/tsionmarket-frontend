@@ -75,6 +75,8 @@ export interface AppModals {
    * uses openDeposit instead.
    */
   openFunds: () => void;
+  /** The Add funds sheet opened on the ways to add Kash. */
+  openKashFunds: () => void;
   /** Funding with the chain and token already chosen, for a spoken deposit. */
   openDeposit: (deposit: DepositPrefill) => void;
   openWithdraw: () => void;
@@ -133,6 +135,9 @@ export function useAppModals(): AppModals {
     ),
     openFunds: useCallback(() => {
       if (requireSession("fund")) setModal({ type: "funds" });
+    }, [requireSession]),
+    openKashFunds: useCallback(() => {
+      if (requireSession("fund")) setModal({ type: "funds", startAt: "kash" });
     }, [requireSession]),
     openDeposit: useCallback(
       (deposit: DepositPrefill) => {
@@ -214,7 +219,9 @@ export function AppModalHost({ active, onClose, onConfirmed, onOpenFunds }: AppM
           }}
         />
       ) : null}
-      {active?.type === "funds" ? <FundsModal onClose={onClose} deposit={active.deposit} /> : null}
+      {active?.type === "funds" ? (
+        <FundsModal onClose={onClose} deposit={active.deposit} startAt={active.startAt} />
+      ) : null}
       {active?.type === "withdraw" ? <WithdrawModal onClose={onClose} /> : null}
       {active?.type === "account" ? <AccountModal onClose={onClose} /> : null}
       {active?.type === "done" ? (

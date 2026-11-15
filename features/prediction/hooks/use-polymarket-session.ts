@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { friendlyError } from "@/lib/errors";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { deployDepositWallet, isWalletDeployed } from "@polymarket/client/actions";
 import type { EIP1193Provider } from "viem";
 import { useAuthSession } from "@/hooks/use-auth-session";
@@ -22,7 +22,7 @@ let building: Promise<SecureClient> | null = null;
 // relayer) and sets trading approvals, then caches the ready client process-wide.
 export function usePolymarketSession() {
   const { evmAddress } = useAuthSession();
-  const wallet = useSocialWallet();
+  const wallet = useWalletSigner();
   const [status, setStatus] = useState<SessionStatus>("idle");
   const [error, setError] = useState<string | null>(null);
 

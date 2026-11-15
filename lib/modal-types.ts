@@ -99,7 +99,7 @@ export type DashboardModal =
   | { type: "rwaTrade"; rwaTrade: RwaTradePayload }
   | { type: "memeSell"; memeSell: MemeToken }
   | { type: "memeBuy"; memeBuy: MemeToken }
-  | { type: "funds"; deposit?: DepositPrefill }
+  | { type: "funds"; deposit?: DepositPrefill; startAt?: "kash" }
   | { type: "withdraw" }
   | { type: "crossBorder" }
   | { type: "account" }

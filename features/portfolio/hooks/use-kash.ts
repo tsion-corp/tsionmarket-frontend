@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { queryKeys } from "@/lib/query-keys";
 import { PERSISTED_GC_TIME } from "@/lib/query-persist";
@@ -207,7 +207,7 @@ export function useKashSubscribe() {
  */
 export function useKashClaim() {
   const invalidate = useInvalidateKash();
-  const { signMessage } = useSocialWallet();
+  const { signMessage } = useWalletSigner();
   return useMutation({
     mutationFn: async ({ wallet }: { wallet: string }) => {
       const timestamp = Date.now();

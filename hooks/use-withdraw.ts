@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 import { useAuthSession } from "@/hooks/use-auth-session";
 import { useCreateQuote, type DextopusPurpose } from "@/hooks/use-deposit";
 import { useEvmSend } from "@/hooks/use-evm-send";
+import type { WalletSigner } from "@/lib/signer/types";
 import { buildSolanaSolTransfer, buildSolanaTokenTransfer } from "@/lib/trade/solana-transfer";
 import {
   BASE_CHAIN_ID,
@@ -121,10 +122,18 @@ export interface SendTokenParams {
 
 // Sends any held token to an external address on its own chain: native or ERC-20
 // on EVM, native SOL or SPL on Solana. Self-custody — the embedded wallet signs.
-export function useSendToken() {
-  const { evmAddress, solanaAddress } = useAuthSession();
-  const evmSend = useEvmSend();
-  const sendSponsored = useSponsoredSolanaSend();
+export function useSendToken(options?: {
+  /** Send from this wallet and these addresses instead of the one the app is using. */
+  wallet?: WalletSigner;
+  addresses?: { evm: string | null; solana: string | null };
+}) {
+  const session = useAuthSession();
+  const evmAddress = options?.addresses ? options.addresses.evm : session.evmAddress;
+  const solanaAddress = options?.addresses ? options.addresses.solana : session.solanaAddress;
+  const evmSend = useEvmSend(options?.wallet ? { wallet: options.wallet } : undefined);
+  const sendSponsored = useSponsoredSolanaSend(
+    options?.wallet ? { wallet: options.wallet } : undefined
+  );
   const [sending, setSending] = useState(false);
 
   const sendToken = useCallback(

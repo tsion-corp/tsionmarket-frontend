@@ -1,5 +1,6 @@
 "use client";
 
+import NetworkEthereum from "@web3icons/react/icons/networks/NetworkEthereum";
 import NetworkBase from "@web3icons/react/icons/networks/NetworkBase";
 import NetworkSolana from "@web3icons/react/icons/networks/NetworkSolana";
 import NetworkArbitrumOne from "@web3icons/react/icons/networks/NetworkArbitrumOne";
@@ -9,6 +10,8 @@ import type { IconComponent } from "@web3icons/react";
 import { CoinBadge } from "@/components/ui/coin-badge";
 
 const NETWORK_ICONS: Record<string, IconComponent> = {
+  "eth-mainnet": NetworkEthereum,
+  Ethereum: NetworkEthereum,
   "base-mainnet": NetworkBase,
   Base: NetworkBase,
   "solana-mainnet": NetworkSolana,
@@ -28,6 +31,10 @@ interface NetworkIconProps {
 }
 
 export function NetworkIcon({ network, size = 36 }: NetworkIconProps) {
+  // Intertrain has no icon in the set: its own mark is the WSK lettering.
+  if (network === "intertrain-mainnet" || network === "Intertrain") {
+    return <CoinBadge sym="WSK" bg="#0f2a20" size={size} />;
+  }
   const Icon = NETWORK_ICONS[network];
   if (!Icon) return <CoinBadge sym={network.slice(0, 2).toUpperCase()} bg="#26262b" size={size} />;
   const round = size > 24 ? 11 : 999;

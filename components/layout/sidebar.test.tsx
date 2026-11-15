@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import type { User } from "@privy-io/react-auth";
 import { Sidebar } from "./sidebar";
 import { buildNav, type NavItem } from "./nav-items";
 import type { DashboardSection } from "@/lib/modal-types";
+
+const hasNewWallet = vi.hoisted(() => ({ value: false }));
+vi.mock("@/hooks/use-has-custom-wallet", () => ({
+  useHasCustomWallet: () => hasNewWallet.value,
+}));
 
 // The rail's own markup is what is under test, so its neighbours are stubbed:
 // labels come from a provider, the profile from Privy, and next/link from a
@@ -62,6 +67,7 @@ vi.mock("@/features/bns/components/ark-id-card", () => ({ ArkIdCard: () => null 
 vi.mock("@/features/bns/components/ark-id-modal", () => ({ ArkIdModal: () => null }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => "/portfolio",
 }));
 vi.mock("next/link", () => ({
   default: ({
@@ -109,6 +115,19 @@ function renderSidebar() {
 describe("Sidebar", () => {
   beforeEach(() => {
     privyUser = null;
+    hasNewWallet.value = false;
+  });
+
+  it("offers the Legacy Wallet only once the account has a new wallet", () => {
+    renderSidebar();
+    expect(screen.queryByRole("link", { name: /legacy wallet/i })).toBeNull();
+    hasNewWallet.value = true;
+    cleanup();
+    renderSidebar();
+    expect(screen.getByRole("link", { name: /legacy wallet/i })).toHaveAttribute(
+      "href",
+      "/legacy-wallet"
+    );
   });
 
   // The Ark ID is the identity people hand out, so the footer names the

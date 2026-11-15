@@ -33,6 +33,12 @@ vi.mock("@/features/portfolio/lib/kash-buy", () => ({
 
 import { KashCard } from "@/features/portfolio/components/kash-card";
 
+// The Intertrain side of the card has its own tests; here the card runs on the legacy engine.
+vi.mock("@/features/portfolio/hooks/use-intertrain-kash", () => ({
+  useIntertrainKash: () => ({ active: false, balance: null, loading: false, unavailable: false }),
+}));
+vi.mock("@/features/portfolio/components/wsk-address-pill", () => ({ WskAddressPill: () => null }));
+
 const onSend = vi.fn();
 
 function wrapper({ children }: { children: ReactNode }) {

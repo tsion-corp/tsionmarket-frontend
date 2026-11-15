@@ -6,9 +6,12 @@ import { useTranslations } from "next-intl";
 import { MarketLogo } from "@/components/ui/market-logo";
 import { AccountAvatar } from "@/components/ui/account-avatar";
 import type { NavItem } from "@/components/layout/nav-items";
+import { ClockIcon } from "@/components/ui/icons";
 import type { DashboardSection } from "@/lib/modal-types";
 import { truncateAddress } from "@/lib/format";
 import { useAuthSession } from "@/hooks/use-auth-session";
+import { useHasCustomWallet } from "@/hooks/use-has-custom-wallet";
+import { usePathname } from "next/navigation";
 import { useSignedIn } from "@/hooks/use-signed-in";
 import { SignInButton } from "@/components/auth/sign-in-button";
 import { useDisplayName } from "@/hooks/use-display-name";
@@ -29,7 +32,7 @@ interface SidebarProps {
 // choice, on the backdrop, on Escape, or on its own close button. One
 // component for both, so the nav can never differ between the two.
 export function Sidebar({ items, activeSection, onNavigate, open, onClose }: SidebarProps) {
-  const { profile, evmAddress: address } = useAuthSession();
+  const { profile, evmAddress: address, userId: userIdForLegacy } = useAuthSession();
   const signedIn = useSignedIn();
   const displayName = useDisplayName();
   const t = useTranslations("topbar");
@@ -52,6 +55,10 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
+
+  // Shown once the account has a new wallet: the old one, to move what is left in it across.
+  const hasNewWallet = useHasCustomWallet(userIdForLegacy);
+  const pathname = usePathname();
 
   const choose = (id: DashboardSection) => {
     onNavigate(id);
@@ -126,6 +133,22 @@ export function Sidebar({ items, activeSection, onNavigate, open, onClose }: Sid
             lands back on the rail, which does not scroll. */}
         <nav className="flex min-h-0 flex-col gap-[3px] overflow-x-hidden overflow-y-auto">
           {items.map(renderItem)}
+          {hasNewWallet ? (
+            <Link
+              href="/legacy-wallet"
+              onClick={onClose}
+              className={`mt-2 flex w-full items-center gap-3 rounded-xl border-t border-white/8 px-3 py-[11px] pt-[13px] font-sans text-[14.5px] font-medium transition-colors ${
+                pathname?.startsWith("/legacy-wallet")
+                  ? "bg-accent/14 text-white"
+                  : "text-white/60 hover:bg-white/6 hover:text-white"
+              }`}
+            >
+              <span className="grid h-5 w-5 place-items-center">
+                <ClockIcon size={20} />
+              </span>
+              <span className="flex-1">Legacy Wallet</span>
+            </Link>
+          ) : null}
         </nav>
 
         <div className="relative mt-auto shrink-0">

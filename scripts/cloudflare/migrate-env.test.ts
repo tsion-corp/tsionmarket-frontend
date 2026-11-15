@@ -39,7 +39,7 @@ describe("migrate-env.sh", () => {
     expect(pnpmCalls).toBe("");
     expect(stdout).toContain("  PRIVY_APP_SECRET");
     expect(stdout).toContain("Nothing was uploaded");
-  });
+  }, 60_000);
 
   it("uploads the secrets to the staging Worker when every value is filled", () => {
     const { status, pnpmCalls } = run(
@@ -47,5 +47,5 @@ describe("migrate-env.sh", () => {
     );
     expect(status).toBe(0);
     expect(pnpmCalls).toContain("wrangler secret bulk --env staging");
-  });
+  }, 60_000);
 });

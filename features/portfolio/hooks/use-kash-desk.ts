@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { ensureUnlocked } from "@/lib/decane";
 import type { EIP1193Provider } from "viem";
 import { useEvmSend } from "@/hooks/use-evm-send";
@@ -122,7 +122,7 @@ export function useKashDeskSellQuote(kashAmount: string, enabled: boolean) {
  * client cannot get the permit-domain subtleties wrong; it only signs.
  */
 function useTypedDataSigner() {
-  const wallet = useSocialWallet();
+  const wallet = useWalletSigner();
   return useCallback(
     async (owner: string, typedData: Parameters<typeof withDomainType>[0]): Promise<string> => {
       const evm = wallet.addresses?.evm;

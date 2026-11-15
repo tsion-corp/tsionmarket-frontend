@@ -31,7 +31,10 @@ import { KashBuyModal } from "@/features/portfolio/components/kash-buy-modal";
 import { KashConvertModal } from "@/features/portfolio/components/kash-convert-modal";
 import { KashHistoryModal } from "@/features/portfolio/components/kash-history-modal";
 import { KashUpgradeModal } from "@/features/portfolio/components/kash-upgrade-modal";
+import { useAppModals } from "@/components/layout/modals/app-modals";
 import { KashSendModal } from "@/features/portfolio/components/kash-send-modal";
+import { KashSendIntertrainModal } from "@/features/portfolio/components/kash-send-intertrain-modal";
+import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
 import { useKashAccount, useKashClaim } from "@/features/portfolio/hooks/use-kash";
 import { Switch } from "@/components/ui/switch";
 import { SkeletonLine } from "@/components/ui/skeleton-line";
@@ -124,6 +127,10 @@ export function PortfolioView({
   const { wallet: kashWallet } = useKashAccount();
   const claimPoints = useKashClaim();
   const [kashModal, showKashModal] = useState<KashModal | null>(null);
+  const intertrainKash = useIntertrainKash();
+  const appModals = useAppModals();
+  // Kash is on Intertrain for anyone with the new wallet: Buy lists the ways to add it.
+  const buyKash = () => (intertrainKash.active ? appModals.openKashFunds() : setKashModal("buy"));
   const requireSession = useRequireSession();
   const setKashModal = (modal: KashModal | null) => {
     if (modal === null || requireSession(KASH_GATE[modal])) showKashModal(modal);
@@ -352,7 +359,11 @@ export function PortfolioView({
       <KashConvertModal open={kashModal === "convert"} onClose={() => setKashModal(null)} />
       <KashHistoryModal open={kashModal === "history"} onClose={() => setKashModal(null)} />
       <KashUpgradeModal open={kashModal === "upgrade"} onClose={() => setKashModal(null)} />
-      <KashSendModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
+      {intertrainKash.active ? (
+        <KashSendIntertrainModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
+      ) : (
+        <KashSendModal open={kashModal === "send"} onClose={() => setKashModal(null)} />
+      )}
 
       {/* Phone head: the two starfield cards, then the promo strip. The
           carousel gives the h-full cards their height.
@@ -383,7 +394,7 @@ export function PortfolioView({
                 maskForMigration={maskForMigration}
               />
               <KashCardMobile
-                onBuy={() => setKashModal("buy")}
+                onBuy={buyKash}
                 onSend={() => setKashModal("send")}
                 onConvert={() => setKashModal("convert")}
                 onHistory={() => setKashModal("history")}
@@ -409,7 +420,7 @@ export function PortfolioView({
             </Link>
             {/* The same banner the desk shows, not a flat export of it: its
                 words are real text in the app's own faces, and they translate. */}
-            <KashBanner onBuy={() => setKashModal("buy")} />
+            <KashBanner onBuy={buyKash} />
           </PromoCarousel>
         </div>
       </div>
@@ -425,7 +436,7 @@ export function PortfolioView({
           maskForMigration={maskForMigration}
         />
         <KashCard
-          onBuy={() => setKashModal("buy")}
+          onBuy={buyKash}
           onSend={() => setKashModal("send")}
           onClaim={kashWallet ? () => claimPoints.mutate({ wallet: kashWallet }) : undefined}
           claiming={claimPoints.isPending}
@@ -443,7 +454,7 @@ export function PortfolioView({
           {arkStoreBanner}
           {arkIdBanner}
           {stakeBanner}
-          <KashBanner onBuy={() => setKashModal("buy")} />
+          <KashBanner onBuy={buyKash} />
           {stakeBanner}
         </PromoRail>
       </div>

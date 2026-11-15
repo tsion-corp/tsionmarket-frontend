@@ -8,6 +8,8 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { SyncingValue } from "@/components/ui/syncing-value";
 import { reverseResolveArkAddress } from "@/lib/bns/api";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
+import { useIntertrainKash } from "@/features/portfolio/hooks/use-intertrain-kash";
+import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
   useKashAccount,
@@ -34,6 +36,16 @@ function ButtonIcon({ src, flip }: { src: string; flip?: "vertical" | "both" }) 
     </span>
   );
 }
+
+// Where Kash history lives: the account's page on the Intertrain explorer.
+const openExplorer = (address: string | null) => {
+  if (address)
+    window.open(
+      `https://explorer.intertrain.online/address/${address}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+};
 
 interface KashCardProps {
   onBuy: () => void;
@@ -92,10 +104,14 @@ export function KashCard({
   // An unknown balance must never render as zero: someone who holds KASH would
   // read that as their money gone, and once the "0" fallback is applied the two
   // states are indistinguishable. Say which one this is instead.
-  const unavailable = !account && !signedOut && (isError || walletMissing);
-  const loading = !account && !signedOut && !unavailable;
+  const ik = useIntertrainKash();
+  const unavailable = ik.active
+    ? ik.unavailable
+    : !account && !signedOut && (isError || walletMissing);
+  const loading = ik.active ? ik.loading : !account && !signedOut && !unavailable;
 
-  const balance = account?.balance ?? "0";
+  // With the new wallet, Kash is native WSK: one for one, so the balance is its own dollar value.
+  const balance = ik.active ? (ik.balance ?? "0") : (account?.balance ?? "0");
 
   const balanceDisplay = formatKashAmount(balance);
   // Step the type down as the number grows so a six-figure balance stays on one
@@ -110,13 +126,13 @@ export function KashCard({
       : balanceDisplay.length > 9
         ? "text-[clamp(22px,2.35vw,44px)]"
         : "text-[clamp(28px,3.15vw,60px)]";
-  const balanceUsd = account?.balanceUsd ?? "0";
-  const gateMet = account?.gate.met ?? false;
+  const balanceUsd = ik.active ? balance : (account?.balanceUsd ?? "0");
+  const gateMet = ik.active ? true : (account?.gate.met ?? false);
   const shortfall = account?.gate.shortfall ?? "0";
   const progress = account ? gateProgress(account) : 0;
 
   // Claimable, not cumulative — see KashAccount.week.
-  const unclaimed = account?.week.unclaimed ?? "0";
+  const unclaimed = ik.active ? "0" : (account?.week.unclaimed ?? "0");
   // What the claim actually pays out. Falls back to the points figure only if
   // the price is unavailable — never renders an empty or NaN amount.
   const hasClaimable = Number(unclaimed) > 0;
@@ -201,7 +217,7 @@ export function KashCard({
               </span>
             ) : (
               <button
-                onClick={onHistory}
+                onClick={ik.active ? () => openExplorer(ik.address) : onHistory}
                 className="ws-pressable cursor-pointer rounded-full px-[10px] py-[5px] font-sans text-[19px] leading-[1.3] font-normal whitespace-nowrap text-black"
               >
                 {t("history")}
@@ -247,20 +263,22 @@ export function KashCard({
               className={`tnum flex max-w-full flex-wrap items-baseline justify-center gap-x-2 gap-y-1 px-2 py-[16.63px] font-serif leading-[1.1] font-bold tracking-[-0.05em] ${balanceTextSize}`}
             >
               <SyncingValue syncing={syncing}>{balanceDisplay}</SyncingValue>
-              <span className="whitespace-nowrap">KASH +</span>
-              <span className="ml-2 text-[0.38em] font-normal">ESP</span>
+              <span className="whitespace-nowrap">{ik.active ? "KASH" : "KASH +"}</span>
+              {ik.active ? null : <span className="ml-2 text-[0.38em] font-normal">ESP</span>}
             </div>
             <div className="flex max-w-full flex-wrap items-center justify-center gap-[6.05px] px-2 font-serif text-[16px] leading-[21.93px] font-medium tracking-[-0.08px] text-black/80">
               {/* The unit price, so the holding above is checkable rather than a
                   number the user has to trust. */}
-              {engineStatus ? (
+              {ik.active || engineStatus ? (
                 <>
                   <span className="tnum">1 KASH</span>
                   <span className="block size-[24.19px] shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src="/market/kash-icon-approx-equals.svg" alt="≈" className="size-full" />
                   </span>
-                  <span className="tnum">${engineStatus.price.kashPriceUsd}</span>
+                  <span className="tnum">
+                    ${ik.active ? "1" : engineStatus?.price.kashPriceUsd}
+                  </span>
                 </>
               ) : null}
             </div>
@@ -285,6 +303,9 @@ export function KashCard({
             ) : null}
           </>
         )}
+        {/* The new wallet's Intertrain address, where this card's Kash is received. Outside the
+            balance states: it shows whether the balance is loading, failed or locked. */}
+        {!signedOut || ik.active ? <WskAddressPill className="mt-2.5" /> : null}
       </div>
 
       {/* The design runs the card's actions the full width, so they share the
@@ -298,7 +319,7 @@ export function KashCard({
           the row wraps instead of squeezing them. min-h rather than h so a
           wrapped row still cannot clip a label. */}
       <div className="mt-[24px] flex flex-wrap gap-[10.23px] sm:ml-[2.18px]">
-        {KASH_BUY_ENABLED ? (
+        {KASH_BUY_ENABLED || ik.active ? (
           <button
             onClick={onBuy}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-[#FFD52D] bg-white px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
@@ -313,7 +334,7 @@ export function KashCard({
             with a balance, in the order you would do them. Ink on the card's
             own gold rather than a third fill, so Buy stays the one bright
             pill and the row does not read as three equal shouts. */}
-        {KASH_SEND_ENABLED ? (
+        {KASH_SEND_ENABLED || ik.active ? (
           <button
             onClick={onSend}
             className="ws-pressable flex min-h-[52.41px] flex-1 basis-[121.73px] cursor-pointer items-center justify-center gap-[6px] rounded-full border-[1.92px] border-black/25 bg-black/[0.07] px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-black"
@@ -324,13 +345,15 @@ export function KashCard({
             {t("send")}
           </button>
         ) : null}
-        <button
-          onClick={onConvert}
-          className="ws-pressable flex min-h-[52.41px] flex-1 basis-[147.09px] cursor-pointer items-center justify-center gap-[10.23px] rounded-full border-[1.28px] border-white/14 bg-black px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-white"
-        >
-          <ButtonIcon src="/market/kash-icon-convert.svg" />
-          {t("convert")}
-        </button>
+        {ik.active ? null : (
+          <button
+            onClick={onConvert}
+            className="ws-pressable flex min-h-[52.41px] flex-1 basis-[147.09px] cursor-pointer items-center justify-center gap-[10.23px] rounded-full border-[1.28px] border-white/14 bg-black px-[22px] py-[13px] font-serif text-[16px] leading-[24.92px] font-medium whitespace-nowrap text-white"
+          >
+            <ButtonIcon src="/market/kash-icon-convert.svg" />
+            {t("convert")}
+          </button>
+        )}
       </div>
 
       {/* Points section — parked until revenue events feed the engine: a
@@ -411,7 +434,7 @@ export function KashCard({
                 history rather than stacked onto the live number. */}
               {claimedKash !== null && (
                 <button
-                  onClick={onHistory}
+                  onClick={ik.active ? () => openExplorer(ik.address) : onHistory}
                   className="ws-pressable mt-3 flex w-full cursor-pointer items-center justify-between gap-3 border-t border-black/10 pt-3 text-[12px] leading-[1.4]"
                 >
                   <span className="font-normal text-black/50">{t("claimedSoFar")}</span>

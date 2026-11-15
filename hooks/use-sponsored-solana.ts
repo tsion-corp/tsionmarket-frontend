@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback } from "react";
-import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
 import { ensureUnlocked } from "@/lib/decane";
+import type { WalletSigner } from "@/lib/signer/types";
 import {
   prepareSponsoredSolanaTransaction,
   sponsorAndSubmitSolanaTransaction,
@@ -20,8 +21,9 @@ export interface SponsoredSolanaSendInput {
 // signs the prepared transaction with the embedded wallet, and the sponsor
 // adds its signature and submits. Resolves to the on-chain signature; callers
 // confirm it with confirmSolanaSignature as before.
-export function useSponsoredSolanaSend() {
-  const wallet = useSocialWallet();
+export function useSponsoredSolanaSend(options?: { wallet?: WalletSigner }) {
+  const active = useWalletSigner();
+  const wallet = options?.wallet ?? active;
 
   return useCallback(
     async ({ transaction, prefundRent }: SponsoredSolanaSendInput): Promise<string> => {
