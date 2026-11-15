@@ -15,3 +15,4 @@ export * from "./root";
 export * from "./unlock-state";
 export * from "./wallet";
 export * from "./intertrain";
+export * from "./device-unlock";

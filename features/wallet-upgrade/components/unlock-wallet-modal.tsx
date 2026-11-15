@@ -9,6 +9,8 @@ import { walletApi } from "../lib/wallet-api";
 import { recoverOnThisDevice, unlockWallet, type Deps } from "../lib/wallet-flow";
 import { walletErrorMessage } from "../lib/wallet-errors";
 import { useWalletState, walletStateKey } from "./wallet-panel";
+import { PinUnlockForm } from "./pin-unlock-form";
+import { useDevicePin } from "../hooks/use-device-pin";
 import { BODY, FIELD, LINK, NOTICE, PRIMARY, SUBTITLE } from "./ui";
 
 const deps: Deps = { api: walletApi, devices: indexedDbDeviceStore() };
@@ -39,6 +41,10 @@ function UnlockBody({ uid, onDone }: { uid: string; onDone: () => void }) {
   const [passphrase, setPassphrase] = useState("");
   const [recovering, setRecovering] = useState(false);
   const [secret, setSecret] = useState("");
+  const walletId = state.data && state.data.kind !== "none" ? state.data.wallet.walletId : null;
+  const devicePin = useDevicePin(uid, walletId);
+  const [passphraseOnly, setPassphraseOnly] = useState(false);
+  const pinMode = devicePin.enabled && !passphraseOnly && !recovering;
 
   const finish = () => {
     setPassphrase("");
@@ -68,7 +74,17 @@ function UnlockBody({ uid, onDone }: { uid: string; onDone: () => void }) {
         </h2>
       </div>
 
-      {recovering ? (
+      {pinMode ? (
+        <PinUnlockForm
+          uid={uid}
+          deps={deps}
+          onUnlocked={finish}
+          onUsePassphrase={() => {
+            setPassphraseOnly(true);
+            void devicePin.refresh();
+          }}
+        />
+      ) : recovering ? (
         <>
           <p className={BODY}>
             Enter the 14 groups of four characters you saved when you made this wallet. This opens

@@ -29,6 +29,9 @@ import {
   walletSwitchEnabled,
 } from "@/lib/signer/preference";
 import { RestoreWallet } from "./restore-wallet";
+import { PinSetup } from "./pin-setup";
+import { PinUnlockForm } from "./pin-unlock-form";
+import { useDevicePin } from "../hooks/use-device-pin";
 import { BODY, FIELD, LINK, NOTICE, PANEL, PRIMARY, SECONDARY, SMALL, TITLE, WELL } from "./ui";
 
 const deps: Deps = { api: walletApi, devices: indexedDbDeviceStore() };
@@ -120,6 +123,8 @@ function Locked({
   const [passphrase, setPassphrase] = useState("");
   const [recovering, setRecovering] = useState(false);
   const [secret, setSecret] = useState("");
+  const devicePin = useDevicePin(uid, state.wallet.walletId);
+  const [passphraseOnly, setPassphraseOnly] = useState(false);
 
   const unlock = useMutation({
     mutationFn: () => unlockWallet(deps, uid, passphrase),
@@ -184,39 +189,54 @@ function Locked({
         </span>
       }
     >
-      {!state.deviceEnrolled ? (
-        <p className={NOTICE.warn}>
-          This browser isn&apos;t registered with your wallet yet. You can still unlock it with your
-          passphrase; use your recovery secret to register this browser.
-        </p>
-      ) : (
-        <p className={BODY}>Enter your passphrase to open your wallet on this device.</p>
-      )}
-      <form
-        className="flex flex-col gap-3"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (passphrase) unlock.mutate();
-        }}
-      >
-        <input
-          type="password"
-          autoComplete="current-password"
-          aria-label="Passphrase"
-          placeholder="Passphrase"
-          className={FIELD}
-          value={passphrase}
-          onChange={(e) => setPassphrase(e.target.value)}
+      {devicePin.enabled && !passphraseOnly ? (
+        <PinUnlockForm
+          uid={uid}
+          deps={deps}
+          onUnlocked={onChange}
+          onUsePassphrase={() => {
+            setPassphraseOnly(true);
+            void devicePin.refresh();
+          }}
         />
-        <button type="submit" className={PRIMARY} disabled={!passphrase || unlock.isPending}>
-          {unlock.isPending ? "Unlocking…" : "Unlock"}
-        </button>
-      </form>
-      {unlock.error ? (
-        <p role="alert" className={NOTICE.error}>
-          {walletErrorMessage(unlock.error)}
-        </p>
       ) : null}
+      {devicePin.enabled && !passphraseOnly ? null : (
+        <>
+          {!state.deviceEnrolled ? (
+            <p className={NOTICE.warn}>
+              This browser isn&apos;t registered with your wallet yet. You can still unlock it with
+              your passphrase; use your recovery secret to register this browser.
+            </p>
+          ) : (
+            <p className={BODY}>Enter your passphrase to open your wallet on this device.</p>
+          )}
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (passphrase) unlock.mutate();
+            }}
+          >
+            <input
+              type="password"
+              autoComplete="current-password"
+              aria-label="Passphrase"
+              placeholder="Passphrase"
+              className={FIELD}
+              value={passphrase}
+              onChange={(e) => setPassphrase(e.target.value)}
+            />
+            <button type="submit" className={PRIMARY} disabled={!passphrase || unlock.isPending}>
+              {unlock.isPending ? "Unlocking…" : "Unlock"}
+            </button>
+          </form>
+          {unlock.error ? (
+            <p role="alert" className={NOTICE.error}>
+              {walletErrorMessage(unlock.error)}
+            </p>
+          ) : null}
+        </>
+      )}
       <button type="button" className={LINK} onClick={() => setRecovering(true)}>
         Forgot your passphrase, or on a new device?
       </button>
@@ -378,6 +398,8 @@ function Unlocked({
       </div>
 
       <UseInApp uid={uid} />
+
+      <PinSetup uid={uid} walletId={state.wallet.walletId} />
 
       <button
         type="button"

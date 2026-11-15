@@ -26,7 +26,16 @@ import {
   type WalletPackage,
 } from "@/lib/wallet-core";
 import { setCustomWalletSession } from "@/lib/signer/session";
-import type { DeviceStore } from "@/lib/wallet-device/store";
+import { indexedDbUnlockStore, type DeviceStore } from "@/lib/wallet-device/store";
+import {
+  PinUnlockError,
+  enableDeviceUnlock,
+  hasDeviceUnlock,
+  removeDeviceUnlock,
+  unlockWithDevicePin,
+} from "@/lib/wallet-core/device-unlock";
+import { openRoot } from "@/lib/wallet-core/root";
+import { getUnlockedKey } from "@/lib/wallet-core/unlock-state";
 import type { ServerWallet, WalletApi } from "./wallet-api";
 
 /**
@@ -257,3 +266,52 @@ export function addressesOf(wallet: ServerWallet): Array<{ family: ChainFamily; 
     address: account.canonicalAddress,
   }));
 }
+
+// ── unlocking with a PIN on this device ──────────────────────────────
+
+/** Whether this device has a PIN for the wallet. */
+export function devicePinEnabled(uid: string, walletId: string): Promise<boolean> {
+  return hasDeviceUnlock(indexedDbUnlockStore(), uid, walletId);
+}
+
+/**
+ * Set a PIN for this device. The wallet is unlocked right now (the person just used their
+ * passphrase), which is how the key is at hand to seal behind the PIN.
+ */
+export async function setDevicePin(uid: string, walletId: string, pin: string): Promise<void> {
+  const dek = getUnlockedKey(uid, walletId);
+  if (!dek) throw Object.assign(new Error("Unlock your wallet first."), { code: "WALLET_LOCKED" });
+  await enableDeviceUnlock({ store: indexedDbUnlockStore(), uid, walletId, dek, pin });
+}
+
+export function removeDevicePin(uid: string): Promise<void> {
+  return removeDeviceUnlock(indexedDbUnlockStore(), uid);
+}
+
+/**
+ * Unlock with the PIN. The key it gives back is checked against the wallet's own sealed root
+ * before it is used, so a stale PIN (after the wallet's key changed) can never open anything.
+ */
+export async function unlockWithPin(deps: Deps, uid: string, pin: string): Promise<void> {
+  const wallet = await fetchWallet(deps);
+  const pkg = checked(wallet);
+  const dek = await unlockWithDevicePin({
+    store: indexedDbUnlockStore(),
+    uid,
+    walletId: pkg.walletId,
+    pin,
+  });
+  try {
+    const root = await openRoot(dek, pkg.walletId, pkg.encryptedRoot);
+    wipeBytes(root);
+  } catch {
+    await removeDeviceUnlock(indexedDbUnlockStore(), uid);
+    wipeBytes(dek);
+    throw new PinUnlockError("none");
+  }
+  setUnlocked(uid, pkg.walletId, dek);
+  remember(uid, wallet);
+  wipeBytes(dek);
+}
+
+export { PinUnlockError };
