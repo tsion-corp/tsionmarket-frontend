@@ -11,6 +11,8 @@ import { SearchIcon } from "@/components/ui/icons";
 import { useModalScreen } from "@/components/ui/modal-shell";
 import { filterChains, filterTokens } from "@/features/funds/lib/search";
 import { useDepositChains, useDepositTokens, useStaticDepositAddress } from "@/hooks/use-deposit";
+import { useDepositArrival } from "@/features/funds/hooks/use-deposit-arrival";
+import { CheckIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 
 import { isRefundOptional, originFamily, refundChainType } from "@/lib/deposit-catalog";
@@ -27,15 +29,21 @@ interface CryptoDepositScreenProps {
   onBack: () => void;
   // Optional voice prefill: pre-select this chain (and token, when it matches).
   initialDeposit?: DepositPrefill;
+  // The chain the deposit settles USDC on. Base unless a flow needs another.
+  settleKey?: "base" | "arbitrum";
 }
 
-// Deposits always settle to USDC on Base, so every user gets one deposit
+// Deposits settle to USDC on Base unless a flow asks for another chain (Add WSK wants
+// Arbitrum), so every user gets one deposit
 // address per origin token regardless of which chain they send from.
-const settle = SETTLE_CHAINS.base;
 const POPULAR = ["ethereum", "base", "polygon", "arbitrum", "optimism", "avalanche"];
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScreenProps) {
+export function CryptoDepositScreen({
+  onBack,
+  initialDeposit,
+  settleKey = "base",
+}: CryptoDepositScreenProps) {
   const [originChain, setOriginChain] = useState<DepositChain | null>(null);
   const [originToken, setOriginToken] = useState<DepositToken | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,7 +142,14 @@ export function CryptoDepositScreen({ onBack, initialDeposit }: CryptoDepositScr
 
   // Step 3: Address view (separate component — mounts wallet hooks)
   if (originToken && originChain) {
-    return <DepositAddressView chain={originChain} token={originToken} onBack={resetToken} />;
+    return (
+      <DepositAddressView
+        chain={originChain}
+        token={originToken}
+        onBack={resetToken}
+        settle={SETTLE_CHAINS[settleKey]}
+      />
+    );
   }
 
   // Steps 1 & 2: Network picker → Token picker, same modal, content swaps
@@ -294,7 +309,7 @@ const HOW_TO_STEPS: { title: string; body: string }[] = [
   },
   {
     title: "Copy the address we show you",
-    body: "The address is where your money goes. Tap Copy Address, or scan the square code with the app you are sending from. The address is yours and you can use it again any time.",
+    body: "The address is where your money goes. Tap Copy Address, or scan the square code with the app you are sending from.",
   },
   {
     title: "Send from the other app",
@@ -359,10 +374,12 @@ function DepositAddressView({
   chain,
   token,
   onBack,
+  settle,
 }: {
   chain: DepositChain;
   token: DepositToken;
   onBack: () => void;
+  settle: (typeof SETTLE_CHAINS)[keyof typeof SETTLE_CHAINS];
 }) {
   const t = useTranslations("fundsFlow");
   const { ready, authenticated, evmAddress, solanaAddress, profile } = useAuthSession();
@@ -390,6 +407,12 @@ function DepositAddressView({
       : null;
 
   const staticAddr = useStaticDepositAddress(req);
+  // Watches the USDC the deposit settles into, while this screen shows the address.
+  const arrival = useDepositArrival({
+    network: settle.alchemyNetwork,
+    asset: settle.usdc,
+    enabled: staticAddr.data !== undefined,
+  });
 
   // The address, the code and the warnings are the whole screen: it takes the
   // phone and fits inside it, so nobody has to scroll to reach the address.
@@ -517,10 +540,27 @@ function DepositAddressView({
         </p>
       </div>
 
-      {/* Waiting */}
-      <div className="mt-3 flex shrink-0 items-center justify-center gap-2 text-[13px] font-normal text-white/50">
-        <span className="bg-accent size-1.5 animate-pulse rounded-full" />
-        Waiting for your deposit…
+      {/* Arrival: waiting, received, or stopped watching */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="mt-3 flex shrink-0 items-center justify-center gap-2 text-[13px] font-normal text-white/50"
+      >
+        {arrival.state === "received" ? (
+          <span className="flex items-center gap-2 font-medium text-[#5dd9a3]">
+            <CheckIcon size={14} />
+            Deposit received: {formatArrival(arrival.raw, arrival.decimals)} USDC
+          </span>
+        ) : arrival.state === "stopped" ? (
+          <span>
+            Still nothing yet. It can take a while; it will show in your balance when it lands.
+          </span>
+        ) : (
+          <>
+            <span className="bg-accent size-1.5 animate-pulse rounded-full" />
+            Waiting for your deposit…
+          </>
+        )}
       </div>
 
       {/* Bottom buttons */}
@@ -537,4 +577,11 @@ function DepositAddressView({
       </div>
     </div>
   );
+}
+
+// 2827234n with 6 decimals -> "2.83": a deposit is shown to the cent, never rounded up.
+function formatArrival(raw: bigint, decimals: number): string {
+  const unit = 10n ** BigInt(decimals);
+  const cents = (raw * 100n) / unit;
+  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
 }

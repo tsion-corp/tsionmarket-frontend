@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { useSocialAuth, useSocialWallet } from "decane-connect-kit";
+import { useCustomWallet } from "@/hooks/use-custom-wallet";
 import { decodeDecaneUserId } from "@/lib/decane-user-id";
 import { rememberDisplayProfile, useDisplayProfile } from "@/lib/display-profile";
 import type { Profile } from "@/lib/user";
@@ -79,14 +80,23 @@ export function useAuthSession(): AuthSession {
     if (kitProfile) rememberDisplayProfile(kitProfile);
   }, [kitProfile]);
 
-  const evmAddress = social.addresses?.evm ?? null;
-  const solanaAddress = social.addresses?.solana ?? null;
+  // Who is signed in is always Decane's. Which wallet the app uses is the account's
+  // choice: by default Decane's, or the self-custody wallet once the account has
+  // switched to it. Everything that reads or spends the account's addresses follows
+  // this one answer, so reads and sends can never disagree about which wallet it is.
+  const custom = useCustomWallet();
+  const decaneEvm = social.addresses?.evm ?? null;
+  const evmAddress = custom.kind === "custom" ? (custom.addresses?.evm ?? null) : decaneEvm;
+  const solanaAddress =
+    custom.kind === "custom"
+      ? (custom.addresses?.solana ?? null)
+      : (social.addresses?.solana ?? null);
   // Addresses alone are not a session: after a tab closes, Decane remembers
   // WHO the user is but holds no JWT (needsReconnect), so every authed API
   // call would starve. Treating that state as signed-out routes the user
   // through /auth, where one passkey prompt or Google round trip restores a
   // real session.
-  const authenticated = social.addresses !== null && Boolean(evmAddress) && !social.needsReconnect;
+  const authenticated = social.addresses !== null && Boolean(decaneEvm) && !social.needsReconnect;
 
   // Read off the access token, since the kit exposes no user object. The
   // token can be null for a render while the kit rotates it; the id does not

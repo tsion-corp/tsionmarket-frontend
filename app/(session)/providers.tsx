@@ -17,6 +17,9 @@ import { AddressBarReferral } from "@/components/layout/address-bar-referral";
 import { SignInModalHost } from "@/components/auth/sign-in-modal-host";
 import { FundsModalHost } from "@/components/layout/funds-modal-host";
 import { ClarityIdentity } from "@/components/providers/clarity-identity";
+import { CustomWalletBanner } from "@/components/layout/custom-wallet-banner";
+import { WalletPriorityHost } from "@/components/layout/wallet-priority-host";
+
 // Deep import, not the barrel, for the reason given for the casino import
 // below: this provider is on every session route.
 import { DepositBalanceRefresh } from "@/features/activity/components/deposit-balance-refresh";
@@ -63,6 +66,13 @@ const MigrationOAuthReturnHost = dynamic(
 // open by the offer, or opened by a door (the balance card, the account
 // menu, the way back from the old sign-in) from any signed-in route. Deferred
 // for the same reason as the return host: it mounts the old provider's SDK.
+const LegacyFundsNoticeHost = dynamic(
+  () =>
+    import("@/features/wallet-upgrade/components/legacy-funds-notice").then(
+      (m) => m.LegacyFundsNotice
+    ),
+  { ssr: false }
+);
 const MigrationGateHost = dynamic(() => import("@/components/layout/migration-gate-host"), {
   ssr: false,
 });
@@ -197,6 +207,9 @@ export function SessionProviders({ children }: { children: React.ReactNode }) {
           <AddressBarReferral />
           {/* The sign-in over any page, opened by the Sign in button and by
               every action that needs a session. */}
+          <CustomWalletBanner />
+          <WalletPriorityHost />
+          <LegacyFundsNoticeHost />
           <SignInModalHost />
           <FundsModalHost />
         </BalanceVisibilityProvider>

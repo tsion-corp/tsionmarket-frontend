@@ -2,6 +2,8 @@
 
 import { useCallback } from "react";
 import { useSocialWallet } from "decane-connect-kit";
+import { useWalletSigner } from "@/hooks/use-wallet-signer";
+import type { WalletSigner } from "@/lib/signer/types";
 import type { EIP1193Provider, SignedAuthorization } from "viem";
 import { recordSelfInitiated } from "@/lib/analytics/self-initiated";
 import { ensureUnlocked } from "@/lib/decane";
@@ -25,7 +27,17 @@ export interface EvmSendInput {
   gasLimit?: bigint;
 }
 
-type SocialWallet = ReturnType<typeof useSocialWallet>;
+// The wallet that signs: Decane, or the self-custody wallet when the account has switched to it.
+type SocialWallet = WalletSigner;
+
+/**
+ * By default a send is signed by the wallet the app is using. A flow that must sign with
+ * a particular wallet whatever the app is using (moving funds OUT of the Decane wallet,
+ * say) names it here.
+ */
+export interface SendOptions {
+  wallet?: WalletSigner;
+}
 
 // Bridges Decane's 7702 authorization signer to the shape the sponsor flow
 // expects. Decane needs the nonce and chain id it is signing for; the sponsor
@@ -73,8 +85,8 @@ export interface EvmSendResult {
   logs: ReceiptLog[] | null;
 }
 
-export function useEvmSend() {
-  const sendWithReceipt = useEvmSendWithReceipt();
+export function useEvmSend(options?: SendOptions) {
+  const sendWithReceipt = useEvmSendWithReceipt(options);
   return useCallback(
     async (input: EvmSendInput): Promise<`0x${string}`> => (await sendWithReceipt(input)).hash,
     [sendWithReceipt]
@@ -83,8 +95,11 @@ export function useEvmSend() {
 
 // The same send, also handing back what the receipt recorded, for a caller
 // that wants to read a delivery off it instead of paying for balance reads.
-export function useEvmSendWithReceipt() {
-  const wallet = useSocialWallet();
+export function useEvmSendWithReceipt(options?: SendOptions) {
+  const active = useWalletSigner();
+  const wallet = options?.wallet ?? active;
+  // The session token that authenticates the user to our own APIs is always Decane's.
+  const decane = useSocialWallet();
 
   return useCallback(
     async ({
@@ -102,7 +117,7 @@ export function useEvmSendWithReceipt() {
       // user-paid path instead of failing.
       const sponsored = hasGasPolicyForChainId(chainId) ? getSponsoredEvmChainById(chainId) : null;
       if (sponsored) {
-        const accessToken = wallet.getAccessToken();
+        const accessToken = decane.getAccessToken();
         if (!accessToken) throw new Error("Your session expired. Sign in again.");
         const provider = wallet.getEthereumProvider({ chainId }) as unknown as EIP1193Provider;
         try {
@@ -141,7 +156,7 @@ export function useEvmSendWithReceipt() {
       recordSelfInitiated([hash]);
       return { hash: hash as `0x${string}`, logs: null };
     },
-    [wallet]
+    [wallet, decane]
   );
 }
 
@@ -153,8 +168,10 @@ export type { EvmBatchCall } from "@/lib/migration/types";
 // chain. Used where a flow would otherwise need sequential dependent
 // transactions (approve, then consume the allowance): batching removes the
 // in-between state and keeps the user to one signature.
-export function useEvmSendBatch() {
-  const wallet = useSocialWallet();
+export function useEvmSendBatch(options?: SendOptions) {
+  const active = useWalletSigner();
+  const wallet = options?.wallet ?? active;
+  const decane = useSocialWallet();
 
   return useCallback(
     async (
@@ -171,7 +188,7 @@ export function useEvmSendBatch() {
       if (calls.length === 0) throw new Error("Nothing to send.");
       const from = connectedEvmAddress(wallet, expectedAddress);
       await ensureUnlocked(wallet);
-      const accessToken = wallet.getAccessToken();
+      const accessToken = decane.getAccessToken();
       if (!accessToken) throw new Error("Your session expired. Sign in again.");
       const provider = wallet.getEthereumProvider({ chainId }) as unknown as EIP1193Provider;
       const { transactionHash: hash } = await sendSponsoredEvmCallsWithReceipt({
@@ -189,6 +206,6 @@ export function useEvmSendBatch() {
       recordSelfInitiated([hash]);
       return hash;
     },
-    [wallet]
+    [wallet, decane]
   );
 }
