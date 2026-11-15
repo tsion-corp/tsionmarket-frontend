@@ -1,5 +1,6 @@
 "use client";
 
+import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useTranslations } from "next-intl";
 import { openSignIn } from "@/hooks/use-sign-in";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
@@ -148,6 +149,7 @@ export function KashCardMobile({ onBuy, onSend, onConvert, onHistory }: KashCard
                   <span className="tnum">${unitPrice}</span>
                 </div>
               )}
+              <WskAddressPill className="mt-[3cqw] max-w-[88%]" />
             </>
           )}
         </div>

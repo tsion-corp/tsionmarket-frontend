@@ -8,6 +8,7 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { SyncingValue } from "@/components/ui/syncing-value";
 import { reverseResolveArkAddress } from "@/lib/bns/api";
 import { AddToMetaMaskButton } from "@/features/portfolio/components/add-to-metamask-button";
+import { WskAddressPill } from "@/features/portfolio/components/wsk-address-pill";
 import { useKashSyncing } from "@/features/portfolio/hooks/use-kash-sync";
 import {
   useKashAccount,
@@ -283,6 +284,8 @@ export function KashCard({
                 <CopyButton value={arkName} size="sm" tone="ink" toastMessage={tc("copied")} />
               </div>
             ) : null}
+            {/* The new wallet's Intertrain address, where this card's Kash is received. */}
+            <WskAddressPill className="mt-2.5" />
           </>
         )}
       </div>
