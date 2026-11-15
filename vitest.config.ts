@@ -43,6 +43,7 @@ export default defineConfig({
   resolve: { alias: aliases },
   test: {
     ...shared,
+    maxWorkers: 4,
     projects: [
       {
         extends: true,

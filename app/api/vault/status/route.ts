@@ -34,7 +34,7 @@ interface ChainGameStatus {
   king: string;
 }
 
-export function decodeGameStatus(result: unknown): ChainGameStatus | null {
+function decodeGameStatus(result: unknown): ChainGameStatus | null {
   if (typeof result !== "string" || !result.startsWith("0x")) return null;
   const body = result.slice(2);
   const endTimeWord = word(body, 1);

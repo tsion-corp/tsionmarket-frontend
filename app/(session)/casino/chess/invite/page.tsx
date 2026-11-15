@@ -1,11 +1,5 @@
 import { ChessLobbyFrame } from "@/features/casino/components/chess-app/chess-lobby-frame";
-
-export function chessInviteSource(code?: string | string[]) {
-  const inviteCode = Array.isArray(code) ? code[0] : code;
-  return inviteCode
-    ? `/api/chess/challenge/invite/${encodeURIComponent(inviteCode)}`
-    : "/api/chess/play?setup=friend#game-setup";
-}
+import { chessInviteSource } from "@/features/casino/lib/chess-lobby-source";
 
 export default async function ChessInvitePage({
   searchParams,
