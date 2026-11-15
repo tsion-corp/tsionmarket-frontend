@@ -2,7 +2,6 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getRequestIdentity, verifyRequest } from "@/lib/server/auth";
 import { isAllowedPerpPath, perpRevalidate, wsapiPerpRequest } from "@/lib/server/wsapi";
 import { linkedLegacyEvmAddress } from "@/lib/server/migration";
-import { isRegisteredWallet } from "@/lib/server/wallet-ownership";
 
 // Server-side proxy for the perp gateway (Hyperliquid perpetuals, the Ark
 // service). Reads are public market data; the prepare/submit pairs are POSTs
@@ -41,11 +40,11 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
       // through Privy for a Privy one. The old Privy-only lookup returned null
       // for a Decane caller and rejected their own wallet as somebody else's.
       const wallet = (await getRequestIdentity(req, claims))?.evmAddress ?? null;
-      const ownsClaimed =
-        typeof claimed === "string" &&
-        ((wallet !== null && claimed.toLowerCase() === wallet.toLowerCase()) ||
-          (await isRegisteredWallet(claims, claimed)));
-      if (!ownsClaimed) {
+      if (
+        typeof claimed !== "string" ||
+        !wallet ||
+        claimed.toLowerCase() !== wallet.toLowerCase()
+      ) {
         return NextResponse.json(
           {
             success: false,
@@ -70,9 +69,7 @@ async function proxy(req: NextRequest, path: string[], method: "GET" | "POST", b
     const claims = await verifyRequest(req);
     const wallet = claims ? ((await getRequestIdentity(req, claims))?.evmAddress ?? null) : null;
     const asked = addressMatch[1]!.toLowerCase();
-    const own =
-      (wallet !== null && asked === wallet.toLowerCase()) ||
-      (claims !== null && (await isRegisteredWallet(claims, asked)));
+    const own = wallet !== null && asked === wallet.toLowerCase();
     // The old wallet this session is linked to is the same person's: the
     // upgrade reads its positions and margin before flattening it. Asked of
     // the migration service only when the address is not the session's own,

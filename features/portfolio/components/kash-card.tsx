@@ -284,12 +284,10 @@ export function KashCard({
                 <CopyButton value={arkName} size="sm" tone="ink" toastMessage={tc("copied")} />
               </div>
             ) : null}
+            {/* The new wallet's Intertrain address, where this card's Kash is received. */}
+            <WskAddressPill className="mt-2.5" />
           </>
         )}
-        {/* The new wallet's Intertrain address, where this card's Kash is received. Outside the
-            balance states on purpose: the address does not depend on the Kash+ read, so it
-            shows whether that is loading, failed or signed out. */}
-        {!signedOut ? <WskAddressPill className="mt-2.5" /> : null}
       </div>
 
       {/* The design runs the card's actions the full width, so they share the

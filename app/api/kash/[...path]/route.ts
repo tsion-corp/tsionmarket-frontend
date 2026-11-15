@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getRequestIdentity, verifyRequest } from "@/lib/server/auth";
-import { isRegisteredWallet } from "@/lib/server/wallet-ownership";
 import { wsapiService } from "@/lib/wsapi-base";
 
 // Server-side proxy for the Kash rewards engine (buy KSH, earn on activity,
@@ -145,10 +144,8 @@ async function walletGate(req: NextRequest, claimed: string | null): Promise<Nex
   // session, after it had already authenticated.
   const identity = await getRequestIdentity(req, claims);
   const wallet = identity?.evmAddress ?? null;
-  if (wallet && claimed.toLowerCase() === wallet.toLowerCase()) return null;
-  // The new wallet's own addresses are this person's too, once the wallet service says so.
-  if (await isRegisteredWallet(claims, claimed)) return null;
-  return forbidden();
+  if (!wallet || claimed.toLowerCase() !== wallet.toLowerCase()) return forbidden();
+  return null;
 }
 
 // Referral routes where the engine identifies the caller by verifying the
