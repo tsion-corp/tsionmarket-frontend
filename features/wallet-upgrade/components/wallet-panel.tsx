@@ -241,14 +241,10 @@ function UseInApp({ uid }: { uid: string }) {
   if (kind === "custom") {
     return (
       <div className={`${WELL} flex flex-col gap-3 px-4 py-4`}>
-        <p className={BODY}>The app is using this wallet.</p>
-        <button
-          type="button"
-          className={SECONDARY}
-          onClick={() => setActiveWalletKind(uid, "decane")}
-        >
-          Go back to my old wallet
-        </button>
+        <p className={BODY}>
+          The app is using this wallet. Your old wallet is still there, under Legacy Wallet in the
+          menu, so you can move what is left in it across.
+        </p>
       </div>
     );
   }

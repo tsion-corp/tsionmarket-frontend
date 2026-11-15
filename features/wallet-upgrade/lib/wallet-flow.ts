@@ -1,3 +1,4 @@
+import { markHasCustomWallet } from "@/lib/signer/preference";
 import {
   createBackup,
   createWallet,
@@ -175,6 +176,8 @@ export async function backupFile(deps: Deps): Promise<{ filename: string; text: 
 function remember(uid: string, wallet: ServerWallet): void {
   try {
     setCustomWalletSession({ uid, pkg: checked(wallet) });
+    // From here the new wallet is the one the app uses.
+    markHasCustomWallet(uid);
   } catch {
     // Never use a package that fails its own checks.
   }

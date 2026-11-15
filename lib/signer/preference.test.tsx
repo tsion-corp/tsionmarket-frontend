@@ -91,3 +91,37 @@ describe("which wallet the app uses", () => {
     expect(off.getActiveWalletKindWhileIdUnknown()).toBe("decane");
   });
 });
+
+describe("the new wallet comes first once an account has one", () => {
+  it("is used whatever was chosen before, and only for that account", async () => {
+    const on = await load("true");
+    expect(on.hasCustomWallet(UID)).toBe(false);
+    expect(on.getActiveWalletKind(UID)).toBe("decane");
+    on.markHasCustomWallet(UID);
+    expect(on.hasCustomWallet(UID)).toBe(true);
+    expect(on.getActiveWalletKind(UID)).toBe("custom");
+    // An old "go back to the old wallet" choice no longer outranks it.
+    on.setActiveWalletKind(UID, "decane");
+    expect(on.getActiveWalletKind(UID)).toBe("custom");
+    expect(on.getActiveWalletKind("user-2")).toBe("decane");
+  });
+
+  it("counts while the account id is still unknown, and not at all with the switch off", async () => {
+    const on = await load("true");
+    on.markHasCustomWallet(UID);
+    expect(on.getActiveWalletKindWhileIdUnknown()).toBe("custom");
+    const off = await load("false");
+    expect(off.getActiveWalletKind(UID)).toBe("decane");
+    expect(off.getActiveWalletKindWhileIdUnknown()).toBe("decane");
+  });
+
+  it("tells listeners when an account is first marked", async () => {
+    const on = await load("true");
+    const listener = vi.fn();
+    const stop = on.subscribeActiveWalletKind(listener);
+    on.markHasCustomWallet(UID);
+    on.markHasCustomWallet(UID);
+    expect(listener).toHaveBeenCalledTimes(1);
+    stop();
+  });
+});

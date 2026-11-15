@@ -11,13 +11,41 @@ export type ActiveWalletKind = "decane" | "custom";
 
 const EVENT = "ark:active-wallet-changed";
 const keyFor = (uid: string) => `ark:active-wallet:${uid}`;
+// Set once an account is known to have a new wallet. From then on the new wallet is the one the
+// app uses: it always comes before the Decane wallet, which stays reachable as the Legacy Wallet.
+const HAS_PREFIX = "ark:has-custom-wallet:";
+const hasKeyFor = (uid: string) => `${HAS_PREFIX}${uid}`;
 
 /** Read literally so Next inlines it at build time. */
 export const walletSwitchEnabled = (): boolean =>
   process.env.NEXT_PUBLIC_WALLET_SWITCH_ENABLED?.trim().toLowerCase() === "true";
 
+/** Whether this account is known, on this device, to have a new wallet. */
+export function hasCustomWallet(uid: string | null): boolean {
+  if (!uid || typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(hasKeyFor(uid)) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Remember that this account has a new wallet, which makes it the wallet the app uses. */
+export function markHasCustomWallet(uid: string): void {
+  if (typeof window === "undefined" || hasCustomWallet(uid)) return;
+  try {
+    window.localStorage.setItem(hasKeyFor(uid), "1");
+  } catch {
+    // Storage blocked: it is learned again on the next visit.
+  }
+  window.dispatchEvent(new Event(EVENT));
+}
+
 export function getActiveWalletKind(uid: string | null): ActiveWalletKind {
   if (!walletSwitchEnabled() || !uid || typeof window === "undefined") return "decane";
+  // The new wallet always comes first once there is one. An older "use the old wallet" choice
+  // no longer outranks it: the old wallet is the Legacy Wallet, a place to move funds out of.
+  if (hasCustomWallet(uid)) return "custom";
   try {
     return window.localStorage.getItem(keyFor(uid)) === "custom" ? "custom" : "decane";
   } catch {
@@ -37,8 +65,9 @@ export function getActiveWalletKindWhileIdUnknown(): ActiveWalletKind {
     for (let i = 0; i < window.localStorage.length; i += 1) {
       const name = window.localStorage.key(i);
       if (
-        name?.startsWith("ark:active-wallet:") &&
-        window.localStorage.getItem(name) === "custom"
+        (name?.startsWith("ark:active-wallet:") &&
+          window.localStorage.getItem(name) === "custom") ||
+        (name?.startsWith(HAS_PREFIX) && window.localStorage.getItem(name) === "1")
       ) {
         return "custom";
       }
