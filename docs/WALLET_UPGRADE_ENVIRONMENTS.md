@@ -134,3 +134,46 @@ an operator switched on.
 
 **What does not move.** Balances the platform keeps in its own accounts (game credits, Kash, rewards) are keyed to
 the old wallet's address and stay with it until a re-key carries them across. Switching is reversible from the same card.
+
+## Production checklist for the new wallet (Decane sign-in)
+
+Everything below is read by this frontend. `NEXT_PUBLIC_*` values are inlined at build time, so they
+must be set in the build environment, not only at run time.
+
+**Required**
+
+| Variable                                | Production value                                                          |
+| --------------------------------------- | ------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_WALLET_SWITCH_ENABLED`     | `true` (off keeps the app on Decane whatever else is set)                 |
+| `NEXT_PUBLIC_WALLET_UPGRADE_ENABLED`    | `true`                                                                    |
+| `NEXT_PUBLIC_CRYPTO_BACKEND_ENABLED`    | `true`                                                                    |
+| `NEXT_PUBLIC_WALLET_UPGRADE_MOVE_FUNDS` | `true`                                                                    |
+| `NEXT_PUBLIC_WALLET_UPGRADE_AUTH`       | `decane`                                                                  |
+| `NEXT_PUBLIC_DEPLOY_ENV`                | `production` (anything else makes moves a rehearsal)                      |
+| `CRYPTO_WALLET_API_URL`                 | `https://api.tsionark.com/v1/crypto-wallet` (server only)                 |
+| `WALLET_INTERNAL_KEY`                   | The same 32+ character secret the crypto-wallet service has (server only) |
+| `MIGRATION_SERVICE_ENABLED`             | `1`; leave `MIGRATION_API_URL` unset to use the gateway                   |
+
+Leave unset in production: `WALLET_UPGRADE_ALLOW_PROD_UPSTREAM`, `NEXT_PUBLIC_WALLET_UPGRADE_DRY_RUN`
+(set it to `true` only to rehearse a first production pass). Clerk keys are not needed while Decane
+is the sign-in.
+
+**Paying its own gas.** Arbitrum is gas-sponsored through the Alchemy Gas Manager
+(`ALCHEMY_GAS_POLICY_ID`, paired with the Alchemy keys); the policy must include Arbitrum One and have
+budget. A send the wallet pays for itself (Ethereum mainnet, or where sponsorship is refused) goes
+through a broadcast endpoint per network, server side only, set to a paid RPC:
+`EVM_BROADCAST_RPC_BASE_MAINNET`, `EVM_BROADCAST_RPC_ETH_MAINNET`, `EVM_BROADCAST_RPC_ARB_MAINNET`.
+A network without its variable cannot send user-paid.
+
+**Kash (Intertrain), optional**
+
+| Variable                         | Default                                                                                                |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_INTERTRAIN_RPC_URL` | `https://rpc.intertrain.online/rpc`; use a node of our own for load                                    |
+| `KESP_API_URL`                   | `https://crypto-backend.worldstreetgold.com/v1` (the naira order service, reached through `/api/kesp`) |
+
+**Already needed by the app today:** the `DECANE_*` keys and the production Decane callback and origins,
+Alchemy, Dextopus and the gas-sponsor policy.
+
+**Before turning it on:** merge and deploy this branch; keep the crypto-wallet service on the Decane
+build; back up its database (it holds the only copy of the encrypted wallets); check the Alchemy policy.
