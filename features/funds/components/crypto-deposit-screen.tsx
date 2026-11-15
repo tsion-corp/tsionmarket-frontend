@@ -11,6 +11,8 @@ import { SearchIcon } from "@/components/ui/icons";
 import { useModalScreen } from "@/components/ui/modal-shell";
 import { filterChains, filterTokens } from "@/features/funds/lib/search";
 import { useDepositChains, useDepositTokens, useStaticDepositAddress } from "@/hooks/use-deposit";
+import { useDepositArrival } from "@/features/funds/hooks/use-deposit-arrival";
+import { CheckIcon } from "@/components/ui/icons";
 import { usePortfolio } from "@/hooks/use-portfolio";
 
 import { isRefundOptional, originFamily, refundChainType } from "@/lib/deposit-catalog";
@@ -390,6 +392,12 @@ function DepositAddressView({
       : null;
 
   const staticAddr = useStaticDepositAddress(req);
+  // Watches the USDC the deposit settles into, while this screen shows the address.
+  const arrival = useDepositArrival({
+    network: settle.alchemyNetwork,
+    asset: settle.usdc,
+    enabled: staticAddr.data !== undefined,
+  });
 
   // The address, the code and the warnings are the whole screen: it takes the
   // phone and fits inside it, so nobody has to scroll to reach the address.
@@ -517,10 +525,27 @@ function DepositAddressView({
         </p>
       </div>
 
-      {/* Waiting */}
-      <div className="mt-3 flex shrink-0 items-center justify-center gap-2 text-[13px] font-normal text-white/50">
-        <span className="bg-accent size-1.5 animate-pulse rounded-full" />
-        Waiting for your deposit…
+      {/* Arrival: waiting, received, or stopped watching */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="mt-3 flex shrink-0 items-center justify-center gap-2 text-[13px] font-normal text-white/50"
+      >
+        {arrival.state === "received" ? (
+          <span className="flex items-center gap-2 font-medium text-[#5dd9a3]">
+            <CheckIcon size={14} />
+            Deposit received: {formatArrival(arrival.raw, arrival.decimals)} USDC
+          </span>
+        ) : arrival.state === "stopped" ? (
+          <span>
+            Still nothing yet. It can take a while; it will show in your balance when it lands.
+          </span>
+        ) : (
+          <>
+            <span className="bg-accent size-1.5 animate-pulse rounded-full" />
+            Waiting for your deposit…
+          </>
+        )}
       </div>
 
       {/* Bottom buttons */}
@@ -537,4 +562,11 @@ function DepositAddressView({
       </div>
     </div>
   );
+}
+
+// 2827234n with 6 decimals -> "2.83": a deposit is shown to the cent, never rounded up.
+function formatArrival(raw: bigint, decimals: number): string {
+  const unit = 10n ** BigInt(decimals);
+  const cents = (raw * 100n) / unit;
+  return `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`;
 }
